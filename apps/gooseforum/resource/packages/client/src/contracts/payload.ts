@@ -276,8 +276,6 @@ export interface WikiTreeNode {
 export interface WikiTreeNamespace {
   name: string
   label: string
-  /** 有效 URL key（slug，未分配时降级=显示名）；拼 /wiki/{slug}/{page.path} 用。 */
-  slug: string
   nodes: WikiTreeNode[]
 }
 
@@ -1034,9 +1032,7 @@ export interface WikiNamespacePayload {
   description: string
   pageCount: number
   updatedAt: string
-  /** 有效 URL key（slug，未分配时降级=显示名）。 */
-  slug: string
-  /** 首个 approved 页面的完整路径（namespace/slug），供首页 namespace 卡跳转。 */
+  /** 首个 approved 页面的完整路径（首段 = 命名空间目录名），供首页 namespace 卡跳转。 */
   firstPagePath?: string
 }
 

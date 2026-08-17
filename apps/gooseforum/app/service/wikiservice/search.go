@@ -4,7 +4,6 @@ import (
 	"sort"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 )
@@ -117,11 +116,8 @@ func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 	return result, nil
 }
 
-// displayNamespaceName 输出命名空间显示名（wiki_namespaces.name，降级=URL key）。
+// displayNamespaceName 输出命名空间显示名。slug 机制移除后 namespace 列即
+// 仓库顶层目录名（显示名 = 目录名 = URL 首段），直接输出（与 LoadPageDetail 一致）。
 func displayNamespaceName(page *wikiPages.Entity) string {
-	// 模型层命名空间列存 URL key；显示名反查（与 LoadPageDetail 一致）。
-	if ns := wikiNamespaces.GetBySlug(page.Namespace); ns.Id != 0 && ns.Name != "" {
-		return ns.Name
-	}
 	return page.Namespace
 }

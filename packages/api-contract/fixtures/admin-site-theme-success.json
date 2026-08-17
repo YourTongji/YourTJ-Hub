@@ -1,0 +1,82 @@
+{
+  "result": {
+    "version": 3,
+    "enabled": true,
+    "themes": [
+      {
+        "name": "gf-light",
+        "label": "契约亮色",
+        "colorScheme": "light",
+        "tokens": {
+          "color-base-100": "#ffffff",
+          "color-base-200": "#f6f6f6",
+          "color-base-300": "#e6e6e6",
+          "color-base-content": "#1a1a1a",
+          "color-icon-muted": "#6b6b6b",
+          "color-line": "#d6d6d6",
+          "color-primary": "#2563eb",
+          "color-primary-content": "#ffffff",
+          "color-secondary": "#0d9488",
+          "color-secondary-content": "#ffffff",
+          "color-accent": "#7c3aed",
+          "color-accent-content": "#ffffff",
+          "color-neutral": "#374151",
+          "color-neutral-content": "#ffffff",
+          "color-info": "#0284c7",
+          "color-info-content": "#ffffff",
+          "color-success": "#16a34a",
+          "color-success-content": "#ffffff",
+          "color-warning": "#d97706",
+          "color-warning-content": "#1a1a1a",
+          "color-error": "#dc2626",
+          "color-error-content": "#ffffff",
+          "radius-selector": "0.5rem",
+          "radius-field": "0.25rem",
+          "radius-box": "0.75rem",
+          "size-selector": "0.25rem",
+          "size-field": "0.25rem",
+          "border": "1px",
+          "depth": "0"
+        }
+      },
+      {
+        "name": "gf-dark",
+        "label": "契约暗色",
+        "colorScheme": "dark",
+        "tokens": {
+          "color-base-100": "#1f2937",
+          "color-base-200": "#111827",
+          "color-base-300": "#030712",
+          "color-base-content": "#f9fafb",
+          "color-icon-muted": "#9ca3af",
+          "color-line": "#374151",
+          "color-primary": "#3b82f6",
+          "color-primary-content": "#ffffff",
+          "color-secondary": "#14b8a6",
+          "color-secondary-content": "#ffffff",
+          "color-accent": "#8b5cf6",
+          "color-accent-content": "#ffffff",
+          "color-neutral": "#4b5563",
+          "color-neutral-content": "#ffffff",
+          "color-info": "#38bdf8",
+          "color-info-content": "#ffffff",
+          "color-success": "#22c55e",
+          "color-success-content": "#ffffff",
+          "color-warning": "#f59e0b",
+          "color-warning-content": "#1a1a1a",
+          "color-error": "#ef4444",
+          "color-error-content": "#ffffff",
+          "radius-selector": "0.5rem",
+          "radius-field": "0.25rem",
+          "radius-box": "0.75rem",
+          "size-selector": "0.25rem",
+          "size-field": "0.25rem",
+          "border": "1px",
+          "depth": "0"
+        }
+      }
+    ],
+    "publishedAt": "2026-01-02T03:04:05Z"
+  },
+  "code": 0
+}

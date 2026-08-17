@@ -1,0 +1,24 @@
+{
+  "result": {
+    "list": [
+      {
+        "userId": 8011,
+        "username": "list_target",
+        "avatarUrl": "/static/pic/default-avatar.webp",
+        "email": "list-target@example.test",
+        "status": 0,
+        "actorType": 0,
+        "validate": 1,
+        "prestige": 0,
+        "roleList": null,
+        "createTime": "2026-08-01T08:00:00Z",
+        "lastActiveTime": "2026-08-15T09:00:00Z",
+        "badges": []
+      }
+    ],
+    "page": 0,
+    "size": 10,
+    "total": 1
+  },
+  "code": 0
+}

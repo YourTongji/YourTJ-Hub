@@ -430,6 +430,1368 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/topics/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlist or republish an own topic
+         * @description Idempotent status toggle owned by the topic author: setting the current status
+         *     again is a no-op success. Wiki subsite topics are managed by the wiki revision
+         *     flow and are rejected with `topic.operationDenied`; republishing a topic under
+         *     moderation is rejected the same way. JSON binding is lenient: a malformed body
+         *     binds to zero values and fails validation as `common.request.invalidParams`
+         *     (HTTP 200) because topicId is required. Business failures: `topic.notFound`,
+         *     `topic.operationDenied`, `common.request.invalidParams`.
+         */
+        post: operations["updateTopicStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Soft-delete an own topic
+         * @description Soft-deletes a topic owned by the caller with tombstone semantics: a topic
+         *     without replies disappears with its posts; a topic with replies keeps other
+         *     users' replies visible behind an author-deleted placeholder. Note the route
+         *     shares the generic interaction rate limit (action `interact`), not a dedicated
+         *     delete limit. Burst deletion beyond the server threshold requires
+         *     force+password confirmation (`content.batchDelete.confirmRequired`, params
+         *     count; a wrong password fails with `auth.credentials.invalid`). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because topicId is required. Business
+         *     failures: `topic.notFound`, `topic.ownerMismatch`.
+         */
+        post: operations["deleteTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Like or unlike a topic
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing like stays
+         *     allowed even when the topic has since been hidden, so counters never get stuck.
+         *     JSON binding is lenient: a malformed body binds to zero values and the request
+         *     then fails as `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+         *     `topic.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["likeTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a topic
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing bookmark
+         *     stays allowed even when the topic has since been hidden. JSON binding is lenient:
+         *     a malformed body binds to zero values and the request then fails as
+         *     `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+         *     `topic.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["bookmarkTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/watch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Watch or unwatch a topic
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing watch stays
+         *     allowed even when the topic has since been hidden. JSON binding is lenient: a
+         *     malformed body binds to zero values and the request then fails as
+         *     `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+         *     `topic.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["watchTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a reply post in a topic
+         * @description Creates a reply (postNo 2 or higher) in a visible topic. JSON binding is lenient:
+         *     a malformed body binds to zero values and the request then fails as
+         *     `topic.notFound` (HTTP 200) rather than a 400. A populated `website` honeypot
+         *     field silently succeeds with result true and creates nothing. New accounts may
+         *     be challenged with a captcha (`common.captchaRequired`, params action=post.create;
+         *     a wrong or expired code fails with `auth.captcha.invalid`) or delayed by a posting
+         *     cooldown (`comment.post.cooldown`, params minutes/availableAt). When mandatory
+         *     email verification is enabled, unverified accounts fail with
+         *     `permission.emailRequired` (HTTP 200, params action=评论, actionCode=comment).
+         *     Content length violations fail with `comment.content.tooShort` /
+         *     `comment.content.tooLong` (params minLength/maxLength).
+         */
+        post: operations["createPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit an own post and append a revision
+         * @description Replaces the content of a post owned by the caller and appends a version-history
+         *     entry in the same transaction. Editing the first post also refreshes the topic
+         *     excerpt/imagery and search document; the wiki subsite first post is owned by the
+         *     wiki revision flow and is rejected with `topic.operationDenied`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails as `post.notFound`
+         *     (HTTP 200). Other business failures: `post.notFound`, `topic.operationDenied`,
+         *     `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength).
+         */
+        post: operations["updatePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Soft-delete an own reply post
+         * @description Soft-deletes a reply (postNo 2 or higher) owned by the caller; deletion is
+         *     idempotent and keeps a tombstone so the discussion tree stays intact. The topic
+         *     first post is rejected as `post.notFound` (delete the topic instead). JSON binding
+         *     is lenient: a malformed body binds to zero values and fails as `post.notFound`
+         *     (HTTP 200). Burst deletion beyond the server threshold requires force+password
+         *     confirmation (`content.batchDelete.confirmRequired`, params count; a wrong
+         *     password fails with `auth.credentials.invalid`). Other business failures:
+         *     `topic.operationDenied` for someone else's post.
+         */
+        post: operations["deletePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a window of posts around an anchor or page boundary
+         * @description Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes
+         *     viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); anonymous callers
+         *     receive the same posts. Query binding is strict: malformed values fail with HTTP
+         *     400 and `common.request.parseFailed`. A missing/zero topicId, an unknown or
+         *     not-viewable topic fails with `topic.notFound` (HTTP 200); an anchor outside the
+         *     topic fails with `post.notFound` (HTTP 200). Positioning parameters are mutually
+         *     exclusive with priority anchorPostNo > anchorPostId > beforePostNo > afterPostNo;
+         *     without any of them the first page is returned. limit <= 0 or > 50 falls back to
+         *     the server default (20).
+         */
+        get: operations["getPostWindow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the version history of a post
+         * @description Public read endpoint: any caller who can view the topic can read the history.
+         *     An optional valid JWT (cookie or Bearer) only affects masking; revisions of
+         *     deleted posts and pending/blocked revisions are masked (empty content, zero
+         *     editor payload) for non-moderators. Query binding is strict: malformed values
+         *     fail with HTTP 400 and `common.request.parseFailed`. A missing/zero postId or an
+         *     unknown post fails with `post.notFound` (HTTP 200). Pages follow the version
+         *     cursor: omit beforeVersion (or send 0) for the newest page, then pass the
+         *     returned beforeVersion for older pages.
+         */
+        get: operations["getPostRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Like or unlike a post
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing like stays
+         *     allowed even when the topic has since been hidden, so counters never get stuck.
+         *     JSON binding is lenient: a malformed body binds to zero values and fails
+         *     validation as `common.request.invalidParams` (HTTP 200) because postId is
+         *     required. Business failures: `post.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["likePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a post
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing bookmark
+         *     stays allowed even when the topic has since been hidden. JSON binding is lenient:
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because postId is required. Business
+         *     failures: `post.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["bookmarkPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/follow-user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Follow or unfollow a user
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. JSON binding is lenient: a malformed body binds to zero values
+         *     and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
+         *     Business failures: `user.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["followUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a topic or post to moderators
+         * @description Files a moderation report against a visible topic or post and snapshots the
+         *     target content as evidence at creation time. One open report per reporter and
+         *     target: a second report for the same target fails with `report.duplicate`
+         *     (HTTP 200). Reporting own content fails with `report.ownContent`; an unknown or
+         *     not-viewable target fails with `report.targetInvalid`. JSON binding is lenient:
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["createReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/topic-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or unban a topic from the moderation workbench
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     (`CanModerateAnyCategory`: Admin, global moderator, or a moderator of one of the
+         *     topic's categories) — it does NOT use the role-permission middleware, so a
+         *     caller without moderation scope fails with HTTP 200 and `permission.denied`,
+         *     not 403. Unknown topics fail with `topic.notFound` (HTTP 200) before the
+         *     permission check. The operation is idempotent: re-applying the current status
+         *     returns true. JSON binding is lenient: a malformed body binds to zero values
+         *     and fails validation as `common.request.invalidParams` (HTTP 200). Other
+         *     business failures: `common.operation.failed` (HTTP 200).
+         */
+        post: operations["moderationUpdateTopicStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/post-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or unban a reply post from the moderation workbench
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     against the categories of the post's topic (`CanModerateAnyCategory`) — it does
+         *     NOT use the role-permission middleware, so a caller without moderation scope
+         *     fails with HTTP 200 and `permission.denied`, not 403. Unknown posts fail with
+         *     `post.notFound` (HTTP 200) before the permission check. The operation is
+         *     idempotent: re-applying the current status returns true. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200). Other business failures:
+         *     `common.operation.failed` (HTTP 200).
+         */
+        post: operations["moderationUpdatePostStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through the moderation report queue
+         * @description Read endpoint of the moderation workbench. Authorization is decided inside the
+         *     controller (`CanAccessModeration`: Admin or any moderator grant) — a caller
+         *     without moderation access fails with HTTP 200 and `permission.denied`, not 403.
+         *     Results are restricted to the caller's category scope; the optional category
+         *     filter is intersected with that scope. This route is mounted without the
+         *     writable-account middleware, so frozen accounts can still read the queue.
+         *     JSON binding is lenient: a malformed body binds to zero values and returns the
+         *     first page of open reports; an invalid status filter fails validation as
+         *     `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["listModerationReports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/report-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve or reject a report from the moderation workbench
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     against the categories of the report target (course-review reports instead
+         *     require the course-review moderation capability) — it does NOT use the
+         *     role-permission middleware, so a caller without scope over the target fails
+         *     with HTTP 200 and `permission.denied`, not 403. Unknown reports fail with
+         *     `report.notFound` (HTTP 200) before the permission check. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200). Other business failures:
+         *     `common.operation.failed` (HTTP 200).
+         */
+        post: operations["moderationUpdateReportStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through the moderation audit log
+         * @description Read endpoint of the moderation workbench. Authorization is decided inside the
+         *     controller (`CanAccessModeration` plus a non-empty moderation scope) — a caller
+         *     without moderation access fails with HTTP 200 and `permission.denied`, not 403.
+         *     Entries are restricted to the caller's category scope; Admins and global
+         *     moderators see all entries. This route is mounted without the writable-account
+         *     middleware, so frozen accounts can still read the log. JSON binding is lenient:
+         *     a malformed body binds to zero values and returns the first page.
+         */
+        post: operations["listModerationLogs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/view-deleted-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * View the raw content of a deleted topic or post (audited)
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     in two steps (`CanAccessModeration`, then `CanModerateAnyCategory` against the
+         *     content's categories) — it does NOT use the role-permission middleware, so a
+         *     caller without moderation scope fails with HTTP 200 and `permission.denied`,
+         *     not 403. The audit reason is mandatory and every view is written to the
+         *     moderation log. Unknown, still-visible, or permanently purged content fails
+         *     with `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200), which is also returned for a blank
+         *     reason or an unknown contentType.
+         */
+        post: operations["viewDeletedContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/get-captcha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generate a captcha challenge
+         * @description Fully public endpoint: no authentication, no rate limit, no input. Returns a
+         *     fresh captcha id plus the image as a `data:image/png;base64` data URI. The id
+         *     is echoed back as captchaId on captcha-guarded operations (for example
+         *     posts/create when risk controls request a captcha). This endpoint has no
+         *     business failure branch.
+         */
+        get: operations["getCaptcha"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the compact public profile card of a user
+         * @description Public read endpoint with no rate limit. Note the route group mounts no JWT
+         *     middleware, so the viewer-specific flags isSelf and isFollowing are always
+         *     false. Query binding is strict: a missing or non-numeric userId fails with
+         *     HTTP 400 and `common.request.parseFailed`. An unknown user id fails with
+         *     `user.notFound` (HTTP 200); a closed (soft-deleted) account instead returns a
+         *     successful minimal tombstone card (userId/avatarUrl/isAccountClosed set, the
+         *     remaining fields zero-valued).
+         */
+        get: operations["getUserCard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update the caller's profile fields
+         * @description Full-overwrite update of nickname/bio/signature/website/websiteName/
+         *     externalInformation; every field is optional in the request, and bio/signature
+         *     accept an empty string to clear the stored value. locale is applied only when
+         *     non-empty after trimming. JSON binding is lenient: a malformed body binds to
+         *     zero values and still succeeds as an all-empty overwrite. Business failures:
+         *     `user.fetchFailed`, `user.updateFailed`.
+         */
+        post: operations["setUserInfo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-profile-cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update the caller's profile cover image
+         * @description Sets the profile cover URL (trimmed server-side; an empty string clears the
+         *     cover). Accounts with RoleId 0 are rejected with `permission.denied` (HTTP
+         *     200). JSON binding is lenient: a malformed body binds to zero values and
+         *     clears the cover. Other business failures: `user.fetchFailed`,
+         *     `user.updateFailed`.
+         */
+        post: operations["setUserProfileCover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the caller's email address
+         * @description Changes the account email behind a password second-factor check. On success
+         *     the account activation state flips back to pending, an activation email is
+         *     sent to the new address, a change notification is queued to the old address,
+         *     and the new address cannot be used for forgot-password within 24 hours of the
+         *     change (EmailChangedAt cooldown). JSON binding is lenient: a malformed body
+         *     binds to zero values and fails validation as `common.request.invalidParams`
+         *     (HTTP 200). Business failures: `common.request.invalidParams`,
+         *     `auth.password.oldInvalid`, `auth.password.oauthRequired` (OAuth-only account
+         *     without a password), `auth.emailDomain.notAllowed`, `auth.email.exists`,
+         *     `user.fetchFailed`, `user.updateFailed`.
+         */
+        post: operations["setUserEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resend-activation-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend the account activation email
+         * @description Resends the activation email to the caller's pending-verification address.
+         *     The route mounts no rate-limit middleware; throttling is enforced inside the
+         *     service and surfaces as business failure codes: `auth.activation.disabled`
+         *     (site-wide email verification off), `auth.activation.alreadyVerified`,
+         *     `auth.activation.resendCooldown` (params retryAfterSeconds),
+         *     `auth.activation.resendDaily` (params limit, daily cap 3) and
+         *     `auth.activation.resendFailed`. The request takes no body.
+         */
+        post: operations["resendActivationEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the caller's username
+         * @description Renames the account. The new username must match `^[a-zA-Z0-9_-]{6,32}$`
+         *     (`auth.username.invalid`) and survives the reserved/banned lists
+         *     (`auth.username.reserved` / `auth.username.banned`) and the uniqueness check
+         *     (`auth.username.exists`). JSON binding is lenient: a malformed body binds to
+         *     zero values and fails validation as `common.request.invalidParams` (HTTP 200)
+         *     because username is required. Other business failures: `user.fetchFailed`,
+         *     `user.updateFailed`.
+         */
+        post: operations["setUserName"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-preset-avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch the caller to a built-in preset avatar
+         * @description Applies one of the twelve built-in avatars (/static/pic/1.webp through
+         *     /static/pic/12.webp); any other value fails with
+         *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation the same way because
+         *     avatarUrl is required. The success envelope carries no messageCode. Other
+         *     business failures: `user.fetchFailed`, `user.updateFailed`.
+         */
+        post: operations["setPresetAvatar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wear-badge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Wear or take off a badge
+         * @description Pins one of the caller's granted badges on the profile; an empty (or omitted)
+         *     badgeCode takes the current badge off. Every rejection — unknown code, badge
+         *     not owned, badge not wearable — collapses into `common.request.invalidParams`
+         *     (HTTP 200). JSON binding is lenient: a malformed body binds to zero values and
+         *     takes the badge off.
+         */
+        post: operations["wearBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/upload-avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a custom avatar image
+         * @description Multipart upload of a custom avatar. The `avatar` file part is required;
+         *     `avatarMedium` is an optional pre-cropped medium file stored alongside.
+         *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown`
+         *     (new-account upload cooldown, params minutes/availableAt),
+         *     `upload.file.missing`, `upload.filename.required`,
+         *     `upload.dailyLimit.avatar` (params count/fileCount), `upload.file.tooLarge`
+         *     (params maxSizeKb), `upload.extension.unsupported` (params extensions),
+         *     `upload.image.unsupported`, `upload.image.invalidContent`,
+         *     `upload.saveFailed` (params error). Frozen accounts are rejected by the
+         *     route-level CheckWritableAccount middleware with the standard params
+         *     action=写入 / actionCode=write (the controller's own 上传附件 /
+         *     uploadAttachment permission check is unreachable behind that middleware).
+         *     When the site mandates verified email, the same controller check can
+         *     reject pending-activation accounts with HTTP 403 `permission.emailRequired`.
+         */
+        post: operations["uploadAvatar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the caller's password
+         * @description Changes the account password. On success the account TokenVersion increments,
+         *     so every previously issued JWT — including the one used for this request —
+         *     is immediately invalid and no replacement token is minted; the client must log
+         *     in again. The new password must be 6-64 characters and contain at least one
+         *     letter and one digit (`auth.password.tooShort` params minLength=6,
+         *     `auth.password.tooLong`, `auth.password.needsLetterNumber`). Bot (Agent)
+         *     accounts are rejected with `auth.password.oldInvalid`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because both fields are required.
+         *     Other business failures: `auth.password.oldInvalid`,
+         *     `auth.password.updateFailed`.
+         */
+        post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/oauth/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's OAuth bindings
+         * @description Read-only endpoint guarded by authentication only (no writable-account
+         *     check), so frozen accounts can still read their binding state. The result is
+         *     keyed by provider and always carries the fixed github and google entries; a
+         *     bound entry includes provider/createdAt/updatedAt, an unbound entry is just
+         *     `{bound: false}`.
+         */
+        get: operations["getOAuthBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/{provider}/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unbind an OAuth provider from the caller's account
+         * @description Removes the OAuth binding named by the provider path parameter (the value is
+         *     not validated against a provider list). Unbinding the last remaining login
+         *     method — an account without an email address whose other OAuth bindings count
+         *     to zero — is refused, and any service-side failure surfaces as HTTP 200
+         *     `oauth.unbind.failed` with params error/provider. The request takes no body.
+         */
+        post: operations["unbindOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/unread-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's unread status flags
+         * @description Lightweight polling endpoint (mounts NoUpdateUserActivity, so polling does
+         *     not extend the caller's online presence). Reports unread notifications,
+         *     unread chat messages, and open moderation reports; latestNotificationType is
+         *     present only when an unread notification exists.
+         */
+        get: operations["getUnreadStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's notifications with cursor pagination
+         * @description Cursor-paginated notification feed (mounts NoUpdateUserActivity). Query
+         *     binding is strict: malformed values fail with HTTP 400 and
+         *     `common.request.parseFailed`. A filter outside ""/all/unread fails with
+         *     `common.request.invalidParams` (HTTP 200). limit <= 0 falls back to 20 and
+         *     values above 50 clamp to 50. A service-side query failure surfaces as HTTP
+         *     200 `common.request.parseFailed` with params error. Pass the returned
+         *     nextCursor as cursor for the next (older) page.
+         */
+        get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notification/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark one notification as read
+         * @description Marks a single notification of the caller as read. Note the update carries a
+         *     user_id condition, so marking someone else's or a nonexistent id silently
+         *     succeeds (zero rows updated is not an error). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because notificationId is required.
+         *     Business failure: `notification.markRead.failed`.
+         */
+        post: operations["markNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notification/mark-all-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark all of the caller's notifications as read
+         * @description Marks every notification of the caller as read and invalidates the cached
+         *     unread status. The request takes no body. Business failure:
+         *     `notification.markAllRead.failed`.
+         */
+        post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a direct chat message
+         * @description Sends a direct message, creating the conversation on first contact. msgType
+         *     is effectively required (1 text, 2 image, 3 voice): although the field lacks
+         *     a `required` validate tag, omitting it binds 0 and the `oneof=1 2 3` check
+         *     fails with `common.request.invalidParams` (HTTP 200). Content hitting the
+         *     sensitive-word list is blocked outright with `chat.sensitive.blocked`
+         *     (params word) — chat has no delayed-visibility state. Messaging oneself and
+         *     other service failures surface as `chat.send.failed` (params error). JSON
+         *     binding is lenient: a malformed body binds to zero values and fails
+         *     validation as `common.request.invalidParams` (HTTP 200). The success
+         *     envelope carries no messageCode.
+         */
+        post: operations["sendChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a cursor-paginated page of chat messages
+         * @description Read-only endpoint guarded by authentication only (no writable-account
+         *     check), so frozen accounts can still read their conversations. beforeId and
+         *     afterId are mutually exclusive cursors; passing both, targeting an unknown
+         *     conversation, or reading a conversation the caller is not a member of all
+         *     fail with `chat.messages.failed` (HTTP 200) without revealing which case
+         *     matched. limit <= 0 falls back to 30; values above 100 fail validation with
+         *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation the same way because
+         *     convId is required.
+         */
+        post: operations["getChatMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a chat conversation as read
+         * @description Clears the caller's unread state in one conversation. Membership is checked
+         *     first and a membership failure shares the same `chat.markRead.failed` code as
+         *     a database failure, so the endpoint cannot be used to enumerate conversation
+         *     ids (issue #111). JSON binding is lenient: a malformed body binds to zero
+         *     values and fails validation as `common.request.invalidParams` (HTTP 200)
+         *     because convId is required. The success envelope carries result null and no
+         *     messageCode.
+         */
+        post: operations["markChatRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/get-site-statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read public site-wide counters
+         * @description Fully public endpoint: no authentication, no rate limit, no input, and no
+         *     business failure branch. Counters come from a 5-second server-side cache.
+         *     userCount/topicMaxId/postMaxId are the max id of the users/topics/posts
+         *     tables (monotonic allocation counters, not live row counts);
+         *     userMonthCount/topicMonthCount are the current calendar month's
+         *     registration/topic tallies; linksCount is the number of configured friend
+         *     links.
+         */
+        get: operations["getSiteStatistics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate search across topics, users, categories and courses
+         * @description Public aggregate search (issue #22); an optional JWT is accepted but does
+         *     not change the result. Query binding is strict: a non-numeric page fails
+         *     with HTTP 400 and `common.request.parseFailed`. q is trimmed; an empty q
+         *     short-circuits to an empty aggregate payload without touching the search
+         *     backend. scope is one of all/topics/users/categories/courses; any other
+         *     value falls back to all. Only the topics group paginates (10 per page via
+         *     page, 1-based; values < 1 fall back to 1); users/categories/courses are
+         *     single-page groups capped at 30 entries. Queries longer than 100 runes
+         *     return an empty aggregate payload (no failure marker). This endpoint is
+         *     backed by Meilisearch, an optional dependency: when no search backend is
+         *     configured (or every index query fails) there is no database fallback —
+         *     the response stays HTTP 200 code 0 with empty groups and
+         *     searchUnavailable: true. When only some indexes fail, the failed index
+         *     names are listed in failedScopes and the remaining groups are served
+         *     normally. The same payload shape is served to Agents at
+         *     /api/v1/agent/search.
+         */
+        get: operations["searchForum"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/my-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page through the caller's own published topics or replies
+         * @description Login-required read (no writable-account check, so frozen accounts can still
+         *     read; the read does not bump user activity). Only content that is still
+         *     public is listed: published (status=1) ACTIVE forum topics, or ACTIVE reply
+         *     posts (postNo > 1); wiki-subsite topics and already deleted content are
+         *     excluded. Query binding is strict: a non-numeric cursorId/limit fails with
+         *     HTTP 400 and `common.request.parseFailed`; a missing or unsupported
+         *     contentType fails validation with `common.request.invalidParams` (HTTP 200).
+         *     Pagination is id-descending: pass the previous page's nextCursorId as
+         *     cursorId (rows with id < cursorId are returned); limit <= 0 or > 30 falls
+         *     back to 20. Post items render title as `回复 #<postNo>` and carry
+         *     topicId/postNo; excerpt is omitted when empty.
+         */
+        get: operations["myContentList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/deleted-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page through the caller's recently deleted topics or replies
+         * @description Login-required read of the caller's deleted content (the "最近删除" bin; no
+         *     writable-account check, so frozen accounts can still read). Topics are
+         *     listed when visibility is USER_DELETED; replies are listed when visibility
+         *     is USER_DELETED or MODERATOR_REMOVED (moderator removals are visible but
+         *     carry canRestore=false/canPermanent=false); PURGED rows never appear.
+         *     deletedAt is RFC3339 and may be empty for tombstone rows that carry no
+         *     deleted_at timestamp. canRestore is true only for USER_DELETED +
+         *     RECOVERABLE rows still inside the 30-day recovery window; canPermanent is
+         *     true for USER_DELETED + RECOVERABLE rows regardless of the window. Query
+         *     binding and cursor pagination behave exactly like my-content.
+         */
+        get: operations["deletedContentList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore an own deleted topic or reply inside the recovery window
+         * @description Restores caller-owned content deleted by the caller (visibility
+         *     USER_DELETED + retention RECOVERABLE) within the 30-day recovery window.
+         *     Restoring a topic also restores the replies that were cascade-deleted with
+         *     it, rebuilds the search document and re-applies post reward points. A
+         *     topic first post cannot be restored standalone, and a reply whose topic is
+         *     still deleted cannot be restored either. Business failures (HTTP 200):
+         *     `topic.notFound` / `post.notFound` (unknown or someone else's content),
+         *     `content.notRecoverable` (moderator-removed, already purged, not in the
+         *     recovery state, or first-post/parent-topic cases),
+         *     `content.recovery.expired` (past the 30-day window),
+         *     `content.restore.failed`, `common.request.invalidParams`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams`.
+         */
+        post: operations["restoreContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-batch-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch-delete own topics or replies
+         * @description Soft-deletes up to 50 caller-owned topics or replies in one call, each
+         *     entering the standard 30-day recovery window (same semantics as the
+         *     single-delete endpoints). Deletions are rate-gated per account: more than
+         *     20 deletions within 10 minutes — single deletes, purges and privacy
+         *     erases count into the same window — fail with
+         *     `content.batchDelete.confirmRequired` (HTTP 200, params.count carries the
+         *     projected total); the caller retries with force=true plus the current
+         *     password as second factor (a wrong password fails with
+         *     `auth.credentials.invalid`). The envelope stays code 0 even when
+         *     individual items fail; per-item outcomes are reported in results[] with
+         *     the failure text in message. Business failures:
+         *     `common.request.invalidParams` (empty id list, unsupported contentType),
+         *     `content.batchDelete.confirmRequired`, `auth.credentials.invalid`.
+         */
+        post: operations["batchDeleteContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Permanently delete an own already-deleted topic or reply
+         * @description Permanent deletion (跳过恢复窗口): only caller-owned content already in
+         *     visibility USER_DELETED + retention RECOVERABLE can be purged; ACTIVE
+         *     content must be deleted first and fails with `content.notRecoverable`.
+         *     Purging sets retention PURGED (irreversible — the content can no longer be
+         *     restored), releases attachment references and blanks notification
+         *     previews; moderation evidence snapshots and audit logs are retained.
+         *     Purging a topic also purges the caller's own replies under it and any
+         *     replies already in the deletion lifecycle; other users' still-active
+         *     replies keep their bodies but become unreachable. Moderator-removed
+         *     content fails with `content.notRecoverable` (privacy/purge paths cannot
+         *     bypass governance). Already-PURGED content succeeds idempotently. The
+         *     operation counts into the shared deletion rate window (see
+         *     content-batch-delete; `content.batchDelete.confirmRequired` /
+         *     `auth.credentials.invalid` on the force+password path). Other business
+         *     failures: `topic.notFound` / `post.notFound`, `content.purge.failed`,
+         *     `common.request.invalidParams`. The reason field is optional audit text.
+         */
+        post: operations["purgeContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-privacy-erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Privacy emergency-erase an own topic or reply
+         * @description Privacy emergency deletion (R8). Unlike purgeContent this also accepts
+         *     still-ACTIVE caller-owned content; the row is immediately hidden, made
+         *     unrecoverable (retention PURGED) and reply body fields are cleared across
+         *     all channels. Erasing a topic cascades to the caller's own replies under
+         *     it. The operation is refused with `content.notRecoverable` when the target
+         *     — or any of the caller's replies under a target topic — is
+         *     moderator-removed, so privacy erasure cannot destroy governance evidence.
+         *     It counts into the shared deletion rate window (see content-batch-delete;
+         *     `content.batchDelete.confirmRequired` / `auth.credentials.invalid` on the
+         *     force+password path). Other business failures: `topic.notFound` /
+         *     `post.notFound`, `content.purge.failed`, `common.request.invalidParams`.
+         */
+        post: operations["privacyEraseContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a frontend delete-lifecycle telemetry event
+         * @description Records frontend telemetry for the deletion lifecycle (PRD R14). Only the
+         *     click/confirmation events `content_delete_clicked` and
+         *     `content_delete_confirmed` are accepted; any other eventType — including
+         *     the backend-owned lifecycle events — fails with
+         *     `common.request.invalidParams` (HTTP 200). contentId is not checked for
+         *     existence. Backend state changes (delete/restore/purge/privacy-erase) are
+         *     recorded by the server itself and must not be reported here. JSON binding
+         *     is lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams`.
+         */
+        post: operations["reportContentEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/account-close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Permanently close the caller's account
+         * @description Account closure (注销) is irreversible and requires the current password
+         *     as a second factor; a wrong password fails with
+         *     `auth.credentials.invalid` (HTTP 200) and an already-closed account fails
+         *     with `common.operation.failed`. mode=anonymize soft-deletes the account
+         *     while historical content stays visible under a "已注销用户" identity;
+         *     mode=delete first runs a best-effort deletion of every own topic and
+         *     reply (own wiki pages and revisions included; other users' replies under
+         *     an own topic follow the normal topic-deletion semantics), then closes the
+         *     account. On success the account token version increments, so every
+         *     existing session — including the one used for this request — is
+         *     immediately revoked (subsequent calls return 401) and no replacement
+         *     token is minted. Business failures: `common.request.invalidParams`
+         *     (validation), `auth.credentials.invalid`, `common.operation.failed`.
+         */
+        post: operations["closeAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/me": {
         parameters: {
             query?: never;
@@ -828,6 +2190,2336 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/topics/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through topics for the admin console
+         * @description Admin console topic list, gated by the `TopicsManager` role permission
+         *     (Admin role is a superset). Callers without the permission fail with HTTP 403
+         *     and `permission.denied` (params permission=<localized permission name>).
+         *     Results sort by pin weight, then update time, both descending. The page payload
+         *     never computes a total count (`total` is always 0). JSON binding is lenient:
+         *     a malformed body binds to zero values and returns the first page.
+         */
+        post: operations["adminListTopics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a topic with its raw markdown source
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied` (params
+         *     permission=<localized permission name>). Unknown topics fail with
+         *     `topic.notFound` (HTTP 200). JSON binding is lenient: a malformed body binds
+         *     to zero values and fails validation as `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminGetTopicSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or unban a topic from the admin console
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Sets the topic
+         *     processStatus (0 normal, 1 banned); re-applying the current status is a
+         *     no-op success. Unknown topics fail with `topic.notFound` (HTTP 200); a status
+         *     outside 0-1 fails validation as `common.request.invalidParams` (HTTP 200);
+         *     persistence failures surface as `common.operation.failed` (HTTP 200). JSON
+         *     binding is lenient: a malformed body binds to zero values and fails validation
+         *     as `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminEditTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moderation-delete a topic (soft, restorable via adminRestoreTopic)
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Performs a moderation
+         *     (governance) deletion: the topic is soft-deleted into the moderator-removed
+         *     state — never hard-deleted — and only the admin console can restore it; the
+         *     author cannot. Re-deleting an already moderator-removed topic is an idempotent
+         *     success that keeps the original deletion metadata. Wiki subsite topics are
+         *     rejected with `topic.operationDenied` (HTTP 200). Unknown topics fail with
+         *     `topic.notFound` (HTTP 200); a blank reason fails with
+         *     `common.request.invalidParams` (HTTP 200); persistence failures surface as
+         *     `content.delete.failed` (HTTP 200).
+         */
+        post: operations["adminDeleteTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a moderation-deleted topic
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. The admin console is
+         *     the only restore channel for moderation-deleted topics. Unknown topics fail
+         *     with `topic.notFound` (HTTP 200); topics not in the moderator-removed state
+         *     fail with `content.notRecoverable` (HTTP 200); persistence failures surface
+         *     as `content.restore.failed` (HTTP 200). A successful restore returns
+         *     messageCode `content.restore.success`.
+         */
+        post: operations["adminRestoreTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/pin-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a topic's pin weight
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Larger pin weights sort
+         *     first in topic lists; 0 unpins. Re-applying the current weight is a no-op
+         *     success. Unknown topics fail with `topic.notFound` (HTTP 200); a weight
+         *     outside 0-1000000 fails validation as `common.request.invalidParams`
+         *     (HTTP 200); persistence failures surface as `common.operation.failed`
+         *     (HTTP 200). JSON binding is lenient: a malformed body binds to zero values and
+         *     fails validation as `common.request.invalidParams` (HTTP 200) because topicId
+         *     is required.
+         */
+        post: operations["adminEditTopicPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/categories-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace a topic's category set
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Replaces the topic's
+         *     categories with the given set (deduplicated server-side). The request struct
+         *     validates `categoryId` with `min=1,max=3` before the handler runs, so an
+         *     empty/omitted set or more than three raw entries fail validation with
+         *     `common.request.invalidParams` (HTTP 200) — the handler's
+         *     `admin.topic.categoryRequired` / `admin.topic.categoryTooMany` branches are
+         *     unreachable through this endpoint. A zero or unknown category id fails with
+         *     `admin.category.notFound` (HTTP 200), unknown topics with `topic.notFound`
+         *     (HTTP 200); persistence failures surface as `common.operation.failed`
+         *     (HTTP 200). JSON binding is lenient: a malformed body binds to zero values
+         *     and fails validation as `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminEditTopicCategories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/posts/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moderation-delete a reply post
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Unlike author
+         *     self-deletion, a moderation deletion cannot be restored by the author, records
+         *     the mandatory reason in the audit log, and also upgrades author-deleted posts
+         *     to the moderator-removed state. Re-deleting an already moderator-removed or
+         *     purged post is an idempotent success. The topic first post is rejected with
+         *     `common.request.invalidParams` (HTTP 200) — use adminDeleteTopic instead.
+         *     Unknown posts fail with `post.notFound` (HTTP 200); a blank reason fails with
+         *     `common.request.invalidParams` (HTTP 200); persistence failures surface as
+         *     `content.delete.failed` (HTTP 200).
+         */
+        post: operations["adminDeletePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all managed Agents (bot personas)
+         * @description Admin console operation gated by the `Admin` role permission; only roles
+         *     holding the Admin permission pass, others fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Returns every Agent with its bot user, newest first. The token hash never
+         *     leaves the server; only the non-secret token prefix is exposed. JSON
+         *     binding is lenient: the request body is ignored.
+         */
+        post: operations["adminAgentList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an Agent and return its one-time token
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Creates the bot
+         *     user and Agent rows atomically; the bot user has no email, no usable
+         *     password, and no role. The plaintext token (`agt_` prefix) is returned
+         *     exactly once — only its hash and non-secret prefix are stored. A username
+         *     failing the `^[a-zA-Z0-9_-]{6,32}$` rule fails with
+         *     `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with
+         *     `admin.agent.usernameExists` (HTTP 200); an invalid webhook endpoint
+         *     fails with `admin.agent.webhookInvalid` (HTTP 200); an over-long nickname
+         *     fails with `common.request.invalidParams` (HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because username is required.
+         */
+        post: operations["adminAgentCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update an Agent's nickname, webhook, or enabled state
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Only present
+         *     (non-null) fields are applied. Setting `enabled` to 0 disables the Agent
+         *     and revokes its stored credential (the token hash is cleared, so a leaked
+         *     token can never validate again); re-enabling such an Agent fails with
+         *     `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a
+         *     new token. Unknown agents fail with `admin.agent.notFound` (HTTP 200); an
+         *     over-long nickname or an `enabled` value outside 0-1 fails with
+         *     `common.request.invalidParams` (HTTP 200); an invalid webhook endpoint
+         *     fails with `admin.agent.webhookInvalid` (HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because agentId is required.
+         */
+        post: operations["adminAgentUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-rotate-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate an Agent's bearer token
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Replaces the
+         *     stored token prefix and hash atomically (compare-and-swap), so the old
+         *     token stops resolving immediately and the new plaintext token (`agt_`
+         *     prefix) is returned exactly once. Rotation is also the recovery path
+         *     after a disable revoked the credential: it succeeds and the Agent can
+         *     then be re-enabled. A concurrent rotation loses the compare-and-swap and
+         *     fails with `admin.agent.rotateConflict` (HTTP 200); unknown agents fail
+         *     with `admin.agent.notFound` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because agentId is required.
+         */
+        post: operations["adminAgentRotateToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable an Agent and revoke its credential
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Turns the Agent
+         *     off and clears the stored token hash, so bearer resolution with the old
+         *     token fails with HTTP 401 immediately and can never validate again, even
+         *     if the Agent is later re-enabled. Re-enabling requires an explicit
+         *     adminAgentRotateToken first (adminAgentUpdate fails with
+         *     `admin.agent.needsRotate` otherwise). Unknown agents fail with
+         *     `admin.agent.notFound` (HTTP 200). A successful disable returns result
+         *     `success` with messageCode `common.operation.success`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because agentId is required.
+         */
+        post: operations["adminAgentDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/opt-record-page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through the operation audit log
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Records sort by id
+         *     descending. The request page is 1-based but the echoed `page` in the
+         *     response is 0-based (requested page minus one, floored at 0); pageSize is
+         *     bounded into 10-50. JSON binding is lenient: a malformed body binds to
+         *     zero values and returns the first page unfiltered.
+         */
+        post: operations["adminOptRecordPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/traffic-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daily registration/topic/reply counts over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Both dates are
+         *     inclusive; empty startDate defaults to 7 days ago and empty endDate to
+         *     today. The result has one entry per in-range day, ascending, with zero
+         *     counts for days without stat rows. Stat-storage failures surface as
+         *     `admin.stats.fetchFailed` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and returns the default 7-day window.
+         */
+        post: operations["adminTrafficOverview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through users for the admin console
+         * @description Admin console operation gated by the `UserManager` role permission (Admin
+         *     role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Results sort by user id descending and support exact user-id plus
+         *     substring username/email filters. The response includes the account email
+         *     (PII — admin-only surface). The request page is 1-based but the echoed
+         *     `page` is 0-based (requested page minus one, floored at 0); pageSize is
+         *     bounded into 10-30. `roleList` is null when the user holds no role, and
+         *     `roleId` is omitted from the wire payload when 0. JSON binding is
+         *     lenient: a malformed body binds to zero values and returns the first
+         *     unfiltered page.
+         */
+        post: operations["adminUserList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a user's frozen/activation state and role
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Editable
+         *     fields are exactly `status` (frozen flag), `validate` (activation flag),
+         *     and `roleId`; email and other profile fields are not editable here. The
+         *     request has no field-level validation tags, so omitted fields bind to
+         *     zero values and **overwrite** the stored state (0 unfrozen / 0 pending
+         *     activation / 0 no role) — callers must always send the full triple.
+         *     Unknown users fail with `admin.user.targetFetchFailed` (HTTP 200);
+         *     granting any role (`roleId` != 0) to a bot (Agent) account fails with
+         *     `admin.agent.roleNotAllowed` (HTTP 200); persistence failures surface as
+         *     `user.updateFailed` (HTTP 200). Every changed field is written to the
+         *     operation audit log. JSON binding is lenient: a malformed body binds to
+         *     zero values and fails as `admin.user.targetFetchFailed` (HTTP 200)
+         *     because userId 0 resolves to no user.
+         */
+        post: operations["adminEditUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-badge-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List grantable badges and a user's active badges
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `options`
+         *     lists every enabled manual-grant badge (built-in system definitions plus
+         *     enabled custom overrides); `active` lists the target user's currently
+         *     active badges (empty array when none, also for userId 0 or unknown
+         *     users). JSON binding is lenient: a malformed body binds to zero values.
+         */
+        post: operations["adminUserBadgeOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-user-badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace a user's manually-granted badge set
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Grants
+         *     every submitted code that resolves to an enabled manual-grant badge
+         *     (codes outside that set are silently ignored, duplicates are
+         *     deduplicated) and revokes the user's previously manually-granted badges
+         *     missing from the submission; auto-granted badges are never touched. The
+         *     target user's existence is not verified beyond a zero id: `userId` 0
+         *     fails with `user.notFound` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails as `user.notFound`.
+         */
+        post: operations["adminSaveUserBadges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/get-all-role-item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all roles as label/value options
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Returns
+         *     every non-deleted role as a name/label/value option (name and label are
+         *     both the role name), unlike adminRoleList which pages roles with their
+         *     localized permission sets. Binding is lenient: query parameters bind to
+         *     an empty request struct and are ignored.
+         */
+        get: operations["adminGetAllRoleItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/get-permission-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all assignable permissions as options
+         * @description Admin console operation gated by the `RoleManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Returns every permission enum (ids 0-6) as name/label/value options with
+         *     names localized to the request locale. JSON binding is lenient: the
+         *     request body is ignored.
+         */
+        post: operations["adminGetPermissionList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through roles with their permissions
+         * @description Admin console operation gated by the `RoleManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Results
+         *     sort by role id descending; each role carries its permission ids with
+         *     request-locale localized names. The request body binds to an empty
+         *     struct (no filters): the echoed `page` is always 0 and `size` defaults
+         *     to 10. JSON binding is lenient: the request body is ignored.
+         */
+        post: operations["adminRoleList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a role or replace a role's name and permission set
+         * @description Admin console operation gated by the `RoleManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+         *     creates a new role (effective=1); a positive `id` renames the role and
+         *     replaces its permission set with exactly the submitted ids — permissions
+         *     missing from the submission are marked ineffective, unknown permission
+         *     ids are stored as-is. A positive `id` matching no role silently creates
+         *     a new role instead of failing. A blank `roleName` or a permission list
+         *     that is empty or longer than 100 fails request validation with
+         *     `common.request.invalidParams` (HTTP 200); persistence failures surface
+         *     as `common.operation.failed` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because roleName is required.
+         */
+        post: operations["adminRoleSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a role and its permission grants
+         * @description Admin console operation gated by the `RoleManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Deletes
+         *     the role's permission-grant rows and then the role itself (both
+         *     soft-deleted). There is no built-in-role or in-use protection: a role
+         *     still assigned to users can be deleted, leaving those users with a
+         *     dangling roleId. Unknown ids (including a missing/zero id) fail with
+         *     `admin.role.notFound` (HTTP 200). JSON binding is lenient: a malformed
+         *     body binds to zero values and fails as `admin.role.notFound`.
+         */
+        post: operations["adminRoleDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all categories with their moderators
+         * @description Admin console operation gated by the `TopicsManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Returns every category ordered by sort ascending then id ascending, each
+         *     with its enabled moderators (moderator row id ascending). Despite the
+         *     request struct carrying page/pageSize fields, the result is **not**
+         *     paged — both fields are ignored. JSON binding is lenient: a malformed
+         *     body binds to zero values and is ignored.
+         */
+        post: operations["adminCategoryList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or update a category
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+         *     creates a new category; a positive `id` overwrites every field of the
+         *     existing category with the submitted values (omitted optional fields
+         *     bind to zero values and clear the stored ones). A positive `id`
+         *     matching no category fails with `admin.category.dataNotFound`
+         *     (HTTP 200). A missing/empty `category` fails request validation with
+         *     `common.request.invalidParams` (HTTP 200); a whitespace-only `category`
+         *     passes validation but fails the handler's trim check with
+         *     `admin.category.nameRequired` (HTTP 200). Saving clears the category
+         *     cache and schedules a search-index refresh. JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because category is required.
+         */
+        post: operations["adminCategorySave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a category
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     category row is hard-deleted. Unknown ids (including a missing/zero id)
+         *     fail with `admin.category.notFound` (HTTP 200); deleting the last
+         *     remaining category fails with `admin.category.keepOne` (HTTP 200); a
+         *     category that still has effective topic bindings fails with
+         *     `admin.category.hasTopics` (HTTP 200). Deletion clears the category
+         *     cache and schedules a search-index cleanup. JSON binding is lenient: a
+         *     malformed body binds to zero values and fails as
+         *     `admin.category.notFound`.
+         */
+        post: operations["adminCategoryDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/global-moderator-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all global moderators
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Returns
+         *     every enabled global-scope moderator (moderator row id ascending) with
+         *     the user's username and avatar; both are empty strings when the user
+         *     account is gone. JSON binding is lenient: the request body is ignored.
+         */
+        post: operations["adminGlobalModeratorList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/global-moderator-add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a user the global moderator scope
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Resolves
+         *     the target by `userId` first, falling back to an exact `username` match;
+         *     granting is idempotent and re-enables an existing disabled moderator
+         *     row. A missing/blank user reference fails with
+         *     `admin.moderator.userRequired` (HTTP 200); an unresolvable one fails
+         *     with `admin.moderator.userNotFound` (HTTP 200); bot (Agent) accounts
+         *     fail with `admin.agent.roleNotAllowed` (HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails as
+         *     `admin.moderator.userRequired`.
+         */
+        post: operations["adminGlobalModeratorAdd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/global-moderator-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a global moderator
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     moderator row is hard-deleted. Unknown ids, and ids of category-scope
+         *     moderator rows, fail with `admin.moderator.notFound` (HTTP 200); a
+         *     missing/zero id fails request validation with
+         *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because id is required.
+         */
+        post: operations["adminGlobalModeratorDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-moderator-add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a user the moderator scope of one category
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Resolves
+         *     the target user by `userId` first, falling back to an exact `username`
+         *     match; granting is idempotent and re-enables an existing disabled
+         *     moderator row. A missing/zero `categoryId` fails request validation with
+         *     `common.request.invalidParams` (HTTP 200); an unknown category fails
+         *     with `admin.category.notFound` (HTTP 200); a missing/blank user
+         *     reference fails with `admin.moderator.userRequired` (HTTP 200); an
+         *     unresolvable one fails with `admin.moderator.userNotFound` (HTTP 200);
+         *     bot (Agent) accounts fail with `admin.agent.roleNotAllowed` (HTTP 200).
+         *     The grant is written to the operation audit log. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because categoryId is
+         *     required.
+         */
+        post: operations["adminCategoryModeratorAdd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-moderator-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a category moderator
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     moderator row is hard-deleted and the revocation is written to the
+         *     operation audit log. Unknown ids, and ids of global-scope moderator
+         *     rows, fail with `admin.moderator.notFound` (HTTP 200); a missing/zero id
+         *     fails request validation with `common.request.invalidParams` (HTTP 200).
+         *     JSON binding is lenient: a malformed body binds to zero values and fails
+         *     validation as `common.request.invalidParams` (HTTP 200) because id is
+         *     required.
+         */
+        post: operations["adminCategoryModeratorDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/friend-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the friend-links page configuration
+         * @description Admin console operation gated by the `PageManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `页面管理` in zh). Returns the stored friend-link groups, or the built-in
+         *     default configuration when nothing has been saved yet. Groups with a
+         *     null `links` array are normalized to an empty array. JSON binding is
+         *     lenient: query string and body are ignored.
+         */
+        get: operations["adminGetFriendLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-friend-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the friend-links page configuration
+         * @description Admin console operation gated by the `PageManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
+         *     the whole friend-links configuration with the submitted groups and
+         *     clears the friend-links cache. Groups with a null `links` array are
+         *     normalized to an empty array before persistence. There is no
+         *     count/URL validation, and no request validation tags: JSON binding is
+         *     lenient, so a malformed or empty body binds to zero values and is saved
+         *     as-is (a null group list).
+         */
+        post: operations["adminSaveFriendLinks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sponsors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the sponsors page configuration
+         * @description Admin console operation gated by the `PageManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Returns the stored sponsors configuration, or the
+         *     built-in default configuration when nothing has been saved yet. Null
+         *     sponsor tier arrays are normalized to empty arrays, and blank
+         *     content/contact titles or descriptions are filled from the built-in
+         *     defaults. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetSponsors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-sponsors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the sponsors page configuration
+         * @description Admin console operation gated by the `PageManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
+         *     the whole sponsors configuration with the submitted value and clears
+         *     the sponsors cache. Null sponsor tier arrays are normalized to empty
+         *     arrays, and blank content/contact titles or descriptions are filled
+         *     from the built-in defaults before persistence. There is no request
+         *     validation: JSON binding is lenient, so a malformed or empty body binds
+         *     to zero values and is saved (after default-filling) as-is.
+         */
+        post: operations["adminSaveSponsors"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the announcement configuration
+         * @description Admin console operation gated by the `PageManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Returns the stored announcement configuration, or
+         *     the built-in default configuration when nothing has been saved yet.
+         *     `publishedAt` and `items` are omitted when empty; when `items` is
+         *     non-empty it takes precedence over the single-announcement `content`
+         *     on the public site. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminGetAnnouncement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the announcement configuration
+         * @description Admin console operation gated by the `PageManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
+         *     the whole announcement configuration with the submitted value and
+         *     clears the announcement cache. The server overwrites `publishedAt`
+         *     with the current time on every save. Although `settings` carries a
+         *     `required` validation tag, struct-level `required` never fails, so a
+         *     missing or malformed body (lenient binding) is saved as a zero-value
+         *     configuration with a server-stamped `publishedAt`. There is no
+         *     reachable validation failure.
+         */
+        post: operations["adminSaveAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/server-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the build metadata of the running binary
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Read-only: returns the release metadata compiled
+         *     into the binary (build-time ldflags with a Go build-info fallback).
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetServerVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/site-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored site settings, or the built-in
+         *     default configuration when nothing has been saved yet (the default is
+         *     not persisted by reads). JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetSiteSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-site-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the site settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole site-settings configuration with the submitted
+         *     value and clears the site-settings and llms.txt caches. There is no
+         *     request validation: JSON binding is lenient, so a malformed or empty
+         *     body binds to zero values and is saved as-is.
+         */
+        post: operations["adminSaveSiteSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/site-chrome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site chrome (header/menu/sidebar/footer/brand) configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored chrome configuration, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetSiteChrome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-site-chrome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the site chrome configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole chrome configuration with the submitted value and
+         *     clears the chrome cache. There is no request validation: JSON binding
+         *     is lenient, so a malformed or empty body binds to zero values and is
+         *     saved as-is.
+         */
+        post: operations["adminSaveSiteChrome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/site-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site theme configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored theme configuration, or the
+         *     built-in default configuration when nothing has been saved yet. The
+         *     response is normalized on every read: blank/unsafe token values fall
+         *     back to the built-in defaults, unknown theme names are replaced by
+         *     the fallback theme name, a non-positive `version` is replaced by the
+         *     default version, and an empty `themes` list is replaced by the
+         *     default themes. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminGetSiteTheme"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-site-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stage site theme changes as an unpublished draft
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Does
+         *     NOT touch the published themes: the submitted `enabled`/`themes`
+         *     become the `prepublish` draft on top of the currently stored
+         *     configuration, with a server-stamped RFC 3339 `updatedAt`. The whole
+         *     configuration is normalized (same rules as adminGetSiteTheme) before
+         *     persistence; a draft with an empty theme list is dropped by
+         *     normalization. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body stages an empty draft that normalization
+         *     then drops. The response is the full normalized configuration after
+         *     staging (including the new draft). Use adminPublishSiteTheme to
+         *     promote the draft.
+         */
+        post: operations["adminSaveSiteTheme"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/publish-site-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish the staged site theme draft
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Promotes the staged `prepublish` draft written by adminSaveSiteTheme:
+         *     `enabled`/`themes` are copied to the published configuration,
+         *     `publishedAt` is stamped with the current RFC 3339 time, the draft is
+         *     cleared, and the normalized result is persisted. When no draft exists
+         *     the operation is a no-op: nothing is saved and the response is simply
+         *     the current normalized configuration. JSON binding is lenient: query
+         *     string and body are ignored.
+         */
+        post: operations["adminPublishSiteTheme"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/security-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the security & registration settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored security settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetSecuritySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-security-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the security & registration settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole security configuration with the submitted value
+         *     and clears the security-settings cache. Side effect: usernames newly
+         *     added to `bannedUsernames` (compared case-insensitively against the
+         *     currently stored list, trimmed) trigger a freeze of matching existing
+         *     accounts; the freeze is idempotent, so re-saving the same list does
+         *     not reprocess accounts. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
+         */
+        post: operations["adminSaveSecuritySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/posting-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the posting/upload/llms.txt settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored posting settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetPostingSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-posting-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the posting/upload/llms.txt settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole posting configuration with the submitted value and
+         *     clears the posting-settings and llms.txt caches. The Go struct tags
+         *     `settings` with `validate:"required"`, but struct-level required
+         *     never fails, so a missing or malformed body saves a zero-value
+         *     configuration.
+         */
+        post: operations["adminSavePostingSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rate-limit-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the abuse-protection (rate limit) settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored rate-limit settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetRateLimitSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-rate-limit-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the abuse-protection (rate limit) settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole rate-limit configuration with the submitted value,
+         *     clears the rate-limit config cache, and resets all in-memory
+         *     rate-limit counters so new windows/quotas apply to existing keys
+         *     immediately. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
+         */
+        post: operations["adminSaveRateLimitSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/http-notify-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the HTTP webhook notification settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored notify settings, or the
+         *     built-in default (disabled with an empty endpoint list) when nothing
+         *     has been saved yet. Exposure boundary: each endpoint's `secret`
+         *     (webhook signing secret) is returned in cleartext — there is no
+         *     masking on this admin surface. JSON binding is lenient: query string
+         *     and body are ignored.
+         */
+        get: operations["adminGetHttpNotifySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-http-notify-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the HTTP webhook notification settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole notify configuration with the submitted value and
+         *     clears the notify cache. There is no URL/secret validation: the Go
+         *     struct tags `settings` with `validate:"required"`, but struct-level
+         *     required never fails, so a missing or malformed body saves a
+         *     zero-value configuration.
+         */
+        post: operations["adminSaveHttpNotifySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/onesystem-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read whether the 一系统 sync credential is configured
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Exposure boundary: the response is exactly
+         *     `{cookieConfigured: boolean}` — the stored ciphertext and the
+         *     plaintext cookie are never returned (the domain struct tags the
+         *     ciphertext `json:"-"`, and the handler builds the response map by
+         *     hand). JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetOnesystemSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-onesystem-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store or clear the 一系统 sync credential
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     submitted plaintext cookie is trimmed, encrypted with a
+         *     purpose-scoped AES-256-GCM key derived from `app.signingKey`, and
+         *     only the ciphertext is persisted (the plaintext exists only for the
+         *     duration of the request). An empty/blank cookie clears the stored
+         *     credential. A cookie longer than 4096 characters fails request
+         *     validation with HTTP 200 and `common.request.invalidParams`. If
+         *     encryption itself fails (signingKey misconfigured) the response is a
+         *     generic HTTP 200 `code: 1` failure with no `messageCode` — the
+         *     internal error detail is not exposed.
+         */
+        post: operations["adminSaveOnesystemSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-summary-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the AI course-summary settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored AI summary settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     Exposure boundary: only the switch and the global quota are stored
+         *     and returned; the LLM provider credentials (`provider`, `base_url`,
+         *     `api_key`, `model`) live in config.toml `[ai_summary]` and never
+         *     enter the DB or this API. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetAiSummarySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-ai-summary-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the AI course-summary settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole AI summary configuration with the submitted value
+         *     and clears the settings cache. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
+         */
+        post: operations["adminSaveAiSummarySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terms-of-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the terms-of-service configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored terms-of-service
+         *     configuration, or the built-in default configuration when nothing
+         *     has been saved yet. The pre-rendered HTML is server-side only and
+         *     never appears on the wire. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetTermsOfService"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-terms-of-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the terms-of-service configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole terms-of-service configuration with the submitted
+         *     value and clears the cache; the server forces the server-side
+         *     pre-rendered HTML field empty on every save (it is re-rendered on
+         *     read). The Go struct tags `settings` with `validate:"required"`, but
+         *     struct-level required never fails, so a missing or malformed body
+         *     saves a zero-value configuration.
+         */
+        post: operations["adminSaveTermsOfService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/privacy-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the privacy-policy configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored privacy-policy configuration,
+         *     or the built-in default configuration when nothing has been saved
+         *     yet. The pre-rendered HTML is server-side only and never appears on
+         *     the wire. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetPrivacyPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-privacy-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the privacy-policy configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole privacy-policy configuration with the submitted
+         *     value and clears the cache; the server forces the server-side
+         *     pre-rendered HTML field empty on every save (it is re-rendered on
+         *     read). The Go struct tags `settings` with `validate:"required"`, but
+         *     struct-level required never fails, so a missing or malformed body
+         *     saves a zero-value configuration.
+         */
+        post: operations["adminSavePrivacyPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/mail-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the outbound mail (SMTP) settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored mail settings, or the built-in
+         *     default configuration when nothing has been saved yet. Exposure
+         *     boundary: `smtpPassword` is returned in cleartext — there is no
+         *     masking on this admin surface. JSON binding is lenient: query string
+         *     and body are ignored.
+         */
+        get: operations["adminGetMailSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-mail-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the outbound mail (SMTP) settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole mail configuration with the submitted value and
+         *     clears the mail-settings cache. There is no request validation: the Go
+         *     struct tags `settings` with `validate:"required"`, but struct-level
+         *     required never fails, so a malformed or empty body binds to zero
+         *     values and is saved as-is.
+         */
+        post: operations["adminSaveMailSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/test-mail-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a probe email with the submitted SMTP settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Sends a
+         *     real test email through the submitted (unsaved) SMTP configuration —
+         *     nothing is persisted. The outcome is reported inside the success
+         *     envelope: the envelope `code` is 0 even when the send fails; inspect
+         *     `result.success` and `result.messageCode`
+         *     (`admin.mail.testSuccess` / `admin.mail.testFailed`, the latter with
+         *     `params.error` carrying the raw dial/send error text). A missing or
+         *     malformed `testEmail` fails request validation
+         *     (`validate:"required,email"`) with HTTP 200
+         *     `common.request.invalidParams` before the handler runs — the handler's
+         *     own `admin.mail.testEmailRequired` branch is unreachable through this
+         *     route.
+         */
+        post: operations["adminTestMailConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storage-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the file storage settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored storage settings, or the built-in
+         *     default (local provider) when nothing has been saved yet. Exposure
+         *     boundary: `accessKey`/`secretKey` are returned in cleartext — there is
+         *     no masking on this admin surface. JSON binding is lenient: query
+         *     string and body are ignored.
+         */
+        get: operations["adminGetStorageSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-storage-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the file storage settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. An
+         *     empty `provider` is normalized to `local`; any provider other than
+         *     `local`/`s3` fails with HTTP 200 `common.request.invalidParams`; an
+         *     `s3` configuration without `endpoint` and `bucket` fails with HTTP 200
+         *     `admin.storage.saveFailed` (params.error is the fixed Chinese sentence
+         *     `S3 模式需要填写 Endpoint 与 Bucket`). On success the whole storage
+         *     configuration is replaced and the storage-settings cache is cleared.
+         *     The Go struct tags `settings` with `validate:"required"`, but
+         *     struct-level required never fails, so a missing/malformed body saves
+         *     the normalized zero-value configuration (`provider=local`).
+         */
+        post: operations["adminSaveStorageSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/test-storage-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe the submitted storage configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Tests
+         *     the submitted (unsaved) storage configuration — nothing is persisted.
+         *     An empty `provider` is normalized to `local`, and the local provider
+         *     always succeeds without touching any backend. For `s3` the server
+         *     performs a real bucket check; the outcome is reported inside the
+         *     success envelope (`code` stays 0): `result.success` plus
+         *     `admin.storage.testSuccess` / `admin.storage.testFailed`, the latter
+         *     with `params.error` carrying the raw connection error text.
+         */
+        post: operations["adminTestStorageConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storage-migrate-task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a background file-migration task to object storage
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Enqueues a background task (task_queue type `file-migrate`) that
+         *     migrates locally stored file BLOBs to the configured S3-compatible
+         *     storage; returns the task id. The migration only runs when the active
+         *     (already saved) storage provider is `s3`; with any other provider the
+         *     service rejects the request and the handler reports HTTP 200
+         *     `admin.storage.migrateFailed` with params.error `file migration
+         *     requires an s3-compatible storage provider`. Note: the
+         *     `admin.storage.migrateInvalidProvider` message code exists in the
+         *     codebase but is unreachable — the controller compares against a
+         *     distinct sentinel error, so the provider-mismatch path falls through
+         *     to `admin.storage.migrateFailed`. A configured-but-unreachable S3
+         *     backend also fails with `admin.storage.migrateFailed` (params.error
+         *     carries the wrapped connection error). JSON binding is lenient: a
+         *     missing body binds `clearAfterMigrate=false`.
+         */
+        post: operations["adminCreateStorageMigrateTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storage-migrate-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent file-migration tasks
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns up to 20 most recent task_queue rows of type
+         *     `file-migrate`, newest id first; `taskJson` is the serialized
+         *     migration payload (cursor/totals). With no migration tasks the result
+         *     is an empty list. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminListStorageMigrateTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/mcp-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the built-in MCP server settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored MCP settings (`enabled` master
+         *     switch for the `/mcp` endpoint, `writes` switch for the write tools),
+         *     or the built-in default configuration when nothing has been saved
+         *     yet. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetMcpSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-mcp-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the built-in MCP server settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole MCP configuration with the submitted value and
+         *     clears the MCP-settings cache. There is no request validation: the Go
+         *     struct tags `settings` with `validate:"required"`, but struct-level
+         *     required never fails, so a malformed or empty body binds to zero
+         *     values and is saved as-is.
+         */
+        post: operations["adminSaveMcpSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all badges (system definitions plus custom badges)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh) — note these badge routes are registered in the
+         *     SiteManager group, not the UserManager group. Returns every badge
+         *     known to the console: the 15 built-in system badges first (in
+         *     definition order, with any stored DB overrides applied), then custom
+         *     badges from the database. System badges carry `isSystem=true` and
+         *     `canDelete=false`. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminListBadges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/badge-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or overwrite a badge
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group, not UserManager); callers without it fail with
+         *     HTTP 403 and `permission.denied`. Upserts the badge row for `code`
+         *     (created when absent, fully overwritten otherwise) and invalidates the
+         *     badge-definition and public-profile caches. Defaults applied before
+         *     validation: blank `type` → `custom`, blank `grantMode` → `manual`,
+         *     blank `iconType` → `asset`, and a blank `code` for a custom badge
+         *     auto-generates a `custom_`-prefixed code. Business failures (HTTP 200,
+         *     `code: 1`): blank `name` → `admin.badge.nameRequired`; unknown `type`
+         *     → `admin.badge.typeInvalid`; `type=system` without a `code` →
+         *     `admin.badge.codeRequired`; unknown `grantMode` →
+         *     `admin.badge.grantModeInvalid`; `type=system` naming a nonexistent
+         *     system definition → `admin.badge.systemNotFound`; persistence failure
+         *     → `admin.badge.saveFailed`. For `type=system` the `grantMode` is taken
+         *     from the system definition, not the request.
+         */
+        post: operations["adminSaveBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/badge-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a custom badge
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group, not UserManager); callers without it fail with
+         *     HTTP 403 and `permission.denied`. Deletes the badge row for `code` and
+         *     invalidates the badge-definition and public-profile caches. Business
+         *     failures (HTTP 200, `code: 1`): blank `code` →
+         *     `admin.badge.codeRequired`; a built-in system badge →
+         *     `admin.badge.systemDeleteBlocked` (system badges can never be
+         *     deleted); persistence failure → `admin.badge.deleteFailed`. Deleting
+         *     an unknown (but non-system) code succeeds silently.
+         */
+        post: operations["adminDeleteBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page the manual review queue (pending topics or posts)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Lists content held for manual review
+         *     (`processStatus=2`, e.g. sensitive-word matches): forum topics when
+         *     `kind=topic` (wiki-station pages and soft-deleted topics excluded),
+         *     posts when `kind=post` (wiki first posts excluded — they belong to the
+         *     wiki revision review flow — while wiki-station comments with
+         *     `postNo>1` are included). `page` below 1 clamps to 1; `pageSize`
+         *     below 1 or above 50 falls back to 20. Any other `kind` fails
+         *     validation with HTTP 200 `common.request.invalidParams`. Topic items
+         *     omit `topicId`/`postNo`; post items include them and truncate the
+         *     excerpt to 120 bytes.
+         */
+        post: operations["adminListReviewQueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/review-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject a queued topic or post
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Approving sets `processStatus=0`, rejecting sets
+         *     `processStatus=1`; approving a topic also updates its first post,
+         *     clears the topic-list cache, rebuilds the search document (rejected
+         *     topics are removed from the public index), publishes the deferred
+         *     publish/update events (statistics, points, notifications) and writes
+         *     an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
+         *     unknown target → `admin.review.notFound`; wiki-station topics and wiki
+         *     first posts → `admin.review.targetInvalid` (they belong to the wiki
+         *     revision review flow); target no longer pending →
+         *     `admin.review.processed`; persistence failure → `admin.review.failed`.
+         *     A missing/unknown `kind` or a missing `id` fails validation with HTTP
+         *     200 `common.request.invalidParams`.
+         */
+        post: operations["adminReviewAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/file-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page uploaded file resources
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Keyset-paginates the file store newest id first:
+         *     `page` below 1 clamps to 1 and `pageSize` is clamped into [10, 50]
+         *     (0 becomes 10). Quirk: the envelope's `total` is not a row count — it
+         *     is the current max file id used as the pagination cursor. Each item
+         *     carries the uploader's username (empty when the user row is missing)
+         *     and a public access `url`. The file content itself is never inlined.
+         */
+        post: operations["adminListFileResources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/img-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload an image as a site asset (admin media library)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper), but the request/response envelope is still the standard
+         *     ResultStruct JSON. The multipart field is `file`; the content must
+         *     sniff as a real image (JPEG/PNG/GIF/WebP/BMP signatures) and pass the
+         *     posting-settings extension allowlist and size cap. Role-bearing
+         *     callers (any admin role, including SiteManager) skip the new-user
+         *     cooldown, the daily upload quota and the configured size cap downstep
+         *     (the hard 4MB ceiling still applies). On success the image is stored
+         *     date-sharded and recorded as an admin-upload usage reference; the
+         *     response `messageCode` is `upload.success`. Failure responses use real
+         *     HTTP error statuses: missing `file` field → HTTP 400
+         *     `upload.file.missing`; other validation failures (empty filename, too
+         *     large, disallowed extension, non-image content) → HTTP 400 with the
+         *     respective `upload.*` message code.
+         */
+        post: operations["adminUploadImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a background data-export task
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Enqueues a background task (task_queue type `export`) that dumps the
+         *     requested tables to a file under the server's data/export directory
+         *     and returns the task id; poll adminListExportTasks for progress and
+         *     download via adminDownloadExportTask. Data boundary: the dump is a
+         *     verbatim table copy — `users` rows include email addresses,
+         *     freeze/activation state, role ids and profile fields, so export files
+         *     are sensitive personal data. Validation: `tables` and `format` are
+         *     required (`format` must be `json` or `csv`); violations fail with HTTP
+         *     200 `common.request.invalidParams`. An empty table list, an unknown or
+         *     duplicated table fails with HTTP 200 `admin.data.exportFailed`
+         *     (params.error names the offending table in Chinese).
+         */
+        post: operations["adminCreateExportTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/export/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent data-export tasks
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns up to 20 most recent task_queue rows of type
+         *     `export`, newest id first; `taskJson` is the serialized export payload
+         *     (tables/format/fileName/progress/errorCount). With no export tasks the
+         *     result is an empty list. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminListExportTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/export/download/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a finished export file
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper). On success the response is the raw export file (not a JSON
+         *     envelope) with an `attachment` Content-Disposition carrying the file
+         *     name; the file contains the verbatim table dump (sensitive personal
+         *     data for `users`). Error responses are JSON envelopes with real HTTP
+         *     statuses: unknown task id (or a task of another type) → HTTP 404
+         *     `admin.data.taskNotFound`; task not finished (status other than
+         *     success) → HTTP 400 `admin.data.taskNotReady`; finished task whose
+         *     file is missing or resolves outside the export directory → HTTP 400
+         *     `admin.data.downloadDenied`.
+         */
+        get: operations["adminDownloadExportTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a JSON data file (users/topics/posts and derived tables)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper), but the request/response envelope is still the standard
+         *     ResultStruct JSON. The multipart field is `file` (request body capped
+         *     at 50MB); only JSON is accepted — either an object keyed by table name
+         *     (`users`/`topics`/`posts`/`postRevisions`/`topicCategoryIndex`/
+         *     `topicUserStat`) or an array of row objects with an optional `table`
+         *     field (defaulting to `users`). Import is idempotent (existing rows are
+         *     skipped and counted), runs in users → topics → posts → postRevisions →
+         *     derived-tables order, and rebuilds topic invariants afterwards. The
+         *     response report counts total/success/skipped/failed rows with per-row
+         *     error details. Failure responses use real HTTP statuses: missing
+         *     `file` field → HTTP 400 `admin.data.importFailed` (params.error
+         *     `未获取到上传文件`); unparsable content, an empty file, a payload
+         *     without known tables, or an unknown table name → HTTP 400
+         *     `admin.data.importInvalidFormat` (params.error carries the parse
+         *     detail). Note a `code: 0` envelope can still report per-row failures
+         *     inside `result.failed`/`result.errors`.
+         */
+        post: operations["adminImportData"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wiki/search": {
         parameters: {
             query?: never;
@@ -960,6 +4652,68 @@ export interface paths {
         put?: never;
         /** Save the wiki asset CDN mode (PageManager or Admin only) */
         post: operations["saveWikiAssetCDN"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pk/sync-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger a background PK calendar sync
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Triggers the 一系统 (onesystem) schedule-data sync
+         *     for a term (issue #248 self-healing entry): the credential resolves via
+         *     the same cookie priority as the CLI (admin-stored securestore setting,
+         *     then `ONESYSTEM_COOKIE` env), and the sync runs asynchronously in a
+         *     background goroutine (paged fetch can take tens of seconds to minutes).
+         *     The response returns `started: true` immediately; progress and outcome
+         *     are queried via `adminGetPkSyncStatus`. Resume-from-crash paging keeps
+         *     a retried trigger idempotent. A missing/blank/unparseable `term`
+         *     (neither a numeric calendarId nor a known term name) fails request
+         *     validation as `common.request.invalidParams` (HTTP 200). An audit
+         *     record (`admin.opt.pk.synced`) is written for the requesting operator.
+         */
+        post: operations["adminSyncPkCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pk/sync-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summarize per-term PK sync status
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Summarizes the latest sync status per term
+         *     (calendarId descending): the current `pk_calendar` terms form the
+         *     skeleton, each augmented with its most recent fetch-log state; terms
+         *     with a fetch log but no calendar row yet (e.g. a first-sync failure)
+         *     are also listed so failed attempts stay visible. With no terms or logs
+         *     the result is an empty list. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetPkSyncStatus"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1650,6 +5404,658 @@ export interface components {
             result: number | true;
         };
         WriteTopicResponse: components["schemas"]["WriteTopicSuccess"] | components["schemas"]["ApiFailure"];
+        TopicInteractionRequest: {
+            /**
+             * Format: uint64
+             * @description Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description 1 sets the interaction (like/bookmark/watch), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
+        PostInteractionRequest: {
+            /**
+             * Format: uint64
+             * @description Target post; unknown ids or posts inside not-viewable topics fail with `post.notFound` (HTTP 200).
+             */
+            postId: number;
+            /**
+             * @description 1 sets the interaction (like/bookmark), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
+        InteractionSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Set-semantics and idempotent; repeating the same state transition also returns true.
+             * @constant
+             */
+            result: true;
+        };
+        InteractionResponse: components["schemas"]["InteractionSuccess"] | components["schemas"]["ApiFailure"];
+        UpdateTopicStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description 0 unlists the topic, 1 publishes it. Values outside 0-1 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            topicStatus: 0 | 1;
+        };
+        DeleteTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`). */
+            force?: boolean;
+            /** @description Account password, verified only when force confirms a burst deletion; a wrong password fails with `auth.credentials.invalid` (HTTP 200). */
+            password?: string;
+        };
+        CreatePostRequest: {
+            /**
+             * Format: uint64
+             * @description Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Markdown reply content. The server trims whitespace and enforces configurable length bounds (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength). */
+            content: string;
+            /**
+             * Format: uint64
+             * @description Optional parent post inside the same topic; an id outside the topic fails with `comment.parentPostMissing` (HTTP 200).
+             */
+            replyToPostId?: number;
+            /** @description Compatibility honeypot field. Normal clients must not render or submit it; a populated value silently succeeds with result true and creates nothing. */
+            website?: string;
+            /** @description Required only when server-side posting risk controls request a captcha. */
+            captchaId?: string;
+            /** @description Required only when server-side posting risk controls request a captcha. */
+            captchaCode?: string;
+        };
+        CreatePostResult: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Assigned floor number; replies created here are always postNo 2 or higher.
+             */
+            postNo: number;
+            /** @description Rendered HTML of the stored content. */
+            renderedContent: string;
+        };
+        CreatePostSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CreatePostResult"] | true;
+        };
+        CreatePostResponse: components["schemas"]["CreatePostSuccess"] | components["schemas"]["ApiFailure"];
+        UpdatePostRequest: {
+            /**
+             * Format: uint64
+             * @description Post owned by the caller; someone else's post fails with `topic.operationDenied` (HTTP 200).
+             */
+            postId: number;
+            /** @description Replacement markdown content; trimmed and length-checked like posts/create. */
+            content: string;
+        };
+        UpdatePostResult: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            postNo: number;
+            /** @description Stored (trimmed) markdown content after the edit. */
+            content: string;
+            /** @description Rendered HTML of the stored content. */
+            renderedContent: string;
+            /** @description Post update time in RFC 3339 format. */
+            updatedAt: string;
+            /**
+             * Format: uint64
+             * @description Always the caller of this update.
+             */
+            lastEditorId: number;
+            /** @description Edit time in RFC 3339 format. */
+            lastEditedAt: string;
+            /**
+             * Format: int64
+             * @description Number of stored revisions after appending this edit.
+             */
+            revisionCount: number;
+        };
+        UpdatePostSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UpdatePostResult"];
+        };
+        UpdatePostResponse: components["schemas"]["UpdatePostSuccess"] | components["schemas"]["ApiFailure"];
+        DeletePostRequest: {
+            /**
+             * Format: uint64
+             * @description Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+             */
+            postId: number;
+            /** @description Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`). */
+            force?: boolean;
+            /** @description Account password, verified only when force confirms a burst deletion; a wrong password fails with `auth.credentials.invalid` (HTTP 200). */
+            password?: string;
+        };
+        DeletePostResult: {
+            /** @description The capital-H key is intentional — the Go result struct carries no json tag, so the wire key stays `HasChildren`. True when the soft-deleted reply keeps visible children (tombstone placeholder). */
+            HasChildren: boolean;
+        };
+        DeletePostSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["DeletePostResult"];
+        };
+        DeletePostResponse: components["schemas"]["DeletePostSuccess"] | components["schemas"]["ApiFailure"];
+        PostWindowPayload: {
+            posts: components["schemas"]["PostPayload"][];
+            /** @description Preview payloads for replied-to posts outside the window; null when the window has no out-of-window reply targets. */
+            replyTargets: components["schemas"]["ReplyTargetPayload"][] | null;
+            /**
+             * Format: uint64
+             * @description Present only when an anchorPostId query located the window.
+             */
+            anchorPostId?: number;
+            /**
+             * Format: uint64
+             * @description Post number of the first returned post; omitted when the window is empty.
+             */
+            beforePostNo?: number;
+            /**
+             * Format: uint64
+             * @description Post number of the last returned post; omitted when the window is empty.
+             */
+            afterPostNo?: number;
+            hasBefore: boolean;
+            hasAfter: boolean;
+            /**
+             * Format: int64
+             * @description Total post sequence of the topic.
+             */
+            total: number;
+            /**
+             * Format: uint64
+             * @description Highest assigned post number of the topic.
+             */
+            maxPostNo: number;
+        };
+        PostWindowSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PostWindowPayload"];
+        };
+        PostWindowResponse: components["schemas"]["PostWindowSuccess"] | components["schemas"]["ApiFailure"];
+        PostRevisionPayload: {
+            /** Format: uint64 */
+            version: number;
+            /** @description Zero author payload (id 0, empty strings) when the revision is masked for non-moderators. */
+            editor: components["schemas"]["TopicAuthorPayload"];
+            /** @description Revision markdown snapshot; emptied when the revision is masked for non-moderators. */
+            content: string;
+            /** @description Rendered HTML snapshot; emptied when the revision is masked for non-moderators. */
+            renderedHTML: string;
+            /**
+             * @description 0 normal, 1 blocked, 2 pending moderation.
+             * @enum {integer}
+             */
+            processStatus: 0 | 1 | 2;
+            /** @description Revision creation time in RFC 3339 format. */
+            createdAt: string;
+        };
+        PostRevisionsResult: {
+            /** Format: uint64 */
+            postId: number;
+            /** @description Ascending by version within the page. */
+            versions: components["schemas"]["PostRevisionPayload"][];
+            /** @description True when older revisions exist beyond this page. */
+            hasMore: boolean;
+            /**
+             * Format: uint64
+             * @description Cursor for the next (older) page; 0 when no older page exists.
+             */
+            beforeVersion: number;
+        };
+        PostRevisionsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PostRevisionsResult"];
+        };
+        PostRevisionsResponse: components["schemas"]["PostRevisionsSuccess"] | components["schemas"]["ApiFailure"];
+        FollowUserRequest: {
+            /**
+             * Format: uint64
+             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200).
+             */
+            id: number;
+            /**
+             * @description 1 follows, 2 unfollows. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
+        CreateReportRequest: {
+            /** @enum {string} */
+            targetType: "topic" | "post";
+            /** Format: uint64 */
+            targetId: number;
+            /** @enum {string} */
+            reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
+            /** @description Optional context; the server trims whitespace and truncates to 300 runes. */
+            note?: string;
+        };
+        CaptchaResult: {
+            /** @description Captcha challenge id; echoed back as captchaId on captcha-guarded writes. */
+            captchaId: string;
+            /** @description Captcha image as a `data:image/png;base64` data URI, renderable directly in an <img> element. */
+            captchaImg: string;
+        };
+        CaptchaSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CaptchaResult"];
+        };
+        ExternalInformationItem: {
+            /** @description External profile URL; empty when unset. */
+            link: string;
+        };
+        ExternalInformation: {
+            github: components["schemas"]["ExternalInformationItem"];
+            weibo: components["schemas"]["ExternalInformationItem"];
+            bilibili: components["schemas"]["ExternalInformationItem"];
+            twitter: components["schemas"]["ExternalInformationItem"];
+            linkedIn: components["schemas"]["ExternalInformationItem"];
+            zhihu: components["schemas"]["ExternalInformationItem"];
+        };
+        UserBadge: {
+            code: string;
+            type: string;
+            grantMode: string;
+            name: string;
+            description: string;
+            iconType: string;
+            iconKey: string;
+            iconUrl: string;
+            color: string;
+            level: string;
+            isEnabled: boolean;
+            isWearable: boolean;
+            sortOrder: number;
+            /** @description How the badge was granted (system or manual). */
+            source: string;
+            reason: string;
+            /** @description Grant time in RFC 3339 format. */
+            grantedAt: string;
+        };
+        UserCard: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            profileCoverUrl: string;
+            bio: string;
+            signature: string;
+            websiteName: string;
+            website: string;
+            /** Format: int64 */
+            prestige: number;
+            isAdmin: boolean;
+            topicCount: number;
+            replyCount: number;
+            likeReceivedCount: number;
+            likeGivenCount: number;
+            followerCount: number;
+            followingCount: number;
+            collectionCount: number;
+            isOnline: boolean;
+            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            isFollowing: boolean;
+            externalInformation: components["schemas"]["ExternalInformation"];
+            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            isSelf: boolean;
+            /** @description Always an array (empty when the user holds no badges), never null. */
+            badges: components["schemas"]["UserBadge"][];
+            wornBadge?: components["schemas"]["UserBadge"];
+            /** Format: date-time */
+            lastActiveTime: string;
+            /**
+             * Format: date-time
+             * @description Account creation time in RFC 3339 format.
+             */
+            createdAt: string;
+            /** @description True renders the tombstone card of a closed (soft-deleted) account; the other fields then carry zero values. */
+            isAccountClosed: boolean;
+        };
+        UserCardSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UserCard"];
+        };
+        UserCardResponse: components["schemas"]["UserCardSuccess"] | components["schemas"]["ApiFailure"];
+        UserUpdateSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "更新成功";
+            /** @constant */
+            messageCode: "user.updateSuccess";
+        };
+        UserUpdateResponse: components["schemas"]["UserUpdateSuccess"] | components["schemas"]["ApiFailure"];
+        SetUserInfoRequest: {
+            nickname?: string;
+            /** @description Full-overwrite semantics; an empty string clears the field. */
+            bio?: string;
+            /** @description Full-overwrite semantics; an empty string clears the field. */
+            signature?: string;
+            website?: string;
+            websiteName?: string;
+            /** @description UI locale; only applied when non-empty after trimming. */
+            locale?: string;
+            externalInformation?: components["schemas"]["ExternalInformation"];
+        };
+        SetUserProfileCoverRequest: {
+            /** @description Cover image URL; trimmed server-side, an empty string clears the cover. */
+            profileCoverUrl?: string;
+        };
+        SetUserEmailRequest: {
+            /**
+             * Format: email
+             * @description New email address; lower-cased and trimmed server-side.
+             */
+            email: string;
+            /** @description Current account password as second-factor confirmation. */
+            password: string;
+        };
+        ResendActivationResult: {
+            /** @description Remaining activation-email resends allowed today (daily limit 3). */
+            remainingToday: number;
+        };
+        ResendActivationSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ResendActivationResult"];
+            /** @constant */
+            messageCode: "auth.activation.resendSuccess";
+            params: {
+                remainingToday: number;
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        ResendActivationResponse: components["schemas"]["ResendActivationSuccess"] | components["schemas"]["ApiFailure"];
+        SetUserNameRequest: {
+            /** @description New username; values outside the pattern fail with `auth.username.invalid` (HTTP 200). */
+            username: string;
+        };
+        SetPresetAvatarRequest: {
+            /**
+             * @description Built-in preset avatar; any other value fails with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            avatarUrl: "/static/pic/1.webp" | "/static/pic/2.webp" | "/static/pic/3.webp" | "/static/pic/4.webp" | "/static/pic/5.webp" | "/static/pic/6.webp" | "/static/pic/7.webp" | "/static/pic/8.webp" | "/static/pic/9.webp" | "/static/pic/10.webp" | "/static/pic/11.webp" | "/static/pic/12.webp";
+        };
+        PresetAvatarResult: {
+            /** @description Web URL of the applied preset avatar. */
+            avatarUrl: string;
+        };
+        PresetAvatarSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PresetAvatarResult"];
+        };
+        PresetAvatarResponse: components["schemas"]["PresetAvatarSuccess"] | components["schemas"]["ApiFailure"];
+        WearBadgeRequest: {
+            /** @description Badge to wear; an empty string (or omitted field) takes the current badge off. Unknown or not-owned codes fail with `common.request.invalidParams` (HTTP 200). */
+            badgeCode?: string;
+        };
+        UploadAvatarRequest: {
+            /**
+             * Format: binary
+             * @description Primary avatar image file.
+             */
+            avatar: string;
+            /**
+             * Format: binary
+             * @description Optional pre-cropped medium avatar; when present the server stores both files and returns avatarMediumUrl.
+             */
+            avatarMedium?: string;
+        };
+        UploadAvatarResult: {
+            avatarUrl: string;
+            /** @description Present only when an avatarMedium file was uploaded. */
+            avatarMediumUrl?: string;
+        };
+        UploadAvatarSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UploadAvatarResult"];
+            /** @constant */
+            messageCode: "upload.success";
+        };
+        UploadAvatarResponse: components["schemas"]["UploadAvatarSuccess"] | components["schemas"]["ApiFailure"];
+        ChangePasswordRequest: {
+            /** @description Current password; a wrong value fails with `auth.password.oldInvalid` (HTTP 200). */
+            oldPassword: string;
+            /** @description 6-64 characters containing at least one letter and one digit; violations fail with `auth.password.tooShort` (params minLength) / `auth.password.tooLong` / `auth.password.needsLetterNumber` (HTTP 200). */
+            newPassword: string;
+        };
+        ChangePasswordSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "密码修改成功";
+            /** @constant */
+            messageCode: "auth.password.updateSuccess";
+        };
+        ChangePasswordResponse: components["schemas"]["ChangePasswordSuccess"] | components["schemas"]["ApiFailure"];
+        OAuthBinding: {
+            /** @constant */
+            bound: true;
+            provider: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        } | {
+            /** @constant */
+            bound: false;
+        };
+        /** @description Binding state keyed by provider; the response always carries the fixed github and google keys. */
+        OAuthBindingsResult: {
+            github: components["schemas"]["OAuthBinding"];
+            google: components["schemas"]["OAuthBinding"];
+        };
+        OAuthBindingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["OAuthBindingsResult"];
+        };
+        OAuthBindingsResponse: components["schemas"]["OAuthBindingsSuccess"] | components["schemas"]["ApiFailure"];
+        UnbindOAuthSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "解绑成功";
+            /** @constant */
+            messageCode: "oauth.unbind.success";
+            params: {
+                provider: string;
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        UnbindOAuthResponse: components["schemas"]["UnbindOAuthSuccess"] | components["schemas"]["ApiFailure"];
+        UnreadStatusResult: {
+            /** @description True when the user has unread notifications. */
+            notifications: boolean;
+            /** @description True when the user has unread chat messages. */
+            messages: boolean;
+            /** @description True when the user has open moderation reports. */
+            moderationReports: boolean;
+            /** @description Event type of the latest unread notification; omitted when there are no unread notifications. */
+            latestNotificationType?: string;
+        };
+        UnreadStatusSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UnreadStatusResult"];
+        };
+        UnreadStatusResponse: components["schemas"]["UnreadStatusSuccess"] | components["schemas"]["ApiFailure"];
+        NotificationTopicRef: {
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            url: string;
+        };
+        NotificationPayload: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Notification event type (for example reply/like/system); the payload shape varies with it. */
+            eventType: string;
+            isRead: boolean;
+            /** @description Notification creation time in RFC 3339 format. */
+            createdAt: string;
+            title: string;
+            content: string;
+            actor: components["schemas"]["TopicAuthorPayload"];
+            topic?: components["schemas"]["NotificationTopicRef"];
+            /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        NotificationListResult: {
+            items: components["schemas"]["NotificationPayload"][];
+            /**
+             * Format: uint64
+             * @description Cursor for the next (older) page; 0 when no further page exists.
+             */
+            nextCursor: number;
+            hasNext: boolean;
+            /**
+             * Format: int64
+             * @description Total unread notification count of the caller, independent of the current filter.
+             */
+            unreadCount: number;
+        };
+        NotificationListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["NotificationListResult"];
+        };
+        NotificationListResponse: components["schemas"]["NotificationListSuccess"] | components["schemas"]["ApiFailure"];
+        MarkNotificationReadRequest: {
+            /**
+             * Format: uint64
+             * @description Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            notificationId: number;
+        };
+        NotificationMarkReadSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "标记已读成功";
+            /** @constant */
+            messageCode: "notification.markRead.success";
+        };
+        NotificationMarkReadResponse: components["schemas"]["NotificationMarkReadSuccess"] | components["schemas"]["ApiFailure"];
+        NotificationMarkAllReadSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "标记全部已读成功";
+            /** @constant */
+            messageCode: "notification.markAllRead.success";
+        };
+        NotificationMarkAllReadResponse: components["schemas"]["NotificationMarkAllReadSuccess"] | components["schemas"]["ApiFailure"];
+        SendChatMessageRequest: {
+            /**
+             * Format: uint64
+             * @description Recipient user id; messaging oneself fails with `chat.send.failed` (HTTP 200).
+             */
+            peerId: number;
+            /** @description Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params word). */
+            content: string;
+            /**
+             * @description 1 text, 2 image, 3 voice. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            msgType: 1 | 2 | 3;
+        };
+        SendChatMessageResult: {
+            /**
+             * Format: uint64
+             * @description Conversation id the message was stored under; reuse it for messages/mark-read.
+             */
+            convId: number;
+        };
+        SendChatMessageSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["SendChatMessageResult"];
+        };
+        SendChatMessageResponse: components["schemas"]["SendChatMessageSuccess"] | components["schemas"]["ApiFailure"];
+        GetChatMessagesRequest: {
+            /**
+             * Format: uint64
+             * @description Target conversation; non-members and unknown ids fail with `chat.messages.failed` (HTTP 200) without revealing which case matched.
+             */
+            convId: number;
+            /**
+             * Format: uint64
+             * @description Return the page of messages older than this message id; mutually exclusive with afterId. 0 is treated as omitted.
+             */
+            beforeId?: number;
+            /**
+             * Format: uint64
+             * @description Return the page of messages newer than this message id; mutually exclusive with beforeId. 0 is treated as omitted.
+             */
+            afterId?: number;
+            /** @description Page size; omitted or 0 falls back to the server default (30), values above 100 fail validation with `common.request.invalidParams` (HTTP 200). */
+            limit?: number;
+        };
+        ChatMessageVo: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            senderId: number;
+            content: string;
+            /**
+             * @description 1 text, 2 image, 3 voice.
+             * @enum {integer}
+             */
+            msgType: 1 | 2 | 3;
+            /**
+             * @description Numeric read flag (0 unread, 1 read), not a boolean.
+             * @enum {integer}
+             */
+            isRead: 0 | 1;
+            /** @description Message creation time in RFC 3339 format. */
+            createdAt: string;
+            /** @description True when the caller sent this message. */
+            isSelf: boolean;
+        };
+        ChatMessagesResult: {
+            /** @description Ascending by message id within the page. */
+            list: components["schemas"]["ChatMessageVo"][];
+            /** @description True when older messages exist beyond this page (only meaningful for latest/beforeId reads). */
+            hasMoreBefore: boolean;
+            /** @description True when newer messages exist beyond this page (only set for afterId reads). */
+            hasMoreAfter: boolean;
+            /**
+             * Format: uint64
+             * @description Id of the oldest returned message; pass as beforeId for the next older page. 0 when the page is empty.
+             */
+            nextBeforeId: number;
+            /**
+             * Format: uint64
+             * @description Id of the newest returned message. 0 when the page is empty.
+             */
+            latestId: number;
+        };
+        ChatMessagesSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ChatMessagesResult"];
+        };
+        ChatMessagesResponse: components["schemas"]["ChatMessagesSuccess"] | components["schemas"]["ApiFailure"];
+        MarkChatReadRequest: {
+            /**
+             * Format: uint64
+             * @description Conversation to clear; non-members and unknown ids fail with `chat.markRead.failed` (HTTP 200) without revealing which case matched.
+             */
+            convId: number;
+        };
+        ChatMarkReadSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description The success envelope carries no payload (result is null and no messageCode is emitted). */
+            result: null;
+        };
+        ChatMarkReadResponse: components["schemas"]["ChatMarkReadSuccess"] | components["schemas"]["ApiFailure"];
         RateLimitedFailure: components["schemas"]["ApiFailure"] & {
             params: {
                 action: string;
@@ -1752,26 +6158,7 @@ export interface components {
         }) | components["schemas"]["ApiFailure"];
         /** @description Mirrors the forum SearchJSON payload (including courses), including searchUnavailable and failedScopes. */
         AgentSearchResponse: components["schemas"]["ApiSuccess"] & {
-            result: {
-                query: string;
-                scope: string;
-                topics: components["schemas"]["TopicPayload"][];
-                users: components["schemas"]["UserSearchPayload"][];
-                categories: components["schemas"]["CategorySearchPayload"][];
-                courses: components["schemas"]["CourseSearchPayload"][];
-                /** Format: int64 */
-                total: number;
-                /** Format: int64 */
-                usersTotal: number;
-                /** Format: int64 */
-                categoriesTotal: number;
-                /** Format: int64 */
-                coursesTotal: number;
-                totalPages: number;
-                pagination: components["schemas"]["PaginationPayload"];
-                failedScopes?: string[];
-                searchUnavailable?: boolean;
-            };
+            result: components["schemas"]["SearchResultPayload"];
         };
         CourseSummary: {
             /** Format: uint64 */
@@ -2067,6 +6454,214 @@ export interface components {
         ModerationCourseReviewRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseReviewAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        ModerationTopicStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Target topic; unknown ids fail with `topic.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description ban sets processStatus 1 (hidden from public views), unban restores 0. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            action: "ban" | "unban";
+        };
+        ModerationPostStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Target post; unknown ids fail with `post.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            postId: number;
+            /**
+             * @description ban sets processStatus 1, unban restores 0. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            action: "ban" | "unban";
+        };
+        ModerationActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Idempotent — repeating an already-applied status also returns true.
+             * @constant
+             */
+            result: true;
+        };
+        ModerationActionResponse: components["schemas"]["ModerationActionSuccess"] | components["schemas"]["ApiFailure"];
+        ModerationReportListRequest: {
+            /**
+             * @description Optional filter; omitted means `open`. `closed` expands to resolved+rejected server-side. Any other value fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            status?: "open" | "closed" | "resolved" | "rejected";
+            /**
+             * Format: uint64
+             * @description Pass the previous page's nextCursor for the next page; omit or send 0 for the first page.
+             */
+            cursor?: number;
+            /** @description Clamped server-side into the 10-50 range (values below 10 become 10, above 50 become 50). */
+            pageSize?: number;
+            /**
+             * Format: uint64
+             * @description Optional category filter, intersected with the caller's moderation scope; a category outside the scope yields an empty page.
+             */
+            category?: number;
+        };
+        ModerationReportItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            targetType: "topic" | "post";
+            /** Format: uint64 */
+            targetId: number;
+            /** @description Deep link to the reported content; empty when it cannot be resolved. */
+            targetUrl: string;
+            title: string;
+            /** @description Content snapshot taken at report time (max 120 runes). */
+            excerpt: string;
+            /** @enum {string} */
+            reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
+            /** @description Reporter note (max 300 runes); may be empty. */
+            note: string;
+            /** @enum {string} */
+            status: "open" | "resolved" | "rejected";
+            /**
+             * @description Set when handled; empty for open reports and for resolve actions.
+             * @enum {string}
+             */
+            resolution: "banned" | "ignored" | "";
+            reporter: components["schemas"]["TopicAuthorPayload"];
+            handler: components["schemas"]["ReportHandlerPayload"];
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+            /** @description RFC 3339 timestamp; omitted while the report is open. */
+            handledAt?: string;
+            /** @description Present and true when the reported content has since been deleted; review still relies on the report-time snapshot. */
+            targetDeleted?: boolean;
+        };
+        ModerationReportListResult: {
+            items: components["schemas"]["ModerationReportItem"][];
+            /**
+             * Format: uint64
+             * @description Pass as cursor for the next page; 0 when hasNext is false.
+             */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        ModerationReportListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationReportListResult"];
+        };
+        ModerationReportListResponse: components["schemas"]["ModerationReportListSuccess"] | components["schemas"]["ApiFailure"];
+        ModerationReportStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Report id; unknown ids fail with `report.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            id: number;
+            /**
+             * @description ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            action: "ban" | "resolve" | "reject";
+        };
+        ModerationLogListRequest: {
+            /**
+             * Format: uint64
+             * @description Pass the previous page's nextCursor for the next page; omit or send 0 for the first page.
+             */
+            cursor?: number;
+            /** @description Clamped server-side into the 10-50 range. */
+            pageSize?: number;
+        };
+        ModerationLogSubject: {
+            /** @enum {string} */
+            type: "topic" | "post" | "report" | "category" | "user" | "system";
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            /** @description Deep link to the subject; omitted when it cannot be resolved. */
+            url?: string;
+            /** @description Omitted when no excerpt is available. */
+            excerpt?: string;
+        };
+        ModerationLogItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Stable action identifier recorded in the moderation log (e.g. topic status change, report handling, deleted-content view). */
+            action: string;
+            actor: components["schemas"]["TopicAuthorPayload"];
+            subject: components["schemas"]["ModerationLogSubject"];
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /** @description Stable message identifier for rendering the log entry. */
+            messageCode: string;
+            /** @description Localization params for messageCode; shape depends on the action. */
+            params: {
+                [key: string]: unknown;
+            };
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+        };
+        ModerationLogListResult: {
+            items: components["schemas"]["ModerationLogItem"][];
+            /**
+             * Format: uint64
+             * @description Pass as cursor for the next page; 0 when hasNext is false.
+             */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        ModerationLogListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationLogListResult"];
+        };
+        ModerationLogListResponse: components["schemas"]["ModerationLogListSuccess"] | components["schemas"]["ApiFailure"];
+        ViewDeletedContentRequest: {
+            /**
+             * @description Any other value fails with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            contentType: "topic" | "post";
+            /**
+             * Format: uint64
+             * @description Deleted topic or post id. Unknown, still-visible, or permanently purged content fails with `topic.notFound` / `post.notFound` (HTTP 200).
+             */
+            contentId: number;
+            /** @description Mandatory audit reason; every view is written to the moderation log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200). */
+            reason: string;
+        };
+        ModerationDeletedContentView: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+            /**
+             * Format: uint64
+             * @description Owning topic id; omitted when it cannot be resolved.
+             */
+            topicId?: number;
+            /** @description Topic title, or `回复 */
+            title: string;
+            /** @description Raw markdown source of the deleted content. */
+            content: string;
+            /** Format: uint64 */
+            authorId: number;
+            /** @description Resolved at view time; empty when the author account is gone. */
+            authorName: string;
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /**
+             * Format: uint64
+             * @description User id of the deleting actor; 0 when not recorded.
+             */
+            deletedBy: number;
+            /** @description Username of the deleting actor; empty when not resolvable. */
+            deletedByWho: string;
+            /** @description RFC 3339 deletion timestamp; empty when not recorded. */
+            deletedAt: string;
+            deleteReason: string;
+            targetUrl: string;
+        };
+        ViewDeletedContentSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationDeletedContentView"];
+        };
+        ViewDeletedContentResponse: components["schemas"]["ViewDeletedContentSuccess"] | components["schemas"]["ApiFailure"];
         AdminCourseListRequest: {
             /** @description Matches normalized name, primary code, aliases, pinyin, initials, or instructor names. */
             keyword?: string;
@@ -2180,6 +6775,1211 @@ export interface components {
             /** Format: uint64 */
             reviewId: number;
         };
+        AdminTopicsListRequest: {
+            /** @description 1-based page; values below 1 are treated as page 1. */
+            page?: number;
+            /** @description Bounded server-side to the shared page-size limits. */
+            pageSize?: number;
+            /** @description Case-insensitive title substring filter. */
+            search?: string;
+            /**
+             * Format: uint64
+             * @description Optional author filter; 0 or omitted lists all authors.
+             */
+            userId?: number;
+        };
+        AdminTopicBase: {
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            /** @description Topic excerpt. */
+            description: string;
+            categoryId: number[];
+            /**
+             * Format: uint64
+             * @description Author user id.
+             */
+            userId: number;
+            /** @description Lifecycle status of the topic (0 unlisted, 1 published). */
+            topicStatus: number;
+            /** @description Moderation status (0 normal, 1 banned). */
+            processStatus: number;
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+            /** @description RFC 3339 timestamp. */
+            updatedAt: string;
+        };
+        AdminTopicListItem: components["schemas"]["AdminTopicBase"] & {
+            /** @description Author username; empty when the author account is gone. */
+            username: string;
+            userAvatarUrl: string;
+            /** Format: uint64 */
+            viewCount: number;
+            /** Format: uint64 */
+            replyCount: number;
+            /** Format: uint64 */
+            likeCount: number;
+            /** @description Pin weight; larger values sort first. */
+            pinWeight: number;
+        };
+        AdminTopicsListResult: {
+            list: components["schemas"]["AdminTopicListItem"][];
+            page: number;
+            /** @description Effective page size after server-side bounding. */
+            size: number;
+            /**
+             * Format: int64
+             * @description Always 0 — the admin list query does not compute a total count.
+             */
+            total: number;
+            /** @description Omitted from the wire payload when false. */
+            hasNext?: boolean;
+        };
+        AdminTopicsListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTopicsListResult"];
+        };
+        AdminTopicsListResponse: components["schemas"]["AdminTopicsListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminTopicSourceRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+        };
+        AdminTopicSource: components["schemas"]["AdminTopicBase"] & {
+            /** @description Raw markdown source of the topic's first post. */
+            content: string;
+        };
+        AdminTopicSourceSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTopicSource"];
+        };
+        AdminTopicSourceResponse: components["schemas"]["AdminTopicSourceSuccess"] | components["schemas"]["ApiFailure"];
+        AdminEditTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description 0 normal, 1 banned. Any other value fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            processStatus: 0 | 1;
+        };
+        AdminDeleteTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200). Wiki subsite topics fail with `topic.operationDenied` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Mandatory moderation reason, stored in the audit log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200). */
+            reason: string;
+        };
+        AdminRestoreTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200); topics not in the moderator-removed state fail with `content.notRecoverable` (HTTP 200).
+             */
+            topicId: number;
+        };
+        AdminDeletePostRequest: {
+            /**
+             * Format: uint64
+             * @description Reply posts only. Unknown ids fail with `post.notFound` (HTTP 200); the topic first post fails with `common.request.invalidParams` (HTTP 200) — delete the topic instead.
+             */
+            postId: number;
+            /** @description Mandatory moderation reason, stored in the audit log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200). */
+            reason: string;
+        };
+        AdminEditTopicPinRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /** @description 0 unpins; larger weights sort first. Values outside 0-1000000 fail validation with `common.request.invalidParams` (HTTP 200). */
+            pinWeight: number;
+        };
+        AdminEditTopicCategoriesRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Replacement category set (deduplicated server-side). An empty/omitted set or more than three raw entries fail request validation with `common.request.invalidParams`; zero or unknown ids fail with `admin.category.notFound` (all HTTP 200). The handler's `admin.topic.categoryRequired` / `admin.topic.categoryTooMany` branches are unreachable because validation runs first. */
+            categoryId: number[];
+        };
+        AdminOperationSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "操作成功";
+            /**
+             * @description `common.operation.success` for most operations; `content.restore.success` for adminRestoreTopic.
+             * @enum {string}
+             */
+            messageCode: "common.operation.success" | "content.restore.success";
+        };
+        AdminOperationResponse: components["schemas"]["AdminOperationSuccess"] | components["schemas"]["ApiFailure"];
+        AdminUserListRequest: {
+            /** @description Substring filter on the username. */
+            username?: string;
+            /**
+             * Format: uint64
+             * @description Exact user-id filter; 0 or omitted lists all users.
+             */
+            userId?: number;
+            /** @description Substring filter on the account email. */
+            email?: string;
+            /** @description 1-based page; values below 1 are treated as page 1. The echoed `page` in the response is 0-based. */
+            page?: number;
+            /** @description Bounded server-side into 10-30. */
+            pageSize?: number;
+        };
+        /** @description The wire object may also carry a `label` string mirroring `name`; adminUserList never emits it. */
+        AdminUserRoleOption: {
+            /** @description Role name. */
+            name: string;
+            /**
+             * Format: uint64
+             * @description Role id.
+             */
+            value: number;
+        };
+        AdminBadge: {
+            /** @description Stable badge code (system codes like `early_member`, custom codes carry a `custom_` prefix). */
+            code: string;
+            /** @enum {string} */
+            type: "system" | "custom";
+            /**
+             * @description Only `manual` badges appear in adminUserBadgeOptions options and are grantable via adminSaveUserBadges.
+             * @enum {string}
+             */
+            grantMode: "auto" | "manual";
+            name: string;
+            description: string;
+            /** @enum {string} */
+            iconType: "asset" | "key";
+            /** @description Icon key when iconType is `key`; empty otherwise. */
+            iconKey: string;
+            /** @description Icon asset path when iconType is `asset`; empty otherwise. */
+            iconUrl: string;
+            color: string;
+            /** @enum {string} */
+            level: "bronze" | "silver" | "gold" | "special";
+            isEnabled: boolean;
+            isWearable: boolean;
+            sortOrder: number;
+            /** @description System badges are seeded by the server; system badges cannot be deleted. */
+            isSystem?: boolean;
+            /** @description Whether the current caller may delete this badge (false for system badges). */
+            canDelete?: boolean;
+        };
+        AdminUserBadge: components["schemas"]["AdminBadge"] & {
+            /** @description Grant source (`manual`, `auto`, `migration`). */
+            source: string;
+            /** @description Grant reason recorded at grant time. */
+            reason: string;
+            /** @description RFC 3339 timestamp of the (re)grant. */
+            grantedAt: string;
+        };
+        AdminUserItem: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            /** @description Web avatar URL; the banned avatar when the account is frozen, the default avatar when none is set. */
+            avatarUrl: string;
+            /** @description Account email (PII — admin-only surface). */
+            email: string;
+            /** @description Frozen flag (0 normal, 1 frozen). */
+            status: number;
+            /** @description 0 human, 1 bot (Agent). */
+            actorType: number;
+            /** @description Activation flag (0 pending, 1 activated). */
+            validate: number;
+            /** Format: int64 */
+            prestige: number;
+            /** @description Single-entry array with the user's role; null when the user holds no role. */
+            roleList: components["schemas"]["AdminUserRoleOption"][] | null;
+            /**
+             * Format: uint64
+             * @description The user's role id; omitted from the wire payload when 0.
+             */
+            roleId?: number;
+            /** @description RFC 3339 timestamp. */
+            createTime: string;
+            /** @description RFC 3339 timestamp; falls back to the account creation time when no statistics row exists. */
+            lastActiveTime: string;
+            /** @description The user's active badges (empty array when none). */
+            badges: components["schemas"]["AdminUserBadge"][];
+        };
+        AdminUserListResult: {
+            list: components["schemas"]["AdminUserItem"][];
+            /** @description 0-based echo of the requested 1-based page (requested page minus one, floored at 0). */
+            page: number;
+            /** @description Effective page size after server-side bounding. */
+            size: number;
+            /**
+             * Format: int64
+             * @description Total number of users matching the filters.
+             */
+            total: number;
+        };
+        AdminUserListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminUserListResult"];
+        };
+        AdminUserListResponse: components["schemas"]["AdminUserListSuccess"] | components["schemas"]["ApiFailure"];
+        /** @description No field is required and no field-level validation runs — omitted fields bind to zero values and overwrite the stored state. */
+        AdminEditUserRequest: {
+            /**
+             * Format: uint64
+             * @description Target user; 0 or unknown ids fail with `admin.user.targetFetchFailed` (HTTP 200).
+             */
+            userId?: number;
+            /** @description Frozen flag to apply (0 normal, 1 frozen). Omitted binds to 0 and unfreezes. */
+            status?: number;
+            /** @description Activation flag to apply (0 pending, 1 activated). Omitted binds to 0 and deactivates. */
+            validate?: number;
+            /**
+             * Format: uint64
+             * @description Role to assign; 0 clears the role. Non-zero on a bot (Agent) account fails with `admin.agent.roleNotAllowed` (HTTP 200).
+             */
+            roleId?: number;
+        };
+        AdminUserActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminUserActionResponse: components["schemas"]["AdminUserActionSuccess"] | components["schemas"]["ApiFailure"];
+        AdminUserBadgeOptionsRequest: {
+            /**
+             * Format: uint64
+             * @description Target user whose active badges are listed; 0 or unknown ids yield an empty `active` array.
+             */
+            userId?: number;
+        };
+        AdminUserBadgeOptionsResult: {
+            /** @description Every enabled manual-grant badge (built-in system definitions plus enabled custom overrides). */
+            options: components["schemas"]["AdminBadge"][];
+            /** @description The target user's currently active badges. */
+            active: components["schemas"]["AdminUserBadge"][];
+        };
+        AdminUserBadgeOptionsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminUserBadgeOptionsResult"];
+        };
+        AdminUserBadgeOptionsResponse: components["schemas"]["AdminUserBadgeOptionsSuccess"] | components["schemas"]["ApiFailure"];
+        AdminSaveUserBadgesRequest: {
+            /**
+             * Format: uint64
+             * @description Target user; 0 fails with `user.notFound` (HTTP 200). No further existence check runs.
+             */
+            userId?: number;
+            /** @description Replacement set of manually-granted badge codes (deduplicated server-side); codes that do not resolve to an enabled manual-grant badge are silently ignored. */
+            badgeCodes?: string[];
+        };
+        AdminRoleOption: {
+            /** @description Role name. */
+            name: string;
+            /** @description Same as name. */
+            label: string;
+            /**
+             * Format: uint64
+             * @description Role id.
+             */
+            value: number;
+        };
+        AdminRoleOptionsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All non-deleted roles as options (empty array when none exist). */
+            result: components["schemas"]["AdminRoleOption"][];
+        };
+        AdminPermissionOption: {
+            /** @description Permission name localized to the request locale. */
+            name: string;
+            /** @description Same as name. */
+            label: string;
+            /** @description Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager). */
+            value: number;
+        };
+        AdminPermissionListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All 7 assignable permissions, enum id ascending. */
+            result: components["schemas"]["AdminPermissionOption"][];
+        };
+        AdminRolePermissionItem: {
+            /** @description Permission enum id. */
+            id: number;
+            /** @description Permission name localized to the request locale; empty for unknown permission ids. */
+            name: string;
+        };
+        AdminRoleItem: {
+            /** Format: uint64 */
+            roleId: number;
+            roleName: string;
+            /** @description 1 effective, 0 disabled. */
+            effective: number;
+            /** @description Every stored permission grant of the role (including ineffective ones). */
+            permissions: components["schemas"]["AdminRolePermissionItem"][];
+            /** @description RFC 3339 timestamp. */
+            createTime: string;
+        };
+        AdminRoleListResult: {
+            list: components["schemas"]["AdminRoleItem"][];
+            /** @description Always 0 — the request binds no page field. */
+            page: number;
+            /** @description Always 10 — the request binds no pageSize field and the server default applies. */
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        AdminRoleListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminRoleListResult"];
+        };
+        AdminRoleListResponse: components["schemas"]["AdminRoleListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminRoleSaveRequest: {
+            /**
+             * Format: uint64
+             * @description 0 creates a new role; a positive id updates that role (an unknown positive id silently creates a new role).
+             */
+            id?: number;
+            /** @description Blank fails request validation with `common.request.invalidParams` (HTTP 200). */
+            roleName: string;
+            /** @description Replacement permission-id set. Empty or over-long lists fail request validation with `common.request.invalidParams` (HTTP 200); unknown ids are stored as-is. */
+            permissions: number[];
+        };
+        AdminRoleDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Role to delete; 0 or unknown ids fail with `admin.role.notFound` (HTTP 200).
+             */
+            id?: number;
+        };
+        AdminBoolSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        };
+        AdminBoolResponse: components["schemas"]["AdminBoolSuccess"] | components["schemas"]["ApiFailure"];
+        AdminCategoryListRequest: {
+            /** @description Accepted but ignored — the category list is never paged. */
+            page?: number;
+            /** @description Accepted but ignored — the category list is never paged. */
+            pageSize?: number;
+        };
+        AdminCategoryModeratorItem: {
+            /**
+             * Format: uint64
+             * @description Moderator row id (the handle used by the delete operations).
+             */
+            id: number;
+            /** Format: uint64 */
+            userId: number;
+            /** @description Empty when the user account is gone. */
+            username: string;
+            /** @description Empty when the user account is gone. */
+            avatarUrl: string;
+            /** @description 1 enabled, 0 disabled. */
+            status: number;
+        };
+        AdminCategoryItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Category display name. */
+            category: string;
+            desc: string;
+            icon: string;
+            /** @description Hex color; a default is filled in when stored empty. */
+            color: string;
+            slug: string;
+            /** @description Ascending sort weight (ties break by id ascending). */
+            sort: number;
+            /** @description Enabled category-scope moderators, moderator row id ascending (empty array when none). */
+            moderators: components["schemas"]["AdminCategoryModeratorItem"][];
+        };
+        AdminCategoryListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All categories (empty array when none exist). */
+            result: components["schemas"]["AdminCategoryItem"][];
+        };
+        AdminCategorySaveRequest: {
+            /**
+             * Format: uint64
+             * @description 0 creates a new category; a positive id overwrites that category (unknown positive ids fail with `admin.category.dataNotFound`, HTTP 200).
+             */
+            id?: number;
+            /** @description Display name. Missing/empty fails validation with `common.request.invalidParams`; whitespace-only fails the handler trim check with `admin.category.nameRequired` (both HTTP 200). */
+            category: string;
+            desc?: string;
+            icon?: string;
+            color?: string;
+            slug?: string;
+            sort?: number;
+        };
+        AdminCategoryDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Category to delete; 0 or unknown ids fail with `admin.category.notFound` (HTTP 200).
+             */
+            id?: number;
+        };
+        AdminModeratorUserRequest: {
+            /**
+             * Format: uint64
+             * @description Target user id; takes precedence over username. 0 falls back to the username lookup.
+             */
+            userId?: number;
+            /** @description Exact username lookup fallback. Both empty fails with `admin.moderator.userRequired`; an unresolvable reference fails with `admin.moderator.userNotFound` (both HTTP 200). */
+            username?: string;
+        };
+        AdminModeratorDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Moderator row id (from adminCategoryList / adminGlobalModeratorList). Missing/zero fails validation with `common.request.invalidParams`; unknown ids or rows of the other scope fail with `admin.moderator.notFound` (both HTTP 200).
+             */
+            id: number;
+        };
+        AdminCategoryModeratorAddRequest: {
+            /**
+             * Format: uint64
+             * @description Missing/zero fails validation with `common.request.invalidParams`; unknown ids fail with `admin.category.notFound` (both HTTP 200).
+             */
+            categoryId: number;
+            /**
+             * Format: uint64
+             * @description Target user id; takes precedence over username. 0 falls back to the username lookup.
+             */
+            userId?: number;
+            /** @description Exact username lookup fallback. Both empty fails with `admin.moderator.userRequired`; an unresolvable reference fails with `admin.moderator.userNotFound`; bot accounts fail with `admin.agent.roleNotAllowed` (all HTTP 200). */
+            username?: string;
+        };
+        AdminModeratorListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All enabled global moderators, moderator row id ascending (empty array when none exist). */
+            result: components["schemas"]["AdminCategoryModeratorItem"][];
+        };
+        AdminFriendLinkItem: {
+            name: string;
+            desc: string;
+            url: string;
+            logoUrl: string;
+            /** @description Display status flag (1 = shown). */
+            status: number;
+        };
+        AdminFriendLinksGroup: {
+            /** @description Omitted when empty (`omitempty`). */
+            name?: string;
+            /** @description Omitted when empty (`omitempty`). */
+            emoji?: string;
+            /** @description Omitted when empty (`omitempty`). */
+            color?: string;
+            /** @description Never null in responses — null groups are normalized to an empty array. */
+            links: components["schemas"]["AdminFriendLinkItem"][];
+        };
+        AdminFriendLinksResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored friend-link groups, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminFriendLinksGroup"][];
+        };
+        AdminSaveFriendLinksRequest: {
+            /** @description Replacement group list. No validation — a missing/null value is saved as null. */
+            linksInfo?: components["schemas"]["AdminFriendLinksGroup"][];
+        };
+        AdminSponsorItem: {
+            link: string;
+            message: string;
+            avatarUrl: string;
+            name: string;
+        };
+        AdminSponsorsTiers: {
+            /** @description Never null in responses — normalized to an empty array. */
+            level0: components["schemas"]["AdminSponsorItem"][];
+            /** @description Never null in responses — normalized to an empty array. */
+            level1: components["schemas"]["AdminSponsorItem"][];
+            /** @description Never null in responses — normalized to an empty array. */
+            level2: components["schemas"]["AdminSponsorItem"][];
+            /** @description Never null in responses — normalized to an empty array. */
+            level3: components["schemas"]["AdminSponsorItem"][];
+        };
+        AdminSponsorsPageIntro: {
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            title: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            description: string;
+        };
+        AdminSponsorsContact: {
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            title: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            description: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            buttonText: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            buttonLink: string;
+        };
+        AdminSponsorsRule: {
+            content: string;
+        };
+        AdminSponsorsConfig: {
+            sponsors: components["schemas"]["AdminSponsorsTiers"];
+            content: components["schemas"]["AdminSponsorsPageIntro"];
+            contact: components["schemas"]["AdminSponsorsContact"];
+            rules: components["schemas"]["AdminSponsorsRule"][];
+        };
+        AdminSponsorsResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminSponsorsConfig"];
+        };
+        AdminSaveSponsorsRequest: {
+            sponsorsInfo?: components["schemas"]["AdminSponsorsConfig"];
+        };
+        AdminAnnouncementItem: {
+            /** @description Stable identifier used as the frontend carousel key. */
+            id: string;
+            title: string;
+            /** @description Markdown body. */
+            content: string;
+            enabled: boolean;
+        };
+        AdminAnnouncementConfig: {
+            enabled: boolean;
+            /** @description Single-announcement Markdown body; ignored on the public site when `items` is non-empty. */
+            content: string;
+            /** @description RFC 3339 timestamp; omitted when empty. The server overwrites it with the current time on every save. */
+            publishedAt?: string;
+            /** @description Multi-announcement list; omitted when empty, and takes precedence over `content` when non-empty. */
+            items?: components["schemas"]["AdminAnnouncementItem"][];
+        };
+        AdminAnnouncementResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminAnnouncementConfig"];
+        };
+        /** @description The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing settings object binds to a zero-value configuration and is saved. */
+        AdminSaveAnnouncementRequest: {
+            settings?: components["schemas"]["AdminAnnouncementConfig"];
+        };
+        AdminPageConfigSaveSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminPageConfigSaveResponse: components["schemas"]["AdminPageConfigSaveSuccess"] | components["schemas"]["ApiFailure"];
+        AdminServerVersionInfo: {
+            /** @description Release version injected at build time; `dev` for untagged builds, `dev-dirty` when the VCS worktree was dirty. */
+            version: string;
+            /** @description VCS revision from the binary's build info; empty when unavailable. */
+            commit: string;
+            /** @description Build timestamp injected at build time; empty for plain dev/test builds. */
+            buildDate: string;
+            /**
+             * @description Derived from `version` (`development` for dev/dev-dirty, `snapshot` when the version contains `snapshot`, `release` for a `v` prefix, `custom` otherwise).
+             * @enum {string}
+             */
+            mode: "development" | "snapshot" | "release" | "custom";
+        };
+        AdminServerVersionResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminServerVersionInfo"];
+        };
+        AdminSiteSettingsConfig: {
+            siteName: string;
+            siteLogo: string;
+            siteDescription: string;
+            siteKeywords: string;
+            siteUrl: string;
+            siteEmail: string;
+            externalLinks: string;
+        };
+        AdminSiteSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored site settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminSiteSettingsConfig"];
+        };
+        /** @description Replacement site settings. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is. */
+        AdminSaveSiteSettingsRequest: {
+            settings?: components["schemas"]["AdminSiteSettingsConfig"];
+        };
+        AdminSiteChromeItem: {
+            id: string;
+            enabled: boolean;
+            /** @description Entry kind (e.g. `link`). */
+            type: string;
+            label: string;
+            /** @description Frontend i18n key for the label. */
+            i18nLabel: string;
+            url: string;
+        };
+        AdminSiteChromeGroup: {
+            id: string;
+            title: string;
+            i18nLabel: string;
+            items: components["schemas"]["AdminSiteChromeItem"][];
+        };
+        AdminSiteChromeFooterPrimary: {
+            content: string;
+        };
+        AdminSiteChromeFooterItem: {
+            name: string;
+            url: string;
+        };
+        AdminSiteChromeFooter: {
+            primary: components["schemas"]["AdminSiteChromeFooterPrimary"][];
+            list: components["schemas"]["AdminSiteChromeFooterItem"][];
+        };
+        AdminSiteChromeConfig: {
+            header: components["schemas"]["AdminSiteChromeItem"][];
+            mainMenu: components["schemas"]["AdminSiteChromeItem"][];
+            resources: components["schemas"]["AdminSiteChromeItem"][];
+            sidebarGroups: components["schemas"]["AdminSiteChromeGroup"][];
+            footerInfo: components["schemas"]["AdminSiteChromeFooter"];
+            /** @description Brand rendering mode (e.g. `default`, `text`, `image`). */
+            brandType: string;
+            brandText: string;
+            brandImage: string;
+        };
+        AdminSiteChromeResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored chrome configuration, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminSiteChromeConfig"];
+        };
+        /** @description Replacement chrome configuration. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is. */
+        AdminSaveSiteChromeRequest: {
+            settings?: components["schemas"]["AdminSiteChromeConfig"];
+        };
+        /** @description Design tokens for one theme. Blank values and values containing `{};<>` fall back to the matching built-in default token on read/save normalization. */
+        AdminSiteThemeTokens: {
+            "color-base-100": string;
+            "color-base-200": string;
+            "color-base-300": string;
+            "color-base-content": string;
+            "color-icon-muted": string;
+            "color-line": string;
+            "color-primary": string;
+            "color-primary-content": string;
+            "color-secondary": string;
+            "color-secondary-content": string;
+            "color-accent": string;
+            "color-accent-content": string;
+            "color-neutral": string;
+            "color-neutral-content": string;
+            "color-info": string;
+            "color-info-content": string;
+            "color-success": string;
+            "color-success-content": string;
+            "color-warning": string;
+            "color-warning-content": string;
+            "color-error": string;
+            "color-error-content": string;
+            "radius-selector": string;
+            /** @description The legacy values `0.375rem` and `6px` are normalized to `0.5rem`. */
+            "radius-field": string;
+            "radius-box": string;
+            "size-selector": string;
+            "size-field": string;
+            border: string;
+            depth: string;
+        };
+        AdminSiteThemeDefinition: {
+            /** @description Theme identifier; only the built-in names `gf-light`/`gf-dark` survive normalization (unknown names are replaced by the fallback theme name). */
+            name: string;
+            /** @description Blank values are filled from the built-in default theme. */
+            label: string;
+            /**
+             * @description Invalid values are replaced by the default theme's color scheme.
+             * @enum {string}
+             */
+            colorScheme: "light" | "dark";
+            tokens: components["schemas"]["AdminSiteThemeTokens"];
+        };
+        AdminSiteThemePrepublish: {
+            enabled: boolean;
+            themes: components["schemas"]["AdminSiteThemeDefinition"][];
+            /** @description RFC 3339 timestamp stamped by the server on every save; omitted when empty. */
+            updatedAt?: string;
+        };
+        AdminSiteThemeConfig: {
+            /** @description Schema version; values <= 0 are replaced by the built-in default version during normalization. */
+            version: number;
+            enabled: boolean;
+            /** @description Published themes; an empty list is replaced by the built-in default themes during normalization. */
+            themes: components["schemas"]["AdminSiteThemeDefinition"][];
+            /** @description Staged (unpublished) themes written by adminSaveSiteTheme; omitted when there is no staged draft or the draft has an empty theme list. */
+            prepublish?: components["schemas"]["AdminSiteThemePrepublish"];
+            /** @description RFC 3339 timestamp stamped by adminPublishSiteTheme; omitted when never published. */
+            publishedAt?: string;
+        };
+        AdminSiteThemeResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminSiteThemeConfig"];
+        };
+        /** @description Only `enabled` and `themes` are read — they become the staged prepublish draft; `version`, `prepublish`, and `publishedAt` in the payload are ignored (the server keeps the stored values). */
+        AdminSaveSiteThemeSettings: {
+            enabled?: boolean;
+            themes?: components["schemas"]["AdminSiteThemeDefinition"][];
+        };
+        /** @description The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body stages an empty draft (which normalization drops, leaving the stored themes untouched). */
+        AdminSaveSiteThemeRequest: {
+            settings?: components["schemas"]["AdminSaveSiteThemeSettings"];
+        };
+        AdminSecuritySettingsConfig: {
+            enableSignup: boolean;
+            enableEmailVerification: boolean;
+            /** @description Email domains allowed at registration; empty disables the restriction. */
+            allowedDomains: string[];
+            /** @description Usernames rejected at registration/rename. */
+            reservedUsernames: string[];
+            /** @description Usernames rejected at registration/rename; saving a newly added entry also freezes matching existing accounts (idempotent). */
+            bannedUsernames: string[];
+            sensitiveWords: string[];
+            /** @description `block` rejects matching content, `review` routes it to the moderation queue. */
+            sensitiveAction: string;
+            /** @description Whether registration/login/password-recovery require a captcha. */
+            captchaRequired: boolean;
+        };
+        AdminSecuritySettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored security settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminSecuritySettingsConfig"];
+        };
+        /** @description Replacement security settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveSecuritySettingsRequest: {
+            settings?: components["schemas"]["AdminSecuritySettingsConfig"];
+        };
+        AdminPostingTextControl: {
+            minPostLength: number;
+            maxPostLength: number;
+            minTitleLength: number;
+            maxTitleLength: number;
+            newUserPostCooldownMinutes: number;
+        };
+        AdminPostingUploadControl: {
+            allowAttachments: boolean;
+            authorizedExtensions: string[];
+            maxAttachmentSizeKb: number;
+            maxDailyUploadsPerUser: number;
+            newUserUploadCooldownMinutes: number;
+        };
+        AdminPostingLLMS: {
+            enabled: boolean;
+            fullText: boolean;
+            files: boolean;
+        };
+        AdminPostingSettingsConfig: {
+            textControl: components["schemas"]["AdminPostingTextControl"];
+            uploadControl: components["schemas"]["AdminPostingUploadControl"];
+            llms: components["schemas"]["AdminPostingLLMS"];
+        };
+        AdminPostingSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored posting settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminPostingSettingsConfig"];
+        };
+        /** @description Replacement posting settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSavePostingSettingsRequest: {
+            settings?: components["schemas"]["AdminPostingSettingsConfig"];
+        };
+        AdminRateLimitRule: {
+            /** @description Rate-limited action key (e.g. `login`, `topic-write`). */
+            action: string;
+            windowSeconds: number;
+            limitPerIp: number;
+            limitPerUser: number;
+        };
+        AdminRateLimitSettingsConfig: {
+            /** @description Master switch. */
+            enabled: boolean;
+            /** @description Exempt admin-role users. */
+            skipAdmin: boolean;
+            actions: components["schemas"]["AdminRateLimitRule"][];
+            /** @description Require a captcha after N posts inside the new-user window; 0 disables. */
+            newUserCaptchaAfterPosts: number;
+            /** @description New-user window in days after registration; 0 applies to all users. */
+            newUserCaptchaDays: number;
+            /** @description Minimum captcha solve time; faster submissions are treated as bots. */
+            minSubmitSeconds: number;
+        };
+        AdminRateLimitSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored rate-limit settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminRateLimitSettingsConfig"];
+        };
+        /** @description Replacement rate-limit settings. Saving also resets all in-memory rate-limit counters so new windows/quotas apply immediately. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveRateLimitSettingsRequest: {
+            settings?: components["schemas"]["AdminRateLimitSettingsConfig"];
+        };
+        AdminHttpNotifyEndpoint: {
+            id: string;
+            name: string;
+            enabled: boolean;
+            url: string;
+            /** @description Webhook signing secret. Exposure boundary — returned in cleartext by adminGetHttpNotifySettings to any SiteManager caller; there is no masking. */
+            secret: string;
+            events: string[];
+            timeoutSeconds: number;
+            /** @description Consecutive delivery failures recorded by the dispatcher. */
+            failureCount: number;
+            lastError: string;
+            abnormalTerminated: boolean;
+        };
+        AdminHttpNotifySettingsConfig: {
+            enabled: boolean;
+            endpoints: components["schemas"]["AdminHttpNotifyEndpoint"][];
+        };
+        AdminHttpNotifySettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored notify settings, or the built-in default (disabled, empty endpoint list) when nothing has been saved. */
+            result: components["schemas"]["AdminHttpNotifySettingsConfig"];
+        };
+        /** @description Replacement notify settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveHttpNotifySettingsRequest: {
+            settings?: components["schemas"]["AdminHttpNotifySettingsConfig"];
+        };
+        AdminOnesystemSettingsResult: {
+            /** @description Whether an encrypted 一系统 cookie is stored. Exposure boundary — this is the only field returned; the stored ciphertext and the plaintext cookie are never exposed (the domain struct tags the ciphertext `json:"-"`). */
+            cookieConfigured: boolean;
+        };
+        AdminOnesystemSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminOnesystemSettingsResult"];
+        };
+        AdminSaveOnesystemSettingsRequest: {
+            /** @description Plaintext 一系统 Cookie header; encrypted with a purpose-scoped key (AES-256-GCM) before persistence and never stored in plaintext. An empty/blank value clears the stored credential. Longer than 4096 characters fails request validation with `common.request.invalidParams` (HTTP 200). When encryption itself fails (signingKey misconfigured) the response is a generic HTTP 200 `code: 1` failure with no `messageCode`. */
+            cookie?: string;
+        };
+        /** @description Exposure boundary — only the switch and quota are stored/returned; provider, base_url, api_key, and model live in config.toml `[ai_summary]` and never enter the DB or this API. */
+        AdminAiSummarySettingsConfig: {
+            /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
+            enabled: boolean;
+            /** @description Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5. */
+            globalPerMinute: number;
+        };
+        AdminAiSummarySettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored AI summary settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminAiSummarySettingsConfig"];
+        };
+        /** @description Replacement AI summary settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveAiSummarySettingsRequest: {
+            settings?: components["schemas"]["AdminAiSummarySettingsConfig"];
+        };
+        AdminLegalDocumentConfig: {
+            enabled: boolean;
+            /** @description Markdown body. The pre-rendered HTML field is server-side only (`json:"-"`) and never appears on the wire or in the stored JSON; the server also forces it empty on every save. */
+            content: string;
+        };
+        AdminTermsOfServiceResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored terms-of-service configuration, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        /** @description Replacement terms-of-service configuration. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveTermsOfServiceRequest: {
+            settings?: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        AdminPrivacyPolicyResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored privacy-policy configuration, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        /** @description Replacement privacy-policy configuration. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSavePrivacyPolicyRequest: {
+            settings?: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        AdminMailSettingsConfig: {
+            enableMail: boolean;
+            smtpHost: string;
+            smtpPort: number;
+            useSSL: boolean;
+            smtpUsername: string;
+            /** @description SMTP credential returned in cleartext on this admin surface — there is no masking. */
+            smtpPassword: string;
+            fromName: string;
+            fromEmail: string;
+        };
+        AdminMailSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored mail settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminMailSettingsConfig"];
+        };
+        /** @description Replacement mail settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveMailSettingsRequest: {
+            settings?: components["schemas"]["AdminMailSettingsConfig"];
+        };
+        AdminTestMailConnectionRequest: {
+            settings?: components["schemas"]["AdminMailSettingsConfig"];
+            /**
+             * Format: email
+             * @description Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route).
+             */
+            testEmail?: string;
+        };
+        AdminConnectionTestResult: {
+            /** @description Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`. */
+            success: boolean;
+            /** @description `admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage. */
+            messageCode: string;
+            /** @description On mail success `{email}`; on failure `{error}` with the raw dial/send error text. */
+            params?: {
+                [key: string]: unknown;
+            };
+        };
+        AdminTestMailConnectionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminConnectionTestResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStorageSettingsConfig: {
+            /**
+             * @description Empty input is normalized to `local` on save; any other value fails with `common.request.invalidParams`.
+             * @enum {string}
+             */
+            provider: "local" | "s3";
+            /** @description S3-compatible endpoint; required with bucket when provider is `s3`. */
+            endpoint: string;
+            bucket: string;
+            region: string;
+            /** @description `auto` | `dns` | `path`. */
+            bucketLookup: string;
+            secure: boolean;
+            /** @description Returned in cleartext on this admin surface — there is no masking. */
+            accessKey: string;
+            /** @description Returned in cleartext on this admin surface — there is no masking. */
+            secretKey: string;
+            /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
+            publicUrlPrefix: string;
+        };
+        AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored storage settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminStorageSettingsConfig"];
+        };
+        /** @description Replacement storage settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves the normalized zero-value configuration (`provider=local`). */
+        AdminSaveStorageSettingsRequest: {
+            settings?: components["schemas"]["AdminStorageSettingsConfig"];
+        };
+        /** @description Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend. */
+        AdminTestStorageConnectionRequest: {
+            settings?: components["schemas"]["AdminStorageSettingsConfig"];
+        };
+        AdminTestStorageConnectionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminConnectionTestResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCreateStorageMigrateTaskRequest: {
+            /** @description Clear the local BLOB column after each object has been migrated. */
+            clearAfterMigrate?: boolean;
+        };
+        AdminTaskCreatedResult: {
+            /**
+             * Format: uint64
+             * @description Id of the enqueued background task (task_queue row).
+             */
+            taskId: number;
+        };
+        AdminTaskCreatedResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTaskCreatedResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminTaskQueueItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Task type prefix (`export` for data exports, `file-migrate` for storage migrations). */
+            type: string;
+            /** @description 0=pending, 1=running, 2=success, 3=failed, 4=retrying. */
+            status: number;
+            /** @description Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate). */
+            taskJson: string;
+            retryCount: number;
+            lastError: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Lease start of the last run; the zero time `0001-01-01T00:00:00Z` when the task never ran.
+             */
+            processedAt: string;
+        };
+        AdminStorageMigrateTaskListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Up to 20 most recent file-migration tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        AdminMcpSettingsConfig: {
+            /** @description Master switch for the built-in `/mcp` endpoint. */
+            enabled: boolean;
+            /** @description Switch for the write tools (create_topic / create_post). */
+            writes: boolean;
+        };
+        AdminMcpSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored MCP settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminMcpSettingsConfig"];
+        };
+        /** @description Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveMcpSettingsRequest: {
+            settings?: components["schemas"]["AdminMcpSettingsConfig"];
+        };
+        AdminBadgeListItem: components["schemas"]["AdminBadge"] & {
+            /** @description True for built-in system badges (always listed; DB rows can only override their display fields). */
+            isSystem: boolean;
+            /** @description System badges can never be deleted (`admin.badge.systemDeleteBlocked`). */
+            canDelete: boolean;
+        };
+        AdminBadgeListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All badges known to the admin console — the 15 built-in system badges (in definition order) followed by custom badges from the DB. */
+            result: components["schemas"]["AdminBadgeListItem"][];
+        };
+        /** @description Creates or fully overwrites the badge row for `code`. Saving a `system` code stores an override of the built-in definition rather than a new badge. */
+        AdminSaveBadgeRequest: {
+            /** @description Stable badge code. Required for `type=system` (must name an existing system definition); optional for `type=custom` — a `custom_`-prefixed code is generated when omitted. */
+            code?: string;
+            /**
+             * @description Empty input defaults to `custom`.
+             * @enum {string}
+             */
+            type?: "system" | "custom";
+            /**
+             * @description Empty input defaults to `manual`; overridden by the system definition for `type=system`.
+             * @enum {string}
+             */
+            grantMode?: "auto" | "manual";
+            /** @description Trimmed; blank fails with `admin.badge.nameRequired`. */
+            name: string;
+            description?: string;
+            /**
+             * @description Empty input defaults to `asset`.
+             * @enum {string}
+             */
+            iconType?: "asset" | "key";
+            iconKey?: string;
+            iconUrl?: string;
+            color?: string;
+            level?: string;
+            isEnabled?: boolean;
+            isWearable?: boolean;
+            sortOrder?: number;
+        };
+        AdminDeleteBadgeRequest: {
+            /** @description Trimmed; blank fails with `admin.badge.codeRequired`. System badges fail with `admin.badge.systemDeleteBlocked`. */
+            code?: string;
+        };
+        AdminReviewQueueRequest: {
+            /**
+             * @description Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
+             * @enum {string}
+             */
+            kind: "topic" | "post";
+            /** @description 1-based; values below 1 are clamped to 1. */
+            page?: number;
+            /** @description Values below 1 or above 50 fall back to 20. */
+            pageSize?: number;
+        };
+        AdminReviewQueueItem: {
+            /**
+             * Format: uint64
+             * @description Topic id when kind=topic, post id when kind=post.
+             */
+            id: number;
+            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing). */
+            title: string;
+            /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes. */
+            excerpt: string;
+            /** Format: uint64 */
+            userId: number;
+            /** @description Author username; empty when the user row is missing. */
+            username: string;
+            /** @description Always 2 (pending review) in this queue. */
+            processStatus: number;
+            /**
+             * Format: date-time
+             * @description RFC 3339 timestamp.
+             */
+            createdAt: string;
+            /**
+             * Format: uint64
+             * @description Posts only; omitted for topics.
+             */
+            topicId?: number;
+            /**
+             * Format: uint64
+             * @description Posts only; omitted for topics.
+             */
+            postNo?: number;
+        };
+        AdminReviewQueueResult: {
+            items: components["schemas"]["AdminReviewQueueItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        AdminReviewQueueResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminReviewQueueResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminReviewActionRequest: {
+            /** @enum {string} */
+            kind: "topic" | "post";
+            /** Format: uint64 */
+            id: number;
+            /** @description True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow. */
+            approve?: boolean;
+        };
+        AdminFileResourceItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Storage object name (date-sharded path). */
+            name: string;
+            /** @description MIME type recorded at upload time. */
+            type: string;
+            /**
+             * Format: int64
+             * @description Byte length of the stored content.
+             */
+            size: number;
+            /** Format: uint64 */
+            userId: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Public access path (`/file/img/...` under the local provider, or the configured public prefix). */
+            url: string;
+            /** @description Empty when the uploader row is missing. */
+            uploaderUsername: string;
+        };
+        AdminFileResourcePageResult: {
+            list: components["schemas"]["AdminFileResourceItem"][];
+            page: number;
+            /** @description Effective page size (clamped into [10, 50]). */
+            size: number;
+            /**
+             * Format: int64
+             * @description Not a row count — this is the current max file id (keyset-pagination cursor).
+             */
+            total: number;
+        };
+        AdminFileResourcePageRequest: {
+            /** @description 1-based; values below 1 are clamped to 1. */
+            page?: number;
+            /** @description Clamped into [10, 50]; 0 becomes 10. */
+            pageSize?: number;
+        };
+        AdminFileResourcePageResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminFileResourcePageResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminImgUploadResult: {
+            /** @description Public access path of the stored image (`/file/img/<yyyy/MM/dd>/<uuid>.<ext>` under the local provider). */
+            url: string;
+            /** @description Original multipart filename. */
+            filename: string;
+            /** @description Stored byte length. */
+            size: number;
+        };
+        AdminImgUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminImgUploadResult"];
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
+        /**
+         * @description Enqueues a background full-table export. The exported content is a verbatim table dump —
+         *     for `users` this includes email addresses, freeze/activation state, role ids and profile
+         *     fields, so the resulting file is sensitive personal data. Only SiteManager holders can
+         *     create, list and download export tasks.
+         */
+        AdminCreateExportTaskRequest: {
+            /** @description Tables to dump. Unknown or duplicate entries fail with `admin.data.exportFailed` (params.error names the table). */
+            tables: ("users" | "topics" | "posts" | "postRevisions" | "topicCategoryIndex" | "topicUserStat")[];
+            /** @enum {string} */
+            format: "json" | "csv";
+        };
+        AdminExportTaskListResponse: components["schemas"]["ApiSuccess"];
+        AdminImportReportError: {
+            line: number;
+            table: string;
+            reason: string;
+        };
+        AdminImportReport: {
+            total: number;
+            success: number;
+            /** @description Rows skipped because an equivalent record already exists (idempotent re-import). */
+            skipped: number;
+            failed: number;
+            errors: components["schemas"]["AdminImportReportError"][];
+            importedTables: string[];
+        };
+        AdminImportDataResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminImportReport"];
+        }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -2189,6 +7989,71 @@ export interface components {
             avatarUrl: string;
             /** @description Present only when the user wears a badge. */
             wornBadge?: Record<string, never> | null;
+        };
+        PostPayload: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postNo: number;
+            /** @description Raw post content; emptied for hidden or removed posts. */
+            content: string;
+            /** @description Rendered HTML; emptied for hidden or removed posts. */
+            renderedContent: string;
+            /**
+             * @description 0 normal, 1 blocked, 2 pending moderation.
+             * @enum {integer}
+             */
+            processStatus: 0 | 1 | 2;
+            isHidden: boolean;
+            isAuthorDeleted: boolean;
+            isModeratorRemoved: boolean;
+            canModerate: boolean;
+            author: components["schemas"]["TopicAuthorPayload"];
+            /** @description Post creation time in the server's `2006-01-02 15:04:05` format. */
+            createdAt: string;
+            /**
+             * Format: uint64
+             * @description Present only when the post replies to an in-window post.
+             */
+            replyToPostId?: number;
+            /** Format: uint64 */
+            replyToUserId?: number;
+            replyToUsername?: string;
+            isOwnPost: boolean;
+            /** @description Post update time in the server's `2006-01-02 15:04:05` format. */
+            updatedAt: string;
+            /** @description Present only when the post was edited after creation. */
+            lastEditor?: components["schemas"]["TopicAuthorPayload"];
+            /** @description Last edit time in RFC 3339 format; present only when the post was edited. */
+            lastEditedAt?: string;
+            /**
+             * Format: int64
+             * @description Number of stored revisions in the post version history.
+             */
+            revisionCount: number;
+            /** Format: uint64 */
+            likeCount: number;
+            isLiked: boolean;
+            isBookmarked: boolean;
+        };
+        ReplyTargetPayload: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Present only when the target post is available.
+             */
+            postNo?: number;
+            /** @description The zero author payload when unavailable is true. */
+            author: components["schemas"]["TopicAuthorPayload"];
+            /** @description Present only when the target post is available and not author or moderator removed. */
+            renderedContent?: string;
+            isAuthorDeleted?: boolean;
+            isModeratorRemoved?: boolean;
+            /** @description True when the replied-to post is outside the window, purged, or pending moderation. */
+            unavailable?: boolean;
         };
         RevokeSessionRequest: {
             /**
@@ -2251,8 +8116,6 @@ export interface components {
             name: string;
             /** @description Display label of the namespace. */
             label: string;
-            /** @description Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}. */
-            slug: string;
             nodes: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeResult: {
@@ -2264,8 +8127,6 @@ export interface components {
         WikiNamespaceSummary: {
             /** @description Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese). */
             name: string;
-            /** @description URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned. */
-            slug: string;
             description: string;
             /** @description Ordering key; smaller values come first. */
             sortOrder: number;
@@ -2276,7 +8137,7 @@ export interface components {
             pageCount: number;
             /** Format: date-time */
             updatedAt: string;
-            /** @description Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages. */
+            /** @description Full path (first segment is the namespace directory name) of the first public page in this namespace; empty when the namespace has no public pages. */
             firstPagePath?: string;
         };
         /** @description The raw namespace array; an empty listing is an empty array, never null. */
@@ -2288,7 +8149,7 @@ export interface components {
         WikiRecentPage: {
             /** Format: uint64 */
             pageId: number;
-            /** @description Full path (namespace/slug) for direct linking (review P2). */
+            /** @description Full path (first segment is the namespace directory name) for direct linking (review P2). */
             path: string;
             title: string;
             /** Format: date-time */
@@ -2309,9 +8170,9 @@ export interface components {
              * @description Non-zero for page nodes and zero for directory nodes.
              */
             pageId: number;
-            /** @description Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned). */
+            /** @description Canonical page path with repository directory name as first segment. */
             path: string;
-            /** @description Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. */
+            /** @description Real repository-relative path (keeps original case/Unicode); used for GitHub edit/history links. */
             sourcePath: string;
             title: string;
             sortOrder: number;
@@ -2601,61 +8462,557 @@ export interface components {
         PkReviewBriefResponse: components["schemas"]["PkSuccess"] & {
             data: components["schemas"]["PkReviewBrief"];
         };
-        PostPayload: {
+        MyContentItem: {
             /** Format: uint64 */
             id: number;
-            /** Format: uint64 */
-            topicId: number;
-            /** Format: uint64 */
-            postNo: number;
-            /** @description Raw post content; emptied for hidden or removed posts. */
-            content: string;
-            /** @description Rendered HTML; emptied for hidden or removed posts. */
-            renderedContent: string;
-            /**
-             * @description 0 normal, 1 blocked, 2 pending moderation.
-             * @enum {integer}
-             */
-            processStatus: 0 | 1 | 2;
-            isHidden: boolean;
-            isAuthorDeleted: boolean;
-            isModeratorRemoved: boolean;
-            canModerate: boolean;
-            author: components["schemas"]["TopicAuthorPayload"];
-            /** @description Post creation time in the server's `2006-01-02 15:04:05` format. */
-            createdAt: string;
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** @description Topic title; post items render as `回复 */
+            title: string;
+            /** @description Content excerpt (up to 100 runes); omitted when empty. */
+            excerpt?: string;
             /**
              * Format: uint64
-             * @description Present only when the post replies to an in-window post.
+             * @description Parent topic id; post items only.
              */
-            replyToPostId?: number;
-            /** Format: uint64 */
-            replyToUserId?: number;
-            replyToUsername?: string;
-            isOwnPost: boolean;
-            /** @description Post update time in the server's `2006-01-02 15:04:05` format. */
-            updatedAt: string;
-            /** Format: uint64 */
-            likeCount: number;
-            isLiked: boolean;
-            isBookmarked: boolean;
-        };
-        ReplyTargetPayload: {
-            /** Format: uint64 */
-            id: number;
+            topicId?: number;
             /**
              * Format: uint64
-             * @description Present only when the target post is available.
+             * @description Floor number inside the topic; post items only.
              */
             postNo?: number;
-            /** @description The zero author payload when unavailable is true. */
-            author: components["schemas"]["TopicAuthorPayload"];
-            /** @description Present only when the target post is available and not author or moderator removed. */
-            renderedContent?: string;
-            isAuthorDeleted?: boolean;
-            isModeratorRemoved?: boolean;
-            /** @description True when the replied-to post is outside the window, purged, or pending moderation. */
-            unavailable?: boolean;
+            /** @description RFC3339 timestamp. */
+            createdAt: string;
+        };
+        MyContentListResult: {
+            items: components["schemas"]["MyContentItem"][];
+            hasMore: boolean;
+            /**
+             * Format: uint64
+             * @description Id of the last item; pass as cursorId for the next page. 0 when the page is empty.
+             */
+            nextCursorId: number;
+        };
+        MyContentListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["MyContentListResult"];
+        };
+        MyContentListResponse: components["schemas"]["MyContentListSuccess"] | components["schemas"]["ApiFailure"];
+        DeletedContentItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** @description Topic title; empty string on post items. */
+            title: string;
+            /** @description Content excerpt (up to 100 runes); omitted when empty. */
+            excerpt?: string;
+            /**
+             * Format: uint64
+             * @description Parent topic id; post items only.
+             */
+            topicId?: number;
+            /**
+             * Format: uint64
+             * @description Floor number inside the topic; post items only.
+             */
+            postNo?: number;
+            /** @enum {string} */
+            visibility: "USER_DELETED" | "MODERATOR_REMOVED";
+            /** @description Lifecycle retention state (for example RECOVERABLE); PURGED rows never appear in this list. */
+            retention: string;
+            /** @description RFC3339 deletion timestamp; empty for tombstone rows that carry no deleted_at. */
+            deletedAt: string;
+            /** @description True only for USER_DELETED + RECOVERABLE rows still inside the 30-day recovery window. */
+            canRestore: boolean;
+            /** @description True for USER_DELETED + RECOVERABLE rows (purgeable by the author). */
+            canPermanent: boolean;
+            /** @description Omitted unless the item carries reply context. */
+            hasReplies?: boolean;
+        };
+        DeletedContentListResult: {
+            items: components["schemas"]["DeletedContentItem"][];
+            hasMore: boolean;
+            /**
+             * Format: uint64
+             * @description Id of the last item; pass as cursorId for the next page. 0 when the page is empty.
+             */
+            nextCursorId: number;
+        };
+        DeletedContentListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["DeletedContentListResult"];
+        };
+        DeletedContentListResponse: components["schemas"]["DeletedContentListSuccess"] | components["schemas"]["ApiFailure"];
+        RestoreContentRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+        };
+        ContentLifecycleSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "操作成功";
+            /** @description content.restore.success / content.purge.success / content.privacy.erased, depending on the operation. */
+            messageCode: string;
+        };
+        ContentLifecycleResponse: components["schemas"]["ContentLifecycleSuccess"] | components["schemas"]["ApiFailure"];
+        BatchDeleteContentRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            contentIds: number[];
+            /** @description Second-confirmation flag required once the deletion rate gate trips (content.batchDelete.confirmRequired). */
+            force?: boolean;
+            /** @description Current account password; mandatory when force=true. */
+            password?: string;
+        };
+        BatchDeleteResultItem: {
+            /** Format: uint64 */
+            contentId: number;
+            success: boolean;
+            /** @description Per-item failure text; omitted on success. */
+            message?: string;
+        };
+        BatchDeleteResult: {
+            succeeded: number;
+            failed: number;
+            results: components["schemas"]["BatchDeleteResultItem"][];
+        };
+        BatchDeleteContentSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["BatchDeleteResult"];
+        };
+        BatchDeleteContentResponse: components["schemas"]["BatchDeleteContentSuccess"] | components["schemas"]["ApiFailure"];
+        PurgeContentRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+            /** @description Optional audit text recorded with the purge. */
+            reason?: string;
+            /** @description Second-confirmation flag required once the deletion rate gate trips. */
+            force?: boolean;
+            /** @description Current account password; mandatory when force=true. */
+            password?: string;
+        };
+        PrivacyEraseRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+            /** @description Second-confirmation flag required once the deletion rate gate trips. */
+            force?: boolean;
+            /** @description Current account password; mandatory when force=true. */
+            password?: string;
+        };
+        ContentEventRequest: {
+            /**
+             * @description Frontend telemetry event; backend-owned lifecycle events are rejected with `common.request.invalidParams`.
+             * @enum {string}
+             */
+            eventType: "content_delete_clicked" | "content_delete_confirmed";
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /**
+             * Format: uint64
+             * @description Not checked for existence.
+             */
+            contentId: number;
+        };
+        AccountCloseRequest: {
+            /**
+             * @description anonymize keeps historical content under a closed-account identity; delete best-effort deletes all own topics/replies first.
+             * @enum {string}
+             */
+            mode: "anonymize" | "delete";
+            /** @description Current account password (irreversible operation second factor). */
+            password: string;
+        };
+        ContentActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        };
+        ContentActionResponse: components["schemas"]["ContentActionSuccess"] | components["schemas"]["ApiFailure"];
+        SiteStatisticsResult: {
+            /**
+             * Format: uint64
+             * @description Max users.id (allocation counter, not a live row count).
+             */
+            userCount: number;
+            /**
+             * Format: int64
+             * @description Registrations in the current calendar month.
+             */
+            userMonthCount: number;
+            /** Format: uint64 */
+            topicMaxId: number;
+            /**
+             * Format: int64
+             * @description Topics created in the current calendar month.
+             */
+            topicMonthCount: number;
+            /** Format: uint64 */
+            postMaxId: number;
+            /** @description Number of configured friend links. */
+            linksCount: number;
+        };
+        SiteStatisticsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["SiteStatisticsResult"];
+        };
+        SearchResultPayload: {
+            query: string;
+            scope: string;
+            topics: components["schemas"]["TopicPayload"][];
+            users: components["schemas"]["UserSearchPayload"][];
+            categories: components["schemas"]["CategorySearchPayload"][];
+            courses: components["schemas"]["CourseSearchPayload"][];
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            usersTotal: number;
+            /** Format: int64 */
+            categoriesTotal: number;
+            /** Format: int64 */
+            coursesTotal: number;
+            totalPages: number;
+            pagination: components["schemas"]["PaginationPayload"];
+            /** @description Index names whose query failed; omitted when every index answered. */
+            failedScopes?: string[];
+            /** @description True when no search backend is configured or every index query failed; groups are empty in that case. Omitted otherwise. */
+            searchUnavailable?: boolean;
+        };
+        ForumSearchSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["SearchResultPayload"];
+        };
+        ForumSearchResponse: components["schemas"]["ForumSearchSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentCreateRequest: {
+            /** @description Bot username. Missing/blank fails request validation with `common.request.invalidParams` (HTTP 200); a value failing the format rule fails with `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with `admin.agent.usernameExists` (HTTP 200). */
+            username: string;
+            /** @description Optional display name; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
+            nickname?: string;
+            /** @description Optional HTTP(S) webhook endpoint; non-HTTP(S) schemes, credentials, fragments, and local/private targets fail with `admin.agent.webhookInvalid` (HTTP 200). */
+            webhookEndpoint?: string;
+        };
+        AdminAgentCreateResponse: components["schemas"]["AdminAgentCreateSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentCreateSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                agent: components["schemas"]["AdminAgentItem"];
+                /** @description Plaintext bearer token, returned exactly once at creation; only its hash is stored. */
+                token: string;
+            };
+        };
+        AdminAgentDisableResponse: components["schemas"]["AdminAgentDisableSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentDisableSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminAgentIdRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+             */
+            agentId: number;
+        };
+        AdminAgentItem: {
+            /**
+             * Format: uint64
+             * @description Bot user id backing the Agent.
+             */
+            agentId: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            /** @description Always empty — bot users carry no email. */
+            email: string;
+            /** @description Non-secret token prefix (`agt_` + 8 chars); the token and its hash never leave the server. */
+            tokenPrefix: string;
+            /** @description Optional HTTP(S) webhook endpoint; empty when unset. */
+            webhookEndpoint: string;
+            /**
+             * @description 1 enabled, 0 disabled. Disabling also revokes the stored credential.
+             * @enum {integer}
+             */
+            enabled: 0 | 1;
+            /**
+             * Format: uint64
+             * @description Admin user id that created the Agent.
+             */
+            createdBy: number;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp of the last authenticated use; null when never used.
+             */
+            lastUsedAt: number | null;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp.
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp.
+             */
+            updatedAt: number;
+        };
+        AdminAgentListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All Agents, newest first. */
+            result: components["schemas"]["AdminAgentItem"][];
+        };
+        AdminAgentRotateTokenResponse: components["schemas"]["AdminAgentRotateTokenSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentRotateTokenSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** Format: uint64 */
+                agentId: number;
+                /** @description New plaintext bearer token, returned exactly once; the previous token stops resolving immediately. */
+                token: string;
+            };
+        };
+        AdminAgentUpdateRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+             */
+            agentId: number;
+            /** @description Applied only when present; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
+            nickname?: string;
+            /** @description Applied only when present; invalid endpoints fail with `admin.agent.webhookInvalid` (HTTP 200). */
+            webhookEndpoint?: string;
+            /**
+             * @description Applied only when present; other values fail with `common.request.invalidParams` (HTTP 200). Setting 0 revokes the stored credential; re-enabling an Agent whose credential was revoked fails with `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a new token.
+             * @enum {integer}
+             */
+            enabled?: 0 | 1;
+        };
+        AdminAgentUpdateResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminAgentItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminDailyTraffic: {
+            /** @description YYYY-MM-DD. */
+            date: string;
+            /**
+             * Format: int64
+             * @description Registered users that day; 0 when no stat row exists.
+             */
+            regCount: number;
+            /**
+             * Format: int64
+             * @description Published topics that day; 0 when no stat row exists.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Published replies that day; 0 when no stat row exists.
+             */
+            replyCount: number;
+        };
+        AdminOptRecordItem: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Operator user id.
+             */
+            optUserId: number;
+            optType: number;
+            targetType: number;
+            /** @description Target identifier stored as a string. */
+            targetId: string;
+            /** @description Operation detail payload (JSON-encoded message code and params). */
+            optInfo: string;
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+        };
+        AdminOptRecordPageRequest: {
+            /** @description 1-based page; values below 1 are treated as the first page. The echoed `page` in the response is 0-based (requested page minus one, floored at 0). */
+            page?: number;
+            /** @description Bounded server-side into 10-50. */
+            pageSize?: number;
+            /**
+             * Format: uint64
+             * @description Optional operator filter; 0 or omitted lists all operators.
+             */
+            optUserId?: number;
+            /** @description Optional operation-type filter; 0 or omitted disables the filter. */
+            optType?: number;
+            /** @description Optional target-type filter; 0 or omitted disables the filter. */
+            targetType?: number;
+            /** @description Optional target-id filter; 0 or omitted disables the filter. */
+            targetId?: number;
+        };
+        AdminOptRecordPageResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description Records sorted by id descending. */
+                list: components["schemas"]["AdminOptRecordItem"][];
+                /** @description Echoed 0-based page (requested page minus one, floored at 0). */
+                page: number;
+                /** @description Effective page size after server-side bounding into 10-50. */
+                size: number;
+                /** Format: int64 */
+                total: number;
+                /** @description Omitted from the wire payload when false. */
+                hasNext?: boolean;
+            };
+        };
+        AdminTrafficOverviewRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD); empty defaults to today. */
+            endDate?: string;
+        };
+        AdminTrafficOverviewResponse: (components["schemas"]["ApiSuccess"] & {
+            /** @description One entry per day in the range, ascending; every in-range day is present even without stat rows. */
+            result: components["schemas"]["AdminDailyTraffic"][];
+        }) | components["schemas"]["ApiFailure"];
+        CategorySearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            name: string;
+            slug: string;
+            icon: string;
+            color: string;
+            desc: string;
+        };
+        CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseRelatedResult"];
+        };
+        CourseRelatedResult: {
+            /** @description Other visible courses sharing any teacher with the requested course, top 5 by review count. */
+            teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
+            /** @description Offerings of the same course taught by a different teacher arrangement, top 5 by review count. */
+            sameCourseOtherTeachers: components["schemas"]["RelatedTeacherOfferingItem"][];
+        };
+        CourseSearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
+            creditX10: number;
+            aliases: string[];
+            instructors: string[];
+            terms: string[];
+            campus: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
+        };
+        PaginationPayload: {
+            page: number;
+            nextPage: number;
+            hasNext: boolean;
+            nextUrl: string;
+        };
+        PkSyncCalendarRequest: {
+            /** @description 一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；首次同步尚未写入 pk_calendar 时只能传数字 calendarId。缺失/空白/无法解析失败于请求校验（HTTP 200）。 */
+            term: string;
+            /** @description 可向前回溯的学期数上限（默认 1；管理端上限 8）。小于 1 按 1 处理，超过上限按上限处理。 */
+            depth?: number;
+        };
+        PkSyncCalendarResponse: components["schemas"]["PkSyncCalendarSuccess"] | components["schemas"]["ApiFailure"] | {
+            /** @description Up to 20 most recent export tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        PkSyncCalendarSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /**
+                 * @description 同步已作为后台异步任务启动（分页抓取可能持续数十秒到分钟级）。
+                 * @constant
+                 */
+                started: true;
+                /**
+                 * Format: uint64
+                 * @description 已解析出的一系统日历 ID。
+                 */
+                calendarId: number;
+                /** @description 归一化后的学期参数。 */
+                term: string;
+            };
+        };
+        PkSyncStatusItem: {
+            /**
+             * Format: uint64
+             * @description 一系统日历 ID（学期标识），即 pk_calendar.calendar_id。
+             */
+            calendarId: number;
+            /** @description 学期显示名（calendar_id_i18n）；首次同步失败等尚未写入 calendar 的学期可能为空字符串。 */
+            calendarName: string;
+            /**
+             * @description 最近一次同步状态；超过断点续跑窗口（1 小时）的 running 会被判定为 failed。
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            /** @description 最近一次同步写入的行数。 */
+            rowsWritten: number;
+            /** @description 最近一次同步的抓取总页数。 */
+            totalPages: number;
+            /** @description 最近一次同步已提交的页数（断点续跑游标）。 */
+            lastCommittedPage: number;
+            /** @description 最近一次同步的失败说明；无错误时为空字符串。 */
+            errorMsg: string;
+            /**
+             * Format: date-time
+             * @description 最近一次同步开始时间；从未同步时为 null。
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description 最近一次同步结束时间；同步未结束或从未同步时为 null。
+             */
+            finishedAt: string | null;
+        };
+        PkSyncStatusResponse: components["schemas"]["PkSyncStatusSuccess"] | components["schemas"]["ApiFailure"];
+        PkSyncStatusSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description 各学期同步状态汇总，按 calendarId 倒序（最近学期在前）。 */
+            result: components["schemas"]["PkSyncStatusItem"][];
+        };
+        /** @description A canonical course taught by a teacher shared with the requested course. */
+        RelatedCourseItem: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            instructors?: string[];
+            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
+            ratingAvg: number;
+            /** @description Number of visible reviews carrying a rating. */
+            ratingCount: number;
+            /** @description Number of visible reviews for this course. */
+            reviewCount: number;
+        };
+        /**
+         * @description An offering of the requested course taught by a teacher arrangement different from the most
+         *     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
+         *     course" is expressed at the offering level, where per-teacher ratings do not exist.
+         */
+        RelatedTeacherOfferingItem: {
+            /** Format: uint64 */
+            offeringId: number;
+            termCode: string;
+            termName?: string;
+            campus?: string;
+            instructors?: string[];
+            ratingAvg: number;
+            ratingCount: number;
+            reviewCount: number;
+        };
+        /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
+        ReportHandlerPayload: {
+            /**
+             * Format: uint64
+             * @description 0 while the report is still open (no handler assigned yet); a real user id once handled.
+             */
+            id: number;
+            username: string;
+            /** @description Present only when the user has a nickname. */
+            nickname?: string;
+            avatarUrl: string;
+            /** @description Present only when the handler wears a badge. */
+            wornBadge?: Record<string, never> | null;
         };
         TopicCategoryPayload: {
             /** Format: uint64 */
@@ -2696,93 +9053,30 @@ export interface components {
             avatarUrl: string;
             bio: string;
         };
-        CategorySearchPayload: {
-            /** Format: uint64 */
-            id: number;
-            name: string;
-            slug: string;
-            icon: string;
-            color: string;
-            desc: string;
-        };
-        CourseSearchPayload: {
-            /** Format: uint64 */
-            id: number;
-            primaryCode: string;
-            name: string;
-            department: string;
-            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
-            creditX10: number;
-            aliases: string[];
-            instructors: string[];
-            terms: string[];
-            campus: string[];
+        WikiAssetCDNSaveRequest: {
             /**
-             * Format: double
-             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             * @description Wiki asset CDN mode to persist.
+             * @enum {string}
              */
-            ratingAvg?: number;
-            /** @description Number of visible reviews (including unrated legacy ones). */
-            reviewCount?: number;
+            cdn: "self" | "jsDelivr";
         };
-        PaginationPayload: {
-            page: number;
-            nextPage: number;
-            hasNext: boolean;
-            nextUrl: string;
+        WikiAssetCDNSaveResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNSaveResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiAssetCDNSaveResult: {
+            /** @constant */
+            ok: true;
         };
-        /** @description A canonical course taught by a teacher shared with the requested course. */
-        RelatedCourseItem: {
-            /** Format: uint64 */
-            id: number;
-            primaryCode: string;
-            name: string;
-            department: string;
-            instructors?: string[];
-            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
-            ratingAvg: number;
-            /** @description Number of visible reviews carrying a rating. */
-            ratingCount: number;
-            /** @description Number of visible reviews for this course. */
-            reviewCount: number;
-        };
-        /**
-         * @description An offering of the requested course taught by a teacher arrangement different from the most
-         *     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
-         *     course" is expressed at the offering level, where per-teacher ratings do not exist.
-         */
-        RelatedTeacherOfferingItem: {
-            /** Format: uint64 */
-            offeringId: number;
-            termCode: string;
-            termName?: string;
-            campus?: string;
-            instructors?: string[];
-            ratingAvg: number;
-            ratingCount: number;
-            reviewCount: number;
-        };
-        CourseRelatedResult: {
-            /** @description Other visible courses sharing any teacher with the requested course, top 5 by review count. */
-            teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
-            /** @description Offerings of the same course taught by a different teacher arrangement, top 5 by review count. */
-            sameCourseOtherTeachers: components["schemas"]["RelatedTeacherOfferingItem"][];
-        };
-        CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["CourseRelatedResult"];
-        };
-        /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
-        ReportHandlerPayload: {
+        WikiAssetCDNStatus: {
             /**
-             * Format: uint64
-             * @description 0 while the report is still open (no handler assigned yet); a real user id once handled.
+             * @description Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
+             * @enum {string}
              */
-            id: number;
-            username: string;
-            /** @description Present only when the user has a nickname. */
-            nickname?: string;
-            avatarUrl: string;
+            cdn: "self" | "jsDelivr";
         };
+        WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNStatus"];
+        }) | components["schemas"]["ApiFailure"];
         /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
         WikiSearchItem: {
             /** @description Display name of the namespace (fallback: URL key). */
@@ -2823,30 +9117,6 @@ export interface components {
         };
         WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiSearchResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiAssetCDNStatus: {
-            /**
-             * @description Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
-             * @enum {string}
-             */
-            cdn: "self" | "jsDelivr";
-        };
-        WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiAssetCDNStatus"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiAssetCDNSaveRequest: {
-            /**
-             * @description Wiki asset CDN mode to persist.
-             * @enum {string}
-             */
-            cdn: "self" | "jsDelivr";
-        };
-        WikiAssetCDNSaveResult: {
-            /** @constant */
-            ok: true;
-        };
-        WikiAssetCDNSaveResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiAssetCDNSaveResult"];
         }) | components["schemas"]["ApiFailure"];
     };
     responses: never;
@@ -3453,6 +9723,2188 @@ export interface operations {
                 };
             };
             /** @description Topic-writing rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updateTopicStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTopicStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied (or already in the target state), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Topic-status rate limit (action `topic.status`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    deleteTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic deleted, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    likeTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    bookmarkTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    watchTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    createPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Created post summary, honeypot silent success, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatePostResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-creation rate limit (action `post.create`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updatePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated post summary, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePostResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-update rate limit (action `post.update`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    deletePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeletePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Deletion outcome (note the capital-H `HasChildren` result key), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletePostResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-deletion rate limit (action `post.delete`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getPostWindow: {
+        parameters: {
+            query: {
+                topicId: number;
+                anchorPostId?: number;
+                anchorPostNo?: number;
+                beforePostNo?: number;
+                afterPostNo?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Post window, or a legacy business failure envelope (`topic.notFound` / `post.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostWindowResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getPostRevisions: {
+        parameters: {
+            query: {
+                postId: number;
+                beforeVersion?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revision page, or a legacy business failure envelope (`post.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostRevisionsResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    likePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    bookmarkPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    followUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Follow state applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    createReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Report created, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    moderationUpdateTopicStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationTopicStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied, or a legacy business failure envelope (`topic.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationUpdatePostStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationPostStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied, or a legacy business failure envelope (`post.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReportListRequest"];
+            };
+        };
+        responses: {
+            /** @description Report page, or a legacy business failure envelope (`permission.denied` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationReportListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationUpdateReportStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReportStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Report handled, or a legacy business failure envelope (`report.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationLogListRequest"];
+            };
+        };
+        responses: {
+            /** @description Log page, or a legacy business failure envelope (`permission.denied`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationLogListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    viewDeletedContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewDeletedContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Deleted content view, or a legacy business failure envelope (`topic.notFound` / `post.notFound` / `permission.denied` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewDeletedContentResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getCaptcha: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fresh captcha challenge. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptchaSuccess"];
+                };
+            };
+        };
+    };
+    getUserCard: {
+        parameters: {
+            query: {
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User card, or a legacy business failure envelope (`user.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserCardResponse"];
+                };
+            };
+            /** @description Missing or malformed userId query parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserInfoRequest"];
+            };
+        };
+        responses: {
+            /** @description Profile updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserProfileCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserProfileCoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Cover updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Email updated (activation email sent to the new address), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Email-change rate limit (action `email.change`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    resendActivationEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activation email resent (result and params carry remainingToday), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendActivationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserNameRequest"];
+            };
+        };
+        responses: {
+            /** @description Username updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setPresetAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPresetAvatarRequest"];
+            };
+        };
+        responses: {
+            /** @description Preset avatar applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetAvatarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    wearBadge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WearBadgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadAvatarRequest"];
+            };
+        };
+        responses: {
+            /** @description Avatar stored, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadAvatarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed (all existing sessions invalidated), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePasswordResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Password-change rate limit (action `password.change`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getOAuthBindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binding state keyed by provider. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthBindingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    unbindOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider key as registered at bind time (for example github or google); not validated by the server. */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider unbound, or a legacy business failure envelope (`oauth.unbind.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnbindOAuthResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getUnreadStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unread status flags. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getNotifications: {
+        parameters: {
+            query?: {
+                filter?: "" | "all" | "unread";
+                cursor?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification page, or a legacy business failure envelope (`common.request.invalidParams` / `common.request.parseFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkNotificationReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Notification marked read, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationMarkReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markAllNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All notifications marked read, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationMarkAllReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    sendChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendChatMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Message stored (result carries the conversation id), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendChatMessageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Message-send rate limit (action `message.send`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getChatMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GetChatMessagesRequest"];
+            };
+        };
+        responses: {
+            /** @description Message page, or a legacy business failure envelope (`chat.messages.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessagesResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markChatRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkChatReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Conversation marked read (result is null), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMarkReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getSiteStatistics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Site statistics snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteStatisticsSuccess"];
+                };
+            };
+        };
+    };
+    searchForum: {
+        parameters: {
+            query?: {
+                /** @description Search text; trimmed server-side. Longer than 100 runes returns an empty payload. */
+                q?: string;
+                /** @description Unknown or missing values fall back to all. */
+                scope?: "all" | "topics" | "users" | "categories" | "courses";
+                /** @description 1-based page for the topics group only; values < 1 fall back to 1. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregate search payload (possibly with searchUnavailable or failedScopes degradation markers). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumSearchResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    myContentList: {
+        parameters: {
+            query: {
+                contentType: "topic" | "post";
+                cursorId?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own-content page, or a legacy business failure envelope (`common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyContentListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    deletedContentList: {
+        parameters: {
+            query: {
+                contentType: "topic" | "post";
+                cursorId?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted-content page, or a legacy business failure envelope (`common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedContentListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    restoreContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Restored (messageCode `content.restore.success`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentLifecycleResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    batchDeleteContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchDeleteContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Per-item deletion outcome, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDeleteContentResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    purgeContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Purged (messageCode `content.purge.success`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentLifecycleResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    privacyEraseContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivacyEraseRequest"];
+            };
+        };
+        responses: {
+            /** @description Erased (messageCode `content.privacy.erased`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentLifecycleResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    reportContentEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Event recorded (result true), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    closeAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Account closed (result true; all sessions revoked), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;
@@ -4603,6 +13055,3430 @@ export interface operations {
             };
         };
     };
+    adminListTopics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTopicsListRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTopicsListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetTopicSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTopicSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic with first-post source, or a legacy business failure envelope (`topic.notFound` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTopicSourceResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Operation applied, or a legacy business failure envelope (`topic.notFound` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDeleteTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeleteTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic deleted, or a legacy business failure envelope (`topic.notFound` / `topic.operationDenied` / `common.request.invalidParams` / `content.delete.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRestoreTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRestoreTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic restored, or a legacy business failure envelope (`topic.notFound` / `content.notRecoverable` / `content.restore.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditTopicPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditTopicPinRequest"];
+            };
+        };
+        responses: {
+            /** @description Pin weight applied, or a legacy business failure envelope (`topic.notFound` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditTopicCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditTopicCategoriesRequest"];
+            };
+        };
+        responses: {
+            /** @description Categories replaced, or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.notFound` / `topic.notFound` / `common.operation.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDeletePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeletePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Post deleted, or a legacy business failure envelope (`post.notFound` / `common.request.invalidParams` / `content.delete.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All Agents (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentCreateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated Agent, or a legacy business failure envelope (`admin.agent.notFound` / `admin.agent.needsRotate` / `admin.agent.webhookInvalid` / `common.request.invalidParams` / `admin.agent.updateFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentRotateToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentIdRequest"];
+            };
+        };
+        responses: {
+            /** @description New one-time token, or a legacy business failure envelope (`admin.agent.notFound` / `admin.agent.rotateConflict` / `common.request.invalidParams` / `admin.agent.rotateFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentRotateTokenResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentIdRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent disabled, or a legacy business failure envelope (`admin.agent.notFound` / `common.request.invalidParams` / `admin.agent.disableFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentDisableResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminOptRecordPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminOptRecordPageRequest"];
+            };
+        };
+        responses: {
+            /** @description Audit record page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOptRecordPageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTrafficOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTrafficOverviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Daily traffic series, or a legacy business failure envelope (`admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTrafficOverviewResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminUserList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserListRequest"];
+            };
+        };
+        responses: {
+            /** @description User page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditUserRequest"];
+            };
+        };
+        responses: {
+            /** @description User updated, or a legacy business failure envelope (`admin.user.targetFetchFailed` / `admin.agent.roleNotAllowed` / `user.updateFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminUserBadgeOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserBadgeOptionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Grantable badge options and the user's active badges. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserBadgeOptionsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveUserBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveUserBadgesRequest"];
+            };
+        };
+        responses: {
+            /** @description Badges saved, or a legacy business failure envelope (`user.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAllRoleItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All roles as options (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRoleOptionsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPermissionList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All permissions as localized options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPermissionListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRoleList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRoleListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRoleSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Role saved (result true), or a legacy business failure envelope (`common.request.invalidParams` / `common.operation.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRoleDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Role deleted (result true), or a legacy business failure envelope (`admin.role.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryListRequest"];
+            };
+        };
+        responses: {
+            /** @description All categories with moderators. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCategoryListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategorySave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategorySaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Category saved (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.nameRequired` / `admin.category.dataNotFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Category deleted (result true), or a legacy business failure envelope (`admin.category.notFound` / `admin.category.keepOne` / `admin.category.hasTopics`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGlobalModeratorList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All global moderators (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminModeratorListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGlobalModeratorAdd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminModeratorUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator granted (result true), or a legacy business failure envelope (`admin.moderator.userRequired` / `admin.moderator.userNotFound` / `admin.agent.roleNotAllowed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGlobalModeratorDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminModeratorDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator revoked (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.moderator.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryModeratorAdd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryModeratorAddRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator granted (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.notFound` / `admin.moderator.userRequired` / `admin.moderator.userNotFound` / `admin.agent.roleNotAllowed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryModeratorDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminModeratorDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator revoked (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.moderator.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetFriendLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Friend-link groups (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFriendLinksResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveFriendLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveFriendLinksRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSponsors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sponsors configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSponsorsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSponsors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSponsorsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Announcement configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAnnouncementResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveAnnouncementRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetServerVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Build metadata (version/commit/buildDate/mode). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerVersionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSiteSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Site settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSiteSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSiteSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSiteChrome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Chrome configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteChromeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSiteChrome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSiteChromeRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSiteTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Normalized theme configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteThemeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSiteTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSiteThemeRequest"];
+            };
+        };
+        responses: {
+            /** @description Full normalized theme configuration after staging the draft. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteThemeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminPublishSiteTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full normalized theme configuration after publishing (or the current configuration when no draft exists). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteThemeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Security settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSecuritySettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSecuritySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPostingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Posting settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPostingSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSavePostingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSavePostingSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetRateLimitSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rate-limit settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRateLimitSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveRateLimitSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveRateLimitSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetHttpNotifySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notify settings including cleartext endpoint secrets (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminHttpNotifySettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveHttpNotifySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveHttpNotifySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetOnesystemSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configuration state only (`cookieConfigured`), never the credential itself. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOnesystemSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveOnesystemSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveOnesystemSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Credential stored/cleared (`result` is the string `success`), or a `code: 1` business failure (validation or encryption failure). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAiSummarySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AI summary settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiSummarySettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAiSummarySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveAiSummarySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetTermsOfService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Terms-of-service configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTermsOfServiceResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveTermsOfService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveTermsOfServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPrivacyPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Privacy-policy configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPrivacyPolicyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSavePrivacyPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSavePrivacyPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mail settings including the cleartext SMTP password (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMailSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveMailSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTestMailConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTestMailConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Probe outcome inside a success envelope, or a `code: 1` validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTestMailConnectionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetStorageSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Storage settings including cleartext object-storage credentials (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorageSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveStorageSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveStorageSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`), or a `code: 1` business failure (invalid provider, incomplete S3 configuration). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTestStorageConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTestStorageConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Probe outcome inside a success envelope (`code` is 0 on both success and failure). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTestStorageConnectionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCreateStorageMigrateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateStorageMigrateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Task id of the enqueued migration, or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTaskCreatedResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListStorageMigrateTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent migration tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorageMigrateTaskListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetMcpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description MCP settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMcpSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveMcpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveMcpSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All badges (system definitions merged with stored overrides, then custom badges). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBadgeListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveBadge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveBadgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge saved (`result` is the string `success`), or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDeleteBadge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeleteBadgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge deleted (`result` is the string `success`), or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListReviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description A page of pending-review items, or a `code: 1` validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReviewQueueResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Review applied (`result` is the string `success`), or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListFileResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminFileResourcePageRequest"];
+            };
+        };
+        responses: {
+            /** @description A page of file resources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFileResourcePageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminUploadImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Image file (JPEG/PNG/GIF/WebP/BMP).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored; `result` carries the public url, the original filename and the byte size. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImgUploadResponse"];
+                };
+            };
+            /** @description Multipart/validation failure (e.g. missing `file` field). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCreateExportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateExportTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Task id of the enqueued export, or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTaskCreatedResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListExportTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent export tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminExportTaskListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDownloadExportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export file bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Task not finished, or export file unavailable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unknown task id, or the task is not an export task. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminImportData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JSON export file produced by adminCreateExportTask (object or array form).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Import finished; `result` is the per-table report (may still contain per-row failures). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportDataResponse"];
+                };
+            };
+            /** @description Missing file or unimportable payload. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     searchWikiSearch: {
         parameters: {
             query: {
@@ -5078,6 +16954,86 @@ export interface operations {
                 };
             };
             /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSyncPkCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkSyncCalendarRequest"];
+            };
+        };
+        responses: {
+            /** @description Sync started (result started=true), or a legacy business failure envelope (`common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkSyncCalendarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPkSyncStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-term sync status items (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkSyncStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
             403: {
                 headers: {
                     [name: string]: unknown;

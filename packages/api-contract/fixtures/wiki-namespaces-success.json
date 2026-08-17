@@ -6,8 +6,7 @@
       "sortOrder": 10,
       "pageCount": 3,
       "updatedAt": "2026-08-10T14:30:00+08:00",
-      "firstPagePath": "guide/getting-started",
-      "slug": "guide"
+      "firstPagePath": "guide/getting-started"
     },
     {
       "name": "deployment",
@@ -15,8 +14,7 @@
       "sortOrder": 20,
       "pageCount": 1,
       "updatedAt": "2026-08-11T09:12:00+08:00",
-      "firstPagePath": "deployment/container-deploy",
-      "slug": "deployment"
+      "firstPagePath": "deployment/container-deploy"
     }
   ],
   "code": 0

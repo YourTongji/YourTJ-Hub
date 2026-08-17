@@ -1,0 +1,15 @@
+{
+  "result": [
+    {
+      "id": 990002,
+      "type": "export",
+      "status": 2,
+      "taskJson": "{\"tables\":[\"users\"],\"format\":\"json\",\"fileName\":\"export-990002.json\",\"progress\":100,\"errorCount\":0}",
+      "retryCount": 0,
+      "lastError": "",
+      "createdAt": "2026-02-03T04:05:06Z",
+      "processedAt": "2026-02-03T04:06:06Z"
+    }
+  ],
+  "code": 0
+}

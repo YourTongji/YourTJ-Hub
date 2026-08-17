@@ -1,0 +1,27 @@
+{
+  "result": [
+    {
+      "calendarId": 121,
+      "calendarName": "2025-2026-1",
+      "status": "completed",
+      "rowsWritten": 120,
+      "totalPages": 12,
+      "lastCommittedPage": 12,
+      "errorMsg": "",
+      "startedAt": "2026-08-01T03:00:00Z",
+      "finishedAt": "2026-08-01T03:05:12Z"
+    },
+    {
+      "calendarId": 120,
+      "calendarName": "",
+      "status": "failed",
+      "rowsWritten": 0,
+      "totalPages": 3,
+      "lastCommittedPage": 0,
+      "errorMsg": "抓取一系统失败：HTTP 502",
+      "startedAt": "2026-08-16T11:10:00Z",
+      "finishedAt": "2026-08-16T11:11:02Z"
+    }
+  ],
+  "code": 0
+}

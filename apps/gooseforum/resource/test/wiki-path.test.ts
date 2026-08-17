@@ -25,7 +25,7 @@ describe('wikiHref（共享实现，三处调用点同源）', () => {
 })
 
 describe('isValidWikiPath（与后端 wikiservice.ValidatePath 对齐）', () => {
-  test('接受 namespace/slug 与嵌套路径', () => {
+  test('接受 namespace/path 与嵌套路径', () => {
     expect(isValidWikiPath('guide/getting-started')).toBe(true)
     expect(isValidWikiPath('deployment/waline')).toBe(true)
     expect(isValidWikiPath('guide/sub/page-name')).toBe(true)
@@ -67,14 +67,14 @@ describe('isValidWikiPath（与后端 wikiservice.ValidatePath 对齐）', () =>
     expect(isValidWikiPath('guide/a.b')).toBe(true)
   })
 
-  test('拒绝空 slug 段、点开头段与 ..', () => {
+  test('拒绝空路径段、点开头段与 ..', () => {
     expect(isValidWikiPath('guide/')).toBe(false)
     expect(isValidWikiPath('guide/..')).toBe(false)
     expect(isValidWikiPath('guide/.hidden')).toBe(false)
     expect(isValidWikiPath('guide//page')).toBe(false)
   })
 
-  test('拒绝缺少 slug 段的裸 namespace 与空值', () => {
+  test('拒绝缺少路径段的裸 namespace 与空值', () => {
     expect(isValidWikiPath('guide')).toBe(false)
     expect(isValidWikiPath('')).toBe(false)
     expect(isValidWikiPath('   ')).toBe(false)

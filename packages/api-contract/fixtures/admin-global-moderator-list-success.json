@@ -1,0 +1,12 @@
+{
+  "result": [
+    {
+      "id": 7001,
+      "userId": 8021,
+      "username": "mod_user",
+      "avatarUrl": "/static/pic/default-avatar.webp",
+      "status": 1
+    }
+  ],
+  "code": 0
+}

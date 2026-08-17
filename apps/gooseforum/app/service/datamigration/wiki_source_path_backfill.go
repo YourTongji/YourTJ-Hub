@@ -19,10 +19,9 @@ type WikiSourcePathBackfillResult struct {
 // BackfillWikiPageSourcePaths v23 回填：为存量 wiki_pages 行填充 source_path。
 //
 // 背景：source_path 列（仓库真实相对路径，GitHub 编辑/历史外链用）随 PR 新增，
-// 存量行该列为空。D7 语义下 path 首段 = URL key（slug），与仓库目录名解耦，
-// 外链必须用 source_path。存量行创建于 slug 语义之前，其 path 首段即仓库
-// 目录名（显示名），因此 source_path = path 即为正确的仓库路径；随后续同步
-// 按仓库文件更新为权威值。幂等：source_path 已非空的行跳过。
+// 存量行该列为空。URL 语义下 path 即仓库相对路径，source_path = path 即为
+// 正确的仓库路径；随后续同步按仓库文件更新为权威值。幂等：source_path 已非空
+// 的行跳过。
 func BackfillWikiPageSourcePaths() WikiSourcePathBackfillResult {
 	return BackfillWikiPageSourcePathsWithDB(dbconnect.Connect())
 }

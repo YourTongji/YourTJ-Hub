@@ -233,7 +233,7 @@ func seedWikiContract(t *testing.T, conn *gorm.DB, aliceID uint64) {
 	t.Helper()
 	// 固定时间（CST +08:00），与 fixtures 中 updatedAt 一致。
 	base := time.Date(2026, 8, 10, 14, 0, 0, 0, time.FixedZone("CST", 8*3600))
-	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Slug: &[]string{"guide"}[0], Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
+	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
 		t.Fatalf("create wiki namespace: %v", err)
 	}
 
@@ -373,7 +373,7 @@ func TestWikiSearchHTTPContractBadQuery(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("wiki search bad limit status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-search-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 func TestWikiHomeHTTPContract(t *testing.T) {
