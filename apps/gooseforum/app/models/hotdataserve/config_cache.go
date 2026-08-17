@@ -1,9 +1,12 @@
 package hotdataserve
 
 import (
+	"log/slog"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -49,10 +52,38 @@ func GetSiteChromeConfigCache() pageConfig.SiteChromeConfig {
 
 var mailSettingsConfigCache = &localcache.Cache[pageConfig.MailSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
+// GetMailSettingsConfigCache 读取邮件设置（smtpPassword 为运行时解密明文，
+// 仅存于服务内存，绝不随 JSON 序列化导出；落库为 securestore 密文，issue #324 S2）。
+// 兼容 v25 迁移前的存量明文密码（SmtpPassword 字段原样使用）。
 func GetMailSettingsConfigCache() pageConfig.MailSettingsConfig {
 	return mailSettingsConfigCache.GetOrLoad("", func() (pageConfig.MailSettingsConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.EmailSettings, defaultconfig.GetDefaultEmailSettingsConfig()), nil
+		entity := pageConfig.GetByPageType(pageConfig.EmailSettings)
+		if entity.Id == 0 {
+			return defaultconfig.GetDefaultEmailSettingsConfig(), nil
+		}
+		storage := jsonopt.Decode[pageConfig.MailSettingsStorage](entity.Config)
+		cfg := storage.ToConfig()
+		if storage.SmtpPasswordEncrypted != "" {
+			plain, err := securestore.DecryptPurpose(storage.SmtpPasswordEncrypted, securestore.MailSmtpPasswordPurpose)
+			if err != nil {
+				slog.Warn("mail smtp password decrypt failed (signing key rotated?)", "err", err)
+				cfg.SmtpPassword = ""
+			} else {
+				cfg.SmtpPassword = plain
+			}
+		}
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// GetMailSettingsView 读取邮件设置的管理端回显视图（不含密码明文/密文，仅回显
+// 是否已配置；issue #324 S2）。
+func GetMailSettingsView() pageConfig.MailSettingsView {
+	entity := pageConfig.GetByPageType(pageConfig.EmailSettings)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultEmailSettingsConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.MailSettingsStorage](entity.Config).ToView()
 }
 
 var announcementConfigCache = &localcache.Cache[pageConfig.AnnouncementConfig]{MaxEntries: cacheconfig.Current().PageConfig}
@@ -75,10 +106,46 @@ func GetSecuritySettingsConfigCache() pageConfig.SecurityAndRegistration {
 
 var storageSettingsConfigCache = &localcache.Cache[pageConfig.StorageSettings]{MaxEntries: cacheconfig.Current().PageConfig}
 
+// GetStorageSettingsConfigCache 读取存储设置（accessKey/secretKey 为运行时解密
+// 明文，仅存于服务内存，绝不随 JSON 序列化导出；落库为 securestore 密文，issue #324 S3）。
+// 兼容 v25 迁移前的存量明文凭据（AccessKey/SecretKey 字段原样使用）。
 func GetStorageSettingsConfigCache() pageConfig.StorageSettings {
 	return storageSettingsConfigCache.GetOrLoad("", func() (pageConfig.StorageSettings, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig()), nil
+		entity := pageConfig.GetByPageType(pageConfig.StorageSettingsPage)
+		if entity.Id == 0 {
+			return defaultconfig.GetDefaultStorageSettingsConfig(), nil
+		}
+		storage := jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config)
+		cfg := storage.ToConfig()
+		decrypt := func(encrypted, purpose string) string {
+			if encrypted == "" {
+				return ""
+			}
+			plain, err := securestore.DecryptPurpose(encrypted, purpose)
+			if err != nil {
+				slog.Warn("storage credential decrypt failed (signing key rotated?)", "err", err)
+				return ""
+			}
+			return plain
+		}
+		if storage.AccessKeyEncrypted != "" {
+			cfg.AccessKey = decrypt(storage.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose)
+		}
+		if storage.SecretKeyEncrypted != "" {
+			cfg.SecretKey = decrypt(storage.SecretKeyEncrypted, securestore.StorageSecretKeyPurpose)
+		}
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// GetStorageSettingsView 读取存储设置的管理端回显视图（不含凭据明文/密文，仅
+// 回显是否已配置；issue #324 S3）。
+func GetStorageSettingsView() pageConfig.StorageSettingsView {
+	entity := pageConfig.GetByPageType(pageConfig.StorageSettingsPage)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultStorageSettingsConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config).ToView()
 }
 
 var termsOfServiceConfigCache = &localcache.Cache[pageConfig.TermsOfServiceConfig]{MaxEntries: cacheconfig.Current().PageConfig}
@@ -154,10 +221,45 @@ func ClearRateLimitConfigCache() {
 
 var httpNotifyConfigCache = &localcache.Cache[pageConfig.HttpNotifyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
+// GetHttpNotifyConfigCache 读取 HTTP 通知配置（各端点 secret 为运行时解密明文，
+// 仅存于服务内存，绝不随 JSON 序列化导出；落库为 securestore 密文，issue #324 S1）。
+// 兼容 v25 迁移前的存量明文 secret（Secret 字段原样使用）。
 func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {
 	return httpNotifyConfigCache.GetOrLoad("", func() (pageConfig.HttpNotifyConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig()), nil
+		entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
+		if entity.Id == 0 {
+			return defaultconfig.GetDefaultHttpNotifyConfig(), nil
+		}
+		storage := jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config)
+		cfg := storage.ToConfig()
+		for i := range cfg.Endpoints {
+			secret := cfg.Endpoints[i].Secret
+			if secret == "" {
+				continue
+			}
+			// 仅当 SecretEncrypted 非空时才走解密路径（ToConfig 已优先取密文）；
+			// 存量明文（Secret 字段）原样使用，等待 v25 迁移加密。
+			if storage.Endpoints[i].SecretEncrypted != "" {
+				if plain, err := securestore.DecryptPurpose(secret, securestore.HttpNotifySecretPurpose); err == nil {
+					cfg.Endpoints[i].Secret = plain
+				} else {
+					slog.Warn("http notify secret decrypt failed (signing key rotated?)", "err", err)
+					cfg.Endpoints[i].Secret = ""
+				}
+			}
+		}
+		return cfg, nil
 	}, configRareCacheTTL)
+}
+
+// GetHttpNotifyView 读取 HTTP 通知设置的管理端回显视图（不含密钥明文/密文，仅
+// 回显是否已配置；issue #324 S1）。
+func GetHttpNotifyView() pageConfig.HttpNotifyView {
+	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultHttpNotifyConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config).ToView()
 }
 
 var mcpSettingsConfigCache = &localcache.Cache[pageConfig.MCPSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}

@@ -390,6 +390,7 @@ export default {
     selectPlaceholder: 'Select',
     majorHint: 'For cross-disciplinary courses, search directly under "Select Courses" → "Advanced Search".',
     openPicker: 'Select Courses',
+    pickerDescription: 'Select courses from required, optional, or advanced search results to add to your timetable.',
     saveTimetable: 'Save Timetable',
     export: 'Export',
     exportCsv: 'Export Timetable CSV',
@@ -1826,6 +1827,7 @@ export default {
       editUser: 'User operation',
       editTopic: 'Edit topic',
       editCategory: 'Edit category',
+      exportData: 'Data export',
     },
     targetType: {
       system: 'System',
@@ -1845,6 +1847,8 @@ export default {
       moderatorTopicStatusChanged: 'Moderator changed topic "{title}" to {status}',
       categoryModeratorAdded: 'Added moderator {username} to category "{categoryName}"',
       categoryModeratorRemoved: 'Removed moderator {userId} from category "{categoryName}"',
+      dataExported: 'Exported data: {tables} ({format})',
+      dataExportDownloaded: 'Downloaded export file {fileName}',
     },
     status: {
       blocked: 'blocked',
@@ -1994,6 +1998,7 @@ export default {
     close: 'Close search',
     openSearch: 'Open search',
     panelLabel: 'Search Wiki',
+    panelDescription: 'Type keywords to search precisely across the Wiki, matching titles and content.',
     resultsLabel: 'Search results',
   },
 }

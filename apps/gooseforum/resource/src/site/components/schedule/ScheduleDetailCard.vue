@@ -4,7 +4,7 @@
 // P13 端点属于 #187，未实现时友好降级显示「课评暂不可用」。
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { X } from '@lucide/vue'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
@@ -22,8 +22,11 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const { panelRef } = useDialogAccessibility(computed(() => props.course !== null), {
-  onClose: () => emit('close'),
+const detailDialogOpen = computed({
+  get: () => props.course !== null,
+  set: (open: boolean) => {
+    if (!open) emit('close')
+  },
 })
 
 const brief = ref<PkCourseReviewBrief | null>(null)
@@ -93,68 +96,61 @@ watch(
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="gf-fade">
-      <div
-        v-if="course"
-        ref="panelRef"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="schedule-detail-title"
-        class="fixed inset-0 z-[2100]"
+  <DialogRoot v-model:open="detailDialogOpen">
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+      <DialogContent
+        class="fixed left-1/2 top-1/2 z-[2100] max-h-[88vh] w-[88vw] max-w-[420px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto outline-none"
       >
-        <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 max-h-[88vh] w-[88vw] max-w-[420px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
-          <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl" @click.stop>
-            <div class="flex items-start justify-between gap-2 px-4 py-3">
-              <div class="min-w-0">
-                <div id="schedule-detail-title" class="text-sm font-bold text-base-content">{{ parsed.name }}</div>
-                <div class="text-[11px] text-base-content/55">{{ parsed.code }}</div>
-              </div>
-              <button
-                type="button"
-                class="gf-icon-button"
-                :aria-label="t('common.close')"
-                @click="emit('close')"
-              >
-                <X class="h-4 w-4" />
-              </button>
+        <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
+          <div class="flex items-start justify-between gap-2 px-4 py-3">
+            <div class="min-w-0">
+              <DialogTitle class="text-sm font-bold text-base-content">{{ parsed.name }}</DialogTitle>
+              <DialogDescription class="text-[11px] text-base-content/55">{{ parsed.code }}</DialogDescription>
             </div>
-            <div class="space-y-2 p-4 pt-0">
-              <p v-if="parsed.teacherAndCode" class="text-[12px] text-base-content/70">
-                {{ parsed.teacherAndCode }}
-              </p>
-              <p class="whitespace-pre-wrap break-words text-[13px] leading-snug text-base-content">
-                {{ parsed.arrangement }}
-              </p>
+            <button
+              type="button"
+              class="gf-icon-button"
+              :aria-label="t('common.close')"
+              @click="emit('close')"
+            >
+              <X class="h-4 w-4" />
+            </button>
+          </div>
+          <div class="space-y-2 p-4 pt-0">
+            <p v-if="parsed.teacherAndCode" class="text-[12px] text-base-content/70">
+              {{ parsed.teacherAndCode }}
+            </p>
+            <p class="whitespace-pre-wrap break-words text-[13px] leading-snug text-base-content">
+              {{ parsed.arrangement }}
+            </p>
 
-              <a
-                :href="reviewHref"
-                class="gf-button gf-button-md gf-button-primary mt-2 w-full"
-              >
-                {{ t('schedule.reviews') }}
-              </a>
+            <a
+              :href="reviewHref"
+              class="gf-button gf-button-md gf-button-primary mt-2 w-full"
+            >
+              {{ t('schedule.reviews') }}
+            </a>
 
-              <div class="rounded-lg border border-line/60 bg-base-200/40 p-3">
-                <template v-if="briefLoading">
-                  <p class="text-[12px] text-base-content/55">{{ t('schedule.loading') }}</p>
-                </template>
-                <template v-else-if="briefError">
-                  <p class="text-[12px] text-base-content/45">{{ t('schedule.loadFailed') }}</p>
-                </template>
-                <template v-else-if="brief">
-                  <p class="text-[12px] text-base-content/70">
-                    <template v-if="brief.ratingAvg != null">
-                      {{ t('schedule.reviewAvg', { value: brief.ratingAvg.toFixed(1) }) }}
-                    </template>
-                    {{ t('schedule.reviewCount', { count: brief.reviewCount }) }}
-                  </p>
-                </template>
-              </div>
+            <div class="rounded-lg border border-line/60 bg-base-200/40 p-3">
+              <template v-if="briefLoading">
+                <p class="text-[12px] text-base-content/55">{{ t('schedule.loading') }}</p>
+              </template>
+              <template v-else-if="briefError">
+                <p class="text-[12px] text-base-content/45">{{ t('schedule.loadFailed') }}</p>
+              </template>
+              <template v-else-if="brief">
+                <p class="text-[12px] text-base-content/70">
+                  <template v-if="brief.ratingAvg != null">
+                    {{ t('schedule.reviewAvg', { value: brief.ratingAvg.toFixed(1) }) }}
+                  </template>
+                  {{ t('schedule.reviewCount', { count: brief.reviewCount }) }}
+                </p>
+              </template>
             </div>
           </div>
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>

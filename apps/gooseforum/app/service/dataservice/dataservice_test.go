@@ -127,8 +127,13 @@ func TestExportRunAndFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExportFilePath() error = %v", err)
 	}
-	if _, err := os.Stat(path); err != nil {
+	info, err := os.Stat(path)
+	if err != nil {
 		t.Fatalf("export file missing: %v", err)
+	}
+	// issue #324 S4：导出文件含用户 PII，权限必须为 0600（仅属主可读写）。
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("export file mode = %o, want 600", perm)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {

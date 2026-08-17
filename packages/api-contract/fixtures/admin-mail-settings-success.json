@@ -5,7 +5,7 @@
     "smtpPort": 465,
     "useSSL": true,
     "smtpUsername": "mailer@contract.example.test",
-    "smtpPassword": "contract-smtp-secret",
+    "smtpPasswordConfigured": true,
     "fromName": "契约站务",
     "fromEmail": "noreply@contract.example.test"
   },

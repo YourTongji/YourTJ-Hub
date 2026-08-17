@@ -409,8 +409,18 @@ instance:
   topic_user_stat when selected) as JSON or CSV via a background task, then download;
   import JSON with a per-row validation report and idempotent skip; topic invariants
   (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
-- Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
-  (daily cron). Export contains user emails — treat downloads as sensitive.
+- Export files are written to `data/export/` inside the storage dir with mode 0600
+  (owner-only) and cleaned up after 7 days (daily cron). Export contains user emails —
+  treat downloads as sensitive. Export creation and download are recorded in the
+  operation audit log (`opt_record`, issue #324).
+
+## 管理端设置密钥（issue #324）
+
+- SMTP 密码、对象存储 accessKey/secretKey、HTTP 通知端点 secret 均以 securestore
+  AES-256-GCM 密文落库（与一系统 Cookie / wiki webhook secret 同一模式），管理端
+  GET 仅回显是否已配置，绝不回显明文或密文；保存时密钥字段留空表示保留已存值。
+- 升级到包含 v25 数据迁移的版本后，存量明文密钥会在下次启动时自动加密迁移
+  （幂等；迁移失败不推进版本，下次启动重试）。
 
 ## 一系统排课同步（course-pk-sync，issue #186）
 

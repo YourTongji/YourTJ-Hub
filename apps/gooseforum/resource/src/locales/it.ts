@@ -390,6 +390,7 @@ export default {
     selectPlaceholder: 'Seleziona',
     majorHint: 'Per corsi interdisciplinari, cerca direttamente in "Seleziona Corsi" → "Ricerca Avanzata".',
     openPicker: 'Seleziona Corsi',
+    pickerDescription: 'Seleziona i corsi da quelli previsti, opzionali o dai risultati della ricerca avanzata per aggiungerli al tuo orario.',
     saveTimetable: 'Salva Orario',
     export: 'Esporta',
     exportCsv: 'Esporta Orario CSV',
@@ -1826,6 +1827,7 @@ export default {
       editUser: 'Operazione utente',
       editTopic: 'Modifica topic',
       editCategory: 'Modifica categoria',
+      exportData: 'Esportazione dati',
     },
     targetType: {
       system: 'Sistema',
@@ -1845,6 +1847,8 @@ export default {
       moderatorTopicStatusChanged: 'Il moderatore ha cambiato il topic "{title}" in {status}',
       categoryModeratorAdded: 'Aggiunto il moderatore {username} alla categoria "{categoryName}"',
       categoryModeratorRemoved: 'Rimosso il moderatore {userId} dalla categoria "{categoryName}"',
+      dataExported: 'Dati esportati: {tables} ({format})',
+      dataExportDownloaded: 'Scaricato il file di esportazione {fileName}',
     },
     status: {
       blocked: 'bloccato',
@@ -1994,6 +1998,7 @@ export default {
     close: 'Chiudi ricerca',
     openSearch: 'Apri la ricerca',
     panelLabel: 'Cerca nella Wiki',
+    panelDescription: 'Digita parole chiave per cercare nella Wiki, tra titoli e contenuti.',
     resultsLabel: 'Risultati di ricerca',
   },
 }

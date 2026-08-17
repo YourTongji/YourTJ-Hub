@@ -4,8 +4,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, X } from '@lucide/vue'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import EmptyState from '@/site/components/EmptyState.vue'
-import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkCourseDetail } from '@/site/types/pk'
@@ -25,8 +25,12 @@ const emit = defineEmits<{
   staged: []
 }>()
 
-const { panelRef } = useDialogAccessibility(computed(() => props.open), {
-  onClose: () => emit('close'),
+// 弹窗无障碍（reka-ui Dialog）：焦点移入/Tab 圈禁/Esc 关闭/焦点恢复由 Dialog 内置处理。
+const dialogOpen = computed({
+  get: () => props.open,
+  set: (open: boolean) => {
+    if (!open) emit('close')
+  },
 })
 
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
@@ -92,53 +96,46 @@ function tryStage(candidate: CellCandidate) {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="gf-fade">
-      <div
-        v-if="open"
-        ref="panelRef"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="schedule-cell-pick-title"
-        class="fixed inset-0 z-[2100]"
+  <DialogRoot v-model:open="dialogOpen">
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+      <DialogContent
+        class="fixed left-1/2 top-1/2 z-[2100] max-h-[80vh] w-[88vw] max-w-[440px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto outline-none"
       >
-        <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 max-h-[80vh] w-[88vw] max-w-[440px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
-          <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl" @click.stop>
-            <div class="flex items-start justify-between gap-2 border-b border-line/60 px-4 py-3">
-              <div class="min-w-0">
-                <div id="schedule-cell-pick-title" class="text-sm font-bold text-base-content">{{ t('schedule.cellPickTitle') }}</div>
-                <div class="text-[11px] text-base-content/55">{{ slotTitle }}</div>
-              </div>
-              <button type="button" class="gf-icon-button shrink-0" :aria-label="t('common.close')" @click="emit('close')">
-                <X class="h-4 w-4" />
-              </button>
+        <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
+          <div class="flex items-start justify-between gap-2 border-b border-line/60 px-4 py-3">
+            <div class="min-w-0">
+              <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.cellPickTitle') }}</DialogTitle>
+              <DialogDescription class="text-[11px] text-base-content/55">{{ slotTitle }}</DialogDescription>
             </div>
-
-            <EmptyState
-              v-if="candidates.length === 0"
-              class="p-6"
-              :icon="BookOpen"
-              :title="t('schedule.cellPickEmpty')"
-            />
-
-            <ul v-else class="gf-scrollbar-thin max-h-[50vh] divide-y divide-line/60 overflow-y-auto overscroll-contain">
-              <li v-for="candidate in candidates" :key="candidate.detail.code" class="px-4 py-2.5">
-                <button type="button" class="w-full text-left" @click="tryStage(candidate)">
-                  <span class="block truncate text-[13px] font-medium text-base-content">{{ candidate.courseName }}</span>
-                  <span class="mt-0.5 block text-[11px] text-base-content/50">{{ candidate.detail.code }} · {{ t('schedule.credit', { credit: candidate.credit }) }}</span>
-                  <p v-if="teacherText(candidate.detail)" class="mt-0.5 text-[12px] text-base-content/60">
-                    {{ t('schedule.teacherWith', { value: teacherText(candidate.detail) }) }}
-                  </p>
-                  <p class="mt-0.5 line-clamp-2 text-[12px] text-base-content/60">
-                    {{ arrangementText(candidate.detail) }}
-                  </p>
-                </button>
-              </li>
-            </ul>
+            <button type="button" class="gf-icon-button shrink-0" :aria-label="t('common.close')" @click="emit('close')">
+              <X class="h-4 w-4" />
+            </button>
           </div>
+
+          <EmptyState
+            v-if="candidates.length === 0"
+            class="p-6"
+            :icon="BookOpen"
+            :title="t('schedule.cellPickEmpty')"
+          />
+
+          <ul v-else class="gf-scrollbar-thin max-h-[50vh] divide-y divide-line/60 overflow-y-auto overscroll-contain">
+            <li v-for="candidate in candidates" :key="candidate.detail.code" class="px-4 py-2.5">
+              <button type="button" class="w-full text-left" @click="tryStage(candidate)">
+                <span class="block truncate text-[13px] font-medium text-base-content">{{ candidate.courseName }}</span>
+                <span class="mt-0.5 block text-[11px] text-base-content/50">{{ candidate.detail.code }} · {{ t('schedule.credit', { credit: candidate.credit }) }}</span>
+                <p v-if="teacherText(candidate.detail)" class="mt-0.5 text-[12px] text-base-content/60">
+                  {{ t('schedule.teacherWith', { value: teacherText(candidate.detail) }) }}
+                </p>
+                <p class="mt-0.5 line-clamp-2 text-[12px] text-base-content/60">
+                  {{ arrangementText(candidate.detail) }}
+                </p>
+              </button>
+            </li>
+          </ul>
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>

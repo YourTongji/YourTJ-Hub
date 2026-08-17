@@ -2,9 +2,11 @@ package routes
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -124,17 +126,21 @@ func seedContractTask(t *testing.T, conn *gorm.DB, entity taskQueue.Entity) {
 func TestAdminGetMailSettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/mail-settings"
 
-	t.Run("success returns the stored mail settings", func(t *testing.T) {
+	t.Run("success returns the stored mail settings with the password configured state only", func(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
-		persistContractPageConfig(t, conn, pageConfig.EmailSettings, pageConfig.MailSettingsConfig{
-			EnableMail:   true,
-			SmtpHost:     "smtp.contract.example.test",
-			SmtpPort:     465,
-			UseSSL:       true,
-			SmtpUsername: "mailer@contract.example.test",
-			SmtpPassword: "contract-smtp-secret",
-			FromName:     "契约站务",
-			FromEmail:    "noreply@contract.example.test",
+		sealed, err := securestore.EncryptPurpose("contract-smtp-secret", securestore.MailSmtpPasswordPurpose)
+		if err != nil {
+			t.Fatalf("encrypt contract smtp password: %v", err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.EmailSettings, pageConfig.MailSettingsStorage{
+			EnableMail:            true,
+			SmtpHost:              "smtp.contract.example.test",
+			SmtpPort:              465,
+			UseSSL:                true,
+			SmtpUsername:          "mailer@contract.example.test",
+			SmtpPasswordEncrypted: sealed,
+			FromName:              "契约站务",
+			FromEmail:             "noreply@contract.example.test",
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-mail-settings-success.json")
 	})
@@ -145,7 +151,7 @@ func TestAdminGetMailSettingsHTTPContract(t *testing.T) {
 func TestAdminSaveMailSettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/save-mail-settings"
 
-	t.Run("success replaces the stored mail settings", func(t *testing.T) {
+	t.Run("success replaces the stored mail settings and encrypts the password", func(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.EmailSettings).Delete(&pageConfig.Entity{})
@@ -154,9 +160,45 @@ func TestAdminSaveMailSettingsHTTPContract(t *testing.T) {
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enableMail":true,"smtpHost":"smtp.new.example.test","smtpPort":587,"useSSL":false,"smtpUsername":"u","smtpPassword":"p","fromName":"新站务","fromEmail":"hi@new.example.test"}}`,
 			"admin-agent-disable-success.json")
-		stored := pageConfig.GetConfigByPageType(pageConfig.EmailSettings, pageConfig.MailSettingsConfig{})
+		stored := pageConfig.GetConfigByPageType(pageConfig.EmailSettings, pageConfig.MailSettingsStorage{})
 		if stored.SmtpHost != "smtp.new.example.test" || stored.SmtpPort != 587 || stored.FromName != "新站务" {
 			t.Fatalf("stored mail settings = %#v, want submitted values", stored)
+		}
+		if stored.SmtpPasswordEncrypted == "" {
+			t.Fatalf("stored mail settings = %#v, want an encrypted smtp password", stored)
+		}
+		if plain, err := securestore.DecryptPurpose(stored.SmtpPasswordEncrypted, securestore.MailSmtpPasswordPurpose); err != nil || plain != "p" {
+			t.Fatalf("stored smtp password decrypt = %q, err %v; want %q", plain, err, "p")
+		}
+	})
+
+	t.Run("blank smtpPassword keeps the stored password", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		sealed, err := securestore.EncryptPurpose("keep-me", securestore.MailSmtpPasswordPurpose)
+		if err != nil {
+			t.Fatalf("encrypt: %v", err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.EmailSettings, pageConfig.MailSettingsStorage{
+			EnableMail:            true,
+			SmtpHost:              "smtp.contract.example.test",
+			SmtpPort:              465,
+			UseSSL:                true,
+			SmtpUsername:          "mailer@contract.example.test",
+			SmtpPasswordEncrypted: sealed,
+			FromName:              "契约站务",
+			FromEmail:             "noreply@contract.example.test",
+		})
+		hotdataserve.ClearMailSettingsConfigCache()
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.EmailSettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearMailSettingsConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enableMail":true,"smtpHost":"smtp.contract.example.test","smtpPort":465,"useSSL":true,"smtpUsername":"mailer@contract.example.test","smtpPassword":"","fromName":"契约站务","fromEmail":"noreply@contract.example.test"}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.EmailSettings, pageConfig.MailSettingsStorage{})
+		if plain, err := securestore.DecryptPurpose(stored.SmtpPasswordEncrypted, securestore.MailSmtpPasswordPurpose); err != nil || plain != "keep-me" {
+			t.Fatalf("stored smtp password decrypt = %q, err %v; want kept %q", plain, err, "keep-me")
 		}
 	})
 
@@ -199,10 +241,26 @@ func TestAdminTestMailConnectionHTTPContract(t *testing.T) {
 func TestAdminGetStorageSettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/storage-settings"
 
-	t.Run("success returns the stored storage settings", func(t *testing.T) {
+	t.Run("success returns the stored storage settings with the credential configured state only", func(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
-		persistContractPageConfig(t, conn, pageConfig.StorageSettingsPage, pageConfig.StorageSettings{
-			Provider: "local",
+		akSealed, err := securestore.EncryptPurpose("contract-ak", securestore.StorageAccessKeyPurpose)
+		if err != nil {
+			t.Fatalf("encrypt contract access key: %v", err)
+		}
+		skSealed, err := securestore.EncryptPurpose("contract-sk", securestore.StorageSecretKeyPurpose)
+		if err != nil {
+			t.Fatalf("encrypt contract secret key: %v", err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{
+			Provider:           "s3",
+			Endpoint:           "https://s3.contract.example.test",
+			Bucket:             "contract-bucket",
+			Region:             "contract-region",
+			BucketLookup:       "auto",
+			Secure:             true,
+			AccessKeyEncrypted: akSealed,
+			SecretKeyEncrypted: skSealed,
+			PublicUrlPrefix:    "",
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-storage-settings-success.json")
 	})
@@ -213,18 +271,55 @@ func TestAdminGetStorageSettingsHTTPContract(t *testing.T) {
 func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/save-storage-settings"
 
-	t.Run("success replaces the stored storage settings", func(t *testing.T) {
+	t.Run("success replaces the stored storage settings and encrypts credentials", func(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.StorageSettingsPage).Delete(&pageConfig.Entity{})
 			hotdataserve.ClearStorageSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"provider":"local","endpoint":"","bucket":"","region":"","bucketLookup":"","secure":false,"accessKey":"","secretKey":"","publicUrlPrefix":""}}`,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":""}}`,
 			"admin-agent-disable-success.json")
-		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettings{})
-		if stored.Provider != "local" {
-			t.Fatalf("stored storage settings = %#v, want provider local", stored)
+		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{})
+		if stored.Provider != "s3" || stored.Endpoint != "https://s3.new.example.test" || stored.Bucket != "new-bucket" {
+			t.Fatalf("stored storage settings = %#v, want submitted values", stored)
+		}
+		if plain, err := securestore.DecryptPurpose(stored.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose); err != nil || plain != "new-ak" {
+			t.Fatalf("stored accessKey decrypt = %q, err %v; want %q", plain, err, "new-ak")
+		}
+		if plain, err := securestore.DecryptPurpose(stored.SecretKeyEncrypted, securestore.StorageSecretKeyPurpose); err != nil || plain != "new-sk" {
+			t.Fatalf("stored secretKey decrypt = %q, err %v; want %q", plain, err, "new-sk")
+		}
+		if strings.Contains(storedAsJSON(t, conn, pageConfig.StorageSettingsPage), "new-ak") {
+			t.Fatal("plaintext access key leaked into stored config")
+		}
+	})
+
+	t.Run("blank credentials keep the stored keys", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		akSealed, _ := securestore.EncryptPurpose("keep-ak", securestore.StorageAccessKeyPurpose)
+		skSealed, _ := securestore.EncryptPurpose("keep-sk", securestore.StorageSecretKeyPurpose)
+		persistContractPageConfig(t, conn, pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{
+			Provider:           "s3",
+			Endpoint:           "https://s3.contract.example.test",
+			Bucket:             "contract-bucket",
+			AccessKeyEncrypted: akSealed,
+			SecretKeyEncrypted: skSealed,
+		})
+		hotdataserve.ClearStorageSettingsConfigCache()
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.StorageSettingsPage).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearStorageSettingsConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.contract.example.test","bucket":"contract-bucket","region":"","bucketLookup":"auto","secure":true,"accessKey":"","secretKey":"","publicUrlPrefix":""}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{})
+		if plain, err := securestore.DecryptPurpose(stored.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose); err != nil || plain != "keep-ak" {
+			t.Fatalf("stored accessKey decrypt = %q, err %v; want kept %q", plain, err, "keep-ak")
+		}
+		if plain, err := securestore.DecryptPurpose(stored.SecretKeyEncrypted, securestore.StorageSecretKeyPurpose); err != nil || plain != "keep-sk" {
+			t.Fatalf("stored secretKey decrypt = %q, err %v; want kept %q", plain, err, "keep-sk")
 		}
 	})
 
@@ -243,6 +338,15 @@ func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 	})
 
 	adminIntegrationsGuardScenarios(t, http.MethodPost, path, "admin-save-storage-settings")
+}
+
+func storedAsJSON(t *testing.T, conn *gorm.DB, pageType string) string {
+	t.Helper()
+	var entity pageConfig.Entity
+	if err := conn.Where("page_type = ?", pageType).First(&entity).Error; err != nil {
+		t.Fatalf("read stored %s config: %v", pageType, err)
+	}
+	return entity.Config
 }
 
 func TestAdminTestStorageConnectionHTTPContract(t *testing.T) {

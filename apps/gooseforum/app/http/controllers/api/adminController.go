@@ -13,6 +13,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
@@ -1302,26 +1303,43 @@ func PublishSiteTheme(req component.BetterRequest[component.Null]) component.Res
 	return component.SuccessResponse(config)
 }
 
-// GetMailSettings 获取邮件设置
+// GetMailSettings 获取邮件设置：仅回显是否已配置密码，不回显密码明文/密文
+// （issue #324 S2，参照 onesystem cookieConfigured 模式）。
 func GetMailSettings(req component.BetterRequest[component.Null]) component.Response {
-	// 获取当前站点设置
-	defaultSettings := defaultconfig.GetDefaultEmailSettingsConfig()
-	emailSettings := pageConfig.GetConfigByPageType(pageConfig.EmailSettings, defaultSettings)
-	return component.SuccessResponse(emailSettings)
+	return component.SuccessResponse(hotdataserve.GetMailSettingsView())
 }
 
 type SaveMailSettingsReq struct {
-	Settings pageConfig.MailSettingsConfig `json:"settings" validate:"required"`
+	Settings pageConfig.MailSettingsInput `json:"settings" validate:"required"`
 }
 
-// SaveMailSettings 保存邮件设置
+// SaveMailSettings 保存邮件设置：smtpPassword 明文仅在请求瞬间存在——非空时
+// securestore 加密后落库；为空/掩码时保留已存密文（issue #324 S2）。
 func SaveMailSettings(req component.BetterRequest[SaveMailSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.EmailSettings, req.Params.Settings, hotdataserve.ClearMailSettingsConfigCache)
+	input := req.Params.Settings
+	entity := pageConfig.GetByPageType(pageConfig.EmailSettings)
+	storage := jsonopt.Decode[pageConfig.MailSettingsStorage](entity.Config)
+	storage.EnableMail = input.EnableMail
+	storage.SmtpHost = input.SmtpHost
+	storage.SmtpPort = input.SmtpPort
+	storage.UseSSL = input.UseSSL
+	storage.SmtpUsername = input.SmtpUsername
+	storage.FromName = input.FromName
+	storage.FromEmail = input.FromEmail
+	if pwd := strings.TrimSpace(input.SmtpPassword); pwd != "" {
+		sealed, err := securestore.EncryptPurpose(pwd, securestore.MailSmtpPasswordPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密 SMTP 密码失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.SmtpPasswordEncrypted = sealed
+		storage.SmtpPassword = ""
+	}
+	return savePageConfig(pageConfig.EmailSettings, storage, hotdataserve.ClearMailSettingsConfigCache)
 }
 
 type TestMailConnectionReq struct {
-	Settings  pageConfig.MailSettingsConfig `json:"settings" validate:"required"`
-	TestEmail string                        `json:"testEmail" validate:"required,email"`
+	Settings  pageConfig.MailSettingsInput `json:"settings" validate:"required"`
+	TestEmail string                       `json:"testEmail" validate:"required,email"`
 }
 
 type TestMailConnectionResp struct {
@@ -1336,7 +1354,12 @@ func TestMailConnection(req component.BetterRequest[TestMailConnectionReq]) comp
 		return component.FailResponseCode(component.MessageAdminTestEmailRequired, nil)
 	}
 
-	err := mailservice.SendTestEmailWithConfig(req.Params.Settings, req.Params.TestEmail)
+	cfg := req.Params.Settings.ToConfig()
+	// 管理端 GET 不再回显密码：测试时密码留空则使用已存密码（issue #324 S2）。
+	if cfg.SmtpPassword == "" {
+		cfg.SmtpPassword = hotdataserve.GetMailSettingsConfigCache().SmtpPassword
+	}
+	err := mailservice.SendTestEmailWithConfig(cfg, req.Params.TestEmail)
 	if err != nil {
 		errText := err.Error()
 		return component.SuccessResponse(TestMailConnectionResp{
@@ -1504,47 +1527,120 @@ func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]
 	return savePageConfig(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsStorage{CookieEncrypted: encrypted}, hotdataserve.ClearOnesystemSettingsConfigCache)
 }
 
+// GetHttpNotifySettings 获取 HTTP 通知设置：仅回显各端点是否已配置密钥，不回显
+// 密钥明文/密文（issue #324 S1）。
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {
-	config := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig())
-	return component.SuccessResponse(config)
+	return component.SuccessResponse(hotdataserve.GetHttpNotifyView())
 }
 
 type SaveHttpNotifySettingsReq struct {
-	Settings pageConfig.HttpNotifyConfig `json:"settings" validate:"required"`
+	Settings pageConfig.HttpNotifyConfigInput `json:"settings" validate:"required"`
 }
 
+// SaveHttpNotifySettings 保存 HTTP 通知设置：各端点 secret 明文仅在请求瞬间存在——
+// 非空时 securestore 加密后落库；为空时按 id（无 id 按 url）保留已存密文/存量明文
+// （issue #324 S1）。
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
-	return savePageConfig(pageConfig.HttpNotify, req.Params.Settings, hotdataserve.ClearHttpNotifyConfigCache)
+	input := req.Params.Settings
+	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
+	storage := jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config)
+	existing := make(map[string]pageConfig.HttpNotifyStorageEndpoint, len(storage.Endpoints))
+	for _, e := range storage.Endpoints {
+		key := e.Id
+		if key == "" {
+			key = e.URL
+		}
+		existing[key] = e
+	}
+	next := make([]pageConfig.HttpNotifyStorageEndpoint, 0, len(input.Endpoints))
+	for _, ep := range input.Endpoints {
+		key := ep.Id
+		if key == "" {
+			key = ep.URL
+		}
+		orig := existing[key]
+		sealed := orig.SecretEncrypted
+		legacy := orig.Secret
+		if secret := strings.TrimSpace(ep.Secret); secret != "" {
+			encrypted, err := securestore.EncryptPurpose(secret, securestore.HttpNotifySecretPurpose)
+			if err != nil {
+				return component.FailResponseError(fmt.Errorf("加密 webhook secret 失败（请确认 app.signingKey 已配置）：%w", err))
+			}
+			sealed = encrypted
+			legacy = ""
+		}
+		next = append(next, pageConfig.HttpNotifyStorageEndpoint{
+			Id:                 ep.Id,
+			Name:               ep.Name,
+			Enabled:            ep.Enabled,
+			URL:                ep.URL,
+			Secret:             legacy,
+			SecretEncrypted:    sealed,
+			Events:             ep.Events,
+			TimeoutSeconds:     ep.TimeoutSeconds,
+			FailureCount:       ep.FailureCount,
+			LastError:          ep.LastError,
+			AbnormalTerminated: ep.AbnormalTerminated,
+		})
+	}
+	return savePageConfig(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Enabled: input.Enabled, Endpoints: next}, hotdataserve.ClearHttpNotifyConfigCache)
 }
 
-// GetStorageSettings 获取存储设置
+// GetStorageSettings 获取存储设置：仅回显是否已配置凭据，不回显凭据明文/密文
+// （issue #324 S3）。
 func GetStorageSettings(req component.BetterRequest[component.Null]) component.Response {
-	cfg := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig())
-	return component.SuccessResponse(cfg)
+	return component.SuccessResponse(hotdataserve.GetStorageSettingsView())
 }
 
 type SaveStorageSettingsReq struct {
-	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+	Settings pageConfig.StorageSettingsInput `json:"settings" validate:"required"`
 }
 
-// SaveStorageSettings 保存存储设置
+// SaveStorageSettings 保存存储设置：accessKey/secretKey 明文仅在请求瞬间存在——
+// 非空时 securestore 加密后落库；为空时保留已存密文（issue #324 S3）。
 func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) component.Response {
-	cfg := req.Params.Settings
-	if cfg.Provider == "" {
-		cfg.Provider = storageservice.ProviderLocal
+	input := req.Params.Settings
+	provider := input.Provider
+	if provider == "" {
+		provider = storageservice.ProviderLocal
 	}
-	if cfg.Provider != storageservice.ProviderLocal && cfg.Provider != storageservice.ProviderS3 {
+	if provider != storageservice.ProviderLocal && provider != storageservice.ProviderS3 {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	if cfg.Provider == storageservice.ProviderS3 && (cfg.Endpoint == "" || cfg.Bucket == "") {
+	if provider == storageservice.ProviderS3 && (input.Endpoint == "" || input.Bucket == "") {
 		return component.FailResponseCode(component.MessageAdminStorageSaveFailed,
 			component.MessageParams{"error": "S3 模式需要填写 Endpoint 与 Bucket"})
 	}
-	return savePageConfig(pageConfig.StorageSettingsPage, cfg, hotdataserve.ClearStorageSettingsConfigCache)
+	entity := pageConfig.GetByPageType(pageConfig.StorageSettingsPage)
+	storage := jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config)
+	storage.Provider = provider
+	storage.Endpoint = input.Endpoint
+	storage.Bucket = input.Bucket
+	storage.Region = input.Region
+	storage.BucketLookup = input.BucketLookup
+	storage.Secure = input.Secure
+	storage.PublicUrlPrefix = input.PublicUrlPrefix
+	if key := strings.TrimSpace(input.AccessKey); key != "" {
+		sealed, err := securestore.EncryptPurpose(key, securestore.StorageAccessKeyPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密存储 accessKey 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.AccessKeyEncrypted = sealed
+		storage.AccessKey = ""
+	}
+	if key := strings.TrimSpace(input.SecretKey); key != "" {
+		sealed, err := securestore.EncryptPurpose(key, securestore.StorageSecretKeyPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密存储 secretKey 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.SecretKeyEncrypted = sealed
+		storage.SecretKey = ""
+	}
+	return savePageConfig(pageConfig.StorageSettingsPage, storage, hotdataserve.ClearStorageSettingsConfigCache)
 }
 
 type TestStorageConnectionReq struct {
-	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+	Settings pageConfig.StorageSettingsInput `json:"settings" validate:"required"`
 }
 
 type TestStorageConnectionResp struct {
@@ -1555,7 +1651,17 @@ type TestStorageConnectionResp struct {
 
 // TestStorageConnection 测试存储连接（不落库）
 func TestStorageConnection(req component.BetterRequest[TestStorageConnectionReq]) component.Response {
-	cfg := req.Params.Settings
+	cfg := req.Params.Settings.ToConfig()
+	// 管理端 GET 不再回显凭据：测试时凭据留空则使用已存凭据（issue #324 S3）。
+	if cfg.AccessKey == "" || cfg.SecretKey == "" {
+		stored := hotdataserve.GetStorageSettingsConfigCache()
+		if cfg.AccessKey == "" {
+			cfg.AccessKey = stored.AccessKey
+		}
+		if cfg.SecretKey == "" {
+			cfg.SecretKey = stored.SecretKey
+		}
+	}
 	if cfg.Provider == "" {
 		cfg.Provider = storageservice.ProviderLocal
 	}
@@ -1613,13 +1719,17 @@ type CreateExportTaskReq struct {
 	Format string   `json:"format" validate:"required,oneof=json csv"`
 }
 
-// CreateExportTask 创建数据导出后台任务
+// CreateExportTask 创建数据导出后台任务（issue #324 S4：操作审计）。
 func CreateExportTask(req component.BetterRequest[CreateExportTaskReq]) component.Response {
 	taskID, err := dataservice.ExportData(req.Params.Tables, req.Params.Format)
 	if err != nil {
 		return component.FailResponseCode(component.MessageAdminDataExportFailed,
 			component.MessageParams{"error": err.Error()})
 	}
+	optlogger.UserOptCode(req.UserId, optlogger.ExportData, taskID, "admin.opt.data.exported", optlogger.MessageParams{
+		"tables": req.Params.Tables,
+		"format": req.Params.Format,
+	})
 	return successDataMap("taskId", taskID)
 }
 
@@ -1632,7 +1742,8 @@ func ListExportTasks(req component.BetterRequest[component.Null]) component.Resp
 	return component.SuccessResponse(tasks)
 }
 
-// DownloadExportTask 下载导出文件
+// DownloadExportTask 下载导出文件（issue #324 S4：下载操作审计）。
+// maxDataImportSize 限制导入请求体大小。
 const maxDataImportSize = 50 << 20 // 50MB
 func DownloadExportTask(c *gin.Context) {
 	taskID := c.Param("taskId")
@@ -1656,6 +1767,9 @@ func DownloadExportTask(c *gin.Context) {
 	}
 	fileName := filepath.Base(path)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	optlogger.UserOptCode(c.GetUint64("userId"), optlogger.ExportData, task.Id, "admin.opt.data.exported.download", optlogger.MessageParams{
+		"fileName": fileName,
+	})
 	c.File(path)
 }
 

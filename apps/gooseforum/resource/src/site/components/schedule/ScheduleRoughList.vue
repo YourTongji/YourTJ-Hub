@@ -2,7 +2,7 @@
 // 选课列表/备选池：展示 stagedCourses，提供「选择课程」「保存课表」与退课/清除操作。
 // 点击课程行会把该课设为 clickedCourseInfo，右侧/详情 tab 展示其班级。
 import { computed, ref } from 'vue'
-import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Save } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -19,9 +19,10 @@ const emit = defineEmits<{
   openPicker: []
 }>()
 
-const { panelRef } = useDialogAccessibility(computed(() => pendingDrop.value !== null), {
-  onClose: () => {
-    pendingDrop.value = null
+const dropDialogOpen = computed({
+  get: () => pendingDrop.value !== null,
+  set: (open: boolean) => {
+    if (!open) pendingDrop.value = null
   },
 })
 
@@ -120,22 +121,17 @@ function arrangedClassCount(course: PkStagedCourse): number {
     </ul>
 
     <!-- 退课确认弹窗 -->
-    <Teleport to="body">
-      <div
-        v-if="pendingDrop"
-        ref="panelRef"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="schedule-drop-title"
-        class="fixed inset-0 z-[2100]"
-      >
-        <div class="absolute inset-0 bg-black/40" @click="pendingDrop = null"></div>
-        <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2">
-          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
-            <h3 id="schedule-drop-title" class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
-            <p class="mt-2 text-[13px] text-base-content/70">
-              {{ pendingDrop.courseNameReserved }}（{{ pendingDrop.courseCode }}）
-            </p>
+    <DialogRoot v-model:open="dropDialogOpen">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent
+          class="fixed left-1/2 top-1/2 z-[2100] w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 outline-none"
+        >
+          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg">
+            <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</DialogTitle>
+            <DialogDescription class="mt-2 text-[13px] text-base-content/70">
+              {{ pendingDrop?.courseNameReserved }}（{{ pendingDrop?.courseCode }}）
+            </DialogDescription>
             <div class="mt-4 flex justify-end gap-2">
               <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="pendingDrop = null">
                 {{ t('schedule.cancel') }}
@@ -145,8 +141,8 @@ function arrangedClassCount(course: PkStagedCourse): number {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </Teleport>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
   </div>
 </template>

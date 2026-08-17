@@ -3633,10 +3633,10 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored notify settings, or the
          *     built-in default (disabled with an empty endpoint list) when nothing
-         *     has been saved yet. Exposure boundary: each endpoint's `secret`
-         *     (webhook signing secret) is returned in cleartext — there is no
-         *     masking on this admin surface. JSON binding is lenient: query string
-         *     and body are ignored.
+         *     has been saved yet. Exposure boundary (issue #324 S1): each endpoint's
+         *     `secret` (webhook signing secret) is never returned — only
+         *     `secretConfigured` (whether an encrypted secret is stored) is
+         *     reported. JSON binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetHttpNotifySettings"];
         put?: never;
@@ -3905,9 +3905,10 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored mail settings, or the built-in
          *     default configuration when nothing has been saved yet. Exposure
-         *     boundary: `smtpPassword` is returned in cleartext — there is no
-         *     masking on this admin surface. JSON binding is lenient: query string
-         *     and body are ignored.
+         *     boundary (issue #324 S2): the SMTP password is never returned — only
+         *     `smtpPasswordConfigured` (whether an encrypted password is stored) is
+         *     reported, mirroring the onesystem `cookieConfigured` pattern. JSON
+         *     binding is lenient: query string and body are ignored.
          */
         get: operations["adminGetMailSettings"];
         put?: never;
@@ -3990,8 +3991,9 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored storage settings, or the built-in
          *     default (local provider) when nothing has been saved yet. Exposure
-         *     boundary: `accessKey`/`secretKey` are returned in cleartext — there is
-         *     no masking on this admin surface. JSON binding is lenient: query
+         *     boundary (issue #324 S3): `accessKey`/`secretKey` are never returned —
+         *     only `accessKeyConfigured`/`secretKeyConfigured` (whether encrypted
+         *     credentials are stored) are reported. JSON binding is lenient: query
          *     string and body are ignored.
          */
         get: operations["adminGetStorageSettings"];
@@ -7597,7 +7599,7 @@ export interface components {
             name: string;
             enabled: boolean;
             url: string;
-            /** @description Webhook signing secret. Exposure boundary — returned in cleartext by adminGetHttpNotifySettings to any SiteManager caller; there is no masking. */
+            /** @description Plaintext webhook signing secret accepted on save requests (issue */
             secret: string;
             events: string[];
             timeoutSeconds: number;
@@ -7611,10 +7613,10 @@ export interface components {
             endpoints: components["schemas"]["AdminHttpNotifyEndpoint"][];
         };
         AdminHttpNotifySettingsResponse: components["schemas"]["ApiSuccess"] & {
-            /** @description Stored notify settings, or the built-in default (disabled, empty endpoint list) when nothing has been saved. */
-            result: components["schemas"]["AdminHttpNotifySettingsConfig"];
+            /** @description Stored notify settings without endpoint secrets (configured state only), or the built-in default (disabled, empty endpoint list) when nothing has been saved. */
+            result: components["schemas"]["AdminHttpNotifySettingsView"];
         };
-        /** @description Replacement notify settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        /** @description Replacement notify settings. A non-empty endpoint `secret` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored secret for the matching endpoint (issue */
         AdminSaveHttpNotifySettingsRequest: {
             settings?: components["schemas"]["AdminHttpNotifySettingsConfig"];
         };
@@ -7671,16 +7673,16 @@ export interface components {
             smtpPort: number;
             useSSL: boolean;
             smtpUsername: string;
-            /** @description SMTP credential returned in cleartext on this admin surface — there is no masking. */
+            /** @description Plaintext SMTP password accepted on save/test requests (issue */
             smtpPassword: string;
             fromName: string;
             fromEmail: string;
         };
         AdminMailSettingsResponse: components["schemas"]["ApiSuccess"] & {
-            /** @description Stored mail settings, or the built-in default when nothing has been saved. */
-            result: components["schemas"]["AdminMailSettingsConfig"];
+            /** @description Stored mail settings without the SMTP password (configured state only), or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminMailSettingsView"];
         };
-        /** @description Replacement mail settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        /** @description Replacement mail settings. A non-empty `smtpPassword` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored password (issue */
         AdminSaveMailSettingsRequest: {
             settings?: components["schemas"]["AdminMailSettingsConfig"];
         };
@@ -7688,7 +7690,7 @@ export interface components {
             settings?: components["schemas"]["AdminMailSettingsConfig"];
             /**
              * Format: email
-             * @description Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route).
+             * @description Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route). When `settings.smtpPassword` is empty, the stored (decrypted) password is used for the probe (issue
              */
             testEmail?: string;
         };
@@ -7718,22 +7720,22 @@ export interface components {
             /** @description `auto` | `dns` | `path`. */
             bucketLookup: string;
             secure: boolean;
-            /** @description Returned in cleartext on this admin surface — there is no masking. */
+            /** @description Plaintext access key accepted on save/test requests (issue */
             accessKey: string;
-            /** @description Returned in cleartext on this admin surface — there is no masking. */
+            /** @description Plaintext secret key accepted on save/test requests (issue */
             secretKey: string;
             /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
             publicUrlPrefix: string;
         };
         AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
-            /** @description Stored storage settings, or the built-in default when nothing has been saved. */
-            result: components["schemas"]["AdminStorageSettingsConfig"];
+            /** @description Stored storage settings without the credentials (configured state only), or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminStorageSettingsView"];
         };
-        /** @description Replacement storage settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves the normalized zero-value configuration (`provider=local`). */
+        /** @description Replacement storage settings. Non-empty `accessKey`/`secretKey` are encrypted (AES-256-GCM) before persistence; empty ones keep the stored keys (issue */
         AdminSaveStorageSettingsRequest: {
             settings?: components["schemas"]["AdminStorageSettingsConfig"];
         };
-        /** @description Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend. */
+        /** @description Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend. When `accessKey`/`secretKey` are empty, the stored (decrypted) credentials are used for the probe (issue */
         AdminTestStorageConnectionRequest: {
             settings?: components["schemas"]["AdminStorageSettingsConfig"];
         };
@@ -9084,6 +9086,49 @@ export interface components {
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
         }) | components["schemas"]["ApiFailure"];
+        AdminHttpNotifyEndpointView: {
+            id: string;
+            name: string;
+            enabled: boolean;
+            url: string;
+            /** @description Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue */
+            secretConfigured: boolean;
+            events: string[];
+            timeoutSeconds: number;
+            /** @description Consecutive delivery failures recorded by the dispatcher. */
+            failureCount: number;
+            lastError: string;
+            abnormalTerminated: boolean;
+        };
+        AdminHttpNotifySettingsView: {
+            enabled: boolean;
+            endpoints: components["schemas"]["AdminHttpNotifyEndpointView"][];
+        };
+        AdminMailSettingsView: {
+            enableMail: boolean;
+            smtpHost: string;
+            smtpPort: number;
+            useSSL: boolean;
+            smtpUsername: string;
+            /** @description Whether an SMTP password is stored (encrypted with AES-256-GCM). The password itself is never returned — the GET surface only reports configured state (issue */
+            smtpPasswordConfigured: boolean;
+            fromName: string;
+            fromEmail: string;
+        };
+        AdminStorageSettingsView: {
+            /** @enum {string} */
+            provider: "local" | "s3";
+            endpoint: string;
+            bucket: string;
+            region: string;
+            bucketLookup: string;
+            secure: boolean;
+            /** @description Whether an access key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue */
+            accessKeyConfigured: boolean;
+            /** @description Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue */
+            secretKeyConfigured: boolean;
+            publicUrlPrefix: string;
+        };
         /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
         WikiSearchItem: {
             /** @description Display name of the namespace (fallback: URL key). */
@@ -15203,7 +15248,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Notify settings including cleartext endpoint secrets (stored configuration or the built-in default). */
+            /** @description Notify settings without endpoint secrets (configured state only; stored configuration or the built-in default). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15603,7 +15648,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Mail settings including the cleartext SMTP password (stored configuration or the built-in default). */
+            /** @description Mail settings without the SMTP password (configured state only; stored configuration or the built-in default). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15725,7 +15770,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Storage settings including cleartext object-storage credentials (stored configuration or the built-in default). */
+            /** @description Storage settings without the object-storage credentials (configured state only; stored configuration or the built-in default). */
             200: {
                 headers: {
                     [name: string]: unknown;

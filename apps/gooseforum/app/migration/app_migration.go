@@ -316,5 +316,24 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(24)
 		currentVersion = 24
 	}
+	if currentVersion < 25 {
+		// 管理端设置密钥明文加密 v25（issue #324 S1-S3）：把此前明文落库的
+		// 邮件 SMTP 密码、对象存储 accessKey/secretKey、HTTP 通知端点 secret
+		// 加密为 securestore 密文（AES-256-GCM）并清空明文。幂等：仅处理
+		// 明文非空且密文为空的配置；读取侧在迁移前兼容存量明文。
+		secretResult := datamigration.MigrateAdminSecretPlaintext()
+		slog.Info("app migration admin secret plaintext encryption done",
+			"mailEncrypted", secretResult.MailEncrypted,
+			"storageKeys", secretResult.StorageKeys,
+			"notifySecrets", secretResult.NotifySecrets,
+			"failed", secretResult.Failed,
+			"lastFailed", secretResult.LastFailed)
+		if secretResult.Failed > 0 {
+			slog.Error("app migration admin secret plaintext encryption has failures", "failed", secretResult.Failed, "lastFailed", secretResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(25)
+		currentVersion = 25
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

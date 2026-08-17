@@ -390,6 +390,7 @@ export default {
     selectPlaceholder: '请选择',
     majorHint: '如需跨学科选课，在「选择课程」-「高级检索」中直接检索即可。',
     openPicker: '选择课程',
+    pickerDescription: '从计划内课程、通识选修课或高级检索结果中勾选课程加入课表。',
     saveTimetable: '保存课表',
     export: '导出',
     exportCsv: '导出课表 CSV',
@@ -1826,6 +1827,7 @@ export default {
       editUser: '操作用户',
       editTopic: '编辑话题',
       editCategory: '编辑分类',
+      exportData: '数据导出',
     },
     targetType: {
       system: '系统',
@@ -1845,6 +1847,8 @@ export default {
       moderatorTopicStatusChanged: '版主将话题「{title}」调整为{status}',
       categoryModeratorAdded: '为分类「{categoryName}」添加版主 {username}',
       categoryModeratorRemoved: '移除分类「{categoryName}」的版主 {userId}',
+      dataExported: '导出数据：{tables}（{format}）',
+      dataExportDownloaded: '下载导出文件 {fileName}',
     },
     status: {
       blocked: '封禁',
@@ -1994,6 +1998,7 @@ export default {
     close: '关闭搜索',
     openSearch: '打开搜索',
     panelLabel: '搜索 Wiki',
+    panelDescription: '输入关键词，在 Wiki 站内精准搜索，支持标题与正文命中。',
     resultsLabel: '搜索结果',
   },
 }
