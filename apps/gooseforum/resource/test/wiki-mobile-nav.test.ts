@@ -104,15 +104,16 @@ describe('MobileDrawer wiki 模式', () => {
     })
   }
 
-  test('wiki 模式下渲染命名空间 + 页面树（侧边栏已无 wiki 首页块）', () => {
+  test('wiki 模式下渲染命名空间 + 页面树（侧栏顶部胶囊含回到首页/Wiki 入口）', () => {
     const wrapper = mountDrawer({ wikiMode: true, wikiTree })
     const drawer = wrapper.get('[role="dialog"]')
     expect(drawer.text()).toContain('同济新手教程')
     expect(drawer.text()).toContain('使用指南')
     expect(drawer.text()).toContain('学校简介')
     expect(drawer.text()).toContain('快速开始')
-    // 需求：wiki 侧边栏移除顶部 pb-2 首页块 → 抽屉内不再有 /wiki 首页链接。
-    expect(drawer.find('a[href="/wiki"]').exists()).toBe(false)
+    // 需求：wiki 侧边栏顶部胶囊提供「回到首页」与「Wiki」两个入口（桌面侧栏与移动抽屉一致）。
+    expect(drawer.find('a[href="/"]').exists()).toBe(true)
+    expect(drawer.find('a[href="/wiki"]').exists()).toBe(true)
   })
 
   test('活动页面保持高亮（与桌面侧栏一致）', () => {

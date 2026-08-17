@@ -37,3 +37,52 @@
     border-radius: var(--gf-radius-selector);
   }
 }
+
+/* ---- wiki 局内搜索：命中段落高亮动画 ----
+   注意：纯 CSS 不支持 Tailwind 的 `var(--x) / alpha` 语法，必须用 color-mix()。
+   高亮语义：先闪一下（strong），停住约 1.5s（hold），再淡出到透明。
+   animation-fill-mode: forwards 保证动画结束后停在透明背景，不会残留高亮。 */
+:root,
+[data-theme="gf-light"] {
+  --wiki-hit-bg: color-mix(in oklab, var(--gf-color-primary) 22%, transparent);
+  --wiki-hit-bg-strong: color-mix(in oklab, var(--gf-color-primary) 42%, transparent);
+}
+
+[data-theme="gf-dark"] {
+  /* 深色主题背景更深，提高不透明度 + 加一层描边，保证高亮清晰可见 */
+  --wiki-hit-bg: color-mix(in oklab, var(--gf-color-primary) 38%, transparent);
+  --wiki-hit-bg-strong: color-mix(in oklab, var(--gf-color-primary) 58%, transparent);
+}
+
+.wiki-hit-flash {
+  background: transparent;
+  border-radius: 0.35rem;
+  animation: wiki-hit-flash 2.8s ease-out forwards;
+}
+
+@keyframes wiki-hit-flash {
+  0% {
+    background: var(--wiki-hit-bg-strong);
+  }
+  18% {
+    background: var(--wiki-hit-bg);
+  }
+  60% {
+    background: var(--wiki-hit-bg);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* wiki 搜索面板命中词高亮（主题色派生，非默认黄；深浅主题均可读） */
+#wiki-search-listbox mark {
+  background: color-mix(in oklab, var(--gf-color-primary) 15%, transparent);
+  color: var(--gf-color-primary);
+  border-radius: 0.2rem;
+  padding: 0 0.05em;
+}
+
+[data-theme="gf-dark"] #wiki-search-listbox mark {
+  background: color-mix(in oklab, var(--gf-color-primary) 30%, transparent);
+}

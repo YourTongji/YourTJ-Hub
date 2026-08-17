@@ -2733,6 +2733,74 @@ WikiHomeResponse:
               $ref: '#/WikiHomeResult'
     - $ref: '#/ApiFailure'
 
+WikiSearchItem:
+  type: object
+  description: Page-level wiki search result (aggregates the paragraph hits of one wiki page).
+  required: [namespace, path, title, titleHit, anchors, snippet, score, hitType]
+  properties:
+    namespace:
+      type: string
+      description: "Display name of the namespace (fallback: URL key)."
+    path:
+      type: string
+      description: Full page path (namespace/slug) for direct linking.
+    title:
+      type: string
+    titleHit:
+      type: boolean
+      description: True when the query matched the page title (vs only body text).
+    heading:
+      type: string
+      description: Nearest section heading of the top hit paragraph; absent when the hit is in the title only.
+    anchors:
+      type: array
+      items:
+        type: string
+      description: Paragraph anchors (s-<n>) of every hit paragraph in this page, for in-page navigation.
+    snippet:
+      type: string
+      description: Highlighted paragraph excerpt (<mark> wraps matched terms).
+    score:
+      type: number
+      format: double
+      description: Ranking score of the top paragraph hit (higher first).
+    hitType:
+      type: string
+      enum: [title, body]
+      description: Whether the strongest hit is in the title or the body.
+  additionalProperties: false
+
+WikiSearchResult:
+  type: object
+  required: [query, total, items, searchUnavailable]
+  properties:
+    query:
+      type: string
+      description: Echoed (trimmed) search query.
+    total:
+      type: integer
+      format: int64
+      description: Page-level result count (distinct pages); never the paragraph hit count.
+    items:
+      type: array
+      items:
+        $ref: '#/WikiSearchItem'
+    searchUnavailable:
+      type: boolean
+      description: True when the search backend is unavailable; items is then empty.
+  additionalProperties: false
+
+WikiSearchResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiSearchResult'
+    - $ref: '#/ApiFailure'
+
 
 
 

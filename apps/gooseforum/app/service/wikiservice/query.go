@@ -533,6 +533,7 @@ type PageDetail struct {
 	Title               string    `json:"title"`
 	Content             string    `json:"content"`
 	Toc                 []TocItem `json:"toc"`
+	ParaAnchors         []ParaAnchor `json:"paraAnchors,omitempty"`
 	UpdatedAt           string    `json:"updatedAt"`
 	LikeCount           uint64    `json:"likeCount"`
 	ViewCount           uint64    `json:"viewCount"`
@@ -579,6 +580,12 @@ func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, e
 		var items []TocItem
 		if err := json.Unmarshal([]byte(page.Toc), &items); err == nil {
 			detail.Toc = items
+		}
+	}
+	if page.ParaAnchors != "" {
+		var anchors []ParaAnchor
+		if err := json.Unmarshal([]byte(page.ParaAnchors), &anchors); err == nil {
+			detail.ParaAnchors = anchors
 		}
 	}
 	return detail, nil
