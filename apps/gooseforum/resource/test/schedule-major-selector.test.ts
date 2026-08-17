@@ -39,16 +39,19 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkCalendars.mockResolvedValue([{ calendarId: 121, calendarName: '2025-2026学年第2学期' }])
   })
 
-  test('无已存选择时，默认第一个学期也应加载年级', async () => {
-    // 回归：restoreSelection 只在 localStorage 有完整选择时加载年级，
-    // 首次访问（无选择）Term 默认选中但 Grade 永远为空。
+  test('无已存选择时：默认学期加载年级并写回 store，选年级可加载专业', async () => {
+    // 回归（PR #323 review P1）：restoreSelection 期间 isRestoring 抑制 watch，
+    // 必须把最终学期写回 store；否则选年级时 calendarId 为 undefined，专业永远加载不出。
     getPkGrades.mockResolvedValue([2025, 2024])
-    getPkMajors.mockResolvedValue([])
+    getPkMajors.mockResolvedValue([{ code: '00301', name: '2025(00301 数学类)' }])
 
     const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
     await flushPromises()
 
+    // 默认第一个学期（121）已加载年级，且 store 中的学期已写回。
     expect(getPkGrades).toHaveBeenCalledWith(121)
+    const store = useScheduleStore()
+    expect(store.state.majorSelected.calendarId).toBe(121)
 
     // Grade 下拉应包含年级选项（打开后可见 2025/2024）。
     await comboboxes(wrapper)[1].trigger('click')
@@ -56,6 +59,12 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     const options = wrapper.findAll('[role="option"]').map((o) => o.text())
     expect(options).toContain('2025')
     expect(options).toContain('2024')
+
+    // 用户选择年级 2025 → watch 触发 → 用已写回的 calendarId 加载专业。
+    const option = wrapper.findAll('[role="option"]').find((o) => o.text() === '2025')
+    await option!.trigger('click')
+    await flushPromises()
+    expect(getPkMajors).toHaveBeenCalledWith(2025, 121)
   })
 
   test('localStorage 有完整选择时恢复年级+专业', async () => {
@@ -84,8 +93,41 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     await flushPromises()
 
     expect(getPkGrades).toHaveBeenCalledWith(121)
+
+    // P1：回退后 store 必须使用有效学期，旧学期/年级/专业清空（防跨学期污染）。
+    const store = useScheduleStore()
+    expect(store.state.majorSelected.calendarId).toBe(121)
+    expect(store.state.majorSelected.grade).toBeUndefined()
+    expect(store.state.majorSelected.major).toBeUndefined()
+
+    // 回退后年级下拉有数据，且用户重新选年级可用新学期加载专业。
     await comboboxes(wrapper)[1].trigger('click')
     await flushPromises()
     expect(wrapper.findAll('[role="option"]').map((o) => o.text())).toContain('2025')
+  })
+
+  test('localStorage 学期已不存在时清空旧学期已选课程', async () => {
+    // P1：替换失效学期时清掉旧学期课程缓存（对齐学期变更 watch 语义）。
+    const store = useScheduleStore()
+    store.state.commonLists.stagedCourses = [
+      {
+        courseCode: '122004',
+        courseName: '高等数学(122004)',
+        courseNameReserved: '高等数学',
+        credit: 4,
+        courseType: '必',
+        teacher: [],
+        status: 1,
+        courseDetail: [],
+      },
+    ]
+    setStoredSelection({ calendarId: 122, grade: 2025, major: '00301' })
+    getPkGrades.mockResolvedValue([2025, 2024])
+    getPkMajors.mockResolvedValue([])
+
+    mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    expect(store.state.commonLists.stagedCourses).toEqual([])
   })
 })
