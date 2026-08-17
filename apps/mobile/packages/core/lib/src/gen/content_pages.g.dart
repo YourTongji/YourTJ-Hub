@@ -275,6 +275,8 @@ _$CourseOfferingPayloadImpl _$$CourseOfferingPayloadImplFromJson(
   termName: json['termName'] as String?,
   campus: json['campus'] as String?,
   faculty: json['faculty'] as String?,
+  classCode: json['classCode'] as String?,
+  className: json['className'] as String?,
   instructors: (json['instructors'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -290,6 +292,8 @@ Map<String, dynamic> _$$CourseOfferingPayloadImplToJson(
   'termName': instance.termName,
   'campus': instance.campus,
   'faculty': instance.faculty,
+  'classCode': instance.classCode,
+  'className': instance.className,
   'instructors': instance.instructors,
   'ratingAvg': instance.ratingAvg,
   'reviewCount': instance.reviewCount,

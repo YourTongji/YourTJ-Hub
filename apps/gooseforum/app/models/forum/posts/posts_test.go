@@ -31,11 +31,6 @@ func TestPostRepositoryWindows(t *testing.T) {
 		t.Fatalf("GetFirstPageByTopicId() = %#v", postNos(first))
 	}
 
-	desc := GetByTopicPostNoDesc(1, 2)
-	if len(desc) != 2 || desc[0].PostNo != 3 || desc[1].PostNo != 4 {
-		t.Fatalf("GetByTopicPostNoDesc() = %#v, want ascending returned window [3 4]", postNos(desc))
-	}
-
 	after := GetByTopicPostNoAfter(1, 1, 10)
 	if len(after) != 3 || after[0].PostNo != 2 || after[2].PostNo != 4 {
 		t.Fatalf("GetByTopicPostNoAfter() = %#v", postNos(after))

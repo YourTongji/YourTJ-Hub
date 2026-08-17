@@ -15,6 +15,8 @@
         "termName": "2025-2026 第一学期",
         "campus": "四平路校区",
         "faculty": "数学科学学院",
+        "classCode": "10000101",
+        "className": "01班",
         "instructors": [
           "张三",
           "李四"

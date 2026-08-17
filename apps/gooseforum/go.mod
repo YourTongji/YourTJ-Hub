@@ -8,7 +8,6 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/dgraph-io/badger/v4 v4.9.5
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/gertd/go-pluralize v0.2.1
 	github.com/gin-contrib/gzip v1.2.6
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
@@ -21,7 +20,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/feeds v1.2.0
 	github.com/gorilla/sessions v1.4.0
-	github.com/iancoleman/strcase v0.3.0
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jkboxomine/goldmark-headingid v0.0.0-20200109122657-8b6c16c18388
 	github.com/markbates/goth v1.82.0

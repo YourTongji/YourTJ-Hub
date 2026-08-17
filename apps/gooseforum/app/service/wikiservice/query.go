@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
@@ -589,16 +588,4 @@ func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, e
 		}
 	}
 	return detail, nil
-}
-
-// DecodeTOC 解析 toc JSON 为条目（通用工具，供渲染/测试复用）。
-func DecodeTOC(raw string) []markdown2html.HeadingItem {
-	if raw == "" {
-		return nil
-	}
-	var items []markdown2html.HeadingItem
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
-		return nil
-	}
-	return items
 }
