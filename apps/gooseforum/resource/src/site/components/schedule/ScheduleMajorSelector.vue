@@ -88,10 +88,16 @@ function resetSelection() {
 async function restoreSelection() {
   isRestoring = true
   await loadCalendars()
-  const selection = store.state.majorSelected
-  if (selection.calendarId !== undefined && selection.grade !== undefined) {
-    await loadGrades(selection.calendarId)
-    if (selection.major) await loadMajors(selection.grade, selection.calendarId)
+  // 首次访问（无已存选择）或已存学期失效回退时，Term 已按默认学期选中：
+  // 必须按最终选中的学期加载年级，否则年级/专业下拉永远为空。
+  const calendarId = calendarValue.value ? Number(calendarValue.value) : undefined
+  if (calendarId !== undefined) {
+    await loadGrades(calendarId)
+    const selection = store.state.majorSelected
+    // loadGrades 已恢复匹配的年级；仅当年级恢复成功且有已存专业时再加载专业。
+    if (gradeValue.value && selection.major) {
+      await loadMajors(Number(gradeValue.value), calendarId)
+    }
   }
   isRestoring = false
 }
