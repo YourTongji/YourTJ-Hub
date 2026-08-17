@@ -301,7 +301,7 @@ func TestCourseReviewListMalformedCourseIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("malformed course id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 // TestCourseReviewOfferingStatsHTTPContract 验证 spec-reviewer N1（PR #195）：
@@ -413,7 +413,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("invalid rating status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("unknown offering returns 404", func(t *testing.T) {
@@ -433,7 +433,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated create status = %d, want 401: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -526,7 +526,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("author delete status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-delete-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "result-true.json"))
 		again := serveAuthSecurityJSON(router, http.MethodDelete, "/api/forum/course-reviews/300", "", aliceToken)
 		if again.Code != http.StatusOK {
 			t.Fatalf("idempotent delete status = %d, want 200: %s", again.Code, again.Body.String())
@@ -556,7 +556,7 @@ func TestCourseReviewHelpfulHTTPContract(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("mark helpful attempt %d status = %d, want 200: %s", attempt+1, rec.Code, rec.Body.String())
 			}
-			assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-helpful-success.json"))
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "result-true.json"))
 		}
 	})
 
@@ -583,7 +583,7 @@ func TestCourseReviewHelpfulHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("unmark status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-unhelpful-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "result-true.json"))
 		list := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=902", "", bobToken)
 		if list.Code != http.StatusOK {
 			t.Fatalf("unmarked list status = %d, want 200: %s", list.Code, list.Body.String())
@@ -625,7 +625,7 @@ func TestCourseReviewReportHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("report status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-report-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("duplicate open report returns report.duplicate", func(t *testing.T) {
@@ -691,7 +691,7 @@ func TestCourseReviewModerationHTTPContract(t *testing.T) {
 		if hide.Code != http.StatusOK {
 			t.Fatalf("hide status = %d, want 200: %s", hide.Code, hide.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, hide), contractFixture(t, "course-review-moderation-status-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, hide), contractFixture(t, "result-true.json"))
 		list := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=902", "", "")
 		if list.Code != http.StatusOK {
 			t.Fatalf("hidden list status = %d, want 200: %s", list.Code, list.Body.String())
@@ -706,7 +706,7 @@ func TestCourseReviewModerationHTTPContract(t *testing.T) {
 		if show.Code != http.StatusOK {
 			t.Fatalf("show status = %d, want 200: %s", show.Code, show.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, show), contractFixture(t, "course-review-moderation-status-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, show), contractFixture(t, "result-true.json"))
 		listed := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=902", "", "")
 		if listed.Code != http.StatusOK {
 			t.Fatalf("shown list status = %d, want 200: %s", listed.Code, listed.Body.String())
@@ -723,7 +723,7 @@ func TestCourseReviewModerationHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("denied reveal code = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "permission-denied.json"))
 	})
 
 	t.Run("admin reveal returns the author identity", func(t *testing.T) {
@@ -1039,13 +1039,13 @@ func TestCourseReviewPaginationHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid cursor status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-invalid-params.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
 
 	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=999", "", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("oversized pageSize status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-invalid-params.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
 
 	// --- 验收 3：删除一条（隔离窗口）后翻页不跳页 ---
 	// 第一页取前 20 条（id 250..231），删除其中一条（id 240），

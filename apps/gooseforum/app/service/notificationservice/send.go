@@ -104,11 +104,7 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, badgeIconURL string) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateBadge,
-		TemplateParams: eventNotification.NotificationTemplateParams{
-			BadgeCode: badgeCode,
-			BadgeName: badgeName,
-		},
-		ActorId: userId,
+		ActorId:     userId,
 		Extra: eventNotification.Extra{
 			BadgeCode:    badgeCode,
 			BadgeName:    badgeName,
@@ -158,11 +154,8 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 func SendFollowNotification(userId uint64, followerId uint64, followerName string) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateFollow,
-		TemplateParams: eventNotification.NotificationTemplateParams{
-			FollowerName: followerName,
-		},
-		ActorId: followerId,
-		Extra:   eventNotification.Extra{FollowerName: followerName},
+		ActorId:     followerId,
+		Extra:       eventNotification.Extra{FollowerName: followerName},
 	}
 
 	notification := &eventNotification.Entity{

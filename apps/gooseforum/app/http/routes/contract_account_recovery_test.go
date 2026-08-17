@@ -119,7 +119,7 @@ func TestRegisterHTTPContractSuccess(t *testing.T) {
 
 	body := `{"email":"newuser@example.com","userName":"brandnewuser","passWord":"password123"}`
 	recorder := serveAccountRecoveryJSON(router, "/api/register", body)
-	response := assertRegisterResponseCode(t, recorder, "register-success.json")
+	response := assertRegisterResponseCode(t, recorder, "login-success.json")
 	if string(response.Result) != `"登录成功"` {
 		t.Fatalf("register result = %s, want login success message", response.Result)
 	}
@@ -165,7 +165,7 @@ func TestRegisterHTTPContractHoneypotSilentRejects(t *testing.T) {
 
 	body := `{"email":"bot@example.com","userName":"botuser","passWord":"password123","website":"http://spam.example"}`
 	recorder := serveAccountRecoveryJSON(router, "/api/register", body)
-	assertRegisterResponseCode(t, recorder, "register-success.json")
+	assertRegisterResponseCode(t, recorder, "login-success.json")
 	if users.ExistUsername("botuser") || users.ExistEmail("bot@example.com") {
 		t.Fatal("honeypot register must not create a user row")
 	}
@@ -376,7 +376,7 @@ func TestResetPasswordHTTPContractFrozenAccount(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("frozen reset status = %d, want 200 (business failure)", recorder.Code)
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "reset-password-account-frozen.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 
 	userAfter, err := users.Get(user.Id)
 	if err != nil {
