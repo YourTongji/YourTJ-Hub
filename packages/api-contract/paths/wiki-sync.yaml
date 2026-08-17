@@ -82,7 +82,7 @@ getWikiSyncStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -91,7 +91,7 @@ getWikiSyncStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
       '500':
         description: Wiki sync status query failed (page/namespace counts or run history).
         content:
@@ -133,7 +133,7 @@ runWikiSync:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -142,7 +142,7 @@ runWikiSync:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
 
 listWikiSyncRuns:
   get:
@@ -172,7 +172,7 @@ listWikiSyncRuns:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -181,7 +181,7 @@ listWikiSyncRuns:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
       '500':
         description: Wiki sync runs query failed.
         content:
@@ -219,7 +219,7 @@ getWikiWebhookSecret:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -228,7 +228,7 @@ getWikiWebhookSecret:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
 
 saveWikiWebhookSecret:
   post:
@@ -257,7 +257,7 @@ saveWikiWebhookSecret:
               $ref: ../components/schemas.yaml#/WikiWebhookSecretSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/wiki-webhook-secret-save-success.json
+                externalValue: ../fixtures/result-ok.json
       '400':
         description: Malformed JSON request body (strict binding failure).
         content:
@@ -266,7 +266,7 @@ saveWikiWebhookSecret:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/wiki-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -275,7 +275,7 @@ saveWikiWebhookSecret:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -284,7 +284,7 @@ saveWikiWebhookSecret:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
 
 getWikiAssetCDN:
   get:
@@ -316,7 +316,7 @@ getWikiAssetCDN:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -325,7 +325,7 @@ getWikiAssetCDN:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
 
 saveWikiAssetCDN:
   post:
@@ -354,7 +354,7 @@ saveWikiAssetCDN:
               $ref: ../components/schemas.yaml#/WikiAssetCDNSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/wiki-asset-cdn-save-success.json
+                externalValue: ../fixtures/result-ok.json
       '400':
         description: Malformed JSON request body (strict binding failure).
         content:
@@ -363,7 +363,7 @@ saveWikiAssetCDN:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/wiki-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -372,7 +372,7 @@ saveWikiAssetCDN:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -381,4 +381,4 @@ saveWikiAssetCDN:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json

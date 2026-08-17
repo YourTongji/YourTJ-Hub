@@ -430,7 +430,7 @@ void main() {
 
     test('解析 TOTP 登录验证成功 fixture', () {
       final response = GfResponse<String>.fromJson(
-        _contractFixture('totp-verify-success.json'),
+        _contractFixture('login-success.json'),
         (json) => json as String,
       );
 
@@ -503,7 +503,7 @@ void main() {
   group('账号注册与找回密码受控契约', () {
     test('解析注册成功 fixture（自动登录，带会话）', () {
       final response = GfResponse<String>.fromJson(
-        _contractFixture('register-success.json'),
+        _contractFixture('login-success.json'),
         (json) => json as String,
       );
 

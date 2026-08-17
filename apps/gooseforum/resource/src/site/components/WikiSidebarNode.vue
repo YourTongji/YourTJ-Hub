@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ChevronDown, ChevronRight, FileText, Folder } from '@lucide/vue'
 import type { WikiTreeNode } from '@gooseforum/client'
+import { wikiHref } from '@/runtime/wiki-path'
 
 defineOptions({ name: 'WikiSidebarNode' })
 
@@ -17,10 +18,6 @@ const emit = defineEmits<{
 
 const collapsed = ref(false)
 const isDirectory = computed(() => props.node.kind === 'directory')
-
-function wikiHref(path: string): string {
-  return '/wiki/' + path.split('/').map((segment) => encodeURIComponent(segment)).join('/')
-}
 </script>
 
 <template>

@@ -66,9 +66,9 @@ verifyTotp:
               $ref: ../components/schemas.yaml#/TotpVerifyResponse
             examples:
               success:
-                externalValue: ../fixtures/totp-verify-success.json
+                externalValue: ../fixtures/login-success.json
               malformedRequest:
-                externalValue: ../fixtures/totp-verify-invalid-format.json
+                externalValue: ../fixtures/invalid-format.json
               invalidCode:
                 externalValue: ../fixtures/totp-verify-invalid-code.json
               rateLimited:
@@ -94,6 +94,6 @@ verifyTotp:
               # The middleware reports every 401 path with the same `auth.required`
               # envelope, so both examples intentionally share this fixture.
               unauthenticated:
-                externalValue: ../fixtures/totp-verify-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
               challengeConsumed:
-                externalValue: ../fixtures/totp-verify-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json

@@ -134,7 +134,7 @@ getAdminWikiTree:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -143,7 +143,7 @@ getAdminWikiTree:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
       '500':
         description: Wiki tree query failed.
         content:

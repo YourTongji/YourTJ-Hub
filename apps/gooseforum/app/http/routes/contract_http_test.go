@@ -325,7 +325,7 @@ func assertFixtureParams(t *testing.T, actual map[string]any, fixture map[string
 		}
 	}
 	// 断言实际响应不包含 fixture 未声明的额外参数，防止原始解析错误串等敏感信息泄漏回归
-	// （例如 course-parse-failed.json 声明 params:{}，若 400 又带上 params.error 应在此失败）。
+	// （例如 parse-failed.json 声明 params:{}，若 400 又带上 params.error 应在此失败）。
 	for name := range actual {
 		if _, declared := fixture[name]; !declared {
 			t.Fatalf("params.%s = %#v is present but not declared in fixture", name, actual[name])
@@ -421,7 +421,7 @@ func TestOidcExchangeHTTPContractInvalidRequest(t *testing.T) {
 	assertFixtureEnvelope(
 		t,
 		decodeContractEnvelope(t, recorder),
-		contractFixture(t, "oidc-exchange-invalid.json"),
+		contractFixture(t, "invalid-format.json"),
 	)
 }
 
@@ -452,7 +452,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -465,7 +465,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("malformed body remains a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -475,7 +475,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid topic request status = %d, want 200", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-invalid.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {

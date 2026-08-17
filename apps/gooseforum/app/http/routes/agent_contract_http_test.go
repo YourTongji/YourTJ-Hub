@@ -17,7 +17,7 @@ import (
 func TestAgentContractUnauthorizedMatchesCanonicalFixture(t *testing.T) {
 	setupAgentForumTestDB(t)
 	router := agentForumRouter()
-	canonical := contractFixture(t, "agent-unauthorized.json")
+	canonical := contractFixture(t, "auth-required.json")
 
 	for _, tc := range []struct {
 		name   string
@@ -263,7 +263,7 @@ func TestAgentContractWriteRateLimits(t *testing.T) {
 			t.Fatalf("rate limited topic write status = %d, want 429", recorder.Code)
 		}
 		response := decodeContractEnvelope(t, recorder)
-		assertFixtureEnvelope(t, response, contractFixture(t, "agent-topic-write-rate-limited.json"))
+		assertFixtureEnvelope(t, response, contractFixture(t, "topic-write-rate-limited.json"))
 		assertRetryAfter(t, recorder, response, middleware.RateLimitTopicWrite)
 	})
 
