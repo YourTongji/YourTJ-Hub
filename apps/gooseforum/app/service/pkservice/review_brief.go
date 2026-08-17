@@ -85,13 +85,19 @@ func fillClassBriefs(brief *ReviewBrief, calendarId uint64) error {
 	}
 	// calendarId → calendar_id_i18n（如 "2025-2026-1"）→ course_term.id：
 	// 同一班号跨学期都有 offering 时，只返回所选学期的那个（review P3）。
+	// calendarId > 0 而日历/term 映射缺失（该学期未物化到课程目录）时返回空 classes：
+	// 契约承诺「限定该学期内匹配」，不得退化为全学期查询（review CHANGES_REQUESTED）。
 	var termId uint64
 	if calendarId > 0 {
-		if cal, err := pk.GetCalendarByID(calendarId); err == nil && cal.CalendarIdI18n != "" {
-			if term, err := course.GetTermByCode(cal.CalendarIdI18n); err == nil {
-				termId = term.Id
-			}
+		cal, err := pk.GetCalendarByID(calendarId)
+		if err != nil || cal.CalendarIdI18n == "" {
+			return nil
 		}
+		term, err := course.GetTermByCode(cal.CalendarIdI18n)
+		if err != nil {
+			return nil
+		}
+		termId = term.Id
 	}
 	offerings, err := course.ListVisibleOfferingsByClassCodes(classCodes, termId)
 	if err != nil {

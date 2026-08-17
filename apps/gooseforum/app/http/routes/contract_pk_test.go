@@ -469,13 +469,72 @@ func TestPkCourseReviewBriefHTTPContract(t *testing.T) {
 	}
 	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-course-review-brief-bad-request.json"))
 
-	// calendarId 可选参数：限定教学班课号只在该学期内匹配。seed 中两个 TJCS101
-	// 班级均属 calendarId=99999，故 classes 与不带 calendarId 时一致（契约不破坏）。
-	recCal := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101&teacherName=张伟&calendarId=99999")
-	if recCal.Code != http.StatusOK {
-		t.Fatalf("course-review-brief with calendarId status = %d, want 200: %s", recCal.Code, recCal.Body.String())
+}
+
+// TestPkCourseReviewBriefTermScopingHTTPContract P13 学期限定回归（review CHANGES_REQUESTED）：
+// - 同班号跨两学期：不带 calendarId 返回全部学期；带 calendarId 只返回该学期 offering，不串学期
+// - calendarId 映射缺失（该 PK 学期未物化到 course_term）：返回空 classes，不退化为全学期查询
+func TestPkCourseReviewBriefTermScopingHTTPContract(t *testing.T) {
+	conn, router := setupPkContractTest(t)
+	t.Helper()
+	// 同班号 TJCS10101 出现在 calendar 121/122；course_term 只有 2025-2026-1（映射 121）。
+	// calendar 122 的班级在 catalog 有 offering（term_id=22），但该学期未物化 → 映射缺失。
+	seed := []any{
+		&pk.CalendarEntity{CalendarId: 121, CalendarIdI18n: "2025-2026-1"},
+		&pk.CalendarEntity{CalendarId: 122, CalendarIdI18n: "2025-2026-2"},
+		&pk.CourseDetailEntity{Id: 800001, Code: "TJCS10101", CourseCode: "TJCS101", CourseName: "计算机程序设计", CalendarId: 121},
+		&pk.CourseDetailEntity{Id: 800002, Code: "TJCS10101", CourseCode: "TJCS101", CourseName: "计算机程序设计", CalendarId: 122},
+		&course.Entity{Id: 50, PrimaryCode: "CS101", Name: "计算机程序设计", Status: course.StatusVisible},
+		&course.TermEntity{Id: 21, Code: "2025-2026-1", Name: "第一学期", Status: 0},
+		&course.OfferingEntity{Id: 71, CourseId: 50, TermId: 21, ClassCode: "TJCS10101", Status: course.OfferingStatusVisible},
+		&course.OfferingEntity{Id: 72, CourseId: 50, TermId: 22, ClassCode: "TJCS10101", Status: course.OfferingStatusVisible},
 	}
-	assertPkFixture(t, decodePkEnvelope(t, recCal), pkContractFixture(t, "pk-course-review-brief-success.json"))
+	for _, m := range seed {
+		if err := conn.Create(m).Error; err != nil {
+			t.Fatalf("create term-scope seed %T: %v", m, err)
+		}
+	}
+	var brief struct {
+		Classes []struct {
+			OfferingId uint64 `json:"offeringId"`
+		} `json:"classes"`
+	}
+
+	// 不带 calendarId：两个学期的同班号 offering 都返回。
+	recAll := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101")
+	if recAll.Code != http.StatusOK {
+		t.Fatalf("all-terms status = %d, want 200: %s", recAll.Code, recAll.Body.String())
+	}
+	if err := json.Unmarshal(decodePkEnvelope(t, recAll).Data, &brief); err != nil {
+		t.Fatalf("decode all-terms classes: %v", err)
+	}
+	if len(brief.Classes) != 2 {
+		t.Fatalf("all-terms classes = %d entries, want 2", len(brief.Classes))
+	}
+
+	// calendarId=121（映射成功）：只返回该学期 offering 71，72 排除。
+	recCal := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101&calendarId=121")
+	if recCal.Code != http.StatusOK {
+		t.Fatalf("term-scoped status = %d, want 200: %s", recCal.Code, recCal.Body.String())
+	}
+	if err := json.Unmarshal(decodePkEnvelope(t, recCal).Data, &brief); err != nil {
+		t.Fatalf("decode term-scoped classes: %v", err)
+	}
+	if len(brief.Classes) != 1 || brief.Classes[0].OfferingId != 71 {
+		t.Fatalf("term-scoped classes = %+v, want single offering 71", brief.Classes)
+	}
+
+	// calendarId=122（该学期未物化到 course_term）：空 classes，不退化全学期。
+	recMissing := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101&calendarId=122")
+	if recMissing.Code != http.StatusOK {
+		t.Fatalf("missing-term status = %d, want 200: %s", recMissing.Code, recMissing.Body.String())
+	}
+	if err := json.Unmarshal(decodePkEnvelope(t, recMissing).Data, &brief); err != nil {
+		t.Fatalf("decode missing-term classes: %v", err)
+	}
+	if len(brief.Classes) != 0 {
+		t.Fatalf("missing-term classes = %d entries, want 0 (no cross-term fallback)", len(brief.Classes))
+	}
 }
 
 // float64Ptr 返回 v 的地址（dev 侧 CourseDetailEntity 可空指针字段的 fixture 用）。
