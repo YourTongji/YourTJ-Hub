@@ -190,6 +190,42 @@ func TestIndexWikiPageDocumentsPrunesShrunkParagraphs(t *testing.T) {
 	assertNoPageHits(t, page.Id, "成绩")
 }
 
+// TestWikiPageSearchTitleHitKeepsRawTitle 回归（review P2）：
+// Meilisearch 的 _formatted.title 只用于判断标题命中，API 命中的 title
+// 必须保持原始文本，避免前端再次高亮时把 <mark> 当作字面文本显示。
+func TestWikiPageSearchTitleHitKeepsRawTitle(t *testing.T) {
+	setupWikiSearchTestDB(t)
+	if !meiliconnect.IsAvailable() {
+		t.Skip("Meilisearch not available; title formatting regression not testable")
+	}
+	ensureWikiPageIndexConfigured(t)
+	page := seedWikiSearchPageWithID(t, "guide", "guide/title-hit", "申请指南", `[
+		{"index":1,"anchor":"s-1","headingId":"intro","headingText":"简介","text":"正文"}
+	]`, wikiPruneTestPageID)
+	t.Cleanup(func() { _ = DeleteWikiPageDocuments(page.Id) })
+	if err := IndexWikiPageDocuments(page.Id); err != nil {
+		t.Fatalf("index title-hit page: %v", err)
+	}
+
+	resp, err := SearchWikiPageHits("申请指南", 20)
+	if err != nil {
+		t.Fatalf("search title-hit page: %v", err)
+	}
+	for _, hit := range resp.Hits {
+		if hit.PageId != page.Id {
+			continue
+		}
+		if hit.Title != page.Title {
+			t.Fatalf("title = %q, want raw title %q", hit.Title, page.Title)
+		}
+		if !hit.TitleHit {
+			t.Fatal("titleHit = false, want true")
+		}
+		return
+	}
+	t.Fatalf("title-hit page %d not found in search results", page.Id)
+}
+
 // ensureWikiPageIndexConfigured 为 wiki_pages 索引补齐 searchable/filterable
 // 配置（回归测试直接用单页增量路径，不走全量重建，需自行配置索引字段）。
 func ensureWikiPageIndexConfigured(t *testing.T) {

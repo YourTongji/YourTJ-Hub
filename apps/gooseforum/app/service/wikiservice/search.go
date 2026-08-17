@@ -2,7 +2,6 @@ package wikiservice
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
@@ -81,7 +80,7 @@ func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 				Namespace: displayNamespaceName(&page),
 				Path:      page.Path,
 				Title:     hit.Title,
-				TitleHit:  hit.Title != "" && containsHighlight(hit.Title),
+				TitleHit:  hit.TitleHit,
 				Anchors:   []string{},
 				Snippet:   hit.Snippet,
 				Score:     hit.Score,
@@ -99,6 +98,10 @@ func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 		if hit.Heading != "" && aggregated.Heading == "" {
 			aggregated.Heading = hit.Heading
 		}
+		if hit.TitleHit {
+			aggregated.TitleHit = true
+			aggregated.HitType = "title"
+		}
 		aggregated.Anchors = append(aggregated.Anchors, hit.Anchor)
 	}
 
@@ -112,11 +115,6 @@ func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 		result.Items = result.Items[:limit]
 	}
 	return result, nil
-}
-
-// containsHighlight 判断字符串是否含 Meilisearch 高亮标记（命中词）。
-func containsHighlight(s string) bool {
-	return strings.Contains(s, "<mark>") || strings.Contains(s, "<em>")
 }
 
 // displayNamespaceName 输出命名空间显示名（wiki_namespaces.name，降级=URL key）。

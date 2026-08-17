@@ -47,6 +47,7 @@ type WikiPageHit struct {
 	PageId    uint64  `json:"pageId"`
 	Path      string  `json:"path"`
 	Title     string  `json:"title"`
+	TitleHit  bool    `json:"titleHit"`
 	Namespace string  `json:"namespace"`
 	Heading   string  `json:"heading"`
 	Anchor    string  `json:"anchor"`
@@ -302,7 +303,8 @@ func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error
 		hits = append(hits, WikiPageHit{
 			PageId:    doc.PageId,
 			Path:      doc.Path,
-			Title:     formatted.Title,
+			Title:     doc.Title,
+			TitleHit:  strings.Contains(formatted.Title, "<mark>") || strings.Contains(formatted.Title, "<em>"),
 			Namespace: doc.Namespace,
 			Heading:   doc.Heading,
 			Anchor:    doc.Anchor,
