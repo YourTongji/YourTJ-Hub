@@ -53,6 +53,12 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   `/api/admin/wiki/{tree,sync/status,sync/runs}` 在数据库查询失败时返回
   **HTTP 500 + `wiki.readFailed`**（契约已声明 500 响应），与真实的空 wiki
   （200 + 空结果/零计数）严格区分（issue #287）。
+- Wiki 局内搜索 `GET /api/wiki/search` 使用 Meilisearch 的 `wiki_pages` 段落索引：每个段落
+  一个文档，公开 API 再按页面聚合结果。`q` 最长 100 个字符，`limit` 默认 12、最大 20；
+  `total` 是去重后的公开页面数，不是段落命中数；Meilisearch 不可用时返回 HTTP 200、空
+  `items` 与 `searchUnavailable: true`。结果中的 `anchors` 来源于 `wiki_pages.para_anchors`
+  投影，前端用 `#s-<n>` 精确跳转。页面更新、无段落页面和 Wiki 软删都会先清理该页面旧
+  段落文档，搜索索引只作为可重建投影。
 - Wiki 首页/详情兼容性（issue #291）：GitHub SSOT 下站内无「编辑者」概念，
   `GET /api/wiki/home` 的 `recent[]` 与 wiki 详情负载的 `editorId`/`editorName`
   字段已**移除**（此前恒为零值且违反 OpenAPI `editorId minimum: 1`）。消费方需删除
@@ -149,6 +155,10 @@ than a hand-maintained duplicate baseline.
   out of rendered SQL instead of relying on an otherwise inert configuration flag.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
+- Wiki paragraph search follows the same projection rule: `wiki_pages.para_anchors` is derived from
+  rendered Wiki Markdown, and the `wiki_pages` Meilisearch index is rebuilt from the database or
+  incrementally replaced per page. Public search applies the page visibility boundary both in the
+  index filter and in the service aggregation defense check.
 
 ## Task queue & background workers
 

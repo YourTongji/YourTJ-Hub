@@ -274,3 +274,40 @@ func wikiTreeNodesPayload(nodes []wikiservice.TreeNode) []WikiTreeNodePayload {
 	}
 	return result
 }
+
+// WikiSearchJSONReq wiki 站内搜索请求（前端局内搜索面板调用）。
+type WikiSearchJSONReq struct {
+	Q     string `form:"q"`
+	Limit int    `form:"limit"`
+}
+
+// WikiSearchJSONResp wiki 站内搜索响应。
+type WikiSearchJSONResp struct {
+	Query             string                        `json:"query"`
+	Total             int64                         `json:"total"`
+	Items             []wikiservice.PageSearchResult `json:"items"`
+	SearchUnavailable bool                          `json:"searchUnavailable"`
+}
+
+// WikiSearchJSON 提供 wiki 站内局内搜索 JSON API（复用段落级 Meilisearch 索引，
+// 聚合为页面级结果；搜索不可用时降级返回空结果并标记 searchUnavailable）。
+func WikiSearchJSON(req component.BetterRequest[WikiSearchJSONReq]) component.Response {
+	query := strings.TrimSpace(req.Params.Q)
+	limit := req.Params.Limit
+	if limit <= 0 || limit > 20 {
+		limit = 12
+	}
+	resp := &WikiSearchJSONResp{Query: query, Items: []wikiservice.PageSearchResult{}}
+	if query == "" {
+		return component.SuccessResponse(resp)
+	}
+	props, err := wikiservice.SearchPages(query, limit)
+	if err != nil {
+		slog.Warn("wiki search unavailable", "query", query, "error", err)
+		resp.SearchUnavailable = true
+		return component.SuccessResponse(resp)
+	}
+	resp.Total = props.Total
+	resp.Items = props.Items
+	return component.SuccessResponse(resp)
+}

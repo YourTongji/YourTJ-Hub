@@ -23,18 +23,6 @@ func SeedPostRevision(tx *gorm.DB, post *posts.Entity) error {
 	})
 }
 
-// AppendPostRevision 在内容编辑的同一事务内追加新版本并更新帖子的
-// 最后编辑者/时间。行锁串行化同帖并发编辑，保证 (post_id, version)
-// 单调唯一，两个并发编辑不会拿到同一版本号。
-//
-// 惰性播种：部署前已存在、从未编辑过的帖子没有 v1 快照；若调用方传入的
-// 帖子对象尚未被新内容覆写（oldContent 非空），先播种 v1 = 旧正文再追加
-// 新版本，避免存量帖子首次编辑后原始正文永久丢失。若调用方已在事务前
-// 覆写了对象内容，无法恢复旧正文，此时跳过播种（v1 数据迁移兜底）。
-func AppendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, processStatus int8) error {
-	return appendPostRevision(tx, post, editorID, processStatus, "", 0)
-}
-
 // AppendPostRevisionWithOld 与 AppendPostRevision 相同，但 oldContent
 // 非空时先播种 v1 快照（editor = 作者、内容 = oldContent、状态 =
 // oldProcessStatus——即正文被覆写前的帖子状态），再追加新版本。用于编辑

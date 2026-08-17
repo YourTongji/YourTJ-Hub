@@ -793,6 +793,7 @@ type wantedPage struct {
 	order        int
 	body         string
 	renderedHTML string
+	paraAnchors  []ParaAnchor
 }
 
 // migratePagePath 迁移单页 path/namespace（收养时按 wanted 目标值迁移）。
@@ -1013,7 +1014,8 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			skipWanted[wp.path] = true
 			continue
 		}
-		wp.renderedHTML = rendered
+		wp.renderedHTML = rendered.HTML
+		wp.paraAnchors = rendered.ParaAnchors
 	}
 
 	// 2.8 计算「仓库中消失的页面行」索引（issue #288：重命名/移动收养用）。
@@ -1333,6 +1335,7 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 			Content:             wp.body,
 			RenderedHTML:        rendered,
 			Toc:                 toc,
+			ParaAnchors:         encodeParaAnchorsOrEmpty(wp.paraAnchors),
 			ContentHash:         sha256Hex(wp.body),
 			PublishedRevisionNo: 1,
 		}
@@ -1341,10 +1344,13 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索索引 + 发布事件 + git 溯源快照。
+	// 提交后副作用：文件引用 + 搜索索引（话题索引 + wiki 段落索引） + 发布事件 + git 溯源快照。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
+	}
+	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
+		slog.Warn("wiki sync: wiki page index failed", "pageId", page.Id, "error", err)
 	}
 	eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
@@ -1386,6 +1392,7 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 			"content":       wp.body,
 			"rendered_html": rendered,
 			"toc":           toc,
+			"para_anchors":  encodeParaAnchorsOrEmpty(wp.paraAnchors),
 			"content_hash":  curHash,
 			"sort_order":    wp.order,
 			"source_path":   wp.sourcePath,
@@ -1410,10 +1417,13 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索 + git 溯源快照 + watcher 通知。
+	// 提交后副作用：文件引用 + 搜索（话题索引 + wiki 段落索引） + git 溯源快照 + watcher 通知。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
+	}
+	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
+		slog.Warn("wiki sync: wiki page index failed", "pageId", page.Id, "error", err)
 	}
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
 	if contentChanged {
@@ -1424,7 +1434,7 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 
 // softDeleteWikiPage 仓库中已移除的页面 → 论坛软删（保留互动，走删除生命周期）。
 func softDeleteWikiPage(page *wikiPages.Entity) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
 			"deleted_at":        time.Now(),
 			"visibility_status": topics.VisibilityUserDeleted,
@@ -1436,7 +1446,14 @@ func softDeleteWikiPage(page *wikiPages.Entity) error {
 			return err
 		}
 		return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
-	})
+	}); err != nil {
+		return err
+	}
+	// 数据库软删提交后立即清理段落索引，避免已移除页面继续出现在搜索结果中。
+	if err := searchservice.DeleteWikiPageDocuments(page.Id); err != nil {
+		return fmt.Errorf("清理 wiki 页面 %d 搜索索引: %w", page.Id, err)
+	}
+	return nil
 }
 
 // updateGitTrace 同步后更新页面的 git 溯源列（贡献者快照 + 最后提交 SHA/时间）。
@@ -1497,6 +1514,18 @@ func rebuildGitTraces(cfg GitConfig) {
 // encodeTOCOrEmpty 编码 TOC，失败返回空串（不阻断同步）。
 func encodeTOCOrEmpty(items []markdown2html.HeadingItem) string {
 	data, err := json.Marshal(items)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// encodeParaAnchorsOrEmpty 编码段落锚点索引，失败/为空返回空串（不阻断同步）。
+func encodeParaAnchorsOrEmpty(anchors []ParaAnchor) string {
+	if len(anchors) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(anchors)
 	if err != nil {
 		return ""
 	}

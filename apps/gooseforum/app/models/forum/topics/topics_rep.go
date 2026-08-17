@@ -98,12 +98,6 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
-// GetTx 事务内按 id 获取话题（避免单连接测试库下事务内走全局连接死锁）。
-func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
-	tx.Table(tableName).First(&entity, id)
-	return
-}
-
 // GetWithError 返回实体与查询错误，供需要区分“记录不存在”与“查询失败”的调用方使用。
 func GetWithError(id uint64) (entity Entity, err error) {
 	err = builder().First(&entity, id).Error
@@ -176,23 +170,6 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
-		Limit(limit).
-		Find(&entities).Error
-	return
-}
-
-func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err error) {
-	if limit <= 0 {
-		return []*Entity{}, nil
-	}
-	err = builder().
-		Where(queryopt.Gt("id", afterID)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
-		Order(queryopt.Asc("id")).
 		Limit(limit).
 		Find(&entities).Error
 	return
