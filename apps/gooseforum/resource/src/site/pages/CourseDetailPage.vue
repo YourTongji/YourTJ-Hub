@@ -578,7 +578,7 @@ onMounted(() => {
                 <span class="min-w-0">
                   <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
                   <span class="block truncate text-[12px] text-base-content/50">
-                    {{ item.primaryCode }}<template v-if="item.teacherName"> · {{ item.teacherName }}</template>
+                    {{ item.primaryCode }}<template v-if="item.teacherName"> · {{ item.teacherName }}</template><template v-else> · {{ t('courseDetailPage.noTeacher') }}</template>
                   </span>
                 </span>
                 <span class="shrink-0 text-right">

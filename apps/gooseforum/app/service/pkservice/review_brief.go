@@ -39,19 +39,33 @@ func FindCourseReviewBrief(courseCode, teacherName string) (ReviewBrief, error) 
 	}
 	candidateCodes = append(candidateCodes, brief.CourseCode)
 
-	stats, err := courseservice.GetCourseStatsByPrimaryCodes(candidateCodes)
-	if err != nil {
-		return brief, err
-	}
+	// 复合身份模型（issue #326）：同 code 不同教师是独立课程卡。
+	// teacherName 非空时按 (code, teacher) 精确归因；未命中（旧数据未回填
+	// teacher_id / 无教师课程 / 教师名不匹配）退回该 code 首卡（id 升序），
+	// 保证排课器弹窗至少拿到一份课程评价摘要。
 	for _, code := range candidateCodes {
-		if s, ok := stats[code]; ok {
-			if brief.CourseName == "" {
-				brief.CourseName = s.Name
-			}
-			brief.RatingAvg = s.RatingAvg
-			brief.ReviewCount = s.ReviewCount
-			break
+		briefs, err := courseservice.GetCourseStatsByPrimaryCodeTeacher(code, brief.TeacherName)
+		if err != nil {
+			return brief, err
 		}
+		if len(briefs) == 0 {
+			continue
+		}
+		if brief.CourseName == "" {
+			brief.CourseName = briefs[0].Name
+		}
+		chosen := briefs[0]
+		if brief.TeacherName != "" {
+			for _, b := range briefs {
+				if courseservice.Normalize(b.TeacherName) == courseservice.Normalize(brief.TeacherName) {
+					chosen = b
+					break
+				}
+			}
+		}
+		brief.RatingAvg = chosen.RatingAvg
+		brief.ReviewCount = chosen.ReviewCount
+		break
 	}
 	return brief, nil
 }

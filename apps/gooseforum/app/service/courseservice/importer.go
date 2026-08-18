@@ -389,6 +389,22 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 		}
 		instructorKeys[naturalKey] = row.ID
 	}
+	// course → teacher 依赖检查：course.teacher_code 必须在 instructors.jsonl
+	// 可解析（存在且未被自然键冲突隔离），否则该课程行隔离；引用它的 offering
+	// 也整体隔离。与 applyCourseRow 的 apply 期隔离语义一致，保证 dry-run
+	// 报告与真实导入一致（不出现"dry-run 全绿、导入时静默丢卡"）。
+	for _, row := range rows.courses {
+		key := course.EntityTypeCourse + "|" + row.ID
+		if quarantined[key] {
+			continue
+		}
+		tc := strings.TrimSpace(row.TeacherCode)
+		if tc != "" {
+			if _, ok := instructorIDs[tc]; !ok {
+				quarantine("course", key, fmt.Sprintf("unresolvable teacher_code %s", tc))
+			}
+		}
+	}
 	// offering 依赖检查：被隔离的 instructor 视为不可解析，引用它的 offering 也整体隔离。
 	courseIDs := make(map[string]struct{})
 	for _, row := range rows.courses {
@@ -402,6 +418,10 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 		}
 		if _, ok := courseIDs[row.CourseID]; !ok {
 			quarantine("offering", key, fmt.Sprintf("unknown course_id %s", row.CourseID))
+			continue
+		}
+		if quarantined[course.EntityTypeCourse+"|"+row.CourseID] {
+			quarantine("offering", key, fmt.Sprintf("course %s quarantined", row.CourseID))
 			continue
 		}
 		if strings.TrimSpace(row.Term) == "" {

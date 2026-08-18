@@ -167,12 +167,56 @@ func upgradeCourseTeacherIdentity(db *gorm.DB) error {
 			return fmt.Errorf("add course.teacher_id column: %w", err)
 		}
 		slog.Info("dbconnect course.teacher_id column added (default 0)")
+		// 回填身份教师：存量库从 offering 教师关联取每门课的首位教师
+		// （id 最小可见 offering 的 id 最小 instructor），与物化/导入的
+		// "教学班首位教师"语义一致；无 offering 或教师关联的课程保持 0。
+		// 旧模型 primary_code 单列唯一 → 每 code 只有一行，回填不会造成
+		// (code, teacher_id) 复合唯一冲突。
+		if err := backfillCourseTeacherIdentity(db); err != nil {
+			return fmt.Errorf("backfill course.teacher_id: %w", err)
+		}
 	}
 	if db.Migrator().HasIndex(&course.Entity{}, "uniq_course_primary_code") {
 		if err := db.Migrator().DropIndex(&course.Entity{}, "uniq_course_primary_code"); err != nil {
 			return fmt.Errorf("drop legacy course primary_code unique index: %w", err)
 		}
 		slog.Info("dbconnect course legacy unique index dropped, will be recreated as (primary_code, teacher_id)")
+	}
+	return nil
+}
+
+func backfillCourseTeacherIdentity(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_offering") || !db.Migrator().HasTable("course_offering_instructor") {
+		return nil // 全新库/无课程域：AutoMigrate 随后建表，无需回填。
+	}
+	type offeringTeacher struct {
+		CourseId     uint64
+		OfferingId   uint64
+		InstructorId uint64
+	}
+	var rows []offeringTeacher
+	if err := db.Table("course_offering o").
+		Select("o.course_id, o.id AS offering_id, oi.instructor_id").
+		Joins("JOIN course_offering_instructor oi ON oi.offering_id = o.id").
+		Where("o.deleted_at IS NULL").
+		Order("o.course_id ASC, o.id ASC, oi.instructor_id ASC").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	seen := make(map[uint64]struct{}, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.CourseId]; ok {
+			continue
+		}
+		seen[r.CourseId] = struct{}{}
+		if err := db.Table(courseTableName).
+			Where("id = ? AND teacher_id = 0", r.CourseId).
+			Update("teacher_id", r.InstructorId).Error; err != nil {
+			return err
+		}
+	}
+	if len(seen) > 0 {
+		slog.Info("dbconnect course.teacher_id backfilled from offering instructors", "courses", len(seen))
 	}
 	return nil
 }

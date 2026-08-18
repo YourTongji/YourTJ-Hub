@@ -172,23 +172,26 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 	instructorByID := make(map[uint64]string)
 	instructorByOffering := make(map[uint64][]string, len(offeringIds))
 	termByID := make(map[uint64]course.TermEntity)
+	// 身份教师（course.teacher_id → 姓名）独立于 offering 解析：rebuild 批次里
+	// 可能包含无可见 offering 的课程卡（如纯评价卡），此时 teacherName 仍必须
+	// 填充，否则这些卡无法按教师搜索（与增量单卡转换不一致）。
 	teacherNameByID := make(map[uint64]string)
+	teacherIds := make([]uint64, 0, len(entities))
+	for _, e := range entities {
+		if e.TeacherId != 0 {
+			teacherIds = append(teacherIds, e.TeacherId)
+		}
+	}
+	if len(teacherIds) > 0 {
+		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range teachers {
+			teacherNameByID[t.Id] = t.Name
+		}
+	}
 	if len(offeringIds) > 0 {
-		teacherIds := make([]uint64, 0, len(entities))
-		for _, e := range entities {
-			if e.TeacherId != 0 {
-				teacherIds = append(teacherIds, e.TeacherId)
-			}
-		}
-		if len(teacherIds) > 0 {
-			teachers, err := course.ListInstructorsByIDs(teacherIds)
-			if err != nil {
-				return nil, err
-			}
-			for _, t := range teachers {
-				teacherNameByID[t.Id] = t.Name
-			}
-		}
 		links, err := course.ListOfferingInstructorLinks(offeringIds)
 		if err != nil {
 			return nil, err

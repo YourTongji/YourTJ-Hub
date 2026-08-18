@@ -157,12 +157,6 @@ def main() -> int:
     }
 
     # ---- teacher_code 解析基础数据 ----
-    # teachers.id -> tid
-    teacher_tid = {}
-    for r in cur.execute(
-        "SELECT id, tid FROM teachers WHERE tid IS NOT NULL AND trim(tid) != ''"
-    ):
-        teacher_tid[r["id"]] = r["tid"].strip()
     # teacherCode 集合（teacher 表）
     teacher_code_set = {
         r["teacherCode"].strip()
@@ -170,23 +164,50 @@ def main() -> int:
             "SELECT DISTINCT teacherCode FROM teacher WHERE teacherCode IS NOT NULL AND trim(teacherCode) != ''"
         )
     }
-    # teacherName -> 最小 teacherCode（teacher 表）
-    code_by_teacher_name = {}
-    for r in cur.execute(
-        "SELECT teacherName, MIN(teacherCode) AS tcode FROM teacher "
-        "WHERE teacherCode IS NOT NULL AND trim(teacherCode) != '' "
-        "AND teacherName IS NOT NULL AND trim(teacherName) != '' GROUP BY teacherName"
-    ):
-        code_by_teacher_name[r["teacherName"].strip()] = r["tcode"].strip()
-    # teachers 全量元数据（合成教师 / 冲突消歧用）
+    # teachers 全量元数据：主键 id -> meta（course.teacher_id 解析用）
     teacher_meta = {}
+    # 工号 tid -> meta（instructor 导出按 teacherCode 补 department/title 用）。
+    # teachers.tid 与 teacher.teacherCode 是同一工号体系：两表以工号互相关联。
+    teacher_meta_by_tid = {}
     for r in cur.execute("SELECT id, tid, name, title, department FROM teachers"):
-        teacher_meta[r["id"]] = {
+        meta = {
             "tid": (r["tid"] or "").strip(),
             "name": (r["name"] or "").strip(),
             "title": r["title"] or "",
             "department": r["department"] or "",
         }
+        teacher_meta[r["id"]] = meta
+        if meta["tid"]:
+            teacher_meta_by_tid[meta["tid"]] = meta
+    # teacherName -> 最小 teacherCode（teacher 表；按 (name, dept) 消歧）。
+    # teacher 表无 department 列，经 teacherCode = teachers.tid 关联补全；
+    # dept 为空（历史数据大量缺省）时退化为纯 name 键，保证无 tid 历史行仍能归并。
+    code_by_teacher_name_dept = {}
+    for r in cur.execute(
+        "SELECT t.teacherName, COALESCE(g.department, '') AS department, MIN(t.teacherCode) AS tcode "
+        "FROM teacher t "
+        "LEFT JOIN (SELECT tid, department FROM teachers WHERE tid IS NOT NULL AND trim(tid) != '') g "
+        "ON g.tid = t.teacherCode "
+        "WHERE t.teacherCode IS NOT NULL AND trim(t.teacherCode) != '' "
+        "AND t.teacherName IS NOT NULL AND trim(t.teacherName) != '' "
+        "GROUP BY t.teacherName, COALESCE(g.department, '')"
+    ):
+        code_by_teacher_name_dept[
+            (r["teacherName"].strip(), (r["department"] or "").strip())
+        ] = r["tcode"].strip()
+    # teacherName -> 最小 teacherCode（纯姓名键，跨院系）。
+    # 历史 teachers 行的 department 多为课程路径垃圾值（如
+    # "乌龙茶/必修课/半导体器件原理"），(name, dept) 精确键必然落空；
+    # 纯姓名兜底与 Serverless 的 GROUP BY COALESCE(t.name,'') 一致，
+    # 且保证同名教师取最小工号（如 490106 李俊 → 12099，与教学班一致）。
+    code_by_teacher_name = {}
+    for r in cur.execute(
+        "SELECT teacherName, MIN(teacherCode) AS tcode FROM teacher "
+        "WHERE teacherCode IS NOT NULL AND trim(teacherCode) != '' "
+        "AND teacherName IS NOT NULL AND trim(teacherName) != '' "
+        "GROUP BY teacherName"
+    ):
+        code_by_teacher_name[r["teacherName"].strip()] = r["tcode"].strip()
 
     def resolve_teacher_code(teacher_id):
         """course 行 teacher_id -> teacher_code（None 表示无教师）。"""
@@ -198,7 +219,12 @@ def main() -> int:
         tid = meta["tid"]
         if tid and tid in teacher_code_set:
             return tid
-        code = code_by_teacher_name.get(meta["name"])
+        # 无 tid 的历史行：优先 (name, dept) 精确（院系干净时按院系消歧）；
+        # 落空（历史行院系多为课程路径垃圾值）退化为纯姓名取最小工号，
+        # 对齐 Serverless 按名分组语义。
+        code = code_by_teacher_name_dept.get((meta["name"], meta["department"]))
+        if code is None:
+            code = code_by_teacher_name.get(meta["name"])
         if code:
             return code
         return f"syn-{teacher_id}"
@@ -266,7 +292,7 @@ def main() -> int:
     ):
         code = r["teacherCode"].strip()
         name = (r["teacherName"] or "").strip()
-        meta = teacher_meta.get(code, {})
+        meta = teacher_meta_by_tid.get(code, {})
         dept = meta.get("department", "")
         natural_key_groups.setdefault((name, dept), set()).add(code)
     conflicted = {
@@ -286,7 +312,7 @@ def main() -> int:
         if not name or code in seen_codes:
             continue
         seen_codes.add(code)
-        meta = teacher_meta.get(code, {})
+        meta = teacher_meta_by_tid.get(code, {})
         dept = meta.get("department", "")
         display_name = f"{name} ({code})" if code in conflicted else name
         instructors_out.append(

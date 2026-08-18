@@ -26,14 +26,18 @@ type MaterializeReport struct {
 // materializePkSourceAlias 物化写别名用的来源标记。
 const materializePkSource = "onesystem"
 
-// pkCourseAgg 按 courseCode 聚合的一系统课程（物化输入）。
+// pkCourseAgg 按 (courseCode, identityTeacher) 聚合的一系统课程（物化输入）。
+// (code, teacher) 复合身份模型下，同一 courseCode 的不同教师是独立课程卡，
+// 必须按身份教师拆分聚合，不能只按 courseCode 合并后取 TeacherNames[0]
+// （否则会漏卡，且选中教师依赖查询顺序）。
 type pkCourseAgg struct {
-	CourseCode   string
-	Name         string
-	Credit       float64
-	Department   string
-	TeacherNames []string
-	Aliases      []string
+	CourseCode      string
+	IdentityTeacher string // 该组身份教师名（教学班首位教师）；无教师为空串
+	Name            string
+	Credit          float64
+	Department      string
+	TeacherNames    []string
+	Aliases         []string
 }
 
 // MaterializeFromPk 将指定学期的一系统（PK）课程物化到课程目录：缺教师按名创建、缺课程按
@@ -75,8 +79,10 @@ func MaterializeFromPk(ctx context.Context, calendarIds []uint64) (*MaterializeR
 	return report, nil
 }
 
-// aggregatePkCourses 读取指定学期的一系统教学班并按 courseCode 聚合（名称取非空最优、学分取最大、
-// 院系取 facultyI18n、教师/别名去重收集）。
+// aggregatePkCourses 读取指定学期的一系统教学班并按 (courseCode, 身份教师) 聚合
+// （名称取非空最优、学分取最大、院系取 facultyI18n、教师/别名去重收集）。
+// 身份教师 = 教学班首位教师（合班课其余教师保留在 TeacherNames 供 offering 名单）。
+// 无教师教学班归入 (code, "") 组（teacher_id=0 卡）。
 func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	var details []pk.CourseDetailEntity
 	var allTeachers []pk.TeacherEntity
@@ -117,17 +123,23 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	}
 
 	order := make([]string, 0, len(details))
-	byCode := map[string]*pkCourseAgg{}
+	byKey := map[string]*pkCourseAgg{}
 	for _, d := range details {
 		code := strings.TrimSpace(d.CourseCode)
 		if code == "" {
 			continue
 		}
-		agg, ok := byCode[code]
+		classTeachers := teachersByClass[d.Id]
+		var identity string
+		if len(classTeachers) > 0 {
+			identity = classTeachers[0] // 教学班首位教师 = 该班身份教师
+		}
+		key := code + "\x00" + identity
+		agg, ok := byKey[key]
 		if !ok {
-			agg = &pkCourseAgg{CourseCode: code}
-			order = append(order, code)
-			byCode[code] = agg
+			agg = &pkCourseAgg{CourseCode: code, IdentityTeacher: identity}
+			order = append(order, key)
+			byKey[key] = agg
 		}
 		// 名称：course_name 优先，其次 name，最后 courseCode
 		name := strings.TrimSpace(d.CourseName)
@@ -148,7 +160,7 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 		} else if agg.Department == "" {
 			agg.Department = strings.TrimSpace(d.Faculty)
 		}
-		agg.TeacherNames = appendUnique(agg.TeacherNames, teachersByClass[d.Id]...)
+		agg.TeacherNames = appendUnique(agg.TeacherNames, classTeachers...)
 		for _, v := range []string{d.CourseCode, d.Code, d.NewCourseCode, d.NewCode} {
 			v = strings.TrimSpace(v)
 			if v != "" {
@@ -158,22 +170,23 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	}
 
 	out := make([]*pkCourseAgg, 0, len(order))
-	for _, code := range order {
-		out = append(out, byCode[code])
+	for _, key := range order {
+		out = append(out, byKey[key])
 	}
 	return out, nil
 }
 
 func upsertPkCourseTx(tx *gorm.DB, agg *pkCourseAgg, instructorCache map[string]uint64, report *MaterializeReport) (*course.Entity, bool, error) {
 	// 先对齐教师（填充 instructorCache），再解析课程身份教师：
-	// (code, teacher) 复合身份下课程行身份教师取教学班首位教师（合班课其余教师
-	// 保留在 offering 教师名单），无教师时 teacher_id=0。
+	// (code, teacher) 复合身份下课程行身份教师 = 该组 IdentityTeacher
+	// （教学班首位教师；合班课其余教师保留在 offering 教师名单），
+	// 无教师组（IdentityTeacher 为空）落 teacher_id=0 卡。
 	if err := upsertPkInstructorsTx(tx, agg.TeacherNames, agg.Department, instructorCache, report); err != nil {
 		return nil, false, err
 	}
 	var teacherId uint64
-	if len(agg.TeacherNames) > 0 {
-		norm := Normalize(agg.TeacherNames[0])
+	if agg.IdentityTeacher != "" {
+		norm := Normalize(agg.IdentityTeacher)
 		teacherId = instructorCache[norm+"\x00"+agg.Department]
 	}
 	pinyin, initials := searchservice.PinyinFields(agg.Name)
