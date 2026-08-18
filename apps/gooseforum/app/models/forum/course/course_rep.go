@@ -310,6 +310,43 @@ func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err 
 	return
 }
 
+// ListVisibleOfferingsByClassCodes 按班号批量查可见开课实例（P13 教学班级课评摘要用）。
+// class_code 与 PK 教学班 code 对齐（如 11000101）；PK 侧可能带点（110001.01），
+// 入参按去点归一化后匹配（与前端 normalizeClassCode 语义一致）；旧数据包导入的
+// 班号可能为空，跳过。termId > 0 时只返回该学期（跨学期班号复用时 offering 不串学期）。
+// 与其它公开 offering 查询一致 JOIN course 并过滤 course.status=Visible：
+// 课程被 CourseManager 隐藏时其 offering 不得出现在公开响应。
+func ListVisibleOfferingsByClassCodes(classCodes []string, termId uint64) (entities []OfferingEntity, err error) {
+	unique := make([]string, 0, len(classCodes))
+	seen := make(map[string]struct{}, len(classCodes))
+	for _, code := range classCodes {
+		code = strings.ReplaceAll(strings.TrimSpace(code), ".", "")
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		unique = append(unique, code)
+	}
+	if len(unique) == 0 {
+		return []OfferingEntity{}, nil
+	}
+	b := offeringBuilder().
+		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
+		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
+		Where(queryopt.In("course_offering.class_code", unique)).
+		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
+		Where(queryopt.IsNull("course_offering.deleted_at"))
+	if termId > 0 {
+		b = b.Where(queryopt.Eq("course_offering.term_id", termId))
+	}
+	err = b.Order("course_offering.class_code ASC, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+		Find(&entities).Error
+	return
+}
+
 // ---- Instructor ----
 
 // FindInstructorByNameDept 按 (normalized_name, department) 自然键查找教师。

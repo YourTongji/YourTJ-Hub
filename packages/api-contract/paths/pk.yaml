@@ -578,6 +578,13 @@ getCourseReviewBrief:
         required: false
         schema:
           type: string
+      - name: calendarId
+        in: query
+        required: false
+        description: 限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。
+        schema:
+          type: integer
+          format: uint64
     responses:
       '200':
         description: Course review summary matched by courseCode (falls back to newCourseCode / primary_code).

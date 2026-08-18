@@ -5,12 +5,14 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { X } from '@lucide/vue'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import { getCourseBaseCode } from '@/site/utils/pkConflict'
 import type { PkCourseOnTable, PkCourseReviewBrief } from '@/site/types/pk'
 
 const { t } = useI18n()
+const store = useScheduleStore()
 
 const props = defineProps<{
   course: PkCourseOnTable | null
@@ -52,9 +54,12 @@ const parsed = computed(() => {
   }
 })
 
-/** 课评入口：跳转课程目录搜索该课程。 */
+/** 课评入口：能匹配到课程目录主键时直达详情页，否则回退课程搜索页。 */
 const reviewHref = computed(() => {
   const base = getCourseBaseCode(props.course?.code || '')
+  if (brief.value?.courseId) {
+    return `/courses/${brief.value.courseId}`
+  }
   return `/courses?keyword=${encodeURIComponent(base)}`
 })
 
@@ -69,6 +74,7 @@ async function loadBrief() {
     const result = await getPkCourseReviewBrief({
       courseCode: getCourseBaseCode(course.code),
       teacherName: '',
+      calendarId: store.state.majorSelected.calendarId ?? 0,
     })
     if (seq !== briefRequestSeq) return // 过期响应丢弃
     brief.value = result

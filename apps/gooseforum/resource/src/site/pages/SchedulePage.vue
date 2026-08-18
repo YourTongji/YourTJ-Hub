@@ -12,6 +12,7 @@ import ScheduleRoughList from '@/site/components/schedule/ScheduleRoughList.vue'
 import ScheduleDetailList from '@/site/components/schedule/ScheduleDetailList.vue'
 import ScheduleTimeTable from '@/site/components/schedule/ScheduleTimeTable.vue'
 import ScheduleCoursePicker from '@/site/components/schedule/ScheduleCoursePicker.vue'
+import ScheduleCellPicker from '@/site/components/schedule/ScheduleCellPicker.vue'
 import ScheduleConflictDialog from '@/site/components/schedule/ScheduleConflictDialog.vue'
 import ScheduleDetailCard from '@/site/components/schedule/ScheduleDetailCard.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
@@ -58,6 +59,8 @@ const pickerOpen = ref(false)
 const conflictDetail = ref<PkCourseDetail | null>(null)
 const conflictList = ref<PkConflictItem[]>([])
 const detailCourse = ref<PkCourseOnTable | null>(null)
+/** 点击课表空白格 → 该时段备选课程选择框（day/section 为点击位置）。 */
+const cellPick = ref<{ day: number; section: number } | null>(null)
 
 const dataOutdated = computed(() => store.state.flags.isDataOutdated)
 
@@ -150,9 +153,13 @@ function handleOpenDetail(course: PkCourseOnTable) {
   detailCourse.value = course
 }
 
-function handleCellClick(_day: number, _section: number) {
-  // 点击课表空格：引导用户通过「选择课程」添加课程（时段查课端点 P10 属 #187）。
-  flash(t('schedule.cellClickHint'), 'info')
+function handleCellClick(day: number, section: number) {
+  // 点击课表空格：弹出该时段可选课程（来自备选池 stagedCourses）。
+  cellPick.value = { day, section }
+}
+
+function handleCellPicked() {
+  flash(t('schedule.syncSuccess'), 'success')
 }
 
 // ---- 导出（与课表一致：含已排入课表的所有班级）----
@@ -344,6 +351,14 @@ onBeforeUnmount(() => {
     </div>
 
     <ScheduleCoursePicker :open="pickerOpen" @close="pickerOpen = false" />
+    <ScheduleCellPicker
+      :open="cellPick !== null"
+      :day="cellPick?.day ?? null"
+      :section="cellPick?.section ?? null"
+      @close="cellPick = null"
+      @conflict="handleConflict"
+      @staged="handleCellPicked"
+    />
     <ScheduleConflictDialog
       :detail="conflictDetail"
       :conflicts="conflictList"
