@@ -177,3 +177,100 @@ describe('SiteSelect Tab 键盘行为', () => {
     wrapper.unmount()
   })
 })
+
+// 排课器的专业、校区和开课院系可包含较多选项。可搜索模式应在当前下拉内
+// 提供本地标签筛选，且不改变普通 SiteSelect 的默认交互。
+describe('SiteSelect 可搜索模式', () => {
+  async function openSearchableSelect(wrapper: ReturnType<typeof mount>) {
+    await wrapper.get('[role="combobox"]').trigger('pointerdown', { button: 0, pageX: 10, pageY: 10 })
+    await flushPromises()
+    const input = document.querySelector<HTMLInputElement>('[data-testid="site-select-search-input"]')
+    expect(input).not.toBeNull()
+    return input!
+  }
+
+  test('按标签关键字过滤选项，且匹配不区分大小写', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: {
+        modelValue: '',
+        options,
+        searchable: true,
+        searchPlaceholder: '搜索选项',
+        emptyText: '没有匹配项',
+      },
+      attachTo: document.body,
+    })
+
+    const input = await openSearchableSelect(wrapper)
+    expect(input.placeholder).toBe('搜索选项')
+    input.value = 'EN'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+
+    const visibleOptions = [...document.querySelectorAll('[role="option"]')].map((option) => option.textContent)
+    expect(visibleOptions).toEqual([expect.stringContaining('English')])
+    expect(document.body.textContent).not.toContain('中文')
+    wrapper.unmount()
+  })
+
+  test('输入关键词时保留输入焦点，不触发 Select 的类型导航', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: '', options, searchable: true },
+      attachTo: document.body,
+    })
+
+    const input = await openSearchableSelect(wrapper)
+    input.focus()
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'E', bubbles: true }))
+    await flushPromises()
+
+    expect(document.activeElement).toBe(input)
+    wrapper.unmount()
+  })
+
+  test('无匹配时显示调用方提供的空状态', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: {
+        modelValue: '',
+        options,
+        searchable: true,
+        emptyText: '没有匹配项',
+      },
+      attachTo: document.body,
+    })
+
+    const input = await openSearchableSelect(wrapper)
+    input.value = '不存在'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+
+    expect(document.querySelectorAll('[role="option"]')).toHaveLength(0)
+    expect(document.querySelector('[data-testid="site-select-empty"]')?.textContent).toContain('没有匹配项')
+    wrapper.unmount()
+  })
+
+  test('过滤后仍可用键盘选择选项', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: {
+        modelValue: '',
+        options,
+        searchable: true,
+      },
+      attachTo: document.body,
+    })
+
+    const input = await openSearchableSelect(wrapper)
+    input.value = 'english'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    await flushPromises()
+    expect(document.activeElement?.textContent).toContain('English')
+
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')).toEqual([['en']])
+    wrapper.unmount()
+  })
+})

@@ -407,11 +407,27 @@ async function submit() {
               </label>
               <label class="block">
                 <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.campus') }}</span>
-                <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.campus')" />
+                <SiteSelect
+                  v-model="campusValue"
+                  :options="campuses.map((c) => ({ value: c.code, label: c.name }))"
+                  :placeholder="t('schedule.selectPlaceholder')"
+                  :label="t('schedule.campus')"
+                  searchable
+                  :search-placeholder="t('schedule.selectSearchPlaceholder')"
+                  :empty-text="t('schedule.selectSearchEmpty')"
+                />
               </label>
               <label class="block sm:col-span-2">
                 <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.faculty') }}</span>
-                <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.faculty')" />
+                <SiteSelect
+                  v-model="facultyValue"
+                  :options="faculties.map((f) => ({ value: f.code, label: f.name }))"
+                  :placeholder="t('schedule.selectPlaceholder')"
+                  :label="t('schedule.faculty')"
+                  searchable
+                  :search-placeholder="t('schedule.selectSearchPlaceholder')"
+                  :empty-text="t('schedule.selectSearchEmpty')"
+                />
               </label>
               <button type="submit" class="gf-button gf-button-md gf-button-primary sm:col-span-2" :disabled="searchLoading">
                 <Search class="h-4 w-4" />

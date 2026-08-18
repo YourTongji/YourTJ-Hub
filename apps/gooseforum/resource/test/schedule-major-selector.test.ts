@@ -16,7 +16,7 @@ vi.mock('../src/runtime/pk-api', () => ({
 import ScheduleMajorSelector from '../src/site/components/schedule/ScheduleMajorSelector.vue'
 import { useScheduleStore } from '../src/site/composables/useScheduleStore'
 
-/** 三个 SiteSelect：学期=0、年级=1、专业=2（顺序稳定，不依赖 locale 文案）。 */
+/** 三个 combobox：学期=0、年级=1、专业=2（顺序稳定，不依赖 locale 文案）。 */
 function comboboxes(wrapper: VueWrapper) {
   return wrapper.findAll('[role="combobox"]')
 }
@@ -96,6 +96,33 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(getPkMajors).toHaveBeenCalledWith(2025, 121)
   })
 
+  test('专业选择框在原位置输入关键词筛选并选择专业', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
+    getPkGrades.mockResolvedValue([2025])
+    getPkMajors.mockResolvedValue([
+      { code: '00301', name: '2025(00301 数学类)' },
+      { code: '00401', name: '2025(00401 物理学类)' },
+    ])
+
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    const input = wrapper.get<HTMLInputElement>('[data-testid="schedule-major-combobox-input"]')
+    expect(input.element).toBe(comboboxes(wrapper)[2].element)
+    expect(input.element.value).toContain('数学类')
+    expect(document.querySelector('[data-testid="site-select-search-input"]')).toBeNull()
+
+    await input.setValue('物理')
+    await flushPromises()
+
+    const options = [...document.querySelectorAll('[role="option"]')]
+    expect(options.map((option) => option.textContent)).toEqual([expect.stringContaining('物理学类')])
+
+    options[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(useScheduleStore().state.majorSelected.major).toBe('00401')
+  })
   test('localStorage 有完整选择时恢复年级+专业', async () => {
     setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
     getPkGrades.mockResolvedValue([2025, 2024])
@@ -107,9 +134,9 @@ describe('ScheduleMajorSelector 初始化加载', () => {
 
     expect(getPkGrades).toHaveBeenCalledWith(121)
     expect(getPkMajors).toHaveBeenCalledWith(2025, 121)
-    // 已选年级与专业应显示在触发按钮上。
+    // 已选年级显示在下拉 trigger，专业显示在原位置的可输入 combobox。
     expect(comboboxes(wrapper)[1].text()).toContain('2025')
-    expect(comboboxes(wrapper)[2].text()).toContain('00301')
+    expect((comboboxes(wrapper)[2].element as HTMLInputElement).value).toContain('00301')
   })
 
   test('localStorage 学期已不存在时回退第一个学期并加载年级', async () => {
