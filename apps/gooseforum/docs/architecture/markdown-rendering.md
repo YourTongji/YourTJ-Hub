@@ -156,7 +156,7 @@ Current client enhancement:
 - Language auto-detection is disabled. Unknown and unlabelled languages remain
   escaped plain-text code blocks, and a load failure leaves the server or
   Markdown-it output unchanged.
-- Inline `$...$` and block `$$...$$` math is rendered with KaTeX by the
+- Inline `$...$`/`\(...\)` and block `$$...$$`/`\[...\]`/`\begin{...}` math is rendered with KaTeX by the
   `v-math-render` directive. The KaTeX chunk (JS, CSS and fonts) is loaded
   lazily only after a math marker is detected outside code blocks, and ships
   inside the single binary via the go:embed asset pipeline. Detection uses a

@@ -44,6 +44,27 @@ describe('extractMathSegments', () => {
     expect(segment.text).toContain('\n')
   })
 
+  test('detects LaTeX inline delimiters', () => {
+    const segments = extractMathSegments('\\(x+y\\)')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toMatchObject({ text: 'x+y', display: false })
+  })
+
+  test('detects LaTeX display delimiters', () => {
+    const segments = extractMathSegments('\\[x+y\\]')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toMatchObject({ text: 'x+y', display: true })
+  })
+
+  test('detects begin/end math environments', () => {
+    const segments = extractMathSegments('\\begin{equation}E=mc^2\\end{equation}')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toMatchObject({ text: 'E=mc^2', display: true })
+
+    const align = extractMathSegments('\\begin{align}a&=b\\end{align}')
+    expect(align).toHaveLength(1)
+    expect(align[0]).toMatchObject({ text: 'a&=b', display: true })
+  })
   test('ignores an escaped opening dollar sign', () => {
     expect(extractMathSegments('\\$x$')).toEqual([])
   })
