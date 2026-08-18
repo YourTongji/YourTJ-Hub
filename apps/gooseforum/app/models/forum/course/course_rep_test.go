@@ -464,3 +464,57 @@ func TestListCoursesByPrimaryCodesExcludesHidden(t *testing.T) {
 		t.Fatalf("primary_code = %q, want 100001", got[0].PrimaryCode)
 	}
 }
+
+// TestListVisibleOfferingsByClassCodes P13 回归（review P1/P2/P3）：
+// - 入参班号带点（122004.01）去点后匹配 offering.class_code（12200401）
+// - JOIN course.status=Visible：隐藏课程的 offering 不得出现在公开响应
+// - termId > 0 时只返回该学期（跨学期班号复用不串学期）
+func TestListVisibleOfferingsByClassCodes(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	visible := createCourse(t, conn, "122004", "CS")
+	hidden := createCourse(t, conn, "199999", "CS")
+	if err := conn.Model(&Entity{}).Where("id = ?", hidden).Update("status", StatusHidden).Error; err != nil {
+		t.Fatalf("hide course: %v", err)
+	}
+	term1 := createTerm(t, conn, "2025-2026-1", "学期1", parseTermDate(t, "2025-09-01"))
+	term2 := createTerm(t, conn, "2025-2026-2", "学期2", parseTermDate(t, "2026-02-23"))
+
+	offerings := []OfferingEntity{
+		{CourseId: visible, TermId: term1, ClassCode: "12200401", Status: OfferingStatusVisible},
+		{CourseId: visible, TermId: term2, ClassCode: "12200401", Status: OfferingStatusVisible}, // 跨学期班号复用
+		{CourseId: hidden, TermId: term1, ClassCode: "12200401", Status: OfferingStatusVisible},  // 隐藏课程的可见 offering
+		{CourseId: visible, TermId: term1, ClassCode: "12200401", Status: OfferingStatusHidden},  // 隐藏 offering
+	}
+	for _, o := range offerings {
+		if err := conn.Create(&o).Error; err != nil {
+			t.Fatalf("create offering: %v", err)
+		}
+	}
+
+	// 带点入参 + 不限定学期：只返回可见课程的两个学期 offering（隐藏课程/隐藏 offering 排除）。
+	got, err := ListVisibleOfferingsByClassCodes([]string{"122004.01"}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes err = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("all-terms result size = %d, want 2; got %+v", len(got), got)
+	}
+
+	// 限定 term1：只剩该学期的 offering。
+	got1, err := ListVisibleOfferingsByClassCodes([]string{"122004.01"}, term1)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes(term1) err = %v", err)
+	}
+	if len(got1) != 1 || got1[0].TermId != term1 {
+		t.Fatalf("term-scoped result = %+v, want single offering of term %d", got1, term1)
+	}
+
+	// 空入参：空数组而非 nil。
+	gotEmpty, err := ListVisibleOfferingsByClassCodes([]string{"  "}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes(empty) err = %v", err)
+	}
+	if gotEmpty == nil || len(gotEmpty) != 0 {
+		t.Fatalf("empty result = %v, want non-nil empty slice", gotEmpty)
+	}
+}

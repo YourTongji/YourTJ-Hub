@@ -97,7 +97,7 @@ function handleContentKeydown(event: KeyboardEvent) {
         :disable-outside-pointer-events="false"
         @keydown="handleContentKeydown"
       >
-        <SelectViewport class="max-h-64">
+        <SelectViewport class="gf-scrollbar-thin max-h-64 overflow-y-auto overscroll-contain">
           <SelectItem
             v-for="option in props.options"
             :key="option.value"

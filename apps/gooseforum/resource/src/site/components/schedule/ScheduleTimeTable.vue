@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
+                    class="gf-scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
                     :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '']"
                     :style="courseCardStyle(course)"
                     @touchstart.stop="onPressStart(course, $event)"
@@ -370,6 +370,7 @@ onBeforeUnmount(() => {
                     @keydown.enter.stop.prevent="emit('openDetail', course)"
                     @keydown.space.stop.prevent="emit('openDetail', course)"
                   >
+                    <div class="my-auto w-full">
                     <template v-if="isMobile">
                       <span class="max-w-full truncate text-[11px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
                       <span v-if="formatCourseLines(course).mobileMeta" class="mt-0.5 max-w-full truncate text-[10px] opacity-85">{{ formatCourseLines(course).mobileMeta }}</span>
@@ -378,6 +379,7 @@ onBeforeUnmount(() => {
                       <span class="break-words font-extrabold tracking-tight">{{ formatCourseLines(course).title }}</span>
                       <span v-if="formatCourseLines(course).sub" class="mt-1 break-words whitespace-pre-line opacity-95">{{ formatCourseLines(course).sub }}</span>
                     </template>
+                    </div>
                   </div>
                 </div>
               </td>

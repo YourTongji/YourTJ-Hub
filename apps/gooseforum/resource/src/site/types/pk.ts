@@ -183,12 +183,18 @@ export type PkCourseInfoSyncResult = Record<string, PkCourseDetail[]>
 export interface PkCourseReviewBriefInput {
   courseCode: string
   teacherName: string
+  /** 可选：限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
+  calendarId?: number
 }
 
 /** P13 /api/pk/course-review-brief 响应（复用课评 API 语义）。 */
 export interface PkCourseReviewBrief {
+  /** Hub 课程目录主键（/courses/:courseId 详情页跳转用）；未匹配课评目录时为 0。 */
+  courseId?: number
   ratingAvg?: number | null
   reviewCount: number
+  /** 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。 */
+  classes?: PkReviewBriefClass[]
   reviews?: Array<{
     id: number
     rating?: number
@@ -196,4 +202,15 @@ export interface PkCourseReviewBrief {
     helpfulCount?: number
     authorName?: string
   }>
+}
+
+/** P13 教学班级课评摘要项：按 Hub offering（class_code 匹配）聚合。 */
+export interface PkReviewBriefClass {
+  /** 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
+  classCode: string
+  /** Hub 开课实例主键，供 /courses/:courseId?offeringId=:offeringId 聚焦该班评价。 */
+  offeringId: number
+  teachers: string[]
+  ratingAvg?: number | null
+  reviewCount: number
 }

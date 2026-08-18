@@ -297,6 +297,7 @@ export function syncPkCourseInfo(input: PkCourseInfoSyncInput): Promise<PkCourse
 export function getPkCourseReviewBrief(input: PkCourseReviewBriefInput): Promise<PkCourseReviewBrief> {
   const query = new URLSearchParams({ courseCode: input.courseCode })
   if (input.teacherName) query.set('teacherName', input.teacherName)
+  if (input.calendarId) query.set('calendarId', String(input.calendarId))
   return getPk<PkCourseReviewBrief>(
     `/api/pk/course-review-brief?${query.toString()}`,
     t('api.pkCourseReviewBriefFailed'),

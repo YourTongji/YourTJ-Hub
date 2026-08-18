@@ -95,6 +95,33 @@ function authorLabel(author: ReviewPayload['author']) {
   return t('courseDetailPage.authorAnonymous')
 }
 
+
+// ---- 教学班级课评聚焦（排课器跳转 /courses/:id?offeringId=:offeringId） ----
+// 打开详情页时若带 offeringId 查询参数，评价列表只显示该教学班的评价。
+const focusOfferingId = ref<number>(0)
+const OFFERING_QUERY_KEY = 'offeringId'
+
+function parseFocusOfferingId(): number {
+  const raw = new URLSearchParams(window.location.search).get(OFFERING_QUERY_KEY)
+  const value = Number(raw ?? '')
+  if (!Number.isInteger(value) || value <= 0) return 0
+  // 只接受当前课程可见开课实例中的 offeringId：
+  // 防跨课程 offering（/courses/A?offeringId=<B 的班>）与隐藏 offering 泄露。
+  return page.props.course.offerings?.some((item) => item.id === value) ? value : 0
+}
+
+function activeOfferingId(): number {
+  return focusOfferingId.value || 0
+}
+
+function setOfferingFocus(offeringId: number) {
+  focusOfferingId.value = offeringId
+  // 切班聚焦后重新加载评价列表（offering 过滤），并回到顶部评价区。
+  reviewLoaded.value = false
+  void loadReviews()
+  const el = document.querySelector('#course-reviews')
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 // ---- 评价列表 ----
 const reviews = ref<ReviewPayload[]>([])
 const reviewTotal = ref(0)
@@ -122,9 +149,14 @@ const reviewError = ref('')
 const reviewLoaded = ref(false)
 const helpfulBusyIds = ref<number[]>([])
 
-// 统计卡评论数：评价列表加载完成后以 reviewTotal（客户端、删除/创建后实时更新）为准，
-// 未加载时回退 SSR 的 reviewCount，避免顶部统计卡与评价区计数口径分叉。
-const statsReviewCount = computed(() => resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value))
+// 统计卡评论数：聚焦教学班时保持课程级口径（与 ratingAvg/分布一致，SSR 课程级值），
+// 避免过滤后的 offering 级 total 与课程级均分/分布混搭；未聚焦时维持现有行为
+// （加载后以客户端 reviewTotal 实时值为准，未加载回退 SSR reviewCount）。
+const statsReviewCount = computed(() =>
+  focusOfferingId.value
+    ? reviewCount.value
+    : resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value),
+)
 
 // 列表加载协调器：用请求版本号避免 onMounted 的首屏 GET 在创建/删除后返回旧快照
 // 覆盖本地状态（issue #178 review P1 竞态）。
@@ -137,7 +169,7 @@ async function loadReviews() {
   reviewLoading.value = true
   reviewError.value = ''
   try {
-    const reviewPage = await reviewLoader.load(0, '')
+    const reviewPage = await reviewLoader.load(activeOfferingId(), '')
     if (reviewPage === null) return // 过期响应：期间发生写操作，丢弃以保留本地状态
     // 代际守卫：期间有更新加载（写操作触发的重拉）发起，本结果作废。
     if (seq !== reviewsLoadSeq) return
@@ -164,7 +196,7 @@ async function loadMoreReviews() {
   reviewLoadingMore.value = true
   reviewLoadMoreError.value = ''
   try {
-    const reviewPage = await reviewLoader.load(0, reviewNextCursor.value)
+    const reviewPage = await reviewLoader.load(activeOfferingId(), reviewNextCursor.value)
     if (reviewPage === null) return // 过期响应：丢弃
     // 代际守卫：写操作已失效本代（旧 cursor 数据可能含已删除/旧内容），丢弃不 concat。
     if (seq !== reviewsLoadSeq) return
@@ -197,7 +229,8 @@ const formTemplateId = ref('')
 
 function openCreateForm() {
   editingReviewId.value = null
-  formOfferingId.value = page.props.course.offerings?.[0]?.id ?? 0
+  // 聚焦教学班时写评默认选该班，否则回退第一个开课实例。
+  formOfferingId.value = activeOfferingId() || (page.props.course.offerings?.[0]?.id ?? 0)
   formRating.value = 0
   formContent.value = ''
   formAnonymous.value = true
@@ -275,11 +308,16 @@ async function submitForm() {
         isAnonymous: formAnonymous.value,
       })
       reviewLoader.invalidate() // 使进行中的首屏 GET 过期，避免旧快照覆盖刚创建的评价
-      reviews.value.unshift(created)
-      // 同步计数：创建后 +1（与下方删除路径递减口径一致），否则统计卡/评价区标题
-      // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
-      // 兜底置 reviewLoaded 为 true，确保统计卡走 reviewTotal 而非回退 SSR 旧值。
-      reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
+      // 创建的评价与当前过滤（聚焦教学班）一致时才本地插入/计数；
+      // 不一致（用户改了表单中的教学班）只做失效重拉，避免把别的班的评价
+      // 插进当前过滤列表（review P1）。
+      if (!activeOfferingId() || created.offeringId === activeOfferingId()) {
+        reviews.value.unshift(created)
+        // 同步计数：创建后 +1（与删除路径递减口径一致），否则统计卡/评价区标题
+        // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
+        // 兜底置 reviewLoaded 为 true，确保统计卡走 reviewTotal 而非回退 SSR 旧值。
+        reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
+      }
       reviewLoaded.value = true
     }
     invalidateReviews()
@@ -383,6 +421,7 @@ async function submitReport() {
 }
 
 onMounted(() => {
+  focusOfferingId.value = parseFocusOfferingId()
   loadReviews()
   loadRelated()
 })
@@ -596,7 +635,7 @@ onMounted(() => {
 
       </div>
 
-    <section class="min-w-0 xl:order-1">
+    <section id="course-reviews" class="min-w-0 scroll-mt-4 xl:order-1">
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
@@ -618,6 +657,22 @@ onMounted(() => {
         >
           {{ t('courseDetailPage.loginToReview') }}
         </a>
+      </div>
+
+      <div
+        v-if="focusOfferingId"
+        class="mb-3 flex items-center justify-between gap-2 rounded-lg border border-primary/25 bg-info/10 px-3 py-2 text-[12px] text-base-content/75"
+      >
+        <span class="min-w-0 truncate">
+          {{ t('courseDetailPage.offeringFocusLabel') }}：{{ offeringLabel(focusOfferingId) }}
+        </span>
+        <button
+          type="button"
+          class="shrink-0 font-medium text-primary hover:underline"
+          @click="setOfferingFocus(0)"
+        >
+          {{ t('courseDetailPage.offeringFocusClear') }}
+        </button>
       </div>
 
       <p v-if="reviewError" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
