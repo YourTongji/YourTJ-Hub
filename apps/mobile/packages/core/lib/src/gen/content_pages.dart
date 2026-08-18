@@ -133,6 +133,9 @@ abstract class CourseSummaryPayload with _$CourseSummaryPayload {
     required String name,
     required String department,
     required int creditX10,
+    // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? recentTerms,
@@ -212,6 +215,9 @@ abstract class CourseDetailPayload with _$CourseDetailPayload {
     required String name,
     required String department,
     required int creditX10,
+    // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<CourseOfferingPayload>? offerings,
     double? ratingAvg,

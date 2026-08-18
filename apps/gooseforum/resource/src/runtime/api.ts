@@ -1316,17 +1316,7 @@ export interface RelatedCourseItem {
   primaryCode: string
   name: string
   department: string
-  instructors?: string[]
-  ratingAvg: number
-  ratingCount: number
-  reviewCount: number
-}
-
-export interface RelatedTeacherOfferingItem {
-  offeringId: number
-  termCode?: string
-  termName?: string
-  campus?: string
+  teacherName?: string
   instructors?: string[]
   ratingAvg: number
   ratingCount: number
@@ -1335,7 +1325,7 @@ export interface RelatedTeacherOfferingItem {
 
 export interface CourseRelatedResult {
   teacherOtherCourses: RelatedCourseItem[]
-  sameCourseOtherTeachers: RelatedTeacherOfferingItem[]
+  sameCourseOtherTeachers: RelatedCourseItem[]
 }
 
 export async function getCourseRelated(courseId: number): Promise<CourseRelatedResult> {

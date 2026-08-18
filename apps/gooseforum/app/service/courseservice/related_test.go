@@ -171,36 +171,44 @@ func TestGetCourseRelatedLimitFive(t *testing.T) {
 	}
 }
 
-func TestGetCourseRelatedOtherTeachersDedup(t *testing.T) {
+func TestGetCourseRelatedSameCodeOtherTeachers(t *testing.T) {
 	conn := setupRelatedTest(t)
 	zhang := createInstructor(t, conn, "张三")
 	li := createInstructor(t, conn, "李四")
-	// A 最近学期（2025-2026-1）由 [张三, 李四] 授课（primary）；
-	// 更早学期分别由 [李四]（o2）、[李四]（o3）授课——o3 与 o2 组合相同，应被去重。
-	a := createRelatedCourse(t, conn, "100030", []uint64{zhang, li})
-	o2 := addRelatedOffering(t, conn, a, "2024-2025-2", []uint64{li})
-	_ = addRelatedOffering(t, conn, a, "2023-2024-2", []uint64{li})
+	// (code, teacher) 复合身份模型：同课号不同教师是独立课程行。
+	// A（张三）与 A2（李四）同 code 100030 → 同课程其他教师 = A2 卡片。
+	a := createRelatedCourse(t, conn, "100030", []uint64{zhang})
+	a2 := course.Entity{PrimaryCode: "100030", TeacherId: li, Name: "课程100030", Department: "数学科学学院", Status: course.StatusVisible}
+	if err := conn.Create(&a2).Error; err != nil {
+		t.Fatalf("create same-code course: %v", err)
+	}
+	if err := conn.Create(&course.CourseStatsEntity{CourseId: a2.Id, RatingCount: 2, RatingSum: 9, ReviewCount: 7}).Error; err != nil {
+		t.Fatalf("create stats for A2: %v", err)
+	}
 
 	related, err := GetCourseRelated(a)
 	if err != nil {
 		t.Fatalf("GetCourseRelated err = %v", err)
 	}
 	if len(related.SameCourseOtherTeachers) != 1 {
-		t.Fatalf("sameCourseOtherTeachers len = %d, want 1 (去重后仅 o2): %#v", len(related.SameCourseOtherTeachers), related.SameCourseOtherTeachers)
+		t.Fatalf("sameCourseOtherTeachers len = %d, want 1: %#v", len(related.SameCourseOtherTeachers), related.SameCourseOtherTeachers)
 	}
 	item := related.SameCourseOtherTeachers[0]
-	if item.OfferingId != o2 {
-		t.Fatalf("offering = %d, want o2 (%d)", item.OfferingId, o2)
+	if item.Id != a2.Id {
+		t.Fatalf("item id = %d, want A2 (%d)", item.Id, a2.Id)
 	}
-	if len(item.Instructors) != 1 || item.Instructors[0] != "李四" {
-		t.Fatalf("instructors = %#v, want [李四]", item.Instructors)
+	if item.TeacherName != "李四" {
+		t.Fatalf("item teacherName = %q, want 李四", item.TeacherName)
+	}
+	if item.ReviewCount != 7 {
+		t.Fatalf("item reviewCount = %d, want 7", item.ReviewCount)
 	}
 }
 
 func TestGetCourseRelatedSameCoursePrimaryOnly(t *testing.T) {
 	conn := setupRelatedTest(t)
 	zhang := createInstructor(t, conn, "张三")
-	// A 全部学期都由同一教师组合授课：无"其他教师"，列表为空。
+	// A 课号只有一张卡（无同课号其他教师行）：列表为空。
 	a := createRelatedCourse(t, conn, "100040", []uint64{zhang})
 	_ = addRelatedOffering(t, conn, a, "2024-2025-2", []uint64{zhang})
 
@@ -215,7 +223,7 @@ func TestGetCourseRelatedSameCoursePrimaryOnly(t *testing.T) {
 
 func TestGetCourseRelatedNoOfferings(t *testing.T) {
 	conn := setupRelatedTest(t)
-	// 可见但没有任何开课实例的课程：buildSameCourseOtherTeachers 的 len(offerings)==0 早返回分支。
+	// 可见但没有任何开课实例的课程：两个列表均为空。
 	c := course.Entity{PrimaryCode: "100070", Name: "无开课", Department: "数学科学学院", Status: course.StatusVisible}
 	if err := conn.Create(&c).Error; err != nil {
 		t.Fatalf("create course: %v", err)
@@ -233,18 +241,27 @@ func TestGetCourseRelatedOtherTeachersSortAndLimit(t *testing.T) {
 	conn := setupRelatedTest(t)
 	zhang := createInstructor(t, conn, "张三")
 	a := createRelatedCourse(t, conn, "100050", []uint64{zhang})
-	// 6 个不同的非 primary 教师组合（各自单独授课），review_count 依次 10,8,6,4,2,1。
+	// 6 个同课号不同教师卡，review_count 依次 10,8,6,4,2,1。
 	type spec struct {
 		name        string
+		teacherID   uint64
 		reviewCount int
 	}
-	specs := []spec{{"李四", 10}, {"王五", 8}, {"赵六", 6}, {"孙七", 4}, {"周八", 2}, {"吴九", 1}}
-	terms := []string{"2024-2025-1", "2023-2024-1", "2022-2023-1", "2021-2022-1", "2020-2021-1", "2019-2020-1"}
-	for i, s := range specs {
-		insID := createInstructor(t, conn, s.name)
-		offeringID := addRelatedOffering(t, conn, a, terms[i], []uint64{insID})
-		if err := conn.Create(&course.OfferingStatsEntity{OfferingId: offeringID, RatingCount: 1, RatingSum: 5, ReviewCount: s.reviewCount}).Error; err != nil {
-			t.Fatalf("create offering stats: %v", err)
+	specs := []spec{
+		{"李四", createInstructor(t, conn, "李四"), 10},
+		{"王五", createInstructor(t, conn, "王五"), 8},
+		{"赵六", createInstructor(t, conn, "赵六"), 6},
+		{"孙七", createInstructor(t, conn, "孙七"), 4},
+		{"周八", createInstructor(t, conn, "周八"), 2},
+		{"吴九", createInstructor(t, conn, "吴九"), 1},
+	}
+	for _, s := range specs {
+		other := course.Entity{PrimaryCode: "100050", TeacherId: s.teacherID, Name: "课程100050", Department: "数学科学学院", Status: course.StatusVisible}
+		if err := conn.Create(&other).Error; err != nil {
+			t.Fatalf("create same-code course: %v", err)
+		}
+		if err := conn.Create(&course.CourseStatsEntity{CourseId: other.Id, RatingCount: 1, RatingSum: 5, ReviewCount: s.reviewCount}).Error; err != nil {
+			t.Fatalf("create course stats: %v", err)
 		}
 	}
 	related, err := GetCourseRelated(a)
@@ -256,8 +273,8 @@ func TestGetCourseRelatedOtherTeachersSortAndLimit(t *testing.T) {
 	}
 	want := []string{"李四", "王五", "赵六", "孙七", "周八"}
 	for i, item := range related.SameCourseOtherTeachers {
-		if len(item.Instructors) != 1 || item.Instructors[0] != want[i] {
-			t.Fatalf("item[%d] instructors = %#v, want [%s]", i, item.Instructors, want[i])
+		if item.TeacherName != want[i] {
+			t.Fatalf("item[%d] teacherName = %q, want %q", i, item.TeacherName, want[i])
 		}
 	}
 }

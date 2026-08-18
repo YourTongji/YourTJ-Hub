@@ -185,6 +185,8 @@ _$CourseSummaryPayloadImpl _$$CourseSummaryPayloadImplFromJson(
   name: json['name'] as String,
   department: json['department'] as String,
   creditX10: (json['creditX10'] as num).toInt(),
+  teacherId: (json['teacherId'] as num?)?.toInt(),
+  teacherName: json['teacherName'] as String?,
   aliases: (json['aliases'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -206,6 +208,8 @@ Map<String, dynamic> _$$CourseSummaryPayloadImplToJson(
   'name': instance.name,
   'department': instance.department,
   'creditX10': instance.creditX10,
+  'teacherId': instance.teacherId,
+  'teacherName': instance.teacherName,
   'aliases': instance.aliases,
   'instructors': instance.instructors,
   'recentTerms': instance.recentTerms,
@@ -317,6 +321,8 @@ _$CourseDetailPayloadImpl _$$CourseDetailPayloadImplFromJson(
   name: json['name'] as String,
   department: json['department'] as String,
   creditX10: (json['creditX10'] as num).toInt(),
+  teacherId: (json['teacherId'] as num?)?.toInt(),
+  teacherName: json['teacherName'] as String?,
   aliases: (json['aliases'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -338,6 +344,8 @@ Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
   'name': instance.name,
   'department': instance.department,
   'creditX10': instance.creditX10,
+  'teacherId': instance.teacherId,
+  'teacherName': instance.teacherName,
   'aliases': instance.aliases,
   'offerings': instance.offerings,
   'ratingAvg': instance.ratingAvg,

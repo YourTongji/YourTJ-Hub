@@ -616,7 +616,8 @@ type SearchPageProps struct {
 	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
 }
 
-// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）
+// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）。
+// TeacherId/TeacherName 为 (code, teacher) 复合身份下的卡片身份教师（无教师时省略）。
 type CourseSearchPayload struct {
 	ID          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
@@ -624,6 +625,8 @@ type CourseSearchPayload struct {
 	Department  string   `json:"department"`
 	CreditX10   int      `json:"creditX10"`
 	Aliases     []string `json:"aliases"`
+	TeacherId   uint64   `json:"teacherId,omitempty"`
+	TeacherName string   `json:"teacherName,omitempty"`
 	Instructors []string `json:"instructors"`
 	Terms       []string `json:"terms"`
 	Campus      []string `json:"campus"`
@@ -2744,6 +2747,8 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 			Department:  item.Department,
 			CreditX10:   item.CreditX10,
 			Aliases:     item.Aliases,
+			TeacherId:   item.TeacherId,
+			TeacherName: item.TeacherName,
 			Instructors: item.Instructors,
 			Terms:       item.Terms,
 			Campus:      item.Campus,

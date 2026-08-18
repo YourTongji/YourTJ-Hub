@@ -20,6 +20,8 @@ const CourseIndex = "courses"
 
 // CourseSearchDocument 课程搜索文档：一门课程只出现一次（canonical course）。
 // 教师/学期/校区作为数组字段；不索引评价正文。
+// (code, teacher) 复合身份模型下 TeacherId/TeacherName 为卡片身份教师
+// （teacher_id=0 无教师时为空串），Instructors 保留 offering 级教师并集。
 type CourseSearchDocument struct {
 	ID             uint64   `json:"id"`
 	PrimaryCode    string   `json:"primaryCode"`
@@ -30,6 +32,8 @@ type CourseSearchDocument struct {
 	Department     string   `json:"department"`
 	CreditX10      int      `json:"creditX10"`
 	Aliases        []string `json:"aliases"`
+	TeacherId      uint64   `json:"teacherId"`
+	TeacherName    string   `json:"teacherName"`
 	Instructors    []string `json:"instructors"`
 	Terms          []string `json:"terms"`
 	Campus         []string `json:"campus"`
@@ -50,12 +54,20 @@ func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, 
 		Department:     entity.Department,
 		CreditX10:      entity.CreditX10,
 		Aliases:        []string{},
+		TeacherId:      entity.TeacherId,
 		Instructors:    []string{},
 		Terms:          []string{},
 		Campus:         []string{},
 		Status:         entity.Status,
 		CreatedAt:      entity.CreatedAt.Unix(),
 		UpdatedAt:      entity.UpdatedAt.Unix(),
+	}
+	if entity.TeacherId != 0 {
+		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
+			return doc, err
+		} else if len(teachers) > 0 {
+			doc.TeacherName = teachers[0].Name
+		}
 	}
 	aliases, err := course.ListAliasesByCourse(entity.Id)
 	if err != nil {
@@ -160,6 +172,25 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 	instructorByID := make(map[uint64]string)
 	instructorByOffering := make(map[uint64][]string, len(offeringIds))
 	termByID := make(map[uint64]course.TermEntity)
+	// 身份教师（course.teacher_id → 姓名）独立于 offering 解析：rebuild 批次里
+	// 可能包含无可见 offering 的课程卡（如纯评价卡），此时 teacherName 仍必须
+	// 填充，否则这些卡无法按教师搜索（与增量单卡转换不一致）。
+	teacherNameByID := make(map[uint64]string)
+	teacherIds := make([]uint64, 0, len(entities))
+	for _, e := range entities {
+		if e.TeacherId != 0 {
+			teacherIds = append(teacherIds, e.TeacherId)
+		}
+	}
+	if len(teacherIds) > 0 {
+		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range teachers {
+			teacherNameByID[t.Id] = t.Name
+		}
+	}
 	if len(offeringIds) > 0 {
 		links, err := course.ListOfferingInstructorLinks(offeringIds)
 		if err != nil {
@@ -200,12 +231,17 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 			Department:     e.Department,
 			CreditX10:      e.CreditX10,
 			Aliases:        []string{},
+			TeacherId:      e.TeacherId,
 			Instructors:    []string{},
 			Terms:          []string{},
 			Campus:         []string{},
 			Status:         e.Status,
 			CreatedAt:      e.CreatedAt.Unix(),
 			UpdatedAt:      e.UpdatedAt.Unix(),
+		}
+		if e.TeacherId != 0 {
+			// 身份教师批量解析在循环外统一做（teacherNameByID 预填充）。
+			doc.TeacherName = teacherNameByID[e.TeacherId]
 		}
 		doc.Aliases = append(doc.Aliases, aliasByCourse[e.Id]...)
 		seenInstructors := make(map[string]struct{})
@@ -374,7 +410,7 @@ func buildCourseIndexPages(ctx context.Context,
 func configureCourseIndex(index meilisearch.IndexManager) error {
 	settings := &meilisearch.Settings{
 		SearchableAttributes: []string{
-			"name", "normalizedName", "primaryCode", "aliases", "instructors", "namePinyin", "nameInitials",
+			"name", "normalizedName", "primaryCode", "aliases", "instructors", "teacherName", "namePinyin", "nameInitials",
 		},
 		FilterableAttributes: []string{
 			"department", "terms", "campus", "status",
@@ -383,7 +419,7 @@ func configureCourseIndex(index meilisearch.IndexManager) error {
 			"createdAt", "updatedAt",
 		},
 		DisplayedAttributes: []string{
-			"id", "primaryCode", "name", "department", "creditX10", "aliases", "instructors", "terms", "campus", "status",
+			"id", "primaryCode", "name", "department", "creditX10", "aliases", "teacherId", "teacherName", "instructors", "terms", "campus", "status",
 		},
 	}
 	_, err := index.UpdateSettings(settings)

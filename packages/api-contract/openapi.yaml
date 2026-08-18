@@ -1523,8 +1523,6 @@ components:
       $ref: ./components/schemas.yaml#/PkSyncStatusSuccess
     RelatedCourseItem:
       $ref: ./components/schemas.yaml#/RelatedCourseItem
-    RelatedTeacherOfferingItem:
-      $ref: ./components/schemas.yaml#/RelatedTeacherOfferingItem
     ReportHandlerPayload:
       $ref: ./components/schemas.yaml#/ReportHandlerPayload
     TopicCategoryPayload:

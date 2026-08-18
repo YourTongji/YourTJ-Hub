@@ -22,13 +22,24 @@ func GetCourseByIdTx(tx *gorm.DB, id uint64) (entity Entity) {
 }
 
 // GetCourseByPrimaryCode 按主课号精确查找（含 soft-delete 过滤）。
+// 复合身份模型下同 code 多教师会产生多行；无教师参数时返回 id 最小的一行。
 func GetCourseByPrimaryCode(code string) (entity Entity, err error) {
 	return GetCourseByPrimaryCodeTx(courseBuilder(), code)
 }
 
 // GetCourseByPrimaryCodeTx 事务内按主课号精确查找，能看到同一事务内未提交的写入。
 func GetCourseByPrimaryCodeTx(tx *gorm.DB, code string) (entity Entity, err error) {
-	err = tx.Where(queryopt.Eq("primary_code", code)).First(&entity).Error
+	err = tx.Where(queryopt.Eq("primary_code", code)).Order("id ASC").First(&entity).Error
+	return
+}
+
+// GetCourseByCodeTeacherTx 事务内按 (primary_code, teacher_id) 复合身份查找。
+// teacherId 为 0 时匹配无教师行（teacher_id = 0）。
+func GetCourseByCodeTeacherTx(tx *gorm.DB, code string, teacherId uint64) (entity Entity, err error) {
+	err = tx.
+		Where(queryopt.Eq("primary_code", code)).
+		Where(queryopt.Eq("teacher_id", teacherId)).
+		First(&entity).Error
 	return
 }
 
@@ -373,6 +384,15 @@ func ListInstructorsByOfferings(offeringIds []uint64) (entities []InstructorEnti
 		Where(queryopt.In("course_offering_instructor.offering_id", offeringIds)).
 		Order("course_offering_instructor.offering_id ASC, course_instructor.id ASC").
 		Find(&entities).Error
+	return
+}
+
+// ListInstructorsByIDs 批量按 ID 返回教师（课程卡 teacher_id → 姓名解析用）。
+func ListInstructorsByIDs(ids []uint64) (entities []InstructorEntity, err error) {
+	if len(ids) == 0 {
+		return []InstructorEntity{}, nil
+	}
+	err = instructorBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error
 	return
 }
 

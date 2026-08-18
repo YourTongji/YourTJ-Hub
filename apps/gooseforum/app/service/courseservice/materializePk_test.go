@@ -188,3 +188,67 @@ func TestMaterializeFromPkInstructorNormalizedNameIdempotent(t *testing.T) {
 		t.Errorf("instructors after 2 runs = %d, want 3", total)
 	}
 }
+
+// TestMaterializeFromPkSplitsByIdentityTeacher 回归 review：同一 courseCode 不同教师的
+// 教学班必须物化为独立课程卡（(code, teacher) 复合身份），不能按 code 合并成一张卡
+// 后只取 TeacherNames[0]（否则漏卡且选中教师依赖查询顺序）。
+func TestMaterializeFromPkSplitsByIdentityTeacher(t *testing.T) {
+	migrateMaterializeTables(t)
+	conn := db.Connect()
+	credit := 5.0
+	if err := conn.Create(&pk.CourseDetailEntity{
+		Id: 1, CalendarId: 1, CourseCode: "A001", CourseName: "高等数学(A)上", Code: "A00101",
+		NewCourseCode: "A001N", NewCode: "A001N01", Credit: &credit, Faculty: "数学科学学院",
+	}).Error; err != nil {
+		t.Fatalf("seed course detail 1: %v", err)
+	}
+	if err := conn.Create(&pk.CourseDetailEntity{
+		Id: 2, CalendarId: 1, CourseCode: "A001", CourseName: "高等数学(A)上", Code: "A00102",
+		NewCourseCode: "A001N", NewCode: "A001N02", Credit: &credit, Faculty: "数学科学学院",
+	}).Error; err != nil {
+		t.Fatalf("seed course detail 2: %v", err)
+	}
+	if err := conn.Create(&pk.TeacherEntity{Id: 100, TeachingClassId: 1, TeacherCode: "T001", TeacherName: "张三"}).Error; err != nil {
+		t.Fatalf("seed teacher 张三: %v", err)
+	}
+	if err := conn.Create(&pk.TeacherEntity{Id: 101, TeachingClassId: 2, TeacherCode: "T002", TeacherName: "李四"}).Error; err != nil {
+		t.Fatalf("seed teacher 李四: %v", err)
+	}
+	if err := conn.Create(&pk.FacultyEntity{Faculty: "数学科学学院", FacultyI18n: "数学科学学院"}).Error; err != nil {
+		t.Fatalf("seed faculty: %v", err)
+	}
+
+	report, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	if report.CoursesInserted != 2 {
+		t.Fatalf("coursesInserted = %d, want 2（同 code 双教师应拆成两张卡）", report.CoursesInserted)
+	}
+
+	var courses []course.Entity
+	if err := conn.Where("primary_code = ?", "A001").Find(&courses).Error; err != nil {
+		t.Fatalf("find courses: %v", err)
+	}
+	if len(courses) != 2 {
+		t.Fatalf("courses = %d, want 2", len(courses))
+	}
+	distinct := map[uint64]bool{}
+	for _, c := range courses {
+		if c.TeacherId != 0 {
+			distinct[c.TeacherId] = true
+		}
+	}
+	if len(distinct) != 2 {
+		t.Fatalf("cards must map to 2 distinct identity teachers, got %v", distinct)
+	}
+	var instructors []course.InstructorEntity
+	if err := conn.Find(&instructors).Error; err != nil {
+		t.Fatalf("find instructors: %v", err)
+	}
+	for _, ins := range instructors {
+		if !distinct[ins.Id] {
+			t.Fatalf("instructor %d not referenced by any card", ins.Id)
+		}
+	}
+}

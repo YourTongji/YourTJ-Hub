@@ -7,12 +7,25 @@
 输出 (outdir/):
     manifest-catalog.yaml   目录导入 manifest（courses/instructors/offerings）
     manifest-reviews.yaml   评价导入 manifest（reviews.jsonl，含 rights_approval_ref）
-    courses.jsonl           course 目录（按 code 去重）
-    instructors.jsonl       教师（teacher.teacherCode 去重）
+    courses.jsonl           course 目录（行级导出：每行 = 上游 courses 行 = 一个
+                            (code, teacher) 卡，携带 teacher_code）
+    instructors.jsonl       教师（teacher.teacherCode 去重 + 无法用工号表达的
+                            历史教师合成 "syn-{teacher_id}" 行）
     offerings.jsonl         开课（coursedetail 每行一个，按 calendarId 映射学期）
     reviews.jsonl           历史评价（全量导出；学期精确匹配挂真实 offering，
                             匹配不上挂该课程 "其他" 学期 offering，一条不丢）
     mapping_report.json     转换统计与无法映射明细计数
+
+身份模型（对齐 Serverless GROUP BY c.code, c.name, COALESCE(t.name,'')）:
+    - course 行 = 一门课的一个 (code, teacher) 身份；卡片/详情/评价按行归属。
+      teacher_code 解析优先级：teachers.tid（须在 teacherCode 集合内）>
+      teacherName 匹配的 teacherCode（取最小）> 合成 "syn-{teacher_id}"。
+    - 同 (code, teacher_code) 多行合并为一行（保留 is_icu=0 优先、id 小），
+      被合并行的评价经 reviews.course_id 重定向到保留行，一条不丢。
+    - 每个教学班只挂一行（互斥）：(code, teacher_code) 精确 > (courseCode,
+      teacher_code) 精确 > code 任意行（id 最小）> courseCode 任意行 >
+      newCourseCode/newCode 兜底（当前数据无命中）；offering 行携带
+      class_code/class_name 班号信息供 hub 侧按班展示。
 
 已知取舍（详见 mapping_report）:
     - course_aliases (onesystem 课号变体) 不导入：hub importer 仅支持 name 别名，
@@ -20,13 +33,9 @@
     - reviews.semester 为自由文本；能规范化到 calendar 学期且该课程该学期有
       开课记录的评论挂真实 offering；其余（老学期/其他/空文本/学期不匹配/
       无开课记录）统一挂该课程 "其他（历史导入）" 学期 offering，一条不丢。
-    - courses 与 coursedetail 按四字段关联（courseCode/newCourseCode/code/newCode）；
-      每个教学班只挂一门课：优先班号课（code 精确匹配，如 32000101），无班号课
-      则挂主码课（courseCode/newCourseCode/newCode，如 320001）。offering 行携带
-      class_code/class_name 班号信息供 hub 侧按班展示。旧版"每匹配课程生成一个
-      offering"会把同一教学班同时挂到主码课与班号课（双写，如体育 295 班 ->
-      295 条主码 offering + 102 条班号 offering），已废弃。
-    - courses 重复 code（同课不同教师行）合并为单条 course，教师信息由 offering 承载。
+    - 历史教师（teachers 行无 tid 或 tid 不在 teacherCode 集合）用名字匹配
+      teacherCode；匹配不上则合成 "syn-{teacher_id}" 教师行（85 名，
+      含 ADMIN/马洪宽/古晞等），保证 course.teacher_code 与 instructors 一一对应。
     - catalog（courses/instructors/offerings）与 reviews 拆分为两个 manifest：
       hub 的 catalog importer 遇到 reviews 文件会拒绝，二者必须分开导入
       （先 catalog 后 reviews，source 一致保证 offering 映射可解析）。
@@ -130,11 +139,14 @@ def main() -> int:
     report = {
         "courses_raw": 0,
         "courses_merged": 0,
-        "courses_dup_code_merged": 0,
+        "courses_dup_teacher_merged": 0,
         "instructors": 0,
+        "instructor_natural_key_conflicts": 0,
+        "instructor_synthetic": 0,
         "offerings_real": 0,
         "offerings_class_attached": 0,
         "offerings_course_attached": 0,
+        "offerings_unattached": 0,
         "offerings_other": 0,
         "courses_with_other_only": 0,
         "reviews_raw": 0,
@@ -144,54 +156,143 @@ def main() -> int:
         "unmapped_semesters": {},  # 原始 semester 文本 -> 条数
     }
 
-    # ---- courses：按 code 去重（重复行合并，取第一条有意义的） ----
-    code_to_ext = {}
-    courses_out = []
+    # ---- teacher_code 解析基础数据 ----
+    # teacherCode 集合（teacher 表）
+    teacher_code_set = {
+        r["teacherCode"].strip()
+        for r in cur.execute(
+            "SELECT DISTINCT teacherCode FROM teacher WHERE teacherCode IS NOT NULL AND trim(teacherCode) != ''"
+        )
+    }
+    # teachers 全量元数据：主键 id -> meta（course.teacher_id 解析用）
+    teacher_meta = {}
+    # 工号 tid -> meta（instructor 导出按 teacherCode 补 department/title 用）。
+    # teachers.tid 与 teacher.teacherCode 是同一工号体系：两表以工号互相关联。
+    teacher_meta_by_tid = {}
+    for r in cur.execute("SELECT id, tid, name, title, department FROM teachers"):
+        meta = {
+            "tid": (r["tid"] or "").strip(),
+            "name": (r["name"] or "").strip(),
+            "title": r["title"] or "",
+            "department": r["department"] or "",
+        }
+        teacher_meta[r["id"]] = meta
+        if meta["tid"]:
+            teacher_meta_by_tid[meta["tid"]] = meta
+    # teacherName -> 最小 teacherCode（teacher 表；按 (name, dept) 消歧）。
+    # teacher 表无 department 列，经 teacherCode = teachers.tid 关联补全；
+    # dept 为空（历史数据大量缺省）时退化为纯 name 键，保证无 tid 历史行仍能归并。
+    code_by_teacher_name_dept = {}
     for r in cur.execute(
-        "SELECT id, code, name, credit, department FROM courses ORDER BY id"
+        "SELECT t.teacherName, COALESCE(g.department, '') AS department, MIN(t.teacherCode) AS tcode "
+        "FROM teacher t "
+        "LEFT JOIN (SELECT tid, department FROM teachers WHERE tid IS NOT NULL AND trim(tid) != '') g "
+        "ON g.tid = t.teacherCode "
+        "WHERE t.teacherCode IS NOT NULL AND trim(t.teacherCode) != '' "
+        "AND t.teacherName IS NOT NULL AND trim(t.teacherName) != '' "
+        "GROUP BY t.teacherName, COALESCE(g.department, '')"
+    ):
+        code_by_teacher_name_dept[
+            (r["teacherName"].strip(), (r["department"] or "").strip())
+        ] = r["tcode"].strip()
+    # teacherName -> 最小 teacherCode（纯姓名键，跨院系）。
+    # 历史 teachers 行的 department 多为课程路径垃圾值（如
+    # "乌龙茶/必修课/半导体器件原理"），(name, dept) 精确键必然落空；
+    # 纯姓名兜底与 Serverless 的 GROUP BY COALESCE(t.name,'') 一致，
+    # 且保证同名教师取最小工号（如 490106 李俊 → 12099，与教学班一致）。
+    code_by_teacher_name = {}
+    for r in cur.execute(
+        "SELECT teacherName, MIN(teacherCode) AS tcode FROM teacher "
+        "WHERE teacherCode IS NOT NULL AND trim(teacherCode) != '' "
+        "AND teacherName IS NOT NULL AND trim(teacherName) != '' "
+        "GROUP BY teacherName"
+    ):
+        code_by_teacher_name[r["teacherName"].strip()] = r["tcode"].strip()
+
+    def resolve_teacher_code(teacher_id):
+        """course 行 teacher_id -> teacher_code（None 表示无教师）。"""
+        if teacher_id is None:
+            return None
+        meta = teacher_meta.get(teacher_id)
+        if meta is None or not meta["name"]:
+            return None
+        tid = meta["tid"]
+        if tid and tid in teacher_code_set:
+            return tid
+        # 无 tid 的历史行：优先 (name, dept) 精确（院系干净时按院系消歧）；
+        # 落空（历史行院系多为课程路径垃圾值）退化为纯姓名取最小工号，
+        # 对齐 Serverless 按名分组语义。
+        code = code_by_teacher_name_dept.get((meta["name"], meta["department"]))
+        if code is None:
+            code = code_by_teacher_name.get(meta["name"])
+        if code:
+            return code
+        return f"syn-{teacher_id}"
+
+    # ---- courses：行级导出，(code, teacher_code) 合并 ----
+    raw_courses = []
+    for r in cur.execute(
+        "SELECT id, code, name, credit, department, teacher_id, is_icu FROM courses ORDER BY id"
     ):
         report["courses_raw"] += 1
         code = (r["code"] or "").strip()
-        if not code or not (r["name"] or "").strip():
+        name = (r["name"] or "").strip()
+        if not code or not name:
             continue
-        if code in code_to_ext:
-            report["courses_dup_code_merged"] += 1
-            continue  # 同课不同教师行：教师信息由 offering 承载
-        ext = str(r["id"])
-        code_to_ext[code] = ext
+        raw_courses.append(
+            {
+                "id": r["id"],
+                "code": code,
+                "name": name,
+                "department": (r["department"] or "").strip(),
+                "credit": float(r["credit"] or 0),
+                "teacher_id": r["teacher_id"],
+                "is_icu": int(r["is_icu"] or 0),
+            }
+        )
+    groups = {}
+    for row in raw_courses:
+        row["tcode"] = resolve_teacher_code(row["teacher_id"])
+        groups.setdefault((row["code"], row["tcode"]), []).append(row)
+
+    courses_out = []
+    course_ext_by_key = {}  # (code, tcode) -> ext
+    course_tcode_by_ext = {}  # ext -> tcode（虚拟 offering 教师用）
+    course_id_to_ext = {}  # 上游 course_id -> 保留行 ext（含被合并行重定向）
+    for key, rows in groups.items():
+        # 保留：is_icu=0 优先，其次 id 小
+        best = min(rows, key=lambda x: (x["is_icu"], x["id"]))
+        ext = str(best["id"])
+        course_ext_by_key[key] = ext
+        course_tcode_by_ext[ext] = best["tcode"]
+        for row in rows:
+            course_id_to_ext[row["id"]] = ext
         courses_out.append(
             {
                 "id": ext,
-                "code": code,
-                "name": r["name"].strip(),
-                "department": (r["department"] or "").strip(),
-                "credit": float(r["credit"] or 0),
+                "code": best["code"],
+                "name": best["name"],
+                "department": best["department"],
+                "credit": best["credit"],
+                "teacher_code": best["tcode"],
             }
         )
     report["courses_merged"] = len(courses_out)
+    report["courses_dup_teacher_merged"] = sum(
+        len(rows) - 1 for rows in groups.values() if len(rows) > 1
+    )
 
     # ---- instructors：teacher 表按 teacherCode 去重，department/title 从 teachers 补 ----
     # hub importer 按 (name, dept) 自然键去重；jcourse 存在同名同院系多工号
     # （130 组、164 行），必须用工号消歧：冲突组的教师名加 " (工号)" 后缀，
     # 保证自然键唯一，offering 引用工号不变。
-    teacher_meta = {}
-    for r in cur.execute(
-        "SELECT tid, name, title, department FROM teachers WHERE tid IS NOT NULL AND trim(tid) != ''"
-    ):
-        tid = r["tid"].strip()
-        if tid not in teacher_meta:
-            teacher_meta[tid] = {
-                "title": r["title"] or "",
-                "department": r["department"] or "",
-            }
-    # 预扫描自然键冲突：name+dept -> [codes]
     natural_key_groups = {}
     for r in cur.execute(
         "SELECT DISTINCT teacherCode, teacherName FROM teacher WHERE teacherCode IS NOT NULL AND trim(teacherCode) != '' AND teacherName IS NOT NULL AND trim(teacherName) != ''"
     ):
         code = r["teacherCode"].strip()
         name = (r["teacherName"] or "").strip()
-        meta = teacher_meta.get(code, {})
+        meta = teacher_meta_by_tid.get(code, {})
         dept = meta.get("department", "")
         natural_key_groups.setdefault((name, dept), set()).add(code)
     conflicted = {
@@ -211,7 +312,7 @@ def main() -> int:
         if not name or code in seen_codes:
             continue
         seen_codes.add(code)
-        meta = teacher_meta.get(code, {})
+        meta = teacher_meta_by_tid.get(code, {})
         dept = meta.get("department", "")
         display_name = f"{name} ({code})" if code in conflicted else name
         instructors_out.append(
@@ -225,11 +326,32 @@ def main() -> int:
     report["instructors"] = len(instructors_out)
     report["instructor_natural_key_conflicts"] = len(conflicted)
 
+    # 合成教师：无法用工号表达的 course 行教师
+    synth_codes = sorted(
+        {
+            tcode
+            for tcode in course_tcode_by_ext.values()
+            if tcode and tcode.startswith("syn-")
+        }
+    )
+    for sid in synth_codes:
+        teacher_id = int(sid.split("-", 1)[1])
+        meta = teacher_meta.get(teacher_id, {})
+        instructors_out.append(
+            {
+                "id": sid,
+                "name": meta.get("name") or sid,
+                "department": meta.get("department", ""),
+                "title": meta.get("title", ""),
+            }
+        )
+    report["instructor_synthetic"] = len(synth_codes)
+    report["instructors"] = len(instructors_out)
+
     # ---- offerings：coursedetail 每行一个，term 由 calendarId 映射 ----
-    # 四字段关联（与上游 010_materialize_courses_from_pk.sql 一致）：courseCode /
-    # newCourseCode / code / newCode 任一等于 courses.code 即可挂载，但每个教学班
-    # 只挂一门课（班号课优先，其次主码课），避免同一班在 Hub 目录双写。
-    # offering 行附带 class_code/class_name 班号信息，供 hub 侧按班展示。
+    # 互斥挂载链（每班只挂一行）：
+    #   s1 (code, teacher) 精确 > s2 (courseCode, teacher) 精确 >
+    #   s3 code 任意行（id 最小）> s4 courseCode 任意行 > newCourseCode/newCode 兜底。
     instructor_of_class = {}
     for r in cur.execute(
         "SELECT teachingClassId, teacherCode FROM teacher WHERE teachingClassId IS NOT NULL AND teacherCode IS NOT NULL AND trim(teacherCode) != ''"
@@ -247,12 +369,12 @@ def main() -> int:
         for r in cur.execute("SELECT faculty, facultyI18n FROM faculty")
     }
 
-    # course_id -> course external id（供 reviews 预扫与导出）
-    course_id_to_ext = {
-        r["id"]: code_to_ext[(r["code"] or "").strip()]
-        for r in cur.execute("SELECT id, code FROM courses")
-        if (r["code"] or "").strip() in code_to_ext
-    }
+    course_by_code_teacher = {}
+    course_by_code = {}
+    for key, ext in course_ext_by_key.items():
+        code, _ = key
+        course_by_code_teacher[key] = ext
+        course_by_code.setdefault(code, []).append(ext)
 
     # reviews 预扫：每门课需要哪些学期（可规范化的）+ 是否有无法规范化的评价
     course_norm_terms = {}
@@ -278,49 +400,68 @@ def main() -> int:
             continue
         class_id = r["id"]
         instructor_ids = list(dict.fromkeys(instructor_of_class.get(class_id, [])))
-        # 单挂载优先链：班号课（code）> 主码课（courseCode）> newCourseCode > newCode。
-        # 每个教学班只挂一门课，消除"同一班同时挂主码课与班号课"的双写。
-        attached_course = None
-        for code_field in (
-            r["code"],
-            r["courseCode"],
-            r["newCourseCode"],
-            r["newCode"],
-        ):
-            code = (code_field or "").strip()
-            if not code:
-                continue
-            course_ext = code_to_ext.get(code)
-            if course_ext is not None:
-                attached_course = course_ext
+        class_code = (r["code"] or "").strip()
+        course_code = (r["courseCode"] or "").strip()
+
+        attached = None
+        stage = None
+        # s1: (code, teacher) 精确
+        for tc in instructor_ids:
+            if class_code and (class_code, tc) in course_by_code_teacher:
+                attached = course_by_code_teacher[(class_code, tc)]
+                stage = "class_teacher"
                 break
-        course_exts = [attached_course] if attached_course is not None else []
-        for course_ext in course_exts:
-            if course_ext == code_to_ext.get((r["code"] or "").strip()):
-                report["offerings_class_attached"] += 1
-            else:
-                report["offerings_course_attached"] += 1
-            offering_id = f"{class_id}-{course_ext}"
-            if offering_id in seen_offering:
-                continue
-            seen_offering.add(offering_id)
-            offerings_out.append(
-                {
-                    "id": offering_id,
-                    "course_id": course_ext,
-                    "term": term,
-                    "campus": campus_names.get(r["campus"], "") or "",
-                    "faculty": faculty_names.get(r["faculty"], "") or "",
-                    "instructor_ids": instructor_ids,
-                    # 班号信息：教学班 code（如 32000101）与班名（如 01班）。
-                    # hub importer 落库 class_code/class_name，详情页按班展示。
-                    "class_code": (r["code"] or "").strip(),
-                    "class_name": (r["name"] or "").strip(),
-                }
-            )
-            offering_by_course_term.setdefault(course_ext, {}).setdefault(
-                term, []
-            ).append(offering_id)
+        # s2: (courseCode, teacher) 精确
+        if attached is None:
+            for tc in instructor_ids:
+                if course_code and (course_code, tc) in course_by_code_teacher:
+                    attached = course_by_code_teacher[(course_code, tc)]
+                    stage = "course_teacher"
+                    break
+        # s3: code 任意行
+        if attached is None and class_code in course_by_code:
+            attached = course_by_code[class_code][0]
+            stage = "class_any"
+        # s4: courseCode 任意行
+        if attached is None and course_code in course_by_code:
+            attached = course_by_code[course_code][0]
+            stage = "course_any"
+        # 兜底: newCourseCode / newCode
+        if attached is None:
+            for f in ("newCourseCode", "newCode"):
+                c = (r[f] or "").strip()
+                if c in course_by_code:
+                    attached = course_by_code[c][0]
+                    stage = "course_any"
+                    break
+        if attached is None:
+            report["offerings_unattached"] += 1
+            continue
+        if stage in ("class_teacher", "class_any"):
+            report["offerings_class_attached"] += 1
+        else:
+            report["offerings_course_attached"] += 1
+        offering_id = f"{class_id}-{attached}"
+        if offering_id in seen_offering:
+            continue
+        seen_offering.add(offering_id)
+        offerings_out.append(
+            {
+                "id": offering_id,
+                "course_id": attached,
+                "term": term,
+                "campus": campus_names.get(r["campus"], "") or "",
+                "faculty": faculty_names.get(r["faculty"], "") or "",
+                "instructor_ids": instructor_ids,
+                # 班号信息：教学班 code（如 32000101）与班名（如 01班）。
+                # hub importer 落库 class_code/class_name，详情页按班展示。
+                "class_code": class_code,
+                "class_name": (r["name"] or "").strip(),
+            }
+        )
+        offering_by_course_term.setdefault(attached, {}).setdefault(term, []).append(
+            offering_id
+        )
     # 每 (course, term) 保留教学班 id 最小的 offering（评价只挂一个，聚合不分散）
     offering_min_by_course_term = {
         course_ext: {
@@ -337,6 +478,7 @@ def main() -> int:
     # ---- "其他（历史导入）"学期 offering：有评价但学期匹配不上的课程 ----
     # 生成条件：课程有评价，且存在 (a) 无法规范化的学期文本，或 (b) 规范化后
     # 不在该课程真实 offering 学期集合里，或 (c) 该课程没有任何真实 offering。
+    # 行级身份下 other-{course_ext} 即该行专属虚拟班，offering 教师 = 该行教师。
     real_terms_by_course = {
         course_ext: set(terms.keys())
         for course_ext, terms in offering_by_course_term.items()
@@ -351,6 +493,7 @@ def main() -> int:
         if course_has_unmapped_sem.get(course_ext) or not needed.issubset(real):
             offering_id = f"other-{course_ext}"
             other_offering_ids[course_ext] = offering_id
+            tcode = course_tcode_by_ext.get(course_ext)
             offerings_out.append(
                 {
                     "id": offering_id,
@@ -358,7 +501,7 @@ def main() -> int:
                     "term": "其他",
                     "campus": "",
                     "faculty": "",
-                    "instructor_ids": [],
+                    "instructor_ids": [tcode] if tcode else [],
                 }
             )
     report["offerings_other"] = len(other_offering_ids)
@@ -367,6 +510,7 @@ def main() -> int:
     )
 
     # ---- reviews：全量导出；精确学期匹配挂真实 offering，其余挂该课程 other ----
+    # course_id 行级归因：course_id_to_ext 已含被合并行的重定向。
     reviews_out = []
     unmapped_by_sem = {}
     for r in cur.execute(

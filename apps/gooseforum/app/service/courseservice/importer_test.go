@@ -156,6 +156,34 @@ func TestValidateRowsQuarantinesDuplicateCodes(t *testing.T) {
 	}
 }
 
+// TestValidateRowsQuarantinesUnresolvableTeacherCode 回归 review：course.teacher_code
+// 在 instructors.jsonl 中不可解析（缺失或已被自然键冲突隔离）时，课程行必须在校验期
+// 隔离（dry-run 与真实导入一致），引用它的 offering 也一并隔离。
+func TestValidateRowsQuarantinesUnresolvableTeacherCode(t *testing.T) {
+	rows := importRows{
+		courses: []importCourseRow{
+			{ID: "c1", Code: "100001", Name: "高等数学", TeacherCode: "T001"},
+		},
+		instructors: []importInstructorRow{
+			{ID: "i1", Name: "张三", Department: "数学科学学院"},
+		},
+		offerings: []importOfferingRow{
+			{ID: "o1", CourseID: "c1", Term: "2025-2026-1"},
+		},
+	}
+	report := &CatalogImportReport{Errors: []ImportError{}}
+	quarantined := validateRows(rows, report)
+	if report.Quarantined != 2 {
+		t.Fatalf("expected 2 quarantined (course + offering), got %d: %v", report.Quarantined, report.Errors)
+	}
+	if !quarantined[course.EntityTypeCourse+"|c1"] {
+		t.Fatal("expected course row to be quarantined for unresolvable teacher_code")
+	}
+	if !quarantined[course.EntityTypeOffering+"|o1"] {
+		t.Fatal("expected offering row to be quarantined with its course")
+	}
+}
+
 func TestImportCatalogDryRunOnlyValidates(t *testing.T) {
 	manifestPath := writeManifestFixture(t, map[string]string{
 		"courses.jsonl":     `{"id":"c1","code":"100001","name":"高等数学(A)上","department":"数学科学学院","credit":5,"aliases":["高数"]}` + "\n",
