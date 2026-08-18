@@ -389,6 +389,8 @@ export default {
     grade: '年级',
     major: '专业',
     selectPlaceholder: '请选择',
+    selectSearchPlaceholder: '搜索选项…',
+    selectSearchEmpty: '没有匹配的选项',
     majorHint: '如需跨学科选课，在「选择课程」-「高级检索」中直接检索即可。',
     openPicker: '选择课程',
     pickerDescription: '从计划内课程、通识选修课或高级检索结果中勾选课程加入课表。',

@@ -96,6 +96,30 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(getPkMajors).toHaveBeenCalledWith(2025, 121)
   })
 
+  test('专业选择框启用本地关键词搜索', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
+    getPkGrades.mockResolvedValue([2025])
+    getPkMajors.mockResolvedValue([
+      { code: '00301', name: '2025(00301 数学类)' },
+      { code: '00401', name: '2025(00401 物理学类)' },
+    ])
+
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    await openCombobox(wrapper, 2)
+    const input = document.querySelector<HTMLInputElement>('[data-testid="site-select-search-input"]')
+    expect(input).not.toBeNull()
+    input!.value = '物理'
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+
+    expect([...document.querySelectorAll('[role="option"]')].map((option) => option.textContent)).toEqual([
+      expect.stringContaining('物理学类'),
+    ])
+  })
+
   test('localStorage 有完整选择时恢复年级+专业', async () => {
     setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
     getPkGrades.mockResolvedValue([2025, 2024])

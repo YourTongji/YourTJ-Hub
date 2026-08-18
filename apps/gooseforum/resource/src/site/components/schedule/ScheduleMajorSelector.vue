@@ -154,7 +154,15 @@ onMounted(() => {
       </label>
       <label class="block min-w-0 flex-1">
         <span class="mb-1.5 block text-[13px] font-medium text-base-content/70">{{ t('schedule.major') }}</span>
-        <SiteSelect v-model="majorValue" :options="majorOptions" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.major')" />
+        <SiteSelect
+          v-model="majorValue"
+          :options="majorOptions"
+          :placeholder="t('schedule.selectPlaceholder')"
+          :label="t('schedule.major')"
+          searchable
+          :search-placeholder="t('schedule.selectSearchPlaceholder')"
+          :empty-text="t('schedule.selectSearchEmpty')"
+        />
       </label>
     </div>
     <p v-if="error" class="mt-2 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
