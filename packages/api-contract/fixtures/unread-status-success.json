@@ -1,0 +1,9 @@
+{
+  "result": {
+    "notifications": true,
+    "messages": false,
+    "moderationReports": false,
+    "latestNotificationType": "post_reply"
+  },
+  "code": 0
+}

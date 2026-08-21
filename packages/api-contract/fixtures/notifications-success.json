@@ -1,0 +1,39 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 2048,
+        "eventType": "post_reply",
+        "isRead": false,
+        "createdAt": "2026-08-15T10:20:30Z",
+        "title": "你的回复收到了新回复",
+        "content": "tongji_user 回复了你的评论",
+        "actor": {
+          "id": 1024,
+          "username": "tongji_user",
+          "avatarUrl": ""
+        },
+        "topic": {
+          "id": 512,
+          "title": "期中复习资料汇总",
+          "url": "/p/post/512#post-4096"
+        },
+        "payload": {
+          "title": "你的回复收到了新回复",
+          "content": "tongji_user 回复了你的评论",
+          "templateParams": {},
+          "actorId": 1024,
+          "actorName": "tongji_user",
+          "topicId": 512,
+          "topicTitle": "期中复习资料汇总",
+          "postId": 4096,
+          "metadata": { "followerName": "" }
+        }
+      }
+    ],
+    "nextCursor": 0,
+    "hasNext": false,
+    "unreadCount": 1
+  },
+  "code": 0
+}

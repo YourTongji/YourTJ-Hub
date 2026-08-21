@@ -320,9 +320,17 @@ function normalizeMail(settings: Partial<MailSettings> = {}) {
     useSSL: toBool(settings.useSSL, false),
     smtpUsername: settings.smtpUsername ?? '',
     smtpPassword: settings.smtpPassword ?? '',
+    smtpPasswordConfigured: toBool(settings.smtpPasswordConfigured, false),
     fromName: settings.fromName ?? '',
     fromEmail: settings.fromEmail ?? '',
   } satisfies MailSettings
+}
+
+// mailPayload 保存/测试请求负载：去掉只读回显字段（smtpPasswordConfigured），
+// 与 OpenAPI 请求 schema（additionalProperties: false）一致（issue #324 S2）。
+function mailPayload() {
+  const { smtpPasswordConfigured: _configured, ...payload } = normalizeMail(mailForm)
+  return payload
 }
 
 function normalizeSecurity(settings: Partial<SecuritySettings> = {}) {
@@ -412,6 +420,16 @@ function normalizeHttpNotify(settings: Partial<HttpNotifySettings> = {}) {
   } satisfies HttpNotifySettings
 }
 
+// httpNotifyPayload 保存请求负载：去掉端点只读回显字段（secretConfigured），
+// 与 OpenAPI 请求 schema 一致（issue #324 S1）。
+function httpNotifyPayload() {
+  const settings = normalizeHttpNotify(httpNotifyForm)
+  return {
+    enabled: settings.enabled,
+    endpoints: settings.endpoints.map(({ secretConfigured: _configured, ...endpoint }) => endpoint),
+  } satisfies HttpNotifySettings
+}
+
 function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
   const events = Array.isArray(endpoint.events)
     ? endpoint.events.map(item => String(item).trim()).filter(Boolean)
@@ -423,6 +441,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     enabled,
     url: endpoint.url?.trim() ?? '',
     secret: endpoint.secret ?? '',
+    secretConfigured: toBool(endpoint.secretConfigured, false),
     events,
     timeoutSeconds: Math.min(Math.max(Number(endpoint.timeoutSeconds ?? 2), 1), 15),
     failureCount: enabled ? 0 : Number(endpoint.failureCount ?? 0),
@@ -559,8 +578,17 @@ function normalizeStorage(settings: Partial<StorageSettings> = {}) {
     secure: toBool(settings.secure, true),
     accessKey: settings.accessKey ?? '',
     secretKey: settings.secretKey ?? '',
+    accessKeyConfigured: toBool(settings.accessKeyConfigured, false),
+    secretKeyConfigured: toBool(settings.secretKeyConfigured, false),
     publicUrlPrefix: settings.publicUrlPrefix ?? '',
   } satisfies StorageSettings
+}
+
+// storagePayload 保存/测试请求负载：去掉只读回显字段（accessKeyConfigured/
+// secretKeyConfigured），与 OpenAPI 请求 schema 一致（issue #324 S3）。
+function storagePayload() {
+  const { accessKeyConfigured: _ak, secretKeyConfigured: _sk, ...payload } = normalizeStorage(storageForm)
+  return payload
 }
 
 function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
@@ -615,20 +643,20 @@ async function load() {
 }
 
 async function save() {
-  const httpNotifySettings = props.kind === 'http-notify' ? normalizeHttpNotify(httpNotifyForm) : null
+  const httpNotifySettings = props.kind === 'http-notify' ? httpNotifyPayload() : null
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
 
   saving.value = true
   try {
     if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
-    else if (props.kind === 'mail') await saveMailSettings(normalizeMail(mailForm))
+    else if (props.kind === 'mail') await saveMailSettings(mailPayload())
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
     else if (props.kind === 'ai-summary') await saveAiSummarySettings(normalizeAiSummary(aiSummaryForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
-    else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
+    else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
     else await saveAnnouncement(serializeAnnouncement())
     adminToast.success(adminText('k000e'))
@@ -646,7 +674,7 @@ async function sendTestMail() {
   }
   testing.value = true
   try {
-    const response = await testMailConnection(normalizeMail(mailForm), testEmail.value.trim())
+    const response = await testMailConnection(mailPayload(), testEmail.value.trim())
     adminToast.success(resolveApiMessage(response.result || response, adminText('k000h')))
   } catch (err) {
     adminToast.error(err, adminText('k000i'))
@@ -658,7 +686,7 @@ async function sendTestMail() {
 async function testStorage() {
   testing.value = true
   try {
-    const response = await testStorageConnection(normalizeStorage(storageForm))
+    const response = await testStorageConnection(storagePayload())
     if (response.success) {
       adminToast.success(resolveApiMessage(response, adminText('k00g7')))
     } else {
@@ -980,7 +1008,15 @@ onUnmounted(stopSyncPolling)
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008m') }}<Input v-model="mailForm.smtpHost" :disabled="!mailForm.enableMail" placeholder="smtp.example.com" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008n') }}<Input v-model.number="mailForm.smtpPort" :disabled="!mailForm.enableMail" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008o') }}<Input v-model="mailForm.smtpUsername" :disabled="!mailForm.enableMail" /></label>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008p') }}<Input v-model="mailForm.smtpPassword" :disabled="!mailForm.enableMail" type="password" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008p') }}
+              <div class="flex items-center gap-2">
+                <Input v-model="mailForm.smtpPassword" :disabled="!mailForm.enableMail" type="password" autocomplete="new-password" />
+                <Badge :variant="mailForm.smtpPasswordConfigured ? 'default' : 'outline'" class="shrink-0">
+                  {{ mailForm.smtpPasswordConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                </Badge>
+              </div>
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+            </label>
           </div>
           <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
             <div><div class="flex items-center gap-2 font-medium"><Shield class="size-4" />{{ adminText('k008q') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k008r') }}</p></div>
@@ -1285,7 +1321,13 @@ onUnmounted(stopSyncPolling)
 
                   <label class="grid gap-2 text-sm font-medium">
                     Secret
-                    <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                    <div class="flex items-center gap-2">
+                      <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                      <Badge :variant="endpoint.secretConfigured ? 'default' : 'outline'" class="shrink-0">
+                        {{ endpoint.secretConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                      </Badge>
+                    </div>
+                    <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
                   </label>
 
                   <div class="space-y-2">
@@ -1336,8 +1378,24 @@ onUnmounted(stopSyncPolling)
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g5') }}<Input v-model="storageForm.publicUrlPrefix" :disabled="storageForm.provider !== 's3'" placeholder="https://cdn.example.com" /></label>
         </div>
         <div class="grid gap-6 md:grid-cols-2">
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}<Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" /></label>
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}<Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}
+            <div class="flex items-center gap-2">
+              <Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" />
+              <Badge :variant="storageForm.accessKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+                {{ storageForm.accessKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+              </Badge>
+            </div>
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}
+            <div class="flex items-center gap-2">
+              <Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" />
+              <Badge :variant="storageForm.secretKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+                {{ storageForm.secretKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+              </Badge>
+            </div>
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+          </label>
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
           <div><div class="flex items-center gap-2 font-medium"><HardDrive class="size-4" />{{ adminText('k00g2') }}</div></div>

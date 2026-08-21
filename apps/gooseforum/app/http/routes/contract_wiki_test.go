@@ -373,7 +373,7 @@ func TestWikiSearchHTTPContractBadQuery(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("wiki search bad limit status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-search-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 func TestWikiHomeHTTPContract(t *testing.T) {

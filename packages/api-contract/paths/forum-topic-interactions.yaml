@@ -1,0 +1,348 @@
+updateTopicStatus:
+  post:
+    tags: [Forum]
+    summary: Unlist or republish an own topic
+    operationId: updateTopicStatus
+    description: |
+      Idempotent status toggle owned by the topic author: setting the current status
+      again is a no-op success. Wiki subsite topics are managed by the wiki revision
+      flow and are rejected with `topic.operationDenied`; republishing a topic under
+      moderation is rejected the same way. JSON binding is lenient: a malformed body
+      binds to zero values and fails validation as `common.request.invalidParams`
+      (HTTP 200) because topicId is required. Business failures: `topic.notFound`,
+      `topic.operationDenied`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/UpdateTopicStatusRequest
+    responses:
+      '200':
+        description: Status applied (or already in the target state), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Topic-status rate limit (action `topic.status`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/topic-status-rate-limited.json
+
+deleteTopic:
+  post:
+    tags: [Forum]
+    summary: Soft-delete an own topic
+    operationId: deleteTopic
+    description: |
+      Soft-deletes a topic owned by the caller with tombstone semantics: a topic
+      without replies disappears with its posts; a topic with replies keeps other
+      users' replies visible behind an author-deleted placeholder. Note the route
+      shares the generic interaction rate limit (action `interact`), not a dedicated
+      delete limit. Burst deletion beyond the server threshold requires
+      force+password confirmation (`content.batchDelete.confirmRequired`, params
+      count; a wrong password fails with `auth.credentials.invalid`). JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because topicId is required. Business
+      failures: `topic.notFound`, `topic.ownerMismatch`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DeleteTopicRequest
+    responses:
+      '200':
+        description: Topic deleted, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+likeTopic:
+  post:
+    tags: [Forum]
+    summary: Like or unlike a topic
+    operationId: likeTopic
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. A cancel (action=2) by a caller holding an existing like stays
+      allowed even when the topic has since been hidden, so counters never get stuck.
+      JSON binding is lenient: a malformed body binds to zero values and the request
+      then fails as `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+      `topic.notFound`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TopicInteractionRequest
+    responses:
+      '200':
+        description: Interaction applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+bookmarkTopic:
+  post:
+    tags: [Forum]
+    summary: Bookmark or unbookmark a topic
+    operationId: bookmarkTopic
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. A cancel (action=2) by a caller holding an existing bookmark
+      stays allowed even when the topic has since been hidden. JSON binding is lenient:
+      a malformed body binds to zero values and the request then fails as
+      `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+      `topic.notFound`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TopicInteractionRequest
+    responses:
+      '200':
+        description: Interaction applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+watchTopic:
+  post:
+    tags: [Forum]
+    summary: Watch or unwatch a topic
+    operationId: watchTopic
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. A cancel (action=2) by a caller holding an existing watch stays
+      allowed even when the topic has since been hidden. JSON binding is lenient: a
+      malformed body binds to zero values and the request then fails as
+      `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+      `topic.notFound`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TopicInteractionRequest
+    responses:
+      '200':
+        description: Interaction applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json

@@ -1,0 +1,1216 @@
+adminGetServerVersion:
+  get:
+    tags: [Admin]
+    summary: Read the build metadata of the running binary
+    operationId: adminGetServerVersion
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Read-only: returns the release metadata compiled
+      into the binary (build-time ldflags with a Go build-info fallback).
+      JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Build metadata (version/commit/buildDate/mode).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminServerVersionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-server-version-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetSiteSettings:
+  get:
+    tags: [Admin]
+    summary: Read the site settings
+    operationId: adminGetSiteSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored site settings, or the built-in
+      default configuration when nothing has been saved yet (the default is
+      not persisted by reads). JSON binding is lenient: query string and
+      body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Site settings (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSiteSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-site-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveSiteSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the site settings
+    operationId: adminSaveSiteSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole site-settings configuration with the submitted
+      value and clears the site-settings and llms.txt caches. There is no
+      request validation: JSON binding is lenient, so a malformed or empty
+      body binds to zero values and is saved as-is.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveSiteSettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetSiteChrome:
+  get:
+    tags: [Admin]
+    summary: Read the site chrome (header/menu/sidebar/footer/brand) configuration
+    operationId: adminGetSiteChrome
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored chrome configuration, or the
+      built-in default configuration when nothing has been saved yet.
+      JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Chrome configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSiteChromeResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-site-chrome-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveSiteChrome:
+  post:
+    tags: [Admin]
+    summary: Replace the site chrome configuration
+    operationId: adminSaveSiteChrome
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole chrome configuration with the submitted value and
+      clears the chrome cache. There is no request validation: JSON binding
+      is lenient, so a malformed or empty body binds to zero values and is
+      saved as-is.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveSiteChromeRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetSiteTheme:
+  get:
+    tags: [Admin]
+    summary: Read the site theme configuration
+    operationId: adminGetSiteTheme
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored theme configuration, or the
+      built-in default configuration when nothing has been saved yet. The
+      response is normalized on every read: blank/unsafe token values fall
+      back to the built-in defaults, unknown theme names are replaced by
+      the fallback theme name, a non-positive `version` is replaced by the
+      default version, and an empty `themes` list is replaced by the
+      default themes. JSON binding is lenient: query string and body are
+      ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Normalized theme configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSiteThemeResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-site-theme-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveSiteTheme:
+  post:
+    tags: [Admin]
+    summary: Stage site theme changes as an unpublished draft
+    operationId: adminSaveSiteTheme
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Does
+      NOT touch the published themes: the submitted `enabled`/`themes`
+      become the `prepublish` draft on top of the currently stored
+      configuration, with a server-stamped RFC 3339 `updatedAt`. The whole
+      configuration is normalized (same rules as adminGetSiteTheme) before
+      persistence; a draft with an empty theme list is dropped by
+      normalization. The Go struct tags `settings` with
+      `validate:"required"`, but struct-level required never fails, so a
+      missing or malformed body stages an empty draft that normalization
+      then drops. The response is the full normalized configuration after
+      staging (including the new draft). Use adminPublishSiteTheme to
+      promote the draft.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveSiteThemeRequest
+    responses:
+      '200':
+        description: Full normalized theme configuration after staging the draft.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSiteThemeResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-save-site-theme-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminPublishSiteTheme:
+  post:
+    tags: [Admin]
+    summary: Publish the staged site theme draft
+    operationId: adminPublishSiteTheme
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Promotes the staged `prepublish` draft written by adminSaveSiteTheme:
+      `enabled`/`themes` are copied to the published configuration,
+      `publishedAt` is stamped with the current RFC 3339 time, the draft is
+      cleared, and the normalized result is persisted. When no draft exists
+      the operation is a no-op: nothing is saved and the response is simply
+      the current normalized configuration. JSON binding is lenient: query
+      string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Full normalized theme configuration after publishing (or the current configuration when no draft exists).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSiteThemeResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-publish-site-theme-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetSecuritySettings:
+  get:
+    tags: [Admin]
+    summary: Read the security & registration settings
+    operationId: adminGetSecuritySettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored security settings, or the
+      built-in default configuration when nothing has been saved yet.
+      JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Security settings (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSecuritySettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-security-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveSecuritySettings:
+  post:
+    tags: [Admin]
+    summary: Replace the security & registration settings
+    operationId: adminSaveSecuritySettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole security configuration with the submitted value
+      and clears the security-settings cache. Side effect: usernames newly
+      added to `bannedUsernames` (compared case-insensitively against the
+      currently stored list, trimmed) trigger a freeze of matching existing
+      accounts; the freeze is idempotent, so re-saving the same list does
+      not reprocess accounts. The Go struct tags `settings` with
+      `validate:"required"`, but struct-level required never fails, so a
+      missing or malformed body saves a zero-value configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveSecuritySettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetPostingSettings:
+  get:
+    tags: [Admin]
+    summary: Read the posting/upload/llms.txt settings
+    operationId: adminGetPostingSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored posting settings, or the
+      built-in default configuration when nothing has been saved yet.
+      JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Posting settings (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPostingSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-posting-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSavePostingSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the posting/upload/llms.txt settings
+    operationId: adminSavePostingSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole posting configuration with the submitted value and
+      clears the posting-settings and llms.txt caches. The Go struct tags
+      `settings` with `validate:"required"`, but struct-level required
+      never fails, so a missing or malformed body saves a zero-value
+      configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSavePostingSettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetRateLimitSettings:
+  get:
+    tags: [Admin]
+    summary: Read the abuse-protection (rate limit) settings
+    operationId: adminGetRateLimitSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored rate-limit settings, or the
+      built-in default configuration when nothing has been saved yet.
+      JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Rate-limit settings (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminRateLimitSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-rate-limit-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveRateLimitSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the abuse-protection (rate limit) settings
+    operationId: adminSaveRateLimitSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole rate-limit configuration with the submitted value,
+      clears the rate-limit config cache, and resets all in-memory
+      rate-limit counters so new windows/quotas apply to existing keys
+      immediately. The Go struct tags `settings` with
+      `validate:"required"`, but struct-level required never fails, so a
+      missing or malformed body saves a zero-value configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveRateLimitSettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetHttpNotifySettings:
+  get:
+    tags: [Admin]
+    summary: Read the HTTP webhook notification settings
+    operationId: adminGetHttpNotifySettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored notify settings, or the
+      built-in default (disabled with an empty endpoint list) when nothing
+      has been saved yet. Exposure boundary (issue #324 S1): each endpoint's
+      `secret` (webhook signing secret) is never returned — only
+      `secretConfigured` (whether an encrypted secret is stored) is
+      reported. JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Notify settings without endpoint secrets (configured state only; stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminHttpNotifySettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-http-notify-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveHttpNotifySettings:
+  post:
+    tags: [Admin]
+    summary: Replace the HTTP webhook notification settings
+    operationId: adminSaveHttpNotifySettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole notify configuration with the submitted value and
+      clears the notify cache. There is no URL/secret validation: the Go
+      struct tags `settings` with `validate:"required"`, but struct-level
+      required never fails, so a missing or malformed body saves a
+      zero-value configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveHttpNotifySettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetOnesystemSettings:
+  get:
+    tags: [Admin]
+    summary: Read whether the 一系统 sync credential is configured
+    operationId: adminGetOnesystemSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Exposure boundary: the response is exactly
+      `{cookieConfigured: boolean}` — the stored ciphertext and the
+      plaintext cookie are never returned (the domain struct tags the
+      ciphertext `json:"-"`, and the handler builds the response map by
+      hand). JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Configuration state only (`cookieConfigured`), never the credential itself.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminOnesystemSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-onesystem-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveOnesystemSettings:
+  post:
+    tags: [Admin]
+    summary: Store or clear the 一系统 sync credential
+    operationId: adminSaveOnesystemSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. The
+      submitted plaintext cookie is trimmed, encrypted with a
+      purpose-scoped AES-256-GCM key derived from `app.signingKey`, and
+      only the ciphertext is persisted (the plaintext exists only for the
+      duration of the request). An empty/blank cookie clears the stored
+      credential. A cookie longer than 4096 characters fails request
+      validation with HTTP 200 and `common.request.invalidParams`. If
+      encryption itself fails (signingKey misconfigured) the response is a
+      generic HTTP 200 `code: 1` failure with no `messageCode` — the
+      internal error detail is not exposed.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveOnesystemSettingsRequest
+    responses:
+      '200':
+        description: "Credential stored/cleared (`result` is the string `success`), or a `code: 1` business failure (validation or encryption failure)."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              cookieTooLong:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetAiSummarySettings:
+  get:
+    tags: [Admin]
+    summary: Read the AI course-summary settings
+    operationId: adminGetAiSummarySettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored AI summary settings, or the
+      built-in default configuration when nothing has been saved yet.
+      Exposure boundary: only the switch and the global quota are stored
+      and returned; the LLM provider credentials (`provider`, `base_url`,
+      `api_key`, `model`) live in config.toml `[ai_summary]` and never
+      enter the DB or this API. JSON binding is lenient: query string and
+      body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: AI summary settings (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAiSummarySettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-ai-summary-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveAiSummarySettings:
+  post:
+    tags: [Admin]
+    summary: Replace the AI course-summary settings
+    operationId: adminSaveAiSummarySettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole AI summary configuration with the submitted value
+      and clears the settings cache. The Go struct tags `settings` with
+      `validate:"required"`, but struct-level required never fails, so a
+      missing or malformed body saves a zero-value configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveAiSummarySettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetTermsOfService:
+  get:
+    tags: [Admin]
+    summary: Read the terms-of-service configuration
+    operationId: adminGetTermsOfService
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored terms-of-service
+      configuration, or the built-in default configuration when nothing
+      has been saved yet. The pre-rendered HTML is server-side only and
+      never appears on the wire. JSON binding is lenient: query string and
+      body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Terms-of-service configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTermsOfServiceResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-terms-of-service-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveTermsOfService:
+  post:
+    tags: [Admin]
+    summary: Replace the terms-of-service configuration
+    operationId: adminSaveTermsOfService
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole terms-of-service configuration with the submitted
+      value and clears the cache; the server forces the server-side
+      pre-rendered HTML field empty on every save (it is re-rendered on
+      read). The Go struct tags `settings` with `validate:"required"`, but
+      struct-level required never fails, so a missing or malformed body
+      saves a zero-value configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveTermsOfServiceRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetPrivacyPolicy:
+  get:
+    tags: [Admin]
+    summary: Read the privacy-policy configuration
+    operationId: adminGetPrivacyPolicy
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored privacy-policy configuration,
+      or the built-in default configuration when nothing has been saved
+      yet. The pre-rendered HTML is server-side only and never appears on
+      the wire. JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Privacy-policy configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPrivacyPolicyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-privacy-policy-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSavePrivacyPolicy:
+  post:
+    tags: [Admin]
+    summary: Replace the privacy-policy configuration
+    operationId: adminSavePrivacyPolicy
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole privacy-policy configuration with the submitted
+      value and clears the cache; the server forces the server-side
+      pre-rendered HTML field empty on every save (it is re-rendered on
+      read). The Go struct tags `settings` with `validate:"required"`, but
+      struct-level required never fails, so a missing or malformed body
+      saves a zero-value configuration.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSavePrivacyPolicyRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

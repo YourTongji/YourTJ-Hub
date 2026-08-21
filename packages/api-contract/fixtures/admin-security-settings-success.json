@@ -1,0 +1,21 @@
+{
+  "result": {
+    "enableSignup": true,
+    "enableEmailVerification": false,
+    "allowedDomains": [
+      "tongji.edu.cn"
+    ],
+    "reservedUsernames": [
+      "admin"
+    ],
+    "bannedUsernames": [
+      "banned-contract"
+    ],
+    "sensitiveWords": [
+      "违禁词"
+    ],
+    "sensitiveAction": "review",
+    "captchaRequired": false
+  },
+  "code": 0
+}

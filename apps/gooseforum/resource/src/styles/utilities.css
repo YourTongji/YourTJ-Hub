@@ -7,4 +7,23 @@
   .gf-scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  .gf-scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gf-color-line) transparent;
+  }
+
+  .gf-scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .gf-scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--gf-color-line);
+    border-radius: 9999px;
+  }
+
+  .gf-scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }

@@ -136,10 +136,10 @@ getCourseRelated:
     operationId: getCourseRelated
     description: |
       Public read endpoint. Returns up to 5 other visible courses sharing any teacher with the
-      requested course (`teacherOtherCourses`) and up to 5 offerings of the same course taught by
-      a different teacher arrangement (`sameCourseOtherTeachers`), each with rating stats. Hub
-      keeps one canonical course per primary_code, so "other teachers for the same course" is
-      expressed at the offering level.
+      requested course (`teacherOtherCourses`) and up to 5 course cards with the same
+      primary_code but a different (code, teacher) identity (`sameCourseOtherTeachers`), each
+      with rating stats. With the composite identity model, same-code different-teacher rows are
+      independent course cards, so both blocks return the same card structure.
     parameters:
       - name: courseId
         in: path

@@ -10,12 +10,16 @@ import (
 var ErrCourseNotFound = errors.New("course not found")
 
 // CourseSummary 课程列表卡片（B1：携带评分聚合）。
+// (code, teacher) 复合身份模型下每张卡 = 一个课程行；TeacherId/TeacherName
+// 为卡片身份教师（teacher_id=0 无教师时省略，前端显示「无教师」）。
 type CourseSummary struct {
 	Id          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
 	Name        string   `json:"name"`
 	Department  string   `json:"department"`
 	CreditX10   int      `json:"creditX10"`
+	TeacherId   uint64   `json:"teacherId,omitempty"`
+	TeacherName string   `json:"teacherName,omitempty"`
 	Aliases     []string `json:"aliases,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RecentTerms []string `json:"recentTerms,omitempty"`
@@ -46,6 +50,8 @@ type CourseDetail struct {
 	Name        string            `json:"name"`
 	Department  string            `json:"department"`
 	CreditX10   int               `json:"creditX10"`
+	TeacherId   uint64            `json:"teacherId,omitempty"`
+	TeacherName string            `json:"teacherName,omitempty"`
 	Aliases     []string          `json:"aliases,omitempty"`
 	Offerings   []OfferingSummary `json:"offerings,omitempty"`
 	RatingAvg   *float64          `json:"ratingAvg,omitempty"`
@@ -174,8 +180,16 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 		Name:        entity.Name,
 		Department:  entity.Department,
 		CreditX10:   entity.CreditX10,
+		TeacherId:   entity.TeacherId,
 		Aliases:     []string{},
 		Offerings:   []OfferingSummary{},
+	}
+	if entity.TeacherId != 0 {
+		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
+			return CourseDetail{}, err
+		} else if len(teachers) > 0 {
+			detail.TeacherName = teachers[0].Name
+		}
 	}
 	aliases, err := course.ListAliasesByCourse(entity.Id)
 	if err != nil {
@@ -261,8 +275,23 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 
 func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	courseIds := make([]uint64, 0, len(entities))
+	teacherIds := make([]uint64, 0, len(entities))
 	for _, e := range entities {
 		courseIds = append(courseIds, e.Id)
+		if e.TeacherId != 0 {
+			teacherIds = append(teacherIds, e.TeacherId)
+		}
+	}
+	// 课程卡身份教师：按 teacher_id 批量解析姓名（无教师卡保持空）。
+	teacherNameByID := make(map[uint64]string)
+	if len(teacherIds) > 0 {
+		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range teachers {
+			teacherNameByID[t.Id] = t.Name
+		}
 	}
 	aliases, err := course.ListAliasesByCourses(courseIds)
 	if err != nil {
@@ -326,6 +355,8 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 			Name:        e.Name,
 			Department:  e.Department,
 			CreditX10:   e.CreditX10,
+			TeacherId:   e.TeacherId,
+			TeacherName: teacherNameByID[e.TeacherId],
 			Aliases:     aliasesByCourse[e.Id],
 		}
 		if stats, ok := courseStats[e.Id]; ok {

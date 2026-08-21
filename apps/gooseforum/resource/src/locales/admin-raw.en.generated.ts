@@ -810,6 +810,7 @@ export default {
   "k00t7": "Schedule data is fetched page by page from Tongji OneSystem manualArrange. A valid session cookie is required. The cookie is stored encrypted and never shown as plaintext.",
   "k00t8": "Configured",
   "k00t9": "Not configured",
+  "k00u0": "Save with an empty value to keep the configured secret; it is never shown as plaintext.",
   "k00ta": "Cookie header",
   "k00tb": "e.g. JWTUser=xxx; JSESSIONID=xxx",
   "k00tc": "Save with an empty value to clear stored credentials. The ONESYSTEM_COOKIE env var is also supported.",

@@ -27,6 +27,7 @@ const optTypeCodeMap: Record<number, string> = {
   0: 'editUser',
   1: 'editTopic',
   2: 'editCategory',
+  10: 'exportData',
 }
 
 const targetTypeCodeMap: Record<number, string> = {
@@ -48,6 +49,8 @@ const optInfoMessageKeyMap: Record<string, string> = {
   'moderator.opt.topic.statusChanged': 'adminOptLog.messages.moderatorTopicStatusChanged',
   'admin.opt.category.moderatorAdded': 'adminOptLog.messages.categoryModeratorAdded',
   'admin.opt.category.moderatorRemoved': 'adminOptLog.messages.categoryModeratorRemoved',
+  'admin.opt.data.exported': 'adminOptLog.messages.dataExported',
+  'admin.opt.data.exported.download': 'adminOptLog.messages.dataExportDownloaded',
 }
 
 function pageResultSize(result: { pageSize?: number, size?: number }) {

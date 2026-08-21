@@ -1,0 +1,1058 @@
+[
+  {
+    "method": "CONNECT",
+    "path": "/mcp"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/forum/course-reviews/:reviewId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "DELETE",
+    "path": "/mcp"
+  },
+  {
+    "method": "GET",
+    "path": "/"
+  },
+  {
+    "method": "GET",
+    "path": "/activate"
+  },
+  {
+    "method": "GET",
+    "path": "/admin"
+  },
+  {
+    "method": "GET",
+    "path": "/admin/*path"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/ai-summary-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/announcement"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/badges"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/data/export/download/:taskId"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/data/export/tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/friend-links"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/get-all-role-item"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/http-notify-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/mail-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/mcp-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/onesystem-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/pk/sync-status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/posting-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/privacy-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/rate-limit-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/security-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/server-version"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/site-chrome"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/site-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/site-theme"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/sponsors"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/storage-migrate-tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/storage-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/terms-of-service"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/wiki/sync/cdn"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/wiki/sync/runs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/wiki/sync/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/wiki/sync/webhook-secret"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/wiki/tree"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/:provider"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/:provider/callback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/courses"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/courses/:courseId"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/courses/:courseId/related"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/courses/:courseId/reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/courses/:courseId/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/get-site-statistics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/notifications"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/posts/revisions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/posts/window"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/unread-status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/user/deleted-content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/user/my-content"
+  },
+  {
+    "method": "GET",
+    "path": "/api/get-captcha"
+  },
+  {
+    "method": "GET",
+    "path": "/api/login-public-key"
+  },
+  {
+    "method": "GET",
+    "path": "/api/oauth/bindings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pk/calendars"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pk/campuses"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pk/course-review-brief"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pk/faculties"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pk/latest-update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user-card"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/sessions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user/totp/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/me"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/topics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/topics/:topicId/posts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/wiki/home"
+  },
+  {
+    "method": "GET",
+    "path": "/api/wiki/namespaces"
+  },
+  {
+    "method": "GET",
+    "path": "/api/wiki/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/wiki/tree"
+  },
+  {
+    "method": "GET",
+    "path": "/assets/*filepath"
+  },
+  {
+    "method": "GET",
+    "path": "/c/:slug/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/c/:slug/:id/l/:sort"
+  },
+  {
+    "method": "GET",
+    "path": "/courses"
+  },
+  {
+    "method": "GET",
+    "path": "/courses/:courseId"
+  },
+  {
+    "method": "GET",
+    "path": "/drafts"
+  },
+  {
+    "method": "GET",
+    "path": "/file/img/*filename"
+  },
+  {
+    "method": "GET",
+    "path": "/health"
+  },
+  {
+    "method": "GET",
+    "path": "/links"
+  },
+  {
+    "method": "GET",
+    "path": "/llms-full.txt"
+  },
+  {
+    "method": "GET",
+    "path": "/llms.txt"
+  },
+  {
+    "method": "GET",
+    "path": "/login"
+  },
+  {
+    "method": "GET",
+    "path": "/mcp"
+  },
+  {
+    "method": "GET",
+    "path": "/messages"
+  },
+  {
+    "method": "GET",
+    "path": "/moderation"
+  },
+  {
+    "method": "GET",
+    "path": "/moderation/course-reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/moderation/courses"
+  },
+  {
+    "method": "GET",
+    "path": "/notifications"
+  },
+  {
+    "method": "GET",
+    "path": "/p/post/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/p/post/:id/:postNo"
+  },
+  {
+    "method": "GET",
+    "path": "/p/posts/:document"
+  },
+  {
+    "method": "GET",
+    "path": "/privacy"
+  },
+  {
+    "method": "GET",
+    "path": "/publish"
+  },
+  {
+    "method": "GET",
+    "path": "/reload"
+  },
+  {
+    "method": "GET",
+    "path": "/reset-password"
+  },
+  {
+    "method": "GET",
+    "path": "/robots.txt"
+  },
+  {
+    "method": "GET",
+    "path": "/rss.xml"
+  },
+  {
+    "method": "GET",
+    "path": "/schedule"
+  },
+  {
+    "method": "GET",
+    "path": "/search"
+  },
+  {
+    "method": "GET",
+    "path": "/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/site-theme.css"
+  },
+  {
+    "method": "GET",
+    "path": "/sitemap.xml"
+  },
+  {
+    "method": "GET",
+    "path": "/sponsors"
+  },
+  {
+    "method": "GET",
+    "path": "/static/*filepath"
+  },
+  {
+    "method": "GET",
+    "path": "/terms"
+  },
+  {
+    "method": "GET",
+    "path": "/theme-preview"
+  },
+  {
+    "method": "GET",
+    "path": "/u/:userId"
+  },
+  {
+    "method": "GET",
+    "path": "/u/:userId/:section"
+  },
+  {
+    "method": "GET",
+    "path": "/u/:userId/:section/:subsection"
+  },
+  {
+    "method": "GET",
+    "path": "/wiki"
+  },
+  {
+    "method": "GET",
+    "path": "/wiki/*path"
+  },
+  {
+    "method": "HEAD",
+    "path": "/assets/*filepath"
+  },
+  {
+    "method": "HEAD",
+    "path": "/mcp"
+  },
+  {
+    "method": "HEAD",
+    "path": "/static/*filepath"
+  },
+  {
+    "method": "OPTIONS",
+    "path": "/mcp"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/forum/course-reviews/:reviewId"
+  },
+  {
+    "method": "PATCH",
+    "path": "/mcp"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-create"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-disable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-rotate-token"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/badge-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/badge-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/category-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/category-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/category-moderator-add"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/category-moderator-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/category-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/data/export"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/data/import"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/file-resources"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/get-permission-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/global-moderator-add"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/global-moderator-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/global-moderator-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/img-upload"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/opt-record-page"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/pk/sync-calendar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/posts/delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/publish-site-theme"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/review-action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/review-queue"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/role-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/role-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/role-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-ai-summary-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-announcement"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-friend-links"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-http-notify-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-mail-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-mcp-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-onesystem-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-posting-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-privacy-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-rate-limit-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-security-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-site-chrome"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-site-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-site-theme"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-sponsors"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-storage-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-terms-of-service"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-user-badges"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/storage-migrate-task"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/test-mail-connection"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/test-storage-connection"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/categories-edit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/edit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/pin-edit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/restore"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/topics/source"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/traffic-overview"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/user-badge-options"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/user-edit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/user-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/wiki/sync"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/wiki/sync/cdn"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/wiki/sync/webhook-secret"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/:provider/unbind"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/oidc/exchange"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/totp/verify"
+  },
+  {
+    "method": "POST",
+    "path": "/api/change-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forgot-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/chat/mark-read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/chat/messages"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/chat/send"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/course-reviews"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/course-reviews/:reviewId/reports"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/follow-user"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-create"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-review-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-review-edit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-review-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-review-reports"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-review-reveal"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-review-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-stats-rebuild"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/logs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/post-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/report-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/reports"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/topic-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/view-deleted-content"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/notification/mark-all-read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/notification/mark-read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/posts/bookmark"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/posts/create"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/posts/delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/posts/like"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/posts/update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/report"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/bookmark"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/like"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/watch"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/topics/write"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/user/account-close"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/user/content-batch-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/user/content-event"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/user/content-privacy-erase"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/user/content-purge"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/user/content-restore"
+  },
+  {
+    "method": "POST",
+    "path": "/api/login"
+  },
+  {
+    "method": "POST",
+    "path": "/api/logout"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/course-details"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/course-info-sync"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/course-search"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/courses-by-major"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/courses-by-nature"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/courses-by-time"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/grades"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/majors"
+  },
+  {
+    "method": "POST",
+    "path": "/api/pk/optional-types"
+  },
+  {
+    "method": "POST",
+    "path": "/api/register"
+  },
+  {
+    "method": "POST",
+    "path": "/api/resend-activation-email"
+  },
+  {
+    "method": "POST",
+    "path": "/api/reset-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/set-preset-avatar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/set-user-email"
+  },
+  {
+    "method": "POST",
+    "path": "/api/set-user-info"
+  },
+  {
+    "method": "POST",
+    "path": "/api/set-user-name"
+  },
+  {
+    "method": "POST",
+    "path": "/api/set-user-profile-cover"
+  },
+  {
+    "method": "POST",
+    "path": "/api/upload-avatar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/sessions/revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/sessions/revoke-all"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/totp/disable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/totp/enable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user/totp/setup"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/agent/topics"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/agent/topics/:topicId/posts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/wear-badge"
+  },
+  {
+    "method": "POST",
+    "path": "/api/wiki/webhook"
+  },
+  {
+    "method": "POST",
+    "path": "/file/img-upload"
+  },
+  {
+    "method": "POST",
+    "path": "/mcp"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "PUT",
+    "path": "/mcp"
+  },
+  {
+    "method": "TRACE",
+    "path": "/mcp"
+  }
+]

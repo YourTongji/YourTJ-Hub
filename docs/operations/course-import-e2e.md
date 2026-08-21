@@ -10,9 +10,23 @@
 - `manifest-catalog.yaml`：`schema_version: 1` + `source` + `files{sha256}` + `counts`
 - `manifest-reviews.yaml`：同 catalog，另含 `rights_approval_ref`（评价导入必填）
 
+`courses.jsonl` 每行 = 一门课的 **一个 (code, teacher) 身份卡**（`teacher_code` 为该行教师，
+对应 `instructors.jsonl` 的 external id；无教师行为空），external id 即上游 `courses` 行 id；
+同 (code, teacher_code) 的多行合并为一行（保留 `is_icu=0` 优先、其次 id 小），
+同名同院系的历史教师行按工号（`teacherCode`）消歧，工号缺失的合成 `syn-{teacher_id}` 教师行。
 `offerings.jsonl` 每行含 `class_code` / `class_name` 班号信息（如 `32000101` / `01班`），
-供 Hub 课程详情页按班展示；每个教学班只挂载一门课（班号课优先，其次主码课），
+供 Hub 课程详情页按班展示；每个教学班只挂载一门课，互斥挂载链：
+(code, teacher) 精确 → (courseCode, teacher) 精确 → code 任意行 → courseCode 任意行，
 避免同一教学班同时挂主码课与班号课造成目录双写（旧版多挂载行为已废弃）。
+`reviews.jsonl` 按 `reviews.course_id` 行级归因到对应课程卡；有评价但无同教师教学班的
+课程行生成教师专属虚拟 offering（`other-{course_ext}`，沿用 `other-*` 机制）承载评价，
+保证评价精确落在对应教师卡、全库 `reviews_unmapped=0`。
+
+> **卡片计数说明（issue #326 实测）**：目录卡数 = (code, teacher_code) 组合数，而非
+> 上游 (code, teacher_id) 行数——上游存在同名同院系多工号的重复教师记录（如全九清
+> 存在 tid 为空的历史行与 `96750` 行），converter 按教师身份合并后
+> jcourse-snapshot.db 实测为 **9303 卡**（9518 行 − 1 组 122291 真重复 − 214 组合并），
+> 评价 9027 条零丢失、零 unmapped。
 
 Hub 导入器按命令消费同一包：`course-import`（catalog）只处理前三个 JSONL，`course-import reviews` 只处理 reviews.jsonl；manifest 中属于其他命令的文件与计数被跳过，由对应命令校验。
 

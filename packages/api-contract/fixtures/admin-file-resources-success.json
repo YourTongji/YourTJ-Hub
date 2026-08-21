@@ -1,0 +1,20 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 12,
+        "name": "2026/02/03/9f1c2d3e-0000-4000-8000-000000000000.png",
+        "type": "image/png",
+        "size": 68,
+        "userId": 800001,
+        "createdAt": "2026-02-03T04:05:06Z",
+        "url": "/file/img/2026/02/03/9f1c2d3e-0000-4000-8000-000000000000.png",
+        "uploaderUsername": "contract_user"
+      }
+    ],
+    "page": 1,
+    "size": 10,
+    "total": 12
+  },
+  "code": 0
+}

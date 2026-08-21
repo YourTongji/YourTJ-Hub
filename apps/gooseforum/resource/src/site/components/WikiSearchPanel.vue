@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, CornerDownLeft, Search, X } from '@lucide/vue'
-import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import {
   closePanel,
@@ -18,9 +18,8 @@ import {
 const { t } = useI18n()
 
 // ---- 面板开关（模块级共享）+ 可达性 ----
-const { panelRef } = useDialogAccessibility(panelOpen, {
-  onClose: () => closePanel(),
-})
+// 焦点移入/Tab 圈禁/Esc 关闭/焦点恢复/滚动锁定由 reka-ui Dialog 内置处理，
+// panelOpen 是模块级共享状态，直接作为 Dialog 受控 open。
 
 // ---- 搜索状态机：idle / loading / results / empty / unavailable ----
 const query = ref('')
@@ -97,7 +96,7 @@ function runSearch(raw: string) {
 
 watch(query, (value) => runSearch(value))
 
-// ---- 键盘导航：↑↓ 循环选择 / Enter 跳转 / Esc 由 useDialogAccessibility 处理 ----
+// ---- 键盘导航：↑↓ 循环选择 / Enter 跳转 / Esc 由 reka-ui Dialog 处理 ----
 function handleInputKeydown(event: KeyboardEvent) {
   if (event.key === 'ArrowDown') {
     event.preventDefault()
@@ -141,7 +140,7 @@ function encodeWikiPath(path: string): string {
 function handleGlobalKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   const typing = target?.matches('input, textarea, select, [contenteditable]')
-  if (event.key === 'Escape') return // 交给 useDialogAccessibility
+  if (event.key === 'Escape') return // 交给 reka-ui Dialog
   const meta = event.ctrlKey || event.metaKey
   if ((event.key.toLowerCase() === 'k' && meta) || event.key === '/') {
     if (typing) return // 输入中不劫持
@@ -158,7 +157,7 @@ function openWithFocus() {
   openPanel()
 }
 
-// 面板打开时把焦点交给输入框（useDialogAccessibility 已处理移入，这里补充清空选择态）。
+// 面板打开时把焦点交给输入框（reka-ui Dialog 已处理移入，这里补充清空选择态）。
 watch(panelOpen, (open) => {
   if (!open) {
     query.value = ''
@@ -202,124 +201,118 @@ const sanitizeMarkup = sanitizeHighlightMarkup
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="panelOpen"
-      ref="panelRef"
-      class="fixed inset-0 z-[80] flex items-center justify-center px-3"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="t('wikiSearch.panelLabel')"
-    >
-      <button
-        class="absolute inset-0 -z-10 bg-neutral/30 backdrop-blur-[2px]"
-        type="button"
-        tabindex="-1"
-        :aria-label="copy.close"
-        @click="closePanel"
-      />
-      <div class="gf-card w-full max-w-xl overflow-hidden shadow-lg max-h-[85vh] bg-base-100/85 backdrop-blur-xl">
-        <div class="flex h-12 items-center gap-2 border-b border-line px-4">
-          <Search class="h-5 w-5 shrink-0 text-icon-muted" aria-hidden="true" />
-          <input
-            ref="inputRef"
-            v-model="query"
-            type="search"
-            role="combobox"
-            :aria-expanded="status === 'results'"
-            :aria-controls="'wiki-search-listbox'"
-            :aria-activedescendant="activeId"
-            aria-autocomplete="list"
-            autocomplete="off"
-            spellcheck="false"
-            class="h-12 min-w-0 flex-1 bg-transparent text-base text-base-content outline-none placeholder:text-base-content/45"
-            :placeholder="copy.placeholder"
-            @keydown="handleInputKeydown"
-          />
-          <span v-if="hasQuery" class="hidden shrink-0 items-center gap-1 rounded bg-base-200 px-1.5 py-0.5 text-[11px] font-semibold text-base-content/55 sm:inline-flex">
-            <ArrowDown class="h-3 w-3" aria-hidden="true" />
-            <ArrowUp class="h-3 w-3" aria-hidden="true" />
-          </span>
-          <button
-            type="button"
-            class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-icon-muted transition-colors hover:bg-base-300 hover:text-base-content"
-            :aria-label="copy.close"
-            @click="closePanel"
-          >
-            <X class="h-5 w-5" />
-          </button>
-        </div>
-
-        <div class="max-h-[55vh] overflow-y-auto">
-          <div v-if="status === 'loading'" class="flex items-center gap-2 px-4 py-4 text-sm text-base-content/55">
-            <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-primary" />
-            {{ copy.loading }}
+  <DialogRoot v-model:open="panelOpen">
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-[80] bg-neutral/30 backdrop-blur-[2px]" />
+      <DialogContent
+        class="fixed inset-0 z-[80] flex items-center justify-center px-3 outline-none"
+        @pointerdown.self="closePanel"
+      >
+        <DialogTitle class="sr-only">{{ t('wikiSearch.panelLabel') }}</DialogTitle>
+        <DialogDescription class="sr-only">{{ t('wikiSearch.panelDescription') }}</DialogDescription>
+        <div class="gf-card max-h-[85vh] w-full max-w-xl overflow-hidden bg-base-100/85 shadow-lg backdrop-blur-xl">
+          <div class="flex h-12 items-center gap-2 border-b border-line px-4">
+            <Search class="h-5 w-5 shrink-0 text-icon-muted" aria-hidden="true" />
+            <input
+              ref="inputRef"
+              v-model="query"
+              type="search"
+              role="combobox"
+              :aria-expanded="status === 'results'"
+              :aria-controls="'wiki-search-listbox'"
+              :aria-activedescendant="activeId"
+              aria-autocomplete="list"
+              autocomplete="off"
+              spellcheck="false"
+              class="h-12 min-w-0 flex-1 bg-transparent text-base text-base-content outline-none placeholder:text-base-content/45"
+              :placeholder="copy.placeholder"
+              @keydown="handleInputKeydown"
+            />
+            <span v-if="hasQuery" class="hidden shrink-0 items-center gap-1 rounded bg-base-200 px-1.5 py-0.5 text-[11px] font-semibold text-base-content/55 sm:inline-flex">
+              <ArrowDown class="h-3 w-3" aria-hidden="true" />
+              <ArrowUp class="h-3 w-3" aria-hidden="true" />
+            </span>
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-icon-muted transition-colors hover:bg-base-300 hover:text-base-content"
+              :aria-label="copy.close"
+              @click="closePanel"
+            >
+              <X class="h-5 w-5" />
+            </button>
           </div>
 
-          <div v-else-if="status === 'unavailable'" class="px-4 py-6 text-center text-sm text-base-content/55">
-            {{ copy.unavailable }}
-          </div>
+          <div class="max-h-[55vh] overflow-y-auto">
+            <div v-if="status === 'loading'" class="flex items-center gap-2 px-4 py-4 text-sm text-base-content/55">
+              <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-primary" />
+              {{ copy.loading }}
+            </div>
 
-          <div v-else-if="status === 'empty'" class="px-4 py-6 text-center">
-            <p class="text-sm font-medium text-base-content">{{ copy.emptyTitle }}</p>
-            <p class="mt-1 text-xs text-base-content/55">{{ copy.emptyHint }}</p>
-          </div>
+            <div v-else-if="status === 'unavailable'" class="px-4 py-6 text-center text-sm text-base-content/55">
+              {{ copy.unavailable }}
+            </div>
 
-          <div
-            v-else-if="status === 'results'"
-            id="wiki-search-listbox"
-            ref="listRef"
-            role="listbox"
-            :aria-label="t('wikiSearch.resultsLabel')"
-            class="py-1"
-          >
-            <div v-for="group in groupedResults" :key="group.namespace">
-              <div class="flex items-center gap-2 px-4 pt-2.5 pb-1">
-                <span class="text-[11px] font-bold uppercase tracking-wide text-base-content/55">{{ group.namespace }}</span>
-                <span class="h-px flex-1 bg-line/70" />
-              </div>
-              <button
-                v-for="(item) in group.items"
-                :id="`wiki-search-option-${item.globalIndex}`"
-                :key="`${item.path}-${item.anchors.join(',')}`"
-                type="button"
-                role="option"
-                :aria-selected="item.globalIndex === activeIndex"
-                class="block w-full px-4 py-2.5 text-left transition-colors"
-                :class="item.globalIndex === activeIndex ? 'bg-info/10' : 'hover:bg-base-200/60'"
-                @mouseenter="activeIndex = item.globalIndex"
-                @click="jumpTo(item)"
-              >
-                <span class="flex min-w-0 items-center gap-2">
-                  <span class="min-w-0 flex-1 truncate text-sm font-semibold text-base-content" v-html="highlight(item.title, query)" />
-                  <span
-                    class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                    :class="item.hitType === 'title' ? 'bg-primary/10 text-primary' : 'bg-base-200 text-base-content/55'"
-                  >
-                    {{ item.hitType === 'title' ? copy.titleHit : copy.bodyHit }}
+            <div v-else-if="status === 'empty'" class="px-4 py-6 text-center">
+              <p class="text-sm font-medium text-base-content">{{ copy.emptyTitle }}</p>
+              <p class="mt-1 text-xs text-base-content/55">{{ copy.emptyHint }}</p>
+            </div>
+
+            <div
+              v-else-if="status === 'results'"
+              id="wiki-search-listbox"
+              ref="listRef"
+              role="listbox"
+              :aria-label="t('wikiSearch.resultsLabel')"
+              class="py-1"
+            >
+              <div v-for="group in groupedResults" :key="group.namespace">
+                <div class="flex items-center gap-2 px-4 pt-2.5 pb-1">
+                  <span class="text-[11px] font-bold uppercase tracking-wide text-base-content/55">{{ group.namespace }}</span>
+                  <span class="h-px flex-1 bg-line/70" />
+                </div>
+                <button
+                  v-for="(item) in group.items"
+                  :id="`wiki-search-option-${item.globalIndex}`"
+                  :key="`${item.path}-${item.anchors.join(',')}`"
+                  type="button"
+                  role="option"
+                  :aria-selected="item.globalIndex === activeIndex"
+                  class="block w-full px-4 py-2.5 text-left transition-colors"
+                  :class="item.globalIndex === activeIndex ? 'bg-info/10' : 'hover:bg-base-200/60'"
+                  @mouseenter="activeIndex = item.globalIndex"
+                  @click="jumpTo(item)"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-base-content" v-html="highlight(item.title, query)" />
+                    <span
+                      class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                      :class="item.hitType === 'title' ? 'bg-primary/10 text-primary' : 'bg-base-200 text-base-content/55'"
+                    >
+                      {{ item.hitType === 'title' ? copy.titleHit : copy.bodyHit }}
+                    </span>
                   </span>
-                </span>
-                <span class="mt-0.5 block truncate text-xs text-base-content/45">{{ item.namespace }} › {{ item.path }}</span>
-                <span v-if="item.heading" class="mt-0.5 block truncate text-xs text-base-content/60">§ {{ item.heading }}</span>
-                <span class="mt-1 block text-[13px] leading-5 text-base-content/70" v-html="sanitizeMarkup(item.snippet)" />
-              </button>
+                  <span class="mt-0.5 block truncate text-xs text-base-content/45">{{ item.namespace }} › {{ item.path }}</span>
+                  <span v-if="item.heading" class="mt-0.5 block truncate text-xs text-base-content/60">§ {{ item.heading }}</span>
+                  <span class="mt-1 block text-[13px] leading-5 text-base-content/70" v-html="sanitizeMarkup(item.snippet)" />
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="px-4 py-4 text-sm text-base-content/45">
+              {{ t('wikiSearch.idleHint') }}
             </div>
           </div>
 
-          <div v-else class="px-4 py-4 text-sm text-base-content/45">
-            {{ t('wikiSearch.idleHint') }}
+          <div class="flex items-center justify-between border-t border-line bg-base-200/40 px-4 py-2 text-[11px] text-base-content/45">
+            <span v-if="status === 'results'">{{ copy.resultCount(total) }}</span>
+            <span v-else>{{ copy.hint }}</span>
+            <span class="inline-flex items-center gap-1">
+              <CornerDownLeft class="h-3 w-3" aria-hidden="true" />
+              {{ t('wikiSearch.enterToJump') }}
+            </span>
           </div>
         </div>
-
-        <div class="flex items-center justify-between border-t border-line bg-base-200/40 px-4 py-2 text-[11px] text-base-content/45">
-          <span v-if="status === 'results'">{{ copy.resultCount(total) }}</span>
-          <span v-else>{{ copy.hint }}</span>
-          <span class="inline-flex items-center gap-1">
-            <CornerDownLeft class="h-3 w-3" aria-hidden="true" />
-            {{ t('wikiSearch.enterToJump') }}
-          </span>
-        </div>
-      </div>
-    </div>
-  </Teleport>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>

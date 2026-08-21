@@ -1,0 +1,15 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 8810101,
+        "contentType": "topic",
+        "title": "Contract interaction topic",
+        "createdAt": "2026-08-01T12:00:00Z"
+      }
+    ],
+    "hasMore": false,
+    "nextCursorId": 8810101
+  },
+  "code": 0
+}

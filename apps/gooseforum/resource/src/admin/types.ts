@@ -234,6 +234,8 @@ export interface MailSettings {
   smtpPassword: string
   fromName: string
   fromEmail: string
+  /** GET 回显（issue #324 S2）：密码是否已配置（服务端加密存储，不回显密码）。 */
+  smtpPasswordConfigured?: boolean
 }
 
 export interface SecuritySettings {
@@ -300,6 +302,9 @@ export interface StorageSettings {
   accessKey: string
   secretKey: string
   publicUrlPrefix: string
+  /** GET 回显（issue #324 S3）：凭据是否已配置（服务端加密存储，不回显凭据）。 */
+  accessKeyConfigured?: boolean
+  secretKeyConfigured?: boolean
 }
 
 export interface TermsOfServiceConfig {
@@ -372,6 +377,8 @@ export interface HttpNotifyEndpoint {
   failureCount: number
   lastError: string
   abnormalTerminated: boolean
+  /** GET 回显（issue #324 S1）：端点密钥是否已配置（服务端加密存储，不回显密钥）。 */
+  secretConfigured?: boolean
 }
 
 export interface HttpNotifySettings {

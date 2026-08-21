@@ -58,6 +58,8 @@ type CategorySearchResult struct {
 }
 
 // CourseSearchResult 课程搜索结果（展示数据由 PG 重构填充；B1 携带评分聚合）。
+// (code, teacher) 复合身份模型下 TeacherId/TeacherName 为卡片身份教师
+// （teacher_id=0 无教师时为空），Instructors 保留 offering 级教师并集。
 type CourseSearchResult struct {
 	ID          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
@@ -65,6 +67,8 @@ type CourseSearchResult struct {
 	Department  string   `json:"department"`
 	CreditX10   int      `json:"creditX10"`
 	Aliases     []string `json:"aliases"`
+	TeacherId   uint64   `json:"teacherId"`
+	TeacherName string   `json:"teacherName"`
 	Instructors []string `json:"instructors"`
 	Terms       []string `json:"terms"`
 	Campus      []string `json:"campus"`
@@ -339,6 +343,21 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 			ids = append(ids, h.ID)
 		}
 		courseStats := course.ListCourseStatsByIDs(ids)
+		// 卡片身份教师：按 teacher_id 批量解析姓名（无教师卡保持空）。
+		teacherIds := make([]uint64, 0, len(hits))
+		for _, h := range hits {
+			if c, ok := courseMap[h.ID]; ok && c != nil && c.TeacherId != 0 {
+				teacherIds = append(teacherIds, c.TeacherId)
+			}
+		}
+		teacherNameByID := make(map[uint64]string)
+		if len(teacherIds) > 0 {
+			if teachers, err := course.ListInstructorsByIDs(teacherIds); err == nil {
+				for _, t := range teachers {
+					teacherNameByID[t.Id] = t.Name
+				}
+			}
+		}
 		resp.Courses = lo.FilterMap(hits, func(h courseHit, _ int) (CourseSearchResult, bool) {
 			c, ok := courseMap[h.ID]
 			if !ok || c == nil || c.Status != course.StatusVisible {
@@ -351,6 +370,8 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 				Department:  c.Department,
 				CreditX10:   c.CreditX10,
 				Aliases:     h.Aliases,
+				TeacherId:   c.TeacherId,
+				TeacherName: teacherNameByID[c.TeacherId],
 				Instructors: h.Instructors,
 				Terms:       h.Terms,
 				Campus:      h.Campus,

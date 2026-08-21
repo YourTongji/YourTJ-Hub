@@ -1,0 +1,13 @@
+{
+  "result": {
+    "total": 0,
+    "success": 0,
+    "skipped": 0,
+    "failed": 0,
+    "errors": [],
+    "importedTables": [
+      "users"
+    ]
+  },
+  "code": 0
+}

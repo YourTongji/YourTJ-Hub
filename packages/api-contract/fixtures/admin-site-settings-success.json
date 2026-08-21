@@ -1,0 +1,12 @@
+{
+  "result": {
+    "siteName": "契约站点",
+    "siteLogo": "/static/logo.webp",
+    "siteDescription": "契约描述",
+    "siteKeywords": "契约,测试",
+    "siteUrl": "https://contract.example.test",
+    "siteEmail": "hi@contract.example.test",
+    "externalLinks": "https://example.test"
+  },
+  "code": 0
+}

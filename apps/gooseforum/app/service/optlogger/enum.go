@@ -39,6 +39,9 @@ const (
 	// SyncPk 排课数据同步（issue #248）：归属 System，不新增 TargetTypeEnum 值，
 	// 避免改动枚举序列影响已持久化的审计记录。
 	SyncPk
+	// ExportData 数据导出（issue #324 S4）：创建导出任务/下载导出文件均审计。
+	// 追加在末尾，避免改动既有枚举序列。
+	ExportData
 )
 
 type TargetTypeEnum int

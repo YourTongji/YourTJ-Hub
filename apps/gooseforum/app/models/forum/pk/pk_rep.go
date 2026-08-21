@@ -26,6 +26,13 @@ func GetCalendarIdByI18n(i18n string) (uint64, bool) {
 	return entity.CalendarId, true
 }
 
+// GetCalendarByID 按 calendarId 返回学期实体（P13 学期 → course_term 映射用）。
+func GetCalendarByID(id uint64) (CalendarEntity, error) {
+	var entity CalendarEntity
+	err := calendarBuilder().Where(queryopt.Eq("calendar_id", id)).First(&entity).Error
+	return entity, err
+}
+
 // LatestFetchLogByCalendar 返回某学期最近一次同步日志（按 id 倒序取最新）。
 func LatestFetchLogByCalendar(calendarId uint64) (FetchLogEntity, bool) {
 	var entity FetchLogEntity

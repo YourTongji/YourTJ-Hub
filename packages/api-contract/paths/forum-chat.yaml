@@ -1,0 +1,169 @@
+sendChatMessage:
+  post:
+    tags: [Forum]
+    summary: Send a direct chat message
+    operationId: sendChatMessage
+    description: |
+      Sends a direct message, creating the conversation on first contact. msgType
+      is effectively required (1 text, 2 image, 3 voice): although the field lacks
+      a `required` validate tag, omitting it binds 0 and the `oneof=1 2 3` check
+      fails with `common.request.invalidParams` (HTTP 200). Content hitting the
+      sensitive-word list is blocked outright with `chat.sensitive.blocked`
+      (params word) — chat has no delayed-visibility state. Messaging oneself and
+      other service failures surface as `chat.send.failed` (params error). JSON
+      binding is lenient: a malformed body binds to zero values and fails
+      validation as `common.request.invalidParams` (HTTP 200). The success
+      envelope carries no messageCode.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SendChatMessageRequest
+    responses:
+      '200':
+        description: Message stored (result carries the conversation id), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SendChatMessageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/chat-send-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Message-send rate limit (action `message.send`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/chat-send-rate-limited.json
+
+getChatMessages:
+  post:
+    tags: [Forum]
+    summary: Read a cursor-paginated page of chat messages
+    operationId: getChatMessages
+    description: |
+      Read-only endpoint guarded by authentication only (no writable-account
+      check), so frozen accounts can still read their conversations. beforeId and
+      afterId are mutually exclusive cursors; passing both, targeting an unknown
+      conversation, or reading a conversation the caller is not a member of all
+      fail with `chat.messages.failed` (HTTP 200) without revealing which case
+      matched. limit <= 0 falls back to 30; values above 100 fail validation with
+      `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and fails validation the same way because
+      convId is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/GetChatMessagesRequest
+    responses:
+      '200':
+        description: Message page, or a legacy business failure envelope (`chat.messages.failed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ChatMessagesResponse
+            examples:
+              success:
+                externalValue: ../fixtures/chat-messages-success.json
+              failed:
+                externalValue: ../fixtures/chat-messages-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+markChatRead:
+  post:
+    tags: [Forum]
+    summary: Mark a chat conversation as read
+    operationId: markChatRead
+    description: |
+      Clears the caller's unread state in one conversation. Membership is checked
+      first and a membership failure shares the same `chat.markRead.failed` code as
+      a database failure, so the endpoint cannot be used to enumerate conversation
+      ids (issue #111). JSON binding is lenient: a malformed body binds to zero
+      values and fails validation as `common.request.invalidParams` (HTTP 200)
+      because convId is required. The success envelope carries result null and no
+      messageCode.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/MarkChatReadRequest
+    responses:
+      '200':
+        description: Conversation marked read (result is null), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ChatMarkReadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/chat-mark-read-success.json
+              failed:
+                externalValue: ../fixtures/chat-mark-read-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json

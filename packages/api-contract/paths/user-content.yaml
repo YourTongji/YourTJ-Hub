@@ -1,0 +1,581 @@
+myContentList:
+  get:
+    tags: [User]
+    summary: Page through the caller's own published topics or replies
+    operationId: myContentList
+    description: |
+      Login-required read (no writable-account check, so frozen accounts can still
+      read; the read does not bump user activity). Only content that is still
+      public is listed: published (status=1) ACTIVE forum topics, or ACTIVE reply
+      posts (postNo > 1); wiki-subsite topics and already deleted content are
+      excluded. Query binding is strict: a non-numeric cursorId/limit fails with
+      HTTP 400 and `common.request.parseFailed`; a missing or unsupported
+      contentType fails validation with `common.request.invalidParams` (HTTP 200).
+      Pagination is id-descending: pass the previous page's nextCursorId as
+      cursorId (rows with id < cursorId are returned); limit <= 0 or > 30 falls
+      back to 20. Post items render title as `回复 #<postNo>` and carry
+      topicId/postNo; excerpt is omitted when empty.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: contentType
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [topic, post]
+      - name: cursorId
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 0
+          description: Exclusive id cursor from the previous page's nextCursorId; omit or send 0 for the first page.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          description: Page size; values <= 0 or > 30 fall back to the server default (20).
+    responses:
+      '200':
+        description: Own-content page, or a legacy business failure envelope (`common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/MyContentListResponse
+            examples:
+              topics:
+                externalValue: ../fixtures/my-content-topics-success.json
+              posts:
+                externalValue: ../fixtures/my-content-posts-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+deletedContentList:
+  get:
+    tags: [User]
+    summary: Page through the caller's recently deleted topics or replies
+    operationId: deletedContentList
+    description: |
+      Login-required read of the caller's deleted content (the "最近删除" bin; no
+      writable-account check, so frozen accounts can still read). Topics are
+      listed when visibility is USER_DELETED; replies are listed when visibility
+      is USER_DELETED or MODERATOR_REMOVED (moderator removals are visible but
+      carry canRestore=false/canPermanent=false); PURGED rows never appear.
+      deletedAt is RFC3339 and may be empty for tombstone rows that carry no
+      deleted_at timestamp. canRestore is true only for USER_DELETED +
+      RECOVERABLE rows still inside the 30-day recovery window; canPermanent is
+      true for USER_DELETED + RECOVERABLE rows regardless of the window. Query
+      binding and cursor pagination behave exactly like my-content.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: contentType
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [topic, post]
+      - name: cursorId
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 0
+          description: Exclusive id cursor from the previous page's nextCursorId; omit or send 0 for the first page.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          description: Page size; values <= 0 or > 30 fall back to the server default (20).
+    responses:
+      '200':
+        description: Deleted-content page, or a legacy business failure envelope (`common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DeletedContentListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/deleted-content-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+restoreContent:
+  post:
+    tags: [User]
+    summary: Restore an own deleted topic or reply inside the recovery window
+    operationId: restoreContent
+    description: |
+      Restores caller-owned content deleted by the caller (visibility
+      USER_DELETED + retention RECOVERABLE) within the 30-day recovery window.
+      Restoring a topic also restores the replies that were cascade-deleted with
+      it, rebuilds the search document and re-applies post reward points. A
+      topic first post cannot be restored standalone, and a reply whose topic is
+      still deleted cannot be restored either. Business failures (HTTP 200):
+      `topic.notFound` / `post.notFound` (unknown or someone else's content),
+      `content.notRecoverable` (moderator-removed, already purged, not in the
+      recovery state, or first-post/parent-topic cases),
+      `content.recovery.expired` (past the 30-day window),
+      `content.restore.failed`, `common.request.invalidParams`. JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/RestoreContentRequest
+    responses:
+      '200':
+        description: Restored (messageCode `content.restore.success`), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentLifecycleResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-topic-restore-success.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              notRecoverable:
+                externalValue: ../fixtures/admin-topic-restore-not-recoverable.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+batchDeleteContent:
+  post:
+    tags: [User]
+    summary: Batch-delete own topics or replies
+    operationId: batchDeleteContent
+    description: |
+      Soft-deletes up to 50 caller-owned topics or replies in one call, each
+      entering the standard 30-day recovery window (same semantics as the
+      single-delete endpoints). Deletions are rate-gated per account: more than
+      20 deletions within 10 minutes — single deletes, purges and privacy
+      erases count into the same window — fail with
+      `content.batchDelete.confirmRequired` (HTTP 200, params.count carries the
+      projected total); the caller retries with force=true plus the current
+      password as second factor (a wrong password fails with
+      `auth.credentials.invalid`). The envelope stays code 0 even when
+      individual items fail; per-item outcomes are reported in results[] with
+      the failure text in message. Business failures:
+      `common.request.invalidParams` (empty id list, unsupported contentType),
+      `content.batchDelete.confirmRequired`, `auth.credentials.invalid`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/BatchDeleteContentRequest
+    responses:
+      '200':
+        description: Per-item deletion outcome, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/BatchDeleteContentResponse
+            examples:
+              success:
+                externalValue: ../fixtures/content-batch-delete-success.json
+              confirmRequired:
+                externalValue: ../fixtures/content-batch-delete-confirm-required.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+purgeContent:
+  post:
+    tags: [User]
+    summary: Permanently delete an own already-deleted topic or reply
+    operationId: purgeContent
+    description: |
+      Permanent deletion (跳过恢复窗口): only caller-owned content already in
+      visibility USER_DELETED + retention RECOVERABLE can be purged; ACTIVE
+      content must be deleted first and fails with `content.notRecoverable`.
+      Purging sets retention PURGED (irreversible — the content can no longer be
+      restored), releases attachment references and blanks notification
+      previews; moderation evidence snapshots and audit logs are retained.
+      Purging a topic also purges the caller's own replies under it and any
+      replies already in the deletion lifecycle; other users' still-active
+      replies keep their bodies but become unreachable. Moderator-removed
+      content fails with `content.notRecoverable` (privacy/purge paths cannot
+      bypass governance). Already-PURGED content succeeds idempotently. The
+      operation counts into the shared deletion rate window (see
+      content-batch-delete; `content.batchDelete.confirmRequired` /
+      `auth.credentials.invalid` on the force+password path). Other business
+      failures: `topic.notFound` / `post.notFound`, `content.purge.failed`,
+      `common.request.invalidParams`. The reason field is optional audit text.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PurgeContentRequest
+    responses:
+      '200':
+        description: Purged (messageCode `content.purge.success`), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentLifecycleResponse
+            examples:
+              success:
+                externalValue: ../fixtures/content-purge-success.json
+              notRecoverable:
+                externalValue: ../fixtures/admin-topic-restore-not-recoverable.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+privacyEraseContent:
+  post:
+    tags: [User]
+    summary: Privacy emergency-erase an own topic or reply
+    operationId: privacyEraseContent
+    description: |
+      Privacy emergency deletion (R8). Unlike purgeContent this also accepts
+      still-ACTIVE caller-owned content; the row is immediately hidden, made
+      unrecoverable (retention PURGED) and reply body fields are cleared across
+      all channels. Erasing a topic cascades to the caller's own replies under
+      it. The operation is refused with `content.notRecoverable` when the target
+      — or any of the caller's replies under a target topic — is
+      moderator-removed, so privacy erasure cannot destroy governance evidence.
+      It counts into the shared deletion rate window (see content-batch-delete;
+      `content.batchDelete.confirmRequired` / `auth.credentials.invalid` on the
+      force+password path). Other business failures: `topic.notFound` /
+      `post.notFound`, `content.purge.failed`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PrivacyEraseRequest
+    responses:
+      '200':
+        description: Erased (messageCode `content.privacy.erased`), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentLifecycleResponse
+            examples:
+              success:
+                externalValue: ../fixtures/content-privacy-erase-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+reportContentEvent:
+  post:
+    tags: [User]
+    summary: Report a frontend delete-lifecycle telemetry event
+    operationId: reportContentEvent
+    description: |
+      Records frontend telemetry for the deletion lifecycle (PRD R14). Only the
+      click/confirmation events `content_delete_clicked` and
+      `content_delete_confirmed` are accepted; any other eventType — including
+      the backend-owned lifecycle events — fails with
+      `common.request.invalidParams` (HTTP 200). contentId is not checked for
+      existence. Backend state changes (delete/restore/purge/privacy-erase) are
+      recorded by the server itself and must not be reported here. JSON binding
+      is lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ContentEventRequest
+    responses:
+      '200':
+        description: Event recorded (result true), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json
+
+closeAccount:
+  post:
+    tags: [User]
+    summary: Permanently close the caller's account
+    operationId: closeAccount
+    description: |
+      Account closure (注销) is irreversible and requires the current password
+      as a second factor; a wrong password fails with
+      `auth.credentials.invalid` (HTTP 200) and an already-closed account fails
+      with `common.operation.failed`. mode=anonymize soft-deletes the account
+      while historical content stays visible under a "已注销用户" identity;
+      mode=delete first runs a best-effort deletion of every own topic and
+      reply (own wiki pages and revisions included; other users' replies under
+      an own topic follow the normal topic-deletion semantics), then closes the
+      account. On success the account token version increments, so every
+      existing session — including the one used for this request — is
+      immediately revoked (subsequent calls return 401) and no replacement
+      token is minted. Business failures: `common.request.invalidParams`
+      (validation), `auth.credentials.invalid`, `common.operation.failed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AccountCloseRequest
+    responses:
+      '200':
+        description: Account closed (result true; all sessions revoked), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              invalidCredentials:
+                externalValue: ../fixtures/account-close-invalid-credentials.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/account-close-rate-limited.json

@@ -8,11 +8,13 @@ import (
 
 const tableName = "course"
 
-// Entity 课程目录中的 canonical course：一个实体代表一门课程，不按“课程×教师”拆分。
-// primary_code 是当前主课号；历史课号/简称等进入 course_alias。
+// Entity 课程目录中的 canonical course：一个实体代表一门课程的一个
+// (primary_code, teacher) 身份（对齐上游 Serverless 的 code+teacher 分组）。
+// teacher_id = 0 表示无教师课程；历史课号/简称等进入 course_alias。
 type Entity struct {
 	Id             uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	PrimaryCode    string         `gorm:"column:primary_code;type:varchar(64);not null;default:'';uniqueIndex:uniq_course_primary_code;" json:"primaryCode"`
+	PrimaryCode    string         `gorm:"column:primary_code;type:varchar(64);not null;default:'';uniqueIndex:uniq_course_code_teacher,priority:1;" json:"primaryCode"`
+	TeacherId      uint64         `gorm:"column:teacher_id;not null;default:0;uniqueIndex:uniq_course_code_teacher,priority:2;index:idx_course_teacher;" json:"teacherId"`
 	Name           string         `gorm:"column:name;type:varchar(255);not null;default:'';" json:"name"`
 	Department     string         `gorm:"column:department;type:varchar(255);not null;default:'';" json:"department"`
 	CreditX10      int            `gorm:"column:credit_x10;not null;default:0;" json:"creditX10"`

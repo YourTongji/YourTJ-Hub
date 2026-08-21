@@ -1,0 +1,398 @@
+adminAgentList:
+  post:
+    tags: [Admin]
+    summary: List all managed Agents (bot personas)
+    operationId: adminAgentList
+    description: |
+      Admin console operation gated by the `Admin` role permission; only roles
+      holding the Admin permission pass, others fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>).
+      Returns every Agent with its bot user, newest first. The token hash never
+      leaves the server; only the non-secret token prefix is exposed. JSON
+      binding is lenient: the request body is ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All Agents (empty array when none exist).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAgentListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+
+adminAgentCreate:
+  post:
+    tags: [Admin]
+    summary: Create an Agent and return its one-time token
+    operationId: adminAgentCreate
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Creates the bot
+      user and Agent rows atomically; the bot user has no email, no usable
+      password, and no role. The plaintext token (`agt_` prefix) is returned
+      exactly once — only its hash and non-secret prefix are stored. A username
+      failing the `^[a-zA-Z0-9_-]{6,32}$` rule fails with
+      `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with
+      `admin.agent.usernameExists` (HTTP 200); an invalid webhook endpoint
+      fails with `admin.agent.webhookInvalid` (HTTP 200); an over-long nickname
+      fails with `common.request.invalidParams` (HTTP 200). JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because username is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAgentCreateRequest
+    responses:
+      '200':
+        description: Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAgentCreateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-create-success.json
+              usernameInvalid:
+                externalValue: ../fixtures/admin-agent-create-username-invalid.json
+              usernameExists:
+                externalValue: ../fixtures/admin-agent-create-username-exists.json
+              webhookInvalid:
+                externalValue: ../fixtures/admin-agent-create-webhook-invalid.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+
+adminAgentUpdate:
+  post:
+    tags: [Admin]
+    summary: Update an Agent's nickname, webhook, or enabled state
+    operationId: adminAgentUpdate
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Only present
+      (non-null) fields are applied. Setting `enabled` to 0 disables the Agent
+      and revokes its stored credential (the token hash is cleared, so a leaked
+      token can never validate again); re-enabling such an Agent fails with
+      `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a
+      new token. Unknown agents fail with `admin.agent.notFound` (HTTP 200); an
+      over-long nickname or an `enabled` value outside 0-1 fails with
+      `common.request.invalidParams` (HTTP 200); an invalid webhook endpoint
+      fails with `admin.agent.webhookInvalid` (HTTP 200). JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because agentId is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAgentUpdateRequest
+    responses:
+      '200':
+        description: Updated Agent, or a legacy business failure envelope (`admin.agent.notFound` / `admin.agent.needsRotate` / `admin.agent.webhookInvalid` / `common.request.invalidParams` / `admin.agent.updateFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAgentUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-update-success.json
+              notFound:
+                externalValue: ../fixtures/admin-agent-disable-not-found.json
+              needsRotate:
+                externalValue: ../fixtures/admin-agent-update-needs-rotate.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+
+adminAgentRotateToken:
+  post:
+    tags: [Admin]
+    summary: Rotate an Agent's bearer token
+    operationId: adminAgentRotateToken
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Replaces the
+      stored token prefix and hash atomically (compare-and-swap), so the old
+      token stops resolving immediately and the new plaintext token (`agt_`
+      prefix) is returned exactly once. Rotation is also the recovery path
+      after a disable revoked the credential: it succeeds and the Agent can
+      then be re-enabled. A concurrent rotation loses the compare-and-swap and
+      fails with `admin.agent.rotateConflict` (HTTP 200); unknown agents fail
+      with `admin.agent.notFound` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because agentId is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAgentIdRequest
+    responses:
+      '200':
+        description: New one-time token, or a legacy business failure envelope (`admin.agent.notFound` / `admin.agent.rotateConflict` / `common.request.invalidParams` / `admin.agent.rotateFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAgentRotateTokenResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-rotate-token-success.json
+              notFound:
+                externalValue: ../fixtures/admin-agent-disable-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+
+adminAgentDisable:
+  post:
+    tags: [Admin]
+    summary: Disable an Agent and revoke its credential
+    operationId: adminAgentDisable
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Turns the Agent
+      off and clears the stored token hash, so bearer resolution with the old
+      token fails with HTTP 401 immediately and can never validate again, even
+      if the Agent is later re-enabled. Re-enabling requires an explicit
+      adminAgentRotateToken first (adminAgentUpdate fails with
+      `admin.agent.needsRotate` otherwise). Unknown agents fail with
+      `admin.agent.notFound` (HTTP 200). A successful disable returns result
+      `success` with messageCode `common.operation.success`. JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because agentId is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAgentIdRequest
+    responses:
+      '200':
+        description: Agent disabled, or a legacy business failure envelope (`admin.agent.notFound` / `common.request.invalidParams` / `admin.agent.disableFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAgentDisableResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              notFound:
+                externalValue: ../fixtures/admin-agent-disable-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+
+adminOptRecordPage:
+  post:
+    tags: [Admin]
+    summary: Page through the operation audit log
+    operationId: adminOptRecordPage
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Records sort by id
+      descending. The request page is 1-based but the echoed `page` in the
+      response is 0-based (requested page minus one, floored at 0); pageSize is
+      bounded into 10-50. JSON binding is lenient: a malformed body binds to
+      zero values and returns the first page unfiltered.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminOptRecordPageRequest
+    responses:
+      '200':
+        description: Audit record page.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminOptRecordPageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-opt-record-page-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+
+adminTrafficOverview:
+  post:
+    tags: [Admin]
+    summary: Daily registration/topic/reply counts over a date range
+    operationId: adminTrafficOverview
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Both dates are
+      inclusive; empty startDate defaults to 7 days ago and empty endDate to
+      today. The result has one entry per in-range day, ascending, with zero
+      counts for days without stat rows. Stat-storage failures surface as
+      `admin.stats.fetchFailed` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and returns the default 7-day window.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminTrafficOverviewRequest
+    responses:
+      '200':
+        description: Daily traffic series, or a legacy business failure envelope (`admin.stats.fetchFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTrafficOverviewResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-traffic-overview-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the Admin permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json

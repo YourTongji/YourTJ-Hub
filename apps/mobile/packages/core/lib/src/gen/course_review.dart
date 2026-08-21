@@ -146,6 +146,7 @@ abstract class RelatedCourseItem with _$RelatedCourseItem {
     required String primaryCode,
     required String name,
     required String department,
+    String? teacherName,
     List<String>? instructors,
     required double ratingAvg,
     required int ratingCount,
@@ -157,27 +158,10 @@ abstract class RelatedCourseItem with _$RelatedCourseItem {
 }
 
 @freezed
-abstract class RelatedTeacherOfferingItem with _$RelatedTeacherOfferingItem {
-  const factory RelatedTeacherOfferingItem({
-    required int offeringId,
-    String? termCode,
-    String? termName,
-    String? campus,
-    List<String>? instructors,
-    required double ratingAvg,
-    required int ratingCount,
-    required int reviewCount,
-  }) = _RelatedTeacherOfferingItem;
-
-  factory RelatedTeacherOfferingItem.fromJson(Map<String, dynamic> json) =>
-      _$RelatedTeacherOfferingItemFromJson(json);
-}
-
-@freezed
 abstract class CourseRelatedResult with _$CourseRelatedResult {
   const factory CourseRelatedResult({
     required List<RelatedCourseItem> teacherOtherCourses,
-    required List<RelatedTeacherOfferingItem> sameCourseOtherTeachers,
+    required List<RelatedCourseItem> sameCourseOtherTeachers,
   }) = _CourseRelatedResult;
 
   factory CourseRelatedResult.fromJson(Map<String, dynamic> json) =>

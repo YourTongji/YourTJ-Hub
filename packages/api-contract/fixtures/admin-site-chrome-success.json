@@ -1,0 +1,68 @@
+{
+  "result": {
+    "header": [
+      {
+        "id": "sponsors",
+        "enabled": true,
+        "type": "link",
+        "label": "Sponsors",
+        "i18nLabel": "shell.nav.sponsors",
+        "url": "/sponsors"
+      }
+    ],
+    "mainMenu": [
+      {
+        "id": "home",
+        "enabled": true,
+        "type": "link",
+        "label": "首页",
+        "i18nLabel": "shell.nav.home",
+        "url": "/"
+      }
+    ],
+    "resources": [
+      {
+        "id": "docs",
+        "enabled": false,
+        "type": "link",
+        "label": "文档",
+        "i18nLabel": "shell.nav.docs",
+        "url": "/docs"
+      }
+    ],
+    "sidebarGroups": [
+      {
+        "id": "g1",
+        "title": "契约分组",
+        "i18nLabel": "shell.group.contract",
+        "items": [
+          {
+            "id": "i1",
+            "enabled": true,
+            "type": "link",
+            "label": "条目",
+            "i18nLabel": "shell.item.contract",
+            "url": "/item"
+          }
+        ]
+      }
+    ],
+    "footerInfo": {
+      "primary": [
+        {
+          "content": "契约页脚"
+        }
+      ],
+      "list": [
+        {
+          "name": "GitHub",
+          "url": "https://example.test"
+        }
+      ]
+    },
+    "brandType": "text",
+    "brandText": "契约品牌",
+    "brandImage": ""
+  },
+  "code": 0
+}
