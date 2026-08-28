@@ -157,6 +157,21 @@ describe('useScheduleStore', () => {
     expect(restored.state.occupied[2][0][0].code).toBe('122004.01')
   })
 
+  test('popStagedCourse 从备选/已选/课表/占用四处移除课程', () => {
+    const store = useScheduleStore()
+    store.setClickedCourseInfo({ courseCode: '122004', courseName: '高数' })
+    store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3, 4], [1, 8])]))
+    store.stageCourse(makeDetail('122004.01', 1, [3, 4], [1, 8]))
+    store.saveSelectedCourses()
+
+    store.popStagedCourse('122004')
+
+    expect(store.state.commonLists.stagedCourses).toEqual([])
+    expect(store.state.commonLists.selectedCourses).toEqual([])
+    expect(store.state.timeTableData).toEqual([])
+    expect(store.state.occupied[2][0]).toEqual([])
+  })
+
   test('学分统计正确区分专业/通识', () => {
     const store = useScheduleStore()
     store.setMajorInfo({ calendarId: 119, grade: 2024, major: '123' })

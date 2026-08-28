@@ -95,6 +95,9 @@ async function loadMajors(grade: number, calendarId: number) {
 
 function resetSelection() {
   store.clearStagedAndSelectedCourses()
+  // 换学期/年级/专业清空课程后立即持久化，避免刷新后旧课程从
+  // localStorage 复活（与退课同一缺陷族）。
+  store.solidify()
 }
 
 /**

@@ -298,9 +298,15 @@ function readTimeTableRows(): number {
 
 // ---- 内部操作 ----
 
-/** 从课表/占用/已选中移除一门课（按班级课号）。 */
+/** 从课表/占用/已选/备选池中移除一门课（入参为基础课号或班级课号）。 */
 function removeCourseFromSchedule(classCode: string): void {
-  const base = getCourseBaseCode(classCode)
+  const input = String(classCode ?? '').trim()
+  // 入参可能是基础课号（退课按 courseCode 传入，如 '122004'）或班级课号
+  // （'122004.01' / '12200401'）。getCourseBaseCode 对无点号的基础课号会误裁
+  // 后两位（'122004'→'1220'），故先与备选池精确匹配，命中即为完整基础课号。
+  const base = state.commonLists.stagedCourses.some((course) => course.courseCode === input)
+    ? input
+    : getCourseBaseCode(input)
   state.commonLists.stagedCourses = state.commonLists.stagedCourses.filter(
     (course) => course.courseCode !== base,
   )
@@ -308,7 +314,11 @@ function removeCourseFromSchedule(classCode: string): void {
     (code) => !isClassOfCourse(code, base),
   )
   state.timeTableData = state.timeTableData.filter((course) => !isClassOfCourse(course.code, base))
-  state.occupied = deleteOccupied(state.occupied, classCode)
+  // deleteOccupied 会对入参再走一次 getCourseBaseCode，基础课号会被误裁，
+  // 这里直接按已归一化的 base 比较占用格。
+  state.occupied = state.occupied.map((row) =>
+    row.map((cell) => cell.filter((item) => getCourseBaseCode(item.code) !== base)),
+  )
 }
 
 /** 追加课程到课表（同基础课号先替换，再入表、更新占用与备选状态）。 */

@@ -187,4 +187,39 @@ describe('ScheduleMajorSelector 初始化加载', () => {
 
     expect(store.state.commonLists.stagedCourses).toEqual([])
   })
+
+  test('回退清空旧学期课程后立即持久化（刷新不复活）', async () => {
+    // 回归：resetSelection 曾不写 localStorage，换学期/年级/专业清空的课程
+    // 只停留在内存，刷新后 loadSolidify 用旧数据覆盖内存，课程"复活"。
+    const store = useScheduleStore()
+    store.state.commonLists.stagedCourses = [
+      {
+        courseCode: '122004',
+        courseName: '高等数学(122004)',
+        courseNameReserved: '高等数学',
+        credit: 4,
+        courseType: '必',
+        teacher: [],
+        status: 1,
+        courseDetail: [],
+      },
+    ]
+    // 旧学期课程此前已持久化（用户上次使用时 solidify 过）。
+    store.solidify()
+    expect(localStorage.getItem('pk.stagedCourses')).toContain('122004')
+    setStoredSelection({ calendarId: 122, grade: 2025, major: '00301' })
+    getPkGrades.mockResolvedValue([2025, 2024])
+    getPkMajors.mockResolvedValue([])
+
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    // 内存清空的同时 localStorage 也同步清空。
+    expect(store.state.commonLists.stagedCourses).toEqual([])
+    expect(localStorage.getItem('pk.stagedCourses')).not.toContain('122004')
+
+    // 模拟刷新/重进：loadSolidify 不得把旧学期课程复活。
+    store.loadSolidify()
+    expect(store.state.commonLists.stagedCourses).toEqual([])
+  })
 })
