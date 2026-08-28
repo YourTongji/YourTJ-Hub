@@ -90,8 +90,32 @@ func TestHandleUserSignUpSearchIndex(t *testing.T) {
 	if err := handleUserSignUpSearchIndex(ctx, nil); err != nil {
 		t.Fatalf("handleUserSignUpSearchIndex(nil) error = %v, want nil", err)
 	}
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
+		t.Fatalf("migrate users table: %v", err)
+	}
 	if err := handleUserSignUpSearchIndex(ctx, &UserSignUpEvent{UserId: 999999}); err != nil {
 		t.Fatalf("handleUserSignUpSearchIndex(event) error = %v, want nil", err)
+	}
+}
+
+func TestHandleUserSignUpSearchIndexReturnsDatabaseError(t *testing.T) {
+	ctx := context.Background()
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
+		t.Fatalf("migrate users table: %v", err)
+	}
+	if err := conn.Migrator().DropTable(&users.EntityComplete{}); err != nil {
+		t.Fatalf("drop users table: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
+			t.Errorf("restore users table: %v", err)
+		}
+	})
+
+	if err := handleUserSignUpSearchIndex(ctx, &UserSignUpEvent{UserId: 999999}); err == nil {
+		t.Fatal("handleUserSignUpSearchIndex(event) error = nil, want database error")
 	}
 }
 
