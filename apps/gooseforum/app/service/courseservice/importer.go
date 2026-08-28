@@ -34,11 +34,12 @@ type ImportManifest struct {
 	Counts            map[string]int    `yaml:"counts" json:"counts"`
 }
 
-// ImportError 单行导入错误。
+// ImportError 单行导入错误。ExternalID 为外部实体 ID；catalog 导入的业务隔离错误必须设置。
 type ImportError struct {
-	Line   int    `json:"line"`
-	Entity string `json:"entity"`
-	Reason string `json:"reason"`
+	Line       int    `json:"line"`
+	Entity     string `json:"entity"`
+	ExternalID string `json:"externalId,omitempty"`
+	Reason     string `json:"reason"`
 }
 
 // CatalogImportReport 目录导入结果报告。
@@ -312,14 +313,20 @@ func parseJSONL[T any](data []byte, out *[]T) (int, error) {
 
 // validateRows 校验行间约束与依赖；dry-run 与真实导入共用，保证语义一致。
 // 返回被隔离的行集合（entityType|externalID -> true），applyRows 会跳过这些行。
+func quarantineCatalogRow(report *CatalogImportReport, entity, externalID, reason string) {
+	report.Quarantined++
+	report.Errors = append(report.Errors, ImportError{
+		Entity:     entity,
+		ExternalID: externalID,
+		Reason:     reason,
+	})
+}
+
 func validateRows(rows importRows, report *CatalogImportReport) map[string]bool {
 	quarantined := make(map[string]bool)
-	quarantine := func(entity, key, reason string) {
-		report.Quarantined++
-		report.Errors = append(report.Errors, ImportError{Entity: entity, Reason: reason})
-		if key != "" {
-			quarantined[key] = true
-		}
+	quarantine := func(entity, externalID, reason string) {
+		quarantineCatalogRow(report, entity, externalID, reason)
+		quarantined[entity+"|"+externalID] = true
 	}
 
 	// (primary_code, teacher_code) 复合去重（issue #326）：同一 code 不同教师
@@ -328,23 +335,22 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 	externalIDs := make(map[string]string) // external id -> primary_code
 	for _, row := range rows.courses {
 		code := strings.TrimSpace(row.Code)
-		key := course.EntityTypeCourse + "|" + row.ID
 		if strings.TrimSpace(row.ID) == "" {
-			quarantine("course", key, "missing external id")
+			quarantine("course", row.ID, "missing external id")
 			continue
 		}
 		if prev, ok := externalIDs[row.ID]; ok && prev != code {
-			quarantine("course", key, fmt.Sprintf("duplicate external id %s (codes %s vs %s)", row.ID, prev, code))
+			quarantine("course", row.ID, fmt.Sprintf("duplicate external id %s (codes %s vs %s)", row.ID, prev, code))
 			continue
 		}
 		externalIDs[row.ID] = code
 		if code == "" || strings.TrimSpace(row.Name) == "" {
-			quarantine("course", key, "missing code or name")
+			quarantine("course", row.ID, "missing code or name")
 			continue
 		}
 		dupKey := code + "|" + strings.TrimSpace(row.TeacherCode)
 		if prev, ok := courseByKey[dupKey]; ok && prev != row.ID {
-			quarantine("course", key, fmt.Sprintf("duplicate (code, teacher) %s (external %s vs %s)", dupKey, prev, row.ID))
+			quarantine("course", row.ID, fmt.Sprintf("duplicate (code, teacher) %s (external %s vs %s)", dupKey, prev, row.ID))
 			continue
 		}
 		courseByKey[dupKey] = row.ID
@@ -352,14 +358,13 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 	// alias 冲突检查：manifest 内 + 已入库
 	batchAliases := make(map[string]string) // normalized -> course external id
 	for _, row := range rows.courses {
-		key := course.EntityTypeCourse + "|" + row.ID
 		for _, alias := range row.Aliases {
 			norm := Normalize(alias)
 			if norm == "" {
 				continue
 			}
 			if prev, ok := batchAliases[norm]; ok && prev != row.ID {
-				quarantine("course", key, fmt.Sprintf("alias %q conflicts within manifest (course %s)", alias, prev))
+				quarantine("course", row.ID, fmt.Sprintf("alias %q conflicts within manifest (course %s)", alias, prev))
 				continue
 			}
 			batchAliases[norm] = row.ID
@@ -367,7 +372,7 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 			if err == nil {
 				existingCourse := course.GetCourse(existing.CourseId)
 				if existingCourse.PrimaryCode != row.Code {
-					quarantine("course", key, fmt.Sprintf("alias %q conflicts with course %s", alias, existingCourse.PrimaryCode))
+					quarantine("course", row.ID, fmt.Sprintf("alias %q conflicts with course %s", alias, existingCourse.PrimaryCode))
 				}
 			}
 		}
@@ -375,15 +380,14 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 	instructorKeys := make(map[string]string) // name|dept -> external id
 	instructorIDs := make(map[string]struct{})
 	for _, row := range rows.instructors {
-		key := course.EntityTypeInstructor + "|" + row.ID
 		if strings.TrimSpace(row.ID) == "" {
-			quarantine("instructor", key, "missing external id")
+			quarantine("instructor", row.ID, "missing external id")
 			continue
 		}
 		instructorIDs[row.ID] = struct{}{}
 		naturalKey := Normalize(row.Name) + "|" + Normalize(row.Department)
 		if prev, ok := instructorKeys[naturalKey]; ok && prev != row.ID {
-			quarantine("instructor", key, fmt.Sprintf("ambiguous natural key %q (external %s vs %s)", naturalKey, prev, row.ID))
+			quarantine("instructor", row.ID, fmt.Sprintf("ambiguous natural key %q (external %s vs %s)", naturalKey, prev, row.ID))
 			delete(instructorIDs, row.ID)
 			continue
 		}
@@ -401,7 +405,7 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 		tc := strings.TrimSpace(row.TeacherCode)
 		if tc != "" {
 			if _, ok := instructorIDs[tc]; !ok {
-				quarantine("course", key, fmt.Sprintf("unresolvable teacher_code %s", tc))
+				quarantine("course", row.ID, fmt.Sprintf("unresolvable teacher_code %s", tc))
 			}
 		}
 	}
@@ -411,26 +415,25 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 		courseIDs[row.ID] = struct{}{}
 	}
 	for _, row := range rows.offerings {
-		key := course.EntityTypeOffering + "|" + row.ID
 		if strings.TrimSpace(row.ID) == "" {
-			quarantine("offering", key, "missing external id")
+			quarantine("offering", row.ID, "missing external id")
 			continue
 		}
 		if _, ok := courseIDs[row.CourseID]; !ok {
-			quarantine("offering", key, fmt.Sprintf("unknown course_id %s", row.CourseID))
+			quarantine("offering", row.ID, fmt.Sprintf("unknown course_id %s", row.CourseID))
 			continue
 		}
 		if quarantined[course.EntityTypeCourse+"|"+row.CourseID] {
-			quarantine("offering", key, fmt.Sprintf("course %s quarantined", row.CourseID))
+			quarantine("offering", row.ID, fmt.Sprintf("course %s quarantined", row.CourseID))
 			continue
 		}
 		if strings.TrimSpace(row.Term) == "" {
-			quarantine("offering", key, "missing term")
+			quarantine("offering", row.ID, "missing term")
 			continue
 		}
 		for _, insID := range row.InstructorIDs {
 			if _, ok := instructorIDs[insID]; !ok {
-				quarantine("offering", key, fmt.Sprintf("unresolvable instructor_id %s", insID))
+				quarantine("offering", row.ID, fmt.Sprintf("unresolvable instructor_id %s", insID))
 				break
 			}
 		}
@@ -520,7 +523,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 	code := strings.TrimSpace(row.Code)
 	name := strings.TrimSpace(row.Name)
 	if code == "" || name == "" {
-		report.Quarantined++
+		quarantineCatalogRow(report, "course", row.ID, "missing code or name")
 		return nil
 	}
 	checksum := rowChecksum(row)
@@ -548,8 +551,11 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 	if tc := strings.TrimSpace(row.TeacherCode); tc != "" {
 		insID, err := sourceRefLocalID(tx, source, tc, course.EntityTypeInstructor)
 		if err != nil {
-			report.Quarantined++
-			return nil //nolint:nilerr // 教师引用不可解析 → 隔离该行（与 offering 引用不可解析同语义），不中断整批导入
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				quarantineCatalogRow(report, "course", row.ID, fmt.Sprintf("unresolvable teacher_code %s", tc))
+				return nil
+			}
+			return fmt.Errorf("lookup instructor source ref %s: %w", tc, err)
 		}
 		teacherId = insID
 	}
@@ -607,7 +613,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 		existingAlias, err := course.GetAliasByNormalizedValueTx(tx, course.AliasKindName, norm)
 		if err == nil {
 			if existingAlias.CourseId != entity.Id {
-				report.Quarantined++
+				quarantineCatalogRow(report, "course", row.ID, fmt.Sprintf("alias %q conflicts with course %d", alias, existingAlias.CourseId))
 				continue
 			}
 			// 同课程已存在：若此前被软删（唯一索引仍占位），恢复该行
@@ -660,7 +666,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 func applyInstructorRow(tx *gorm.DB, runID uint64, source string, row importInstructorRow, report *CatalogImportReport) error {
 	name := strings.TrimSpace(row.Name)
 	if name == "" {
-		report.Quarantined++
+		quarantineCatalogRow(report, "instructor", row.ID, "missing name")
 		return nil
 	}
 	checksum := rowChecksum(row)
@@ -738,8 +744,11 @@ func applyInstructorRow(tx *gorm.DB, runID uint64, source string, row importInst
 func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferingRow, report *CatalogImportReport) error {
 	courseLocalID, err := sourceRefLocalID(tx, source, row.CourseID, course.EntityTypeCourse)
 	if err != nil {
-		report.Quarantined++
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			quarantineCatalogRow(report, "offering", row.ID, fmt.Sprintf("unresolvable course_id %s", row.CourseID))
+			return nil
+		}
+		return fmt.Errorf("lookup course source ref %s: %w", row.CourseID, err)
 	}
 	checksum := rowChecksum(row)
 	termEntity, err := getOrCreateTermTx(tx, strings.TrimSpace(row.Term))
@@ -751,8 +760,11 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 	for _, insID := range row.InstructorIDs {
 		ins, err := sourceRefLocalID(tx, source, insID, course.EntityTypeInstructor)
 		if err != nil {
-			report.Quarantined++
-			return nil
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				quarantineCatalogRow(report, "offering", row.ID, fmt.Sprintf("unresolvable instructor_id %s", insID))
+				return nil
+			}
+			return fmt.Errorf("lookup instructor source ref %s: %w", insID, err)
 		}
 		instructorLocalIDs = append(instructorLocalIDs, ins)
 	}

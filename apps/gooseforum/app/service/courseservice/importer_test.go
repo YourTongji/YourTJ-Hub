@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 // writeManifestFixture 在临时目录写入 JSONL 数据文件并生成带 sha256 的 manifest（source 固定 test-fixture）。
@@ -341,4 +344,155 @@ func TestImportCatalogIsolatesSources(t *testing.T) {
 	if refA.LocalId == refB.LocalId {
 		t.Fatalf("two sources must map to distinct courses, both local_id=%d", refA.LocalId)
 	}
+}
+
+func TestValidateRowsOfferingQuarantineIncludesExternalID(t *testing.T) {
+	rows := importRows{
+		courses: []importCourseRow{{ID: "c1", Code: "100001", Name: "高等数学"}},
+		offerings: []importOfferingRow{
+			{ID: "o-missing-course", CourseID: "missing-course", Term: "2025-2026-1"},
+			{ID: "o-missing-instructor", CourseID: "c1", Term: "2025-2026-1", InstructorIDs: []string{"missing-instructor"}},
+		},
+	}
+	report := &CatalogImportReport{Errors: []ImportError{}}
+
+	quarantined := validateRows(rows, report)
+
+	if !quarantined[course.EntityTypeOffering+"|o-missing-course"] || !quarantined[course.EntityTypeOffering+"|o-missing-instructor"] {
+		t.Fatalf("expected both offering rows to be quarantined, got %v", quarantined)
+	}
+	if report.Quarantined != 2 || len(report.Errors) != 2 {
+		t.Fatalf("expected two offering quarantine errors, got quarantined=%d errors=%v", report.Quarantined, report.Errors)
+	}
+	for _, err := range report.Errors {
+		if err.Entity != "offering" || err.ExternalID == "" || err.Reason == "" {
+			t.Fatalf("offering quarantine error must include entity, external ID, and reason: %+v", err)
+		}
+	}
+}
+
+func TestImportCatalogOfferingQuarantineDryRunParity(t *testing.T) {
+	migrateCourseImportTables(t)
+	manifestPath := writeManifestFixture(t, map[string]string{
+		"courses.jsonl":     `{"id":"c1","code":"100001","name":"高等数学"}` + "\n",
+		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院"}` + "\n",
+		"offerings.jsonl":   `{"id":"o1","course_id":"c1","term":"2025-2026-1","instructor_ids":["missing-instructor"]}` + "\n",
+	})
+
+	dryReport, err := ImportCatalog(context.Background(), manifestPath, true)
+	if err != nil {
+		t.Fatalf("dry-run import: %v", err)
+	}
+	realReport, err := ImportCatalog(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("real import: %v", err)
+	}
+
+	if dryReport.Quarantined != 1 || realReport.Quarantined != 1 {
+		t.Fatalf("dry-run and real import must quarantine one offering: dry=%+v real=%+v", dryReport, realReport)
+	}
+	if len(dryReport.Errors) != 1 || len(realReport.Errors) != 1 {
+		t.Fatalf("dry-run and real import must report one offering error: dry=%+v real=%+v", dryReport, realReport)
+	}
+	if dryReport.Errors[0] != realReport.Errors[0] {
+		t.Fatalf("dry-run and real import quarantine errors differ: dry=%+v real=%+v", dryReport.Errors[0], realReport.Errors[0])
+	}
+	if got := realReport.Errors[0]; got.Entity != "offering" || got.ExternalID != "o1" || got.Reason != "unresolvable instructor_id missing-instructor" {
+		t.Fatalf("unexpected offering quarantine error: %+v", got)
+	}
+}
+
+func TestApplyOfferingRowQuarantinesMissingSourceRefWithReport(t *testing.T) {
+	db := newOfferingImportTestDB(t)
+	report := &CatalogImportReport{Errors: []ImportError{}}
+
+	err := applyOfferingRow(db, 1, "test-source", importOfferingRow{
+		ID:       "o-missing-course",
+		CourseID: "missing-course",
+		Term:     "2025-2026-1",
+	}, report)
+
+	if err != nil {
+		t.Fatalf("missing course source ref should quarantine, got error: %v", err)
+	}
+	if report.Quarantined != 1 || len(report.Errors) != 1 {
+		t.Fatalf("expected one quarantine error, got quarantined=%d errors=%v", report.Quarantined, report.Errors)
+	}
+	got := report.Errors[0]
+	if got.Entity != "offering" || got.ExternalID != "o-missing-course" || got.Reason != "unresolvable course_id missing-course" {
+		t.Fatalf("unexpected quarantine error: %+v", got)
+	}
+}
+
+func TestApplyOfferingRowQuarantinesMissingInstructorSourceRefWithReport(t *testing.T) {
+	db := newOfferingImportTestDB(t)
+	if err := db.Create(&course.SourceRefEntity{
+		ImportRunId: 1,
+		Source:      "test-source",
+		EntityType:  course.EntityTypeCourse,
+		ExternalId:  "course-1",
+		LocalId:     1,
+		Checksum:    "course-checksum",
+	}).Error; err != nil {
+		t.Fatalf("create course source ref: %v", err)
+	}
+	report := &CatalogImportReport{Errors: []ImportError{}}
+
+	err := applyOfferingRow(db, 1, "test-source", importOfferingRow{
+		ID:            "o-missing-instructor",
+		CourseID:      "course-1",
+		Term:          "2025-2026-1",
+		InstructorIDs: []string{"missing-instructor"},
+	}, report)
+
+	if err != nil {
+		t.Fatalf("missing instructor source ref should quarantine, got error: %v", err)
+	}
+	if report.Quarantined != 1 || len(report.Errors) != 1 {
+		t.Fatalf("expected one quarantine error, got quarantined=%d errors=%v", report.Quarantined, report.Errors)
+	}
+	got := report.Errors[0]
+	if got.Entity != "offering" || got.ExternalID != "o-missing-instructor" || got.Reason != "unresolvable instructor_id missing-instructor" {
+		t.Fatalf("unexpected quarantine error: %+v", got)
+	}
+}
+
+func TestApplyOfferingRowAbortsOnSourceRefDatabaseError(t *testing.T) {
+	db := newOfferingImportTestDB(t)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close sql db: %v", err)
+	}
+	report := &CatalogImportReport{Errors: []ImportError{}}
+
+	err = applyOfferingRow(db, 1, "test-source", importOfferingRow{
+		ID:       "o-database-error",
+		CourseID: "course-1",
+		Term:     "2025-2026-1",
+	}, report)
+
+	if err == nil {
+		t.Fatal("expected database error to abort offering batch")
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("database error must not be classified as business quarantine: %v", err)
+	}
+	if report.Quarantined != 0 || len(report.Errors) != 0 {
+		t.Fatalf("database error must not increment quarantine report: %+v", report)
+	}
+}
+
+func newOfferingImportTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "course-import.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&course.TermEntity{}, &course.SourceRefEntity{}); err != nil {
+		t.Fatalf("migrate test db: %v", err)
+	}
+	return db
 }
