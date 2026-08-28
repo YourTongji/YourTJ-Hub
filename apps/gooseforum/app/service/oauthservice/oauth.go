@@ -29,6 +29,7 @@ import (
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 const (
@@ -169,8 +170,11 @@ func bindOAuthByTrustedEmail(userInfo OAuthUserInfo) (*users.EntityComplete, err
 	}
 
 	user, err := users.GetByEmail(userInfo.VerifiedEmail)
-	if err != nil || user.Id == 0 {
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && user.Id == 0) {
 		return nil, nil // 无同邮箱账号，走注册
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询可信邮箱账号失败: %w", err)
 	}
 
 	// 与既有 OAuth 绑定路径一致的账号状态检查（issue #130 冻结语义保留）。

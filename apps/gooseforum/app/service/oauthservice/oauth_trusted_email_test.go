@@ -248,6 +248,38 @@ func TestBindOAuthByTrustedEmailBindsExisting(t *testing.T) {
 	}
 }
 
+// TestBindOAuthByTrustedEmailPropagatesDatabaseError 数据库查询失败时不得降级为注册。
+func TestBindOAuthByTrustedEmailPropagatesDatabaseError(t *testing.T) {
+	conn := setupOAuthTestDB(t)
+	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
+		AllowedDomains: []string{"tongji.edu.cn"},
+	})
+
+	if bound, err := bindOAuthByTrustedEmail(OAuthUserInfo{
+		VerifiedEmail: "missing@tongji.edu.cn",
+		EmailVerified: true,
+	}); bound != nil || err != nil {
+		t.Fatalf("bindOAuthByTrustedEmail() for missing account = (%v, %v), want (nil, nil)", bound, err)
+	}
+
+	if err := conn.Exec(`ALTER TABLE users RENAME TO users_lookup_error`).Error; err != nil {
+		t.Fatalf("rename users table: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Exec(`ALTER TABLE users_lookup_error RENAME TO users`).Error; err != nil {
+			t.Errorf("restore users table: %v", err)
+		}
+	})
+
+	_, err := bindOAuthByTrustedEmail(OAuthUserInfo{
+		VerifiedEmail: "broken@tongji.edu.cn",
+		EmailVerified: true,
+	})
+	if err == nil {
+		t.Fatal("bindOAuthByTrustedEmail() error = nil, want database error")
+	}
+}
+
 // TestBindOAuthByTrustedEmailSkipsUnmatchedDomain 信任域名外 verified 邮箱 → 不绑定，走注册。
 func TestBindOAuthByTrustedEmailSkipsUnmatchedDomain(t *testing.T) {
 	setupOAuthTestDB(t)
