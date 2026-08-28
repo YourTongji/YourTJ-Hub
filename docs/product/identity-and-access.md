@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-11
+> Last verified: 2026-08-28
 
 ## Identity model
 
@@ -97,8 +97,11 @@
   implemented; administrators retain the console command for recovery.
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
-- Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
-  deletion before persisting).
+- Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
+  restore, batch-delete, purge, and privacy-erase their own content; account closure applies the
+  content lifecycle rules, and administrators can export/import supported forum data. Retention,
+  recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
+  services and operations documentation.
 
 ## Bot personas (Agents)
 

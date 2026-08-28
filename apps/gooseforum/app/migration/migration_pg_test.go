@@ -83,6 +83,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
@@ -123,6 +124,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
 		t.Fatalf("drop legacy-missing username index: %v", err)
 	}
+	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_email_nonempty"); err != nil {
+		t.Fatalf("drop legacy-missing email index: %v", err)
+	}
 	if err := db.Migrator().DropColumn(&pointsRecord.Entity{}, "source_key"); err != nil {
 		t.Fatalf("drop legacy-missing points_record.source_key: %v", err)
 	}
@@ -138,6 +142,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Fatal("precondition failed: legacy users table should not have username unique index")
 	}
+	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_email_nonempty") {
+		t.Fatal("precondition failed: legacy users table should not have email unique index")
+	}
 	if db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {
 		t.Fatal("precondition failed: legacy points_record table should not have source_key")
 	}
@@ -148,6 +155,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	// 部署新二进制：全量 AutoMigrate 应补齐新表且不破坏旧表
 	if err := validateUniqueUsernames(db); err != nil {
 		t.Fatalf("username preflight on postgres upgrade failed: %v", err)
+	}
+	if err := validateUniqueUserEmails(db); err != nil {
+		t.Fatalf("email preflight on postgres upgrade failed: %v", err)
 	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
@@ -183,6 +193,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
 	}
+	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
