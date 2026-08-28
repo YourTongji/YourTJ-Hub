@@ -491,6 +491,16 @@ func newOfferingImportTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
+	// Windows 下不关闭连接会锁住文件，导致 t.TempDir() 清理失败。
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := sqlDB.Close(); err != nil {
+			t.Errorf("close test db: %v", err)
+		}
+	})
 	if err := db.AutoMigrate(&course.TermEntity{}, &course.SourceRefEntity{}); err != nil {
 		t.Fatalf("migrate test db: %v", err)
 	}

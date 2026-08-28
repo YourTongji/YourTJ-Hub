@@ -223,7 +223,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	var result DeletePostResult
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		loaded, err := posts.GetUnscopedTx(tx, postID)
-		if errors.Is(err, gorm.ErrRecordNotFound) || loaded.Id == 0 {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
 		}
 		if err != nil {
@@ -299,7 +299,7 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	var post posts.Entity
 	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		loaded, err := posts.GetUnscopedTx(tx, postID)
-		if errors.Is(err, gorm.ErrRecordNotFound) || loaded.Id == 0 {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
 		}
 		if err != nil {
