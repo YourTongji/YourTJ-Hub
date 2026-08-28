@@ -389,6 +389,8 @@ export default {
     grade: 'Anno',
     major: 'Corso di laurea',
     selectPlaceholder: 'Seleziona',
+    selectSearchPlaceholder: 'Cerca opzioni…',
+    selectSearchEmpty: 'Nessuna opzione corrispondente',
     majorHint: 'Per corsi interdisciplinari, cerca direttamente in "Seleziona Corsi" → "Ricerca Avanzata".',
     openPicker: 'Seleziona Corsi',
     pickerDescription: 'Seleziona i corsi da quelli previsti, opzionali o dai risultati della ricerca avanzata per aggiungerli al tuo orario.',

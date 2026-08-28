@@ -39,6 +39,27 @@ describe('ScheduleCoursePicker Dialog 可访问性', () => {
     wrapper.unmount()
   })
 
+  test('高级检索的校区和开课学院选择框启用关键词搜索', async () => {
+    const wrapper = mount(ScheduleCoursePicker, {
+      props: { open: true },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    expect(tabs).toHaveLength(3)
+    tabs[2].click()
+    await flushPromises()
+    const selects = [...document.querySelectorAll<HTMLElement>('[role="combobox"]')]
+    expect(selects).toHaveLength(2)
+
+    selects[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pageX: 10, pageY: 10 }))
+    await flushPromises()
+    expect(document.querySelector('[data-testid="site-select-search-input"]')).not.toBeNull()
+    wrapper.unmount()
+  })
+
   afterEach(() => {
     document.body.innerHTML = ''
   })

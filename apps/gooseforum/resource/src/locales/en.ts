@@ -389,6 +389,8 @@ export default {
     grade: 'Grade',
     major: 'Major',
     selectPlaceholder: 'Select',
+    selectSearchPlaceholder: 'Search options…',
+    selectSearchEmpty: 'No matching options',
     majorHint: 'For cross-disciplinary courses, search directly under "Select Courses" → "Advanced Search".',
     openPicker: 'Select Courses',
     pickerDescription: 'Select courses from required, optional, or advanced search results to add to your timetable.',
