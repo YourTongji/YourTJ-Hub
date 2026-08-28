@@ -76,6 +76,10 @@ func migrateSchema() {
 	var err error
 
 	db := dbconnect.Connect()
+	if err = validateUniqueUserEmails(db); err != nil {
+		slog.Error("dbconnect migration email uniqueness preflight failed", "err", err)
+		os.Exit(1)
+	}
 	if err = validateUniqueUsernames(db); err != nil {
 		slog.Error("dbconnect migration preflight failed", "err", err)
 		os.Exit(1)
@@ -118,6 +122,41 @@ func migrateSchema() {
 type duplicateUsername struct {
 	Username string
 	Count    int64
+}
+
+type duplicateUserEmail struct {
+	Email string
+	Count int64
+}
+
+// validateUniqueUserEmails fails before AutoMigrate attempts to add the
+// partial unique index for non-empty user emails. Empty emails are valid for
+// bot/OAuth accounts and are intentionally excluded from the index. Identity
+// rows are never rewritten automatically: legacy duplicate non-empty emails
+// require an operator to resolve the conflicting accounts before startup.
+func validateUniqueUserEmails(db *gorm.DB) error {
+	if !db.Migrator().HasTable("users") {
+		return nil
+	}
+
+	var duplicates []duplicateUserEmail
+	if err := db.Table("users").
+		Select("email, COUNT(*) AS count").
+		Where("email IS NOT NULL AND email <> ?", "").
+		Group("email").
+		Having("COUNT(*) > 1").
+		Order("email ASC").
+		Limit(10).
+		Scan(&duplicates).Error; err != nil {
+		return fmt.Errorf("inspect duplicate user emails: %w", err)
+	}
+	if len(duplicates) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"cannot create uniq_users_email_nonempty: found duplicate non-empty user emails %v; resolve each conflicting account before restarting",
+		duplicates,
+	)
 }
 
 // validateUniqueUsernames fails before AutoMigrate attempts to add the global
