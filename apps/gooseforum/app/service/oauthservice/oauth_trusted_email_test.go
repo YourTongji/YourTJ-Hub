@@ -153,7 +153,7 @@ func TestCreateUserFromOAuthUnmatchedDomainFollowsSwitch(t *testing.T) {
 	})
 	user2, err := createUserFromOAuth(OAuthUserInfo{
 		ID: "2", Login: "outside-user2", Provider: ProviderGitHub,
-		VerifiedEmail: "bob@gmail.com", EmailVerified: true,
+		VerifiedEmail: "bob2@gmail.com", EmailVerified: true,
 	})
 	if err != nil {
 		t.Fatalf("createUserFromOAuth() error = %v", err)

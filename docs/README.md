@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-28
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and

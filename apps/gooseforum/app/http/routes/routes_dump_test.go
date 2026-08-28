@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/gin-gonic/gin"
 )
 
@@ -43,6 +44,13 @@ func routesSnapshotPath(t *testing.T) string {
 func collectRouteSnapshot(t *testing.T) []routeSnapshotEntry {
 	t.Helper()
 	setupMcpRouteTestDB(t) // mcpRoute needs the page_config table migrated
+	// The committed snapshot describes the production single-binary route
+	// surface. Isolate this assembly from tests that temporarily switch the
+	// process-wide environment to local development (which enables Vite proxy
+	// routes under /assets/*path).
+	previousEnv := preferences.Get("app.env", "production")
+	preferences.Set("app.env", "production")
+	t.Cleanup(func() { preferences.Set("app.env", previousEnv) })
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterByGin(router)

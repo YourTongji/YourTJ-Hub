@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-14
+> Last verified: 2026-08-28
 
 ## Contract status
 
@@ -228,5 +228,6 @@ and per-topic documents preserve the stored Markdown source.
   generated-artifact placeholder until the OpenAPI pipeline lands). Backend/TS contract changes that
   affect the mobile surface must update the Dart mirrors in the same PR; fixture contract tests
   (`core/test/fixtures`) back runtime deserialization.
-- Dart generation and full-route coverage are Planned; do not claim they are current contract gates.
+- Automated Dart generation remains Planned; route coverage is a current contract gate as described
+  above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).

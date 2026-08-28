@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-17
+> Last verified: 2026-08-28
 
 ## What works
 
