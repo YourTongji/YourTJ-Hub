@@ -6781,8 +6781,52 @@ AdminAiSummarySettingsConfig:
     globalPerMinute:
       type: integer
       description: Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5.
+    baseUrl:
+      type: string
+      description: OpenAI-compatible endpoint, e.g. `https://api.openai.com/v1` or `https://api.siliconflow.cn/v1`. Stored without a trailing slash. When set, the admin-provided provider configuration wins over config.toml `[ai_summary]`.
+    model:
+      type: string
+      description: Model id, e.g. `gpt-4o`; can be picked from the auto-fetched list or typed manually.
+    apiKey:
+      type: string
+      description: Plaintext api key accepted on save requests (issue #324 security pattern). Never stored or returned in plaintext — an empty value on save keeps the stored (encrypted) key.
+    temperature:
+      type: number
+      format: float
+      description: Optional sampling temperature; unset uses the default 0.3.
+    maxTokens:
+      type: integer
+      description: Optional max output tokens; unset uses the default 1024.
   additionalProperties: false
-  description: Exposure boundary — only the switch and quota are stored/returned; provider, base_url, api_key, and model live in config.toml `[ai_summary]` and never enter the DB or this API.
+
+AdminAiSummarySettingsView:
+  type: object
+  required: [enabled, globalPerMinute, baseUrl, model, apiKeyConfigured]
+  properties:
+    enabled:
+      type: boolean
+      description: Master switch; when off the summary endpoint reports `status=disabled`.
+    globalPerMinute:
+      type: integer
+      description: Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5.
+    baseUrl:
+      type: string
+      description: OpenAI-compatible endpoint (stored configuration or empty when unset).
+    model:
+      type: string
+      description: Model id (stored configuration or empty when unset).
+    apiKeyConfigured:
+      type: boolean
+      description: Whether an api key is stored — the key itself is never returned (issue #324 security pattern).
+    temperature:
+      type: number
+      format: float
+      description: Optional sampling temperature; unset uses the default 0.3.
+    maxTokens:
+      type: integer
+      description: Optional max output tokens; unset uses the default 1024.
+  additionalProperties: false
+  description: Admin GET view — provider endpoint/model are returned, the api key only as a configured flag.
 
 AdminAiSummarySettingsResponse:
   allOf:
@@ -6791,7 +6835,7 @@ AdminAiSummarySettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminAiSummarySettingsConfig'
+          $ref: '#/AdminAiSummarySettingsView'
           description: Stored AI summary settings, or the built-in default when nothing has been saved.
 
 AdminSaveAiSummarySettingsRequest:
@@ -6800,7 +6844,49 @@ AdminSaveAiSummarySettingsRequest:
     settings:
       $ref: '#/AdminAiSummarySettingsConfig'
   additionalProperties: false
-  description: Replacement AI summary settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+  description: Replacement AI summary settings. Non-empty `apiKey` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored key (issue #324 security pattern). The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+
+AdminAiSummaryModelsRequest:
+  type: object
+  properties:
+    baseUrl:
+      type: string
+      description: Optional temporary endpoint to probe before saving; empty uses the stored configuration.
+    apiKey:
+      type: string
+      description: Optional temporary api key to probe before saving; empty falls back to the stored (decrypted) key.
+  additionalProperties: false
+  description: Probe request for the OpenAI-compatible `/models` endpoint. Supports testing credentials before saving them.
+
+AdminAiSummaryModelsItem:
+  type: object
+  required: [id]
+  properties:
+    id:
+      type: string
+      description: Model id.
+    owned_by:
+      type: string
+      description: Owner organization string returned by the provider.
+  additionalProperties: false
+
+AdminAiSummaryModelsResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              type: object
+              required: [models]
+              properties:
+                models:
+                  type: array
+                  items:
+                    $ref: '#/AdminAiSummaryModelsItem'
+              additionalProperties: false
+    - $ref: '#/ApiFailure'
 
 AdminLegalDocumentConfig:
   type: object

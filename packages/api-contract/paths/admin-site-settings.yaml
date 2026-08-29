@@ -921,11 +921,13 @@ adminGetAiSummarySettings:
       `permission.denied` (params permission=<localized permission name>,
       `站点管理` in zh). Returns the stored AI summary settings, or the
       built-in default configuration when nothing has been saved yet.
-      Exposure boundary: only the switch and the global quota are stored
-      and returned; the LLM provider credentials (`provider`, `base_url`,
-      `api_key`, `model`) live in config.toml `[ai_summary]` and never
-      enter the DB or this API. JSON binding is lenient: query string and
-      body are ignored.
+      Exposure boundary: the provider endpoint (`baseUrl`) and `model` are
+      returned in cleartext, but the `apiKey` only as the `apiKeyConfigured`
+      flag — the key itself (plaintext or ciphertext) never appears on the
+      wire or in the stored config JSON (issue #324 security pattern).
+      When no admin provider configuration is stored, generation falls back
+      to config.toml `[ai_summary]`. JSON binding is lenient: query string
+      and body are ignored.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -969,7 +971,12 @@ adminSaveAiSummarySettings:
       Admin console operation gated by the `SiteManager` role permission;
       callers without it fail with HTTP 403 and `permission.denied`.
       Replaces the whole AI summary configuration with the submitted value
-      and clears the settings cache. The Go struct tags `settings` with
+      and clears the settings cache. A non-empty `apiKey` is encrypted
+      (AES-256-GCM, purpose-scoped) before persistence; an empty `apiKey`
+      keeps the stored encrypted key. `baseUrl` must be a valid http(s)
+      URL when non-empty (local/intranet endpoints allowed for self-hosted
+      providers). Business failures (HTTP 200): `admin.aiSummary.saveFailed`
+      (params error). The Go struct tags `settings` with
       `validate:"required"`, but struct-level required never fails, so a
       missing or malformed body saves a zero-value configuration.
     security:
@@ -991,6 +998,64 @@ adminSaveAiSummarySettings:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminListAiSummaryModels:
+  post:
+    tags: [Admin]
+    summary: List models from the OpenAI-compatible endpoint
+    operationId: adminListAiSummaryModels
+    description: |
+      Admin console operation gated by the `SiteManager` role permission.
+      Calls `{baseUrl}/models` (OpenAI-compatible standard endpoint) and
+      returns the model list for the model dropdown. The request may carry
+      temporary `baseUrl`/`apiKey` to probe credentials before saving; when
+      empty, the stored (decrypted) configuration is used. Errors never
+      carry the provider response body (no leakage): an unsupported
+      `/models` endpoint (404/405 or empty data) fails with
+      `admin.aiSummary.modelsUnsupported` — the frontend then lets the
+      admin type the model manually; other failures fail with
+      `admin.aiSummary.modelsFailed` (params error). Timeout is 10s.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAiSummaryModelsRequest
+    responses:
+      '200':
+        description: Model list, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAiSummaryModelsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-ai-summary-models-success.json
+              unsupported:
+                externalValue: ../fixtures/admin-ai-summary-models-unsupported.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

@@ -358,6 +358,8 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminGetAiSummarySettings
   /api/admin/save-ai-summary-settings:
     $ref: ./paths/admin-site-settings.yaml#/adminSaveAiSummarySettings
+  /api/admin/ai-summary-models:
+    $ref: ./paths/admin-site-settings.yaml#/adminListAiSummaryModels
   /api/admin/terms-of-service:
     $ref: ./paths/admin-site-settings.yaml#/adminGetTermsOfService
   /api/admin/save-terms-of-service:
