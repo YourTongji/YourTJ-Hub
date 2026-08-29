@@ -26,6 +26,7 @@ import type {
   PageResult,
   PostingSettings,
   MCPSettings,
+  AiSummaryModelItem,
   AiSummarySettings,
   OnesystemSettings,
   PkSyncStatusItem,
@@ -392,6 +393,10 @@ export function getAiSummarySettings() {
 
 export function saveAiSummarySettings(settings: AiSummarySettings) {
   return postJson<unknown>('/api/admin/save-ai-summary-settings', { settings }, adminText('k00p3'))
+}
+
+export function listAiSummaryModels(params: { baseUrl?: string, apiKey?: string }) {
+  return postJson<{ models: AiSummaryModelItem[] }>('/api/admin/ai-summary-models', params, adminText('k00p8'))
 }
 
 export function getOnesystemSettings() {
