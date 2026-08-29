@@ -389,7 +389,17 @@ function normalizeMCP(settings: Partial<MCPSettings> = {}) {
     writes: toBool(settings.writes, false),
   } satisfies MCPSettings
 }
+// optionalFormNumber 处理 v-model.number 清空输入产生的 ''（运行时值，类型上
+// AiSummarySettings 为 number|undefined）：''/NaN/空一律视为未设置。
+function optionalFormNumber(raw: number | undefined | null | ''): number | undefined {
+  if (raw == null || raw === '') return undefined
+  const value = Number(raw)
+  return Number.isNaN(value) ? undefined : value
+}
+
 function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
+  const temperature = optionalFormNumber(settings.temperature)
+  const maxTokens = optionalFormNumber(settings.maxTokens)
   return {
     enabled: toBool(settings.enabled, false),
     globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
@@ -397,8 +407,8 @@ function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
     model: (settings.model ?? '').trim(),
     apiKey: '',
     apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
-    temperature: settings.temperature == null || settings.temperature === '' ? undefined : Number(settings.temperature),
-    maxTokens: settings.maxTokens == null || settings.maxTokens === '' ? undefined : Math.max(Number(settings.maxTokens), 0),
+    temperature,
+    maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
   } satisfies AiSummarySettings
 }
 
