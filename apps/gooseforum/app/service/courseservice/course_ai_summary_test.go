@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -418,5 +419,62 @@ func TestAiSummaryGeneratedAtPersisted(t *testing.T) {
 	}
 	if parsed.Unix() != cached.GeneratedAt.Unix() {
 		t.Fatalf("response generatedAt %v != stored %v", parsed, cached.GeneratedAt)
+	}
+}
+
+// TestResolveAiSummaryConfigAdminWins 管理后台 pageConfig 配置优先于 config.toml。
+func TestResolveAiSummaryConfigAdminWins(t *testing.T) {
+	// setupAiSummaryTest 负责 AutoMigrate page_config 表（upsert 依赖表存在）。
+	setupAiSummaryTest(t)
+	conn := dbconnect.Connect()
+	// 先写 config.toml 侧的值（兜底），再写 pageConfig 侧的值（优先）。
+	preferences.Set("ai_summary.base_url", "https://fallback.example.test/v1")
+	preferences.Set("ai_summary.model", "fallback-model")
+	preferences.Set("ai_summary.api_key", "fallback-key")
+	t.Cleanup(func() {
+		preferences.Set("ai_summary.base_url", "")
+		preferences.Set("ai_summary.model", "")
+		preferences.Set("ai_summary.api_key", "")
+		conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearAiSummarySettingsConfigCache()
+	})
+	sealed, err := securestore.EncryptPurpose("admin-key", securestore.AiSummaryAPIKeyPurpose)
+	if err != nil {
+		t.Fatalf("encrypt admin key: %v", err)
+	}
+	upsertAiSummaryConfig(t, `{"enabled":true,"globalPerMinute":5,"baseUrl":"https://admin.example.test/v1","model":"admin-model","apiKeyEncrypted":"`+sealed+`"}`)
+
+	cfg := resolveAiSummaryConfig()
+	if cfg.BaseURL != "https://admin.example.test/v1" || cfg.Model != "admin-model" {
+		t.Fatalf("cfg = %#v, want admin baseURL/model", cfg)
+	}
+	if cfg.APIKey != "admin-key" {
+		t.Fatalf("cfg.APIKey = %q, want decrypted admin-key", cfg.APIKey)
+	}
+	if cfg.Temperature != 0.3 || cfg.MaxTokens != 1024 {
+		t.Fatalf("cfg defaults = %#v, want 0.3/1024", cfg)
+	}
+}
+
+// TestResolveAiSummaryConfigFallsBackToToml 管理后台未配置时回退 config.toml。
+func TestResolveAiSummaryConfigFallsBackToToml(t *testing.T) {
+	// setupAiSummaryTest 负责 AutoMigrate page_config 表。
+	setupAiSummaryTest(t)
+	conn := dbconnect.Connect()
+	t.Cleanup(func() {
+		preferences.Set("ai_summary.base_url", "")
+		preferences.Set("ai_summary.model", "")
+		conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearAiSummarySettingsConfigCache()
+	})
+	// 清掉 pageConfig 行，保证走 config.toml 兜底。
+	conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
+	hotdataserve.ClearAiSummarySettingsConfigCache()
+	preferences.Set("ai_summary.base_url", "https://toml.example.test/v1/")
+	preferences.Set("ai_summary.model", "toml-model")
+
+	cfg := resolveAiSummaryConfig()
+	if cfg.BaseURL != "https://toml.example.test/v1" || cfg.Model != "toml-model" {
+		t.Fatalf("cfg = %#v, want toml baseURL/model with trailing slash trimmed", cfg)
 	}
 }

@@ -20,6 +20,70 @@ import (
 // DefaultTimeout 单次 LLM 调用超时；外部 HTTP 调用必须有时限，避免请求挂死。
 const DefaultTimeout = 30 * time.Second
 
+// ModelsTimeout 拉取模型列表的超时；比 LLM 调用更短，避免管理后台「刷新模型」
+// 长时间挂起。
+const ModelsTimeout = 10 * time.Second
+
+// ModelInfo 一个可用的模型条目（OpenAI compatible /models 返回项）。
+type ModelInfo struct {
+	ID      string `json:"id"`
+	OwnedBy string `json:"owned_by"`
+}
+
+// ErrModelsUnsupported /models 端点不可用（404/405 或响应无 data 数组）——
+// 管理端据此提示手动输入 model 兜底。
+var ErrModelsUnsupported = errors.New("provider does not expose /models")
+
+// ListModels 调用 {base_url}/models（OpenAI compatible 标准端点），返回可用
+// 模型列表。错误不携带响应原文（防泄漏）；未实现 /models 的服务返回
+// ErrModelsUnsupported。
+func (c Config) ListModels(ctx context.Context) ([]ModelInfo, error) {
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return nil, ErrNotConfigured
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.BaseURL, "/")+"/models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("llm build models request: %w", err)
+	}
+	if c.APIKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
+	}
+	client := &http.Client{Timeout: ModelsTimeout}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("llm models request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	// 未实现 /models 的服务常返回 404/405；视为「不支持自动获取」，交由调用方兜底。
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
+		return nil, ErrModelsUnsupported
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("llm models api status %d", resp.StatusCode)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("llm read models response: %w", err)
+	}
+	var payload struct {
+		Data []ModelInfo `json:"data"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("llm decode models response: %w", err)
+	}
+	if payload.Error != nil && payload.Error.Message != "" {
+		// 不携带响应原文（防泄漏）；服务端日志仍可通过状态码定位问题。
+		return nil, fmt.Errorf("llm models api error (status %d)", resp.StatusCode)
+	}
+	if len(payload.Data) == 0 {
+		return nil, ErrModelsUnsupported
+	}
+	return payload.Data, nil
+}
+
 // Config 从 config.toml [ai_summary] 段读取的提供方配置（部署级，api_key 不进 DB）。
 type Config struct {
 	Provider    string
