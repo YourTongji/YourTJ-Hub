@@ -106,6 +106,37 @@ var llmChat llmChatFunc = func(ctx context.Context, cfg llmprovider.Config, prom
 	})
 }
 
+// resolveAiSummaryConfig 组装 LLM provider 配置：管理后台 pageConfig 配置优先
+// （BaseURL/Model 任一已配置即整体优先，APIKey 已由缓存解密为运行时明文），
+// 未配置时回退 config.toml [ai_summary]（向后兼容现有部署）。
+func resolveAiSummaryConfig() llmprovider.Config {
+	aiCfg := hotdataserve.GetAiSummarySettingsConfigCache()
+	if strings.TrimSpace(aiCfg.BaseURL) != "" || strings.TrimSpace(aiCfg.Model) != "" {
+		return llmprovider.Config{
+			BaseURL:     strings.TrimRight(aiCfg.BaseURL, "/"),
+			APIKey:      aiCfg.APIKey,
+			Model:       aiCfg.Model,
+			Temperature: float64Or(aiCfg.Temperature, 0.3),
+			MaxTokens:   intOr(aiCfg.MaxTokens, 1024),
+		}
+	}
+	return llmprovider.LoadConfig()
+}
+
+func float64Or(v *float64, def float64) float64 {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+func intOr(v *int, def int) int {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
 // aiSummarySystemPrompt 约束 LLM 只输出 JSON 且字段与前端契约一致（英文枚举）。
 const aiSummarySystemPrompt = `你是「选课评课 AI 助手」。你的任务是基于多条学生评价，生成一门课程的结构化总结。
 只分析用户提供的评价文本，不添加外部事实。如果评价之间结论矛盾，要在总结中体现，不要抹平分歧。
@@ -250,7 +281,7 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 	}
 
 	// 7. 构建 prompt 并调用 LLM。
-	cfg := llmprovider.LoadConfig()
+	cfg := resolveAiSummaryConfig()
 	if !cfg.Enabled() {
 		slog.Warn("ai_summary_provider_not_configured", "courseId", courseId)
 		return AiSummaryResult{}, ErrAiSummaryGenerationFailed

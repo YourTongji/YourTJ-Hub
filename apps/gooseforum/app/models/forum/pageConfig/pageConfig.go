@@ -677,12 +677,95 @@ type MCPSettingsConfig struct {
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
 }
 
-// AiSummaryConfig AI 课程总结开关配置（B7，issue #181），可在管理面板热修改。
-// GlobalPerMinute 为全局每分钟 LLM 生成上限（成本护栏）；Provider 相关配置
-// （base_url/api_key/model 等）在 config.toml [ai_summary] 段，不进 DB。
+// AiSummaryConfig AI 课程总结配置（B7，issue #181），可在管理面板热修改。
+// Enabled 总开关、GlobalPerMinute 全局每分钟 LLM 生成上限（成本护栏）。
+// BaseURL/Model/APIKey/Temperature/MaxTokens 为 provider 参数：管理后台配置
+// 优先，未配置时回退 config.toml [ai_summary]（向后兼容）。
+// APIKey 为运行时明文（securestore 解密），标 json:"-"：明文/密文绝不随
+// JSON 序列化导出（遵循 issue #324 安全模式），持久化走 AiSummarySettingsStorage。
 type AiSummaryConfig struct {
-	Enabled         bool `json:"enabled"`         // 总开关（关闭时端点返回 status=disabled）
-	GlobalPerMinute int  `json:"globalPerMinute"` // 全局每分钟生成上限（0 = 用默认 5）
+	Enabled         bool     `json:"enabled"`               // 总开关（关闭时端点返回 status=disabled）
+	GlobalPerMinute int      `json:"globalPerMinute"`       // 全局每分钟生成上限（0 = 用默认 5）
+	BaseURL         string   `json:"baseUrl"`               // OpenAI-compatible 端点，如 https://api.openai.com/v1
+	Model           string   `json:"model"`                 // 模型 ID，如 gpt-4o
+	APIKey          string   `json:"-"`                     // 运行时明文（服务内存）；密文见 AiSummarySettingsStorage
+	Temperature     *float64 `json:"temperature,omitempty"` // 可选；不配用默认 0.3
+	MaxTokens       *int     `json:"maxTokens,omitempty"`   // 可选；不配用默认 1024
+}
+
+// AiSummarySettingsStorage AI 总结配置的落库 JSON 形状：与对外 AiSummaryConfig 分离，
+// apiKey 密文只在持久化序列化时出现，不进入 API 响应/缓存结构。
+type AiSummarySettingsStorage struct {
+	Enabled         bool     `json:"enabled"`
+	GlobalPerMinute int      `json:"globalPerMinute"`
+	BaseURL         string   `json:"baseUrl"`
+	Model           string   `json:"model"`
+	APIKeyEncrypted string   `json:"apiKeyEncrypted,omitempty"` // 密文（AES-256-GCM）
+	Temperature     *float64 `json:"temperature,omitempty"`
+	MaxTokens       *int     `json:"maxTokens,omitempty"`
+}
+
+// ToConfig 将落库形状转为领域结构（apiKey 密文原样拷贝，调用方解密）。
+func (s AiSummarySettingsStorage) ToConfig() AiSummaryConfig {
+	return AiSummaryConfig{
+		Enabled:         s.Enabled,
+		GlobalPerMinute: s.GlobalPerMinute,
+		BaseURL:         s.BaseURL,
+		Model:           s.Model,
+		APIKey:          s.APIKeyEncrypted,
+		Temperature:     s.Temperature,
+		MaxTokens:       s.MaxTokens,
+	}
+}
+
+// AiSummarySettingsView 管理端 GET 回显形状：apiKey 仅回显是否已配置
+// （明文/密文均不出现在响应中）。
+type AiSummarySettingsView struct {
+	Enabled          bool     `json:"enabled"`
+	GlobalPerMinute  int      `json:"globalPerMinute"`
+	BaseURL          string   `json:"baseUrl"`
+	Model            string   `json:"model"`
+	APIKeyConfigured bool     `json:"apiKeyConfigured"`
+	Temperature      *float64 `json:"temperature,omitempty"`
+	MaxTokens        *int     `json:"maxTokens,omitempty"`
+}
+
+// ToView 由落库形状生成回显视图。
+func (s AiSummarySettingsStorage) ToView() AiSummarySettingsView {
+	return AiSummarySettingsView{
+		Enabled:          s.Enabled,
+		GlobalPerMinute:  s.GlobalPerMinute,
+		BaseURL:          s.BaseURL,
+		Model:            s.Model,
+		APIKeyConfigured: strings.TrimSpace(s.APIKeyEncrypted) != "",
+		Temperature:      s.Temperature,
+		MaxTokens:        s.MaxTokens,
+	}
+}
+
+// ToView 由领域结构生成回显视图（默认配置路径：apiKey 恒为空）。
+func (c AiSummaryConfig) ToView() AiSummarySettingsView {
+	return AiSummarySettingsView{
+		Enabled:          c.Enabled,
+		GlobalPerMinute:  c.GlobalPerMinute,
+		BaseURL:          c.BaseURL,
+		Model:            c.Model,
+		APIKeyConfigured: strings.TrimSpace(c.APIKey) != "",
+		Temperature:      c.Temperature,
+		MaxTokens:        c.MaxTokens,
+	}
+}
+
+// AiSummarySettingsInput 管理端保存请求的绑定形状：apiKey 为明文（仅在请求瞬间
+// 存在），空串表示保留已存密文。
+type AiSummarySettingsInput struct {
+	Enabled         bool     `json:"enabled"`
+	GlobalPerMinute int      `json:"globalPerMinute"`
+	BaseURL         string   `json:"baseUrl"`
+	Model           string   `json:"model"`
+	APIKey          string   `json:"apiKey,omitempty"`
+	Temperature     *float64 `json:"temperature,omitempty"`
+	MaxTokens       *int     `json:"maxTokens,omitempty"`
 }
 
 // OneSystemSettingsConfig 一系统同步凭证配置：只落库密文（securestore AES-256-GCM），

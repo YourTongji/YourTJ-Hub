@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：264
-- /api JSON 路由：208，已入契约：206（99%），已知未覆盖：0
+- 快照路由总数：265
+- /api JSON 路由：209，已入契约：207（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（206）
+## 已覆盖（207）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -81,6 +81,7 @@
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/ai-summary-models` | `adminListAiSummaryModels` |
 | POST | `/api/admin/badge-delete` | `adminDeleteBadge` |
 | POST | `/api/admin/badge-save` | `adminSaveBadge` |
 | POST | `/api/admin/category-delete` | `adminCategoryDelete` |

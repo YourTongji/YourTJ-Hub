@@ -40,6 +40,7 @@ import {
   getStorageMigrateTasks,
   getStorageSettings,
   getTermsOfService,
+  listAiSummaryModels,
   saveAnnouncement,
   saveHttpNotifySettings,
   saveMailSettings,
@@ -61,6 +62,7 @@ import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  AiSummaryModelItem,
   AiSummarySettings,
   ManageHomeProps,
   AdminTaskRow,
@@ -78,6 +80,7 @@ import type {
   StorageSettings,
   TermsOfServiceConfig,
 } from '@/admin/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'onesystem'
 
@@ -188,7 +191,15 @@ const mcpForm = reactive<MCPSettings>({
 const aiSummaryForm = reactive<AiSummarySettings>({
   enabled: false,
   globalPerMinute: 5,
+  baseUrl: '',
+  model: '',
+  apiKey: '',
+  apiKeyConfigured: false,
+  temperature: undefined,
+  maxTokens: undefined,
 })
+const aiSummaryModels = ref<AiSummaryModelItem[]>([])
+const aiSummaryModelsLoading = ref(false)
 
 const postingForm = reactive<PostingSettings>({
   textControl: {
@@ -378,11 +389,63 @@ function normalizeMCP(settings: Partial<MCPSettings> = {}) {
     writes: toBool(settings.writes, false),
   } satisfies MCPSettings
 }
+// optionalFormNumber 处理 v-model.number 清空输入产生的 ''（运行时值，类型上
+// AiSummarySettings 为 number|undefined）：''/NaN/空一律视为未设置。
+function optionalFormNumber(raw: number | undefined | null | ''): number | undefined {
+  if (raw == null || raw === '') return undefined
+  const value = Number(raw)
+  return Number.isNaN(value) ? undefined : value
+}
+
 function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
+  const temperature = optionalFormNumber(settings.temperature)
+  const maxTokens = optionalFormNumber(settings.maxTokens)
   return {
     enabled: toBool(settings.enabled, false),
     globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
+    baseUrl: (settings.baseUrl ?? '').trim().replace(/\/+$/, ''),
+    model: (settings.model ?? '').trim(),
+    apiKey: '',
+    apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
+    temperature,
+    maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
   } satisfies AiSummarySettings
+}
+
+// aiSummaryPayload 保存请求负载：去掉只读回显字段（apiKeyConfigured），
+// apiKey 留空 = 保留已存密钥（与 OpenAPI 请求 schema 一致）。
+function aiSummaryPayload() {
+  const { apiKeyConfigured: _configured, ...payload } = normalizeAiSummary(aiSummaryForm)
+  return payload satisfies AiSummarySettings
+}
+
+// loadAiSummaryModels 调用 /models 端点拉取模型列表（支持先用临时参数探测，
+// 未实现 /models 的服务返回明确错误，允许手动输入 model 兜底）。
+async function loadAiSummaryModels() {
+  aiSummaryModelsLoading.value = true
+  try {
+    const response = await listAiSummaryModels({
+      baseUrl: aiSummaryForm.baseUrl.trim(),
+      apiKey: aiSummaryForm.apiKey.trim(),
+    })
+    aiSummaryModels.value = response.models ?? []
+    // 列表已填充即视觉反馈；空列表提示手动输入兜底。
+    if (aiSummaryModels.value.length === 0) adminToast.warning(adminText('k00pe'))
+  } catch (err) {
+    aiSummaryModels.value = []
+    adminToast.error(err, adminText('k00pf'))
+  } finally {
+    aiSummaryModelsLoading.value = false
+  }
+}
+
+function validateAiSummary() {
+  const baseUrl = aiSummaryForm.baseUrl.trim()
+  if (baseUrl && !isHttpUrl(baseUrl)) {
+    adminToast.warning(adminText('k00pg'))
+    return false
+  }
+  return true
 }
 
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
@@ -624,7 +687,15 @@ async function load() {
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
     else if (props.kind === 'mcp') Object.assign(mcpForm, normalizeMCP(await getMCPSettings()))
-    else if (props.kind === 'ai-summary') Object.assign(aiSummaryForm, normalizeAiSummary(await getAiSummarySettings()))
+    else if (props.kind === 'ai-summary') {
+      Object.assign(aiSummaryForm, normalizeAiSummary(await getAiSummarySettings()))
+      // 自动拉取模型列表填充下拉（失败静默，允许手动输入兜底）。
+      try {
+        aiSummaryModels.value = (await listAiSummaryModels({})).models ?? []
+      } catch {
+        aiSummaryModels.value = []
+      }
+    }
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
@@ -645,6 +716,7 @@ async function load() {
 async function save() {
   const httpNotifySettings = props.kind === 'http-notify' ? httpNotifyPayload() : null
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
+  if (props.kind === 'ai-summary' && !validateAiSummary()) return
 
   saving.value = true
   try {
@@ -654,7 +726,7 @@ async function save() {
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
-    else if (props.kind === 'ai-summary') await saveAiSummarySettings(normalizeAiSummary(aiSummaryForm))
+    else if (props.kind === 'ai-summary') await saveAiSummarySettings(aiSummaryPayload())
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
@@ -1197,6 +1269,51 @@ onUnmounted(stopSyncPolling)
           <Input v-model.number="aiSummaryForm.globalPerMinute" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
           <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00p7') }}</span>
         </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00p9') }}
+          <Input v-model="aiSummaryForm.baseUrl" :disabled="!aiSummaryForm.enabled" placeholder="https://api.openai.com/v1" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pa') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00pb') }}
+          <div class="flex items-center gap-2">
+            <Input v-model="aiSummaryForm.apiKey" :disabled="!aiSummaryForm.enabled" type="password" autocomplete="new-password" placeholder="sk-..." />
+            <Badge :variant="aiSummaryForm.apiKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+              {{ aiSummaryForm.apiKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+            </Badge>
+          </div>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pc') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00pl') }}
+          <div class="flex items-center gap-2">
+            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="flex-1" />
+            <Select v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled || aiSummaryModels.length === 0">
+              <SelectTrigger class="h-9 w-44 shrink-0">
+                <SelectValue :placeholder="adminText('k00pe')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="m in aiSummaryModels" :key="m.id" :value="m.id">{{ m.id }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="secondary" class="shrink-0" :disabled="!aiSummaryForm.enabled || aiSummaryModelsLoading" @click="loadAiSummaryModels">
+              <RefreshCw class="size-4" :class="{ 'animate-spin': aiSummaryModelsLoading }" />{{ adminText('k00pd') }}
+            </Button>
+          </div>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pm') }}</span>
+        </label>
+        <div class="grid gap-6 sm:grid-cols-2">
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00ph') }}
+            <Input v-model.number="aiSummaryForm.temperature" type="number" step="0.1" min="0" max="2" :disabled="!aiSummaryForm.enabled" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pi') }}</span>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00pj') }}
+            <Input v-model.number="aiSummaryForm.maxTokens" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pk') }}</span>
+          </label>
+        </div>
       </form>
 
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">

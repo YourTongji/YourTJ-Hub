@@ -406,6 +406,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("pk/sync-status", UpButterReq(api.PkSyncStatus)).
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
+		POST("ai-summary-models", UpButterReq(api.ListAiSummaryModels)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).

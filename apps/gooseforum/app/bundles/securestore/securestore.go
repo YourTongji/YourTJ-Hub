@@ -67,6 +67,10 @@ const StorageAccessKeyPurpose = "yourtj-storage-access-key"
 // StorageSecretKeyPurpose 对象存储 secretKey 的加密用途标签（issue #324 S3）。
 const StorageSecretKeyPurpose = "yourtj-storage-secret-key"
 
+// AiSummaryAPIKeyPurpose 课评 AI 总结 apiKey 的加密用途标签（管理后台可配置，
+// 密文落库、GET 仅回显是否已配置，遵循 issue #324 安全修复模式）。
+const AiSummaryAPIKeyPurpose = "yourtj-ai-summary-api-key"
+
 // EncryptPurpose encrypts plaintext with a purpose-scoped key derived as
 // HMAC-SHA256(baseKey, purpose), so different callers never share a cipher key.
 func EncryptPurpose(plaintext, purpose string) (string, error) {

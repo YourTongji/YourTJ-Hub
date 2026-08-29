@@ -2,6 +2,7 @@ package hotdataserve
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
@@ -276,11 +277,35 @@ func ClearMCPSettingsConfigCache() {
 
 var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
-// GetAiSummarySettingsConfigCache 读取 AI 课程总结开关配置（5s TTL 热缓存）。
+// GetAiSummarySettingsConfigCache 读取 AI 课程总结配置（5s TTL 热缓存）。
+// 落库形状为 AiSummarySettingsStorage（apiKey 密文带 json 标签），读取后转
+// 领域结构并解密 apiKey 为运行时明文（仅存服务内存，绝不随 JSON 导出）。
+// 解密失败（如 signing key 轮换）时 apiKey 置空并告警，避免静默用错误密钥调用。
 func GetAiSummarySettingsConfigCache() pageConfig.AiSummaryConfig {
 	return aiSummarySettingsConfigCache.GetOrLoad("", func() (pageConfig.AiSummaryConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig()), nil
+		storage := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{})
+		cfg := storage.ToConfig()
+		if encrypted := strings.TrimSpace(cfg.APIKey); encrypted != "" {
+			plain, err := securestore.DecryptPurpose(encrypted, securestore.AiSummaryAPIKeyPurpose)
+			if err != nil {
+				slog.Warn("ai_summary api key decrypt failed (signing key rotated?)", "err", err)
+				cfg.APIKey = ""
+			} else {
+				cfg.APIKey = plain
+			}
+		}
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// GetAiSummarySettingsView 读取 AI 课程总结配置的管理端回显视图：apiKey 仅回显
+// 是否已配置（明文/密文均不出现在响应中，issue #324 安全模式）。
+func GetAiSummarySettingsView() pageConfig.AiSummarySettingsView {
+	entity := pageConfig.GetByPageType(pageConfig.AiSummarySettings)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultAiSummaryConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.AiSummarySettingsStorage](entity.Config).ToView()
 }
 
 func ClearAiSummarySettingsConfigCache() {

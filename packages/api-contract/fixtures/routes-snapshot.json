@@ -493,6 +493,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/ai-summary-models"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/badge-delete"
   },
   {

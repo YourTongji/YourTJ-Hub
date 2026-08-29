@@ -3744,11 +3744,13 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored AI summary settings, or the
          *     built-in default configuration when nothing has been saved yet.
-         *     Exposure boundary: only the switch and the global quota are stored
-         *     and returned; the LLM provider credentials (`provider`, `base_url`,
-         *     `api_key`, `model`) live in config.toml `[ai_summary]` and never
-         *     enter the DB or this API. JSON binding is lenient: query string and
-         *     body are ignored.
+         *     Exposure boundary: the provider endpoint (`baseUrl`) and `model` are
+         *     returned in cleartext, but the `apiKey` only as the `apiKeyConfigured`
+         *     flag — the key itself (plaintext or ciphertext) never appears on the
+         *     wire or in the stored config JSON (issue #324 security pattern).
+         *     When no admin provider configuration is stored, generation falls back
+         *     to config.toml `[ai_summary]`. JSON binding is lenient: query string
+         *     and body are ignored.
          */
         get: operations["adminGetAiSummarySettings"];
         put?: never;
@@ -3773,11 +3775,45 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`.
          *     Replaces the whole AI summary configuration with the submitted value
-         *     and clears the settings cache. The Go struct tags `settings` with
+         *     and clears the settings cache. A non-empty `apiKey` is encrypted
+         *     (AES-256-GCM, purpose-scoped) before persistence; an empty `apiKey`
+         *     keeps the stored encrypted key. `baseUrl` must be a valid http(s)
+         *     URL when non-empty (local/intranet endpoints allowed for self-hosted
+         *     providers). Business failures (HTTP 200): `admin.aiSummary.saveFailed`
+         *     (params error). The Go struct tags `settings` with
          *     `validate:"required"`, but struct-level required never fails, so a
          *     missing or malformed body saves a zero-value configuration.
          */
         post: operations["adminSaveAiSummarySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-summary-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List models from the OpenAI-compatible endpoint
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Calls `{baseUrl}/models` (OpenAI-compatible standard endpoint) and
+         *     returns the model list for the model dropdown. The request may carry
+         *     temporary `baseUrl`/`apiKey` to probe credentials before saving; when
+         *     empty, the stored (decrypted) configuration is used. Errors never
+         *     carry the provider response body (no leakage): an unsupported
+         *     `/models` endpoint (404/405 or empty data) fails with
+         *     `admin.aiSummary.modelsUnsupported` — the frontend then lets the
+         *     admin type the model manually; other failures fail with
+         *     `admin.aiSummary.modelsFailed` (params error). Timeout is 10s.
+         */
+        post: operations["adminListAiSummaryModels"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7645,18 +7681,30 @@ export interface components {
             /** @description Plaintext 一系统 Cookie header; encrypted with a purpose-scoped key (AES-256-GCM) before persistence and never stored in plaintext. An empty/blank value clears the stored credential. Longer than 4096 characters fails request validation with `common.request.invalidParams` (HTTP 200). When encryption itself fails (signingKey misconfigured) the response is a generic HTTP 200 `code: 1` failure with no `messageCode`. */
             cookie?: string;
         };
-        /** @description Exposure boundary — only the switch and quota are stored/returned; provider, base_url, api_key, and model live in config.toml `[ai_summary]` and never enter the DB or this API. */
         AdminAiSummarySettingsConfig: {
             /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
             enabled: boolean;
             /** @description Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5. */
             globalPerMinute: number;
+            /** @description OpenAI-compatible endpoint, e.g. `https://api.openai.com/v1` or `https://api.siliconflow.cn/v1`. Stored without a trailing slash. When set, the admin-provided provider configuration wins over config.toml `[ai_summary]`. */
+            baseUrl?: string;
+            /** @description Model id, e.g. `gpt-4o`; can be picked from the auto-fetched list or typed manually. */
+            model?: string;
+            /** @description Plaintext api key accepted on save requests (issue */
+            apiKey?: string;
+            /**
+             * Format: float
+             * @description Optional sampling temperature; unset uses the default 0.3.
+             */
+            temperature?: number;
+            /** @description Optional max output tokens; unset uses the default 1024. */
+            maxTokens?: number;
         };
         AdminAiSummarySettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored AI summary settings, or the built-in default when nothing has been saved. */
-            result: components["schemas"]["AdminAiSummarySettingsConfig"];
+            result: components["schemas"]["AdminAiSummarySettingsView"];
         };
-        /** @description Replacement AI summary settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        /** @description Replacement AI summary settings. Non-empty `apiKey` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored key (issue */
         AdminSaveAiSummarySettingsRequest: {
             settings?: components["schemas"]["AdminAiSummarySettingsConfig"];
         };
@@ -9115,6 +9163,44 @@ export interface components {
             enabled: boolean;
             endpoints: components["schemas"]["AdminHttpNotifyEndpointView"][];
         };
+        /** @description Admin GET view — provider endpoint/model are returned, the api key only as a configured flag. */
+        AdminAiSummarySettingsView: {
+            /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
+            enabled: boolean;
+            /** @description Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5. */
+            globalPerMinute: number;
+            /** @description OpenAI-compatible endpoint (stored configuration or empty when unset). */
+            baseUrl: string;
+            /** @description Model id (stored configuration or empty when unset). */
+            model: string;
+            /** @description Whether an api key is stored — the key itself is never returned (issue */
+            apiKeyConfigured: boolean;
+            /**
+             * Format: float
+             * @description Optional sampling temperature; unset uses the default 0.3.
+             */
+            temperature?: number;
+            /** @description Optional max output tokens; unset uses the default 1024. */
+            maxTokens?: number;
+        };
+        /** @description Probe request for the OpenAI-compatible `/models` endpoint. Supports testing credentials before saving them. */
+        AdminAiSummaryModelsRequest: {
+            /** @description Optional temporary endpoint to probe before saving; empty uses the stored configuration. */
+            baseUrl?: string;
+            /** @description Optional temporary api key to probe before saving; empty falls back to the stored (decrypted) key. */
+            apiKey?: string;
+        };
+        AdminAiSummaryModelsItem: {
+            /** @description Model id. */
+            id: string;
+            /** @description Owner organization string returned by the provider. */
+            owned_by?: string;
+        };
+        AdminAiSummaryModelsResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                models: components["schemas"]["AdminAiSummaryModelsItem"][];
+            };
+        }) | components["schemas"]["ApiFailure"];
         AdminMailSettingsView: {
             enableMail: boolean;
             smtpHost: string;
@@ -15468,6 +15554,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListAiSummaryModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAiSummaryModelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Model list, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiSummaryModelsResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
