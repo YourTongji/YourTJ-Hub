@@ -52,6 +52,9 @@ function dropCourse(course: PkStagedCourse) {
 function confirmDrop() {
   if (!pendingDrop.value) return
   store.popStagedCourse(pendingDrop.value.courseCode)
+  // 退课必须立即持久化，否则刷新/重进页面时 loadSolidify 会用旧的
+  // localStorage 覆盖内存，刚退掉的课程会"复活"（表现为无法退课）。
+  store.solidify()
   pendingDrop.value = null
 }
 
