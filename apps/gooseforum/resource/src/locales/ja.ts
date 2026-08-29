@@ -389,6 +389,8 @@ export default {
     grade: '学年',
     major: '専攻',
     selectPlaceholder: '選択してください',
+    selectSearchPlaceholder: '選択肢を検索…',
+    selectSearchEmpty: '一致する選択肢がありません',
     majorHint: '他分野の科目は「履修選択」→「高度検索」で直接検索してください。',
     openPicker: '履修を選択',
     pickerDescription: '計画内・一般教養・詳細検索の結果から履修を選択して時間割に追加します。',

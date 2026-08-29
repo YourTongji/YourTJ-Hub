@@ -121,7 +121,10 @@ func handleUserSignUpSearchIndex(ctx context.Context, event *UserSignUpEvent) er
 	}
 	user, err := users.Get(event.UserId)
 	if err != nil {
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
 	}
 	_, err = searchservice.BuildSingleUserSearchDocument(&user)
 	return err

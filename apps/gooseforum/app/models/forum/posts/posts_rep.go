@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func SaveOrCreateById(entity *Entity) int64 {
@@ -99,6 +100,12 @@ func ResetPendingReview(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("process_status", ProcessStatusNormal).Error
 }
 
+// ResetPendingReviewTx resets moderation state as part of the delete transaction.
+func ResetPendingReviewTx(tx *gorm.DB, id uint64) error {
+	return tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+		Update("process_status", ProcessStatusNormal).Error
+}
+
 // UpdateWikiSyncedContentTx 事务内只更新由 wiki 修订派生的首楼字段
 // （正文/渲染/版本/待审状态/水印/更新时间）。不得整行保存事务外读取的
 // 帖子——整行 Save 会把并发回复写入的统计字段回写成旧值（review High）。
@@ -120,6 +127,16 @@ func UnscopedGet(id uint64) (entity Entity) {
 	return
 }
 
+// GetUnscopedTx returns a post with a row lock held by the caller's transaction.
+// Delete and reward transitions must inspect the same post state before either
+// side of the transition is committed.
+func GetUnscopedTx(tx *gorm.DB, id uint64) (entity Entity, err error) {
+	err = tx.Table(tableName).Unscoped().
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where(queryopt.Eq("id", id)).Take(&entity).Error
+	return
+}
+
 // HasChildren 判断回复是否存在未被删除的子回复（reply_to_post_id 指向它）。
 func HasChildren(postId uint64) bool {
 	var count int64
@@ -128,6 +145,17 @@ func HasChildren(postId uint64) bool {
 		Where("deleted_at IS NULL").
 		Count(&count)
 	return count > 0
+}
+
+// HasChildrenTx checks for active children inside the caller's transaction.
+func HasChildrenTx(tx *gorm.DB, postID uint64) (bool, error) {
+	var count int64
+	if err := tx.Table(tableName).
+		Where(queryopt.Eq("reply_to_post_id", postID)).
+		Where("deleted_at IS NULL").Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // GetUserDeletedPage 分页返回用户已删除的回复（含软删行与墓碑态行）。
@@ -171,6 +199,11 @@ func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
 	}).Error
 }
 
+// MarkUserDeletedTx marks a post as user-deleted in the caller's transaction.
+func MarkUserDeletedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) error {
+	return markDeletedTx(tx, id, VisibilityUserDeleted, deletedBy, reason, true)
+}
+
 // MarkUserDeletedKeepVisible 标记回复为用户删除但保留行可见（墓碑态）：
 // 用于"存在子回复"的场景，讨论树需要保留该行以维持结构，正文由前端渲染为占位。
 // 墓碑态行不置 deleted_at（保持讨论树可见），以 updated_at 作为删除时刻的近似：
@@ -184,6 +217,12 @@ func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) erro
 		"deleted_by":        deletedBy,
 		"delete_reason":     reason,
 	}).Error
+}
+
+// MarkUserDeletedKeepVisibleTx marks a post as a user-deleted tombstone in the
+// caller's transaction.
+func MarkUserDeletedKeepVisibleTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) error {
+	return markDeletedTx(tx, id, VisibilityUserDeleted, deletedBy, reason, false)
 }
 
 // MarkDeletedKeepVisible 标记回复为删除但保留行可见（墓碑态），visibility 区分用户/管理员来源。
@@ -209,6 +248,34 @@ func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
 		"deleted_by":        deletedBy,
 		"delete_reason":     reason,
 	}).Error
+}
+
+// MarkModeratorRemovedTx marks a post as moderator-deleted in the caller's
+// transaction.
+func MarkModeratorRemovedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) error {
+	return markDeletedTx(tx, id, VisibilityModeratorRemoved, deletedBy, reason, true)
+}
+
+func markDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, reason string, setDeletedAt bool) error {
+	values := map[string]any{
+		"visibility_status": visibility,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}
+	if setDeletedAt {
+		values["deleted_at"] = time.Now()
+	} else {
+		values["updated_at"] = time.Now()
+	}
+	result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(values)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // SoftDeleteByIDs 按回复 ID 列表软删（级联删除），返回受影响行数。
