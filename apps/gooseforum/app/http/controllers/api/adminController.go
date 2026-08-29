@@ -1520,6 +1520,8 @@ func SaveAiSummarySettings(req component.BetterRequest[SaveAiSummarySettingsReq]
 		}
 		storage.APIKeyEncrypted = sealed
 	}
+	// TODO: 尚无清除已存密钥的入口（apiKey 留空 = 保留已存密文）；如需显式
+	// 清除需扩展保存契约（新字段或独立操作），另行跟进。
 	return savePageConfig(pageConfig.AiSummarySettings, storage, hotdataserve.ClearAiSummarySettingsConfigCache)
 }
 
@@ -1560,6 +1562,10 @@ func ListAiSummaryModels(req component.BetterRequest[ListAiSummaryModelsReq]) co
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
 			component.MessageParams{"error": "请先填写 BaseURL（端点地址）"})
+	}
+	if !isValidHTTPURL(cfg.BaseURL) {
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "BaseURL 必须是合法的 http(s) URL"})
 	}
 	ctx, cancel := context.WithTimeout(req.GinContext.Request.Context(), llmprovider.ModelsTimeout)
 	defer cancel()

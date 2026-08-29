@@ -684,11 +684,11 @@ type MCPSettingsConfig struct {
 // APIKey 为运行时明文（securestore 解密），标 json:"-"：明文/密文绝不随
 // JSON 序列化导出（遵循 issue #324 安全模式），持久化走 AiSummarySettingsStorage。
 type AiSummaryConfig struct {
-	Enabled         bool     `json:"enabled"`         // 总开关（关闭时端点返回 status=disabled）
-	GlobalPerMinute int      `json:"globalPerMinute"` // 全局每分钟生成上限（0 = 用默认 5）
-	BaseURL         string   `json:"baseUrl"`         // OpenAI-compatible 端点，如 https://api.openai.com/v1
-	Model           string   `json:"model"`           // 模型 ID，如 gpt-4o
-	APIKey          string   `json:"-"`               // 运行时明文（服务内存）；密文见 AiSummarySettingsStorage
+	Enabled         bool     `json:"enabled"`               // 总开关（关闭时端点返回 status=disabled）
+	GlobalPerMinute int      `json:"globalPerMinute"`       // 全局每分钟生成上限（0 = 用默认 5）
+	BaseURL         string   `json:"baseUrl"`               // OpenAI-compatible 端点，如 https://api.openai.com/v1
+	Model           string   `json:"model"`                 // 模型 ID，如 gpt-4o
+	APIKey          string   `json:"-"`                     // 运行时明文（服务内存）；密文见 AiSummarySettingsStorage
 	Temperature     *float64 `json:"temperature,omitempty"` // 可选；不配用默认 0.3
 	MaxTokens       *int     `json:"maxTokens,omitempty"`   // 可选；不配用默认 1024
 }

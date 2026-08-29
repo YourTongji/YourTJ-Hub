@@ -278,7 +278,7 @@ const (
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
 	// AI 课程总结（issue #181）：models 列表自动获取
-	MessageAdminAiSummaryModelsFailed     MessageCode = "admin.aiSummary.modelsFailed"     // 拉取模型列表失败，params.error 可带原始错误。
+	MessageAdminAiSummaryModelsFailed      MessageCode = "admin.aiSummary.modelsFailed"      // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
 	MessageAdminAiSummaryModelsUnsupported MessageCode = "admin.aiSummary.modelsUnsupported" // 提供方未实现 /models 端点，需手动输入模型。
 	MessageAdminAiSummarySaveFailed        MessageCode = "admin.aiSummary.saveFailed"        // 保存 AI 总结配置失败，params.error 可带原始错误。
 	// Agent（机器人账号）管理

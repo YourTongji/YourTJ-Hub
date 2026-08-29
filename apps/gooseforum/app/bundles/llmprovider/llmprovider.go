@@ -66,7 +66,7 @@ func (c Config) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		return nil, fmt.Errorf("llm read models response: %w", err)
 	}
 	var payload struct {
-		Data []ModelInfo `json:"data"`
+		Data  []ModelInfo `json:"data"`
 		Error *struct {
 			Message string `json:"message"`
 		} `json:"error"`

@@ -397,8 +397,8 @@ function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
     model: (settings.model ?? '').trim(),
     apiKey: '',
     apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
-    temperature: settings.temperature == null ? undefined : Number(settings.temperature),
-    maxTokens: settings.maxTokens == null ? undefined : Math.max(Number(settings.maxTokens), 0),
+    temperature: settings.temperature == null || settings.temperature === '' ? undefined : Number(settings.temperature),
+    maxTokens: settings.maxTokens == null || settings.maxTokens === '' ? undefined : Math.max(Number(settings.maxTokens), 0),
   } satisfies AiSummarySettings
 }
 
