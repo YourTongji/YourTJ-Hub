@@ -1,47 +1,56 @@
-// 排课器组合式 store（模块级单例）。
+// 排课器组合式 store（模块级单例）—— v2 多方案 + 容忍式冲突。
 //
-// 对齐上游 scheduler store 的状态模型与 localStorage 持久化（majorSelected /
-// stagedCourses / selectedCourses / occupied / timeTableData / updateTime），
-// 但采用模块级 reactive 单例（项目惯例：home-feed-mode.ts / shell-state.ts），
-// 并带完整 sanitize 防御：JSON 解析失败或字段非法即回退默认值（验收标准 5）。
-//
-// 冲突处理增强（验收标准 2）：加入课表时若冲突，返回冲突项由 UI 决定
-// 「强制替换 / 放弃」；强制替换 = 移除冲突课程后重新入表。
+// 数据模型（对齐 USTC 排课器交互模型）：
+// - `pk.plans`（PkPlan[]）+ `pk.activePlanId` 是课程数据的唯一持久化来源；每套方案
+//   独立持有已选/备选课程（stagedCourses/selectedCourses）与自定义占位事件。
+// - `occupied` / `timeTableData` 不再持久化：由 rebuildScheduleFromStaged 从方案数据
+//   派生（加载/切换方案/同步/增删课程时重建），压缩 localStorage 占用。
+// - v1 迁移：存在旧键（pk.stagedCourses / pk.selectedCourses）且无 pk.plans 时，
+//   包装为单个「方案一」并激活；旧键只读不删（回滚到旧版本仍读到迁移前快照）。
+// - 冲突语义（容忍式）：stageCourse 总是入表，返回入表前的冲突列表由 UI 标注
+//   （课表 ⚠ / 列表红标 / 统计计数共用 deriveConflicts 同一判据），不再弹窗阻断。
+// - 学期/年级/专业任一变更清空所有方案（防跨学期污染，沿用上游语义）。
 
 import { reactive } from 'vue'
 import { i18n } from '@/runtime/i18n'
 import {
-  canAddCourse,
   createEmptyOccupied,
-  deleteOccupied,
+  deriveConflicts,
   findConflicts,
   getCourseBaseCode,
+  CUSTOM_EVENT_CODE_PREFIX,
   insertOccupied,
   isClassOfCourse,
   isSameCourse,
   type PkConflictItem,
 } from '@/site/utils/pkConflict'
-import { maxRowsForCalendar } from '@/site/utils/pkArrange'
+import { MAX_WEEK, maxRowsForCalendar } from '@/site/utils/pkArrange'
 import type {
   PkArrangement,
   PkClickedCourse,
   PkCourse,
   PkCourseDetail,
   PkCourseOnTable,
+  PkCustomEvent,
   PkMajorSelection,
   PkOccupyCell,
   PkOptionalType,
+  PkPlan,
   PkStagedCourse,
   PkTeacher,
+  PkWeekView,
 } from '@/site/types/pk'
 
 /** localStorage 键（带 pk. 前缀避免与论坛其他状态冲突）。 */
 const STORAGE_KEYS = {
   majorSelected: 'pk.majorSelected',
-  stagedCourses: 'pk.stagedCourses',
-  selectedCourses: 'pk.selectedCourses',
-  occupied: 'pk.occupied',
-  timeTableData: 'pk.timeTableData',
+  /** v1 旧键（只读迁移源，不再写入；回滚兼容）。 */
+  legacyStagedCourses: 'pk.stagedCourses',
+  legacySelectedCourses: 'pk.selectedCourses',
+  /** v2 键。 */
+  plans: 'pk.plans',
+  activePlanId: 'pk.activePlanId',
+  weekView: 'pk.weekView',
   updateTime: 'pk.updateTime',
 } as const
 
@@ -58,18 +67,22 @@ interface CommonLists {
   /** 选修课（按类型分组） */
   optionalCourses: PkCourse[]
   searchCourses: PkCourse[]
-  /** 备选课程池 */
+  /** 备选课程池（当前激活方案的镜像，与 plan.stagedCourses 同引用） */
   stagedCourses: PkStagedCourse[]
-  /** 已选班级课号（含班号） */
+  /** 已选班级课号（当前激活方案的镜像，与 plan.selectedCourses 同引用） */
   selectedCourses: string[]
 }
 
 interface ScheduleState {
   majorSelected: PkMajorSelection
+  plans: PkPlan[]
+  activePlanId: string
   commonLists: CommonLists
   clickedCourseInfo: PkClickedCourse
+  /** 派生态：由激活方案重建（不持久化）。 */
   occupied: PkOccupyCell[][][]
   timeTableData: PkCourseOnTable[]
+  weekView: PkWeekView
   flags: {
     majorNotChanged: boolean
     isDataOutdated: boolean
@@ -90,19 +103,46 @@ function createEmptyCommonLists(): CommonLists {
 }
 
 function createInitialState(): ScheduleState {
+  const plan = createEmptyPlan()
   return {
     majorSelected: { calendarId: undefined, grade: undefined, major: undefined },
+    plans: [plan],
+    activePlanId: plan.id,
     commonLists: createEmptyCommonLists(),
     clickedCourseInfo: { courseCode: '', courseName: '', teacherCode: '', teacherName: '' },
     occupied: createEmptyOccupied(),
     timeTableData: [],
+    weekView: { week: null, useCurrent: false },
     flags: { majorNotChanged: false, isDataOutdated: false },
     updateTime: '',
     latestUpdateTime: '',
   }
 }
 
-// ---- sanitize（损坏即清理/回退，验收标准 5）----
+// ---- id 生成 ----
+
+let planSeq = 0
+function genId(prefix: string): string {
+  planSeq += 1
+  return `${prefix}_${Date.now().toString(36)}_${planSeq.toString(36)}`
+}
+
+function nextPlanName(): string {
+  return i18n.global.t('schedule.planDefaultName', { n: state.plans.length + 1 })
+}
+
+function createEmptyPlan(name?: string): PkPlan {
+  return {
+    id: genId('plan'),
+    name: name ?? i18n.global.t('schedule.planDefaultName', { n: 1 }),
+    createdAt: Date.now(),
+    stagedCourses: [],
+    selectedCourses: [],
+    customEvents: [],
+  }
+}
+
+// ---- sanitize（损坏即清理/回退）----
 
 function safeParseJson<T = unknown>(value: string | null): T | undefined {
   if (!value) return undefined
@@ -155,7 +195,9 @@ function sanitizeArrangementInfo(raw: unknown): PkArrangement[] {
       occupyTime: ensureArray<number>(item?.occupyTime).filter(
         (slot) => typeof slot === 'number' && slot >= 1 && slot <= 12,
       ),
-      occupyWeek: ensureArray<number>(item?.occupyWeek).filter((week) => typeof week === 'number'),
+      occupyWeek: ensureArray<number>(item?.occupyWeek).filter(
+        (week) => typeof week === 'number' && week >= 1 && week <= MAX_WEEK,
+      ),
       occupyRoom: typeof item?.occupyRoom === 'string' ? item.occupyRoom : '',
       teacherAndCode: typeof item?.teacherAndCode === 'string' ? item.teacherAndCode : '',
     }))
@@ -200,39 +242,45 @@ function sanitizeStagedCourse(raw: unknown): PkStagedCourse {
   }
 }
 
-function sanitizeTimeTableData(raw: unknown): PkCourseOnTable[] {
-  return ensureArray<Record<string, unknown>>(raw)
-    .map((item) => ({
-      showText: typeof item?.showText === 'string' ? item.showText : '',
-      courseName: typeof item?.courseName === 'string' ? item.courseName : '',
-      code: typeof item?.code === 'string' ? item.code : '',
-      occupyTime: ensureArray<number>(item?.occupyTime).filter(
-        (slot) => typeof slot === 'number' && slot >= 1 && slot <= 12,
-      ),
-      occupyDay:
-        typeof item?.occupyDay === 'number' && item.occupyDay >= 1 && item.occupyDay <= 7
-          ? item.occupyDay
-          : 0,
-    }))
-    .filter((item) => item.code && item.courseName && item.occupyDay > 0 && item.occupyTime.length > 0)
+
+function sanitizeCustomEvent(raw: unknown): PkCustomEvent {
+  const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    id: typeof input.id === 'string' ? input.id : genId('evt'),
+    label: typeof input.label === 'string' ? input.label : '',
+    day: typeof input.day === 'number' && input.day >= 1 && input.day <= 7 ? input.day : 0,
+    sections: [...new Set(ensureArray<number>(input.sections))]
+      .filter((sec) => typeof sec === 'number' && sec >= 1 && sec <= 12)
+      .sort((a, b) => a - b),
+    weeks: [...new Set(ensureArray<number>(input.weeks))]
+      .filter((week) => typeof week === 'number' && week >= 1 && week <= MAX_WEEK)
+      .sort((a, b) => a - b),
+  }
 }
 
-function sanitizeOccupied(raw: unknown): PkOccupyCell[][][] {
-  const rows = ensureArray<unknown[]>(raw)
-  if (rows.length !== 12) return createEmptyOccupied()
-  return rows.map((row) => {
-    const cols = ensureArray<unknown[]>(row)
-    if (cols.length !== 7) return Array.from({ length: 7 }, () => [] as PkOccupyCell[])
-    return cols.map((cell) =>
-      ensureArray<Record<string, unknown>>(cell)
-        .map((item) => ({
-          code: typeof item?.code === 'string' ? item.code : '',
-          courseName: typeof item?.courseName === 'string' ? item.courseName : '',
-          occupyWeek: ensureArray<number>(item?.occupyWeek).filter((week) => typeof week === 'number'),
-        }))
-        .filter((item) => item.code),
-    )
-  })
+function sanitizePlan(raw: unknown): PkPlan {
+  const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const plan: PkPlan = {
+    id: typeof input.id === 'string' && input.id ? input.id : genId('plan'),
+    name: typeof input.name === 'string' && input.name.trim() ? input.name.trim() : i18n.global.t('schedule.planDefaultName', { n: 1 }),
+    createdAt: typeof input.createdAt === 'number' ? input.createdAt : Date.now(),
+    stagedCourses: ensureArray<unknown>(input.stagedCourses).map(sanitizeStagedCourse).filter((c) => c.courseCode),
+    selectedCourses: ensureArray<unknown>(input.selectedCourses).filter((item): item is string => typeof item === 'string'),
+    customEvents: ensureArray<unknown>(input.customEvents).map(sanitizeCustomEvent).filter((ev) => ev.day >= 1 && ev.sections.length > 0),
+  }
+  return plan
+}
+
+function sanitizeWeekView(raw: unknown): PkWeekView | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const input = raw as Record<string, unknown>
+  const week =
+    input.week === null
+      ? null
+      : typeof input.week === 'number' && input.week >= 1 && input.week <= MAX_WEEK
+        ? Math.floor(input.week)
+        : null
+  return { week, useCurrent: input.useCurrent === true }
 }
 
 function sanitizeOptionalTypes(raw: unknown): PkOptionalType[] {
@@ -262,6 +310,79 @@ function sanitizeCourseCollection(raw: unknown): PkCourse[] {
       courseDetail: sanitizeCourseDetail(item?.courseDetail),
     }))
     .filter((item) => item.courseCode || item.courseDetail.length > 0)
+}
+
+// ---- 派生重建（v2 核心：occupied/timeTableData 由方案数据重建）----
+
+export interface RebuiltSchedule {
+  occupied: PkOccupyCell[][][]
+  timeTableData: PkCourseOnTable[]
+}
+
+/** 自定义占位事件在课表/占用表中的展示行（每个节次一行，便于网格渲染）。 */
+function customEventTableRows(event: PkCustomEvent): PkCourseOnTable[] {
+  const code = `${CUSTOM_EVENT_CODE_PREFIX}${event.id}`
+  return event.sections.map((section) => ({
+    showText: event.label,
+    courseName: event.label,
+    code,
+    occupyTime: [section],
+    occupyDay: event.day,
+    occupyWeek: [...event.weeks],
+  }))
+}
+
+function customEventArrangements(event: PkCustomEvent): PkArrangement[] {
+  return [
+    {
+      arrangementText: '',
+      occupyDay: event.day,
+      occupyTime: [...event.sections],
+      occupyWeek: [...event.weeks],
+      occupyRoom: '',
+      teacherAndCode: '',
+    },
+  ]
+}
+
+/**
+ * 从方案数据（备选课程 + 自定义占位）重建占用表与课表行。
+ * 纯函数：迁移自 v1 applySyncedCourses 的重建逻辑并泛化到任意方案。
+ */
+export function rebuildScheduleFromStaged(
+  staged: PkStagedCourse[],
+  customEvents: PkCustomEvent[],
+): RebuiltSchedule {
+  let occupied = createEmptyOccupied()
+  const timeTableData: PkCourseOnTable[] = []
+
+  for (const course of staged) {
+    for (const detail of course.courseDetail) {
+      if (detail.status !== COURSE_STATUS.STAGED && detail.status !== COURSE_STATUS.SELECTED) continue
+      for (const arrangement of detail.arrangementInfo) {
+        timeTableData.push({
+          showText: `${arrangement.teacherAndCode} ${course.courseNameReserved}(${detail.code}) ${arrangement.arrangementText}`,
+          courseName: course.courseNameReserved || course.courseName,
+          code: detail.code,
+          occupyTime: [...arrangement.occupyTime],
+          occupyDay: arrangement.occupyDay,
+          occupyWeek: [...arrangement.occupyWeek],
+          teacherAndCode: arrangement.teacherAndCode,
+          arrangementText: arrangement.arrangementText,
+          occupyRoom: arrangement.occupyRoom,
+        })
+      }
+      occupied = insertOccupied(occupied, detail.arrangementInfo, detail.code, course.courseNameReserved || course.courseName)
+    }
+  }
+
+  for (const event of customEvents) {
+    const code = `${CUSTOM_EVENT_CODE_PREFIX}${event.id}`
+    timeTableData.push(...customEventTableRows(event))
+    occupied = insertOccupied(occupied, customEventArrangements(event), code, event.label)
+  }
+
+  return { occupied, timeTableData }
 }
 
 // ---- 模块级单例 ----
@@ -296,40 +417,51 @@ function readTimeTableRows(): number {
   return maxRowsForCalendar(state.majorSelected.calendarId)
 }
 
-// ---- 内部操作 ----
+// ---- 方案操作（内部）----
 
-/** 从课表/占用/已选/备选池中移除一门课（入参为基础课号或班级课号）。 */
+function activePlan(): PkPlan {
+  const plan = state.plans.find((item) => item.id === state.activePlanId)
+  if (plan) return plan
+  return state.plans[0] ?? createEmptyPlan()
+}
+
+/** 把激活方案的课程数据镜像到 commonLists（同引用），并重建派生态。 */
+function syncActiveView(): void {
+  const plan = activePlan()
+  state.commonLists.stagedCourses = plan.stagedCourses
+  state.commonLists.selectedCourses = plan.selectedCourses
+  const rebuilt = rebuildScheduleFromStaged(plan.stagedCourses, plan.customEvents)
+  state.occupied = rebuilt.occupied
+  state.timeTableData = rebuilt.timeTableData
+}
+
+/** 从课表/占用/已选中移除一门课（按班级课号；作用于激活方案）。 */
 function removeCourseFromSchedule(classCode: string): void {
+  const plan = activePlan()
   const input = String(classCode ?? '').trim()
   // 入参可能是基础课号（退课按 courseCode 传入，如 '122004'）或班级课号
   // （'122004.01' / '12200401'）。getCourseBaseCode 对无点号的基础课号会误裁
   // 后两位（'122004'→'1220'），故先与备选池精确匹配，命中即为完整基础课号。
-  const base = state.commonLists.stagedCourses.some((course) => course.courseCode === input)
+  const base = plan.stagedCourses.some((course) => course.courseCode === input)
     ? input
     : getCourseBaseCode(input)
-  state.commonLists.stagedCourses = state.commonLists.stagedCourses.filter(
-    (course) => course.courseCode !== base,
-  )
-  state.commonLists.selectedCourses = state.commonLists.selectedCourses.filter(
-    (code) => !isClassOfCourse(code, base),
-  )
-  state.timeTableData = state.timeTableData.filter((course) => !isClassOfCourse(course.code, base))
-  // deleteOccupied 会对入参再走一次 getCourseBaseCode，基础课号会被误裁，
-  // 这里直接按已归一化的 base 比较占用格。
-  state.occupied = state.occupied.map((row) =>
-    row.map((cell) => cell.filter((item) => getCourseBaseCode(item.code) !== base)),
-  )
+  plan.stagedCourses = plan.stagedCourses.filter((course) => course.courseCode !== base)
+  state.commonLists.stagedCourses = plan.stagedCourses
+  plan.selectedCourses = plan.selectedCourses.filter((code) => !isClassOfCourse(code, base))
+  state.commonLists.selectedCourses = plan.selectedCourses
+  syncActiveView()
 }
 
 /** 追加课程到课表（同基础课号先替换，再入表、更新占用与备选状态）。 */
 function appendToTimeTable(payload: PkCourseDetail): void {
+  const plan = activePlan()
   const sameCodeCourse = state.timeTableData.find((course) => isSameCourse(course.code, payload.code))
 
   // 规定相同课号的课只能有一个：先移除旧的。
   if (sameCodeCourse) {
     state.timeTableData = state.timeTableData.filter((course) => !isSameCourse(course.code, payload.code))
-    state.occupied = deleteOccupied(state.occupied, sameCodeCourse.code)
-    const staged = state.commonLists.stagedCourses.find(
+    state.occupied = deleteOccupedByCode(state.occupied, sameCodeCourse.code)
+    const staged = plan.stagedCourses.find(
       (course) => course.courseCode === getCourseBaseCode(payload.code),
     )
     if (staged) {
@@ -337,9 +469,8 @@ function appendToTimeTable(payload: PkCourseDetail): void {
       if (oldDetail) {
         // 旧班若已保存（status=2），从已选列表移除，避免导出残留旧班时间。
         if (oldDetail.status === COURSE_STATUS.SELECTED) {
-          state.commonLists.selectedCourses = state.commonLists.selectedCourses.filter(
-            (code) => code !== oldDetail.code,
-          )
+          plan.selectedCourses = plan.selectedCourses.filter((code) => code !== oldDetail.code)
+          state.commonLists.selectedCourses = plan.selectedCourses
         }
         oldDetail.status = COURSE_STATUS.UNSELECTED
       }
@@ -351,8 +482,12 @@ function appendToTimeTable(payload: PkCourseDetail): void {
       showText: `${arrangement.teacherAndCode} ${state.clickedCourseInfo.courseName}(${payload.code}) ${arrangement.arrangementText}`,
       courseName: state.clickedCourseInfo.courseName,
       code: payload.code,
-      occupyTime: arrangement.occupyTime,
+      occupyTime: [...arrangement.occupyTime],
       occupyDay: arrangement.occupyDay,
+      occupyWeek: [...arrangement.occupyWeek],
+      teacherAndCode: arrangement.teacherAndCode,
+      arrangementText: arrangement.arrangementText,
+      occupyRoom: arrangement.occupyRoom,
     })
   }
 
@@ -364,7 +499,7 @@ function appendToTimeTable(payload: PkCourseDetail): void {
   )
 
   payload.status = COURSE_STATUS.STAGED
-  const stagedCourse = state.commonLists.stagedCourses.find(
+  const stagedCourse = plan.stagedCourses.find(
     (course) => course.courseCode === getCourseBaseCode(payload.code),
   )
   if (stagedCourse) {
@@ -376,11 +511,29 @@ function appendToTimeTable(payload: PkCourseDetail): void {
   }
 }
 
+/** 按班级课号从占用表移除（custom 伪课号精确匹配；真实课号走基础课号归一）。 */
+function deleteOccupedByCode(occupied: PkOccupyCell[][][], code: string): PkOccupyCell[][][] {
+  if (code.startsWith(CUSTOM_EVENT_CODE_PREFIX)) {
+    return occupied.map((row) => row.map((cell) => cell.filter((item) => item.code !== code)))
+  }
+  return occupied.map((row) =>
+    row.map((cell) => cell.filter((item) => getCourseBaseCode(item.code) !== getCourseBaseCode(code))),
+  )
+}
+
 // ---- 对外 API ----
 
 export interface StageCourseResult {
   added: boolean
+  /** 容忍式冲突：入表前与已占课程的冲突列表（同课换班不计），供 UI 标注。 */
   conflicts?: PkConflictItem[]
+}
+
+export interface ScheduleStats {
+  courseCount: number
+  totalCredit: number
+  totalHours: number
+  conflictCount: number
 }
 
 export function useScheduleStore() {
@@ -409,7 +562,9 @@ export function useScheduleStore() {
   function pushStagedCourse(payload: PkStagedCourse): void {
     const sanitized = sanitizeStagedCourse(payload)
     if (!sanitized.courseCode) return
-    state.commonLists.stagedCourses = [...state.commonLists.stagedCourses, sanitized]
+    const plan = activePlan()
+    plan.stagedCourses = [...plan.stagedCourses, sanitized]
+    state.commonLists.stagedCourses = plan.stagedCourses
   }
 
   function popStagedCourse(courseCode: string): void {
@@ -421,29 +576,30 @@ export function useScheduleStore() {
     state.clickedCourseInfo = { ...payload }
   }
 
+  /** 学期/年级/专业任一变更：清空所有方案（防跨学期污染）。 */
   function clearStagedAndSelectedCourses(): void {
-    state.commonLists.stagedCourses = []
-    state.commonLists.selectedCourses = []
-    state.timeTableData = []
-    state.occupied = createEmptyOccupied()
+    for (const plan of state.plans) {
+      plan.stagedCourses = []
+      plan.selectedCourses = []
+      plan.customEvents = []
+    }
     state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
+    syncActiveView()
   }
 
   /**
-   * 尝试将某教学班加入课表。
-   * 无冲突 → 直接加入并返回 { added: true }；
-   * 有冲突 → 不加入，返回 { added: false, conflicts } 由 UI 决定「强制替换/放弃」。
+   * 容忍式加课：总是入表并返回入表前的冲突列表（同课换班不计），
+   * 由 UI 决定如何标注（课表 ⚠ / 列表红标 / flash 提示），不再阻断。
    */
   function stageCourse(payload: PkCourseDetail): StageCourseResult {
-    const check = canAddCourse(payload.arrangementInfo, state.occupied, payload.code)
-    if (check.canAdd) {
-      appendToTimeTable(payload)
-      return { added: true }
-    }
-    return { added: false, conflicts: findConflicts(payload, state.occupied) }
+    const conflicts = findConflicts(payload, state.occupied).filter(
+      (conflict) => !isSameCourse(conflict.code, payload.code),
+    )
+    appendToTimeTable(payload)
+    return { added: true, conflicts }
   }
 
-  /** 强制替换：移除所有冲突课程后把目标课程加入课表。 */
+  /** 强制替换（过渡保留）：移除所有冲突课程后把目标课程加入课表。 */
   function forceReplaceCourse(payload: PkCourseDetail): boolean {
     const conflicts = findConflicts(payload, state.occupied)
     for (const conflict of conflicts) {
@@ -456,24 +612,110 @@ export function useScheduleStore() {
     return true
   }
 
-  /** 保存课表：所有待选（status=1）班级升为已选（status=2）。 */
+  /** 保存课表：激活方案内所有待选（status=1）班级升为已选（status=2）。 */
   function saveSelectedCourses(): void {
-    for (const course of state.commonLists.stagedCourses) {
+    const plan = activePlan()
+    const selected = [...plan.selectedCourses]
+    for (const course of plan.stagedCourses) {
       if (course.status !== COURSE_STATUS.STAGED) continue
       course.status = COURSE_STATUS.SELECTED
       for (const detail of course.courseDetail) {
         if (detail.status === COURSE_STATUS.STAGED) {
           detail.status = COURSE_STATUS.SELECTED
-          state.commonLists.selectedCourses = [...state.commonLists.selectedCourses, detail.code]
+          if (!selected.includes(detail.code)) selected.push(detail.code)
         } else if (detail.status === COURSE_STATUS.SELECTED) {
           detail.status = COURSE_STATUS.UNSELECTED
-          state.commonLists.selectedCourses = state.commonLists.selectedCourses.filter(
-            (code) => code !== detail.code,
-          )
+          const index = selected.indexOf(detail.code)
+          if (index >= 0) selected.splice(index, 1)
         }
       }
     }
+    plan.selectedCourses = selected
+    state.commonLists.selectedCourses = selected
   }
+
+  // ---- 方案 CRUD ----
+
+  function createPlan(): PkPlan {
+    const plan = createEmptyPlan(nextPlanName())
+    state.plans = [...state.plans, plan]
+    return plan
+  }
+
+  function switchPlan(planId: string): void {
+    if (!state.plans.some((plan) => plan.id === planId)) return
+    state.activePlanId = planId
+    state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
+    syncActiveView()
+    solidify()
+  }
+
+  function deletePlan(planId: string): void {
+    const remaining = state.plans.filter((plan) => plan.id !== planId)
+    if (remaining.length === 0) {
+      // 删最后一个：自动建空方案，保证始终至少一个。
+      const fresh = createEmptyPlan(nextPlanName())
+      state.plans = [fresh]
+      state.activePlanId = fresh.id
+    } else {
+      state.plans = remaining
+      if (state.activePlanId === planId) state.activePlanId = remaining[0].id
+    }
+    state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
+    syncActiveView()
+    solidify()
+  }
+
+  /** 清空当前方案（保留方案壳）。 */
+  function clearActivePlan(): void {
+    const plan = activePlan()
+    plan.stagedCourses = []
+    plan.selectedCourses = []
+    plan.customEvents = []
+    state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
+    syncActiveView()
+    solidify()
+  }
+
+  // ---- 自定义占位事件 ----
+
+  function addCustomEvent(input: { label: string; day: number; sections: number[]; weeks: number[] }): PkCustomEvent | null {
+    const event = sanitizeCustomEvent(input)
+    if (event.day < 1 || event.sections.length === 0 || event.weeks.length === 0) return null
+    const plan = activePlan()
+    plan.customEvents = [...plan.customEvents, event]
+    syncActiveView()
+    solidify()
+    return event
+  }
+
+  function updateCustomEvent(id: string, patch: Partial<Omit<PkCustomEvent, 'id'>>): boolean {
+    const plan = activePlan()
+    const index = plan.customEvents.findIndex((event) => event.id === id)
+    if (index < 0) return false
+    const merged = sanitizeCustomEvent({ ...plan.customEvents[index], ...patch })
+    if (merged.day < 1 || merged.sections.length === 0 || merged.weeks.length === 0) return false
+    plan.customEvents = plan.customEvents.map((event, i) => (i === index ? merged : event))
+    syncActiveView()
+    solidify()
+    return true
+  }
+
+  function removeCustomEvent(id: string): void {
+    const plan = activePlan()
+    plan.customEvents = plan.customEvents.filter((event) => event.id !== id)
+    syncActiveView()
+    solidify()
+  }
+
+  // ---- 周次视图 ----
+
+  function setWeekView(view: PkWeekView): void {
+    state.weekView = sanitizeWeekView(view) ?? { week: null, useCurrent: false }
+    writeStorage(STORAGE_KEYS.weekView, state.weekView)
+  }
+
+  // ---- 同步 ----
 
   function setUpdateTime(payload: string): void {
     state.updateTime = payload
@@ -488,88 +730,103 @@ export function useScheduleStore() {
     state.flags.isDataOutdated = payload
   }
 
-  /** 同步最新数据（清空课程缓存并更新时间）。 */
+  /** 同步最新数据（清空所有方案课程缓存并更新时间；保留方案壳）。 */
   function syncLatestData(): void {
-    removeStorage(STORAGE_KEYS.stagedCourses)
-    removeStorage(STORAGE_KEYS.selectedCourses)
-    removeStorage(STORAGE_KEYS.occupied)
-    removeStorage(STORAGE_KEYS.timeTableData)
-    state.commonLists.stagedCourses = []
-    state.commonLists.selectedCourses = []
-    state.timeTableData = []
-    state.occupied = createEmptyOccupied()
+    removeStorage(STORAGE_KEYS.plans)
+    removeStorage(STORAGE_KEYS.activePlanId)
+    for (const plan of state.plans) {
+      plan.stagedCourses = []
+      plan.selectedCourses = []
+      plan.customEvents = []
+    }
     state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
+    syncActiveView()
     state.updateTime = state.latestUpdateTime
     writeStorage(STORAGE_KEYS.updateTime, state.updateTime)
     state.flags.isDataOutdated = false
   }
 
+  /** P12 同步结果应用到激活方案（保留班级排课状态）并重建派生态。 */
+  function applySyncedCourses(newStaged: PkStagedCourse[]): void {
+    const plan = activePlan()
+    const sanitized = newStaged.map(sanitizeStagedCourse).filter((course) => course.courseCode)
+    plan.stagedCourses = sanitized
+    state.commonLists.stagedCourses = plan.stagedCourses
+    syncActiveView()
+
+    state.updateTime = state.latestUpdateTime
+    state.flags.isDataOutdated = false
+    solidify()
+  }
 
   /**
-   * 应用 P12 course-info-sync 返回的最新课程（增量保留已选，验收「同步最新」）。
-   * 用新详情替换 stagedCourses，并按保留的排课状态（待选/已选）重建课表与占用表。
+   * P12 同步结果应用到全部方案（跨方案并集请求后调用）：
+   * 各方案按课号命中替换课程详情，保留该方案的班级排课状态；updateTime 全局推进。
    */
-  function applySyncedCourses(newStaged: PkStagedCourse[]): void {
-    const sanitized = newStaged.map(sanitizeStagedCourse)
-    state.commonLists.stagedCourses = sanitized
-
-    let occupied = createEmptyOccupied()
-    const nextTimeTable: PkCourseOnTable[] = []
-    for (const course of sanitized) {
-      for (const detail of course.courseDetail) {
-        if (detail.status !== COURSE_STATUS.STAGED && detail.status !== COURSE_STATUS.SELECTED) continue
-        for (const arrangement of detail.arrangementInfo) {
-          nextTimeTable.push({
-            showText: `${arrangement.teacherAndCode} ${course.courseNameReserved}(${detail.code}) ${arrangement.arrangementText}`,
-            courseName: course.courseNameReserved,
-            code: detail.code,
-            occupyTime: arrangement.occupyTime,
-            occupyDay: arrangement.occupyDay,
-          })
-        }
-        occupied = insertOccupied(occupied, detail.arrangementInfo, detail.code, course.courseNameReserved)
-      }
+  function applySyncToAllPlans(detailsByCode: Record<string, PkCourseDetail[]>): void {
+    for (const plan of state.plans) {
+      plan.stagedCourses = plan.stagedCourses
+        .map((course) => {
+          const details = detailsByCode[course.courseCode]
+          if (!details || details.length === 0) return course
+          return {
+            ...course,
+            courseDetail: details.map((detail) => ({
+              ...detail,
+              status: course.courseDetail.find((old) => old.code === detail.code)?.status ?? 0,
+            })),
+          }
+        })
+        .filter((course) => course.courseCode)
     }
-    state.occupied = occupied
-    state.timeTableData = nextTimeTable
+    syncActiveView()
 
     state.updateTime = state.latestUpdateTime
-    writeStorage(STORAGE_KEYS.stagedCourses, state.commonLists.stagedCourses)
-    writeStorage(STORAGE_KEYS.selectedCourses, state.commonLists.selectedCourses)
-    writeStorage(STORAGE_KEYS.occupied, state.occupied)
-    writeStorage(STORAGE_KEYS.timeTableData, state.timeTableData)
-    writeStorage(STORAGE_KEYS.updateTime, state.updateTime)
     state.flags.isDataOutdated = false
+    solidify()
   }
 
-  /** 持久化全部关键状态到 localStorage。 */
+  /** 持久化关键状态到 localStorage（v2：plans/activePlanId/weekView；派生态不再写入）。 */
   function solidify(): void {
     writeStorage(STORAGE_KEYS.majorSelected, state.majorSelected)
-    writeStorage(STORAGE_KEYS.stagedCourses, state.commonLists.stagedCourses)
-    writeStorage(STORAGE_KEYS.selectedCourses, state.commonLists.selectedCourses)
-    writeStorage(STORAGE_KEYS.occupied, state.occupied)
-    writeStorage(STORAGE_KEYS.timeTableData, state.timeTableData)
+    writeStorage(STORAGE_KEYS.plans, state.plans)
+    writeStorage(STORAGE_KEYS.activePlanId, state.activePlanId)
+    writeStorage(STORAGE_KEYS.weekView, state.weekView)
   }
 
-  /** 从 localStorage 恢复关键状态（损坏即清理，验收标准 5）。 */
+  /** 从 localStorage 恢复（v1 旧键迁移 → v2；损坏即回退空方案）。 */
   function loadSolidify(): void {
     const majorSelected = safeParseJson(readStorage(STORAGE_KEYS.majorSelected))
     if (majorSelected) state.majorSelected = sanitizeMajorSelected(majorSelected)
 
-    const stagedCourses = safeParseJson(readStorage(STORAGE_KEYS.stagedCourses))
-    if (stagedCourses) {
-      state.commonLists.stagedCourses = ensureArray<unknown>(stagedCourses).map(sanitizeStagedCourse)
+    const plansRaw = safeParseJson(readStorage(STORAGE_KEYS.plans))
+    if (Array.isArray(plansRaw)) {
+      const plans = ensureArray<unknown>(plansRaw).map(sanitizePlan)
+      state.plans = plans.length > 0 ? plans : [createEmptyPlan()]
+    } else {
+      // v1 → v2 迁移：旧单方案数据包装为「方案一」；旧键只读保留（回滚兼容）。
+      const legacyStaged = safeParseJson(readStorage(STORAGE_KEYS.legacyStagedCourses))
+      const legacySelected = safeParseJson(readStorage(STORAGE_KEYS.legacySelectedCourses))
+      const plan = createEmptyPlan(i18n.global.t('schedule.planDefaultName', { n: 1 }))
+      if (Array.isArray(legacyStaged)) {
+        plan.stagedCourses = ensureArray<unknown>(legacyStaged).map(sanitizeStagedCourse).filter((course) => course.courseCode)
+      }
+      if (Array.isArray(legacySelected)) {
+        plan.selectedCourses = ensureArray<unknown>(legacySelected).filter((item): item is string => typeof item === 'string')
+      }
+      state.plans = [plan]
     }
-    const selectedCourses = safeParseJson(readStorage(STORAGE_KEYS.selectedCourses))
-    if (selectedCourses) {
-      state.commonLists.selectedCourses = ensureArray<unknown>(selectedCourses).filter(
-        (item) => typeof item === 'string',
-      )
-    }
-    const occupied = safeParseJson(readStorage(STORAGE_KEYS.occupied))
-    if (occupied) state.occupied = sanitizeOccupied(occupied)
-    const timeTableData = safeParseJson(readStorage(STORAGE_KEYS.timeTableData))
-    if (timeTableData) state.timeTableData = sanitizeTimeTableData(timeTableData)
+
+    const activeId = safeParseJson<string>(readStorage(STORAGE_KEYS.activePlanId))
+    state.activePlanId =
+      typeof activeId === 'string' && state.plans.some((plan) => plan.id === activeId)
+        ? activeId
+        : state.plans[0].id
+
+    const weekView = safeParseJson(readStorage(STORAGE_KEYS.weekView))
+    state.weekView = sanitizeWeekView(weekView) ?? { week: null, useCurrent: false }
+
+    syncActiveView()
   }
 
   /** 仅恢复同步时间（不触发课程缓存校验）。 */
@@ -586,16 +843,43 @@ export function useScheduleStore() {
     )
   }
 
-  /** 已选学分统计（已选/专业/通识）。 */
+  /** 统计（当前方案）：门数 / 总学分 / 总学时（Σ 节数×周数）/ 冲突门数。 */
+  function stats(): ScheduleStats {
+    const plan = activePlan()
+    const conflicts = deriveConflicts(state.occupied)
+    let courseCount = 0
+    let totalCredit = 0
+    let totalHours = 0
+    for (const course of plan.stagedCourses) {
+      const arranged = course.courseDetail.filter(
+        (detail) => detail.status === COURSE_STATUS.STAGED || detail.status === COURSE_STATUS.SELECTED,
+      )
+      if (arranged.length === 0) continue
+      courseCount += 1
+      totalCredit += Number(course.credit ?? 0)
+      for (const detail of arranged) {
+        for (const arrangement of detail.arrangementInfo) {
+          totalHours += arrangement.occupyTime.length * arrangement.occupyWeek.length
+        }
+      }
+    }
+    const conflictCount = [...conflicts.keys()].filter(
+      (key) => !key.startsWith(CUSTOM_EVENT_CODE_PREFIX),
+    ).length
+    return { courseCount, totalCredit, totalHours, conflictCount }
+  }
+
+  /** 已选学分统计（已选/专业/通识；兼容旧课表头展示）。 */
   function creditSummary(): { selectedTotal: number; selectedMajor: number; selectedGeneral: number } {
+    const plan = activePlan()
     const selectedBases = new Set(
-      state.commonLists.selectedCourses.map((code) => getCourseBaseCode(code)),
+      plan.selectedCourses.map((code) => getCourseBaseCode(code)),
     )
     let selectedTotal = 0
     let selectedMajor = 0
     let selectedGeneral = 0
 
-    for (const course of state.commonLists.stagedCourses) {
+    for (const course of plan.stagedCourses) {
       if (!selectedBases.has(course.courseCode)) continue
       const credit = Number(course.credit ?? 0)
       selectedTotal += credit
@@ -631,15 +915,25 @@ export function useScheduleStore() {
     stageCourse,
     forceReplaceCourse,
     saveSelectedCourses,
+    createPlan,
+    switchPlan,
+    deletePlan,
+    clearActivePlan,
+    addCustomEvent,
+    updateCustomEvent,
+    removeCustomEvent,
+    setWeekView,
     setUpdateTime,
     setLatestUpdateTime,
     setDataOutdated,
     syncLatestData,
     applySyncedCourses,
+    applySyncToAllPlans,
     solidify,
     loadSolidify,
     loadSolidifyTime,
     isMajorSelected,
+    stats,
     creditSummary,
   }
 }

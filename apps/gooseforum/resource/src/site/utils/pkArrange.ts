@@ -181,3 +181,37 @@ export function getRowSection(row: number, calendarId: number | undefined): numb
   if (row === 9) return 5
   return 6
 }
+
+/** 由学期起始日期计算「今天」是第几周（1-based）；学期外/日期非法返回 null。
+ * 周一为一周之始：起始日非周一时，第一周延伸至首个周日。 */
+export function currentWeekForDate(startDate: string, today: Date = new Date()): number | null {
+  const start = new Date(`${startDate}T00:00:00`)
+  if (Number.isNaN(start.getTime())) return null
+  const diffDays = Math.floor(
+    (Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
+      Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) /
+      86_400_000,
+  )
+  if (diffDays < 0) return null
+  return Math.min(MAX_WEEK, Math.floor(diffDays / 7) + 1)
+}
+
+/** 周次数组 → 紧凑显示文本（如 [1,2,3]→"1-3"、[1,3,5]→"1,3,5"、[2]→"2"）。 */
+export function formatWeeksText(weeks: readonly number[] | undefined): string {
+  if (!weeks || weeks.length === 0) return ''
+  const sorted = [...new Set(weeks)].sort((a, b) => a - b)
+  const parts: string[] = []
+  let runStart = sorted[0]
+  let prev = sorted[0]
+  for (let i = 1; i <= sorted.length; i++) {
+    const current = sorted[i]
+    if (current === prev + 1) {
+      prev = current
+      continue
+    }
+    parts.push(runStart === prev ? `${runStart}` : `${runStart}-${prev}`)
+    runStart = current
+    prev = current
+  }
+  return parts.join(',')
+}
