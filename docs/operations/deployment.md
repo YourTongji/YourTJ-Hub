@@ -470,6 +470,22 @@ CLI 同步（运维 cron 等自动化场景）：
 - 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
   需到管理端重新保存。
 
+### 学期起止日期（可选，config 维护）
+
+一系统 manualArrange 数据不含学期起止日期。排课器「当前周次」自动定位与学期日期条
+展示依赖 `config.toml [pk.semester_dates]`（键 = 学期标记 `pk_calendar.calendar_id_i18n`，
+如 `2025-2026-1`；值 = start/end 纯日期）。`course-pk-sync` 同步该学期时写入
+`pk_calendar.start_date/end_date`，P1 `/api/pk/calendars` 原样返回（未配置为 null）：
+
+```toml
+[pk.semester_dates."2025-2026-1"]
+start = "2025-09-08"
+end = "2026-01-18"
+```
+
+- 修改日期后需重跑该学期同步（幂等）才会写入数据库。
+- 未配置的学期两列为 NULL，排课器周次仍可手动选择（「当前周次」开关禁用）。
+
 ## 服务器迁移 runbook（旧机 → 新机）
 
 旧生产服务器（20.205.27.178, 1Panel）迁移到新机（43.108.84.213, Docker Compose + GHCR）的完整步骤。

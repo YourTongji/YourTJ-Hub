@@ -1,6 +1,8 @@
 package pkservice
 
 import (
+	"time"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 )
 
@@ -8,6 +10,19 @@ import (
 type CalendarItem struct {
 	CalendarId   uint64 `json:"calendarId"`
 	CalendarName string `json:"calendarName"`
+	// 学期起止日期（纯日期 "YYYY-MM-DD"，可空）：部署 config [pk.semester_dates] 维护、
+	// course-pk-sync 写入；未配置输出 null。排课器用于「当前周次」定位与日期条展示。
+	StartDate *string `json:"startDate"`
+	EndDate   *string `json:"endDate"`
+}
+
+// formatPkDate 输出纯日期 "YYYY-MM-DD"；nil 保持 nil（未配置学期日期）。
+func formatPkDate(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.Format("2006-01-02")
+	return &s
 }
 
 // ListCalendars P1：最近 8 个学期（calendarId 倒序）。
@@ -18,7 +33,12 @@ func ListCalendars() ([]CalendarItem, error) {
 	}
 	items := make([]CalendarItem, 0, len(entities))
 	for _, e := range entities {
-		items = append(items, CalendarItem{CalendarId: e.CalendarId, CalendarName: e.CalendarIdI18n})
+		items = append(items, CalendarItem{
+			CalendarId:   e.CalendarId,
+			CalendarName: e.CalendarIdI18n,
+			StartDate:    formatPkDate(e.StartDate),
+			EndDate:      formatPkDate(e.EndDate),
+		})
 	}
 	return items, nil
 }

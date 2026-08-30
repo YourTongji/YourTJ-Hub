@@ -89,6 +89,17 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
+# 排课器学期起止日期（可选）：一系统同步数据不含学期日期，排课器「当前周次」
+# 定位与学期日期条展示依赖此配置。键 = 学期标记（pk_calendar.calendar_id_i18n），
+# 值 = start/end 纯日期；course-pk-sync 同步时写入 pk_calendar。未配置的学期
+# start_date/end_date 为 NULL，排课器周次仍可手动选择。
+[pk.semester_dates."2025-2026-1"]
+start = "2025-09-08"
+end = "2026-01-18"
+# [pk.semester_dates."2025-2026-2"]
+# start = "2026-03-02"
+# end = "2026-07-11"
+
 [oidc]
 enabled = false
 # issuer 默认取 site_url + /api/oauth；显式配置可覆盖

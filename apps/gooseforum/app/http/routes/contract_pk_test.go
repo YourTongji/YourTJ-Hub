@@ -118,8 +118,10 @@ func cleanupPkTables(t *testing.T, conn *gorm.DB) {
 func seedPkContractData(t *testing.T, conn *gorm.DB) {
 	t.Helper()
 	finishedAt := time.Unix(1723456800, 0).UTC()
+	calStart := time.Date(2025, 9, 8, 0, 0, 0, 0, time.UTC)
+	calEnd := time.Date(2026, 1, 18, 0, 0, 0, 0, time.UTC)
 	models := []any{
-		&pk.CalendarEntity{CalendarId: 99999, CalendarIdI18n: "本地测试学期"},
+		&pk.CalendarEntity{CalendarId: 99999, CalendarIdI18n: "本地测试学期", StartDate: &calStart, EndDate: &calEnd},
 		&pk.CalendarEntity{CalendarId: 99998, CalendarIdI18n: "2025-2026 第一学期"},
 		&pk.CampusEntity{Campus: "SP", CampusI18n: "四平路校区", CalendarId: 99999},
 		&pk.CampusEntity{Campus: "JD", CampusI18n: "嘉定校区", CalendarId: 99999},
