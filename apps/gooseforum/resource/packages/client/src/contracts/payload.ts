@@ -950,10 +950,10 @@ export interface CourseSearchPayload {
 export interface CourseCatalogPageProps {
   query: {
     keyword?: string
-    department?: string
-    term?: string
-    campus?: string
-    instructor?: string
+    department?: string[]
+    term?: string[]
+    campus?: string[]
+    instructor?: string[]
     onlyWithReviews?: boolean
     sortBy?: string
     page: number
@@ -971,6 +971,16 @@ export interface CourseCatalogPageProps {
   terms: Array<{ value: string; label: string }>
   /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
   campuses: string[]
+  /** 热门教师（按评分提取，issue #331 右侧栏）；无数据时省略。 */
+  hotInstructors?: Array<{
+    id: number
+    name: string
+    department?: string
+    ratingAvg?: number
+    reviewCount?: number
+  }>
+  /** 当前登录用户已收藏的课程 id（issue #331）；未登录/无收藏时省略或为空。 */
+  bookmarkedCourseIDs?: number[]
 }
 
 export interface CourseSummaryPayload {
@@ -988,6 +998,8 @@ export interface CourseSummaryPayload {
   // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
   ratingAvg?: number
   reviewCount?: number
+  // 已缓存 AI 总结的高频关键词（#标签，最多 5 个）；未触发过 AI 总结时省略（issue #331 R3）。
+  keywords?: string[]
 }
 
 export interface CourseDetailPageProps {

@@ -272,7 +272,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.DELETE("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriReq(forum.DeleteCourseReview))
 	forumLoginApi.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
 	forumLoginApi.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
+	forumLoginApi.PUT("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.MarkReviewDislike))
+	forumLoginApi.DELETE("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.UnmarkReviewDislike))
 	forumLoginApi.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
+	// 课程收藏：登录 + 可写账号 + 独立限流（对齐 topics/bookmark 的 action 1/2 幂等）。
+	forumLoginApi.POST("courses/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitCourseBookmark), UpButterReq(forum.BookmarkCourse))
 	// 课评审核：独立 CourseManager 权限；身份揭示仅 Admin（控制器内二次校验）。
 	// 审核操作挂 course.review.moderate 限流（60s per-IP 60 / per-User 30，issue #176 B4）。
 	// 权限校验前置到 RateLimit 之前：未授权请求直接 403，不消耗共享 per-IP 配额

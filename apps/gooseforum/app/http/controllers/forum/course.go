@@ -10,6 +10,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
@@ -58,27 +59,28 @@ func CourseDetail(c *gin.Context) {
 // CourseListReq 课程目录 JSON API 请求参数。
 // OnlyWithReviews 用 string 承接以便解析 1/true/on 等多种布尔表示（见 parseBoolLike）。
 type CourseListReq struct {
-	Keyword         string `form:"keyword"`
-	Department      string `form:"department"`
-	TermCode        string `form:"term"`
-	Campus          string `form:"campus"`
-	Instructor      string `form:"instructor"`
-	OnlyWithReviews string `form:"onlyWithReviews"`
-	SortBy          string `form:"sortBy"`
-	Page            int    `form:"page"`
-	Size            int    `form:"size"`
+	Keyword         string   `form:"keyword"`
+	Department      []string `form:"department"`
+	TermCode        []string `form:"term"`
+	Campus          []string `form:"campus"`
+	Instructor      []string `form:"instructor"`
+	OnlyWithReviews string   `form:"onlyWithReviews"`
+	SortBy          string   `form:"sortBy"`
+	Page            int      `form:"page"`
+	Size            int      `form:"size"`
 }
 
 // CourseListJSON 课程目录 JSON API（公开只读，供前端异步加载与后续移动端使用）。
 // page/size 越界值按 service 归一化处理（page>=1、1<=size<=50），
 // OpenAPI 契约（listCourses page/size description）已声明该 clamp 行为。
+// Department/TermCode/Campus/Instructor 支持重复参数多值（并集）。
 func CourseListJSON(req component.BetterRequest[CourseListReq]) component.Response {
 	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
 		Keyword:    strings.TrimSpace(req.Params.Keyword),
-		Department: strings.TrimSpace(req.Params.Department),
-		TermCode:   strings.TrimSpace(req.Params.TermCode),
-		Campus:     strings.TrimSpace(req.Params.Campus),
-		Instructor: strings.TrimSpace(req.Params.Instructor),
+		Department: req.Params.Department,
+		TermCode:   req.Params.TermCode,
+		Campus:     req.Params.Campus,
+		Instructor: req.Params.Instructor,
 		HasReview:  parseBoolLike(req.Params.OnlyWithReviews),
 		SortBy:     strings.TrimSpace(req.Params.SortBy),
 		Page:       req.Params.Page,
@@ -143,10 +145,10 @@ func CourseRelatedJSON(req component.BetterRequest[CourseRelatedReq]) component.
 // buildCourseCatalogProps 构建课程目录 SSR props；分页与分页回显以 service 归一化后的结果为准。
 func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps {
 	keyword := strings.TrimSpace(c.Query("keyword"))
-	department := strings.TrimSpace(c.Query("department"))
-	termCode := strings.TrimSpace(c.Query("term"))
-	campus := strings.TrimSpace(c.Query("campus"))
-	instructor := strings.TrimSpace(c.Query("instructor"))
+	department := c.QueryArray("department")
+	termCode := c.QueryArray("term")
+	campus := c.QueryArray("campus")
+	instructor := c.QueryArray("instructor")
 	onlyWithReviews := parseBoolLike(c.Query("onlyWithReviews"))
 	sortBy := strings.TrimSpace(c.Query("sortBy"))
 	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
@@ -179,6 +181,18 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 		slog.Error("course_campuses_list_failed", "error", campusErr)
 		campuses = []string{}
 	}
+	// issue #331 R4：热门教师（按评分提取，右侧栏）；查询失败时降级为空数组。
+	hotInstructors, hotErr := courseservice.ListHotInstructors(0)
+	if hotErr != nil {
+		slog.Error("course_hot_instructors_failed", "error", hotErr)
+		hotInstructors = []courseservice.HotInstructor{}
+	}
+	// issue #331 R5：表格收藏状态（登录用户已收藏课程 id）；未登录为空。
+	bookmarkedIds, bookmarkErr := course.ListBookmarkedCourseIDs(component.LoginUserId(c))
+	if bookmarkErr != nil {
+		slog.Error("course_bookmarked_ids_failed", "error", bookmarkErr)
+		bookmarkedIds = []uint64{}
+	}
 	nextPage := 0
 	if pageData.HasNext {
 		nextPage = pageData.Page + 1
@@ -199,6 +213,8 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 		Departments: departments,
 		Terms:       terms,
 		Campuses:    campuses,
+		HotInstructors:     hotInstructors,
+		BookmarkedCourseIDs: bookmarkedIds,
 		Pagination: PaginationPayload{
 			Page:     pageData.Page,
 			NextPage: nextPage,
@@ -224,17 +240,17 @@ func buildCourseListURL(c *gin.Context, page, size int) string {
 	if v := strings.TrimSpace(c.Query("keyword")); v != "" {
 		params.Set("keyword", v)
 	}
-	if v := strings.TrimSpace(c.Query("department")); v != "" {
-		params.Set("department", v)
+	for _, v := range c.QueryArray("department") {
+		params.Add("department", v)
 	}
-	if v := strings.TrimSpace(c.Query("term")); v != "" {
-		params.Set("term", v)
+	for _, v := range c.QueryArray("term") {
+		params.Add("term", v)
 	}
-	if v := strings.TrimSpace(c.Query("campus")); v != "" {
-		params.Set("campus", v)
+	for _, v := range c.QueryArray("campus") {
+		params.Add("campus", v)
 	}
-	if v := strings.TrimSpace(c.Query("instructor")); v != "" {
-		params.Set("instructor", v)
+	for _, v := range c.QueryArray("instructor") {
+		params.Add("instructor", v)
 	}
 	if parseBoolLike(c.Query("onlyWithReviews")) {
 		params.Set("onlyWithReviews", "1")

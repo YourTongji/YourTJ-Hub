@@ -14,11 +14,13 @@
         "viewer": {
           "canEdit": false,
           "canDelete": false,
-          "isHelpful": false
+          "isHelpful": false,
+          "isDisliked": false
         },
         "helpfulCount": 0,
         "createdAt": "2026-08-01T10:00:00+08:00",
-        "updatedAt": "2026-08-01T10:00:00+08:00"
+        "updatedAt": "2026-08-01T10:00:00+08:00",
+        "dislikeCount": 0
       },
       {
         "id": 2,
@@ -33,11 +35,13 @@
         "viewer": {
           "canEdit": false,
           "canDelete": false,
-          "isHelpful": false
+          "isHelpful": false,
+          "isDisliked": false
         },
         "helpfulCount": 0,
         "createdAt": "2026-08-01T09:00:00+08:00",
-        "updatedAt": "2026-08-01T09:00:00+08:00"
+        "updatedAt": "2026-08-01T09:00:00+08:00",
+        "dislikeCount": 0
       },
       {
         "id": 1,
@@ -47,16 +51,19 @@
         "contentHtml": "<p>好课</p>\n",
         "author": {
           "kind": "member",
-          "label": "bob"
+          "label": "bob",
+          "avatarUrl": "/static/pic/default-avatar.webp"
         },
         "viewer": {
           "canEdit": false,
           "canDelete": false,
-          "isHelpful": false
+          "isHelpful": false,
+          "isDisliked": false
         },
         "helpfulCount": 0,
         "createdAt": "2026-08-01T08:00:00+08:00",
-        "updatedAt": "2026-08-01T08:00:00+08:00"
+        "updatedAt": "2026-08-01T08:00:00+08:00",
+        "dislikeCount": 0
       }
     ],
     "total": 3

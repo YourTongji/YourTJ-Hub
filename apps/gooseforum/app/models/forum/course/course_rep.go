@@ -58,13 +58,13 @@ func ListCoursesByPrimaryCodes(codes []string) (entities []Entity, err error) {
 
 // ListCourseQuery 课程目录筛选条件。
 type ListCourseQuery struct {
-	Keyword    string // 名称/课号/别名/教师（归一化前缀或包含）
-	Department string // 院系精确
-	TermCode   string // 学期（通过 offering 关联）
-	Campus     string // 校区（通过 offering 关联）
-	Instructor string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母）
-	HasReview  bool   // 仅看有评价（course_review_stats.review_count > 0）
-	SortBy     string // 排序：rating 按评分降序（零评分排末尾）；其它值/空串 id 倒序
+	Keyword    string   // 名称/课号/别名/教师（归一化前缀或包含）
+	Department []string // 院系精确（多值取并集，任一命中）
+	TermCode   []string // 学期（通过 offering 关联，多值取并集）
+	Campus     []string // 校区（通过 offering 关联，多值取并集）
+	Instructor []string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母，多值取并集）
+	HasReview  bool     // 仅看有评价（course_review_stats.review_count > 0）
+	SortBy     string   // 排序：rating 按评分降序（零评分排末尾）；其它值/空串见 ListCourses 排序分支
 	Page       int
 	Size       int
 	// IncludeHidden 为 true 时不过滤 status（管理端查看隐藏课程）；false 仅返回可见课程。
@@ -72,14 +72,16 @@ type ListCourseQuery struct {
 }
 
 // ListCourses 返回课程列表（canonical course 一页），并返回总条数。
-// 排序固定为 id 倒序（新课程优先），保证分页稳定。
+// 前台默认排序：有可见评价的课程优先（仅排序不筛选，无评论课程仍排在后面），
+// 组内保持 id 倒序；管理端（IncludeHidden=true）保持 id 倒序。两组排序键均为全序，
+// 分页稳定（OFFSET 分页不因排序键重复产生抖动）。
 func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) {
 	b := courseBuilder().Where("course.deleted_at IS NULL")
 	if !q.IncludeHidden {
 		b = b.Where(queryopt.Eq("status", StatusVisible))
 	}
-	if q.Department != "" {
-		b = b.Where(queryopt.Eq("department", q.Department))
+	if len(q.Department) > 0 {
+		b = b.Where(queryopt.In("department", q.Department))
 	}
 	if q.Keyword != "" {
 		kw := "%" + q.Keyword + "%"
@@ -96,26 +98,34 @@ OR EXISTS (
 			kw, kw, kw, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, kw,
 		)
 	}
-	if q.Instructor != "" {
-		ins := "%" + escapeLike(q.Instructor) + "%"
+	if len(q.Instructor) > 0 {
+		var conds []string
+		var args []any
+		for _, insName := range q.Instructor {
+			ins := "%" + escapeLike(insName) + "%"
+			conds = append(conds, `(course_instructor.name LIKE ? ESCAPE '!' OR course_instructor.normalized_name LIKE ? ESCAPE '!' OR course_instructor.name_pinyin LIKE ? ESCAPE '!' OR course_instructor.name_initials LIKE ? ESCAPE '!')`)
+			args = append(args, ins, ins, ins, ins)
+		}
+		condSQL := "(" + strings.Join(conds, " OR ") + ")"
+		baseArgs := append([]any{OfferingStatusVisible}, args...)
 		b = b.Where(`EXISTS (
 	SELECT 1 FROM course_offering
 	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
 	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
 	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
-	  AND (course_instructor.name LIKE ? ESCAPE '!' OR course_instructor.normalized_name LIKE ? ESCAPE '!' OR course_instructor.name_pinyin LIKE ? ESCAPE '!' OR course_instructor.name_initials LIKE ? ESCAPE '!')
-)`, OfferingStatusVisible, ins, ins, ins, ins)
+	  AND `+condSQL+`
+)`, baseArgs...)
 	}
 	if q.HasReview {
 		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0 AND course_review_stats.deleted_at IS NULL)`)
 	}
-	if q.TermCode != "" || q.Campus != "" {
+	if len(q.TermCode) > 0 || len(q.Campus) > 0 {
 		ob := offeringBuilder()
-		if q.TermCode != "" {
-			ob = ob.Where("term_id IN (SELECT id FROM course_term WHERE code = ?)", q.TermCode)
+		if len(q.TermCode) > 0 {
+			ob = ob.Where("term_id IN (SELECT id FROM course_term WHERE code IN (?))", q.TermCode)
 		}
-		if q.Campus != "" {
-			ob = ob.Where(queryopt.Eq("campus", q.Campus))
+		if len(q.Campus) > 0 {
+			ob = ob.Where(queryopt.In("campus", q.Campus))
 		}
 		sub := ob.Select("course_id")
 		b = b.Where("id IN (?)", sub)
@@ -132,13 +142,21 @@ OR EXISTS (
 	if q.Page <= 0 {
 		q.Page = 1
 	}
-	// 排序：仅 SortBy=rating 时按评分降序（LEFT JOIN course_review_stats，
-	// 其 course_id 主键唯一故不放大行数）；否则保持 id 倒序保证分页稳定。
-	// COUNT 已在上方按同一套 WHERE 过滤完成，JOIN 只影响排序不影响计数。
-	if q.SortBy == "rating" {
+	// 排序（与 COUNT 无关，已在上方按同一套 WHERE 过滤完成；LEFT JOIN course_review_stats
+	// 的 course_id 主键唯一，不放大行数）：
+	//   - SortBy=rating：按平均分降序，零/无评分课程垫底（组内 id 倒序）；
+	//   - 前台默认：有可见评价（review_count > 0）的课程优先——仅排序不筛选，无评论课程
+	//     仍留在后面；组内保持 id 倒序；
+	//   - 管理端（IncludeHidden=true）：保持 id 倒序（管理侧按导入/ID 检索，不受评价影响）。
+	// 三种排序的排序键 (标志位/score, id) 均为全序，OFFSET 分页稳定。
+	switch {
+	case q.SortBy == "rating":
 		b = b.Joins("LEFT JOIN course_review_stats s ON s.course_id = course.id AND s.deleted_at IS NULL").
 			Order("CASE WHEN s.rating_count > 0 THEN 0 ELSE 1 END ASC, COALESCE(s.rating_sum * 1.0 / NULLIF(s.rating_count, 0), 0) DESC, course.id DESC")
-	} else {
+	case !q.IncludeHidden:
+		b = b.Joins("LEFT JOIN course_review_stats sr ON sr.course_id = course.id AND sr.deleted_at IS NULL").
+			Order("CASE WHEN sr.review_count > 0 THEN 0 ELSE 1 END ASC, course.id DESC")
+	default:
 		b = b.Order("id DESC")
 	}
 	err = b.Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error

@@ -43,10 +43,10 @@ function onSelect(id: string, content: string) {
       :aria-label="t('courseDetailPage.templateSelectorTitle')"
       @click.self="emit('close')"
     >
-      <div class="w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
+      <div class="gf-panel w-full max-w-2xl max-h-[80vh] overflow-y-auto p-5 shadow-lg">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h2 class="text-base font-bold text-base-content">
+            <h2 class="text-sm font-semibold text-base-content">
               {{ t('courseDetailPage.templateSelectorTitle') }}
             </h2>
             <p class="mt-0.5 text-[13px] text-base-content/55">

@@ -17,6 +17,7 @@ var reviewTestModels = []any{
 	&course.OfferingEntity{},
 	&course.ReviewEntity{},
 	&course.HelpfulEntity{},
+	&course.DislikeEntity{},
 	&course.CourseStatsEntity{},
 	&course.OfferingStatsEntity{},
 	&course.CourseAiSummaryEntity{},

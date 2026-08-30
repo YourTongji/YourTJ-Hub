@@ -29,7 +29,7 @@ importers:
         version: 1.6.5(@unovis/ts@1.6.5)(vue@3.5.34(typescript@6.0.3))
       '@vitejs/plugin-vue':
         specifier: ^6.0.3
-        version: 6.0.7(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))(vue@3.5.34(typescript@6.0.3))
+        version: 6.0.7(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))(vue@3.5.34(typescript@6.0.3))
       '@vueuse/core':
         specifier: ^14.3.0
         version: 14.3.0(vue@3.5.34(typescript@6.0.3))
@@ -114,6 +114,9 @@ importers:
       sortablejs:
         specifier: ^1.15.7
         version: 1.15.7
+      sqids:
+        specifier: ^0.3.0
+        version: 0.3.0
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -131,7 +134,7 @@ importers:
         version: 3.11.2
       vite:
         specifier: ^8.0.16
-        version: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0)
+        version: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
       vue:
         specifier: ^3.5.25
         version: 3.5.34(typescript@6.0.3)
@@ -153,7 +156,7 @@ importers:
         version: 0.5.20(tailwindcss@4.3.0)
       '@tailwindcss/vite':
         specifier: ^4.2.2
-        version: 4.3.0(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))
+        version: 4.3.0(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
@@ -183,7 +186,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@25.9.2)(happy-dom@20.11.2)(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))
+        version: 4.1.9(@types/node@25.9.2)(happy-dom@20.11.2)(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))
       vue-tsc:
         specifier: ^3.3.7
         version: 3.3.7(typescript@6.0.3)
@@ -195,7 +198,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@25.9.2)(happy-dom@20.11.2)(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))
+        version: 4.1.9(@types/node@25.9.2)(happy-dom@20.11.2)(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))
 
 packages:
 
@@ -1805,6 +1808,9 @@ packages:
     resolution: {integrity: sha512-LbrmJOMUSdEVxIKvdcJzQC+nQhe8FUZQTXQy6+I75skNgn3OoQ0DZA8YnFa7gp8tqtL3KPf1kmo0R5DoApeSGQ==}
     engines: {node: '>=0.10.0'}
 
+  sqids@0.3.0:
+    resolution: {integrity: sha512-lOQK1ucVg+W6n3FhRwwSeUijxe93b51Bfz5PMRMihVf1iVkl82ePQG7V5vwrhzB11v0NtsR25PSZRGiSomJaJw==}
+
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
@@ -2098,11 +2104,6 @@ packages:
   yaml@1.10.3:
     resolution: {integrity: sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==}
     engines: {node: '>= 6'}
-
-  yaml@2.9.0:
-    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
-    engines: {node: '>= 14.6'}
-    hasBin: true
 
   yargs-parser@18.1.3:
     resolution: {integrity: sha512-o50j0JeToy/4K6OZcaQmW6lyXXKhq7csREXcDwk2omFPJEwUNOVtJKvmDr9EI1fAJZUyZcRF7kxGBWmRXudrCQ==}
@@ -2470,12 +2471,12 @@ snapshots:
       postcss-selector-parser: 6.0.10
       tailwindcss: 4.3.0
 
-  '@tailwindcss/vite@4.3.0(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))':
+  '@tailwindcss/vite@4.3.0(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))':
     dependencies:
       '@tailwindcss/node': 4.3.0
       '@tailwindcss/oxide': 4.3.0
       tailwindcss: 4.3.0
-      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0)
+      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
 
   '@tanstack/virtual-core@3.15.0': {}
 
@@ -2800,10 +2801,10 @@ snapshots:
       '@unovis/ts': 1.6.5
       vue: 3.5.34(typescript@6.0.3)
 
-  '@vitejs/plugin-vue@6.0.7(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))(vue@3.5.34(typescript@6.0.3))':
+  '@vitejs/plugin-vue@6.0.7(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))(vue@3.5.34(typescript@6.0.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0)
+      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
       vue: 3.5.34(typescript@6.0.3)
 
   '@vitest/expect@4.1.9':
@@ -2815,13 +2816,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.9(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.9(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))':
     dependencies:
       '@vitest/spy': 4.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0)
+      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
 
   '@vitest/pretty-format@4.1.9':
     dependencies:
@@ -3781,6 +3782,8 @@ snapshots:
 
   source-map@0.5.7: {}
 
+  sqids@0.3.0: {}
+
   stackback@0.0.2: {}
 
   std-env@4.1.0: {}
@@ -3858,7 +3861,7 @@ snapshots:
     dependencies:
       diff-match-patch: 1.0.5
 
-  vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0):
+  vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0):
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.4
@@ -3869,12 +3872,11 @@ snapshots:
       '@types/node': 25.9.2
       fsevents: 2.3.3
       jiti: 2.7.0
-      yaml: 2.9.0
 
-  vitest@4.1.9(@types/node@25.9.2)(happy-dom@20.11.2)(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0)):
+  vitest@4.1.9(@types/node@25.9.2)(happy-dom@20.11.2)(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)):
     dependencies:
       '@vitest/expect': 4.1.9
-      '@vitest/mocker': 4.1.9(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.9(vite@8.1.0(@types/node@25.9.2)(jiti@2.7.0))
       '@vitest/pretty-format': 4.1.9
       '@vitest/runner': 4.1.9
       '@vitest/snapshot': 4.1.9
@@ -3891,7 +3893,7 @@ snapshots:
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)(yaml@2.9.0)
+      vite: 8.1.0(@types/node@25.9.2)(jiti@2.7.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 25.9.2
@@ -3977,9 +3979,6 @@ snapshots:
   y18n@4.0.3: {}
 
   yaml@1.10.3: {}
-
-  yaml@2.9.0:
-    optional: true
 
   yargs-parser@18.1.3:
     dependencies:

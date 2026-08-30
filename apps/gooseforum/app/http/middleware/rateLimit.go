@@ -50,6 +50,7 @@ const (
 	RateLimitWikiWebhook   = "wiki.webhook"
 	RateLimitReviewWrite   = "course.review.write"
 	RateLimitReviewHelpful = "course.review.helpful"
+	RateLimitReviewDislike = "course.review.dislike"
 	RateLimitReviewReport  = "course.review.report"
 	RateLimitReviewReveal  = "course.review.reveal"
 	// RateLimitReviewModerate 课评审核操作（隐藏/恢复、举报队列）：60s 窗口
@@ -59,6 +60,9 @@ const (
 	// RateLimitCourseSummary 课程 AI 总结端点（B7, issue #181）：
 	// 读缓存免费，生成动作另有 service 内全局/单课限流，此处仅防脚本高频打端点。
 	RateLimitCourseSummary = "course.summary"
+	// RateLimitCourseBookmark 课程收藏端点（issue #331）：低频写操作，
+	// 独立配额防脚本高频切换收藏（与交互类动作区分，便于管理面板分别调优）。
+	RateLimitCourseBookmark = "course.bookmark"
 )
 
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。
