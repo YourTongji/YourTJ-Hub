@@ -79,18 +79,17 @@ function teacherText(detail: PkCourseDetail): string {
 }
 
 function tryStage(candidate: CellCandidate) {
-  // 用候选课程填充点击上下文：stageCourse/forceReplaceCourse 依赖
-  // clickedCourseInfo 生成课表行与占用格标签，避免暂存后课程名/代码
-  // 串成上次打开的课程（review P1）。
+  // 用候选课程填充点击上下文：stageCourse 依赖 clickedCourseInfo 生成课表行与
+  // 占用格标签，避免暂存后课程名/代码串成上次打开的课程（review P1）。
   store.setClickedCourseInfo({ courseCode: candidate.courseCode, courseName: candidate.courseName })
+  // 容忍式：总是入表；冲突仅作父级 flash 提示，不阻断。
   const result = store.stageCourse(candidate.detail)
-  if (result.added) {
-    store.solidify()
+  store.solidify()
+  if (result.conflicts && result.conflicts.length > 0) {
+    emit('conflict', candidate.detail, result.conflicts)
+  } else {
     emit('staged')
-    emit('close')
-    return
   }
-  emit('conflict', candidate.detail, result.conflicts ?? [])
   emit('close')
 }
 </script>

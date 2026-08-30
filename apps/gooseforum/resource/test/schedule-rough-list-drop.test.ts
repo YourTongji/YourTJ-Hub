@@ -80,7 +80,7 @@ describe('ScheduleRoughList 退课持久化', () => {
     // 回归：confirmDrop 曾漏调 solidify，删除只停留在内存，
     // 页面重挂载时 loadSolidify 用旧的 localStorage 覆盖内存，课程"复活"。
     const store = useScheduleStore()
-    expect(localStorage.getItem('pk.stagedCourses')).toContain('122004')
+    expect(localStorage.getItem('pk.plans')).toContain('122004')
 
     mounted = mount(ScheduleRoughList, { global: { plugins: [i18n] } })
     await flushPromises()
@@ -95,8 +95,8 @@ describe('ScheduleRoughList 退课持久化', () => {
     // 内存状态已移除，且 localStorage 同步移除（退课立即持久化）。
     expect(store.state.commonLists.stagedCourses).toEqual([])
     expect(store.state.commonLists.selectedCourses).toEqual([])
-    expect(localStorage.getItem('pk.stagedCourses')).not.toContain('122004')
-    expect(localStorage.getItem('pk.selectedCourses')).not.toContain('122004')
+    expect(localStorage.getItem('pk.plans')).not.toContain('122004')
+    expect(localStorage.getItem('pk.plans')).not.toContain('122004.01')
 
     // 模拟刷新/重进：loadSolidify 用持久化状态覆盖内存，退掉的课程不得复活。
     store.pushStagedCourse(makeStaged('999999', [makeDetail('999999.01')]))
@@ -116,6 +116,6 @@ describe('ScheduleRoughList 退课持久化', () => {
     await clickDialogButton('.gf-button-md.gf-button-ghost')
 
     expect(store.state.commonLists.stagedCourses.map((c) => c.courseCode)).toEqual(['122004'])
-    expect(localStorage.getItem('pk.stagedCourses')).toContain('122004')
+    expect(localStorage.getItem('pk.plans')).toContain('122004')
   })
 })

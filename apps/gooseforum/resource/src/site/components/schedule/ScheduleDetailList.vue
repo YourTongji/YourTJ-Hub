@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// 课程班级列表：展示 clickedCourseInfo 对应课程的全部教学班，点击班级尝试加入课表。
-// 无冲突直接加入（status → 备选）；有冲突 emit('conflict') 由父级弹窗决定「强制替换/放弃」。
+// 课程班级列表：展示 clickedCourseInfo 对应课程的全部教学班，点击班级加入课表。
+// 容忍式冲突：无论是否冲突都入表；有冲突时 emit('conflict') 仅用于父级 flash 提示，
+// 不再弹「强制替换/放弃」窗（多方案/周次模型下不阻断）。
 // 课程头部异步加载课评摘要（P13 course-review-brief），并给出跳转课评详情/搜索的入口。
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -112,13 +113,14 @@ function teacherText(detail: PkCourseDetail): string {
 }
 
 function tryStage(detail: PkCourseDetail) {
+  // 容忍式：总是入表；冲突仅作 flash 提示（deriveConflicts 负责课表/列表/统计标注）。
   const result = store.stageCourse(detail)
-  if (result.added) {
-    store.solidify()
-    emit('staged')
+  store.solidify()
+  if (result.conflicts && result.conflicts.length > 0) {
+    emit('conflict', detail, result.conflicts)
     return
   }
-  emit('conflict', detail, result.conflicts ?? [])
+  emit('staged')
 }
 </script>
 

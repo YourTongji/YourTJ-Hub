@@ -27,6 +27,7 @@ import {
 import { MAX_WEEK, maxRowsForCalendar } from '@/site/utils/pkArrange'
 import type {
   PkArrangement,
+  PkCalendar,
   PkClickedCourse,
   PkCourse,
   PkCourseDetail,
@@ -83,6 +84,8 @@ interface ScheduleState {
   occupied: PkOccupyCell[][][]
   timeTableData: PkCourseOnTable[]
   weekView: PkWeekView
+  /** 学期字典（含起止日期；会话缓存不持久化，MajorSelector 加载后写入）。 */
+  calendars: PkCalendar[]
   flags: {
     majorNotChanged: boolean
     isDataOutdated: boolean
@@ -113,6 +116,7 @@ function createInitialState(): ScheduleState {
     occupied: createEmptyOccupied(),
     timeTableData: [],
     weekView: { week: null, useCurrent: false },
+    calendars: [],
     flags: { majorNotChanged: false, isDataOutdated: false },
     updateTime: '',
     latestUpdateTime: '',
@@ -599,19 +603,6 @@ export function useScheduleStore() {
     return { added: true, conflicts }
   }
 
-  /** 强制替换（过渡保留）：移除所有冲突课程后把目标课程加入课表。 */
-  function forceReplaceCourse(payload: PkCourseDetail): boolean {
-    const conflicts = findConflicts(payload, state.occupied)
-    for (const conflict of conflicts) {
-      // 跳过候选课自身的旧班（同基础课号）：由 appendToTimeTable 的隐式替换处理，
-      // 否则 removeCourseFromSchedule 会把候选课程整门从 stagedCourses 移除。
-      if (isSameCourse(conflict.code, payload.code)) continue
-      removeCourseFromSchedule(conflict.code)
-    }
-    appendToTimeTable(payload)
-    return true
-  }
-
   /** 保存课表：激活方案内所有待选（status=1）班级升为已选（status=2）。 */
   function saveSelectedCourses(): void {
     const plan = activePlan()
@@ -707,12 +698,16 @@ export function useScheduleStore() {
     syncActiveView()
     solidify()
   }
-
   // ---- 周次视图 ----
 
   function setWeekView(view: PkWeekView): void {
     state.weekView = sanitizeWeekView(view) ?? { week: null, useCurrent: false }
     writeStorage(STORAGE_KEYS.weekView, state.weekView)
+  }
+
+  /** 学期字典写入（MajorSelector 加载 P1 后回填，供周次定位/日期条消费）。 */
+  function setCalendars(payload: PkCalendar[]): void {
+    state.calendars = Array.isArray(payload) ? payload : []
   }
 
   // ---- 同步 ----
@@ -746,18 +741,6 @@ export function useScheduleStore() {
     state.flags.isDataOutdated = false
   }
 
-  /** P12 同步结果应用到激活方案（保留班级排课状态）并重建派生态。 */
-  function applySyncedCourses(newStaged: PkStagedCourse[]): void {
-    const plan = activePlan()
-    const sanitized = newStaged.map(sanitizeStagedCourse).filter((course) => course.courseCode)
-    plan.stagedCourses = sanitized
-    state.commonLists.stagedCourses = plan.stagedCourses
-    syncActiveView()
-
-    state.updateTime = state.latestUpdateTime
-    state.flags.isDataOutdated = false
-    solidify()
-  }
 
   /**
    * P12 同步结果应用到全部方案（跨方案并集请求后调用）：
@@ -913,7 +896,6 @@ export function useScheduleStore() {
     setClickedCourseInfo,
     clearStagedAndSelectedCourses,
     stageCourse,
-    forceReplaceCourse,
     saveSelectedCourses,
     createPlan,
     switchPlan,
@@ -923,11 +905,11 @@ export function useScheduleStore() {
     updateCustomEvent,
     removeCustomEvent,
     setWeekView,
+    setCalendars,
     setUpdateTime,
     setLatestUpdateTime,
     setDataOutdated,
     syncLatestData,
-    applySyncedCourses,
     applySyncToAllPlans,
     solidify,
     loadSolidify,
