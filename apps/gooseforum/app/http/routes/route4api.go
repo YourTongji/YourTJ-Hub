@@ -399,6 +399,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("schedule-settings", UpButterReq(api.GetScheduleSettings)).
+		POST("save-schedule-settings", UpButterReq(api.SaveScheduleSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
 		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
 		// 排课数据同步（issue #248 自愈入口）：触发同步 + 查询各学期状态。

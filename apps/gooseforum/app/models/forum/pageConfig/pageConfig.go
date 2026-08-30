@@ -52,6 +52,7 @@ const (
 	AiSummarySettings   = `aiSummarySettings`
 	OneSystemSettings   = `onesystemSettings`
 	WikiSyncSettings    = `wikiSyncSettings`
+	ScheduleSettings    = `scheduleSettings`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -675,6 +676,19 @@ type HttpNotifyConfigInput struct {
 type MCPSettingsConfig struct {
 	Enabled bool `json:"enabled"` // /mcp 端点总开关
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
+}
+
+// ScheduleSettingsConfig 排课器节次作息表配置（12 节上课时间），可在管理面板热修改；
+// SSR 透传给 /schedule 页面 props，未配置时回退内置默认作息。
+type ScheduleSettingsConfig struct {
+	SectionTimes []ScheduleSectionTime `json:"sectionTimes"`
+}
+
+// ScheduleSectionTime 单个节次的开始/结束时间（HH:MM）。
+type ScheduleSectionTime struct {
+	Section int    `json:"section"` // 节次 1..12
+	Start   string `json:"start"`   // 开始时间 HH:MM
+	End     string `json:"end"`     // 结束时间 HH:MM
 }
 
 // AiSummaryConfig AI 课程总结配置（B7，issue #181），可在管理面板热修改。

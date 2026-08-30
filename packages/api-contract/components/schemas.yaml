@@ -7244,6 +7244,54 @@ AdminSaveMcpSettingsRequest:
   additionalProperties: false
   description: Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
 
+AdminScheduleSectionTime:
+  type: object
+  required: [section, start, end]
+  properties:
+    section:
+      type: integer
+      minimum: 1
+      maximum: 12
+      description: Class-period number (第 N 节), 1..12.
+    start:
+      type: string
+      pattern: '^\d{2}:\d{2}$'
+      description: Period start as strict 24-hour `HH:MM` (clock values validated server-side).
+    end:
+      type: string
+      pattern: '^\d{2}:\d{2}$'
+      description: Period end as strict 24-hour `HH:MM` (clock values validated server-side).
+  additionalProperties: false
+
+AdminScheduleSettingsConfig:
+  type: object
+  required: [sectionTimes]
+  properties:
+    sectionTimes:
+      type: array
+      items:
+        $ref: '#/AdminScheduleSectionTime'
+      description: The 12 class periods shown on the /schedule timetable, sorted by section ascending and deduplicated per section.
+  additionalProperties: false
+
+AdminScheduleSettingsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminScheduleSettingsConfig'
+          description: Stored section times, or the built-in default table when nothing has been saved.
+
+AdminSaveScheduleSettingsRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminScheduleSettingsConfig'
+  additionalProperties: false
+  description: Replacement section times. Any entry with a section outside 1..12 or a non-`HH:MM` start/end rejects the whole submission with `common.request.invalidParams`.
+
 # ================= Admin content ops: badges / review queue / file resources（Issue #277 P3 切片六）=================
 
 AdminBadgeListItem:

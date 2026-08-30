@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,6 +40,28 @@ func TestSchedulePageRequestReturnsPayload(t *testing.T) {
 	}
 	if strings.Contains(body, "meta.scheduleDesc") || strings.Contains(body, "{site}") {
 		t.Fatalf("expected interpolated meta description, got raw placeholder: %s", body)
+	}
+	// 节次作息表：SSR 注入 props.sectionTimes，未保存配置时回默认 12 节作息。
+	var payload struct {
+		Props struct {
+			SectionTimes []struct {
+				Section int    `json:"section"`
+				Start   string `json:"start"`
+				End     string `json:"end"`
+			} `json:"sectionTimes"`
+		} `json:"props"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode schedule payload: %v", err)
+	}
+	if len(payload.Props.SectionTimes) != 12 {
+		t.Fatalf("expected 12 default section times, got %d: %s", len(payload.Props.SectionTimes), body)
+	}
+	if first := payload.Props.SectionTimes[0]; first.Section != 1 || first.Start != "08:00" || first.End != "08:45" {
+		t.Fatalf("expected default first section 1 08:00-08:45, got %#v", first)
+	}
+	if last := payload.Props.SectionTimes[11]; last.Section != 12 || last.Start != "20:10" || last.End != "20:55" {
+		t.Fatalf("expected default last section 12 20:10-20:55, got %#v", last)
 	}
 }
 

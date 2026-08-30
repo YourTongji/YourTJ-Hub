@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：265
-- /api JSON 路由：209，已入契约：207（99%），已知未覆盖：0
+- 快照路由总数：267
+- /api JSON 路由：211，已入契约：209（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（207）
+## 已覆盖（209）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -29,6 +29,7 @@
 | GET | `/api/admin/posting-settings` | `adminGetPostingSettings` |
 | GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
 | GET | `/api/admin/rate-limit-settings` | `adminGetRateLimitSettings` |
+| GET | `/api/admin/schedule-settings` | `adminGetScheduleSettings` |
 | GET | `/api/admin/security-settings` | `adminGetSecuritySettings` |
 | GET | `/api/admin/server-version` | `adminGetServerVersion` |
 | GET | `/api/admin/site-chrome` | `adminGetSiteChrome` |
@@ -116,6 +117,7 @@
 | POST | `/api/admin/save-posting-settings` | `adminSavePostingSettings` |
 | POST | `/api/admin/save-privacy-policy` | `adminSavePrivacyPolicy` |
 | POST | `/api/admin/save-rate-limit-settings` | `adminSaveRateLimitSettings` |
+| POST | `/api/admin/save-schedule-settings` | `adminSaveScheduleSettings` |
 | POST | `/api/admin/save-security-settings` | `adminSaveSecuritySettings` |
 | POST | `/api/admin/save-site-chrome` | `adminSaveSiteChrome` |
 | POST | `/api/admin/save-site-settings` | `adminSaveSiteSettings` |

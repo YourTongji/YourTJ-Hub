@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -1483,6 +1484,59 @@ type SaveMCPSettingsReq struct {
 // SaveMCPSettings 保存内置 MCP server 设置
 func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.Response {
 	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
+}
+
+// GetScheduleSettings 获取排课器节次作息表设置（未保存过时回内置默认 12 节作息）
+func GetScheduleSettings(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig())
+	return component.SuccessResponse(config)
+}
+
+type SaveScheduleSettingsReq struct {
+	Settings pageConfig.ScheduleSettingsConfig `json:"settings" validate:"required"`
+}
+
+// SaveScheduleSettings 保存排课器节次作息表设置：条目需节次 1..12 且起止时间为
+// 合法 HH:MM，任一条目非法整单拒绝（invalidParams，避免静默丢弃管理员输入）；
+// 合法输入按节次升序排序并去重（同节次保留首个）后落库。
+func SaveScheduleSettings(req component.BetterRequest[SaveScheduleSettingsReq]) component.Response {
+	sectionTimes, ok := sanitizeScheduleSectionTimes(req.Params.Settings.SectionTimes)
+	if !ok {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, hotdataserve.ClearScheduleSettingsConfigCache)
+}
+
+// isValidScheduleClockTime 校验严格 HH:MM（两位小时/分钟 + 冒号）且时钟值合法
+// （time.Parse 的 "15" 布局可接受一位小时，故先做显式形状检查）。
+func isValidScheduleClockTime(value string) bool {
+	if len(value) != 5 || value[2] != ':' {
+		return false
+	}
+	_, err := time.Parse("15:04", value)
+	return err == nil
+}
+
+// sanitizeScheduleSectionTimes 校验并规范化节次条目：非法返回 false；
+// 否则返回按节次升序、去重后的切片。
+func sanitizeScheduleSectionTimes(input []pageConfig.ScheduleSectionTime) ([]pageConfig.ScheduleSectionTime, bool) {
+	seen := make(map[int]bool, len(input))
+	times := make([]pageConfig.ScheduleSectionTime, 0, len(input))
+	for _, item := range input {
+		if item.Section < 1 || item.Section > 12 {
+			return nil, false
+		}
+		if !isValidScheduleClockTime(item.Start) || !isValidScheduleClockTime(item.End) {
+			return nil, false
+		}
+		if seen[item.Section] {
+			continue
+		}
+		seen[item.Section] = true
+		times = append(times, item)
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i].Section < times[j].Section })
+	return times, true
 }
 
 // GetAiSummarySettings 获取 AI 课程总结配置（B7, issue #181）。
