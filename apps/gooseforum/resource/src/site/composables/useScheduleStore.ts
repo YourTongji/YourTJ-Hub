@@ -25,6 +25,7 @@ import {
   type PkConflictItem,
 } from '@/site/utils/pkConflict'
 import { MAX_WEEK, maxRowsForCalendar } from '@/site/utils/pkArrange'
+import { type SectionTime } from '@/site/utils/sectionTimes'
 import type {
   PkArrangement,
   PkCalendar,
@@ -84,6 +85,8 @@ interface ScheduleState {
   occupied: PkOccupyCell[][][]
   timeTableData: PkCourseOnTable[]
   weekView: PkWeekView
+  /** 节次作息覆盖（后台设置下发；空数组 = 全默认，不持久化）。 */
+  sectionTimeOverrides: SectionTime[]
   /** 学期字典（含起止日期；会话缓存不持久化，MajorSelector 加载后写入）。 */
   calendars: PkCalendar[]
   flags: {
@@ -116,6 +119,7 @@ function createInitialState(): ScheduleState {
     occupied: createEmptyOccupied(),
     timeTableData: [],
     weekView: { week: null, useCurrent: false },
+    sectionTimeOverrides: [],
     calendars: [],
     flags: { majorNotChanged: false, isDataOutdated: false },
     updateTime: '',
@@ -703,6 +707,11 @@ export function useScheduleStore() {
     state.calendars = Array.isArray(payload) ? payload : []
   }
 
+  /** 节次作息覆盖写入（页面 props 注入；后台未配置时为空数组走默认表）。 */
+  function setSectionTimeOverrides(payload: SectionTime[]): void {
+    state.sectionTimeOverrides = Array.isArray(payload) ? payload : []
+  }
+
   // ---- 同步 ----
 
   function setUpdateTime(payload: string): void {
@@ -892,6 +901,7 @@ export function useScheduleStore() {
     removeCustomEvent,
     setWeekView,
     setCalendars,
+    setSectionTimeOverrides,
     setUpdateTime,
     setLatestUpdateTime,
     setDataOutdated,

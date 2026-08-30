@@ -93,6 +93,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/schedule-settings"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/security-settings"
   },
   {
@@ -630,6 +634,10 @@
   {
     "method": "POST",
     "path": "/api/admin/save-rate-limit-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-schedule-settings"
   },
   {
     "method": "POST",

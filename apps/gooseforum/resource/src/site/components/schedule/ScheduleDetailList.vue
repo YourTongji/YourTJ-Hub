@@ -167,7 +167,7 @@ function tryStage(detail: PkCourseDetail) {
           </template>
         </div>
       </div>
-      <ul v-if="currentCourse.courseDetail.length" class="gf-scrollbar-thin max-h-96 divide-y divide-line/60 overflow-y-auto overscroll-contain">
+      <ul v-if="currentCourse.courseDetail.length" class="gf-scrollbar-thin divide-y divide-line/60">
         <li
           v-for="detail in currentCourse.courseDetail"
           :key="detail.code"

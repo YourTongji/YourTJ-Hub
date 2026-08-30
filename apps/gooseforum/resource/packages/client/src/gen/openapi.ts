@@ -4213,6 +4213,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the schedule section times
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored section times (the 12 class
+         *     periods shown on the /schedule timetable), or the built-in default
+         *     table when nothing has been saved yet. JSON binding is lenient: query
+         *     string and body are ignored.
+         */
+        get: operations["adminGetScheduleSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the schedule section times
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole section-times configuration, clears the
+         *     schedule-settings cache, and the new table takes effect on the next
+         *     /schedule SSR render. Validation: every entry must name a section in
+         *     1..12 with strict `HH:MM` start/end clock values where start is
+         *     strictly earlier than end; any invalid entry rejects the whole
+         *     submission with HTTP 200 `common.request.invalidParams`
+         *     (nothing is dropped silently). Valid input is deduplicated per section
+         *     (first entry wins) and stored sorted by section ascending.
+         */
+        post: operations["adminSaveScheduleSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/badges": {
         parameters: {
             query?: never;
@@ -7854,6 +7909,26 @@ export interface components {
         /** @description Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
         AdminSaveMcpSettingsRequest: {
             settings?: components["schemas"]["AdminMcpSettingsConfig"];
+        };
+        AdminScheduleSectionTime: {
+            /** @description Class-period number (第 N 节), 1..12. */
+            section: number;
+            /** @description Period start as strict 24-hour `HH:MM` (clock values validated server-side). */
+            start: string;
+            /** @description Period end as strict 24-hour `HH:MM` (clock values validated server-side). */
+            end: string;
+        };
+        AdminScheduleSettingsConfig: {
+            /** @description The 12 class periods shown on the /schedule timetable, sorted by section ascending and deduplicated per section. */
+            sectionTimes: components["schemas"]["AdminScheduleSectionTime"][];
+        };
+        AdminScheduleSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored section times, or the built-in default table when nothing has been saved. */
+            result: components["schemas"]["AdminScheduleSettingsConfig"];
+        };
+        /** @description Replacement section times. Any entry with a section outside 1..12, a non-`HH:MM` start/end, or a start not strictly earlier than its end rejects the whole submission with `common.request.invalidParams`. */
+        AdminSaveScheduleSettingsRequest: {
+            settings?: components["schemas"]["AdminScheduleSettingsConfig"];
         };
         AdminBadgeListItem: components["schemas"]["AdminBadge"] & {
             /** @description True for built-in system badges (always listed; DB rows can only override their display fields). */
@@ -16164,6 +16239,86 @@ export interface operations {
         };
         responses: {
             /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Section times (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminScheduleSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveScheduleSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`), or a `code: 1` validation failure. */
             200: {
                 headers: {
                     [name: string]: unknown;

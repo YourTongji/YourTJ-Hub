@@ -422,7 +422,7 @@ export default {
     emptyRequired: '暂无计划内课程',
     emptyOptional: '暂无通识选修课',
     emptySearch: '未找到匹配的课程',
-    emptyDetailGuide: '点击左侧课程查看教学班',
+    emptyDetailGuide: '尚未选择课程',
     emptyDetailNoClass: '该课程暂无班级',
     cellPickTitle: '该时段可选课程',
     cellPickEmpty: '该时段暂无备选课程',
@@ -509,6 +509,8 @@ export default {
     stagedSuccess: '已加入课表',
     stagedWithConflict: '已加入课表，与「{course}」时间冲突',
     stagedWithConflicts: '已加入课表，与「{course}」等 {count} 门课程时间冲突',
+    classPickerTitle: '选择教学班',
+    classPickerHint: '点击班级加入课表；时间冲突仍会加入并标注。',
   },
   courseDetailPage: {
     backToList: '返回课程目录',
