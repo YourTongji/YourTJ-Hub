@@ -422,7 +422,7 @@ export default {
     emptyRequired: '予定内の授業はありません',
     emptyOptional: '一般教養の授業はありません',
     emptySearch: '該当する授業が見つかりません',
-    emptyDetailGuide: '左の授業をクリックしてクラスを表示',
+    emptyDetailGuide: '授業がまだ選択されていません',
     emptyDetailNoClass: 'この授業にはクラスがありません',
     cellPickTitle: 'この時間帯の選択可能な授業',
     cellPickEmpty: 'この時間帯に候補の授業はありません',
@@ -509,6 +509,8 @@ export default {
     stagedSuccess: '時間割に追加しました',
     stagedWithConflict: '追加しました——「{course}」と時間が重複しています',
     stagedWithConflicts: '追加しました——「{course}」など {count} 件と時間が重複しています',
+    classPickerTitle: 'クラスを選択',
+    classPickerHint: 'クラスをクリックして時間割に追加します。時間の重複も追加され、表示で警告されます。',
   },
   courseDetailPage: {
     backToList: 'コースカタログに戻る',

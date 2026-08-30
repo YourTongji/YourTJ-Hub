@@ -422,7 +422,7 @@ export default {
     emptyRequired: 'No required courses available',
     emptyOptional: 'No elective courses available',
     emptySearch: 'No matching courses found',
-    emptyDetailGuide: 'Select a course on the left to view its classes',
+    emptyDetailGuide: 'No course selected yet',
     emptyDetailNoClass: 'This course has no classes yet',
     cellPickTitle: 'Courses available this period',
     cellPickEmpty: 'No staged courses at this time',
@@ -509,6 +509,8 @@ export default {
     stagedSuccess: 'Added to timetable',
     stagedWithConflict: 'Added — time conflict with "{course}"',
     stagedWithConflicts: 'Added — time conflict with "{course}" and {count} other courses',
+    classPickerTitle: 'Choose a class',
+    classPickerHint: 'Click a class to add it to the timetable; time conflicts are still added and flagged.',
   },
   courseDetailPage: {
     backToList: 'Back to course catalog',

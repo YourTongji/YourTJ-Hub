@@ -242,9 +242,7 @@ function updateTimeTable() {
 /** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
 const hasCourses = computed(() => cellCourses.value.some((row) => row.some((cell) => cell.length > 0)))
 
-// ---- 节次时间与分组 ----
-
-const sectionTimes = computed(() => sectionTimesFor(store.readTimeTableRows()))
+const sectionTimes = computed(() => sectionTimesFor(store.readTimeTableRows(), store.state.sectionTimeOverrides))
 
 /** 每行节次的起止时间（无数据返回空串）。 */
 function sectionTimeText(index: number): string {
@@ -439,18 +437,17 @@ onBeforeUnmount(() => {
               >
                 <div
                   v-if="courses.length > 0"
-                  class="flex h-full overflow-hidden rounded-xl"
+                  class="flex min-h-0 flex-col rounded-xl"
                   :class="store.state.weekView.week === null && courses.length > 1 ? 'flex-row gap-[2px]' : 'flex-col'"
-                  :style="{ height: cellSpans[index][dayIndex] * (isMobile ? 44 : 54) + 'px' }"
                 >
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="relative flex min-h-0 min-w-0 flex-1 flex-col justify-center overflow-y-auto overscroll-contain px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
+                    class="relative flex min-h-0 min-w-0 flex-1 flex-col justify-center px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
                     :class="[
                       isMobile ? 'text-center' : 'text-left',
                       store.state.weekView.week === null && courses.length > 1 ? '' : courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '',
-                      isCustomEvent(course) ? 'border-l-[3px]' : 'border-l-[3px]',
+                      'border-l-[3px]',
                     ]"
                     :style="{ ...courseCardStyle(course), borderLeftColor: accentColor(course) }"
                     @touchstart.stop="onPressStart(course, $event)"

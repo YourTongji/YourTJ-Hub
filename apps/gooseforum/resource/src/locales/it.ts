@@ -422,7 +422,7 @@ export default {
     emptyRequired: 'Nessun corso obbligatorio disponibile',
     emptyOptional: 'Nessun corso opzionale disponibile',
     emptySearch: 'Nessun corso trovato',
-    emptyDetailGuide: 'Seleziona un corso a sinistra per vedere le classi',
+    emptyDetailGuide: 'Nessun corso ancora selezionato',
     emptyDetailNoClass: 'Questo corso non ha ancora classi',
     cellPickTitle: 'Corsi disponibili in questa fascia',
     cellPickEmpty: 'Nessun corso in elenco in questa fascia',
@@ -509,6 +509,8 @@ export default {
     stagedSuccess: 'Aggiunto all\'orario',
     stagedWithConflict: 'Aggiunto — conflitto di orario con "{course}"',
     stagedWithConflicts: 'Aggiunto — conflitto di orario con "{course}" e altri {count} corsi',
+    classPickerTitle: 'Scegli una classe',
+    classPickerHint: 'Clicca una classe per aggiungerla all\'orario; i conflitti vengono comunque aggiunti e segnalati.',
   },
   courseDetailPage: {
     backToList: 'Torna al catalogo corsi',

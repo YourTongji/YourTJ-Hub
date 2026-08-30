@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 已选课程列表（v2 富卡片）：课名+班次数、冲突红标、课号、学院·学分、教师、
 // 排课摘要、退课按钮；顶部「搜索课程名/课号」纯前端过滤。
-// 点击课程行会把该课设为 clickedCourseInfo，右侧/详情 tab 展示其班级。
+// 点击课程行写入 clickedCourseInfo 并 emit('openDetail')，由父级弹出
+// 浮动「选择教学班」弹窗（左右栏高度不再受内联班级列影响）。
 import { computed, ref } from 'vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
@@ -22,6 +23,7 @@ const keyword = ref('')
 
 const emit = defineEmits<{
   openPicker: []
+  openDetail: []
 }>()
 
 const dropDialogOpen = computed({
@@ -66,6 +68,7 @@ function selectCourse(course: PkStagedCourse) {
     courseCode: course.courseCode,
     courseName: course.courseNameReserved,
   })
+  emit('openDetail')
 }
 
 function dropCourse(course: PkStagedCourse) {
@@ -127,7 +130,7 @@ function teacherSummary(course: PkStagedCourse): string {
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="flex min-h-0 flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative min-w-0 flex-1">
         <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-base-content/40" />
@@ -150,18 +153,18 @@ function teacherSummary(course: PkStagedCourse): string {
 
     <EmptyState
       v-if="!store.state.commonLists.stagedCourses.length"
-      class="gf-panel"
+      class="gf-panel flex-1"
       :icon="BookOpen"
       :title="t('schedule.emptyStaged')"
     />
     <EmptyState
       v-else-if="!filteredCourses.length"
-      class="gf-panel"
+      class="gf-panel flex-1"
       :icon="Search"
       :title="t('schedule.listSearchEmpty')"
     />
 
-    <ul v-else class="gf-panel divide-y divide-line/60">
+    <ul v-else class="gf-panel gf-scrollbar-thin flex-1 divide-y divide-line/60 overflow-y-auto overscroll-contain">
       <li
         v-for="course in filteredCourses"
         :key="course.courseCode"
