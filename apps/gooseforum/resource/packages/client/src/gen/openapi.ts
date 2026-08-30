@@ -1879,6 +1879,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a course
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. Unknown or hidden course ids fail with `course.notFound` (HTTP 404);
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 400). Course bookmarking reuses the project's
+         *     bookmark semantics (action 1 = bookmark, action 2 = unbookmark).
+         */
+        post: operations["bookmarkCourse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/courses/{courseId}": {
         parameters: {
             query?: never;
@@ -6223,6 +6247,8 @@ export interface components {
             ratingAvg?: number;
             /** @description Number of visible reviews (including unrated legacy ones). */
             reviewCount?: number;
+            /** @description Cached AI-summary high-frequency keywords (#tags, max 5); omitted when no AI summary has been generated. */
+            keywords?: string[];
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -9145,6 +9171,18 @@ export interface components {
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
         }) | components["schemas"]["ApiFailure"];
+        CourseBookmarkRequest: {
+            /**
+             * Format: uint64
+             * @description Target course; unknown or hidden ids fail with `course.notFound` (HTTP 404).
+             */
+            courseId: number;
+            /**
+             * @description 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 400).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
         AdminHttpNotifyEndpointView: {
             id: string;
             name: string;
@@ -12347,10 +12385,10 @@ export interface operations {
         parameters: {
             query?: {
                 keyword?: string;
-                department?: string;
-                term?: string;
-                campus?: string;
-                instructor?: string;
+                department?: string[];
+                term?: string[];
+                campus?: string[];
+                instructor?: string[];
                 onlyWithReviews?: boolean;
                 sortBy?: string;
                 page?: number;
@@ -12387,6 +12425,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    bookmarkCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourseBookmarkRequest"];
+            };
+        };
+        responses: {
+            /** @description Bookmark applied (or already in the target state). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Malformed body or zero course id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course bookmark rate limit (action `course.bookmark`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

@@ -387,6 +387,20 @@ export async function bookmarkTopic(id: number, action: 1 | 2): Promise<boolean>
   return readApiResponse<boolean>(response, t('api.bookmarkFailed'))
 }
 
+export async function bookmarkCourse(courseId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/courses/bookmark', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      courseId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.bookmarkFailed'))
+}
+
 export async function watchTopic(id: number, action: 1 | 2): Promise<boolean> {
   const response = await fetch('/api/forum/topics/watch', {
     method: 'POST',
@@ -1247,12 +1261,14 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export interface ReviewAuthorPayload {
   kind: 'anonymous' | 'member' | 'legacy'
   label: string
+  avatarUrl?: string
 }
 
 export interface ReviewViewerPayload {
   canEdit: boolean
   canDelete: boolean
   isHelpful: boolean
+  isDisliked: boolean
 }
 
 export interface ReviewPayload {
@@ -1264,6 +1280,7 @@ export interface ReviewPayload {
   author: ReviewAuthorPayload
   viewer: ReviewViewerPayload
   helpfulCount: number
+  dislikeCount: number
   createdAt: string
   updatedAt: string
 }
@@ -1392,6 +1409,13 @@ export async function setReviewHelpful(reviewId: number, helpful: boolean): Prom
     method: helpful ? 'PUT' : 'DELETE',
   })
   return readApiResponse<boolean>(response, t('api.reviewHelpfulFailed'))
+}
+
+export async function setReviewDislike(reviewId: number, dislike: boolean): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}/dislike`, {
+    method: dislike ? 'PUT' : 'DELETE',
+  })
+  return readApiResponse<boolean>(response, t('api.reviewDislikeFailed'))
 }
 
 export async function reportCourseReview(reviewId: number, reason: string, note: string): Promise<boolean> {

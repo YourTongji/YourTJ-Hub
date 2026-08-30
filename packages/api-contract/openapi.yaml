@@ -196,6 +196,9 @@ paths:
   /api/forum/courses:
     get:
       $ref: ./paths/courses.yaml#/listCourses/get
+  /api/forum/courses/bookmark:
+    post:
+      $ref: ./paths/courses.yaml#/bookmarkCourse/post
   /api/forum/courses/{courseId}:
     get:
       $ref: ./paths/courses.yaml#/getCourse/get

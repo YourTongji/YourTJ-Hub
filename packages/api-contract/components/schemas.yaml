@@ -1074,6 +1074,12 @@ CourseSummary:
     reviewCount:
       type: integer
       description: Number of visible reviews (including unrated legacy ones).
+    keywords:
+      type: array
+      description: Cached AI-summary high-frequency keywords (#tags, max 5); omitted when no AI summary has been generated.
+      maxItems: 5
+      items:
+        type: string
   additionalProperties: false
 
 CourseListResult:
@@ -2020,6 +2026,21 @@ PostInteractionRequest:
       type: integer
       enum: [1, 2]
       description: 1 sets the interaction (like/bookmark), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+CourseBookmarkRequest:
+  type: object
+  required: [courseId, action]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target course; unknown or hidden ids fail with `course.notFound` (HTTP 404).
+    action:
+      type: integer
+      enum: [1, 2]
+      description: 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 400).
   additionalProperties: false
 
 InteractionSuccess:

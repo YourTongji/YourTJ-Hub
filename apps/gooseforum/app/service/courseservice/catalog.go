@@ -2,6 +2,7 @@ package courseservice
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
@@ -23,6 +24,9 @@ type CourseSummary struct {
 	Aliases     []string `json:"aliases,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RecentTerms []string `json:"recentTerms,omitempty"`
+	// Keywords 已缓存 AI 总结的高频关键词（#标签，最多 5 个）；未触发过 AI 总结
+	// 或总结末尾词为空时省略（issue #331 R3，推荐卡片展示用）。
+	Keywords    []string `json:"keywords,omitempty"`
 	// RatingAvg 非 NULL rating 均分（legacy 0→NULL 不计）；无评分时 null。
 	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
 	ReviewCount int      `json:"reviewCount,omitempty"`
@@ -79,17 +83,38 @@ type TermOption struct {
 	Label string `json:"label"`
 }
 
-// CatalogQuery 目录筛选条件。
+// CatalogQuery 目录筛选条件（Department/TermCode/Campus/Instructor 支持多值并集）。
 type CatalogQuery struct {
 	Keyword    string
-	Department string
-	TermCode   string
-	Campus     string
-	Instructor string
+	Department []string
+	TermCode   []string
+	Campus     []string
+	Instructor []string
 	HasReview  bool
 	SortBy     string
 	Page       int
 	Size       int
+}
+
+// normalizeMulti 清理多值筛选：按逗号拆分、去空白、去重、丢弃空值。
+// 兼容重复参数（?x=a&x=b）与逗号分隔（?x=a,b）两种传法（issue 多值筛选）。
+func normalizeMulti(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	var out []string
+	for _, raw := range values {
+		for _, part := range strings.Split(raw, ",") {
+			v := strings.TrimSpace(part)
+			if v == "" {
+				continue
+			}
+			if _, ok := seen[v]; ok {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // CatalogPage 目录分页结果。
@@ -116,10 +141,10 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	}
 	entities, total, err := course.ListCourses(course.ListCourseQuery{
 		Keyword:    Normalize(q.Keyword),
-		Department: q.Department,
-		TermCode:   q.TermCode,
-		Campus:     q.Campus,
-		Instructor: q.Instructor,
+		Department: normalizeMulti(q.Department),
+		TermCode:   normalizeMulti(q.TermCode),
+		Campus:     normalizeMulti(q.Campus),
+		Instructor: normalizeMulti(q.Instructor),
 		HasReview:  q.HasReview,
 		SortBy:     q.SortBy,
 		Page:       page,
@@ -345,6 +370,9 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	for _, t := range terms {
 		termByID[t.Id] = t
 	}
+	// R3：推荐卡片 #关键词标签（issue #331）——批量读已缓存 AI 总结，
+	// 仅取 keywords；未触发过总结的课程保持空，避免 N+1。
+	keywordsByCourse := course.ListCourseAiSummaryKeywords(courseIds)
 	summaries := make([]CourseSummary, 0, len(entities))
 	// B1：课程级统计投影（目录列表展示均分与评论数，N+1 防护）。
 	courseStats := course.ListCourseStatsByIDs(courseIds)
@@ -363,6 +391,7 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 			s.RatingAvg = ratingAvgPtrFromStats(stats.RatingCount, stats.RatingSum)
 			s.ReviewCount = stats.ReviewCount
 		}
+		s.Keywords = keywordsByCourse[e.Id]
 		seen := make(map[string]struct{})
 		seenTerms := make(map[string]struct{})
 		for _, oid := range offeringsByCourse[e.Id] {

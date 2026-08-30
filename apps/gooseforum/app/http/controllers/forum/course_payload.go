@@ -11,20 +11,25 @@ type CourseCatalogProps struct {
 	Terms []courseservice.TermOption `json:"terms"`
 	// Campuses 可筛选校区（course_offering.campus 原始值，按字典序），与 campus 筛选值域一致。
 	Campuses   []string          `json:"campuses"`
+	// HotInstructors 按评分提取的热门教师（issue #331 R4，目录页右侧栏；无数据时省略）。
+	HotInstructors []courseservice.HotInstructor `json:"hotInstructors,omitempty"`
+	// BookmarkedCourseIDs 当前登录用户已收藏的课程 id（issue #331 R5，表格收藏状态）；
+	// 未登录/无收藏时省略或为空数组。
+	BookmarkedCourseIDs []uint64 `json:"bookmarkedCourseIDs,omitempty"`
 	Pagination PaginationPayload `json:"pagination"`
 }
 
-// CourseCatalogQueryPayload 课程目录页查询条件回显。
+// CourseCatalogQueryPayload 课程目录页查询条件回显（Department/TermCode/Campus/Instructor 为多值数组）。
 type CourseCatalogQueryPayload struct {
-	Keyword    string `json:"keyword,omitempty"`
-	Department string `json:"department,omitempty"`
-	TermCode   string `json:"term,omitempty"`
-	Campus     string `json:"campus,omitempty"`
-	Instructor string `json:"instructor,omitempty"`
-	HasReview  bool   `json:"onlyWithReviews,omitempty"`
-	SortBy     string `json:"sortBy,omitempty"`
-	Page       int    `json:"page"`
-	Size       int    `json:"size"`
+	Keyword    string   `json:"keyword,omitempty"`
+	Department []string `json:"department,omitempty"`
+	TermCode   []string `json:"term,omitempty"`
+	Campus     []string `json:"campus,omitempty"`
+	Instructor []string `json:"instructor,omitempty"`
+	HasReview  bool     `json:"onlyWithReviews,omitempty"`
+	SortBy     string   `json:"sortBy,omitempty"`
+	Page       int      `json:"page"`
+	Size       int      `json:"size"`
 }
 
 // CourseDetailProps 课程详情页 props（对应 course.detail）。

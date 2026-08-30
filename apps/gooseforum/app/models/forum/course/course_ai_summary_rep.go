@@ -1,6 +1,9 @@
 package course
 
 import (
+	"encoding/json"
+	"log/slog"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
@@ -46,4 +49,34 @@ func DeleteCourseAiSummary(courseId uint64) error {
 	return dbconnect.Connect().Table("course_ai_summary").
 		Where(queryopt.Eq("course_id", courseId)).
 		Delete(&CourseAiSummaryEntity{}).Error
+}
+
+// ListCourseAiSummaryKeywords 批量读取多门课程的 AI 总结高频关键词（issue #331 R3）。
+// 返回 course_id -> keywords 映射；未触发过或 summary_json 为空/无法解析的课程省略
+// （对应的 map key 不存在，调用方按空处理）。供目录列表一次性取推荐卡片 #标签，避免 N+1。
+func ListCourseAiSummaryKeywords(courseIds []uint64) map[uint64][]string {
+	result := make(map[uint64][]string)
+	if len(courseIds) == 0 {
+		return result
+	}
+	var list []CourseAiSummaryEntity
+	if err := dbconnect.Connect().Table("course_ai_summary").
+		Where("course_id IN ?", courseIds).
+		Where("summary_json <> ''").
+		Find(&list).Error; err != nil {
+		slog.Warn("ListCourseAiSummaryKeywords: 查询失败", "courseIds", courseIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		var payload struct {
+			Keywords []string `json:"keywords"`
+		}
+		if err := json.Unmarshal([]byte(s.SummaryJson), &payload); err != nil {
+			continue
+		}
+		if len(payload.Keywords) > 0 {
+			result[s.CourseId] = payload.Keywords
+		}
+	}
+	return result
 }

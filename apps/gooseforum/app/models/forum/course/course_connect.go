@@ -37,6 +37,10 @@ func helpfulBuilder() *gorm.DB {
 	return db.Connect().Table(helpfulTableName)
 }
 
+func dislikeBuilder() *gorm.DB {
+	return db.Connect().Table(dislikeTableName)
+}
+
 func courseStatsBuilder() *gorm.DB {
 	return db.Connect().Table(courseStatsTableName)
 }
