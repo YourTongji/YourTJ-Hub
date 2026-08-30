@@ -516,5 +516,12 @@ func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
 			"invalid-params.json")
 	})
 
+	t.Run("end before start fails with invalidParams", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"sectionTimes":[{"section":1,"start":"10:00","end":"09:00"}]}}`,
+			"invalid-params.json")
+	})
+
 	adminIntegrationsGuardScenarios(t, http.MethodPost, path, "admin-save-schedule-settings")
 }

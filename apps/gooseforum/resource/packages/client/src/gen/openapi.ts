@@ -4255,8 +4255,9 @@ export interface paths {
          *     Replaces the whole section-times configuration, clears the
          *     schedule-settings cache, and the new table takes effect on the next
          *     /schedule SSR render. Validation: every entry must name a section in
-         *     1..12 with strict `HH:MM` start/end clock values; any invalid entry
-         *     rejects the whole submission with HTTP 200 `common.request.invalidParams`
+         *     1..12 with strict `HH:MM` start/end clock values where start is
+         *     strictly earlier than end; any invalid entry rejects the whole
+         *     submission with HTTP 200 `common.request.invalidParams`
          *     (nothing is dropped silently). Valid input is deduplicated per section
          *     (first entry wins) and stored sorted by section ascending.
          */
@@ -7925,7 +7926,7 @@ export interface components {
             /** @description Stored section times, or the built-in default table when nothing has been saved. */
             result: components["schemas"]["AdminScheduleSettingsConfig"];
         };
-        /** @description Replacement section times. Any entry with a section outside 1..12 or a non-`HH:MM` start/end rejects the whole submission with `common.request.invalidParams`. */
+        /** @description Replacement section times. Any entry with a section outside 1..12, a non-`HH:MM` start/end, or a start not strictly earlier than its end rejects the whole submission with `common.request.invalidParams`. */
         AdminSaveScheduleSettingsRequest: {
             settings?: components["schemas"]["AdminScheduleSettingsConfig"];
         };

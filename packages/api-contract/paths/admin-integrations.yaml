@@ -600,8 +600,9 @@ adminSaveScheduleSettings:
       Replaces the whole section-times configuration, clears the
       schedule-settings cache, and the new table takes effect on the next
       /schedule SSR render. Validation: every entry must name a section in
-      1..12 with strict `HH:MM` start/end clock values; any invalid entry
-      rejects the whole submission with HTTP 200 `common.request.invalidParams`
+      1..12 with strict `HH:MM` start/end clock values where start is
+      strictly earlier than end; any invalid entry rejects the whole
+      submission with HTTP 200 `common.request.invalidParams`
       (nothing is dropped silently). Valid input is deduplicated per section
       (first entry wins) and stored sorted by section ascending.
     security:

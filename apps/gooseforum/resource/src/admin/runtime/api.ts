@@ -425,7 +425,9 @@ export function getScheduleSettings() {
 }
 
 export function saveScheduleSettings(settings: ScheduleSettings) {
-  return postJson<unknown>('/api/admin/save-schedule-settings', { sectionTimes: settings.sectionTimes }, adminText('k00u8'))
+  // 契约 AdminSaveScheduleSettingsRequest：body = { settings: { sectionTimes } }。
+  // 曾发裸 { sectionTimes }，后端绑定零值 Settings 后静默存空表（review P1）。
+  return postJson<unknown>('/api/admin/save-schedule-settings', { settings }, adminText('k00u8'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

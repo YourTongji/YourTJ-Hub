@@ -7290,7 +7290,7 @@ AdminSaveScheduleSettingsRequest:
     settings:
       $ref: '#/AdminScheduleSettingsConfig'
   additionalProperties: false
-  description: Replacement section times. Any entry with a section outside 1..12 or a non-`HH:MM` start/end rejects the whole submission with `common.request.invalidParams`.
+  description: Replacement section times. Any entry with a section outside 1..12, a non-`HH:MM` start/end, or a start not strictly earlier than its end rejects the whole submission with `common.request.invalidParams`.
 
 # ================= Admin content ops: badges / review queue / file resources（Issue #277 P3 切片六）=================
 

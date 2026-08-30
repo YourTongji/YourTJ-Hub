@@ -40,10 +40,10 @@ const store = useScheduleStore()
 const isMobile = ref(false)
 const mobileTab = ref<'timetable' | 'list'>('timetable')
 
-const MOBILE_TABS: Array<{ key: 'timetable' | 'list'; label: string }> = [
-  { key: 'timetable', label: t('schedule.timetable') },
-  { key: 'list', label: t('schedule.pickCourses') },
-]
+const MOBILE_TABS = [
+  { key: 'timetable', labelKey: 'schedule.timetable' },
+  { key: 'list', labelKey: 'schedule.pickCourses' },
+] as const
 
 /** 移动端 tab 方向键切换（WAI-ARIA APG Tabs，issue #227）。 */
 function handleMobileTabKeydown(event: KeyboardEvent) {
@@ -330,7 +330,7 @@ onBeforeUnmount(() => {
           @click="mobileTab = tab.key"
           @keydown="handleMobileTabKeydown"
         >
-          {{ tab.label }}
+          {{ t(tab.labelKey) }}
         </button>
       </div>
 
@@ -355,7 +355,9 @@ onBeforeUnmount(() => {
         <ScheduleStatsCard />
         <ScheduleRoughList class="min-h-0 lg:flex-1" @open-picker="pickerOpen = true" @open-detail="classPickOpen = true" />
       </div>
-      <div class="min-w-0 lg:pl-[368px]">
+      <!-- 右栏保底高度：空课表（未选课/全退）时仍保留整张课表的高度，
+           避免绝对定位的左栏（方案/选择器/统计/列表）被压扁。 -->
+      <div class="min-w-0 lg:min-h-[720px] lg:pl-[368px]">
         <ScheduleTimeTable @open-detail="handleOpenDetail" @cell-click="handleCellClick" @customize="customizeOpen = true" />
       </div>
     </div>

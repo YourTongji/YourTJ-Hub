@@ -1518,7 +1518,9 @@ func isValidScheduleClockTime(value string) bool {
 }
 
 // sanitizeScheduleSectionTimes 校验并规范化节次条目：非法返回 false；
-// 否则返回按节次升序、去重后的切片。
+// 否则返回按节次升序、去重后的切片。起止时序（start < end，严格 HH:MM
+// 下字典序即时间序）同样整单拒绝——管理端 UI 逐行校验时序，API 直连
+// 客户端不能绕过该不变量。
 func sanitizeScheduleSectionTimes(input []pageConfig.ScheduleSectionTime) ([]pageConfig.ScheduleSectionTime, bool) {
 	seen := make(map[int]bool, len(input))
 	times := make([]pageConfig.ScheduleSectionTime, 0, len(input))
@@ -1527,6 +1529,10 @@ func sanitizeScheduleSectionTimes(input []pageConfig.ScheduleSectionTime) ([]pag
 			return nil, false
 		}
 		if !isValidScheduleClockTime(item.Start) || !isValidScheduleClockTime(item.End) {
+			return nil, false
+		}
+		// 严格 HH:MM 下字典序即时间序：start >= end（倒序或零时长）整单拒绝。
+		if item.Start >= item.End {
 			return nil, false
 		}
 		if seen[item.Section] {
