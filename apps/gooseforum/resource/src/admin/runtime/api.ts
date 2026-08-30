@@ -29,6 +29,7 @@ import type {
   AiSummaryModelItem,
   AiSummarySettings,
   OnesystemSettings,
+  ScheduleSettings,
   PkSyncStatusItem,
   RateLimitSettings,
   ReviewQueueItem,
@@ -417,6 +418,14 @@ export function syncPkCalendar(term: string, depth = 1) {
 
 export function getPkSyncStatus() {
   return getJson<PkSyncStatusItem[]>('/api/admin/pk/sync-status', adminText('k00s3'))
+}
+
+export function getScheduleSettings() {
+  return getJson<ScheduleSettings>('/api/admin/schedule-settings', adminText('k00u7'))
+}
+
+export function saveScheduleSettings(settings: ScheduleSettings) {
+  return postJson<unknown>('/api/admin/save-schedule-settings', { sectionTimes: settings.sectionTimes }, adminText('k00u8'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

@@ -308,6 +308,18 @@ export interface PkSyncStatusItem {
   finishedAt?: string | null
 }
 
+/** 排课器节次作息：单节开始/结束时间（HH:MM）。 */
+export interface ScheduleSectionTime {
+  section: number
+  start: string
+  end: string
+}
+
+/** 排课器节次作息设置（控制 /schedule 课表左侧的节次时间展示）。 */
+export interface ScheduleSettings {
+  sectionTimes: ScheduleSectionTime[]
+}
+
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string
