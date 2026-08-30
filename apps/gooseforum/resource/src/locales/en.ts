@@ -483,6 +483,7 @@ export default {
     weekAll: 'All weeks',
     weekN: 'Week {n}',
     weeksN: 'Wk {range}',
+    sectionsN: 'P. {range}',
     arrangementBrief: '{day} P.{sections} {room}',
     currentWeek: 'Current week',
     currentWeekDisabled: 'Semester start date is not configured or today is outside the semester — cannot locate the current week',
