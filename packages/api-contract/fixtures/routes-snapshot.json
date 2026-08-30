@@ -9,6 +9,10 @@
   },
   {
     "method": "DELETE",
+    "path": "/api/forum/course-reviews/:reviewId/dislike"
+  },
+  {
+    "method": "DELETE",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
   },
   {
@@ -781,6 +785,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/courses/bookmark"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/follow-user"
   },
   {
@@ -1054,6 +1062,10 @@
   {
     "method": "POST",
     "path": "/mcp"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/forum/course-reviews/:reviewId/dislike"
   },
   {
     "method": "PUT",

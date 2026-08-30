@@ -224,6 +224,11 @@ paths:
       $ref: ./paths/course-reviews.yaml#/markReviewHelpful/put
     delete:
       $ref: ./paths/course-reviews.yaml#/unmarkReviewHelpful/delete
+  /api/forum/course-reviews/{reviewId}/dislike:
+    put:
+      $ref: ./paths/course-reviews.yaml#/markReviewDislike/put
+    delete:
+      $ref: ./paths/course-reviews.yaml#/unmarkReviewDislike/delete
   /api/forum/course-reviews/{reviewId}/reports:
     post:
       $ref: ./paths/course-reviews.yaml#/reportCourseReview/post

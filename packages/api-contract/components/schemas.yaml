@@ -1353,6 +1353,9 @@ ReviewAuthorPayload:
     label:
       type: string
       description: Display label (for example 匿名同学 for anonymous reviews).
+    avatarUrl:
+      type: string
+      description: Public forum avatar path for member reviews only; omitted (omitempty) for anonymous and legacy reviews.
   additionalProperties: false
   description: Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO.
 
@@ -1369,6 +1372,9 @@ ReviewViewerPayload:
     isHelpful:
       type: boolean
       description: True when the caller marked the review helpful (only meaningful with an optional JWT).
+    isDisliked:
+      type: boolean
+      description: True when the caller disliked the review (only meaningful with an optional JWT).
   additionalProperties: false
 
 ReviewPayload:
@@ -1402,6 +1408,11 @@ ReviewPayload:
       type: integer
       format: int64
       minimum: 0
+    dislikeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of dislikes from other users; the caller's own dislike state is exposed via viewer.isDisliked.
     createdAt:
       type: string
       format: date-time

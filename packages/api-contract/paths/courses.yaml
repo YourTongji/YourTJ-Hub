@@ -273,7 +273,7 @@ bookmarkCourse:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/result-true.json
+                externalValue: ../fixtures/course-bookmark-rate-limited.json
 
 getCourseSummary:
   get:

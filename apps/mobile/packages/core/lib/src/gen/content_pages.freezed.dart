@@ -2899,10 +2899,10 @@ CourseCatalogQueryPayload _$CourseCatalogQueryPayloadFromJson(
 /// @nodoc
 mixin _$CourseCatalogQueryPayload {
   String? get keyword => throw _privateConstructorUsedError;
-  String? get department => throw _privateConstructorUsedError;
-  String? get term => throw _privateConstructorUsedError;
-  String? get campus => throw _privateConstructorUsedError;
-  String? get instructor => throw _privateConstructorUsedError;
+  List<String>? get department => throw _privateConstructorUsedError;
+  List<String>? get term => throw _privateConstructorUsedError;
+  List<String>? get campus => throw _privateConstructorUsedError;
+  List<String>? get instructor => throw _privateConstructorUsedError;
   bool? get onlyWithReviews => throw _privateConstructorUsedError;
   String? get sortBy => throw _privateConstructorUsedError;
   int get page => throw _privateConstructorUsedError;
@@ -2927,10 +2927,10 @@ abstract class $CourseCatalogQueryPayloadCopyWith<$Res> {
   @useResult
   $Res call({
     String? keyword,
-    String? department,
-    String? term,
-    String? campus,
-    String? instructor,
+    List<String>? department,
+    List<String>? term,
+    List<String>? campus,
+    List<String>? instructor,
     bool? onlyWithReviews,
     String? sortBy,
     int page,
@@ -2975,19 +2975,19 @@ class _$CourseCatalogQueryPayloadCopyWithImpl<
             department: freezed == department
                 ? _value.department
                 : department // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             term: freezed == term
                 ? _value.term
                 : term // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             campus: freezed == campus
                 ? _value.campus
                 : campus // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             instructor: freezed == instructor
                 ? _value.instructor
                 : instructor // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             onlyWithReviews: freezed == onlyWithReviews
                 ? _value.onlyWithReviews
                 : onlyWithReviews // ignore: cast_nullable_to_non_nullable
@@ -3021,10 +3021,10 @@ abstract class _$$CourseCatalogQueryPayloadImplCopyWith<$Res>
   @useResult
   $Res call({
     String? keyword,
-    String? department,
-    String? term,
-    String? campus,
-    String? instructor,
+    List<String>? department,
+    List<String>? term,
+    List<String>? campus,
+    List<String>? instructor,
     bool? onlyWithReviews,
     String? sortBy,
     int page,
@@ -3069,19 +3069,19 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
         department: freezed == department
             ? _value.department
             : department // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         term: freezed == term
             ? _value.term
             : term // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         campus: freezed == campus
             ? _value.campus
             : campus // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         instructor: freezed == instructor
             ? _value.instructor
             : instructor // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         onlyWithReviews: freezed == onlyWithReviews
             ? _value.onlyWithReviews
             : onlyWithReviews // ignore: cast_nullable_to_non_nullable
@@ -3108,29 +3108,64 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
 class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
   const _$CourseCatalogQueryPayloadImpl({
     this.keyword,
-    this.department,
-    this.term,
-    this.campus,
-    this.instructor,
+    final List<String>? department,
+    final List<String>? term,
+    final List<String>? campus,
+    final List<String>? instructor,
     this.onlyWithReviews,
     this.sortBy,
     required this.page,
     required this.size,
-  });
+  }) : _department = department,
+       _term = term,
+       _campus = campus,
+       _instructor = instructor;
 
   factory _$CourseCatalogQueryPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$CourseCatalogQueryPayloadImplFromJson(json);
 
   @override
   final String? keyword;
+  final List<String>? _department;
   @override
-  final String? department;
+  List<String>? get department {
+    final value = _department;
+    if (value == null) return null;
+    if (_department is EqualUnmodifiableListView) return _department;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _term;
   @override
-  final String? term;
+  List<String>? get term {
+    final value = _term;
+    if (value == null) return null;
+    if (_term is EqualUnmodifiableListView) return _term;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _campus;
   @override
-  final String? campus;
+  List<String>? get campus {
+    final value = _campus;
+    if (value == null) return null;
+    if (_campus is EqualUnmodifiableListView) return _campus;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _instructor;
   @override
-  final String? instructor;
+  List<String>? get instructor {
+    final value = _instructor;
+    if (value == null) return null;
+    if (_instructor is EqualUnmodifiableListView) return _instructor;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final bool? onlyWithReviews;
   @override
@@ -3151,12 +3186,16 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
         (other.runtimeType == runtimeType &&
             other is _$CourseCatalogQueryPayloadImpl &&
             (identical(other.keyword, keyword) || other.keyword == keyword) &&
-            (identical(other.department, department) ||
-                other.department == department) &&
-            (identical(other.term, term) || other.term == term) &&
-            (identical(other.campus, campus) || other.campus == campus) &&
-            (identical(other.instructor, instructor) ||
-                other.instructor == instructor) &&
+            const DeepCollectionEquality().equals(
+              other._department,
+              _department,
+            ) &&
+            const DeepCollectionEquality().equals(other._term, _term) &&
+            const DeepCollectionEquality().equals(other._campus, _campus) &&
+            const DeepCollectionEquality().equals(
+              other._instructor,
+              _instructor,
+            ) &&
             (identical(other.onlyWithReviews, onlyWithReviews) ||
                 other.onlyWithReviews == onlyWithReviews) &&
             (identical(other.sortBy, sortBy) || other.sortBy == sortBy) &&
@@ -3169,10 +3208,10 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
   int get hashCode => Object.hash(
     runtimeType,
     keyword,
-    department,
-    term,
-    campus,
-    instructor,
+    const DeepCollectionEquality().hash(_department),
+    const DeepCollectionEquality().hash(_term),
+    const DeepCollectionEquality().hash(_campus),
+    const DeepCollectionEquality().hash(_instructor),
     onlyWithReviews,
     sortBy,
     page,
@@ -3199,10 +3238,10 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
 abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
   const factory _CourseCatalogQueryPayload({
     final String? keyword,
-    final String? department,
-    final String? term,
-    final String? campus,
-    final String? instructor,
+    final List<String>? department,
+    final List<String>? term,
+    final List<String>? campus,
+    final List<String>? instructor,
     final bool? onlyWithReviews,
     final String? sortBy,
     required final int page,
@@ -3215,13 +3254,13 @@ abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
   @override
   String? get keyword;
   @override
-  String? get department;
+  List<String>? get department;
   @override
-  String? get term;
+  List<String>? get term;
   @override
-  String? get campus;
+  List<String>? get campus;
   @override
-  String? get instructor;
+  List<String>? get instructor;
   @override
   bool? get onlyWithReviews;
   @override

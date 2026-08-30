@@ -25,7 +25,8 @@ describe('课程详情页 UI 结构', () => {
 
   test('写评表单和页面弹层使用全局过渡', () => {
     expect(detailSource.match(/<Transition name="gf-local-expand">/g)).toHaveLength(1)
-    expect(detailSource.match(/<Transition name="gf-modal">/g)).toHaveLength(2)
+    // 详情页三处弹层：举报评审/模板选择器/撰写评价前置确认（随弹层增补同步维护）
+    expect(detailSource.match(/<Transition name="gf-modal">/g)).toHaveLength(3)
     expect(templateSelectorSource.match(/<Transition name="gf-modal">/g)).toHaveLength(1)
   })
 })

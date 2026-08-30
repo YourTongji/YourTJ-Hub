@@ -2072,6 +2072,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/course-reviews/{reviewId}/dislike": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a course review as disliked
+         * @description Authenticated write, idempotent: marking an already-disliked review succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`. The caller's own dislike state is exposed
+         *     via the review DTO's `viewer.isDisliked`.
+         */
+        put: operations["markReviewDislike"];
+        post?: never;
+        /**
+         * Unmark a course review as disliked
+         * @description Authenticated write, idempotent: unmarking a review that is not disliked succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`.
+         */
+        delete: operations["unmarkReviewDislike"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/course-reviews/{reviewId}/reports": {
         parameters: {
             query?: never;
@@ -6420,6 +6447,8 @@ export interface components {
             kind: "anonymous" | "member" | "legacy";
             /** @description Display label (for example 匿名同学 for anonymous reviews). */
             label: string;
+            /** @description Public forum avatar path for member reviews only; omitted (omitempty) for anonymous and legacy reviews. */
+            avatarUrl?: string;
         };
         ReviewViewerPayload: {
             /** @description True when the caller is the review author. */
@@ -6428,6 +6457,8 @@ export interface components {
             canDelete: boolean;
             /** @description True when the caller marked the review helpful (only meaningful with an optional JWT). */
             isHelpful: boolean;
+            /** @description True when the caller disliked the review (only meaningful with an optional JWT). */
+            isDisliked?: boolean;
         };
         ReviewPayload: {
             /** Format: uint64 */
@@ -6444,6 +6475,11 @@ export interface components {
             viewer: components["schemas"]["ReviewViewerPayload"];
             /** Format: int64 */
             helpfulCount: number;
+            /**
+             * Format: int64
+             * @description Number of dislikes from other users; the caller's own dislike state is exposed via viewer.isDisliked.
+             */
+            dislikeCount?: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -13110,6 +13146,106 @@ export interface operations {
                 };
             };
             /** @description Helpful rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    markReviewDislike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Dislike rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    unmarkReviewDislike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Dislike rate limit exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;
