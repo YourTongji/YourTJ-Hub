@@ -133,7 +133,7 @@ export function findConflicts(
 export const CUSTOM_EVENT_CODE_PREFIX = 'custom:'
 
 /** 冲突派生用的基础标识：custom 伪课号原样保留（getCourseBaseCode 会误裁尾部字符）。 */
-function conflictBaseOf(code: string): string {
+export function conflictBaseOf(code: string): string {
   return code.startsWith(CUSTOM_EVENT_CODE_PREFIX) ? code : getCourseBaseCode(code)
 }
 

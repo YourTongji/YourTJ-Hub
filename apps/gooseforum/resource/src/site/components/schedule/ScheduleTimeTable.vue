@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // 课表网格（v2：周次视图 + 容忍式冲突标注 + 自定义占位 + 导出图片）。
-// - calendarId>=120 新制为 11 行；长课合并单元格，短课叠进长课格。
+// - calendarId>=120 新制为 11 行；同列节次区间聚类（相交/包含/部分重叠同格渲染），
+//   单块 rowspan 只吞自己簇覆盖的行——部分重叠的冲突课必须同格可见。
 // - 周次视图：weekView.week 为 null → 全部周次（同格多课并排细条）；
-//   指定周 → 按 occupyWeek 过滤后整宽显示（maxSpans 按过滤后集合重算）。
+//   指定周 → 按 occupyWeek 过滤后整宽显示（聚类按过滤后集合重算）。
 // - 冲突标注：deriveConflicts 统一判据（同天+同节+周次交集），⚠ 角标。
-// - 自定义占位（custom: 伪课号）渲染为灰块；导出 PNG（html-to-image）。
+// - 自定义占位（custom: 伪课号）渲染为灰块，不进课程详情；导出 PNG（html-to-image）。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { toPng } from 'html-to-image'
@@ -14,8 +15,8 @@ import SiteSelect from '@/site/components/SiteSelect.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { courseColorSlotFor, courseContentVar, courseSlotVar } from '@/site/utils/courseColors'
-import { currentWeekForDate, formatWeeksText, MAX_WEEK } from '@/site/utils/pkArrange'
-import { deriveConflicts, CUSTOM_EVENT_CODE_PREFIX } from '@/site/utils/pkConflict'
+import { clusterBySections, currentWeekForDate, formatWeeksText, MAX_WEEK } from '@/site/utils/pkArrange'
+import { conflictBaseOf, deriveConflicts, CUSTOM_EVENT_CODE_PREFIX } from '@/site/utils/pkConflict'
 import { dayPartBoundaries, sectionTimesFor, type DayPart } from '@/site/utils/sectionTimes'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
@@ -25,8 +26,8 @@ const store = useScheduleStore()
 /** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 
-const timeTable = ref<PkCourseOnTable[][][]>([])
-const maxSpans = ref<number[][]>([])
+const cellCourses = ref<PkCourseOnTable[][][]>([])
+const cellSpans = ref<number[][]>([])
 const occupiedGrid = ref<boolean[][]>([])
 
 const emit = defineEmits<{
@@ -49,7 +50,7 @@ function onPressStart(course: PkCourseOnTable, event: Event) {
   pressStartY = Number(pointer?.clientY ?? 0)
   pressTimer = setTimeout(() => {
     pressTimer = undefined
-    emit('openDetail', course)
+    openCourseDetail(course)
   }, 420)
 }
 
@@ -86,9 +87,10 @@ const activeCalendar = computed(
 
 /** 由学期起始日期定位的当前周（学期外/无日期为 null，「当前周次」开关禁用）。 */
 const currentWeek = computed(() => {
-  const start = activeCalendar.value?.startDate
-  if (!start) return null
-  return currentWeekForDate(start)
+  const cal = activeCalendar.value
+  if (!cal?.startDate) return null
+  // endDate 之后（学期已结束）返回 null：开关禁用，不停留在最后一周。
+  return currentWeekForDate(cal.startDate, new Date(), cal.endDate ?? undefined)
 })
 
 /** 「当前周次」开关可用性：需要学期起始日期且今天在学期内。 */
@@ -126,12 +128,9 @@ const semesterDateText = computed(() => {
 // ---- 冲突派生（与占用表同判据）----
 const conflicts = computed(() => deriveConflicts(store.state.occupied))
 
-/** 课程块是否冲突（按基础课号查派生表；custom 伪课号原样查）。 */
+/** 课程块是否冲突（conflictBaseOf 归一：custom 原样、真实课号取基础课号，兼容无点班号）。 */
 function isConflicted(course: PkCourseOnTable): boolean {
-  const key = course.code.startsWith(CUSTOM_EVENT_CODE_PREFIX)
-    ? course.code
-    : course.code.split('.')[0]
-  return (conflicts.value.get(key)?.length ?? 0) > 0
+  return (conflicts.value.get(conflictBaseOf(course.code))?.length ?? 0) > 0
 }
 
 // ---- 课程块渲染（v2：结构化字段分层，不再从 showText 反解）----
@@ -203,11 +202,11 @@ function filteredCourses(): PkCourseOnTable[] {
 
 function updateTimeTable() {
   const maxRows = store.readTimeTableRows()
-  const newTimeTable = Array.from({ length: maxRows }, () =>
+  const spans = Array.from({ length: maxRows }, () => Array(7).fill(1) as number[])
+  const covered = Array.from({ length: maxRows }, () => Array(7).fill(false) as boolean[])
+  const coursesGrid = Array.from({ length: maxRows }, () =>
     Array.from({ length: 7 }, () => [] as PkCourseOnTable[]),
   )
-  const newMaxSpans = Array.from({ length: maxRows }, () => Array(7).fill(1) as number[])
-  const newOccupied = Array.from({ length: maxRows }, () => Array(7).fill(false) as boolean[])
 
   const safeCourses = filteredCourses().filter(
     (course) =>
@@ -219,71 +218,29 @@ function updateTimeTable() {
       course.occupyTime.every((slot) => slot >= 1 && slot <= maxRows),
   )
 
-  const sortedCourses = [...safeCourses].sort((a, b) => b.occupyTime.length - a.occupyTime.length)
+  const byDay: PkCourseOnTable[][] = Array.from({ length: 7 }, () => [])
+  for (const course of safeCourses) byDay[course.occupyDay - 1].push(course)
 
-  interface CellRange {
-    startTime: number
-    endTime: number
-    courses: PkCourseOnTable[]
-  }
-  const cellRanges: (CellRange | null)[][] = Array.from({ length: maxRows }, () => Array(7).fill(null))
-
-  for (const course of sortedCourses) {
-    const startRow = course.occupyTime[0] - 1
-    const dayIndex = course.occupyDay - 1
-    let merged = false
-
-    for (let checkRow = 0; checkRow <= startRow; checkRow++) {
-      const existingRange = cellRanges[checkRow][dayIndex]
-      if (
-        existingRange &&
-        existingRange.startTime <= course.occupyTime[0] &&
-        existingRange.endTime >= course.occupyTime[course.occupyTime.length - 1]
-      ) {
-        existingRange.courses.push(course)
-        newTimeTable[checkRow][dayIndex].push(course)
-        merged = true
-        break
-      }
-    }
-
-    if (!merged) {
-      newTimeTable[startRow][dayIndex].push(course)
-      cellRanges[startRow][dayIndex] = {
-        startTime: course.occupyTime[0],
-        endTime: course.occupyTime[course.occupyTime.length - 1],
-        courses: [course],
+  // 节次区间聚类：相交（含部分重叠/包含）的课程同格渲染，
+  // 避免一块的 rowspan 吞掉部分重叠的另一块（容忍式冲突必须可见）。
+  for (let day = 0; day < 7; day++) {
+    for (const cluster of clusterBySections(byDay[day])) {
+      const row = cluster.start - 1
+      spans[row][day] = cluster.end - row
+      coursesGrid[row][day] = cluster.items
+      for (let r = row + 1; r < row + spans[row][day]; r++) {
+        if (r < maxRows) covered[r][day] = true
       }
     }
   }
 
-  for (let row = 0; row < maxRows; row++) {
-    for (let col = 0; col < 7; col++) {
-      const courses = newTimeTable[row][col]
-      if (courses.length > 0) {
-        newMaxSpans[row][col] = Math.max(...courses.map((c) => c.occupyTime.length))
-      }
-    }
-  }
-
-  for (let row = 0; row < maxRows; row++) {
-    for (let col = 0; col < 7; col++) {
-      const span = newMaxSpans[row][col]
-      if (span > 1) {
-        for (let i = 1; i < span; i++) {
-          if (row + i < maxRows) newOccupied[row + i][col] = true
-        }
-      }
-    }
-  }
-
-  timeTable.value = newTimeTable
-  maxSpans.value = newMaxSpans
-  occupiedGrid.value = newOccupied
+  cellSpans.value = spans
+  cellCourses.value = coursesGrid
+  occupiedGrid.value = covered
 }
 
 /** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
-const hasCourses = computed(() => timeTable.value.some((row) => row.some((cell) => cell.length > 0)))
+const hasCourses = computed(() => cellCourses.value.some((row) => row.some((cell) => cell.length > 0)))
 
 // ---- 节次时间与分组 ----
 
@@ -313,10 +270,24 @@ function dayPartLabelAt(index: number): string | null {
   return null
 }
 
+/** 该格在当前周次视图下是否已被占用（单周模式按周过滤，空格可点选加课）。 */
+function cellOccupiedForView(dayIndex: number, rowIndex: number): boolean {
+  const items = store.state.occupied?.[rowIndex]?.[dayIndex] ?? []
+  const week = store.state.weekView.week
+  if (week === null) return items.length > 0
+  return items.some((item) => (item.occupyWeek ?? []).includes(week))
+}
+
 function handleCellClick(dayIndex: number, rowIndex: number) {
   if (!store.isMajorSelected()) return
-  if ((store.state.occupied?.[rowIndex]?.[dayIndex] ?? []).length > 0) return
+  if (cellOccupiedForView(dayIndex, rowIndex)) return
   emit('cellClick', dayIndex + 1, rowIndex + 1)
+}
+
+/** 课程块激活（点击/长按/回车）：custom 占位不进课程详情（避免伪课号触发课评请求）。 */
+function openCourseDetail(course: PkCourseOnTable) {
+  if (isCustomEvent(course)) return
+  emit('openDetail', course)
 }
 
 // ---- 导出图片（html-to-image）----
@@ -410,15 +381,15 @@ onBeforeUnmount(() => {
       class="overflow-x-auto rounded-2xl border border-line/70 bg-base-100 shadow-sm"
     >
       <EmptyState
-        v-if="timeTable.length > 0 && !hasCourses"
+        v-if="cellCourses.length > 0 && !hasCourses"
         class="border-b border-line/60"
         :icon="BookOpen"
         :title="t('schedule.timetableEmptyTitle')"
         :description="t('schedule.timetableEmptyHint')"
       />
-      <EmptyState v-else-if="timeTable.length === 0" :icon="BookOpen" :title="t('schedule.selectMajorFirst')" />
+      <EmptyState v-else-if="cellCourses.length === 0" :icon="BookOpen" :title="t('schedule.selectMajorFirst')" />
       <table
-        v-if="hasCourses || timeTable.length === 0"
+        v-if="hasCourses || cellCourses.length === 0"
         class="w-full border-collapse table-fixed"
         :class="isMobile ? 'min-w-[400px]' : ''"
       >
@@ -438,9 +409,9 @@ onBeforeUnmount(() => {
         </thead>
         <tbody>
           <tr
-            v-for="(row, index) in timeTable"
+            v-for="(row, index) in cellCourses"
             :key="index"
-            :class="[index === timeTable.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
+            :class="[index === cellCourses.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
           >
             <td
               class="border border-line/70 p-1 text-center text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
@@ -458,7 +429,7 @@ onBeforeUnmount(() => {
               <td
                 v-if="!occupiedGrid[index][dayIndex]"
                 class="border border-line/70 p-[2px] align-top text-center md:p-1"
-                :rowspan="maxSpans[index][dayIndex]"
+                :rowspan="cellSpans[index][dayIndex]"
                 :tabindex="courses.length > 0 ? undefined : 0"
                 :role="courses.length > 0 ? undefined : 'button'"
                 :aria-label="courses.length > 0 ? undefined : t('schedule.emptyCell')"
@@ -470,7 +441,7 @@ onBeforeUnmount(() => {
                   v-if="courses.length > 0"
                   class="flex h-full overflow-hidden rounded-xl"
                   :class="store.state.weekView.week === null && courses.length > 1 ? 'flex-row gap-[2px]' : 'flex-col'"
-                  :style="{ height: maxSpans[index][dayIndex] * (isMobile ? 44 : 54) + 'px' }"
+                  :style="{ height: cellSpans[index][dayIndex] * (isMobile ? 44 : 54) + 'px' }"
                 >
                   <div
                     v-for="(course, courseIndex) in courses"
@@ -492,9 +463,9 @@ onBeforeUnmount(() => {
                     tabindex="0"
                     role="button"
                     :aria-label="course.courseName || course.code"
-                    @click.stop="emit('openDetail', course)"
-                    @keydown.enter.stop.prevent="emit('openDetail', course)"
-                    @keydown.space.stop.prevent="emit('openDetail', course)"
+                    @click.stop="openCourseDetail(course)"
+                    @keydown.enter.stop.prevent="openCourseDetail(course)"
+                    @keydown.space.stop.prevent="openCourseDetail(course)"
                   >
                     <span
                       v-if="isConflicted(course) && !isCustomEvent(course)"

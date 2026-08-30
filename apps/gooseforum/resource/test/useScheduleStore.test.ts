@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { useScheduleStore } from '../src/site/composables/useScheduleStore'
 import {
   CUSTOM_EVENT_CODE_PREFIX,
+  conflictBaseOf,
   createEmptyOccupied,
   deriveConflicts,
   insertOccupied,
@@ -428,6 +429,48 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     expect(firstPlan.stagedCourses[0].courseDetail[0].arrangementInfo[0].occupyTime).toEqual([5])
   })
 
+  test('同课换班按班级课号精确替换：旧班不复活', () => {
+    const store = useScheduleStore()
+    store.setClickedCourseInfo({ courseCode: '122004', courseName: '高数' })
+    store.pushStagedCourse(
+      makeStaged('122004', [
+        makeDetail('122004.01', 1, [3, 4], [1, 8]),
+        makeDetail('122004.02', 1, [5, 6], [1, 8]),
+      ]),
+    )
+
+    store.stageCourse(makeDetail('122004.01', 1, [3, 4], [1, 8]))
+    store.stageCourse(makeDetail('122004.02', 1, [5, 6], [1, 8]))
+
+    const details = store.state.commonLists.stagedCourses[0].courseDetail
+    expect(details[0].status).toBe(0)
+    expect(details[1].status).toBe(1)
+
+    // 切走再切回（触发纯重建）：只有新班在表。
+    const other = store.createPlan()
+    store.switchPlan(other.id)
+    store.switchPlan(store.state.plans.find((plan) => plan.stagedCourses.length > 0)!.id)
+    expect(store.state.timeTableData.map((row) => row.code)).toEqual(['122004.02'])
+  })
+
+  test('syncLatestData 仅推进同步时间：课程与自定义占位保留', () => {
+    const store = useScheduleStore()
+    store.setClickedCourseInfo({ courseCode: '122004', courseName: '高数' })
+    store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3], [1, 8])]))
+    store.stageCourse(makeDetail('122004.01', 1, [3], [1, 8]))
+    store.addCustomEvent({ label: '有事', day: 2, sections: [3], weeks: [1, 2] })
+
+    store.setLatestUpdateTime('2026-08-30T00:00:00Z')
+    store.syncLatestData()
+
+    expect(store.state.updateTime).toBe('2026-08-30T00:00:00Z')
+    expect(store.state.flags.isDataOutdated).toBe(false)
+    expect(store.state.plans[0].stagedCourses).toHaveLength(1)
+    expect(store.state.plans[0].customEvents).toHaveLength(1)
+    // 课表行 = 1 门课程 + 1 个占位事件（各一行），全部保留。
+    expect(store.state.timeTableData).toHaveLength(2)
+  })
+
   test('getCourseBaseCode 兼容两种班号格式', () => {
     expect(getCourseBaseCode('122004.01')).toBe('122004')
     expect(getCourseBaseCode('12200401')).toBe('122004')
@@ -441,10 +484,13 @@ describe('周次工具', () => {
     expect(currentWeekForDate('2025-09-08', new Date('2025-09-14T23:59:59'))).toBe(1)
     expect(currentWeekForDate('2025-09-08', new Date('2025-09-15T00:00:00'))).toBe(2)
     expect(currentWeekForDate('2025-09-08', new Date('2025-12-28T00:00:00'))).toBe(16)
-    // 超出学期：夹取到 16。
-    expect(currentWeekForDate('2025-09-08', new Date('2026-06-01T00:00:00'))).toBe(16)
+    // 超出 16 周支持范围：学期外返回 null（不夹取，避免学期结束后永远停在第 16 周）。
+    expect(currentWeekForDate('2025-09-08', new Date('2026-06-01T00:00:00'))).toBeNull()
     // 学期前：null。
     expect(currentWeekForDate('2025-09-08', new Date('2025-09-01T00:00:00'))).toBeNull()
+    // endDate：学期最后一天仍算校内（含当日），次日为 null。
+    expect(currentWeekForDate('2025-09-08', new Date('2025-12-28T10:00:00'), '2025-12-28')).toBe(16)
+    expect(currentWeekForDate('2025-09-08', new Date('2025-12-29T00:00:00'), '2025-12-28')).toBeNull()
     // 非法日期：null。
     expect(currentWeekForDate('not-a-date')).toBeNull()
   })
@@ -480,6 +526,12 @@ describe('deriveConflicts 判据一致性', () => {
     expect(conflicts.get('122004')?.map((item) => item.code)).toEqual(['122005.01'])
     expect(conflicts.get('122005')?.map((item) => item.code)).toEqual(['122004.01'])
     expect(conflicts.has('122006')).toBe(false)
+  })
+
+  test('conflictBaseOf：custom 原样、真实课号归一到基础课号', () => {
+    expect(conflictBaseOf('122004.01')).toBe('122004')
+    expect(conflictBaseOf('12200401')).toBe('122004')
+    expect(conflictBaseOf(`${CUSTOM_EVENT_CODE_PREFIX}evt_1`)).toBe(`${CUSTOM_EVENT_CODE_PREFIX}evt_1`)
   })
 
   test('custom 伪课号不被 getCourseBaseCode 误裁', () => {

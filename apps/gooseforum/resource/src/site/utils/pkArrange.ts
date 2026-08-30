@@ -182,18 +182,58 @@ export function getRowSection(row: number, calendarId: number | undefined): numb
   return 6
 }
 
+/** 同列课程的节次区间簇（相交/包含的课程归入同一格渲染）。 */
+export interface PkDayCluster<T> {
+  /** 簇内最早节次（1-based，格子锚定行）。 */
+  start: number
+  /** 簇内最晚节次（rowspan 覆盖到该行）。 */
+  end: number
+  items: T[]
+}
+
+/**
+ * 把同一天的课程按节次区间聚类：区间相交（含包含、部分重叠）的课归为同格。
+ * 容忍式冲突下部分重叠的课（如 1-2 节与 2-3 节）必须同格可见，
+ * 不能让一块的 rowspan 吞掉另一块；不相交的课各自独立成格。
+ */
+export function clusterBySections<T extends { occupyTime: number[] }>(courses: T[]): PkDayCluster<T>[] {
+  const sorted = [...courses].sort((a, b) => a.occupyTime[0] - b.occupyTime[0])
+  const clusters: PkDayCluster<T>[] = []
+  for (const course of sorted) {
+    const start = course.occupyTime[0]
+    const end = course.occupyTime[course.occupyTime.length - 1]
+    const last = clusters[clusters.length - 1]
+    if (last && start <= last.end) {
+      last.end = Math.max(last.end, end)
+      last.items.push(course)
+    } else {
+      clusters.push({ start, end, items: [course] })
+    }
+  }
+  return clusters
+}
+
 /** 由学期起始日期计算「今天」是第几周（1-based）；学期外/日期非法返回 null。
- * 周一为一周之始：起始日非周一时，第一周延伸至首个周日。 */
-export function currentWeekForDate(startDate: string, today: Date = new Date()): number | null {
+ * 周一为一周之始：起始日非周一时，第一周延伸至首个周日。
+ * endDate（可选）为学期最后一天：当天仍属学期内，之后返回 null；
+ * 超出 MAX_WEEK 支持范围同样返回 null（不夹取，避免学期结束后停留在最后一周）。 */
+export function currentWeekForDate(startDate: string, today: Date = new Date(), endDate?: string): number | null {
   const start = new Date(`${startDate}T00:00:00`)
   if (Number.isNaN(start.getTime())) return null
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
   const diffDays = Math.floor(
-    (Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
-      Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) /
-      86_400_000,
+    (todayUtc - Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) / 86_400_000,
   )
   if (diffDays < 0) return null
-  return Math.min(MAX_WEEK, Math.floor(diffDays / 7) + 1)
+  const week = Math.floor(diffDays / 7) + 1
+  if (week > MAX_WEEK) return null
+  if (endDate) {
+    const end = new Date(`${endDate}T00:00:00`)
+    if (!Number.isNaN(end.getTime()) && todayUtc > Date.UTC(end.getFullYear(), end.getMonth(), end.getDate())) {
+      return null
+    }
+  }
+  return week
 }
 
 /** 周次数组 → 紧凑显示文本（如 [1,2,3]→"1-3"、[1,3,5]→"1,3,5"、[2]→"2"）。 */

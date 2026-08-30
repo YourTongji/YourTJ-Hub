@@ -409,13 +409,6 @@ function readStorage(key: string): string | null {
   }
 }
 
-function removeStorage(key: string): void {
-  try {
-    window.localStorage.removeItem(key)
-  } catch {
-    // 忽略
-  }
-}
 
 function readTimeTableRows(): number {
   return maxRowsForCalendar(state.majorSelected.calendarId)
@@ -469,7 +462,7 @@ function appendToTimeTable(payload: PkCourseDetail): void {
       (course) => course.courseCode === getCourseBaseCode(payload.code),
     )
     if (staged) {
-      const oldDetail = staged.courseDetail.find((detail) => isSameCourse(detail.code, sameCodeCourse.code))
+      const oldDetail = staged.courseDetail.find((detail) => detail.code === sameCodeCourse.code)
       if (oldDetail) {
         // 旧班若已保存（status=2），从已选列表移除，避免导出残留旧班时间。
         if (oldDetail.status === COURSE_STATUS.SELECTED) {
@@ -510,7 +503,7 @@ function appendToTimeTable(payload: PkCourseDetail): void {
     stagedCourse.status = COURSE_STATUS.STAGED
     stagedCourse.teacher = payload.teachers
     // 同步班级状态（saveSelectedCourses 依赖 detail.status 判定待选/已选）。
-    const matched = stagedCourse.courseDetail.find((detail) => isSameCourse(detail.code, payload.code))
+    const matched = stagedCourse.courseDetail.find((detail) => detail.code === payload.code)
     if (matched) matched.status = COURSE_STATUS.STAGED
   }
 }
@@ -725,17 +718,10 @@ export function useScheduleStore() {
     state.flags.isDataOutdated = payload
   }
 
-  /** 同步最新数据（清空所有方案课程缓存并更新时间；保留方案壳）。 */
+  /** 同步最新数据（元数据同步）：仅推进同步时间并清除过期标记。
+   * 方案课程与自定义占位是用户数据，不由同步清空；也不再移除持久化键
+   * （空课号同步时清掉 pk.plans 会让刷新后多方案塌缩、占位丢失）。 */
   function syncLatestData(): void {
-    removeStorage(STORAGE_KEYS.plans)
-    removeStorage(STORAGE_KEYS.activePlanId)
-    for (const plan of state.plans) {
-      plan.stagedCourses = []
-      plan.selectedCourses = []
-      plan.customEvents = []
-    }
-    state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
-    syncActiveView()
     state.updateTime = state.latestUpdateTime
     writeStorage(STORAGE_KEYS.updateTime, state.updateTime)
     state.flags.isDataOutdated = false
