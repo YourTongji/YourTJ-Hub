@@ -1,19 +1,24 @@
 <script setup lang="ts">
-// 选课列表/备选池：展示 stagedCourses，提供「选择课程」「保存课表」与退课/清除操作。
+// 已选课程列表（v2 富卡片）：课名+班次数、冲突红标、课号、学院·学分、教师、
+// 排课摘要、退课按钮；顶部「搜索课程名/课号」纯前端过滤。
 // 点击课程行会把该课设为 clickedCourseInfo，右侧/详情 tab 展示其班级。
 import { computed, ref } from 'vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
-import { BookOpen, Save } from '@lucide/vue'
+import { BookOpen, Save, Search } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { queueFlashMessage } from '@/runtime/flash-message'
+import { deriveConflicts } from '@/site/utils/pkConflict'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
 const { t } = useI18n()
 const store = useScheduleStore()
 
+/** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 const pendingDrop = ref<PkStagedCourse | null>(null)
+const keyword = ref('')
 
 const emit = defineEmits<{
   openPicker: []
@@ -24,6 +29,24 @@ const dropDialogOpen = computed({
   set: (open: boolean) => {
     if (!open) pendingDrop.value = null
   },
+})
+
+// ---- 冲突派生（与课表/统计同判据）----
+const conflicts = computed(() => deriveConflicts(store.state.occupied))
+
+function courseConflicts(course: PkStagedCourse) {
+  return conflicts.value.get(course.courseCode) ?? []
+}
+
+// ---- 搜索过滤（课程名/课号，纯前端）----
+const filteredCourses = computed(() => {
+  const query = keyword.value.trim().toLowerCase()
+  if (!query) return store.state.commonLists.stagedCourses
+  return store.state.commonLists.stagedCourses.filter(
+    (course) =>
+      (course.courseNameReserved || course.courseName || '').toLowerCase().includes(query) ||
+      course.courseCode.toLowerCase().includes(query),
+  )
 })
 
 function statusLabel(course: PkStagedCourse): string {
@@ -72,11 +95,50 @@ function saveTimetable() {
 function arrangedClassCount(course: PkStagedCourse): number {
   return course.courseDetail.filter((d) => d.status === 2).length
 }
+
+/** 排课摘要：已排班级的「周次: 天(节)」串联。 */
+function arrangementSummary(course: PkStagedCourse): string {
+  const parts: string[] = []
+  for (const detail of course.courseDetail) {
+    if (detail.status !== 1 && detail.status !== 2) continue
+    for (const arr of detail.arrangementInfo) {
+      const span = arr.occupyTime.length === 1
+        ? `${arr.occupyTime[0]}`
+        : `${arr.occupyTime[0]}-${arr.occupyTime[arr.occupyTime.length - 1]}`
+      const weekday = WEEKDAY_KEYS[arr.occupyDay - 1]
+      const dayLabel = weekday ? t(`schedule.weekdays.${weekday}`) : String(arr.occupyDay)
+      parts.push(t('schedule.arrangementBrief', { day: dayLabel, sections: span, room: arr.occupyRoom || '' }))
+    }
+  }
+  return parts.slice(0, 3).join('；') + (parts.length > 3 ? '…' : '')
+}
+
+/** 教师名串联（优先 stagedCourse.teacher，空则取已排班级教师）。 */
+function teacherSummary(course: PkStagedCourse): string {
+  const named = course.teacher.map((item) => item.teacherName).filter(Boolean)
+  if (named.length > 0) return named.join('、')
+  for (const detail of course.courseDetail) {
+    if (detail.status !== 1 && detail.status !== 2) continue
+    const teachers = detail.teachers.map((item) => item.teacherName).filter(Boolean)
+    if (teachers.length > 0) return teachers.join('、')
+  }
+  return ''
+}
 </script>
 
 <template>
   <div class="space-y-3">
     <div class="flex flex-wrap items-center gap-2">
+      <div class="relative min-w-0 flex-1">
+        <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-base-content/40" />
+        <input
+          v-model="keyword"
+          type="search"
+          class="gf-input gf-input-md w-full pl-8"
+          :placeholder="t('schedule.listSearchPlaceholder')"
+          :aria-label="t('schedule.listSearchPlaceholder')"
+        />
+      </div>
       <button type="button" class="gf-button gf-button-md gf-button-primary" @click="emit('openPicker')">
         {{ t('schedule.openPicker') }}
       </button>
@@ -92,34 +154,61 @@ function arrangedClassCount(course: PkStagedCourse): number {
       :icon="BookOpen"
       :title="t('schedule.emptyStaged')"
     />
+    <EmptyState
+      v-else-if="!filteredCourses.length"
+      class="gf-panel"
+      :icon="Search"
+      :title="t('schedule.listSearchEmpty')"
+    />
 
     <ul v-else class="gf-panel divide-y divide-line/60">
       <li
-        v-for="course in store.state.commonLists.stagedCourses"
+        v-for="course in filteredCourses"
         :key="course.courseCode"
-        class="flex items-center gap-2 px-3 py-2"
+        class="px-3 py-2.5"
+        :class="courseConflicts(course).length > 0 ? 'bg-error/5' : ''"
       >
-        <button
-          type="button"
-          class="min-w-0 flex-1 text-left"
-          @click="selectCourse(course)"
-        >
-          <span class="block truncate text-[13px] font-medium text-base-content">
-            {{ course.courseNameReserved }}
-          </span>
-          <span class="block truncate text-[11px] text-base-content/50">
-            {{ course.courseCode }} · {{ t('schedule.credit', { credit: course.credit }) }}
-            <template v-if="arrangedClassCount(course) > 0"> · {{ t('schedule.arrangedCount', { count: arrangedClassCount(course) }) }}</template>
-          </span>
-        </button>
-        <span :class="statusClass(course)">{{ statusLabel(course) }}</span>
-        <button
-          type="button"
-          class="gf-button gf-button-sm gf-button-ghost shrink-0"
-          @click="dropCourse(course)"
-        >
-          {{ course.status === 2 ? t('schedule.dropCourse') : t('schedule.clear') }}
-        </button>
+        <div class="flex items-start gap-2">
+          <button
+            type="button"
+            class="min-w-0 flex-1 text-left"
+            @click="selectCourse(course)"
+          >
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="truncate text-[13px] font-semibold text-base-content">
+                {{ course.courseNameReserved }}
+              </span>
+              <span
+                v-if="courseConflicts(course).length > 0"
+                class="gf-badge gf-badge-error"
+                :title="courseConflicts(course).map((item) => item.courseName).join('、')"
+              >
+                {{ t('schedule.conflictBadge') }}
+              </span>
+              <span :class="statusClass(course)">{{ statusLabel(course) }}</span>
+            </div>
+            <p class="mt-0.5 truncate text-[11px] text-primary/75">
+              {{ course.courseCode }}
+              <span class="text-base-content/50"> · {{ t('schedule.credit', { credit: course.credit }) }}</span>
+              <template v-if="arrangedClassCount(course) > 0">
+                <span class="text-base-content/50"> · </span>{{ t('schedule.classCount', { count: course.courseDetail.length }) }}
+              </template>
+            </p>
+            <p v-if="teacherSummary(course)" class="mt-0.5 truncate text-[11px] text-base-content/55">
+              {{ teacherSummary(course) }}
+            </p>
+            <p v-if="arrangementSummary(course)" class="mt-0.5 line-clamp-2 text-[11px] text-base-content/50">
+              {{ arrangementSummary(course) }}
+            </p>
+          </button>
+          <button
+            type="button"
+            class="gf-button gf-button-sm gf-button-ghost shrink-0"
+            @click="dropCourse(course)"
+          >
+            {{ course.status === 2 ? t('schedule.dropCourse') : t('schedule.clear') }}
+          </button>
+        </div>
       </li>
     </ul>
 

@@ -8369,6 +8369,16 @@ export interface components {
         PkCalendarItem: {
             calendarId: number;
             calendarName: string;
+            /**
+             * Format: date
+             * @description 学期开始日期（YYYY-MM-DD）；未配置学期日期时为 null。
+             */
+            startDate: string | null;
+            /**
+             * Format: date
+             * @description 学期结束日期（YYYY-MM-DD）；未配置学期日期时为 null。
+             */
+            endDate: string | null;
         };
         PkCampusItem: {
             campusId: string;

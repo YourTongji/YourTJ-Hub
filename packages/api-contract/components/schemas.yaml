@@ -2429,12 +2429,20 @@ PkFailure:
 
 PkCalendarItem:
   type: object
-  required: [calendarId, calendarName]
+  required: [calendarId, calendarName, startDate, endDate]
   properties:
     calendarId:
       type: integer
     calendarName:
       type: string
+    startDate:
+      type: [string, 'null']
+      format: date
+      description: 学期开始日期（YYYY-MM-DD）；未配置学期日期时为 null。
+    endDate:
+      type: [string, 'null']
+      format: date
+      description: 学期结束日期（YYYY-MM-DD）；未配置学期日期时为 null。
   additionalProperties: false
 
 PkCampusItem:
