@@ -1,11 +1,13 @@
 package routes
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -65,11 +67,8 @@ func collectRouteSnapshot(t *testing.T) []routeSnapshotEntry {
 		seen[entry] = true
 		entries = append(entries, entry)
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Method != entries[j].Method {
-			return entries[i].Method < entries[j].Method
-		}
-		return entries[i].Path < entries[j].Path
+	slices.SortFunc(entries, func(a, b routeSnapshotEntry) int {
+		return cmp.Or(cmp.Compare(a.Method, b.Method), cmp.Compare(a.Path, b.Path))
 	})
 	return entries
 }

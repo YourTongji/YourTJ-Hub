@@ -1,7 +1,8 @@
 package courseservice
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -109,6 +110,8 @@ func attachCourseStats(entities []course.Entity) []CourseStatsBrief {
 		}
 		out = append(out, brief)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CourseId < out[j].CourseId })
+	slices.SortFunc(out, func(a, b CourseStatsBrief) int {
+		return cmp.Compare(a.CourseId, b.CourseId)
+	})
 	return out
 }

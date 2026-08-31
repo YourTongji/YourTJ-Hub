@@ -1,7 +1,8 @@
 package courseservice
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
@@ -143,14 +144,20 @@ func buildRelatedTeacherCourses(courseIds []uint64) ([]RelatedCourseItem, error)
 
 // sortRelatedItems 稳定排序：review_count 降序 → 平均分降序 → id 降序。
 func sortRelatedItems(items []RelatedCourseItem) {
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ReviewCount != items[j].ReviewCount {
-			return items[i].ReviewCount > items[j].ReviewCount
+	slices.SortFunc(items, func(a, b RelatedCourseItem) int {
+		if a.ReviewCount != b.ReviewCount {
+			return cmp.Compare(b.ReviewCount, a.ReviewCount)
 		}
-		if items[i].RatingAvg != items[j].RatingAvg {
-			return items[i].RatingAvg > items[j].RatingAvg
+		if a.RatingAvg != b.RatingAvg {
+			if a.RatingAvg > b.RatingAvg {
+				return -1
+			}
+			if a.RatingAvg < b.RatingAvg {
+				return 1
+			}
+			return 0
 		}
-		return items[i].Id > items[j].Id
+		return cmp.Compare(b.Id, a.Id)
 	})
 }
 

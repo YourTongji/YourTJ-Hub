@@ -2,10 +2,11 @@
 package closer
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"runtime"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 )
@@ -86,11 +87,8 @@ func CloseAll() {
 	entries = nil
 	mu.Unlock()
 
-	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].priority != items[j].priority {
-			return items[i].priority < items[j].priority
-		}
-		return items[i].seq > items[j].seq
+	slices.SortStableFunc(items, func(a, b closerEntry) int {
+		return cmp.Or(cmp.Compare(a.priority, b.priority), cmp.Compare(b.seq, a.seq))
 	})
 
 	slog.Info("closer: starting to close all registered resources", "count", len(items))

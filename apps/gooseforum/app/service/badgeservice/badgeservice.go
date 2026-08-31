@@ -1,7 +1,8 @@
 package badgeservice
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
@@ -75,11 +76,8 @@ func buildAllForAdmin() []AdminBadge {
 		result = append(result, AdminBadge{Badge: fromEntity(entity), IsSystem: false, CanDelete: true})
 	}
 
-	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].SortOrder == result[j].SortOrder {
-			return result[i].Code < result[j].Code
-		}
-		return result[i].SortOrder < result[j].SortOrder
+	slices.SortStableFunc(result, func(a, b AdminBadge) int {
+		return cmp.Or(cmp.Compare(a.SortOrder, b.SortOrder), cmp.Compare(a.Code, b.Code))
 	})
 	return result
 }
@@ -132,11 +130,8 @@ func GetUserBadges(userID uint64) []UserBadge {
 			GrantedAt: record.GrantedAt.Format(time.RFC3339),
 		})
 	}
-	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].SortOrder == result[j].SortOrder {
-			return result[i].GrantedAt > result[j].GrantedAt
-		}
-		return result[i].SortOrder < result[j].SortOrder
+	slices.SortStableFunc(result, func(a, b UserBadge) int {
+		return cmp.Or(cmp.Compare(a.SortOrder, b.SortOrder), cmp.Compare(b.GrantedAt, a.GrantedAt))
 	})
 	return result
 }

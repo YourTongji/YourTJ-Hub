@@ -1,9 +1,9 @@
 package pkservice
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 )
@@ -149,8 +149,8 @@ func FindCoursesByMajor(grade int, code string, calendarId int) ([]CourseByMajor
 			CourseNature: uniqueText(groupToNature[groupKey]),
 			Courses:      buildClassItems(courseRows, teachersByClass, groupExclusive[groupKey]),
 		}
-		sort.SliceStable(item.Courses, func(i, j int) bool {
-			return strings.Compare(item.Courses[i].Code, item.Courses[j].Code) < 0
+		slices.SortStableFunc(item.Courses, func(a, b CourseClassItem) int {
+			return cmp.Compare(a.Code, b.Code)
 		})
 		output = append(output, item)
 	}
