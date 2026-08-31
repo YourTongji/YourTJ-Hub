@@ -280,18 +280,41 @@ func ListTermsByIDs(ids []uint64) (entities []TermEntity, err error) {
 	return
 }
 
+// termDistinctColumns ListDistinctTerms 的投影与分组列。去重必须显式投影：SELECT *
+// 会把 JOIN 表的列一并带入，而 PostgreSQL 要求 ORDER BY 表达式出现在投影中，且
+// ORDER BY 为计算表达式时不允许 SELECT DISTINCT *（SQLite 宽松允许，因此该缺陷
+// 只在 PostgreSQL 下暴露——生产用 PostgreSQL，本地与 CI 用 SQLite 时测不出来）。
+const termDistinctColumns = "course_term.id, course_term.code, course_term.name, course_term.starts_on, course_term.ends_on, course_term.status, course_term.created_at, course_term.updated_at, course_term.deleted_at"
+
+// termOrdering 学期排序表达式：标准学期码（数字开头）优先，组内按 starts_on 倒序
+// （导入流程未写入 starts_on，生产全为 NULL，实际回退 code 字典序）；「其他」这类
+// 上游同步无法解析的学期码排末尾。
+// 目录页学期列表与开课实例查询必须共用同一表达式，否则同一门课在目录筛选与详情页
+// 看到的学期先后不一致（ListDistinctTerms 的注释即承诺两者排序一致）。
+// substr / BETWEEN 在 SQLite 与 PostgreSQL 下语义一致。
+const termOrdering = "CASE WHEN substr(course_term.code, 1, 1) BETWEEN '0' AND '9' THEN 0 ELSE 1 END, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC"
+
 // ListDistinctTerms 返回所有可见课程关联开课实例的去重学期列表，供目录页学期筛选下拉。
 // 与 ListCourses 的 term 筛选（term_id 命中 course_term.code）同源：限定可见课程的可见 offering
-// 及其 term_id，非空 code，按 starts_on 倒序（未设置时回退 code 字典序），与详情页开课列表的学期排序一致。
+// 及其 term_id，非空 code；按 starts_on 倒序（未设置时回退 code 字典序），与详情页开课列表的学期排序一致。
 func ListDistinctTerms() ([]TermEntity, error) {
+	return ListDistinctTermsTx(termBuilder())
+}
+
+// ListDistinctTermsTx 与 ListDistinctTerms 同一条查询链，但接受指定连接/事务，
+// 供 PostgreSQL 回归测试复用真实代码路径：本查询曾因 SELECT DISTINCT + 表达式排序
+// 只在 PostgreSQL 下报错（SQLite 宽松通过，本地与 CI 的 SQLite 用例全绿），必须能
+// 在真实 PostgreSQL 上回归，因此把它写成可注入连接的形态。
+func ListDistinctTermsTx(tx *gorm.DB) ([]TermEntity, error) {
 	var terms []TermEntity
-	err := termBuilder().
+	err := tx.
+		Select(termDistinctColumns).
 		Joins("JOIN course_offering ON course_offering.term_id = course_term.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?", OfferingStatusVisible).
 		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
 		Where(queryopt.IsNull("course_term.deleted_at")).
 		Where(queryopt.Ne("course_term.code", "")).
-		Distinct().
-		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC").
+		Group(termDistinctColumns).
+		Order(termOrdering).
 		Find(&terms).Error
 	return terms, err
 }
@@ -310,7 +333,7 @@ func ListOfferingsByCourse(courseId uint64) (entities []OfferingEntity, err erro
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.Eq("course_offering.course_id", courseId)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
-		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+		Order(termOrdering + ", course_offering.id ASC").
 		Find(&entities).Error
 	return
 }
@@ -334,7 +357,7 @@ func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err 
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.In("course_offering.course_id", courseIds)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
-		Order("course_offering.course_id ASC, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+		Order("course_offering.course_id ASC, " + termOrdering + ", course_offering.id ASC").
 		Find(&entities).Error
 	return
 }
@@ -371,7 +394,7 @@ func ListVisibleOfferingsByClassCodes(classCodes []string, termId uint64) (entit
 	if termId > 0 {
 		b = b.Where(queryopt.Eq("course_offering.term_id", termId))
 	}
-	err = b.Order("course_offering.class_code ASC, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+	err = b.Order("course_offering.class_code ASC, " + termOrdering + ", course_offering.id ASC").
 		Find(&entities).Error
 	return
 }

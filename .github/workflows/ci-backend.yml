@@ -135,10 +135,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - name: Test (PostgreSQL migration + stats concurrency)
+      - name: Test (PostgreSQL migration + course PG-gated)
         working-directory: apps/gooseforum
         env:
           YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
+        # PostgreSQL$ 覆盖 course 包内所有 PG 门控用例（stats 并发、学期列表）。
+        # 刻意不逐个显式列举：本 PR 修的正是 pg-only 缺陷（SQLite 宽松通过，只有
+        # PostgreSQL 报错），一旦列举就会漏接线，回归护栏形同虚设。同名模式的新
+        # 用例会自动纳入。
         run: |
           go test ./app/migration/ -run 'TestSchema' -v
-          go test ./app/models/forum/course/ -run 'TestUpsertCourseStatsConcurrentPostgreSQL' -v
+          go test ./app/models/forum/course/ -run 'PostgreSQL$' -v
