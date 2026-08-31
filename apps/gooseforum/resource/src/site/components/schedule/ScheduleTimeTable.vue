@@ -2,8 +2,10 @@
 // 课表网格（v2：周次视图 + 容忍式冲突标注 + 自定义占位 + 导出图片）。
 // - calendarId>=120 新制为 11 行；同列节次区间聚类（相交/包含/部分重叠同格渲染），
 //   单块 rowspan 只吞自己簇覆盖的行——部分重叠的冲突课必须同格可见。
-// - 周次视图：weekView.week 为 null → 全部周次（同格多课并排细条）；
-//   指定周 → 按 occupyWeek 过滤后整宽显示（聚类按过滤后集合重算）。
+// - 周次视图：weekView.week 为 null → 全部周次；指定周 → 按 occupyWeek 过滤
+//   后显示（聚类按过滤后集合重算）。
+// - 同格多课（单双周同位共存 / 容忍式冲突）竖向堆叠渲染，每块显示
+//   课名+周次（单双周可辨）；周次无交集不判冲突（weeksOverlap 判据）。
 // - 冲突标注：deriveConflicts 统一判据（同天+同节+周次交集），⚠ 角标。
 // - 自定义占位（custom: 伪课号）渲染为灰块，不进课程详情；导出 PNG（html-to-image）。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -25,6 +27,8 @@ const store = useScheduleStore()
 
 /** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+/** 「全部周次」下拉哨兵值（reka-ui SelectItem 不允许空字符串 value）。 */
+const WEEK_ALL = 'all'
 
 const cellCourses = ref<PkCourseOnTable[][][]>([])
 const cellSpans = ref<number[][]>([])
@@ -96,9 +100,9 @@ const currentWeek = computed(() => {
 /** 「当前周次」开关可用性：需要学期起始日期且今天在学期内。 */
 const canUseCurrentWeek = computed(() => currentWeek.value !== null)
 
-/** 周次下拉选项：全部周次 + 第 1..16 周。 */
+/** 周次下拉选项：全部周次（哨兵 all，reka-ui SelectItem 禁空串 value）+ 第 1..16 周。 */
 const weekOptions = computed(() => [
-  { value: '', label: t('schedule.weekAll') },
+  { value: WEEK_ALL, label: t('schedule.weekAll') },
   ...Array.from({ length: MAX_WEEK }, (_, i) => ({
     value: String(i + 1),
     label: t('schedule.weekN', { n: i + 1 }),
@@ -106,9 +110,9 @@ const weekOptions = computed(() => [
 ])
 
 const weekValue = computed({
-  get: () => (store.state.weekView.week === null ? '' : String(store.state.weekView.week)),
+  get: () => (store.state.weekView.week === null ? WEEK_ALL : String(store.state.weekView.week)),
   set: (value: string) => {
-    store.setWeekView({ week: value ? Number(value) : null, useCurrent: false })
+    store.setWeekView({ week: value === WEEK_ALL ? null : Number(value), useCurrent: false })
   },
 })
 
@@ -435,18 +439,15 @@ onBeforeUnmount(() => {
                 @keydown.enter.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
                 @keydown.space.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
               >
-                <div
-                  v-if="courses.length > 0"
-                  class="flex min-h-0 flex-col rounded-xl"
-                  :class="store.state.weekView.week === null && courses.length > 1 ? 'flex-row gap-[2px]' : 'flex-col'"
-                >
+                <!-- 同格多课：竖向堆叠（单双周同位共存 / 容忍式冲突都同格可见） -->
+                <div v-if="courses.length > 0" class="flex min-h-0 flex-col rounded-xl">
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
                     class="relative flex min-h-0 min-w-0 flex-1 flex-col justify-center px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
                     :class="[
                       isMobile ? 'text-center' : 'text-left',
-                      store.state.weekView.week === null && courses.length > 1 ? '' : courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '',
+                      courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '',
                       'border-l-[3px]',
                     ]"
                     :style="{ ...courseCardStyle(course), borderLeftColor: accentColor(course) }"
@@ -478,8 +479,8 @@ onBeforeUnmount(() => {
                         <span v-if="courseSubline(course)" class="mt-0.5 max-w-full truncate text-[10px] opacity-85">{{ courseSubline(course) }}</span>
                       </template>
                       <template v-else>
-                        <!-- 全部周次模式下同格多课并排细条：只显示课名+周次 -->
-                        <template v-if="store.state.weekView.week === null && courses.length > 1">
+                        <!-- 同格多课紧凑块：课名 + 周次（单双周/部分学期可辨） -->
+                        <template v-if="courses.length > 1">
                           <span class="block truncate text-[11px] font-extrabold leading-tight">{{ compactName(course.courseName) }}</span>
                           <span v-if="formatWeeksText(course.occupyWeek)" class="block truncate text-[10px] opacity-85">
                             {{ t('schedule.weeksN', { range: formatWeeksText(course.occupyWeek) }) }}
