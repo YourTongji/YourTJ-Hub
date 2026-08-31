@@ -150,7 +150,7 @@ function sentimentBadgeClass(sentiment: string): string {
         {{ t('courseSummary.title') }}
       </span>
       <span class="inline-flex items-center gap-1.5">
-        <span v-if="state.kind === 'ready'" class="gf-badge gf-badge-muted text-[11px]">
+        <span v-if="state.kind === 'ready'" class="gf-badge gf-badge-muted text-xs">
           {{ t('courseSummary.generated') }}
         </span>
         <ChevronDown class="h-4 w-4 text-base-content/45 transition-transform" :class="{ 'rotate-180': expanded }" />
@@ -160,9 +160,9 @@ function sentimentBadgeClass(sentiment: string): string {
     <div v-if="expanded" class="border-t border-line/70 px-4 py-3">
       <!-- loading 骨架 -->
       <div v-if="state.kind === 'loading'" class="space-y-3">
-        <div class="h-4 w-3/4 animate-pulse rounded bg-base-300/70" />
-        <div class="h-4 w-full animate-pulse rounded bg-base-300/70" />
-        <div class="h-4 w-1/2 animate-pulse rounded bg-base-300/70" />
+        <div class="h-4 w-3/4 motion-safe:animate-pulse rounded bg-base-300/70" />
+        <div class="h-4 w-full motion-safe:animate-pulse rounded bg-base-300/70" />
+        <div class="h-4 w-1/2 motion-safe:animate-pulse rounded bg-base-300/70" />
       </div>
 
       <!-- 就绪：五档徽章 + 关键词 + pros/cons + 代表性评价 -->
@@ -171,7 +171,7 @@ function sentimentBadgeClass(sentiment: string): string {
           <span :class="consensusBadgeClass(state.payload)">
             {{ t(`courseSummary.consensus.${consensusLevel(state.payload) ?? 'neutral'}`) }}
           </span>
-          <span v-if="state.generatedAt" class="text-[12px] text-base-content/45">
+          <span v-if="state.generatedAt" class="text-xs text-base-content/45">
             {{ t('courseSummary.generatedAt', { time: state.generatedAt }) }}
           </span>
         </div>
@@ -183,7 +183,7 @@ function sentimentBadgeClass(sentiment: string): string {
           <span
             v-for="kw in state.payload.keywords.slice(0, 5)"
             :key="kw"
-            class="rounded-full border border-line/70 bg-base-200/60 px-2 py-0.5 text-[11px] text-base-content/70"
+            class="rounded-full border border-line/70 bg-base-200/60 px-2 py-0.5 text-xs text-base-content/70"
           >
             {{ kw }}
           </span>
@@ -223,7 +223,7 @@ function sentimentBadgeClass(sentiment: string): string {
         </div>
 
         <div class="mt-3 flex items-center justify-between gap-2">
-          <p class="text-[11px] leading-relaxed text-base-content/40">
+          <p class="text-xs leading-relaxed text-base-content/40">
             {{ t('courseSummary.disclaimer') }}
           </p>
           <button
@@ -245,7 +245,7 @@ function sentimentBadgeClass(sentiment: string): string {
 
       <!-- 429 限流 -->
       <div v-else-if="state.kind === 'rateLimited'" class="flex items-center gap-2 text-sm text-base-content/55">
-        <Loader2 class="h-4 w-4 animate-spin text-warning" />
+        <Loader2 class="h-4 w-4 motion-safe:animate-spin text-warning" />
         {{ t('courseSummary.rateLimited', { seconds: state.retryAfterSeconds ?? 0 }) }}
       </div>
 

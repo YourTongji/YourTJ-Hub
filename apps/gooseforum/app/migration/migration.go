@@ -304,9 +304,11 @@ func SchemaModels() []any {
 		&course.SourceRefEntity{},
 		&course.ReviewEntity{},
 		&course.HelpfulEntity{},
+		&course.DislikeEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
 		&course.CourseAiSummaryEntity{},
+		&course.CourseUserActionEntity{},
 		// PK 排课数据域（Issue #187 / #186）：13 表。
 		&pk.CalendarEntity{},
 		&pk.CampusEntity{},

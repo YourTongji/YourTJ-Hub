@@ -9,6 +9,10 @@
   },
   {
     "method": "DELETE",
+    "path": "/api/forum/course-reviews/:reviewId/dislike"
+  },
+  {
+    "method": "DELETE",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
   },
   {
@@ -90,6 +94,10 @@
   {
     "method": "GET",
     "path": "/api/admin/rate-limit-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/schedule-settings"
   },
   {
     "method": "GET",
@@ -493,6 +501,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/ai-summary-models"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/badge-delete"
   },
   {
@@ -626,6 +638,10 @@
   {
     "method": "POST",
     "path": "/api/admin/save-rate-limit-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-schedule-settings"
   },
   {
     "method": "POST",
@@ -766,6 +782,10 @@
   {
     "method": "POST",
     "path": "/api/forum/course-reviews/:reviewId/reports"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/courses/bookmark"
   },
   {
     "method": "POST",
@@ -1042,6 +1062,10 @@
   {
     "method": "POST",
     "path": "/mcp"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/forum/course-reviews/:reviewId/dislike"
   },
   {
     "method": "PUT",

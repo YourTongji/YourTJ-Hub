@@ -170,7 +170,7 @@ func TestListCoursesInstructor(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, total, err := ListCourses(ListCourseQuery{Instructor: tc.input, Size: 50})
+			got, total, err := ListCourses(ListCourseQuery{Instructor: []string{tc.input}, Size: 50})
 			if err != nil {
 				t.Fatalf("ListCourses(instructor=%q) err = %v", tc.input, err)
 			}
@@ -181,7 +181,7 @@ func TestListCoursesInstructor(t *testing.T) {
 	}
 
 	t.Run("no_match", func(t *testing.T) {
-		got, total, err := ListCourses(ListCourseQuery{Instructor: "王", Size: 50})
+		got, total, err := ListCourses(ListCourseQuery{Instructor: []string{"王"}, Size: 50})
 		if err != nil {
 			t.Fatalf("ListCourses err = %v", err)
 		}
@@ -192,7 +192,8 @@ func TestListCoursesInstructor(t *testing.T) {
 }
 
 // TestListCoursesSortByRating SortBy=rating 按平均分降序，零/无评分课程排末尾（id 倒序兜底）；
-// COUNT 与排序无关（LEFT JOIN 不放大计数），默认排序仍为 id 倒序。
+// COUNT 与排序无关（LEFT JOIN 不放大计数）。同数据下同时锁定前台默认排序（有评价优先）
+// 与管理端排序（id 倒序）两个新分支。
 func TestListCoursesSortByRating(t *testing.T) {
 	conn := setupCourseRepTest(t)
 	// 创建顺序即 id 升序：a(avg4.0) b(avg5.0) c(avg3.0) d(无评分行) e(rating_count=0)。
@@ -216,13 +217,26 @@ func TestListCoursesSortByRating(t *testing.T) {
 		t.Fatalf("sortBy=rating: total=%d ids=%v, want total=5 ids=%v", total, courseIDs(got), want)
 	}
 
+	// 前台默认排序：有评价（review_count > 0）的课程优先——仅排序不筛选，
+	// 无评论课程仍排在后面；组内保持 id 倒序。
+	// 有评价组：a/b/c（id 倒序 c > b > a）；无评价组：d（无统计行）与 e（review_count=0），id 倒序 e > d。
 	gotDefault, totalDefault, err := ListCourses(ListCourseQuery{Size: 50})
 	if err != nil {
 		t.Fatalf("ListCourses(default) err = %v", err)
 	}
-	wantDefault := []uint64{e, d, c, b, a}
+	wantDefault := []uint64{c, b, a, e, d}
 	if totalDefault != 5 || !slices.Equal(courseIDs(gotDefault), wantDefault) {
 		t.Fatalf("default sort: total=%d ids=%v, want total=5 ids=%v", totalDefault, courseIDs(gotDefault), wantDefault)
+	}
+
+	// 管理端（IncludeHidden=true）：保持 id 倒序，不受评价影响。
+	gotAdmin, totalAdmin, err := ListCourses(ListCourseQuery{Size: 50, IncludeHidden: true})
+	if err != nil {
+		t.Fatalf("ListCourses(includeHidden) err = %v", err)
+	}
+	wantAdmin := []uint64{e, d, c, b, a}
+	if totalAdmin != 5 || !slices.Equal(courseIDs(gotAdmin), wantAdmin) {
+		t.Fatalf("admin sort: total=%d ids=%v, want total=5 ids=%v", totalAdmin, courseIDs(gotAdmin), wantAdmin)
 	}
 }
 
@@ -371,7 +385,7 @@ func TestListCoursesLikeEscaping(t *testing.T) {
 	linkCourseInstructor(t, conn, cB, li)
 
 	// "%" 转义后按字面匹配，两个教师名均不含 %，应返回 0；未转义则 %% 会命中全部。
-	got, total, err := ListCourses(ListCourseQuery{Instructor: "%", Size: 50})
+	got, total, err := ListCourses(ListCourseQuery{Instructor: []string{"%"}, Size: 50})
 	if err != nil {
 		t.Fatalf("ListCourses(instructor=%%) err = %v", err)
 	}
@@ -411,7 +425,7 @@ func TestListCoursesInstructorHiddenOfferingExcluded(t *testing.T) {
 		t.Fatalf("link instructor: %v", err)
 	}
 
-	got, total, err := ListCourses(ListCourseQuery{Instructor: "王五", Size: 50})
+	got, total, err := ListCourses(ListCourseQuery{Instructor: []string{"王五"}, Size: 50})
 	if err != nil {
 		t.Fatalf("ListCourses(instructor=王五) err = %v", err)
 	}

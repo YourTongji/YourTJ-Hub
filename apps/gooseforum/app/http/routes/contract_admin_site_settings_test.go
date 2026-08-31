@@ -2,6 +2,7 @@ package routes
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -93,6 +94,7 @@ func setupAdminSiteContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	siteAPI.POST("/save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings))
 	siteAPI.GET("/ai-summary-settings", UpButterReq(api.GetAiSummarySettings))
 	siteAPI.POST("/save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings))
+	siteAPI.POST("/ai-summary-models", UpButterReq(api.ListAiSummaryModels))
 	siteAPI.GET("/terms-of-service", UpButterReq(api.GetTermsOfService))
 	siteAPI.POST("/save-terms-of-service", UpButterReq(api.SaveTermsOfService))
 	siteAPI.GET("/privacy-policy", UpButterReq(api.GetPrivacyPolicy))
@@ -657,13 +659,46 @@ func TestAdminSaveOnesystemSettingsHTTPContract(t *testing.T) {
 func TestAdminGetAiSummarySettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/ai-summary-settings"
 
-	t.Run("success returns the stored AI summary settings", func(t *testing.T) {
+	t.Run("success returns the stored AI summary settings with the apiKey configured state only", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
-		persistContractPageConfig(t, conn, pageConfig.AiSummarySettings, pageConfig.AiSummaryConfig{
+		sealed, err := securestore.EncryptPurpose("contract-ai-key", securestore.AiSummaryAPIKeyPurpose)
+		if err != nil {
+			t.Fatalf("encrypt contract ai key: %v", err)
+		}
+		temp := 0.3
+		maxTokens := 1024
+		persistContractPageConfig(t, conn, pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{
 			Enabled:         true,
 			GlobalPerMinute: 10,
+			BaseURL:         "https://api.openai.com/v1",
+			Model:           "gpt-4o",
+			APIKeyEncrypted: sealed,
+			Temperature:     &temp,
+			MaxTokens:       &maxTokens,
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-ai-summary-settings-success.json")
+	})
+
+	t.Run("default view when nothing stored exposes no provider config", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodGet, path, "")
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code != 0 {
+			t.Fatalf("code = %d, want 0", envelope.Code)
+		}
+		var view struct {
+			Enabled          bool   `json:"enabled"`
+			GlobalPerMinute  int    `json:"globalPerMinute"`
+			BaseURL          string `json:"baseUrl"`
+			Model            string `json:"model"`
+			APIKeyConfigured bool   `json:"apiKeyConfigured"`
+		}
+		if err := json.Unmarshal(envelope.Result, &view); err != nil {
+			t.Fatalf("decode view %q: %v", envelope.Result, err)
+		}
+		if view.Enabled || view.GlobalPerMinute != 5 || view.BaseURL != "" || view.Model != "" || view.APIKeyConfigured {
+			t.Fatalf("default view = %#v, want disabled defaults with no provider config", view)
+		}
 	})
 
 	adminSiteGuardScenarios(t, http.MethodGet, path, "admin-ai-summary-settings")
@@ -672,16 +707,54 @@ func TestAdminGetAiSummarySettingsHTTPContract(t *testing.T) {
 func TestAdminSaveAiSummarySettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/save-ai-summary-settings"
 
-	t.Run("success replaces the stored AI summary settings", func(t *testing.T) {
+	t.Run("success replaces the stored AI summary settings and encrypts the api key", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearAiSummarySettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":true,"globalPerMinute":20}}`, "admin-agent-disable-success.json")
-		stored := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, pageConfig.AiSummaryConfig{})
-		if !stored.Enabled || stored.GlobalPerMinute != 20 {
+			`{"settings":{"enabled":true,"globalPerMinute":20,"baseUrl":"https://api.siliconflow.cn/v1","model":"Qwen/Qwen2.5-7B-Instruct","apiKey":"new-ai-key","temperature":0.2,"maxTokens":2048}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{})
+		if !stored.Enabled || stored.GlobalPerMinute != 20 || stored.BaseURL != "https://api.siliconflow.cn/v1" || stored.Model != "Qwen/Qwen2.5-7B-Instruct" {
 			t.Fatalf("stored AI summary settings = %#v, want submitted values", stored)
+		}
+		if plain, err := securestore.DecryptPurpose(stored.APIKeyEncrypted, securestore.AiSummaryAPIKeyPurpose); err != nil || plain != "new-ai-key" {
+			t.Fatalf("stored apiKey decrypt = %q, err %v; want %q", plain, err, "new-ai-key")
+		}
+		if stored.Temperature == nil || *stored.Temperature != 0.2 {
+			t.Fatalf("stored temperature = %#v, want 0.2", stored.Temperature)
+		}
+		if stored.MaxTokens == nil || *stored.MaxTokens != 2048 {
+			t.Fatalf("stored maxTokens = %#v, want 2048", stored.MaxTokens)
+		}
+		if strings.Contains(storedAsJSON(t, conn, pageConfig.AiSummarySettings), "new-ai-key") {
+			t.Fatal("plaintext api key leaked into stored config")
+		}
+	})
+
+	t.Run("blank apiKey keeps the stored encrypted key", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		sealed, _ := securestore.EncryptPurpose("keep-ai-key", securestore.AiSummaryAPIKeyPurpose)
+		persistContractPageConfig(t, conn, pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{
+			Enabled:         true,
+			GlobalPerMinute: 5,
+			BaseURL:         "https://api.openai.com/v1",
+			Model:           "gpt-4o",
+			APIKeyEncrypted: sealed,
+		})
+		hotdataserve.ClearAiSummarySettingsConfigCache()
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearAiSummarySettingsConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enabled":true,"globalPerMinute":5,"baseUrl":"https://api.openai.com/v1","model":"gpt-4o","apiKey":""}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{})
+		if plain, err := securestore.DecryptPurpose(stored.APIKeyEncrypted, securestore.AiSummaryAPIKeyPurpose); err != nil || plain != "keep-ai-key" {
+			t.Fatalf("stored apiKey decrypt = %q, err %v; want kept %q", plain, err, "keep-ai-key")
 		}
 	})
 
@@ -762,4 +835,77 @@ func TestAdminSavePrivacyPolicyHTTPContract(t *testing.T) {
 	})
 
 	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-save-privacy-policy")
+}
+
+// TestAdminListAiSummaryModelsHTTPContract 拉取模型列表端点（OpenAI-compatible
+// /models）：临时参数探测 + 未实现 /models 服务的容错 + 守卫场景。
+func TestAdminListAiSummaryModelsHTTPContract(t *testing.T) {
+	path := "/api/admin/ai-summary-models"
+
+	t.Run("success returns the model list from the probed endpoint", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/models" {
+				t.Fatalf("path = %q, want /models", r.URL.Path)
+			}
+			if got := r.Header.Get("Authorization"); got != "Bearer probe-key" {
+				t.Fatalf("authorization = %q, want Bearer probe-key", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o","owned_by":"openai"},{"id":"gpt-4o-mini","owned_by":"openai"},{"id":"Qwen/Qwen2.5-7B-Instruct","owned_by":"siliconflow"}]}`))
+		}))
+		defer srv.Close()
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path,
+			fmt.Sprintf(`{"baseUrl":%q,"apiKey":"probe-key"}`, srv.URL))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-models-success.json"))
+	})
+
+	t.Run("provider without /models reports modelsUnsupported", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		srv := httptest.NewServer(http.NotFoundHandler())
+		defer srv.Close()
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path,
+			fmt.Sprintf(`{"baseUrl":%q}`, srv.URL))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-models-unsupported.json"))
+	})
+
+	t.Run("empty baseUrl without stored config fails", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path, `{}`)
+		response := decodeContractEnvelope(t, recorder)
+		if response.MessageCode != "admin.aiSummary.modelsFailed" {
+			t.Fatalf("messageCode = %q, want admin.aiSummary.modelsFailed", response.MessageCode)
+		}
+	})
+
+	t.Run("empty request probes the stored configuration with the stored key", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		sealed, err := securestore.EncryptPurpose("stored-probe-key", securestore.AiSummaryAPIKeyPurpose)
+		if err != nil {
+			t.Fatalf("encrypt stored probe key: %v", err)
+		}
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if got := r.Header.Get("Authorization"); got != "Bearer stored-probe-key" {
+				t.Fatalf("authorization = %q, want Bearer stored-probe-key", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o","owned_by":"openai"},{"id":"gpt-4o-mini","owned_by":"openai"},{"id":"Qwen/Qwen2.5-7B-Instruct","owned_by":"siliconflow"}]}`))
+		}))
+		defer srv.Close()
+		persistContractPageConfig(t, conn, pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{
+			Enabled:         true,
+			GlobalPerMinute: 5,
+			BaseURL:         srv.URL,
+			APIKeyEncrypted: sealed,
+		})
+		hotdataserve.ClearAiSummarySettingsConfigCache()
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearAiSummarySettingsConfigCache()
+		})
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path, `{}`)
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-models-success.json"))
+	})
+
+	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-ai-summary-models")
 }

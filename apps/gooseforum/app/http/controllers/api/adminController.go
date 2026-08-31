@@ -7,13 +7,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
@@ -1483,21 +1486,158 @@ func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.
 	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
 }
 
-// GetAiSummarySettings 获取 AI 课程总结开关设置（B7, issue #181）。
-// 仅含开关与全局配额；provider/base_url/api_key/model 在 config.toml [ai_summary] 段，
-// 不进 DB、不回显。
-func GetAiSummarySettings(req component.BetterRequest[component.Null]) component.Response {
-	config := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig())
+// GetScheduleSettings 获取排课器节次作息表设置（未保存过时回内置默认 12 节作息）
+func GetScheduleSettings(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig())
 	return component.SuccessResponse(config)
 }
 
-type SaveAiSummarySettingsReq struct {
-	Settings pageConfig.AiSummaryConfig `json:"settings" validate:"required"`
+type SaveScheduleSettingsReq struct {
+	Settings pageConfig.ScheduleSettingsConfig `json:"settings" validate:"required"`
 }
 
-// SaveAiSummarySettings 保存 AI 课程总结开关设置。
+// SaveScheduleSettings 保存排课器节次作息表设置：条目需节次 1..12 且起止时间为
+// 合法 HH:MM，任一条目非法整单拒绝（invalidParams，避免静默丢弃管理员输入）；
+// 合法输入按节次升序排序并去重（同节次保留首个）后落库。
+func SaveScheduleSettings(req component.BetterRequest[SaveScheduleSettingsReq]) component.Response {
+	sectionTimes, ok := sanitizeScheduleSectionTimes(req.Params.Settings.SectionTimes)
+	if !ok {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, hotdataserve.ClearScheduleSettingsConfigCache)
+}
+
+// isValidScheduleClockTime 校验严格 HH:MM（两位小时/分钟 + 冒号）且时钟值合法
+// （time.Parse 的 "15" 布局可接受一位小时，故先做显式形状检查）。
+func isValidScheduleClockTime(value string) bool {
+	if len(value) != 5 || value[2] != ':' {
+		return false
+	}
+	_, err := time.Parse("15:04", value)
+	return err == nil
+}
+
+// sanitizeScheduleSectionTimes 校验并规范化节次条目：非法返回 false；
+// 否则返回按节次升序、去重后的切片。起止时序（start < end，严格 HH:MM
+// 下字典序即时间序）同样整单拒绝——管理端 UI 逐行校验时序，API 直连
+// 客户端不能绕过该不变量。
+func sanitizeScheduleSectionTimes(input []pageConfig.ScheduleSectionTime) ([]pageConfig.ScheduleSectionTime, bool) {
+	seen := make(map[int]bool, len(input))
+	times := make([]pageConfig.ScheduleSectionTime, 0, len(input))
+	for _, item := range input {
+		if item.Section < 1 || item.Section > 12 {
+			return nil, false
+		}
+		if !isValidScheduleClockTime(item.Start) || !isValidScheduleClockTime(item.End) {
+			return nil, false
+		}
+		// 严格 HH:MM 下字典序即时间序：start >= end（倒序或零时长）整单拒绝。
+		if item.Start >= item.End {
+			return nil, false
+		}
+		if seen[item.Section] {
+			continue
+		}
+		seen[item.Section] = true
+		times = append(times, item)
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i].Section < times[j].Section })
+	return times, true
+}
+
+// GetAiSummarySettings 获取 AI 课程总结配置（B7, issue #181）。
+// apiKey 仅回显是否已配置（明文/密文均不出现在响应中，issue #324 安全模式）。
+func GetAiSummarySettings(req component.BetterRequest[component.Null]) component.Response {
+	return component.SuccessResponse(hotdataserve.GetAiSummarySettingsView())
+}
+
+type SaveAiSummarySettingsReq struct {
+	Settings pageConfig.AiSummarySettingsInput `json:"settings" validate:"required"`
+}
+
+// SaveAiSummarySettings 保存 AI 课程总结配置：apiKey 明文仅在请求瞬间存在——
+// 非空时 securestore 加密后落库；为空时保留已存密文（issue #324 安全模式）。
 func SaveAiSummarySettings(req component.BetterRequest[SaveAiSummarySettingsReq]) component.Response {
-	return savePageConfig(pageConfig.AiSummarySettings, req.Params.Settings, hotdataserve.ClearAiSummarySettingsConfigCache)
+	input := req.Params.Settings
+	if strings.TrimSpace(input.BaseURL) != "" {
+		if !isValidHTTPURL(input.BaseURL) {
+			return component.FailResponseCode(component.MessageAdminAiSummarySaveFailed,
+				component.MessageParams{"error": "BaseURL 必须是合法的 http(s) URL"})
+		}
+	}
+	entity := pageConfig.GetByPageType(pageConfig.AiSummarySettings)
+	storage := jsonopt.Decode[pageConfig.AiSummarySettingsStorage](entity.Config)
+	storage.Enabled = input.Enabled
+	storage.GlobalPerMinute = input.GlobalPerMinute
+	storage.BaseURL = strings.TrimRight(strings.TrimSpace(input.BaseURL), "/")
+	storage.Model = strings.TrimSpace(input.Model)
+	storage.Temperature = input.Temperature
+	storage.MaxTokens = input.MaxTokens
+	if key := strings.TrimSpace(input.APIKey); key != "" {
+		sealed, err := securestore.EncryptPurpose(key, securestore.AiSummaryAPIKeyPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密 AI 总结 apiKey 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.APIKeyEncrypted = sealed
+	}
+	// TODO: 尚无清除已存密钥的入口（apiKey 留空 = 保留已存密文）；如需显式
+	// 清除需扩展保存契约（新字段或独立操作），另行跟进。
+	return savePageConfig(pageConfig.AiSummarySettings, storage, hotdataserve.ClearAiSummarySettingsConfigCache)
+}
+
+// isValidHTTPURL 校验 BaseURL 为合法 http(s) 绝对 URL（允许内网/本机端点——
+// 自托管 LLM 如 Ollama 常为内网地址，不做私网拒绝，仅防注入协议头）。
+func isValidHTTPURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
+		return false
+	}
+	return true
+}
+
+// ListAiSummaryModelsReq 拉取模型列表请求：支持携带临时 baseUrl/apiKey 以便
+// 「先测试再保存」；留空则使用当前已保存配置。
+type ListAiSummaryModelsReq struct {
+	BaseURL string `json:"baseUrl"`
+	APIKey  string `json:"apiKey,omitempty"`
+}
+
+// ListAiSummaryModelsResp 模型列表响应。
+type ListAiSummaryModelsResp struct {
+	Models []llmprovider.ModelInfo `json:"models"`
+}
+
+// ListAiSummaryModels 拉取 OpenAI-compatible /models 列表（管理后台自动获取 model）。
+// 未实现 /models 的服务返回明确错误，前端允许手动输入 model 兜底。
+func ListAiSummaryModels(req component.BetterRequest[ListAiSummaryModelsReq]) component.Response {
+	cfg := llmprovider.Config{
+		BaseURL: strings.TrimRight(strings.TrimSpace(req.Params.BaseURL), "/"),
+		APIKey:  strings.TrimSpace(req.Params.APIKey),
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		stored := hotdataserve.GetAiSummarySettingsConfigCache()
+		cfg.BaseURL = strings.TrimRight(stored.BaseURL, "/")
+		cfg.APIKey = stored.APIKey
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "请先填写 BaseURL（端点地址）"})
+	}
+	if !isValidHTTPURL(cfg.BaseURL) {
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "BaseURL 必须是合法的 http(s) URL"})
+	}
+	ctx, cancel := context.WithTimeout(req.GinContext.Request.Context(), llmprovider.ModelsTimeout)
+	defer cancel()
+	models, err := cfg.ListModels(ctx)
+	if err != nil {
+		if errors.Is(err, llmprovider.ErrModelsUnsupported) {
+			return component.FailResponseCode(component.MessageAdminAiSummaryModelsUnsupported, nil)
+		}
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "拉取模型列表失败"})
+	}
+	return component.SuccessResponse(ListAiSummaryModelsResp{Models: models})
 }
 
 // GetOnesystemSettings 获取一系统同步凭证配置：仅返回是否已配置，不回显密文或明文。

@@ -1879,6 +1879,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a course
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. Unknown or hidden course ids fail with `course.notFound` (HTTP 404);
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` on HTTP 200 — this route binds non-strictly
+         *     (`UpButterReq`), so validation failures return the legacy 200 envelope
+         *     rather than 400.
+         *     Course bookmarking reuses the project's
+         *     bookmark semantics (action 1 = bookmark, action 2 = unbookmark).
+         */
+        post: operations["bookmarkCourse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/courses/{courseId}": {
         parameters: {
             query?: never;
@@ -2043,6 +2070,33 @@ export interface paths {
          *     deleted reviews report 404 `review.notFound`.
          */
         delete: operations["unmarkReviewHelpful"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/course-reviews/{reviewId}/dislike": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a course review as disliked
+         * @description Authenticated write, idempotent: marking an already-disliked review succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`. The caller's own dislike state is exposed
+         *     via the review DTO's `viewer.isDisliked`.
+         */
+        put: operations["markReviewDislike"];
+        post?: never;
+        /**
+         * Unmark a course review as disliked
+         * @description Authenticated write, idempotent: unmarking a review that is not disliked succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`.
+         */
+        delete: operations["unmarkReviewDislike"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3744,11 +3798,13 @@ export interface paths {
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Returns the stored AI summary settings, or the
          *     built-in default configuration when nothing has been saved yet.
-         *     Exposure boundary: only the switch and the global quota are stored
-         *     and returned; the LLM provider credentials (`provider`, `base_url`,
-         *     `api_key`, `model`) live in config.toml `[ai_summary]` and never
-         *     enter the DB or this API. JSON binding is lenient: query string and
-         *     body are ignored.
+         *     Exposure boundary: the provider endpoint (`baseUrl`) and `model` are
+         *     returned in cleartext, but the `apiKey` only as the `apiKeyConfigured`
+         *     flag — the key itself (plaintext or ciphertext) never appears on the
+         *     wire or in the stored config JSON (issue #324 security pattern).
+         *     When no admin provider configuration is stored, generation falls back
+         *     to config.toml `[ai_summary]`. JSON binding is lenient: query string
+         *     and body are ignored.
          */
         get: operations["adminGetAiSummarySettings"];
         put?: never;
@@ -3773,11 +3829,45 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`.
          *     Replaces the whole AI summary configuration with the submitted value
-         *     and clears the settings cache. The Go struct tags `settings` with
+         *     and clears the settings cache. A non-empty `apiKey` is encrypted
+         *     (AES-256-GCM, purpose-scoped) before persistence; an empty `apiKey`
+         *     keeps the stored encrypted key. `baseUrl` must be a valid http(s)
+         *     URL when non-empty (local/intranet endpoints allowed for self-hosted
+         *     providers). Business failures (HTTP 200): `admin.aiSummary.saveFailed`
+         *     (params error). The Go struct tags `settings` with
          *     `validate:"required"`, but struct-level required never fails, so a
          *     missing or malformed body saves a zero-value configuration.
          */
         post: operations["adminSaveAiSummarySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-summary-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List models from the OpenAI-compatible endpoint
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Calls `{baseUrl}/models` (OpenAI-compatible standard endpoint) and
+         *     returns the model list for the model dropdown. The request may carry
+         *     temporary `baseUrl`/`apiKey` to probe credentials before saving; when
+         *     empty, the stored (decrypted) configuration is used. Errors never
+         *     carry the provider response body (no leakage): an unsupported
+         *     `/models` endpoint (404/405 or empty data) fails with
+         *     `admin.aiSummary.modelsUnsupported` — the frontend then lets the
+         *     admin type the model manually; other failures fail with
+         *     `admin.aiSummary.modelsFailed` (params error). Timeout is 10s.
+         */
+        post: operations["adminListAiSummaryModels"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4171,6 +4261,61 @@ export interface paths {
          *     values and is saved as-is.
          */
         post: operations["adminSaveMcpSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the schedule section times
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored section times (the 12 class
+         *     periods shown on the /schedule timetable), or the built-in default
+         *     table when nothing has been saved yet. JSON binding is lenient: query
+         *     string and body are ignored.
+         */
+        get: operations["adminGetScheduleSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the schedule section times
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole section-times configuration, clears the
+         *     schedule-settings cache, and the new table takes effect on the next
+         *     /schedule SSR render. Validation: every entry must name a section in
+         *     1..12 with strict `HH:MM` start/end clock values where start is
+         *     strictly earlier than end; any invalid entry rejects the whole
+         *     submission with HTTP 200 `common.request.invalidParams`
+         *     (nothing is dropped silently). Valid input is deduplicated per section
+         *     (first entry wins) and stored sorted by section ascending.
+         */
+        post: operations["adminSaveScheduleSettings"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6303,6 +6448,8 @@ export interface components {
             kind: "anonymous" | "member" | "legacy";
             /** @description Display label (for example 匿名同学 for anonymous reviews). */
             label: string;
+            /** @description Public forum avatar path for member reviews only; omitted (omitempty) for anonymous and legacy reviews. */
+            avatarUrl?: string;
         };
         ReviewViewerPayload: {
             /** @description True when the caller is the review author. */
@@ -6311,6 +6458,8 @@ export interface components {
             canDelete: boolean;
             /** @description True when the caller marked the review helpful (only meaningful with an optional JWT). */
             isHelpful: boolean;
+            /** @description True when the caller disliked the review (only meaningful with an optional JWT). */
+            isDisliked?: boolean;
         };
         ReviewPayload: {
             /** Format: uint64 */
@@ -6327,6 +6476,11 @@ export interface components {
             viewer: components["schemas"]["ReviewViewerPayload"];
             /** Format: int64 */
             helpfulCount: number;
+            /**
+             * Format: int64
+             * @description Number of dislikes from other users; the caller's own dislike state is exposed via viewer.isDisliked.
+             */
+            dislikeCount?: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -7645,18 +7799,30 @@ export interface components {
             /** @description Plaintext 一系统 Cookie header; encrypted with a purpose-scoped key (AES-256-GCM) before persistence and never stored in plaintext. An empty/blank value clears the stored credential. Longer than 4096 characters fails request validation with `common.request.invalidParams` (HTTP 200). When encryption itself fails (signingKey misconfigured) the response is a generic HTTP 200 `code: 1` failure with no `messageCode`. */
             cookie?: string;
         };
-        /** @description Exposure boundary — only the switch and quota are stored/returned; provider, base_url, api_key, and model live in config.toml `[ai_summary]` and never enter the DB or this API. */
         AdminAiSummarySettingsConfig: {
             /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
             enabled: boolean;
             /** @description Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5. */
             globalPerMinute: number;
+            /** @description OpenAI-compatible endpoint, e.g. `https://api.openai.com/v1` or `https://api.siliconflow.cn/v1`. Stored without a trailing slash. When set, the admin-provided provider configuration wins over config.toml `[ai_summary]`. */
+            baseUrl?: string;
+            /** @description Model id, e.g. `gpt-4o`; can be picked from the auto-fetched list or typed manually. */
+            model?: string;
+            /** @description Plaintext api key accepted on save requests (issue */
+            apiKey?: string;
+            /**
+             * Format: float
+             * @description Optional sampling temperature; unset uses the default 0.3.
+             */
+            temperature?: number;
+            /** @description Optional max output tokens; unset uses the default 1024. */
+            maxTokens?: number;
         };
         AdminAiSummarySettingsResponse: components["schemas"]["ApiSuccess"] & {
             /** @description Stored AI summary settings, or the built-in default when nothing has been saved. */
-            result: components["schemas"]["AdminAiSummarySettingsConfig"];
+            result: components["schemas"]["AdminAiSummarySettingsView"];
         };
-        /** @description Replacement AI summary settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        /** @description Replacement AI summary settings. Non-empty `apiKey` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored key (issue */
         AdminSaveAiSummarySettingsRequest: {
             settings?: components["schemas"]["AdminAiSummarySettingsConfig"];
         };
@@ -7806,6 +7972,26 @@ export interface components {
         /** @description Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
         AdminSaveMcpSettingsRequest: {
             settings?: components["schemas"]["AdminMcpSettingsConfig"];
+        };
+        AdminScheduleSectionTime: {
+            /** @description Class-period number (第 N 节), 1..12. */
+            section: number;
+            /** @description Period start as strict 24-hour `HH:MM` (clock values validated server-side). */
+            start: string;
+            /** @description Period end as strict 24-hour `HH:MM` (clock values validated server-side). */
+            end: string;
+        };
+        AdminScheduleSettingsConfig: {
+            /** @description The 12 class periods shown on the /schedule timetable, sorted by section ascending and deduplicated per section. */
+            sectionTimes: components["schemas"]["AdminScheduleSectionTime"][];
+        };
+        AdminScheduleSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored section times, or the built-in default table when nothing has been saved. */
+            result: components["schemas"]["AdminScheduleSettingsConfig"];
+        };
+        /** @description Replacement section times. Any entry with a section outside 1..12, a non-`HH:MM` start/end, or a start not strictly earlier than its end rejects the whole submission with `common.request.invalidParams`. */
+        AdminSaveScheduleSettingsRequest: {
+            settings?: components["schemas"]["AdminScheduleSettingsConfig"];
         };
         AdminBadgeListItem: components["schemas"]["AdminBadge"] & {
             /** @description True for built-in system badges (always listed; DB rows can only override their display fields). */
@@ -8321,6 +8507,16 @@ export interface components {
         PkCalendarItem: {
             calendarId: number;
             calendarName: string;
+            /**
+             * Format: date
+             * @description 学期开始日期（YYYY-MM-DD）；未配置学期日期时为 null。
+             */
+            startDate: string | null;
+            /**
+             * Format: date
+             * @description 学期结束日期（YYYY-MM-DD）；未配置学期日期时为 null。
+             */
+            endDate: string | null;
         };
         PkCampusItem: {
             campusId: string;
@@ -9097,6 +9293,18 @@ export interface components {
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
         }) | components["schemas"]["ApiFailure"];
+        CourseBookmarkRequest: {
+            /**
+             * Format: uint64
+             * @description Target course; unknown or hidden ids fail with `course.notFound` (HTTP 404).
+             */
+            courseId: number;
+            /**
+             * @description 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
         AdminHttpNotifyEndpointView: {
             id: string;
             name: string;
@@ -9115,6 +9323,44 @@ export interface components {
             enabled: boolean;
             endpoints: components["schemas"]["AdminHttpNotifyEndpointView"][];
         };
+        /** @description Admin GET view — provider endpoint/model are returned, the api key only as a configured flag. */
+        AdminAiSummarySettingsView: {
+            /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
+            enabled: boolean;
+            /** @description Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5. */
+            globalPerMinute: number;
+            /** @description OpenAI-compatible endpoint (stored configuration or empty when unset). */
+            baseUrl: string;
+            /** @description Model id (stored configuration or empty when unset). */
+            model: string;
+            /** @description Whether an api key is stored — the key itself is never returned (issue */
+            apiKeyConfigured: boolean;
+            /**
+             * Format: float
+             * @description Optional sampling temperature; unset uses the default 0.3.
+             */
+            temperature?: number;
+            /** @description Optional max output tokens; unset uses the default 1024. */
+            maxTokens?: number;
+        };
+        /** @description Probe request for the OpenAI-compatible `/models` endpoint. Supports testing credentials before saving them. */
+        AdminAiSummaryModelsRequest: {
+            /** @description Optional temporary endpoint to probe before saving; empty uses the stored configuration. */
+            baseUrl?: string;
+            /** @description Optional temporary api key to probe before saving; empty falls back to the stored (decrypted) key. */
+            apiKey?: string;
+        };
+        AdminAiSummaryModelsItem: {
+            /** @description Model id. */
+            id: string;
+            /** @description Owner organization string returned by the provider. */
+            owned_by?: string;
+        };
+        AdminAiSummaryModelsResponse: (components["schemas"]["ApiSuccess"] & {
+            result: {
+                models: components["schemas"]["AdminAiSummaryModelsItem"][];
+            };
+        }) | components["schemas"]["ApiFailure"];
         AdminMailSettingsView: {
             enableMail: boolean;
             smtpHost: string;
@@ -12261,10 +12507,10 @@ export interface operations {
         parameters: {
             query?: {
                 keyword?: string;
-                department?: string;
-                term?: string;
-                campus?: string;
-                instructor?: string;
+                department?: string[];
+                term?: string[];
+                campus?: string[];
+                instructor?: string[];
                 onlyWithReviews?: boolean;
                 sortBy?: string;
                 page?: number;
@@ -12301,6 +12547,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    bookmarkCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourseBookmarkRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Bookmark applied (or already in the target state). A malformed body or a zero
+             *     course id also returns HTTP 200 with `common.request.invalidParams`, because this
+             *     route binds non-strictly — clients must branch on `code`, not on the HTTP status.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course bookmark rate limit (action `course.bookmark`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -12840,6 +13142,106 @@ export interface operations {
                 };
             };
             /** @description Helpful rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    markReviewDislike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Dislike rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    unmarkReviewDislike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Dislike rate limit exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;
@@ -15490,6 +15892,48 @@ export interface operations {
             };
         };
     };
+    adminListAiSummaryModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAiSummaryModelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Model list, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiSummaryModelsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     adminGetTermsOfService: {
         parameters: {
             query?: never;
@@ -16026,6 +16470,86 @@ export interface operations {
         };
         responses: {
             /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Section times (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminScheduleSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveScheduleSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`), or a `code: 1` validation failure. */
             200: {
                 headers: {
                     [name: string]: unknown;

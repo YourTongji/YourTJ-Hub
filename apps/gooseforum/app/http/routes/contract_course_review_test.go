@@ -39,6 +39,7 @@ func setupCourseReviewContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.OfferingEntity{},
 		&course.ReviewEntity{},
 		&course.HelpfulEntity{},
+		&course.DislikeEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
 		&course.AliasEntity{},
@@ -57,6 +58,7 @@ func setupCourseReviewContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	// 清空课评域表，保证各用例 fixture 断言确定性。
 	for _, model := range []any{
 		&course.HelpfulEntity{},
+		&course.DislikeEntity{},
 		&course.ReviewEntity{},
 		&course.OfferingEntity{},
 		&course.TermEntity{},
@@ -79,6 +81,8 @@ func setupCourseReviewContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.DELETE("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriReq(forum.DeleteCourseReview))
 	forumLoginAPI.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
 	forumLoginAPI.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
+	forumLoginAPI.PUT("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.MarkReviewDislike))
+	forumLoginAPI.DELETE("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.UnmarkReviewDislike))
 	forumLoginAPI.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
 	forumLoginAPI.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
 	forumLoginAPI.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
@@ -154,20 +158,35 @@ func sortedReviewKeys(item map[string]any) string {
 }
 
 // assertNoReviewIdentityKeys 递归断言评价 DTO 中不出现任何作者身份字段。
+// member 评价公开论坛头像（avatarUrl，与 serverless reviewer_avatar 同语义）允许；
+// 匿名/历史评价（author.kind != member）的 avatarUrl 必须为空（服务端 omitempty）。
 func assertNoReviewIdentityKeys(t *testing.T, value any) {
+	t.Helper()
+	assertNoReviewIdentityKeysWithKind(t, value, "")
+}
+
+func assertNoReviewIdentityKeysWithKind(t *testing.T, value any, authorKind string) {
 	t.Helper()
 	switch v := value.(type) {
 	case map[string]any:
+		kind := authorKind
+		if k, ok := v["kind"].(string); ok {
+			kind = k // author 对象自描述 kind，向后代传播
+		}
 		for key, child := range v {
 			switch key {
-			case "userId", "authorUserId", "username", "nickname", "avatar", "avatarUrl":
+			case "userId", "authorUserId", "username", "nickname":
 				t.Fatalf("review payload leaks identity key %q", key)
+			case "avatar", "avatarUrl":
+				if kind != "member" {
+					t.Fatalf("anonymous review payload leaks identity key %q", key)
+				}
 			}
-			assertNoReviewIdentityKeys(t, child)
+			assertNoReviewIdentityKeysWithKind(t, child, kind)
 		}
 	case []any:
 		for _, child := range v {
-			assertNoReviewIdentityKeys(t, child)
+			assertNoReviewIdentityKeysWithKind(t, child, authorKind)
 		}
 	}
 }
@@ -189,13 +208,40 @@ func isRFC3339(raw string) bool {
 	return err == nil
 }
 
+// assertReviewAuthorShape 校验作者结构：kind/label 精确一致；
+// member 头像（avatarUrl）为随机站内路径（/static/pic/<n>.webp），只校验路径格式，
+// 其余（匿名/历史）不得携带 avatarUrl。
+func assertReviewAuthorShape(t *testing.T, actual, fixture map[string]any) {
+	t.Helper()
+	actualAuthor, ok := actual["author"].(map[string]any)
+	if !ok {
+		t.Fatalf("review author = %#v, want object", actual["author"])
+	}
+	fixtureAuthor, ok := fixture["author"].(map[string]any)
+	if !ok {
+		t.Fatalf("fixture author = %#v, want object", fixture["author"])
+	}
+	if actualAuthor["kind"] != fixtureAuthor["kind"] || actualAuthor["label"] != fixtureAuthor["label"] {
+		t.Fatalf("review author = %#v, want fixture %#v", actualAuthor, fixtureAuthor)
+	}
+	kind, _ := fixtureAuthor["kind"].(string)
+	if kind == "member" {
+		raw, _ := actualAuthor["avatarUrl"].(string)
+		if raw == "" || !strings.HasPrefix(raw, "/static/pic/") {
+			t.Fatalf("member review avatarUrl = %#v, want /static/pic/ path", raw)
+		}
+	} else if _, leaked := actualAuthor["avatarUrl"]; leaked {
+		t.Fatalf("anonymous review leaks avatarUrl: %#v", actualAuthor)
+	}
+}
+
 // assertReviewItemShape 校验单条评价的结构与 fixture 一致（时间戳只校验 RFC3339 可解析）。
 func assertReviewItemShape(t *testing.T, actual, fixture map[string]any) {
 	t.Helper()
-	if got, want := sortedReviewKeys(actual), "author,content,contentHtml,createdAt,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
+	if got, want := sortedReviewKeys(actual), "author,content,contentHtml,createdAt,dislikeCount,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
 		t.Fatalf("review keys = %s, want %s", got, want)
 	}
-	for _, key := range []string{"id", "offeringId", "rating", "content", "contentHtml", "helpfulCount"} {
+	for _, key := range []string{"id", "offeringId", "rating", "content", "contentHtml", "helpfulCount", "dislikeCount"} {
 		if !reflect.DeepEqual(actual[key], fixture[key]) {
 			t.Fatalf("review %s = %#v, want fixture %#v", key, actual[key], fixture[key])
 		}
@@ -206,9 +252,7 @@ func assertReviewItemShape(t *testing.T, actual, fixture map[string]any) {
 			t.Fatalf("review %s = %#v, want RFC3339 string", key, actual[key])
 		}
 	}
-	if !reflect.DeepEqual(actual["author"], fixture["author"]) {
-		t.Fatalf("review author = %#v, want fixture %#v", actual["author"], fixture["author"])
-	}
+	assertReviewAuthorShape(t, actual, fixture)
 	if !reflect.DeepEqual(actual["viewer"], fixture["viewer"]) {
 		t.Fatalf("review viewer = %#v, want fixture %#v", actual["viewer"], fixture["viewer"])
 	}
@@ -224,7 +268,7 @@ func assertReviewWriteShape(t *testing.T, response contractEnvelope, wantRating 
 	if err := json.Unmarshal(response.Result, &item); err != nil {
 		t.Fatalf("decode review write result %q: %v", response.Result, err)
 	}
-	if got, want := sortedReviewKeys(item), "author,content,contentHtml,createdAt,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
+	if got, want := sortedReviewKeys(item), "author,content,contentHtml,createdAt,dislikeCount,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
 		t.Fatalf("review keys = %s, want %s", got, want)
 	}
 	assertNoReviewIdentityKeys(t, item)

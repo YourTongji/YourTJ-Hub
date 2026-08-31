@@ -453,6 +453,127 @@ unmarkReviewHelpful:
             schema:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
 
+markReviewDislike:
+  put:
+    tags: [Forum]
+    summary: Mark a course review as disliked
+    operationId: markReviewDislike
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write, idempotent: marking an already-disliked review succeeds. Hidden or
+      deleted reviews report 404 `review.notFound`. The caller's own dislike state is exposed
+      via the review DTO's `viewer.isDisliked`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Dislike rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+unmarkReviewDislike:
+  delete:
+    tags: [Forum]
+    summary: Unmark a course review as disliked
+    operationId: unmarkReviewDislike
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write, idempotent: unmarking a review that is not disliked succeeds. Hidden or
+      deleted reviews report 404 `review.notFound`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Dislike rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
 reportCourseReview:
   post:
     tags: [Forum]

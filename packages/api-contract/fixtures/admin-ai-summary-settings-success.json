@@ -1,7 +1,12 @@
 {
   "result": {
     "enabled": true,
-    "globalPerMinute": 10
+    "globalPerMinute": 10,
+    "baseUrl": "https://api.openai.com/v1",
+    "model": "gpt-4o",
+    "apiKeyConfigured": true,
+    "temperature": 0.3,
+    "maxTokens": 1024
   },
   "code": 0
 }

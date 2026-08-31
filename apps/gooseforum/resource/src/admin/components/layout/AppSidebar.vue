@@ -4,6 +4,7 @@ import {
   BookOpen,
   Award,
   Bot,
+  Clock,
   Database,
   FileText,
   Files,
@@ -109,6 +110,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k00fn'), url: '/admin/settings/storage', icon: HardDrive, permission: AdminPermission.SiteManager },
       { title: adminText('k00gp'), url: '/admin/settings/terms', icon: ScrollText, permission: AdminPermission.SiteManager },
       { title: adminText('k00t4'), url: '/admin/settings/onesystem', icon: RefreshCw, permission: AdminPermission.SiteManager },
+      { title: adminText('k00u1'), url: '/admin/settings/schedule', icon: Clock, permission: AdminPermission.SiteManager },
     ],
   },
   ].map(group => ({

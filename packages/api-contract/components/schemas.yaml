@@ -1347,6 +1347,9 @@ ReviewAuthorPayload:
     label:
       type: string
       description: Display label (for example 匿名同学 for anonymous reviews).
+    avatarUrl:
+      type: string
+      description: Public forum avatar path for member reviews only; omitted (omitempty) for anonymous and legacy reviews.
   additionalProperties: false
   description: Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO.
 
@@ -1363,6 +1366,9 @@ ReviewViewerPayload:
     isHelpful:
       type: boolean
       description: True when the caller marked the review helpful (only meaningful with an optional JWT).
+    isDisliked:
+      type: boolean
+      description: True when the caller disliked the review (only meaningful with an optional JWT).
   additionalProperties: false
 
 ReviewPayload:
@@ -1396,6 +1402,11 @@ ReviewPayload:
       type: integer
       format: int64
       minimum: 0
+    dislikeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of dislikes from other users; the caller's own dislike state is exposed via viewer.isDisliked.
     createdAt:
       type: string
       format: date-time
@@ -2022,6 +2033,21 @@ PostInteractionRequest:
       description: 1 sets the interaction (like/bookmark), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
   additionalProperties: false
 
+CourseBookmarkRequest:
+  type: object
+  required: [courseId, action]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target course; unknown or hidden ids fail with `course.notFound` (HTTP 404).
+    action:
+      type: integer
+      enum: [1, 2]
+      description: 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
 InteractionSuccess:
   allOf:
     - $ref: '#/ApiSuccess'
@@ -2429,12 +2455,20 @@ PkFailure:
 
 PkCalendarItem:
   type: object
-  required: [calendarId, calendarName]
+  required: [calendarId, calendarName, startDate, endDate]
   properties:
     calendarId:
       type: integer
     calendarName:
       type: string
+    startDate:
+      type: [string, 'null']
+      format: date
+      description: 学期开始日期（YYYY-MM-DD）；未配置学期日期时为 null。
+    endDate:
+      type: [string, 'null']
+      format: date
+      description: 学期结束日期（YYYY-MM-DD）；未配置学期日期时为 null。
   additionalProperties: false
 
 PkCampusItem:
@@ -6781,8 +6815,52 @@ AdminAiSummarySettingsConfig:
     globalPerMinute:
       type: integer
       description: Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5.
+    baseUrl:
+      type: string
+      description: OpenAI-compatible endpoint, e.g. `https://api.openai.com/v1` or `https://api.siliconflow.cn/v1`. Stored without a trailing slash. When set, the admin-provided provider configuration wins over config.toml `[ai_summary]`.
+    model:
+      type: string
+      description: Model id, e.g. `gpt-4o`; can be picked from the auto-fetched list or typed manually.
+    apiKey:
+      type: string
+      description: Plaintext api key accepted on save requests (issue #324 security pattern). Never stored or returned in plaintext — an empty value on save keeps the stored (encrypted) key.
+    temperature:
+      type: number
+      format: float
+      description: Optional sampling temperature; unset uses the default 0.3.
+    maxTokens:
+      type: integer
+      description: Optional max output tokens; unset uses the default 1024.
   additionalProperties: false
-  description: Exposure boundary — only the switch and quota are stored/returned; provider, base_url, api_key, and model live in config.toml `[ai_summary]` and never enter the DB or this API.
+
+AdminAiSummarySettingsView:
+  type: object
+  required: [enabled, globalPerMinute, baseUrl, model, apiKeyConfigured]
+  properties:
+    enabled:
+      type: boolean
+      description: Master switch; when off the summary endpoint reports `status=disabled`.
+    globalPerMinute:
+      type: integer
+      description: Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5.
+    baseUrl:
+      type: string
+      description: OpenAI-compatible endpoint (stored configuration or empty when unset).
+    model:
+      type: string
+      description: Model id (stored configuration or empty when unset).
+    apiKeyConfigured:
+      type: boolean
+      description: Whether an api key is stored — the key itself is never returned (issue #324 security pattern).
+    temperature:
+      type: number
+      format: float
+      description: Optional sampling temperature; unset uses the default 0.3.
+    maxTokens:
+      type: integer
+      description: Optional max output tokens; unset uses the default 1024.
+  additionalProperties: false
+  description: Admin GET view — provider endpoint/model are returned, the api key only as a configured flag.
 
 AdminAiSummarySettingsResponse:
   allOf:
@@ -6791,7 +6869,7 @@ AdminAiSummarySettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminAiSummarySettingsConfig'
+          $ref: '#/AdminAiSummarySettingsView'
           description: Stored AI summary settings, or the built-in default when nothing has been saved.
 
 AdminSaveAiSummarySettingsRequest:
@@ -6800,7 +6878,49 @@ AdminSaveAiSummarySettingsRequest:
     settings:
       $ref: '#/AdminAiSummarySettingsConfig'
   additionalProperties: false
-  description: Replacement AI summary settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+  description: Replacement AI summary settings. Non-empty `apiKey` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored key (issue #324 security pattern). The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+
+AdminAiSummaryModelsRequest:
+  type: object
+  properties:
+    baseUrl:
+      type: string
+      description: Optional temporary endpoint to probe before saving; empty uses the stored configuration.
+    apiKey:
+      type: string
+      description: Optional temporary api key to probe before saving; empty falls back to the stored (decrypted) key.
+  additionalProperties: false
+  description: Probe request for the OpenAI-compatible `/models` endpoint. Supports testing credentials before saving them.
+
+AdminAiSummaryModelsItem:
+  type: object
+  required: [id]
+  properties:
+    id:
+      type: string
+      description: Model id.
+    owned_by:
+      type: string
+      description: Owner organization string returned by the provider.
+  additionalProperties: false
+
+AdminAiSummaryModelsResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              type: object
+              required: [models]
+              properties:
+                models:
+                  type: array
+                  items:
+                    $ref: '#/AdminAiSummaryModelsItem'
+              additionalProperties: false
+    - $ref: '#/ApiFailure'
 
 AdminLegalDocumentConfig:
   type: object
@@ -7149,6 +7269,54 @@ AdminSaveMcpSettingsRequest:
       $ref: '#/AdminMcpSettingsConfig'
   additionalProperties: false
   description: Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+
+AdminScheduleSectionTime:
+  type: object
+  required: [section, start, end]
+  properties:
+    section:
+      type: integer
+      minimum: 1
+      maximum: 12
+      description: Class-period number (第 N 节), 1..12.
+    start:
+      type: string
+      pattern: '^\d{2}:\d{2}$'
+      description: Period start as strict 24-hour `HH:MM` (clock values validated server-side).
+    end:
+      type: string
+      pattern: '^\d{2}:\d{2}$'
+      description: Period end as strict 24-hour `HH:MM` (clock values validated server-side).
+  additionalProperties: false
+
+AdminScheduleSettingsConfig:
+  type: object
+  required: [sectionTimes]
+  properties:
+    sectionTimes:
+      type: array
+      items:
+        $ref: '#/AdminScheduleSectionTime'
+      description: The 12 class periods shown on the /schedule timetable, sorted by section ascending and deduplicated per section.
+  additionalProperties: false
+
+AdminScheduleSettingsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminScheduleSettingsConfig'
+          description: Stored section times, or the built-in default table when nothing has been saved.
+
+AdminSaveScheduleSettingsRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminScheduleSettingsConfig'
+  additionalProperties: false
+  description: Replacement section times. Any entry with a section outside 1..12, a non-`HH:MM` start/end, or a start not strictly earlier than its end rejects the whole submission with `common.request.invalidParams`.
 
 # ================= Admin content ops: badges / review queue / file resources（Issue #277 P3 切片六）=================
 

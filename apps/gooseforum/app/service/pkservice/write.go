@@ -18,9 +18,15 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 	// 元数据列（issue #185）：本批次所有行共享同一 schema 版本与同步时间。
 	now := time.Now()
 
-	// calendar 只需写一次（取首行 i18n）。
+	// calendar 只需写一次（取首行 i18n）；学期起止日期从部署 config [pk.semester_dates]
+	// 按 calendar_id_i18n 命中填充（一系统数据不含日期，已核实），未配置保持 NULL。
 	calendarI18n := strings.TrimSpace(list[0].CalendarIdI18n)
-	if err := pk.UpsertCalendarsTx(tx, []pk.CalendarEntity{{CalendarId: calendarId, CalendarIdI18n: calendarI18n, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now}}); err != nil {
+	dateRange := loadSemesterDates()[calendarI18n]
+	calendarRow := pk.CalendarEntity{CalendarId: calendarId, CalendarIdI18n: calendarI18n, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now}
+	if dateRange.Start != nil || dateRange.End != nil {
+		calendarRow.StartDate, calendarRow.EndDate = dateRange.Start, dateRange.End
+	}
+	if err := pk.UpsertCalendarsTx(tx, []pk.CalendarEntity{calendarRow}); err != nil {
 		return 0, err
 	}
 

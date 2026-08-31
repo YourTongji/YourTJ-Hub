@@ -99,7 +99,7 @@ func AdminCourseList(q AdminCourseQuery) (AdminCoursePage, error) {
 	}
 	entities, total, err := course.ListCourses(course.ListCourseQuery{
 		Keyword:       Normalize(q.Keyword),
-		Department:    q.Department,
+		Department:    normalizeMulti([]string{q.Department}),
 		Page:          page,
 		Size:          size,
 		IncludeHidden: true,
@@ -357,10 +357,15 @@ func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 		}
 		var reviewCount int64
 		if len(offeringIds) > 0 {
-			// 评价关联的 helpful 标记先清理（物理删除，避免悬挂）。
+			// 评价关联的 helpful/dislike 标记先清理（物理删除，避免悬挂）。
 			if err := tx.Unscoped().Table((&course.HelpfulEntity{}).TableName()).
 				Where("review_id IN (SELECT id FROM course_review WHERE offering_id IN ? AND deleted_at IS NULL)", offeringIds).
 				Delete(&course.HelpfulEntity{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Unscoped().Table((&course.DislikeEntity{}).TableName()).
+				Where("review_id IN (SELECT id FROM course_review WHERE offering_id IN ? AND deleted_at IS NULL)", offeringIds).
+				Delete(&course.DislikeEntity{}).Error; err != nil {
 				return err
 			}
 			if err := tx.Model(&course.ReviewEntity{}).

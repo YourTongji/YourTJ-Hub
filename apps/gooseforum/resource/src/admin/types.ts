@@ -273,6 +273,22 @@ export interface MCPSettings {
 export interface AiSummarySettings {
   enabled: boolean
   globalPerMinute: number
+  /** OpenAI-compatible 端点，如 https://api.openai.com/v1 */
+  baseUrl: string
+  /** 模型 ID，如 gpt-4o */
+  model: string
+  /** 保存请求携带的明文 apiKey（留空 = 保留已存密钥）；GET 回显恒为空 */
+  apiKey: string
+  /** GET 回显（issue #324 安全模式）：apiKey 是否已配置（服务端加密存储，不回显密钥） */
+  apiKeyConfigured?: boolean
+  temperature?: number
+  maxTokens?: number
+}
+
+/** /models 端点返回的模型条目（OpenAI compatible）。 */
+export interface AiSummaryModelItem {
+  id: string
+  owned_by: string
 }
 
 export interface OnesystemSettings {
@@ -290,6 +306,18 @@ export interface PkSyncStatusItem {
   errorMsg: string
   startedAt?: string | null
   finishedAt?: string | null
+}
+
+/** 排课器节次作息：单节开始/结束时间（HH:MM）。 */
+export interface ScheduleSectionTime {
+  section: number
+  start: string
+  end: string
+}
+
+/** 排课器节次作息设置（控制 /schedule 课表左侧的节次时间展示）。 */
+export interface ScheduleSettings {
+  sectionTimes: ScheduleSectionTime[]
 }
 
 export interface StorageSettings {

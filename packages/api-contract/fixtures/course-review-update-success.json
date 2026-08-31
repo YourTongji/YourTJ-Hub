@@ -7,16 +7,19 @@
     "contentHtml": "<p>更新后的评价</p>\n",
     "author": {
       "kind": "member",
-      "label": "alice"
+      "label": "alice",
+      "avatarUrl": "/static/pic/default-avatar.webp"
     },
     "viewer": {
       "canEdit": true,
       "canDelete": true,
-      "isHelpful": false
+      "isHelpful": false,
+      "isDisliked": false
     },
     "helpfulCount": 0,
     "createdAt": "2026-08-01T10:00:00+08:00",
-    "updatedAt": "2026-08-01T11:00:00+08:00"
+    "updatedAt": "2026-08-01T11:00:00+08:00",
+    "dislikeCount": 0
   },
   "code": 0
 }

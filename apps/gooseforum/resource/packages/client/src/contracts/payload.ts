@@ -950,10 +950,10 @@ export interface CourseSearchPayload {
 export interface CourseCatalogPageProps {
   query: {
     keyword?: string
-    department?: string
-    term?: string
-    campus?: string
-    instructor?: string
+    department?: string[]
+    term?: string[]
+    campus?: string[]
+    instructor?: string[]
     onlyWithReviews?: boolean
     sortBy?: string
     page: number
@@ -971,6 +971,8 @@ export interface CourseCatalogPageProps {
   terms: Array<{ value: string; label: string }>
   /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
   campuses: string[]
+  /** 当前登录用户已收藏的课程 id（issue #331）；未登录/无收藏时省略或为空。 */
+  bookmarkedCourseIDs?: number[]
 }
 
 export interface CourseSummaryPayload {
@@ -1031,7 +1033,10 @@ export interface CourseManagementPageProps {
 }
 
 export interface SchedulePageProps {
-  // 排课器数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts），SSR 仅提供空壳。
+  // 排课器课程数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts）。
+  // sectionTimes：后台「设置 → 排课器作息」维护的 12 节起止时间（SSR 注入，
+  // 供课表左侧时间与上午/下午/晚上分组；未配置时前端走内置默认表）。
+  sectionTimes?: Array<{ section: number; start: string; end: string }>
 }
 
 // ---- wiki 分站 ----

@@ -1,9 +1,10 @@
 package forum
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/gin-gonic/gin"
 )
 
 // Schedule 排课器 SSR 页面（/schedule）。
@@ -12,11 +13,13 @@ import (
 func Schedule(c *gin.Context) {
 	payload := PagePayload{
 		Component: PageComponentSchedule,
-		Props:     ScheduleProps{},
-		Meta:      buildScheduleMeta(c),
-		Layout:    buildLayout(c, "schedule"),
-		URL:       buildPageURL(c),
-		Version:   payloadVersion,
+		Props: ScheduleProps{
+			SectionTimes: hotdataserve.GetScheduleSettingsConfigCache().SectionTimes,
+		},
+		Meta:    buildScheduleMeta(c),
+		Layout:  buildLayout(c, "schedule"),
+		URL:     buildPageURL(c),
+		Version: payloadVersion,
 	}
 	renderAppShell(c, payload)
 }

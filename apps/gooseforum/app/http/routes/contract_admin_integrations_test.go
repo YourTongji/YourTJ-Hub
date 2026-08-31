@@ -54,6 +54,8 @@ func setupAdminIntegrationsContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	integrationsAPI.GET("/storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks))
 	integrationsAPI.GET("/mcp-settings", UpButterReq(api.GetMCPSettings))
 	integrationsAPI.POST("/save-mcp-settings", UpButterReq(api.SaveMCPSettings))
+	integrationsAPI.GET("/schedule-settings", UpButterReq(api.GetScheduleSettings))
+	integrationsAPI.POST("/save-schedule-settings", UpButterReq(api.SaveScheduleSettings))
 	return conn, router
 }
 
@@ -61,6 +63,7 @@ func clearAdminIntegrationCaches() {
 	hotdataserve.ClearMailSettingsConfigCache()
 	hotdataserve.ClearStorageSettingsConfigCache()
 	hotdataserve.ClearMCPSettingsConfigCache()
+	hotdataserve.ClearScheduleSettingsConfigCache()
 }
 
 // adminIntegrationsGuardScenarios 跑本文件 10 条路由公共的中间件守卫场景：
@@ -433,4 +436,92 @@ func TestAdminSaveMcpSettingsHTTPContract(t *testing.T) {
 	})
 
 	adminIntegrationsGuardScenarios(t, http.MethodPost, path, "admin-save-mcp-settings")
+}
+
+func TestAdminGetScheduleSettingsHTTPContract(t *testing.T) {
+	path := "/api/admin/schedule-settings"
+
+	t.Run("success returns the stored section times", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		persistContractPageConfig(t, conn, pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{
+			SectionTimes: []pageConfig.ScheduleSectionTime{
+				{Section: 1, Start: "08:00", End: "08:45"},
+				{Section: 2, Start: "08:50", End: "09:35"},
+				{Section: 3, Start: "10:00", End: "10:45"},
+				{Section: 4, Start: "10:50", End: "11:35"},
+				{Section: 5, Start: "13:30", End: "14:15"},
+				{Section: 6, Start: "14:20", End: "15:05"},
+				{Section: 7, Start: "15:30", End: "16:15"},
+				{Section: 8, Start: "16:20", End: "17:05"},
+				{Section: 9, Start: "17:10", End: "17:55"},
+				{Section: 10, Start: "18:30", End: "19:15"},
+				{Section: 11, Start: "19:20", End: "20:05"},
+				{Section: 12, Start: "20:10", End: "20:55"},
+			},
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-schedule-settings-success.json")
+	})
+
+	adminIntegrationsGuardScenarios(t, http.MethodGet, path, "admin-schedule-settings")
+}
+
+func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
+	path := "/api/admin/save-schedule-settings"
+
+	t.Run("success replaces the stored section times", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.ScheduleSettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearScheduleSettingsConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"sectionTimes":[{"section":12,"start":"20:10","end":"20:55"},{"section":1,"start":"08:00","end":"08:45"}]}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{})
+		if len(stored.SectionTimes) != 2 {
+			t.Fatalf("stored schedule settings = %#v, want two section times", stored)
+		}
+		// 输入按节次升序排序后落库（12 在前提交，存储后 1 在前）。
+		if stored.SectionTimes[0].Section != 1 || stored.SectionTimes[1].Section != 12 {
+			t.Fatalf("stored section times = %#v, want sorted by section ascending", stored.SectionTimes)
+		}
+	})
+
+	t.Run("duplicate section entries keep the first occurrence", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.ScheduleSettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearScheduleSettingsConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"sectionTimes":[{"section":1,"start":"08:00","end":"08:45"},{"section":1,"start":"09:00","end":"09:45"}]}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{})
+		if len(stored.SectionTimes) != 1 || stored.SectionTimes[0].Start != "08:00" {
+			t.Fatalf("stored section times = %#v, want the deduplicated first entry", stored.SectionTimes)
+		}
+	})
+
+	t.Run("section outside 1..12 fails with invalidParams", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"sectionTimes":[{"section":13,"start":"08:00","end":"08:45"}]}}`,
+			"invalid-params.json")
+	})
+
+	t.Run("malformed clock value fails with invalidParams", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"sectionTimes":[{"section":1,"start":"8:00","end":"08:45"}]}}`,
+			"invalid-params.json")
+	})
+
+	t.Run("end before start fails with invalidParams", func(t *testing.T) {
+		conn, router := setupAdminIntegrationsContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"sectionTimes":[{"section":1,"start":"10:00","end":"09:00"}]}}`,
+			"invalid-params.json")
+	})
+
+	adminIntegrationsGuardScenarios(t, http.MethodPost, path, "admin-save-schedule-settings")
 }

@@ -26,8 +26,10 @@ import type {
   PageResult,
   PostingSettings,
   MCPSettings,
+  AiSummaryModelItem,
   AiSummarySettings,
   OnesystemSettings,
+  ScheduleSettings,
   PkSyncStatusItem,
   RateLimitSettings,
   ReviewQueueItem,
@@ -394,6 +396,10 @@ export function saveAiSummarySettings(settings: AiSummarySettings) {
   return postJson<unknown>('/api/admin/save-ai-summary-settings', { settings }, adminText('k00p3'))
 }
 
+export function listAiSummaryModels(params: { baseUrl?: string, apiKey?: string }) {
+  return postJson<{ models: AiSummaryModelItem[] }>('/api/admin/ai-summary-models', params, adminText('k00p8'))
+}
+
 export function getOnesystemSettings() {
   return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
 }
@@ -412,6 +418,16 @@ export function syncPkCalendar(term: string, depth = 1) {
 
 export function getPkSyncStatus() {
   return getJson<PkSyncStatusItem[]>('/api/admin/pk/sync-status', adminText('k00s3'))
+}
+
+export function getScheduleSettings() {
+  return getJson<ScheduleSettings>('/api/admin/schedule-settings', adminText('k00u7'))
+}
+
+export function saveScheduleSettings(settings: ScheduleSettings) {
+  // 契约 AdminSaveScheduleSettingsRequest：body = { settings: { sectionTimes } }。
+  // 曾发裸 { sectionTimes }，后端绑定零值 Settings 后静默存空表（review P1）。
+  return postJson<unknown>('/api/admin/save-schedule-settings', { settings }, adminText('k00u8'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

@@ -13,21 +13,31 @@ listCourses:
       - name: department
         in: query
         schema:
-          type: string
+          type: array
+          items:
+            type: string
+          description: Department name. May repeat; multiple values are OR-joined (union) within this field.
       - name: term
         in: query
         schema:
-          type: string
-          description: Term code such as 2025-2026-1.
+          type: array
+          items:
+            type: string
+          description: Term code such as 2025-2026-1. May repeat; multiple values are OR-joined (union) within this field.
       - name: campus
         in: query
         schema:
-          type: string
+          type: array
+          items:
+            type: string
+          description: Campus. May repeat; multiple values are OR-joined (union) within this field.
       - name: instructor
         in: query
         schema:
-          type: string
-          description: Teacher name matched against course_instructor name, normalized name, pinyin, and initials.
+          type: array
+          items:
+            type: string
+          description: Teacher name matched against course_instructor name, normalized name, pinyin, and initials. May repeat or be comma-separated; OR-joined (union) within this field.
       - name: onlyWithReviews
         in: query
         schema:
@@ -191,6 +201,79 @@ getCourseRelated:
             examples:
               internalError:
                 externalValue: ../fixtures/course-internal-error.json
+
+bookmarkCourse:
+  post:
+    tags: [Forum]
+    summary: Bookmark or unbookmark a course
+    operationId: bookmarkCourse
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. Unknown or hidden course ids fail with `course.notFound` (HTTP 404);
+      a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` on HTTP 200 — this route binds non-strictly
+      (`UpButterReq`), so validation failures return the legacy 200 envelope
+      rather than 400.
+      Course bookmarking reuses the project's
+      bookmark semantics (action 1 = bookmark, action 2 = unbookmark).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/CourseBookmarkRequest
+    responses:
+      '200':
+        description: |
+          Bookmark applied (or already in the target state). A malformed body or a zero
+          course id also returns HTTP 200 with `common.request.invalidParams`, because this
+          route binds non-strictly — clients must branch on `code`, not on the HTTP status.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              invalidRequest:
+                summary: Validation failure (malformed body, or courseId 0) — HTTP 200 legacy envelope.
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '404':
+        description: Course does not exist or is hidden.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-bookmark-not-found.json
+      '429':
+        description: Course bookmark rate limit (action `course.bookmark`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/course-bookmark-rate-limited.json
 
 getCourseSummary:
   get:

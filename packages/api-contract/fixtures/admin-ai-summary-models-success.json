@@ -1,0 +1,10 @@
+{
+  "result": {
+    "models": [
+      { "id": "gpt-4o", "owned_by": "openai" },
+      { "id": "gpt-4o-mini", "owned_by": "openai" },
+      { "id": "Qwen/Qwen2.5-7B-Instruct", "owned_by": "siliconflow" }
+    ]
+  },
+  "code": 0
+}

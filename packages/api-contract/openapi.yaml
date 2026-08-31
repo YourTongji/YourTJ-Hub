@@ -196,6 +196,9 @@ paths:
   /api/forum/courses:
     get:
       $ref: ./paths/courses.yaml#/listCourses/get
+  /api/forum/courses/bookmark:
+    post:
+      $ref: ./paths/courses.yaml#/bookmarkCourse/post
   /api/forum/courses/{courseId}:
     get:
       $ref: ./paths/courses.yaml#/getCourse/get
@@ -221,6 +224,11 @@ paths:
       $ref: ./paths/course-reviews.yaml#/markReviewHelpful/put
     delete:
       $ref: ./paths/course-reviews.yaml#/unmarkReviewHelpful/delete
+  /api/forum/course-reviews/{reviewId}/dislike:
+    put:
+      $ref: ./paths/course-reviews.yaml#/markReviewDislike/put
+    delete:
+      $ref: ./paths/course-reviews.yaml#/unmarkReviewDislike/delete
   /api/forum/course-reviews/{reviewId}/reports:
     post:
       $ref: ./paths/course-reviews.yaml#/reportCourseReview/post
@@ -358,6 +366,8 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminGetAiSummarySettings
   /api/admin/save-ai-summary-settings:
     $ref: ./paths/admin-site-settings.yaml#/adminSaveAiSummarySettings
+  /api/admin/ai-summary-models:
+    $ref: ./paths/admin-site-settings.yaml#/adminListAiSummaryModels
   /api/admin/terms-of-service:
     $ref: ./paths/admin-site-settings.yaml#/adminGetTermsOfService
   /api/admin/save-terms-of-service:
@@ -386,6 +396,10 @@ paths:
     $ref: ./paths/admin-integrations.yaml#/adminGetMcpSettings
   /api/admin/save-mcp-settings:
     $ref: ./paths/admin-integrations.yaml#/adminSaveMcpSettings
+  /api/admin/schedule-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetScheduleSettings
+  /api/admin/save-schedule-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveScheduleSettings
   /api/admin/badges:
     $ref: ./paths/admin-content-ops.yaml#/adminListBadges
   /api/admin/badge-save:
@@ -1227,6 +1241,14 @@ components:
       $ref: ./components/schemas.yaml#/AdminMcpSettingsResponse
     AdminSaveMcpSettingsRequest:
       $ref: ./components/schemas.yaml#/AdminSaveMcpSettingsRequest
+    AdminScheduleSectionTime:
+      $ref: ./components/schemas.yaml#/AdminScheduleSectionTime
+    AdminScheduleSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminScheduleSettingsConfig
+    AdminScheduleSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminScheduleSettingsResponse
+    AdminSaveScheduleSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveScheduleSettingsRequest
     AdminBadgeListItem:
       $ref: ./components/schemas.yaml#/AdminBadgeListItem
     AdminBadgeListResponse:

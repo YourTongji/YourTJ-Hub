@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"net/url"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -48,6 +49,76 @@ func MarkdownToHTML(markdown string) string {
 // PostMarkdownToHTML renders public user content and applies UGC link/image policies.
 func PostMarkdownToHTML(markdown string) string {
 	return normalizePostHTML(MarkdownToHTML(markdown))
+}
+
+// 课程评审段落标题（与 YourTJCourse-Serverless 前端 CollapsibleMarkdown 的
+// REVIEW_SECTION_HEADINGS 一致）：历史导入的评审正文常无 Markdown 标记，
+// 渲染前把「标题：」行归一化为 ## 标题，列表与分享卡显示统一。
+// 长词在前，避免「授课质量与给分」被「授课质量」先行截断。
+var reviewSectionHeadings = []string{
+	"授课质量与给分",
+	"上课自由度",
+	"课程内容",
+	"考核标准",
+	"授课质量",
+	"考核方式",
+	"上课学期",
+	"作业与考核",
+	"给分情况",
+	"作业量",
+	"考试难度",
+}
+
+var (
+	reviewSectionHeadingRe = regexp.MustCompile(`^(` + strings.Join(reviewSectionHeadings, "|") + `)[：:]?$`)
+	reviewSectionInlineRe  = regexp.MustCompile(`(` + strings.Join(reviewSectionHeadings, "|") + `)[：:]`)
+	reviewSectionFenceRe   = regexp.MustCompile("^\\s*(```|~~~)")
+	reviewSectionHeadingMd = regexp.MustCompile(`^\s{0,3}#{1,6}\s`)
+	reviewZeroWidthRe      = regexp.MustCompile("[\u200B\u200C\u200D\uFEFF\u2060]")
+	reviewBlankLinesRe     = regexp.MustCompile(`\n{3,}`)
+)
+
+// NormalizeCourseReviewSections 把「课程内容：…」这类无 Markdown 标记的历史评审段落
+// 归一化为 ## 标题；已带 Markdown 标记或代码围栏内的内容原样保留。
+// 独立标题行 -> 「## x」；行内「标题：」-> 拆出「## x」再保留剩余正文（与 serverless 前端一致）。
+func NormalizeCourseReviewSections(markdown string) string {
+	if markdown == "" {
+		return ""
+	}
+	raw := strings.ReplaceAll(markdown, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\r", "\n")
+	lines := strings.Split(raw, "\n")
+	normalized := make([]string, 0, len(lines))
+	inFence := false
+	for _, originalLine := range lines {
+		line := reviewZeroWidthRe.ReplaceAllString(originalLine, "")
+		if reviewSectionFenceRe.MatchString(line) {
+			inFence = !inFence
+			normalized = append(normalized, strings.TrimRight(line, " \t"))
+			continue
+		}
+		if inFence {
+			normalized = append(normalized, line)
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		if reviewSectionHeadingMd.MatchString(trimmed) {
+			normalized = append(normalized, trimmed)
+			continue
+		}
+		if match := reviewSectionHeadingRe.FindStringSubmatch(trimmed); match != nil {
+			normalized = append(normalized, "## "+match[1])
+			continue
+		}
+		if reviewSectionInlineRe.MatchString(trimmed) {
+			replaced := reviewSectionInlineRe.ReplaceAllString(trimmed, "\n## $1\n")
+			replaced = strings.TrimLeft(replaced, "\n")
+			normalized = append(normalized, strings.TrimRight(replaced, " \t"))
+			continue
+		}
+		normalized = append(normalized, line)
+	}
+	return reviewBlankLinesRe.ReplaceAllString(strings.Join(normalized, "\n"), "\n\n")
 }
 
 func normalizePostHTML(raw string) string {

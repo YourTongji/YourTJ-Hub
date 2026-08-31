@@ -52,6 +52,8 @@ async function loadCalendars() {
   error.value = ''
   try {
     calendars.value = await getPkCalendars()
+    // 回填 store 供课表周次定位/学期日期条消费（会话缓存，不持久化）。
+    store.setCalendars(calendars.value)
     // 恢复持久化的学期选择（无则自动选第一个）。
     const restored = store.state.majorSelected.calendarId
     if (restored !== undefined && calendars.value.some((c) => c.calendarId === restored)) {

@@ -1,19 +1,25 @@
 <script setup lang="ts">
-// 排课器主页面（/schedule，course.schedule）。
-// 桌面双栏（选课列表 + 课程班级）+ 下方课表；移动端三 tab（课表/选课/详情）。
+// 排课器主页面（/schedule，course.schedule）—— v2 布局。
+// 桌面左右两栏同高（grid stretch）：左栏（方案条 / 学期·年级·专业 / 统计卡 /
+// 已选课程列表）内部滚动；右栏课表为主视觉。点击课程弹出浮动「选择教学班」
+// 弹窗（取代内联班级列），避免左右栏高度互相牵制。移动端双 tab（课表/选课）。
 // 数据全部走 /api/pk/* JSON API 异步加载（SSR 空壳）；localStorage 持久化由 store 负责。
-// 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync 增量保留已选。
+// 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync
+// 以全方案课程并集请求，applySyncToAllPlans 各方案保留排课状态。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Download, RefreshCw } from '@lucide/vue'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { Download, RefreshCw, X } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import ScheduleMajorSelector from '@/site/components/schedule/ScheduleMajorSelector.vue'
+import SchedulePlanBar from '@/site/components/schedule/SchedulePlanBar.vue'
+import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
 import ScheduleRoughList from '@/site/components/schedule/ScheduleRoughList.vue'
 import ScheduleDetailList from '@/site/components/schedule/ScheduleDetailList.vue'
 import ScheduleTimeTable from '@/site/components/schedule/ScheduleTimeTable.vue'
 import ScheduleCoursePicker from '@/site/components/schedule/ScheduleCoursePicker.vue'
 import ScheduleCellPicker from '@/site/components/schedule/ScheduleCellPicker.vue'
-import ScheduleConflictDialog from '@/site/components/schedule/ScheduleConflictDialog.vue'
+import ScheduleCustomEventDialog from '@/site/components/schedule/ScheduleCustomEventDialog.vue'
 import ScheduleDetailCard from '@/site/components/schedule/ScheduleDetailCard.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
@@ -23,7 +29,7 @@ import type { LayoutPayload, SchedulePageProps } from '@gooseforum/client'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkCourseDetail, PkCourseOnTable } from '@/site/types/pk'
 
-defineProps<{
+const pageProps = defineProps<{
   layout: LayoutPayload
   props: SchedulePageProps
 }>()
@@ -32,13 +38,12 @@ const { t } = useI18n()
 const store = useScheduleStore()
 
 const isMobile = ref(false)
-const mobileTab = ref<'timetable' | 'list' | 'detail'>('timetable')
+const mobileTab = ref<'timetable' | 'list'>('timetable')
 
-const MOBILE_TABS: Array<{ key: 'timetable' | 'list' | 'detail'; label: string }> = [
-  { key: 'timetable', label: t('schedule.timetable') },
-  { key: 'list', label: t('schedule.pickCourses') },
-  { key: 'detail', label: t('schedule.detail') },
-]
+const MOBILE_TABS = [
+  { key: 'timetable', labelKey: 'schedule.timetable' },
+  { key: 'list', labelKey: 'schedule.pickCourses' },
+] as const
 
 /** 移动端 tab 方向键切换（WAI-ARIA APG Tabs，issue #227）。 */
 function handleMobileTabKeydown(event: KeyboardEvent) {
@@ -56,8 +61,9 @@ function handleMobileTabKeydown(event: KeyboardEvent) {
 }
 
 const pickerOpen = ref(false)
-const conflictDetail = ref<PkCourseDetail | null>(null)
-const conflictList = ref<PkConflictItem[]>([])
+const customizeOpen = ref(false)
+/** 点击课程 → 浮动「选择教学班」弹窗（内容 = ScheduleDetailList）。 */
+const classPickOpen = ref(false)
 const detailCourse = ref<PkCourseOnTable | null>(null)
 /** 点击课表空白格 → 该时段备选课程选择框（day/section 为点击位置）。 */
 const cellPick = ref<{ day: number; section: number } | null>(null)
@@ -68,6 +74,8 @@ function flash(message: string, type: 'success' | 'error' | 'warning' | 'info' =
   queueFlashMessage(message, type)
 }
 
+/** 学期字典由 MajorSelector 的 loadCalendars 回填 store（P1 含起止日期），
+ * 此处不重复请求。 */
 // ---- 数据过期检查与同步 ----
 async function checkDataOutdated() {
   store.loadSolidifyTime()
@@ -77,7 +85,8 @@ async function checkDataOutdated() {
     store.setLatestUpdateTime(latestSyncAt)
     if (store.state.updateTime === '') {
       // 首次进入且已有已选课程：不清空用户数据，仅记录同步时间（防数据丢失）。
-      if (store.state.commonLists.selectedCourses.length === 0) {
+      const hasSelection = store.state.plans.some((plan) => plan.selectedCourses.length > 0)
+      if (!hasSelection) {
         store.syncLatestData()
       } else {
         store.setUpdateTime(latestSyncAt)
@@ -93,18 +102,30 @@ async function checkDataOutdated() {
 
 const syncing = ref(false)
 
+/** 全方案课程并集（同步请求用）。 */
+function allPlansCourseCodes(): { majorCodes: string[]; otherCodes: string[] } {
+  const major = new Set<string>()
+  const other = new Set<string>()
+  for (const plan of store.state.plans) {
+    for (const course of plan.stagedCourses) {
+      const isExclusive = course.courseDetail.some((detail) => detail.isExclusive === true)
+      if (isExclusive) major.add(course.courseCode)
+      else other.add(course.courseCode)
+    }
+  }
+  return { majorCodes: [...major], otherCodes: [...other] }
+}
+
 async function syncLatest() {
   if (syncing.value) return // 防重入
   const calendarId = store.state.majorSelected.calendarId
-  const staged = store.state.commonLists.stagedCourses
-  if (calendarId === undefined || staged.length === 0) {
+  const { majorCodes, otherCodes } = allPlansCourseCodes()
+  if (calendarId === undefined || (majorCodes.length === 0 && otherCodes.length === 0)) {
     store.syncLatestData()
     flash(t('schedule.syncSuccess'), 'success')
     return
   }
 
-  const isExclusiveCourse = (course: (typeof staged)[number]) =>
-    course.courseDetail.some((detail) => detail.isExclusive === true)
   const grade = store.state.majorSelected.grade
   const major = store.state.majorSelected.major
 
@@ -112,24 +133,13 @@ async function syncLatest() {
   try {
     const result = await syncPkCourseInfo({
       calendarId,
-      majorCourseCodes: staged.filter(isExclusiveCourse).map((c) => c.courseCode),
-      otherCourseCodes: staged.filter((c) => !isExclusiveCourse(c)).map((c) => c.courseCode),
+      majorCourseCodes: majorCodes,
+      otherCourseCodes: otherCodes,
       majorInfo: { grade: grade ?? 0, code: major ?? '' },
     })
 
-    // 用最新详情替换，保留用户选择的班级状态（增量保留已选）。
-    const newStaged = staged.map((course) => {
-      const details = result[course.courseCode]
-      if (!details || details.length === 0) return course
-      return {
-        ...course,
-        courseDetail: details.map((detail) => {
-          const old = course.courseDetail.find((o) => o.code === detail.code)
-          return { ...detail, status: old?.status ?? 0 }
-        }),
-      }
-    })
-    store.applySyncedCourses(newStaged)
+    // 各方案按课号命中替换详情，保留各方案自己的排课状态。
+    store.applySyncToAllPlans(result)
     flash(t('schedule.syncSuccess'), 'success')
   } catch (err) {
     flash(err instanceof Error ? err.message : t('schedule.loadFailed'), 'error')
@@ -138,14 +148,15 @@ async function syncLatest() {
   }
 }
 
-// ---- 冲突处理 ----
-function handleConflict(detail: PkCourseDetail, conflicts: PkConflictItem[]) {
-  conflictDetail.value = detail
-  conflictList.value = conflicts
-}
-
-function handleReplaced() {
-  flash(t('schedule.replaced'), 'success')
+// ---- 冲突处理（容忍式：仅 flash 提示，不弹窗）----
+function handleConflict(_detail: PkCourseDetail, conflicts: PkConflictItem[]) {
+  const first = conflicts[0]?.courseName ?? ''
+  flash(
+    conflicts.length > 1
+      ? t('schedule.stagedWithConflicts', { course: first, count: conflicts.length })
+      : t('schedule.stagedWithConflict', { course: first }),
+    'warning',
+  )
 }
 
 // ---- 课表点击 ----
@@ -158,11 +169,7 @@ function handleCellClick(day: number, section: number) {
   cellPick.value = { day, section }
 }
 
-function handleCellPicked() {
-  flash(t('schedule.syncSuccess'), 'success')
-}
-
-// ---- 导出（与课表一致：含已排入课表的所有班级）----
+// ---- 导出（CSV/XLS 菜单保留在页头；PNG 在课表工具条内）----
 const exportOpen = ref(false)
 const exportRoot = ref<HTMLElement | null>(null)
 const exportButton = ref<HTMLButtonElement | null>(null)
@@ -206,9 +213,12 @@ function handleExportKeydown(event: KeyboardEvent) {
 
 function exportableClassCodes(): string[] {
   const codes: string[] = []
-  for (const course of store.state.commonLists.stagedCourses) {
-    for (const detail of course.courseDetail) {
-      if (detail.status === 1 || detail.status === 2) codes.push(detail.code)
+  for (const plan of store.state.plans) {
+    if (plan.id !== store.state.activePlanId) continue
+    for (const course of plan.stagedCourses) {
+      for (const detail of course.courseDetail) {
+        if (detail.status === 1 || detail.status === 2) codes.push(detail.code)
+      }
     }
   }
   return codes
@@ -238,6 +248,8 @@ function exportXls() {
 
 onMounted(() => {
   store.loadSolidify()
+  // 后台作息覆盖（SSR props 注入；未配置为 undefined → 空数组走默认表）。
+  store.setSectionTimeOverrides(pageProps.props.sectionTimes ?? [])
   const query = window.matchMedia('(max-width: 767px)')
   const apply = () => {
     isMobile.value = query.matches
@@ -300,17 +312,15 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
 
-    <ScheduleMajorSelector />
-
-    <!-- 移动端：三 tab（课表/选课/详情） -->
+    <!-- 移动端：双 tab（课表/选课），方案条置顶；教学班选择走弹窗 -->
     <div v-if="isMobile" class="mt-4 space-y-3">
+      <SchedulePlanBar />
+      <ScheduleMajorSelector />
+      <ScheduleStatsCard />
+
       <div role="tablist" aria-label="schedule tabs" class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
         <button
-          v-for="tab in ([
-            { key: 'timetable', label: t('schedule.timetable') },
-            { key: 'list', label: t('schedule.pickCourses') },
-            { key: 'detail', label: t('schedule.detail') },
-          ] as const)"
+          v-for="tab in MOBILE_TABS"
           :key="tab.key"
           type="button"
           role="tab"
@@ -320,7 +330,7 @@ onBeforeUnmount(() => {
           @click="mobileTab = tab.key"
           @keydown="handleMobileTabKeydown"
         >
-          {{ tab.label }}
+          {{ t(tab.labelKey) }}
         </button>
       </div>
 
@@ -328,27 +338,30 @@ onBeforeUnmount(() => {
         v-if="mobileTab === 'timetable'"
         @open-detail="handleOpenDetail"
         @cell-click="handleCellClick"
+        @customize="customizeOpen = true"
       />
-      <ScheduleRoughList v-if="mobileTab === 'list'" @open-picker="pickerOpen = true" />
-      <ScheduleDetailList
-        v-if="mobileTab === 'detail'"
-        @conflict="handleConflict"
-        @staged="flash(t('schedule.syncSuccess'), 'success')"
+      <ScheduleRoughList
+        v-if="mobileTab === 'list'"
+        @open-picker="pickerOpen = true"
+        @open-detail="classPickOpen = true"
       />
     </div>
 
-    <!-- 桌面：双栏 + 下方课表 -->
-    <div v-else class="mt-4 space-y-4">
-      <div class="grid gap-4 lg:grid-cols-5">
-        <div class="lg:col-span-2">
-          <ScheduleRoughList @open-picker="pickerOpen = true" />
-        </div>
-        <div class="lg:col-span-3">
-          <ScheduleDetailList @conflict="handleConflict" />
-        </div>
+    <!-- 桌面：左右两栏同高——右栏课表自然高度定容器高，左栏绝对定位拉满并内部滚动 -->
+    <div v-else class="mt-4 lg:relative">
+      <div class="flex flex-col gap-3 lg:absolute lg:inset-y-0 lg:left-0 lg:w-[352px] lg:min-h-0">
+        <SchedulePlanBar />
+        <ScheduleMajorSelector />
+        <ScheduleStatsCard />
+        <ScheduleRoughList class="min-h-0 lg:flex-1" @open-picker="pickerOpen = true" @open-detail="classPickOpen = true" />
       </div>
-      <ScheduleTimeTable @open-detail="handleOpenDetail" @cell-click="handleCellClick" />
+      <!-- 右栏保底高度：空课表（未选课/全退）时仍保留整张课表的高度，
+           避免绝对定位的左栏（方案/选择器/统计/列表）被压扁。 -->
+      <div class="min-w-0 lg:min-h-[720px] lg:pl-[368px]">
+        <ScheduleTimeTable @open-detail="handleOpenDetail" @cell-click="handleCellClick" @customize="customizeOpen = true" />
+      </div>
     </div>
+
 
     <ScheduleCoursePicker :open="pickerOpen" @close="pickerOpen = false" />
     <ScheduleCellPicker
@@ -357,14 +370,36 @@ onBeforeUnmount(() => {
       :section="cellPick?.section ?? null"
       @close="cellPick = null"
       @conflict="handleConflict"
-      @staged="handleCellPicked"
+      @staged="flash(t('schedule.stagedSuccess'), 'success')"
     />
-    <ScheduleConflictDialog
-      :detail="conflictDetail"
-      :conflicts="conflictList"
-      @close="conflictDetail = null"
-      @replaced="handleReplaced"
-    />
+    <ScheduleCustomEventDialog :open="customizeOpen" @close="customizeOpen = false" />
     <ScheduleDetailCard :course="detailCourse" @close="detailCourse = null" />
+
+    <!-- 选择教学班弹窗：点击已选课程弹出（浮动，取代内联班级列） -->
+    <DialogRoot :open="classPickOpen" @update:open="classPickOpen = $event">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent
+          class="fixed left-1/2 top-1/2 z-[2100] max-h-[85vh] w-[92vw] max-w-[520px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto outline-none"
+        >
+          <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
+            <div class="flex items-start justify-between gap-2 border-b border-line/60 px-4 py-3">
+              <div class="min-w-0">
+                <DialogTitle class="truncate text-sm font-bold text-base-content">
+                  {{ store.state.clickedCourseInfo.courseName || t('schedule.classPickerTitle') }}
+                </DialogTitle>
+                <DialogDescription class="text-[11px] text-base-content/55">{{ t('schedule.classPickerHint') }}</DialogDescription>
+              </div>
+              <button type="button" class="gf-icon-button shrink-0" :aria-label="t('common.close')" @click="classPickOpen = false">
+                <X class="h-4 w-4" />
+              </button>
+            </div>
+            <div class="max-h-[calc(85vh-64px)] overflow-y-auto overscroll-contain">
+              <ScheduleDetailList @conflict="handleConflict" @staged="flash(t('schedule.stagedSuccess'), 'success')" />
+            </div>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
   </div>
 </template>

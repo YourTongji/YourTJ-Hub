@@ -165,10 +165,10 @@ abstract class CourseCatalogPageProps with _$CourseCatalogPageProps {
 abstract class CourseCatalogQueryPayload with _$CourseCatalogQueryPayload {
   const factory CourseCatalogQueryPayload({
     String? keyword,
-    String? department,
-    String? term,
-    String? campus,
-    String? instructor,
+    List<String>? department,
+    List<String>? term,
+    List<String>? campus,
+    List<String>? instructor,
     bool? onlyWithReviews,
     String? sortBy,
     required int page,
