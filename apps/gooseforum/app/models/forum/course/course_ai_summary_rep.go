@@ -28,7 +28,7 @@ func UpsertCourseAiSummary(entity *CourseAiSummaryEntity) error {
 	return dbconnect.Connect().Table("course_ai_summary").
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "course_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"summary_json", "model", "prompt_version", "generated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"summary_json", "model", "prompt_version", "generated_at", "status"}),
 		}).
 		Create(entity).Error
 }

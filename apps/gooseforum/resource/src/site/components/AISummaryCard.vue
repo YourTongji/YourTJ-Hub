@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, Loader2, RefreshCw, Sparkles } from '@lucide/vue'
 import { getCourseSummary, type CourseSummaryPayload, type CourseSummaryResult, type CourseSummaryStatus } from '@/runtime/api'
@@ -24,43 +24,21 @@ const state = ref<CardState>({ kind: 'idle' })
 const lastStatus = ref<CourseSummaryStatus | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
-// 展开/收起触发防抖加载：快速点击不重复请求；已生成（cached/generated）与
-// disabled 视为终态不重复请求（仅 refresh 按钮强制重取）。
-watch(expanded, (open) => {
-  if (!open) {
-    // 折叠时取消挂起的防抖请求，避免卡片已关闭仍触发生成/消耗限流。
-    clearTimeout(debounceTimer)
-    debounceTimer = undefined
-    return
-  }
-  if (
-    lastStatus.value === 'cached' ||
-    lastStatus.value === 'generated' ||
-    lastStatus.value === 'disabled'
-  )
-    return
-  clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(load, 500)
-})
+// 终态：已生成 / 已禁用，展开时不重复请求。
+function isTerminal(status: CourseSummaryStatus | null): boolean {
+  return status === 'cached' || status === 'generated' || status === 'disabled'
+}
 
-async function load(refresh = false) {
-  clearTimeout(debounceTimer)
-  debounceTimer = undefined
-  if (state.value.kind === 'loading') return
-  state.value = { kind: 'loading' }
-  let result: CourseSummaryResult
-  try {
-    result = await getCourseSummary(props.courseId, refresh)
-  } catch {
-    state.value = { kind: 'error' }
-    return
-  }
+// 挂载时 check 预检（只读、不消耗限流）：已有总结 → 自动展开展示；
+// insufficient/none → 保持折叠（none 首次展开才触发生成）；disabled → 不渲染。
+onMounted(async () => {
+  const result = await getCourseSummary(props.courseId, false, true)
   lastStatus.value = result.status
   switch (result.status) {
     case 'cached':
-    case 'generated':
       if (result.summary) {
         state.value = { kind: 'ready', payload: result.summary, generatedAt: result.generatedAt, model: result.model }
+        expanded.value = true
       } else {
         state.value = { kind: 'error' }
       }
@@ -71,12 +49,65 @@ async function load(refresh = false) {
     case 'disabled':
       state.value = { kind: 'disabled' }
       break
-    case 'rateLimited':
-      state.value = { kind: 'rateLimited', retryAfterSeconds: result.retryAfterSeconds }
+    case 'none':
+      // 从未生成过：保持折叠，首次展开才触发生成。
+      state.value = { kind: 'idle' }
       break
     default:
-      state.value = { kind: 'error' }
+      state.value = { kind: 'idle' }
   }
+})
+
+// 展开/收起触发防抖加载：快速点击不重复请求；终态不重复请求（仅 refresh 按钮强制重取）。
+watch(expanded, (open) => {
+  if (!open) {
+    // 折叠时取消挂起的防抖请求，避免卡片已关闭仍触发生成/消耗限流。
+    clearTimeout(debounceTimer)
+    debounceTimer = undefined
+    return
+  }
+  if (isTerminal(lastStatus.value)) return
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => load(false), 500)
+})
+
+// applyResult 把服务端结果应用到卡片状态。
+// keepContent=true 时（手动刷新失败/限流）保留已有内容，不清空。
+function applyResult(result: CourseSummaryResult, keepContent = false) {
+  lastStatus.value = result.status
+  switch (result.status) {
+    case 'cached':
+    case 'generated':
+      if (result.summary) {
+        state.value = { kind: 'ready', payload: result.summary, generatedAt: result.generatedAt, model: result.model }
+        expanded.value = true
+      } else if (!keepContent) {
+        state.value = { kind: 'error' }
+      }
+      break
+    case 'insufficient_data':
+      if (!keepContent) state.value = { kind: 'insufficient' }
+      break
+    case 'disabled':
+      state.value = { kind: 'disabled' }
+      break
+    case 'rateLimited':
+      if (!keepContent) state.value = { kind: 'rateLimited', retryAfterSeconds: result.retryAfterSeconds }
+      break
+    default:
+      if (!keepContent) state.value = { kind: 'error' }
+  }
+}
+
+async function load(refresh = false) {
+  clearTimeout(debounceTimer)
+  debounceTimer = undefined
+  if (state.value.kind === 'loading') return
+  // 已有内容时刷新：保留内容，仅更新状态（失败不丢旧内容）。
+  const keepContent = state.value.kind === 'ready'
+  if (!keepContent) state.value = { kind: 'loading' }
+  const result = await getCourseSummary(props.courseId, refresh)
+  applyResult(result, keepContent)
 }
 
 function onRefresh() {
@@ -139,23 +170,36 @@ function sentimentBadgeClass(sentiment: string): string {
 <template>
   <!-- 功能未启用时不渲染整个卡片（避免空 accordion 与重复请求） -->
   <section v-if="state.kind !== 'disabled'" class="gf-panel">
-    <button
-      type="button"
-      class="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-      :aria-expanded="expanded"
-      @click="onToggle"
-    >
-      <span class="inline-flex items-center gap-2 text-sm font-semibold text-base-content">
-        <Sparkles class="h-4 w-4 text-primary" />
-        {{ t('courseSummary.title') }}
-      </span>
-      <span class="inline-flex items-center gap-1.5">
-        <span v-if="state.kind === 'ready'" class="gf-badge gf-badge-muted text-xs">
-          {{ t('courseSummary.generated') }}
+    <div class="flex w-full items-center justify-between gap-2 px-4 py-3">
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
+        :aria-expanded="expanded"
+        @click="onToggle"
+      >
+        <span class="inline-flex items-center gap-2 text-sm font-semibold text-base-content">
+          <Sparkles class="h-4 w-4 text-primary" />
+          {{ t('courseSummary.title') }}
         </span>
-        <ChevronDown class="h-4 w-4 text-base-content/45 transition-transform" :class="{ 'rotate-180': expanded }" />
-      </span>
-    </button>
+        <span class="inline-flex shrink-0 items-center gap-1.5">
+          <span v-if="state.kind === 'ready'" class="gf-badge gf-badge-muted text-xs">
+            {{ t('courseSummary.generated') }}
+          </span>
+          <ChevronDown class="h-4 w-4 text-base-content/45 transition-transform" :class="{ 'rotate-180': expanded }" />
+        </span>
+      </button>
+      <!-- 右上角手动刷新：已有内容时显示；刷新失败/限流保留旧内容 -->
+      <button
+        v-if="state.kind === 'ready'"
+        type="button"
+        class="gf-button gf-button-ghost gf-button-sm shrink-0"
+        :title="t('courseSummary.refresh')"
+        :aria-label="t('courseSummary.refresh')"
+        @click.stop="onRefresh"
+      >
+        <RefreshCw class="h-3.5 w-3.5" />
+      </button>
+    </div>
 
     <div v-if="expanded" class="border-t border-line/70 px-4 py-3">
       <!-- loading 骨架 -->
@@ -222,18 +266,10 @@ function sentimentBadgeClass(sentiment: string): string {
           </div>
         </div>
 
-        <div class="mt-3 flex items-center justify-between gap-2">
+        <div class="mt-3">
           <p class="text-xs leading-relaxed text-base-content/40">
             {{ t('courseSummary.disclaimer') }}
           </p>
-          <button
-            type="button"
-            class="gf-button gf-button-ghost gf-button-sm shrink-0"
-            @click="onRefresh"
-          >
-            <RefreshCw class="h-3.5 w-3.5" />
-            {{ t('courseSummary.refresh') }}
-          </button>
         </div>
       </div>
 

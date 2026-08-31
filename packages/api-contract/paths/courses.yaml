@@ -290,6 +290,9 @@ getCourseSummary:
       limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
       affects the course page main flow. The summary schema is provider-independent
       (OpenAI-compatible chat/completions; qwen/OpenRouter/local Ollama are configuration-only).
+      `?check=true` runs a read-only preflight (no generation, no rate-limit consumption) that
+      returns `cached` / `insufficient_data` / `none` / `disabled`; it is used by the client on
+      mount to decide whether to auto-expand the card or keep it collapsed until first expand.
     parameters:
       - name: courseId
         in: path
@@ -304,6 +307,15 @@ getCourseSummary:
           type: boolean
           default: false
           description: When true, force a fresh generation instead of returning the DB cache.
+      - name: check
+        in: query
+        schema:
+          type: boolean
+          default: false
+          description: |
+            When true, run a read-only preflight: no generation happens and no rate-limit
+            quota is consumed. Returns `cached` / `insufficient_data` / `none` / `disabled`.
+            Mutually exclusive in intent with `refresh` (check wins when both are set).
     responses:
       '200':
         description: |

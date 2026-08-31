@@ -4,6 +4,8 @@ import "time"
 
 // CourseAiSummaryEntity AI 课程总结缓存（B7，issue #181）。
 // 每门课程至多一条；summary_json 存 LLM 输出的结构化总结（text 列，PG/SQLite 兼容）。
+// status=generated 时 summary_json 为有效总结；status=insufficient 表示已评估过
+// 但评价不足（无 summary_json），评价不变时不再重复生成（前端 check 模式直读）。
 // 缓存不过期，?refresh=true 强制重生成覆盖；provider/模型切换后由刷新重建。
 type CourseAiSummaryEntity struct {
 	CourseId      uint64    `gorm:"column:course_id;primaryKey;not null;" json:"courseId"`
@@ -11,7 +13,16 @@ type CourseAiSummaryEntity struct {
 	Model         string    `gorm:"column:model;type:varchar(128);not null;default:'';" json:"model"`
 	PromptVersion string    `gorm:"column:prompt_version;type:varchar(64);not null;default:'';" json:"promptVersion"`
 	GeneratedAt   time.Time `gorm:"column:generated_at;not null;" json:"generatedAt"`
+	// Status 行状态：generated（有效总结，默认，兼容存量行）/ insufficient（评价不足已评估）。
+	// AutoMigrate 对存量库加列时以 DEFAULT 'generated' 回填，旧缓存行语义不变。
+	Status string `gorm:"column:status;type:varchar(16);not null;default:'generated';index;comment:summary row status;" json:"status"`
 }
+
+// AI 总结缓存行状态。
+const (
+	AiSummaryRowStatusGenerated    = "generated"
+	AiSummaryRowStatusInsufficient = "insufficient"
+)
 
 func (CourseAiSummaryEntity) TableName() string {
 	return "course_ai_summary"

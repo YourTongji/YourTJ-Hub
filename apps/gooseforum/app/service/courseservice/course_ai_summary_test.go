@@ -152,7 +152,8 @@ func enableAiSummaryProvider(t *testing.T, fake func() (string, error)) *int {
 
 const fakeSummaryJSON = `{"consensus":"recommend","keywords":["给分好","作业多"],"pros":["老师讲得清楚","给分宽松"],"cons":["作业量较大"],"representativeReviews":[{"excerpt":"老师讲得很好，作业虽然多但有收获。","sentiment":"positive"},{"excerpt":"内容比较难。","sentiment":"neutral"}]}`
 
-// TestAiSummaryInsufficientData 少于 10 条有效评价 → insufficient_data，不调 LLM、不落库。
+// TestAiSummaryInsufficientData 少于 10 条有效评价 → insufficient_data，不调 LLM，
+// 且落库 insufficient 标记（下次请求直接命中，不重复评估、不消耗限流）。
 func TestAiSummaryInsufficientData(t *testing.T) {
 	courseId := setupAiSummaryTest(t)
 	seedAiSummaryReviews(t, courseId, 5)
@@ -168,8 +169,152 @@ func TestAiSummaryInsufficientData(t *testing.T) {
 	if *calls != 0 {
 		t.Fatalf("llm calls = %d, want 0 (data insufficient short-circuits before provider)", *calls)
 	}
-	if cached := course.GetCourseAiSummary(courseId); cached.CourseId != 0 {
-		t.Fatalf("insufficient_data must not persist a cache row")
+	// 落库 insufficient 标记（无 summary_json）。
+	cached := course.GetCourseAiSummary(courseId)
+	if cached.CourseId == 0 {
+		t.Fatal("insufficient_data must persist a row (status=insufficient)")
+	}
+	if cached.Status != course.AiSummaryRowStatusInsufficient {
+		t.Fatalf("row status = %q, want %q", cached.Status, course.AiSummaryRowStatusInsufficient)
+	}
+	if cached.SummaryJson != "" {
+		t.Fatal("insufficient row must not carry summary_json")
+	}
+
+	// 再次请求（无 refresh）：直接命中 insufficient 标记，不重复评估、不调 LLM。
+	second, err := GetAiSummary(courseId, false)
+	if err != nil {
+		t.Fatalf("second get: %v", err)
+	}
+	if second.Status != AiSummaryStatusInsufficientData {
+		t.Fatalf("second status = %q, want insufficient_data", second.Status)
+	}
+	if *calls != 0 {
+		t.Fatalf("llm calls after insufficient short-circuit = %d, want 0", *calls)
+	}
+}
+
+// TestAiSummaryInsufficientDoesNotConsumeQuota 数据不足不消耗单课/全局限流名额：
+// insufficient 后立即删除标记并补足评价再生成，不应被 429 拦截。
+func TestAiSummaryInsufficientDoesNotConsumeQuota(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	seedAiSummaryReviews(t, courseId, 5)
+	enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
+
+	if _, err := GetAiSummary(courseId, false); err != nil {
+		t.Fatalf("first insufficient: %v", err)
+	}
+	// 补足评价（>10 条，作者用另一偏移避免撞唯一键）并删除 insufficient 标记
+	// （模拟评价变更失效路径）。
+	conn := dbconnect.Connect()
+	offering := course.OfferingEntity{}
+	if err := conn.Where("course_id = ?", courseId).First(&offering).Error; err != nil {
+		t.Fatalf("find offering: %v", err)
+	}
+	for i := 0; i < 8; i++ {
+		rating := 4
+		author := uint64(20000 + i)
+		if err := conn.Create(&course.ReviewEntity{
+			OfferingId:   offering.Id,
+			AuthorUserId: &author,
+			Rating:       &rating,
+			Content:      "补充评价，内容充实有细节。",
+			Status:       course.ReviewStatusVisible,
+		}).Error; err != nil {
+			t.Fatalf("create extra review %d: %v", i, err)
+		}
+	}
+	if err := conn.Where("course_id = ?", courseId).Delete(&course.CourseAiSummaryEntity{}).Error; err != nil {
+		t.Fatalf("delete insufficient row: %v", err)
+	}
+	// 立即生成：若 insufficient 消耗过单课名额会被 429 拦截。
+	result, err := GetAiSummary(courseId, false)
+	if err != nil {
+		t.Fatalf("generate after insufficient must not be rate limited: %v", err)
+	}
+	if result.Status != AiSummaryStatusGenerated {
+		t.Fatalf("status = %q, want generated", result.Status)
+	}
+}
+
+// TestAiSummaryRefreshBypassesInsufficient refresh=true 跳过 insufficient 标记
+// 强制重新评估（前端手动刷新语义）。
+func TestAiSummaryRefreshBypassesInsufficient(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	seedAiSummaryReviews(t, courseId, 12)
+	calls := enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
+
+	// 先落 insufficient 标记（模拟历史上评估不足）。
+	if err := upsertAiSummaryInsufficient(courseId); err != nil {
+		t.Fatalf("upsert insufficient: %v", err)
+	}
+	result, err := GetAiSummary(courseId, true)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if result.Status != AiSummaryStatusGenerated {
+		t.Fatalf("refresh status = %q, want generated", result.Status)
+	}
+	if *calls != 1 {
+		t.Fatalf("llm calls = %d, want 1 (refresh re-evaluates)", *calls)
+	}
+	if cached := course.GetCourseAiSummary(courseId); cached.Status != course.AiSummaryRowStatusGenerated {
+		t.Fatalf("row status after refresh = %q, want generated", cached.Status)
+	}
+}
+
+// TestAiSummaryCheckMode check 预检只读 DB：cached/insufficient/none/disabled，
+// 不生成、不消耗限流名额（多次 check 后首次生成仍成功）。
+func TestAiSummaryCheckMode(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	seedAiSummaryReviews(t, courseId, 12)
+	enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
+
+	// 无缓存行 → none；多次 check 均不消耗名额。
+	for i := 0; i < 3; i++ {
+		got, err := CheckAiSummary(courseId)
+		if err != nil {
+			t.Fatalf("check none #%d: %v", i, err)
+		}
+		if got.Status != AiSummaryStatusNone {
+			t.Fatalf("check #%d status = %q, want none", i, got.Status)
+		}
+	}
+
+	// 首次生成成功 → check 返回 cached（携带 payload）。
+	if _, err := GetAiSummary(courseId, false); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	got, err := CheckAiSummary(courseId)
+	if err != nil {
+		t.Fatalf("check cached: %v", err)
+	}
+	if got.Status != AiSummaryStatusCached || got.Summary == nil {
+		t.Fatalf("check status = %q summary=%v, want cached with payload", got.Status, got.Summary)
+	}
+
+	// 评价不足场景 check → insufficient_data。
+	other := setupAiSummaryTest(t) // 重新初始化（清空表与限流）
+	seedAiSummaryReviews(t, other, 5)
+	if _, err := GetAiSummary(other, false); err != nil {
+		t.Fatalf("insufficient generate: %v", err)
+	}
+	got, err = CheckAiSummary(other)
+	if err != nil {
+		t.Fatalf("check insufficient: %v", err)
+	}
+	if got.Status != AiSummaryStatusInsufficientData {
+		t.Fatalf("check status = %q, want insufficient_data", got.Status)
+	}
+
+	// 功能关闭 check → disabled。
+	upsertAiSummaryConfig(t, `{"enabled":false,"globalPerMinute":5}`)
+	got, err = CheckAiSummary(other)
+	if err != nil {
+		t.Fatalf("check disabled: %v", err)
+	}
+	if got.Status != AiSummaryStatusDisabled {
+		t.Fatalf("check status = %q, want disabled", got.Status)
 	}
 }
 
@@ -248,7 +393,8 @@ func TestAiSummarySanitizeFallback(t *testing.T) {
 	}
 }
 
-// TestAiSummaryLLMFailure LLM 失败 → ErrAiSummaryGenerationFailed，不落库（验收 4）。
+// TestAiSummaryLLMFailure LLM 失败 → ErrAiSummaryGenerationFailed，不落库（验收 4），
+// 且返还单课名额：失败后立即重试可再次触发生成（不被 10 分钟窗口卡死）。
 func TestAiSummaryLLMFailure(t *testing.T) {
 	courseId := setupAiSummaryTest(t)
 	seedAiSummaryReviews(t, courseId, 10)
@@ -260,6 +406,47 @@ func TestAiSummaryLLMFailure(t *testing.T) {
 	}
 	if cached := course.GetCourseAiSummary(courseId); cached.CourseId != 0 {
 		t.Fatal("failed generation must not persist a cache row")
+	}
+}
+
+// TestAiSummaryLLMFailureRefundQuota LLM 失败返还单课名额：第二次尝试（无缓存）
+// 不被 429 拦截，仍能走到 provider（调用计数=2）。
+func TestAiSummaryLLMFailureRefundQuota(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	seedAiSummaryReviews(t, courseId, 10)
+	calls := enableAiSummaryProvider(t, func() (string, error) { return "", errors.New("upstream timeout") })
+
+	if _, err := GetAiSummary(courseId, false); err == nil {
+		t.Fatal("first call must fail")
+	}
+	// 名额已返还：第二次调用应再次尝试 LLM（失败），而非 429。
+	_, err := GetAiSummary(courseId, false)
+	var rateErr *AiSummaryRateLimitError
+	if errors.As(err, &rateErr) {
+		t.Fatalf("second call after LLM failure must not be rate limited: %v", err)
+	}
+	if *calls != 2 {
+		t.Fatalf("llm calls = %d, want 2 (quota refunded after first failure)", *calls)
+	}
+}
+
+// TestAiSummaryProviderNotConfiguredRefundQuota provider 未配置（config.toml 与
+// pageConfig 均为空）→ 生成失败且返还单课名额；随后配置好 provider 可立即生成。
+func TestAiSummaryProviderNotConfiguredRefundQuota(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	seedAiSummaryReviews(t, courseId, 12)
+	// 不调用 enableAiSummaryProvider：provider 未配置。
+	if _, err := GetAiSummary(courseId, false); !errors.Is(err, ErrAiSummaryGenerationFailed) {
+		t.Fatalf("err = %v, want ErrAiSummaryGenerationFailed (provider not configured)", err)
+	}
+	// 配置 provider 后立即生成：名额已返还，不应 429。
+	enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
+	result, err := GetAiSummary(courseId, false)
+	if err != nil {
+		t.Fatalf("generate after configuring provider must not be rate limited: %v", err)
+	}
+	if result.Status != AiSummaryStatusGenerated {
+		t.Fatalf("status = %q, want generated", result.Status)
 	}
 }
 
