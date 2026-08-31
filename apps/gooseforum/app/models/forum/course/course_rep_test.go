@@ -324,6 +324,38 @@ func TestListDistinctTerms(t *testing.T) {
 	}
 }
 
+// TestListDistinctTermsNonNumericCodeLast 非标准学期码（非数字开头，如 1系统同步时
+// 无法识别学期落到的「其他」）排在数字开头的标准学期码之后，保证列表首项是最新学期。
+//
+// 回归背景：starts_on 目前导入流程未写入（生产库全为 NULL），排序回退到 code 字典序；
+// 而「其他」这类中文 code 的字典序大于数字开头的学期码，会把真正的最新学期挤下首位——
+// 目录页「本学期」取列表首项，会因此筛到「其他」而不是本学期。
+func TestListDistinctTermsNonNumericCodeLast(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100083", "CS")
+	// starts_on 一律为 nil，复现导入流程未写入该字段的生产数据形态。
+	newer := createTerm(t, conn, "2026-2027-1", "2026 秋", nil)
+	older := createTerm(t, conn, "2025-2026-2", "2026 春", nil)
+	other := createTerm(t, conn, "其他", "其他", nil)
+	for _, termId := range []uint64{newer, older, other} {
+		_ = createOffering(t, conn, c, termId, "四平路校区")
+	}
+
+	got, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	want := []string{"2026-2027-1", "2025-2026-2", "其他"}
+	if len(got) != len(want) {
+		t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+	}
+	for i, w := range want {
+		if got[i].Code != w {
+			t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+		}
+	}
+}
+
 // TestListDistinctCampuses 校区列表去重与排序：仅可见课程的可见 offering 校区，
 // 排除空值、隐藏课程、隐藏 offering 与软删 offering；按字典序。
 func TestListDistinctCampuses(t *testing.T) {
@@ -530,5 +562,75 @@ func TestListVisibleOfferingsByClassCodes(t *testing.T) {
 	}
 	if gotEmpty == nil || len(gotEmpty) != 0 {
 		t.Fatalf("empty result = %v, want non-nil empty slice", gotEmpty)
+	}
+}
+
+// TestTermOrderingConsistentAcrossQueries 目录页学期列表与开课实例查询共用同一排序：
+// 标准学期码（数字开头）优先，上游同步无法解析的「其他」排末尾。
+//
+// 回归背景：修 PostgreSQL 报错时为 ListDistinctTerms 加了「标准学期码优先」判别式，
+// 但三处 offering 查询仍只按 COALESCE(starts_on, code) 排序——starts_on 全为 NULL
+// 时会把「其他」排到最前，同一门课在目录筛选与详情页看到的学期先后不一致；
+// 而 ListDistinctTerms 的注释恰恰承诺两者排序一致。
+func TestTermOrderingConsistentAcrossQueries(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100084", "CS")
+	newer := createTerm(t, conn, "2026-2027-1", "2026 秋", nil)
+	older := createTerm(t, conn, "2025-2026-2", "2026 春", nil)
+	other := createTerm(t, conn, "其他", "其他", nil)
+
+	// 建 offering 顺序刻意与期望排序相反（older → other → newer）：
+	// 若排序失效、退化成按 id 或按 code 字典序，断言就会失败。
+	oOlder := createOffering(t, conn, c, older, "四平路校区")
+	oOther := createOffering(t, conn, c, other, "四平路校区")
+	oNewer := createOffering(t, conn, c, newer, "四平路校区")
+	// 三个 offering 共用班号，使 P13 班号查询能一次性命中全部三条以比较顺序。
+	for _, id := range []uint64{oOlder, oOther, oNewer} {
+		if err := conn.Model(&OfferingEntity{}).Where("id = ?", id).Update("class_code", "12200401").Error; err != nil {
+			t.Fatalf("set class_code on offering %d: %v", id, err)
+		}
+	}
+
+	// 目录页学期列表：最新学期居首，「其他」压后。
+	terms, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	if got := termCodes(terms); !slices.Equal(got, []string{"2026-2027-1", "2025-2026-2", "其他"}) {
+		t.Fatalf("term codes = %v, want [2026-2027-1 2025-2026-2 其他]", got)
+	}
+
+	// 详情页开课实例：与学期列表同一顺序。
+	offerings, err := ListOfferingsByCourse(c)
+	if err != nil {
+		t.Fatalf("ListOfferingsByCourse err = %v", err)
+	}
+	if len(offerings) != 3 {
+		t.Fatalf("ListOfferingsByCourse len = %d, want 3", len(offerings))
+	}
+	if offerings[0].Id != oNewer {
+		t.Fatalf("ListOfferingsByCourse first = %d, want %d (最新学期)", offerings[0].Id, oNewer)
+	}
+	if last := offerings[len(offerings)-1]; last.Id != oOther {
+		t.Fatalf("ListOfferingsByCourse last = %d, want %d (「其他」排末尾)", last.Id, oOther)
+	}
+
+	// 批量版本（列表页避免 N+1）同样顺序。
+	batch, err := ListOfferingsByCourses([]uint64{c})
+	if err != nil {
+		t.Fatalf("ListOfferingsByCourses err = %v", err)
+	}
+	if len(batch) != 3 || batch[0].Id != oNewer {
+		t.Fatalf("ListOfferingsByCourses first = %d, want %d", batch[0].Id, oNewer)
+	}
+
+	// P13 班号查询同样顺序。
+	byClass, err := ListVisibleOfferingsByClassCodes([]string{"12200401"}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes err = %v", err)
+	}
+	if len(byClass) != 3 || byClass[0].Id != oNewer {
+		t.Fatalf("ListVisibleOfferingsByClassCodes first = %d, want %d (got %d offerings)",
+			byClass[0].Id, oNewer, len(byClass))
 	}
 }
