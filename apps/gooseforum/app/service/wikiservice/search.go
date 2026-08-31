@@ -1,7 +1,7 @@
 package wikiservice
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
@@ -107,8 +107,14 @@ func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 	for _, pageID := range order {
 		result.Items = append(result.Items, *byPage[pageID])
 	}
-	sort.SliceStable(result.Items, func(i, j int) bool {
-		return result.Items[i].Score > result.Items[j].Score
+	slices.SortStableFunc(result.Items, func(a, b PageSearchResult) int {
+		if a.Score > b.Score {
+			return -1
+		}
+		if a.Score < b.Score {
+			return 1
+		}
+		return 0
 	})
 	if len(result.Items) > limit {
 		result.Items = result.Items[:limit]

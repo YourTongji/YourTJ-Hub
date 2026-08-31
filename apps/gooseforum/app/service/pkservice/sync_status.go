@@ -1,9 +1,10 @@
 package pkservice
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -87,7 +88,9 @@ func SyncStatusOverview() ([]SyncStatusItem, error) {
 		attachFetchLog(&item, log)
 		items = append(items, item)
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].CalendarId > items[j].CalendarId })
+	slices.SortFunc(items, func(a, b SyncStatusItem) int {
+		return cmp.Compare(b.CalendarId, a.CalendarId)
+	})
 	return items, nil
 }
 

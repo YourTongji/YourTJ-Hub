@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,7 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -469,7 +470,9 @@ func scanRepoFiles(cloneDir string) ([]repoFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	slices.SortFunc(files, func(a, b repoFile) int {
+		return cmp.Compare(a.Path, b.Path)
+	})
 	return files, nil
 }
 
@@ -549,7 +552,9 @@ func buildContributorsSnapshot(cloneDir, relPath string) string {
 			Count:    item.count,
 		})
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Count > items[j].Count })
+	slices.SortFunc(items, func(a, b gitContributor) int {
+		return cmp.Compare(b.Count, a.Count)
+	})
 	data, err := json.Marshal(items)
 	if err != nil {
 		return ""
