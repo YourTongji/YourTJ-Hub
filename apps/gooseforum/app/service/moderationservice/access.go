@@ -138,11 +138,13 @@ func loadSnapshot() Snapshot {
 
 func uniqueUint64(values []uint64) []uint64 {
 	res := make([]uint64, 0, len(values))
+	seen := make(map[uint64]struct{}, len(values))
 	for _, value := range values {
-		seen := slices.Contains(res, value)
-		if !seen {
-			res = append(res, value)
+		if _, ok := seen[value]; ok {
+			continue
 		}
+		seen[value] = struct{}{}
+		res = append(res, value)
 	}
 	return res
 }
