@@ -564,3 +564,73 @@ func TestListVisibleOfferingsByClassCodes(t *testing.T) {
 		t.Fatalf("empty result = %v, want non-nil empty slice", gotEmpty)
 	}
 }
+
+// TestTermOrderingConsistentAcrossQueries 目录页学期列表与开课实例查询共用同一排序：
+// 标准学期码（数字开头）优先，上游同步无法解析的「其他」排末尾。
+//
+// 回归背景：修 PostgreSQL 报错时为 ListDistinctTerms 加了「标准学期码优先」判别式，
+// 但三处 offering 查询仍只按 COALESCE(starts_on, code) 排序——starts_on 全为 NULL
+// 时会把「其他」排到最前，同一门课在目录筛选与详情页看到的学期先后不一致；
+// 而 ListDistinctTerms 的注释恰恰承诺两者排序一致。
+func TestTermOrderingConsistentAcrossQueries(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100084", "CS")
+	newer := createTerm(t, conn, "2026-2027-1", "2026 秋", nil)
+	older := createTerm(t, conn, "2025-2026-2", "2026 春", nil)
+	other := createTerm(t, conn, "其他", "其他", nil)
+
+	// 建 offering 顺序刻意与期望排序相反（older → other → newer）：
+	// 若排序失效、退化成按 id 或按 code 字典序，断言就会失败。
+	oOlder := createOffering(t, conn, c, older, "四平路校区")
+	oOther := createOffering(t, conn, c, other, "四平路校区")
+	oNewer := createOffering(t, conn, c, newer, "四平路校区")
+	// 三个 offering 共用班号，使 P13 班号查询能一次性命中全部三条以比较顺序。
+	for _, id := range []uint64{oOlder, oOther, oNewer} {
+		if err := conn.Model(&OfferingEntity{}).Where("id = ?", id).Update("class_code", "12200401").Error; err != nil {
+			t.Fatalf("set class_code on offering %d: %v", id, err)
+		}
+	}
+
+	// 目录页学期列表：最新学期居首，「其他」压后。
+	terms, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	if got := termCodes(terms); !slices.Equal(got, []string{"2026-2027-1", "2025-2026-2", "其他"}) {
+		t.Fatalf("term codes = %v, want [2026-2027-1 2025-2026-2 其他]", got)
+	}
+
+	// 详情页开课实例：与学期列表同一顺序。
+	offerings, err := ListOfferingsByCourse(c)
+	if err != nil {
+		t.Fatalf("ListOfferingsByCourse err = %v", err)
+	}
+	if len(offerings) != 3 {
+		t.Fatalf("ListOfferingsByCourse len = %d, want 3", len(offerings))
+	}
+	if offerings[0].Id != oNewer {
+		t.Fatalf("ListOfferingsByCourse first = %d, want %d (最新学期)", offerings[0].Id, oNewer)
+	}
+	if last := offerings[len(offerings)-1]; last.Id != oOther {
+		t.Fatalf("ListOfferingsByCourse last = %d, want %d (「其他」排末尾)", last.Id, oOther)
+	}
+
+	// 批量版本（列表页避免 N+1）同样顺序。
+	batch, err := ListOfferingsByCourses([]uint64{c})
+	if err != nil {
+		t.Fatalf("ListOfferingsByCourses err = %v", err)
+	}
+	if len(batch) != 3 || batch[0].Id != oNewer {
+		t.Fatalf("ListOfferingsByCourses first = %d, want %d", batch[0].Id, oNewer)
+	}
+
+	// P13 班号查询同样顺序。
+	byClass, err := ListVisibleOfferingsByClassCodes([]string{"12200401"}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes err = %v", err)
+	}
+	if len(byClass) != 3 || byClass[0].Id != oNewer {
+		t.Fatalf("ListVisibleOfferingsByClassCodes first = %d, want %d (got %d offerings)",
+			byClass[0].Id, oNewer, len(byClass))
+	}
+}
