@@ -1,4 +1,7 @@
-import type { CourseSummaryPayload, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+// CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
+// CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
+// 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
+import type { CourseSummaryPayload as CourseCatalogItem, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -1358,7 +1361,7 @@ export async function getCourseRelated(courseId: number): Promise<CourseRelatedR
 // 命名区别于 SSR props 的 CourseCatalogPageProps：后者额外携带 departments/terms/
 // campuses/收藏集合等静态面板数据，翻页并不需要。
 export interface CourseCatalogPageResult {
-  list: CourseSummaryPayload[]
+  list: CourseCatalogItem[]
   page: number
   size: number
   total: number
