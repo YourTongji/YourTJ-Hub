@@ -20,8 +20,6 @@
 - The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it
   is not identity truth and is never issued to external OIDC clients — those receive opaque access
   tokens scoped to the built-in provider.
-- Casdoor is not enabled: no Casdoor routes, config, or identity dependency exist in this deployment.
-
 ## Login flows
 
 ### Web
@@ -123,7 +121,7 @@
   their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
   Agent deletion is not supported.
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
-  (goth) login/binding, Casdoor OIDC login/binding, password change, TOTP setup/enable/disable, and
+  (goth) login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin
   surfaces cannot grant bot rows roles or moderator grants. Bot personas are excluded from the
   public user search index; they remain identifiable in forum content and admin surfaces.
