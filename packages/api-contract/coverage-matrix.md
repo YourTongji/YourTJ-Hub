@@ -4,15 +4,16 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：267
-- /api JSON 路由：211，已入契约：209（99%），已知未覆盖：0
+- 快照路由总数：270
+- /api JSON 路由：214，已入契约：212（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（209）
+## 已覆盖（212）
 
 | Method | Path | operationId |
 | --- | --- | --- |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
+| DELETE | `/api/forum/course-reviews/:reviewId/dislike` | `unmarkReviewDislike` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
@@ -153,6 +154,7 @@
 | POST | `/api/forum/chat/send` | `sendChatMessage` |
 | POST | `/api/forum/course-reviews` | `createCourseReview` |
 | POST | `/api/forum/course-reviews/:reviewId/reports` | `reportCourseReview` |
+| POST | `/api/forum/courses/bookmark` | `bookmarkCourse` |
 | POST | `/api/forum/follow-user` | `followUser` |
 | POST | `/api/forum/moderation/course-create` | `adminCourseCreate` |
 | POST | `/api/forum/moderation/course-delete` | `adminCourseDelete` |
@@ -220,6 +222,7 @@
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |
 | POST | `/api/wiki/webhook` | `wikiWebhook` |
+| PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
 ## 已知未覆盖（0）

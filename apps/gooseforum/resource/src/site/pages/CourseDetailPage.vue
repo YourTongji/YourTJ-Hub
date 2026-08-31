@@ -1,31 +1,45 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, BookOpen, Building2, CalendarDays, ChevronDown, FileText, Flag, Loader2, MessageSquareText, Pencil, Star, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
+import { ArrowLeft, BookOpen, Building2, CalendarDays, Check, Download, FileText, Flag, GraduationCap, Hash, Loader2, MessageSquareText, Pencil, Share2, Star, ThumbsDown, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
 import {
   createCourseReview,
   deleteCourseReview,
   getCourseRelated,
   listCourseReviews,
   reportCourseReview,
+  setReviewDislike,
   setReviewHelpful,
   updateCourseReview,
+  uploadImage,
   type CourseRelatedResult,
   type ReviewPayload,
 } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
+import { processImageFile, validateImageFile } from '@/runtime/image'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
+import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import AISummaryCard from '@/site/components/AISummaryCard.vue'
+import RatingSummaryCard from '@/site/components/RatingSummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
+import {
+  exportShareNode,
+  inlineMarkdownImages,
+  reviewAvatarSrc,
+  reviewSqid,
+  waitForImages,
+} from '@/site/utils/course-review-share'
 import {
   nextReviewTotalOnCreate,
   nextReviewTotalOnDelete,
   resolveStatsReviewCount,
 } from '@/site/utils/course-review-count'
 import { createReviewPageLoader } from '@/site/utils/course-review-loader'
+import { readCourseCatalogReturn } from '@/site/utils/course-catalog-return'
+import { shortTerm } from '@/site/utils/term'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseDetailPageProps, LayoutPayload } from '@gooseforum/client'
 
@@ -41,6 +55,14 @@ const loginHref = computed(() => {
   return `/login?next=${next}`
 })
 
+// 「返回课程目录」：优先恢复进入时的目录搜索/筛选态（列表页写入 sessionStorage）；
+// SSR 首帧与无记录时回退 /courses。详情页内多级跳转后记录仍有效。
+const catalogReturnHref = ref('/courses')
+onMounted(() => {
+  const saved = readCourseCatalogReturn(window.location.href)
+  if (saved) catalogReturnHref.value = saved
+})
+
 function formatCredit(creditX10: number) {
   if (!creditX10) return ''
   return (creditX10 / 10).toFixed(1).replace(/\.0$/, '')
@@ -50,30 +72,23 @@ function offeringLabel(id: number) {
   const offering = page.props.course.offerings?.find((item) => item.id === id)
   if (!offering) return `#${id}`
   const classLabel = offering.className || offering.classCode || ''
-  return [offering.termCode, classLabel, offering.campus, offering.instructors?.join('、')].filter(Boolean).join(' · ')
+  return [shortTerm(offering.termCode), classLabel, offering.campus, offering.instructors?.join('、')].filter(Boolean).join(' · ')
 }
 
 function formatRating(avg: number) {
-  return avg > 0 ? avg.toFixed(1) : '—'
+  return avg > 0 ? avg.toFixed(1) : '-'
 }
 
-// ---- 顶部统计区（B1：ratingAvg / reviewCount / ratingDistribution）----
-// ratingDistribution 为 [1星, 2星, 3星, 4星, 5星] 各档计数（index 0 = 1 星）。
-const ratingAvg = computed(() => page.props.course.ratingAvg ?? null)
+// ---- 评分卡评论数：SSR 回退值（聚焦教学班时保持课程级口径，见 statsReviewCount）----
 const reviewCount = computed(() => page.props.course.reviewCount ?? 0)
-const ratingDistribution = computed(() => page.props.course.ratingDistribution ?? [0, 0, 0, 0, 0])
-// 分布行按 5 星 → 1 星降序展示；基准取最大值（至少 1，避免除零）。
-const distributionRows = computed(() =>
-  [5, 4, 3, 2, 1].map((star) => ({ star, count: ratingDistribution.value[star - 1] ?? 0 })),
-)
-const distributionMax = computed(() => Math.max(...ratingDistribution.value, 1))
+// 均分：分享评价卡（share 快照）复用；评分仪表卡由 RatingSummaryCard 组件自身计算。
+const ratingAvg = computed(() => page.props.course.ratingAvg ?? null)
 
 // ---- 相关课程（同教师其他课 / 同课程其他教师）----
 const related = ref<CourseRelatedResult | null>(null)
 // 初始为 true：避免首屏未加载完成时错误闪现"暂无相关内容"。
 const relatedLoading = ref(true)
 const relatedError = ref('')
-const relatedMobileExpanded = ref(false)
 
 async function loadRelated() {
   relatedLoading.value = true
@@ -222,10 +237,76 @@ const formRating = ref(0)
 const formContent = ref('')
 const formAnonymous = ref(true)
 const formSubmitting = ref(false)
+// 提交按钮三态机：idle=常规；submitting=请求中（spinner 防重复）；success=成功后短暂
+// 展示勾选确认再关表单（用户可见反馈）；error=失败（按钮抖动后回 idle，错误就地提示）。
+const formSubmitState = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+// 新建评价成功后定位高亮：表单收起后平滑滚动到该条评论并短暂标记，锚定用户视线。
+const highlightedReviewId = ref<number | null>(null)
 const formError = ref('')
 const editingReviewId = ref<number | null>(null)
 const templateSelectorOpen = ref(false)
 const formTemplateId = ref('')
+
+// —— 富文本编辑器（与帖子/回复同款 Vditor，紧凑工具栏）：异步就绪遮罩 + 图片上传 ——
+const reviewEditor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const reviewEditorReady = ref(false)
+const reviewEditorFailed = ref(false)
+const uploadingReviewImages = ref(false)
+
+watch(
+  () => [reviewEditor.value?.editorReady, reviewEditor.value?.editorFailed] as const,
+  ([ready, failed]) => {
+    reviewEditorReady.value = !!ready
+    reviewEditorFailed.value = !!failed
+  },
+)
+
+function reviewImageAlt(filename: string) {
+  return filename.replace(/\.[^.]+$/, '').replace(/[[\]\n\r]/g, ' ').trim() || 'image'
+}
+
+// 粘贴/拖拽图片：与发布页同款流程（校验 → 压缩 → 上传 → 插入 Markdown）。
+async function uploadReviewImages(files: File[]) {
+  if (!files.length || uploadingReviewImages.value) return
+  uploadingReviewImages.value = true
+  const markdownImages: string[] = []
+  const failed: string[] = []
+  try {
+    for (const file of files) {
+      const validation = validateImageFile(file)
+      if (validation) {
+        failed.push(`${file.name}: ${validation}`)
+        continue
+      }
+      try {
+        const optimized = await processImageFile(file)
+        const url = await uploadImage(optimized.file)
+        markdownImages.push(`![${reviewImageAlt(file.name)}](${url})`)
+      } catch (error) {
+        failed.push(`${file.name}: ${error instanceof Error ? error.message : t('api.imageUploadFailed')}`)
+      }
+    }
+    if (markdownImages.length) {
+      reviewEditor.value?.insertMarkdown(markdownImages.join('\n'))
+    }
+    if (failed.length) {
+      pushFlash(
+        failed.slice(0, 3).join(t('punctuation.semicolon')) +
+          (failed.length > 3 ? t('publish.moreImageFailures', { count: failed.length - 3 }) : ''),
+        'error',
+      )
+    } else if (!markdownImages.length) {
+      pushFlash(t('publish.noUploadableImages'), 'error')
+    }
+  } finally {
+    uploadingReviewImages.value = false
+  }
+}
+
+function onReviewEditorError(editorError: Error) {
+  reviewEditorFailed.value = true
+  pushFlash(editorError.message || t('common.loadFailed'), 'error')
+}
 
 function openCreateForm() {
   editingReviewId.value = null
@@ -237,6 +318,7 @@ function openCreateForm() {
   formError.value = ''
   formTemplateId.value = ''
   templateSelectorOpen.value = false
+  formSubmitState.value = 'idle'
   formVisible.value = true
 }
 
@@ -251,6 +333,7 @@ function startEdit(review: ReviewPayload) {
   formError.value = ''
   formTemplateId.value = ''
   templateSelectorOpen.value = false
+  formSubmitState.value = 'idle'
   formVisible.value = true
 }
 
@@ -259,6 +342,7 @@ function cancelForm() {
   editingReviewId.value = null
   formError.value = ''
   templateSelectorOpen.value = false
+  formSubmitState.value = 'idle'
 }
 
 function applyTemplate(id: string, content: string) {
@@ -292,6 +376,8 @@ async function submitForm() {
     return
   }
   formSubmitting.value = true
+  formSubmitState.value = 'submitting'
+  let createdReviewId = 0
   try {
     if (editingReviewId.value) {
       const updated = await updateCourseReview(editingReviewId.value, {
@@ -307,6 +393,7 @@ async function submitForm() {
         content: formContent.value,
         isAnonymous: formAnonymous.value,
       })
+      createdReviewId = created.id
       reviewLoader.invalidate() // 使进行中的首屏 GET 过期，避免旧快照覆盖刚创建的评价
       // 创建的评价与当前过滤（聚焦教学班）一致时才本地插入/计数；
       // 不一致（用户改了表单中的教学班）只做失效重拉，避免把别的班的评价
@@ -321,10 +408,32 @@ async function submitForm() {
       reviewLoaded.value = true
     }
     invalidateReviews()
+    // 成功确认态：按钮短暂显示「已提交/已更新」后再关闭表单（微交互，防"点了没反应"）。
+    formSubmitState.value = 'success'
+    await new Promise((resolve) => setTimeout(resolve, 900))
     formVisible.value = false
     editingReviewId.value = null
+    // 新建评价：等表单退场后平滑滚动到该条并短暂高亮，锚定用户视线（避免"凭空出现在列表顶部"）。
+    if (createdReviewId) {
+      const scrollTarget = () => document.querySelector<HTMLElement>(`#course-review-${createdReviewId}`)
+      await new Promise((resolve) => setTimeout(resolve, 260))
+      highlightedReviewId.value = createdReviewId
+      scrollTarget()?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // prefers-reduced-motion 下跳过两次长延时，直接即时滚动并报读屏（无需 DOM 高亮）。
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      if (!reduceMotion) {
+        setTimeout(() => {
+          if (highlightedReviewId.value === createdReviewId) highlightedReviewId.value = null
+        }, 2000)
+      }
+    }
   } catch (error) {
     formError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewSaveFailed')
+    // 失败反馈：按钮抖动提示后回 idle，错误信息就地位于表单下方。
+    formSubmitState.value = 'error'
+    setTimeout(() => {
+      formSubmitState.value = 'idle'
+    }, 450)
   } finally {
     formSubmitting.value = false
   }
@@ -335,10 +444,44 @@ const pendingDelete = ref<ReviewPayload | null>(null)
 // deleting 防 in-flight 双击：删除请求未返回前禁止重复提交/取消，
 // 避免 pendingDelete 被中途置 null 导致"删 A 后误关 B 的 Dialog"竞态。
 const deleting = ref(false)
+// a11y（对齐举报弹窗）：Esc 关闭 + Tab 焦点陷阱 + 打开即聚焦，兑现 aria-modal 承诺。
+const deleteDialogEl = ref<HTMLElement | null>(null)
+const DELETE_TITLE_ID = 'course-review-delete-title'
+
+function deleteFocusableEls(): HTMLElement[] {
+  if (!deleteDialogEl.value) return []
+  return Array.from(
+    deleteDialogEl.value.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+}
+
+function onDeleteKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelRemoveReview()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const focusable = deleteFocusableEls()
+  if (focusable.length < 2) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 function askRemoveReview(review: ReviewPayload) {
   if (deleting.value) return
   pendingDelete.value = review
+  // 弹窗挂载后移入焦点：aria-modal 声明下键盘/读屏用户不应滞留在触发按钮。
+  nextTick(() => deleteFocusableEls()[0]?.focus())
 }
 
 function cancelRemoveReview() {
@@ -366,7 +509,7 @@ async function confirmRemoveReview() {
   }
 }
 
-// ---- helpful ----
+// ---- helpful / dislike ----
 async function toggleHelpful(review: ReviewPayload) {
   if (!page.layout.viewer.isAuthenticated) {
     window.location.href = loginHref.value
@@ -379,6 +522,11 @@ async function toggleHelpful(review: ReviewPayload) {
     await setReviewHelpful(review.id, next)
     review.viewer.isHelpful = next
     review.helpfulCount += next ? 1 : -1
+    // 点赞与点踩互斥（与 serverless 一致）
+    if (next && review.viewer.isDisliked) {
+      review.viewer.isDisliked = false
+      review.dislikeCount = Math.max(0, review.dislikeCount - 1)
+    }
   } catch (error) {
     pushFlash(error instanceof Error ? error.message : t('courseDetailPage.reviewHelpfulFailed'), 'error')
   } finally {
@@ -386,24 +534,215 @@ async function toggleHelpful(review: ReviewPayload) {
   }
 }
 
-// ---- 举报 ----
+const dislikeBusyIds = ref<number[]>([])
+
+async function toggleDislike(review: ReviewPayload) {
+  if (!page.layout.viewer.isAuthenticated) {
+    window.location.href = loginHref.value
+    return
+  }
+  if (dislikeBusyIds.value.includes(review.id)) return
+  dislikeBusyIds.value.push(review.id)
+  try {
+    const next = !review.viewer.isDisliked
+    await setReviewDislike(review.id, next)
+    review.viewer.isDisliked = next
+    review.dislikeCount += next ? 1 : -1
+    // 点踩与点赞互斥（与 serverless 一致）
+    if (next && review.viewer.isHelpful) {
+      review.viewer.isHelpful = false
+      review.helpfulCount = Math.max(0, review.helpfulCount - 1)
+    }
+  } catch (error) {
+    pushFlash(error instanceof Error ? error.message : t('courseDetailPage.reviewDislikeFailed'), 'error')
+  } finally {
+    dislikeBusyIds.value = dislikeBusyIds.value.filter((id) => id !== review.id)
+  }
+}
+
+// ---- 分享评论长图（对齐 serverless 分享卡：boring 头像 + 白卡预览 + html-to-image 导出）----
+type SharePreviewState = {
+  review: ReviewPayload
+  avatarUrl: string
+  markdownHtml: string
+}
+
+const sharePreview = ref<SharePreviewState | null>(null)
+const shareBusyId = ref<number | null>(null)
+const shareSaving = ref(false)
+const shareExportEl = ref<HTMLElement | null>(null)
+
+// 评论头像：member 用论坛用户头像（同名同头像）；匿名/历史评价用 beam 占位头像
+// （seed 用评价 id + 展示名，同一评价头像稳定，跨页面一致）。
+function reviewAvatar(review: ReviewPayload, size: number): string {
+  return reviewAvatarSrc(review.author, review.id, size)
+}
+
+function reviewDateLabel(review: ReviewPayload): string {
+  return formatDateTime(review.createdAt)
+}
+
+async function openShare(review: ReviewPayload) {
+  if (shareBusyId.value != null) return
+  shareBusyId.value = review.id
+  try {
+    const markdownHtml = await inlineMarkdownImages(review.contentHtml)
+    sharePreview.value = {
+      review,
+      avatarUrl: reviewAvatar(review, 88),
+      markdownHtml,
+    }
+    document.body.style.overflow = 'hidden'
+  } catch (error) {
+    pushFlash(error instanceof Error ? error.message : t('courseDetailPage.sharePrepareFailed'), 'error')
+  } finally {
+    shareBusyId.value = null
+  }
+}
+
+function closeShare() {
+  sharePreview.value = null
+  shareSaving.value = false
+  document.body.style.overflow = ''
+  nextTick(() => {
+    const trigger = shareTriggerEl.value
+    if (trigger?.isConnected) trigger.focus()
+    shareTriggerEl.value = null
+  })
+}
+
+async function saveShare() {
+  const node = shareExportEl.value
+  if (!node || shareSaving.value) return
+  shareSaving.value = true
+  try {
+    await waitForImages(node)
+    let dataUrl = ''
+    let extension: 'png' | 'jpg' = 'png'
+    try {
+      dataUrl = await exportShareNode(node, 'png')
+    } catch {
+      dataUrl = await exportShareNode(node, 'jpg')
+      extension = 'jpg'
+    }
+    if (!dataUrl) throw new Error('export_failed')
+    const fileName = `${page.props.course.primaryCode || 'yourtj'}-${reviewSqid(sharePreview.value!.review.id)}.${extension}`
+    const link = document.createElement('a')
+    link.href = dataUrl
+    link.download = fileName
+    link.click()
+  } catch {
+    pushFlash(t('courseDetailPage.shareExportFailed'), 'error')
+  } finally {
+    shareSaving.value = false
+  }
+}
+
+// ---- 分享弹窗 a11y（同举报弹窗：Esc 关闭 + 焦点陷阱 + 焦点归还 + 滚动锁）----
+const shareTriggerEl = ref<HTMLElement | null>(null)
+const shareDialogEl = ref<HTMLElement | null>(null)
+const SHARE_TITLE_ID = 'course-review-share-title'
+
+function shareFocusableEls(): HTMLElement[] {
+  if (!shareDialogEl.value) return []
+  return Array.from(
+    shareDialogEl.value.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+}
+
+function onShareKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeShare()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const focusable = shareFocusableEls()
+  if (focusable.length < 2) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+async function openShareDialog(review: ReviewPayload, event?: MouseEvent) {
+  shareTriggerEl.value = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  // 先等 openShare 置 sharePreview 再聚焦：弹窗是 v-if="sharePreview"，异步图片
+  // 内联完成前聚焦时 DOM 尚未挂载，querySelector 落空，焦点滞留在触发按钮上。
+  await openShare(review)
+  if (!sharePreview.value) return // 准备失败（flash 已提示）：无弹窗可聚焦
+  void nextTick(() => {
+    shareDialogEl.value?.querySelector<HTMLElement>('button')?.focus()
+  })
+}
+
+// ---- 举报（a11y：焦点陷阱 + Esc 关闭 + 焦点归还触发按钮 + 背景滚动锁）----
 const reportReasons = ['spam', 'abuse', 'illegal', 'irrelevant', 'other']
 const pendingReport = ref<ReviewPayload | null>(null)
 const reportReason = ref('spam')
 const reportNote = ref('')
 const reportSubmitting = ref(false)
 const reportError = ref('')
+// reportTriggerEl 记录打开弹窗时聚焦的触发按钮，关闭后归还焦点。
+const reportTriggerEl = ref<HTMLElement | null>(null)
+const reportDialogEl = ref<HTMLElement | null>(null)
+const REPORT_TITLE_ID = 'course-report-title'
+
+function reportFocusableEls(): HTMLElement[] {
+  if (!reportDialogEl.value) return []
+  return Array.from(
+    reportDialogEl.value.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+}
+
+function onReportKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeReport()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const focusable = reportFocusableEls()
+  if (focusable.length < 2) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 function openReport(review: ReviewPayload) {
+  reportTriggerEl.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
   pendingReport.value = review
   reportReason.value = 'spam'
   reportNote.value = ''
   reportError.value = ''
+  document.body.style.overflow = 'hidden'
+  nextTick(() => reportFocusableEls()[0]?.focus())
 }
 
 function closeReport() {
   pendingReport.value = null
   reportError.value = ''
+  document.body.style.overflow = ''
+  nextTick(() => {
+    const trigger = reportTriggerEl.value
+    if (trigger?.isConnected) trigger.focus()
+    reportTriggerEl.value = null
+  })
 }
 
 async function submitReport() {
@@ -424,12 +763,28 @@ onMounted(() => {
   focusOfferingId.value = parseFocusOfferingId()
   loadReviews()
   loadRelated()
+  // 预览面板「撰写评价」直达：带 writeReview=1 进入时自动打开写评表单并滚动到评价区。
+  const params = new URLSearchParams(window.location.search)
+  if (params.has('writeReview') && page.layout.viewer.isAuthenticated && page.props.course.offerings?.length) {
+    openCreateForm()
+    void nextTick(() => {
+      document.querySelector('#course-reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+})
+
+// 页面卸载（SPA 导航）时若举报弹窗仍打开，恢复背景滚动，避免滚动锁残留。
+onBeforeUnmount(() => {
+  document.body.style.overflow = ''
 })
 </script>
 
 <template>
-  <div class="pb-12">
-    <a href="/courses" class="mb-3 inline-flex items-center gap-1 text-[13px] text-base-content/55 hover:text-primary">
+  <div class="px-4 pb-12 sm:px-0">
+    <a
+      :href="catalogReturnHref"
+      class="mb-3 mt-3 inline-flex items-center gap-1 text-[13px] text-base-content/55 hover:text-primary sm:mt-0"
+    >
       <ArrowLeft class="h-3.5 w-3.5" />
       {{ t('courseDetailPage.backToList') }}
     </a>
@@ -439,205 +794,59 @@ onMounted(() => {
         <span class="gf-badge gf-badge-muted">{{ props.course.primaryCode }}</span>
       </template>
       <template #meta>
-        <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-base-content/60">
-          <span class="inline-flex items-center gap-1">
-            <Building2 class="h-3.5 w-3.5" />
+        <!-- 信息栏：紧凑语义徽标条（院系 / 教师 / 学分），带形状+微色彩的"面板感"、
+             主题色 icon 统一 accent；仅 ~28px 高，不挤压主内容（better-layout: 共享对齐边 + 8px 间距）。 -->
+        <div class="mt-3 flex flex-wrap items-center gap-1.5">
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1 text-[12px] leading-none text-base-content/70"
+          >
+            <Building2 class="h-3.5 w-3.5 text-primary/65" />
             {{ props.course.department }}
           </span>
-          <span class="inline-flex items-center gap-1">
-            <UsersRound class="h-3.5 w-3.5" />
-            {{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1 text-[12px] leading-none text-base-content/70"
+          >
+            <UsersRound class="h-3.5 w-3.5 text-primary/65" />
+            <span class="font-medium text-base-content/80">
+              {{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+            </span>
           </span>
-          <span v-if="formatCredit(props.course.creditX10)" class="inline-flex items-center gap-1">
-            <span class="h-1 w-1 rounded-full bg-base-content/30" />
-            {{ t('courseDetailPage.credit') }}：{{ formatCredit(props.course.creditX10) }}
+          <span
+            v-if="formatCredit(props.course.creditX10)"
+            class="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1 text-[12px] leading-none text-base-content/70"
+          >
+            <GraduationCap class="h-3.5 w-3.5 text-primary/65" />
+            {{ t('courseDetailPage.credit') }}
+            <span class="font-semibold tabular-nums text-base-content/80">{{ formatCredit(props.course.creditX10) }}</span>
           </span>
         </div>
       </template>
     </PageHeader>
 
-    <div v-if="props.course.aliases?.length" class="mb-4 flex flex-wrap items-center gap-1.5">
+    <div v-if="props.course.aliases?.length" class="mb-6 flex flex-wrap items-center gap-1.5">
       <span class="text-[12px] text-base-content/45">{{ t('courseDetailPage.aliases') }}：</span>
       <span v-for="alias in props.course.aliases" :key="alias" class="gf-badge gf-badge-ghost text-[11px]">
         {{ alias }}
       </span>
     </div>
 
-    <!-- 内容区：桌面端（xl+）评价列表为主列，评分分布/开课记录/相关课程/AI 总结收纳右栏；移动端按 DOM 顺序纵向堆叠。 -->
-    <div class="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)] xl:items-start">
-      <!-- 右栏（xl+ 排右侧；移动端先于评价列表显示，保持原顺序） -->
-      <div class="min-w-0 space-y-4 xl:order-2 xl:sticky xl:top-6">
-        <section class="gf-panel p-5">
-          <div class="flex flex-col gap-5">
-            <div class="flex flex-col items-center">
-          <div class="text-4xl font-bold tracking-tight tabular-nums text-warning">
-            {{ ratingAvg != null ? ratingAvg.toFixed(1) : '—' }}
-          </div>
-          <div class="mt-0.5 text-[12px] text-base-content/50">{{ t('courseDetailPage.ratingOutOf') }}</div>
-          <div class="mt-1.5 text-[13px] text-base-content/60">
-            {{ t('courseDetailPage.reviewCountLabel', { count: statsReviewCount }, statsReviewCount) }}
-          </div>
-        </div>
+    <!-- 评分仪表卡：移动端实例挂在此处（页头下方）；桌面端由右栏实例（hidden xl:block）接管。 -->
+    <RatingSummaryCard
+      class="xl:hidden"
+      :rating-avg="page.props.course.ratingAvg ?? null"
+      :review-count="statsReviewCount"
+      :distribution="page.props.course.ratingDistribution ?? [0, 0, 0, 0, 0]"
+    />
 
-        <div class="min-w-0 flex-1 space-y-1.5">
-          <div v-for="row in distributionRows" :key="row.star" class="flex items-center gap-2">
-            <span class="w-8 shrink-0 text-right text-[12px] tabular-nums text-base-content/55">
-              {{ row.star }} {{ t('courseDetailPage.stars') }}
-            </span>
-            <div class="h-2 flex-1 overflow-hidden rounded-full bg-base-300/60">
-              <div
-                class="h-full rounded-full bg-warning"
-                :style="{ width: `${(row.count / distributionMax) * 100}%` }"
-              />
-            </div>
-            <span class="w-6 shrink-0 text-[12px] tabular-nums text-base-content/45">{{ row.count }}</span>
-          </div>
-        </div>
-
+    <!-- 内容区：桌面端（xl+）评价列表为主列，开课记录/相关课程/AI 总结收纳右栏；移动端概括优先，按 DOM 顺序纵向堆叠（页头 → 评分 → AI 总结 → 评价 → 开课/相关）。 -->
+    <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)] xl:items-start">
+      <!-- 移动端 AI 总结实例：置于评分 hero 与评价列表之间；桌面隐藏，由右栏实例（hidden xl:block）接管 -->
+      <div class="xl:hidden">
+        <AISummaryCard :course-id="page.props.course.id" />
       </div>
-    </section>
-
-    <section class="gf-panel p-4">
-      <h2 class="mb-3 text-base font-semibold text-base-content">
-        {{ t('courseDetailPage.offeringsTitle') }}
-      </h2>
-      <EmptyState
-        v-if="!props.course.offerings?.length"
-        :icon="CalendarDays"
-        :title="t('courseDetailPage.noOfferings')"
-      />
-      <ul v-else class="space-y-3">
-        <li
-          v-for="offering in props.course.offerings"
-          :key="offering.id"
-          class="rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100"
-        >
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span class="gf-badge gf-badge-muted">{{ offering.termCode }}</span>
-            <span v-if="offering.className" class="gf-badge gf-badge-info text-[11px]">
-              {{ offering.className }}
-            </span>
-            <span v-else-if="offering.classCode" class="gf-badge gf-badge-info text-[11px]">
-              {{ offering.classCode }}
-            </span>
-            <span v-if="offering.campus" class="text-[12px] text-base-content/55">{{ offering.campus }}</span>
-            <span v-if="offering.faculty" class="text-[12px] text-base-content/55">{{ offering.faculty }}</span>
-          </div>
-          <div v-if="offering.instructors?.length" class="mt-2 flex items-center gap-1.5 text-[13px] text-base-content/75">
-            <UsersRound class="h-3.5 w-3.5 text-base-content/45" />
-            {{ t('courseDetailPage.instructors') }}：{{ offering.instructors.join('、') }}
-          </div>
-        </li>
-      </ul>
-    </section>
-
-      <AISummaryCard :course-id="page.props.course.id" />
-
-      <!-- 相关课程：桌面常显；移动端折叠展开 -->
-      <section>
+    <section id="course-reviews" class="min-w-0 scroll-mt-4 xl:order-1" aria-labelledby="course-reviews-title">
       <div class="mb-3 flex items-center justify-between gap-2">
-        <h2 class="text-base font-semibold text-base-content">
-          {{ t('courseDetailPage.relatedTitle') }}
-        </h2>
-        <button
-          type="button"
-          class="gf-button gf-button-sm gf-button-ghost sm:hidden"
-          aria-controls="course-related-panel"
-          :aria-expanded="relatedMobileExpanded"
-          @click="relatedMobileExpanded = !relatedMobileExpanded"
-        >
-          <ChevronDown class="h-4 w-4 transition" :class="relatedMobileExpanded ? 'rotate-180' : ''" />
-          {{ relatedMobileExpanded ? t('courseDetailPage.relatedCollapse') : t('courseDetailPage.relatedExpand') }}
-        </button>
-      </div>
-
-      <p v-if="relatedError" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
-        {{ relatedError }}
-      </p>
-
-      <div v-if="relatedLoading" class="gf-panel">
-        <EmptyState :icon="BookOpen" :title="t('common.loading')" loading />
-      </div>
-
-      <div
-        v-else-if="!relatedError"
-        id="course-related-panel"
-        :class="['space-y-4 sm:block', relatedMobileExpanded ? 'block' : 'hidden']"
-      >
-        <div class="gf-panel p-4">
-          <h3 class="mb-3 text-sm font-semibold text-base-content">
-            {{ t('courseDetailPage.relatedTeacherCoursesTitle') }}
-          </h3>
-          <EmptyState
-            v-if="!related?.teacherOtherCourses.length"
-            :icon="BookOpen"
-            :title="t('courseDetailPage.relatedEmpty')"
-          />
-          <ul v-else class="space-y-2">
-            <li v-for="item in related.teacherOtherCourses" :key="item.id">
-              <a
-                :href="`/courses/${item.id}`"
-                class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2 transition hover:bg-base-200/70"
-              >
-                <span class="min-w-0">
-                  <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
-                  <span class="block truncate text-[12px] text-base-content/50">
-                    {{ item.primaryCode }}<template v-if="item.instructors?.length"> · {{ item.instructors.join('、') }}</template>
-                  </span>
-                </span>
-                <span class="shrink-0 text-right">
-                  <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
-                  <span class="block text-[11px] tabular-nums text-base-content/45">
-                    {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
-                  </span>
-                </span>
-              </a>
-            </li>
-          </ul>
-        </div>
-
-        <div class="gf-panel p-4">
-          <h3 class="mb-3 text-sm font-semibold text-base-content">
-            {{ t('courseDetailPage.relatedOtherTeachersTitle') }}
-          </h3>
-          <EmptyState
-            v-if="!related?.sameCourseOtherTeachers.length"
-            :icon="UsersRound"
-            :title="t('courseDetailPage.relatedEmpty')"
-          />
-          <ul v-else class="space-y-2">
-            <li
-              v-for="item in related.sameCourseOtherTeachers"
-              :key="item.id"
-            >
-              <a
-                :href="`/courses/${item.id}`"
-                class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2 transition hover:bg-base-200/70"
-              >
-                <span class="min-w-0">
-                  <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
-                  <span class="block truncate text-[12px] text-base-content/50">
-                    {{ item.primaryCode }}<template v-if="item.teacherName"> · {{ item.teacherName }}</template><template v-else> · {{ t('courseDetailPage.noTeacher') }}</template>
-                  </span>
-                </span>
-                <span class="shrink-0 text-right">
-                  <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
-                  <span class="block text-[11px] tabular-nums text-base-content/45">
-                    {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
-                  </span>
-                </span>
-              </a>
-            </li>
-          </ul>
-        </div>
-      </div>
-      </section>
-
-      </div>
-
-    <section id="course-reviews" class="min-w-0 scroll-mt-4 xl:order-1">
-      <div class="mb-3 flex items-center justify-between gap-2">
-        <h2 class="text-base font-semibold text-base-content">
+        <h2 id="course-reviews-title" class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
           <span v-if="reviewTotal" class="ml-1 text-[13px] font-normal text-base-content/45">{{ reviewTotal }}</span>
         </h2>
@@ -679,13 +888,15 @@ onMounted(() => {
         {{ reviewError }}
       </p>
 
-      <!-- 写评 / 编辑表单 -->
+      <!-- 写评 / 编辑表单：外层 grid wrapper 承担打开时的真实高度展开（0fr→1fr），
+           内层保持内容高度自适应；关闭由 CSS 做柔和的固定位移淡出。 -->
       <Transition name="gf-local-expand">
-      <form
-        v-if="formVisible"
-        class="mb-4 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100"
-        @submit.prevent="submitForm"
-      >
+      <div v-if="formVisible" class="grid gf-local-expand">
+        <div class="min-h-0 overflow-hidden">
+        <form
+          class="mb-4 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100"
+          @submit.prevent="submitForm"
+        >
         <h3 class="mb-3 text-sm font-semibold text-base-content">
           {{ editingReviewId ? t('courseDetailPage.editReviewTitle') : t('courseDetailPage.writeReviewTitle') }}
         </h3>
@@ -713,12 +924,14 @@ onMounted(() => {
 
           <div>
             <span class="mb-1.5 block text-[13px] text-base-content/70">{{ t('courseDetailPage.rating') }}</span>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1" role="radiogroup" :aria-label="t('courseDetailPage.rating')">
               <button
                 v-for="star in 5"
                 :key="star"
                 type="button"
                 class="rounded p-0.5 transition hover:scale-110"
+                role="radio"
+                :aria-checked="formRating === star"
                 :aria-label="`${star} ${t('courseDetailPage.stars')}`"
                 @click="formRating = star"
               >
@@ -732,16 +945,29 @@ onMounted(() => {
           </div>
 
           <div>
-            <label class="mb-1.5 block text-[13px] text-base-content/70" for="review-content">
-              {{ t('courseDetailPage.content') }}
-            </label>
-            <textarea
-              id="review-content"
-              v-model="formContent"
-              class="gf-textarea min-h-28"
-              maxlength="50000"
-              :placeholder="t('courseDetailPage.contentPlaceholder')"
-            />
+            <span class="mb-1.5 block text-[13px] text-base-content/70">{{ t('courseDetailPage.content') }}</span>
+            <div class="relative overflow-hidden rounded-[var(--gf-radius-box)] border border-line/70 bg-base-100">
+              <!-- 与发布/回复同款富文本编辑器（紧凑工具栏）；失败时显示占位与错误，不阻塞表单其他字段 -->
+              <VditorOfficial
+                ref="reviewEditor"
+                v-model="formContent"
+                :height="300"
+                :compact="true"
+                :placeholder="t('courseDetailPage.contentPlaceholder')"
+                @upload="uploadReviewImages"
+                @error="onReviewEditorError"
+              />
+              <div
+                v-if="!reviewEditorReady"
+                class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-base-100/60 text-sm"
+                :class="reviewEditorFailed ? 'text-error' : 'text-base-content/55'"
+                :role="reviewEditorFailed ? 'alert' : 'status'"
+                aria-live="polite"
+              >
+                <Loader2 v-if="!reviewEditorFailed" class="h-4 w-4 animate-spin" />
+                <span>{{ reviewEditorFailed ? t('common.loadFailed') : t('common.loadingShort') }}</span>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -780,14 +1006,27 @@ onMounted(() => {
           </button>
           <button
             type="submit"
-            class="gf-button gf-button-md gf-button-primary"
-            :disabled="formSubmitting"
+            class="gf-button gf-button-md gf-button-primary min-w-[8rem]"
+            :disabled="formSubmitting || formSubmitState === 'success'"
+            :aria-busy="formSubmitting"
+            :class="{ 'gf-submit-error': formSubmitState === 'error' }"
           >
-            <Loader2 v-if="formSubmitting" class="h-4 w-4 animate-spin" />
-            {{ formSubmitting ? t('common.loadingShort') : t('courseDetailPage.submitReview') }}
+            <template v-if="formSubmitting">
+              <Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
+              {{ t('courseDetailPage.submitting') }}
+            </template>
+            <template v-else-if="formSubmitState === 'success'">
+              <Check class="h-4 w-4" aria-hidden="true" />
+              {{ editingReviewId ? t('courseDetailPage.updateSuccess') : t('courseDetailPage.submitSuccess') }}
+            </template>
+            <template v-else>
+              {{ t('courseDetailPage.submitReview') }}
+            </template>
           </button>
         </div>
-      </form>
+        </form>
+        </div>
+      </div>
       </Transition>
 
       <!-- 评价列表 -->
@@ -805,70 +1044,117 @@ onMounted(() => {
         <li
           v-for="review in reviews"
           :key="review.id"
+          :id="`course-review-${review.id}`"
           class="rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100"
+          :class="{ 'gf-review-highlight': highlightedReviewId === review.id }"
         >
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span class="gf-badge gf-badge-muted text-[11px]">{{ offeringLabel(review.offeringId) }}</span>
-            <span v-if="review.rating" class="inline-flex items-center gap-0.5">
+          <!-- 头部：左头像 + 作者/开课班信息；右侧星级（对齐 serverless 评论卡） -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-2.5">
+              <img
+                :src="reviewAvatar(review, 36)"
+                :alt="authorLabel(review.author)"
+                class="h-9 w-9 shrink-0 rounded-full object-cover"
+                loading="lazy"
+              />
+              <div class="min-w-0">
+                <p class="truncate text-[13px] font-medium leading-5 text-base-content">{{ authorLabel(review.author) }}</p>
+                <p class="truncate text-[11px] leading-4 text-base-content/45">
+                  {{ offeringLabel(review.offeringId) }} · {{ reviewDateLabel(review) }}
+                </p>
+              </div>
+            </div>
+            <div class="flex shrink-0 items-center gap-0.5 pt-1" role="img" :aria-label="`${review.rating ?? 0} ${t('courseDetailPage.stars')}`">
               <Star
                 v-for="star in 5"
                 :key="star"
-                class="h-3.5 w-3.5"
+                class="h-4 w-4"
                 :class="review.rating && review.rating >= star ? 'fill-warning text-warning' : 'text-base-content/20'"
               />
-            </span>
-            <span v-else class="text-[12px] text-base-content/45">{{ t('courseDetailPage.noRating') }}</span>
-            <span class="text-[12px] text-base-content/55">{{ authorLabel(review.author) }}</span>
-            <time class="text-[12px] tabular-nums text-base-content/45">{{ formatDateTime(review.createdAt) }}</time>
+            </div>
           </div>
 
           <div
             v-if="review.contentHtml"
             v-code-highlight
             v-math-render
-            class="gf-prose gf-prose-post mt-2 text-[14px] leading-6"
+            class="gf-prose gf-prose-post mt-3 text-[14px] leading-6"
             v-html="review.contentHtml"
           />
 
+          <!-- 功能区：点赞 / 点踩 / 分享评论 / 编辑 / 删除 / 举报 + 评价短码（对齐 serverless） -->
           <div class="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              class="gf-button gf-button-sm"
-              :class="review.viewer.isHelpful ? 'gf-button-primary' : 'gf-button-ghost'"
+              class="inline-flex min-w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium leading-none transition hover:-translate-y-px sm:gap-2 sm:px-3"
+              :class="review.viewer.isHelpful
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-line/70 bg-base-100 text-base-content/70 hover:border-line hover:text-base-content/90'"
               :disabled="helpfulBusyIds.includes(review.id)"
+              :aria-pressed="review.viewer.isHelpful"
+              :title="review.viewer.isHelpful ? t('courseDetailPage.helpfulUndo') : t('courseDetailPage.helpful')"
               @click="toggleHelpful(review)"
             >
-              <ThumbsUp class="h-3.5 w-3.5" />
-              <span v-if="review.helpfulCount" class="tabular-nums">{{ review.helpfulCount }}</span>
-              {{ t('courseDetailPage.helpful') }}
+              <ThumbsUp class="h-4 w-4" :class="review.viewer.isHelpful ? 'text-amber-600' : 'text-base-content/45'" />
+              <span class="tabular-nums">{{ review.helpfulCount }}</span>
+              <span class="text-[10px] font-semibold opacity-80">{{ t('courseDetailPage.like') }}</span>
+            </button>
+            <button
+              type="button"
+              class="inline-flex min-w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium leading-none transition hover:-translate-y-px sm:gap-2 sm:px-3"
+              :class="review.viewer.isDisliked
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-line/70 bg-base-100 text-base-content/70 hover:border-line hover:text-base-content/90'"
+              :disabled="dislikeBusyIds.includes(review.id)"
+              :aria-pressed="review.viewer.isDisliked"
+              :title="review.viewer.isDisliked ? t('courseDetailPage.dislikeUndo') : t('courseDetailPage.dislike')"
+              @click="toggleDislike(review)"
+            >
+              <ThumbsDown class="h-4 w-4" :class="review.viewer.isDisliked ? 'text-red-600' : 'text-base-content/45'" />
+              <span class="tabular-nums">{{ review.dislikeCount }}</span>
+              <span class="text-[10px] font-semibold opacity-80">{{ t('courseDetailPage.dislike') }}</span>
+            </button>
+            <button
+              type="button"
+              class="inline-flex min-w-fit shrink-0 items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1.5 text-xs font-medium leading-none text-base-content/70 transition hover:-translate-y-px hover:border-line hover:text-base-content/90 active:scale-[0.96] sm:gap-2 sm:px-3"
+              :disabled="shareBusyId != null"
+              :title="t('courseDetailPage.shareTitle')"
+              @click="openShareDialog(review, $event)"
+            >
+              <Share2 class="h-4 w-4 text-base-content/45" />
+              <span class="text-[10px] font-semibold opacity-80">{{ shareBusyId === review.id ? t('courseDetailPage.shareGenerating') : t('courseDetailPage.shareComment') }}</span>
             </button>
             <button
               v-if="review.viewer.canEdit"
               type="button"
-              class="gf-button gf-button-sm gf-button-ghost"
+              class="inline-flex min-w-fit shrink-0 items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1.5 text-xs font-medium leading-none text-base-content/70 transition hover:-translate-y-px hover:border-line hover:text-base-content/90 sm:gap-2 sm:px-3"
               @click="startEdit(review)"
             >
-              <Pencil class="h-3.5 w-3.5" />
-              {{ t('courseDetailPage.edit') }}
+              <Pencil class="h-4 w-4 text-base-content/45" />
+              <span class="text-[10px] font-semibold opacity-80">{{ t('courseDetailPage.edit') }}</span>
             </button>
             <button
               v-if="review.viewer.canDelete"
               type="button"
-              class="gf-button gf-button-sm gf-button-ghost text-error"
+              class="inline-flex min-w-fit shrink-0 items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1.5 text-xs font-medium leading-none text-base-content/70 transition hover:-translate-y-px hover:border-error/40 hover:bg-error/10 hover:text-error sm:gap-2 sm:px-3"
               @click="askRemoveReview(review)"
             >
-              <Trash2 class="h-3.5 w-3.5" />
-              {{ t('courseDetailPage.delete') }}
+              <Trash2 class="h-4 w-4 text-base-content/45" />
+              <span class="text-[10px] font-semibold opacity-80">{{ t('courseDetailPage.delete') }}</span>
             </button>
             <button
               v-if="page.layout.viewer.isAuthenticated && !review.viewer.canEdit"
               type="button"
-              class="gf-button gf-button-sm gf-button-ghost ml-auto"
+              class="inline-flex min-w-fit shrink-0 items-center gap-1.5 rounded-full border border-line/70 bg-base-100 px-2.5 py-1.5 text-xs font-medium leading-none text-base-content/70 transition hover:-translate-y-px hover:border-error/40 hover:bg-error/10 hover:text-error sm:gap-2 sm:px-3"
               @click="openReport(review)"
             >
-              <Flag class="h-3.5 w-3.5" />
-              {{ t('courseDetailPage.report') }}
+              <Flag class="h-4 w-4 text-base-content/45" />
+              <span class="text-[10px] font-semibold opacity-80">{{ t('courseDetailPage.report') }}</span>
             </button>
+            <span class="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] tabular-nums text-base-content/45">
+              <Hash class="h-3.5 w-3.5" aria-hidden="true" />
+              <span class="font-mono">{{ reviewSqid(review.id) }}</span>
+            </span>
           </div>
         </li>
       </ul>
@@ -882,21 +1168,152 @@ onMounted(() => {
         @load-more="loadMoreReviews"
       />
     </section>
+
+      <!-- 右栏（xl+ 排右侧自滚动，顶部对齐顶栏 80px；移动端在评价列表之后） -->
+      <div class="min-w-0 space-y-4 xl:order-2 xl:sticky xl:top-20 xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto xl:[scrollbar-width:thin]">
+    <section class="gf-panel p-5" aria-labelledby="course-offerings-title">
+      <h2 id="course-offerings-title" class="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-base-content">
+        <CalendarDays class="h-4 w-4 text-base-content/45" />
+        {{ t('courseDetailPage.offeringsTitle') }}
+      </h2>
+      <EmptyState
+        v-if="!props.course.offerings?.length"
+        :icon="CalendarDays"
+        :title="t('courseDetailPage.noOfferings')"
+      />
+      <ul v-else class="divide-y divide-line/60" :aria-label="t('courseDetailPage.offeringsTitle')">
+        <li
+          v-for="offering in props.course.offerings"
+          :key="offering.id"
+          class="py-2.5 first:pt-0 last:pb-0"
+        >
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="gf-badge gf-badge-muted">{{ shortTerm(offering.termCode) }}</span>
+            <span v-if="offering.className || offering.classCode" class="gf-badge gf-badge-info text-[11px]">
+              {{ offering.className || offering.classCode }}
+            </span>
+          </div>
+          <p class="mt-1 text-[13px] leading-5 text-base-content/70">
+            {{ [offering.campus, offering.faculty, offering.instructors?.join('、')].filter(Boolean).join(' · ') }}
+          </p>
+        </li>
+      </ul>
+    </section>
+
+      <!-- 右栏评分卡实例：置于信息栏顶部（评分 → AI 总结 → 相关课程）；移动端由页头下实例（xl:hidden）接管 -->
+      <div class="hidden xl:block">
+        <RatingSummaryCard
+          :rating-avg="page.props.course.ratingAvg ?? null"
+          :review-count="statsReviewCount"
+          :distribution="page.props.course.ratingDistribution ?? [0, 0, 0, 0, 0]"
+        />
+      </div>
+
+      <div class="hidden xl:block">
+        <AISummaryCard :course-id="page.props.course.id" />
+      </div>
+
+      <!-- 相关课程：桌面与移动端均默认展示（无折叠） -->
+      <section class="gf-panel p-5" aria-labelledby="course-related-title">
+        <h2 id="course-related-title" class="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-base-content">
+          <BookOpen class="h-4 w-4 text-base-content/45" />
+          {{ t('courseDetailPage.relatedTitle') }}
+        </h2>
+
+        <p v-if="relatedError" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
+          {{ relatedError }}
+        </p>
+
+        <EmptyState v-if="relatedLoading" :icon="BookOpen" :title="t('common.loading')" loading />
+
+        <div v-else-if="!relatedError" id="course-related-panel" class="divide-y divide-line/60">
+          <div class="pb-3">
+            <h3 class="mb-3 text-sm font-semibold text-base-content">
+              {{ t('courseDetailPage.relatedTeacherCoursesTitle') }}
+            </h3>
+            <EmptyState
+              v-if="!related?.teacherOtherCourses.length"
+              :icon="BookOpen"
+              :title="t('courseDetailPage.relatedEmpty')"
+            />
+            <ul v-else class="space-y-2">
+              <li v-for="item in related.teacherOtherCourses" :key="item.id">
+                <a
+                  :href="`/courses/${item.id}`"
+                  class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2 transition hover:bg-base-200/70"
+                >
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
+                    <span class="block truncate text-[12px] text-base-content/50">
+                      {{ item.primaryCode }}<template v-if="item.instructors?.length"> · {{ item.instructors.join('、') }}</template>
+                    </span>
+                  </span>
+                  <span class="shrink-0 text-right">
+                    <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
+                    <span class="block text-[11px] tabular-nums text-base-content/45">
+                      {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
+                    </span>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div class="pt-3">
+            <h3 class="mb-3 text-sm font-semibold text-base-content">
+              {{ t('courseDetailPage.relatedOtherTeachersTitle') }}
+            </h3>
+            <EmptyState
+              v-if="!related?.sameCourseOtherTeachers.length"
+              :icon="UsersRound"
+              :title="t('courseDetailPage.relatedEmpty')"
+            />
+            <ul v-else class="space-y-2">
+              <li
+                v-for="item in related.sameCourseOtherTeachers"
+                :key="item.id"
+              >
+                <a
+                  :href="`/courses/${item.id}`"
+                  class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2 transition hover:bg-base-200/70"
+                >
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
+                    <span class="block truncate text-[12px] text-base-content/50">
+                      {{ item.primaryCode }}<template v-if="item.teacherName"> · {{ item.teacherName }}</template><template v-else> · {{ t('courseDetailPage.noTeacher') }}</template>
+                    </span>
+                  </span>
+                  <span class="shrink-0 text-right">
+                    <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
+                    <span class="block text-[11px] tabular-nums text-base-content/45">
+                      {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
+                    </span>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      </div>
     </div>
 
-    <!-- 举报弹窗 -->
+    <!-- 举报弹窗（a11y：焦点陷阱 + Esc + 焦点归还 + 滚动锁） -->
     <Teleport to="body">
       <Transition name="gf-modal">
       <div
         v-if="pendingReport"
+        ref="reportDialogEl"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
         role="dialog"
         aria-modal="true"
+        :aria-labelledby="REPORT_TITLE_ID"
         @click.self="closeReport"
+        @keydown="onReportKeydown"
       >
         <div class="w-full max-w-md rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
           <div class="flex items-start justify-between gap-3">
-            <h2 class="text-base font-bold text-base-content">{{ t('courseDetailPage.reportTitle') }}</h2>
+            <h2 :id="REPORT_TITLE_ID" class="text-base font-bold text-base-content">{{ t('courseDetailPage.reportTitle') }}</h2>
             <button
               type="button"
               class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
@@ -945,19 +1362,22 @@ onMounted(() => {
       </Transition>
     </Teleport>
 
-    <!-- 删除确认 Dialog（受控，替代 window.confirm） -->
+    <!-- 删除确认 Dialog（受控，替代 window.confirm；a11y：焦点陷阱 + Esc + 打开即聚焦） -->
     <Teleport to="body">
       <Transition name="gf-modal">
       <div
         v-if="pendingDelete"
+        ref="deleteDialogEl"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
         role="alertdialog"
         aria-modal="true"
+        :aria-labelledby="DELETE_TITLE_ID"
         @click.self="cancelRemoveReview"
+        @keydown="onDeleteKeydown"
       >
         <div class="w-full max-w-sm rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
           <div class="flex items-start justify-between gap-3">
-            <h2 class="text-base font-bold text-base-content">{{ t('courseDetailPage.confirmDeleteTitle') }}</h2>
+            <h2 :id="DELETE_TITLE_ID" class="text-base font-bold text-base-content">{{ t('courseDetailPage.confirmDeleteTitle') }}</h2>
             <button
               type="button"
               class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
@@ -981,6 +1401,170 @@ onMounted(() => {
         </div>
       </div>
       </Transition>
+    </Teleport>
+
+    <!-- 分享评论弹窗（a11y：焦点陷阱 + Esc + 焦点归还 + 滚动锁；预览与导出双实例） -->
+    <Teleport to="body">
+      <Transition name="gf-modal">
+      <div
+        v-if="sharePreview"
+        ref="shareDialogEl"
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="SHARE_TITLE_ID"
+        @click.self="closeShare"
+        @keydown="onShareKeydown"
+      >
+        <div class="flex max-h-[calc(100dvh-2rem)] w-full max-w-[960px] flex-col overflow-hidden rounded-[var(--gf-radius-box)] bg-base-100 shadow-lg ring-1 ring-line">
+          <div class="flex flex-col gap-3 border-b border-line/70 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+            <div class="min-w-0">
+              <h2 :id="SHARE_TITLE_ID" class="text-[11px] font-black uppercase tracking-[0.28em] text-base-content/55">
+                {{ t('courseDetailPage.shareTitle') }}
+              </h2>
+              <p class="mt-1.5 truncate bg-gradient-to-r from-sky-700 via-slate-700 to-cyan-800 bg-clip-text text-[11px] font-bold text-transparent sm:text-xs">
+                {{ t('courseDetailPage.shareTagline') }}
+              </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                class="gf-button gf-button-sm gf-button-primary active:scale-[0.96]"
+                :disabled="shareSaving"
+                @click="saveShare"
+              >
+                <Loader2 v-if="shareSaving" class="h-4 w-4 animate-spin" />
+                <Download v-else class="h-4 w-4" />
+                {{ shareSaving ? t('common.loadingShort') : t('courseDetailPage.shareSave') }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-line/70 bg-base-100 px-3 text-sm font-medium text-base-content/70 transition hover:bg-base-200 hover:text-base-content active:scale-[0.96]"
+                @click="closeShare"
+              >
+                <X class="h-4 w-4" />
+                {{ t('common.close') }}
+              </button>
+            </div>
+          </div>
+
+          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-base-200/50 p-4 sm:p-6">
+            <!-- 打印墨盒条：模拟打印机出纸，视觉上把卡片「打印」出来（对齐 serverless 分享弹窗） -->
+            <div aria-hidden="true" class="share-printer-bar mx-auto mb-4 w-full max-w-[760px] rounded-[28px] bg-gradient-to-b from-base-content/70 to-base-content/25 px-4 py-4 shadow-inner">
+              <div class="mx-auto h-4 w-48 rounded-full bg-base-100/60" />
+            </div>
+            <!-- 预览实例：响应式宽度 -->
+            <div class="share-paper share-paper-enter mx-auto w-full max-w-[760px] overflow-hidden rounded-[26px] bg-white shadow-[0_28px_60px_rgba(14,165,233,0.16)]">
+              <div class="bg-gradient-to-br from-sky-50 via-white to-cyan-50 px-5 pb-6 pt-6 sm:px-8 sm:pb-8 sm:pt-7">
+                <div class="grid grid-cols-1 gap-4 border-b border-slate-100 pb-5 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div class="min-w-0">
+                    <div class="text-[11px] font-black tracking-[0.18em] text-slate-400">{{ t('courseDetailPage.shareBrand') }}</div>
+                    <div class="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[28px]">{{ props.course.name }}</div>
+                    <div class="mt-2 inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">{{ props.course.primaryCode }}</div>
+                  </div>
+                  <div class="min-w-[138px] rounded-3xl bg-white/90 px-4 py-3 text-right shadow-sm ring-1 ring-slate-100 sm:min-w-[150px]">
+                    <div class="text-[11px] font-bold text-slate-400">{{ t('courseDetailPage.shareCourseRating') }}</div>
+                    <div class="mt-1 text-lg font-black tabular-nums text-amber-500 sm:text-xl">{{ ratingAvg != null ? ratingAvg.toFixed(1) : '-' }} / 5.0</div>
+                    <div class="mt-2 text-[11px] font-bold text-slate-400">{{ t('courseDetailPage.shareReviewCount') }}</div>
+                    <div class="mt-1 text-base font-black tabular-nums text-slate-800 sm:text-lg">{{ statsReviewCount }} {{ t('courseDetailPage.shareCountUnit') }}</div>
+                  </div>
+                </div>
+
+                <div class="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <img :src="sharePreview.avatarUrl" :alt="authorLabel(sharePreview.review.author)" class="h-12 w-12 rounded-2xl object-cover ring-1 ring-slate-100 sm:h-14 sm:w-14" />
+                    <div class="min-w-0">
+                      <div class="truncate text-base font-black text-slate-900 sm:text-lg">{{ authorLabel(sharePreview.review.author) }}</div>
+                      <div class="mt-1 text-xs font-semibold text-slate-400">{{ offeringLabel(sharePreview.review.offeringId) }} · {{ reviewDateLabel(sharePreview.review) }}</div>
+                    </div>
+                  </div>
+                  <div class="shrink-0 rounded-full bg-amber-50 px-3.5 py-1.5 text-[13px] font-black tabular-nums text-amber-600 ring-1 ring-amber-100 sm:px-4 sm:py-2 sm:text-sm">
+                    {{ (sharePreview.review.rating ?? 0).toFixed(1) }} / 5
+                  </div>
+                </div>
+
+                <div class="mt-5 flex flex-wrap gap-2">
+                  <span class="rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700 ring-1 ring-cyan-100">
+                    {{ t('courseDetailPage.shareTeacherPrefix') }}{{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+                  </span>
+                  <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100">
+                    {{ t('courseDetailPage.shareTermPrefix') }}{{ offeringLabel(sharePreview.review.offeringId) }}
+                  </span>
+                  <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                    {{ t('courseDetailPage.shareCodePrefix') }}{{ reviewSqid(sharePreview.review.id) }}
+                  </span>
+                </div>
+
+                <div class="gf-prose gf-prose-post mt-6 rounded-[24px] border border-sky-100 bg-white px-4 py-4 text-[14px] leading-7 text-slate-700 sm:px-6 sm:py-5 sm:text-[15px] sm:leading-8" v-html="sharePreview.markdownHtml" />
+
+                <div class="mt-6 flex items-center justify-between text-xs font-semibold text-slate-400">
+                  <span>{{ t('courseDetailPage.shareWatermark') }}</span>
+                  <span>{{ t('courseDetailPage.shareSite') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </Transition>
+
+      <!-- 导出实例：固定 760px 白卡，隐藏于视口外（html-to-image 捕获） -->
+      <div
+        v-if="sharePreview"
+        ref="shareExportEl"
+        class="pointer-events-none fixed -left-[10000px] top-0 opacity-0"
+        aria-hidden="true"
+      >
+        <div class="share-paper w-[760px] overflow-hidden rounded-[26px] bg-white shadow-[0_28px_60px_rgba(14,165,233,0.16)]">
+          <div class="bg-gradient-to-br from-sky-50 via-white to-cyan-50 px-8 pb-8 pt-7">
+            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-slate-100 pb-5">
+              <div class="min-w-0">
+                <div class="text-[11px] font-black tracking-[0.18em] text-slate-400">{{ t('courseDetailPage.shareBrand') }}</div>
+                <div class="mt-2 text-[28px] font-black leading-tight text-slate-900">{{ props.course.name }}</div>
+                <div class="mt-2 inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">{{ props.course.primaryCode }}</div>
+              </div>
+              <div class="min-w-[150px] rounded-3xl bg-white/90 px-4 py-3 text-right shadow-sm ring-1 ring-slate-100">
+                <div class="text-[11px] font-bold text-slate-400">{{ t('courseDetailPage.shareCourseRating') }}</div>
+                <div class="mt-1 text-xl font-black tabular-nums text-amber-500">{{ ratingAvg != null ? ratingAvg.toFixed(1) : '-' }} / 5.0</div>
+                <div class="mt-2 text-[11px] font-bold text-slate-400">{{ t('courseDetailPage.shareReviewCount') }}</div>
+                <div class="mt-1 text-lg font-black tabular-nums text-slate-800">{{ statsReviewCount }} {{ t('courseDetailPage.shareCountUnit') }}</div>
+              </div>
+            </div>
+
+            <div class="mt-5 flex items-center justify-between gap-4">
+              <div class="flex min-w-0 items-center gap-3">
+                <img :src="sharePreview.avatarUrl" :alt="authorLabel(sharePreview.review.author)" class="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-100" />
+                <div class="min-w-0">
+                  <div class="truncate text-lg font-black text-slate-900">{{ authorLabel(sharePreview.review.author) }}</div>
+                  <div class="mt-1 text-xs font-semibold text-slate-400">{{ offeringLabel(sharePreview.review.offeringId) }} · {{ reviewDateLabel(sharePreview.review) }}</div>
+                </div>
+              </div>
+              <div class="shrink-0 rounded-full bg-amber-50 px-4 py-2 text-sm font-black tabular-nums text-amber-600 ring-1 ring-amber-100">
+                {{ (sharePreview.review.rating ?? 0).toFixed(1) }} / 5
+              </div>
+            </div>
+
+            <div class="mt-5 flex flex-wrap gap-2">
+              <span class="rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700 ring-1 ring-cyan-100">
+                {{ t('courseDetailPage.shareTeacherPrefix') }}{{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+              </span>
+              <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100">
+                {{ t('courseDetailPage.shareTermPrefix') }}{{ offeringLabel(sharePreview.review.offeringId) }}
+              </span>
+              <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                {{ t('courseDetailPage.shareCodePrefix') }}{{ reviewSqid(sharePreview.review.id) }}
+              </span>
+            </div>
+
+            <div class="gf-prose gf-prose-post mt-6 rounded-[24px] border border-sky-100 bg-white px-6 py-5 text-[15px] leading-8 text-slate-700" v-html="sharePreview.markdownHtml" />
+
+            <div class="mt-6 flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span>{{ t('courseDetailPage.shareWatermark') }}</span>
+              <span>{{ t('courseDetailPage.shareSite') }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </Teleport>
 
     <!-- 写评模板选择器 -->

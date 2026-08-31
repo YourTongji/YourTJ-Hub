@@ -1879,6 +1879,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a course
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. Unknown or hidden course ids fail with `course.notFound` (HTTP 404);
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` on HTTP 200 — this route binds non-strictly
+         *     (`UpButterReq`), so validation failures return the legacy 200 envelope
+         *     rather than 400.
+         *     Course bookmarking reuses the project's
+         *     bookmark semantics (action 1 = bookmark, action 2 = unbookmark).
+         */
+        post: operations["bookmarkCourse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/courses/{courseId}": {
         parameters: {
             query?: never;
@@ -2043,6 +2070,33 @@ export interface paths {
          *     deleted reviews report 404 `review.notFound`.
          */
         delete: operations["unmarkReviewHelpful"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/course-reviews/{reviewId}/dislike": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a course review as disliked
+         * @description Authenticated write, idempotent: marking an already-disliked review succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`. The caller's own dislike state is exposed
+         *     via the review DTO's `viewer.isDisliked`.
+         */
+        put: operations["markReviewDislike"];
+        post?: never;
+        /**
+         * Unmark a course review as disliked
+         * @description Authenticated write, idempotent: unmarking a review that is not disliked succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`.
+         */
+        delete: operations["unmarkReviewDislike"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6394,6 +6448,8 @@ export interface components {
             kind: "anonymous" | "member" | "legacy";
             /** @description Display label (for example 匿名同学 for anonymous reviews). */
             label: string;
+            /** @description Public forum avatar path for member reviews only; omitted (omitempty) for anonymous and legacy reviews. */
+            avatarUrl?: string;
         };
         ReviewViewerPayload: {
             /** @description True when the caller is the review author. */
@@ -6402,6 +6458,8 @@ export interface components {
             canDelete: boolean;
             /** @description True when the caller marked the review helpful (only meaningful with an optional JWT). */
             isHelpful: boolean;
+            /** @description True when the caller disliked the review (only meaningful with an optional JWT). */
+            isDisliked?: boolean;
         };
         ReviewPayload: {
             /** Format: uint64 */
@@ -6418,6 +6476,11 @@ export interface components {
             viewer: components["schemas"]["ReviewViewerPayload"];
             /** Format: int64 */
             helpfulCount: number;
+            /**
+             * Format: int64
+             * @description Number of dislikes from other users; the caller's own dislike state is exposed via viewer.isDisliked.
+             */
+            dislikeCount?: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -9230,6 +9293,18 @@ export interface components {
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
         }) | components["schemas"]["ApiFailure"];
+        CourseBookmarkRequest: {
+            /**
+             * Format: uint64
+             * @description Target course; unknown or hidden ids fail with `course.notFound` (HTTP 404).
+             */
+            courseId: number;
+            /**
+             * @description 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
         AdminHttpNotifyEndpointView: {
             id: string;
             name: string;
@@ -12432,10 +12507,10 @@ export interface operations {
         parameters: {
             query?: {
                 keyword?: string;
-                department?: string;
-                term?: string;
-                campus?: string;
-                instructor?: string;
+                department?: string[];
+                term?: string[];
+                campus?: string[];
+                instructor?: string[];
                 onlyWithReviews?: boolean;
                 sortBy?: string;
                 page?: number;
@@ -12472,6 +12547,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    bookmarkCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourseBookmarkRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Bookmark applied (or already in the target state). A malformed body or a zero
+             *     course id also returns HTTP 200 with `common.request.invalidParams`, because this
+             *     route binds non-strictly — clients must branch on `code`, not on the HTTP status.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course bookmark rate limit (action `course.bookmark`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
@@ -13011,6 +13142,106 @@ export interface operations {
                 };
             };
             /** @description Helpful rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    markReviewDislike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Dislike rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    unmarkReviewDislike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Dislike rate limit exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;

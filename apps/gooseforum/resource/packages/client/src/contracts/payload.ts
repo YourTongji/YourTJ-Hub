@@ -950,10 +950,10 @@ export interface CourseSearchPayload {
 export interface CourseCatalogPageProps {
   query: {
     keyword?: string
-    department?: string
-    term?: string
-    campus?: string
-    instructor?: string
+    department?: string[]
+    term?: string[]
+    campus?: string[]
+    instructor?: string[]
     onlyWithReviews?: boolean
     sortBy?: string
     page: number
@@ -971,6 +971,8 @@ export interface CourseCatalogPageProps {
   terms: Array<{ value: string; label: string }>
   /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
   campuses: string[]
+  /** 当前登录用户已收藏的课程 id（issue #331）；未登录/无收藏时省略或为空。 */
+  bookmarkedCourseIDs?: number[]
 }
 
 export interface CourseSummaryPayload {

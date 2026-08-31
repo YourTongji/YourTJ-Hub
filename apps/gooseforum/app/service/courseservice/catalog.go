@@ -2,6 +2,7 @@ package courseservice
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
@@ -79,17 +80,38 @@ type TermOption struct {
 	Label string `json:"label"`
 }
 
-// CatalogQuery 目录筛选条件。
+// CatalogQuery 目录筛选条件（Department/TermCode/Campus/Instructor 支持多值并集）。
 type CatalogQuery struct {
 	Keyword    string
-	Department string
-	TermCode   string
-	Campus     string
-	Instructor string
+	Department []string
+	TermCode   []string
+	Campus     []string
+	Instructor []string
 	HasReview  bool
 	SortBy     string
 	Page       int
 	Size       int
+}
+
+// normalizeMulti 清理多值筛选：按逗号拆分、去空白、去重、丢弃空值。
+// 兼容重复参数（?x=a&x=b）与逗号分隔（?x=a,b）两种传法（issue 多值筛选）。
+func normalizeMulti(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	var out []string
+	for _, raw := range values {
+		for _, part := range strings.Split(raw, ",") {
+			v := strings.TrimSpace(part)
+			if v == "" {
+				continue
+			}
+			if _, ok := seen[v]; ok {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // CatalogPage 目录分页结果。
@@ -116,10 +138,10 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	}
 	entities, total, err := course.ListCourses(course.ListCourseQuery{
 		Keyword:    Normalize(q.Keyword),
-		Department: q.Department,
-		TermCode:   q.TermCode,
-		Campus:     q.Campus,
-		Instructor: q.Instructor,
+		Department: normalizeMulti(q.Department),
+		TermCode:   normalizeMulti(q.TermCode),
+		Campus:     normalizeMulti(q.Campus),
+		Instructor: normalizeMulti(q.Instructor),
 		HasReview:  q.HasReview,
 		SortBy:     q.SortBy,
 		Page:       page,

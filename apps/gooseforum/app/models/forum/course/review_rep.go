@@ -206,6 +206,67 @@ func DeleteHelpful(reviewId, userId uint64) error {
 		Delete(&HelpfulEntity{}).Error
 }
 
+// ---- Review dislike ----
+
+// CountDislikeByReviewIds 批量统计评价 dislike 数（Map[reviewId]count）。
+func CountDislikeByReviewIds(reviewIds []uint64) map[uint64]int64 {
+	result := make(map[uint64]int64, len(reviewIds))
+	if len(reviewIds) == 0 {
+		return result
+	}
+	type row struct {
+		ReviewId uint64
+		Cnt      int64
+	}
+	var rows []row
+	if err := dislikeBuilder().
+		Select("review_id, count(*) AS cnt").
+		Where(queryopt.In("review_id", reviewIds)).
+		Where("deleted_at IS NULL").
+		Group("review_id").
+		Scan(&rows).Error; err != nil {
+		return result
+	}
+	for _, r := range rows {
+		result[r.ReviewId] = r.Cnt
+	}
+	return result
+}
+
+// ListDislikeReviewIDsByUser 批量返回该用户已 dislike 的 review ID 集合。
+func ListDislikeReviewIDsByUser(userId uint64, reviewIds []uint64) (map[uint64]bool, error) {
+	result := make(map[uint64]bool, len(reviewIds))
+	if len(reviewIds) == 0 {
+		return result, nil
+	}
+	var ids []uint64
+	if err := dislikeBuilder().
+		Select("review_id").
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.In("review_id", reviewIds)).
+		Where("deleted_at IS NULL").
+		Scan(&ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, nil
+}
+
+// CreateDislikeTx 事务内标记 dislike（唯一约束 (review_id, user_id) 防重）。
+func CreateDislikeTx(tx *gorm.DB, entity *DislikeEntity) error {
+	return tx.Table(dislikeTableName).Create(entity).Error
+}
+
+// DeleteDislikeTx 事务内取消 dislike（物理删除，恢复 false→true 生命周期）。
+func DeleteDislikeTx(tx *gorm.DB, reviewId, userId uint64) error {
+	return tx.Unscoped().Table(dislikeTableName).
+		Where(queryopt.Eq("review_id", reviewId)).
+		Where(queryopt.Eq("user_id", userId)).
+		Delete(&DislikeEntity{}).Error
+}
+
 // ListCourseIDsByInstructorTx 返回引用该教师的所有可见 offering 所属课程 ID
 // （教师变更后 fan-out 入队课程搜索同步用）。
 func ListCourseIDsByInstructorTx(tx *gorm.DB, instructorId uint64) ([]uint64, error) {
