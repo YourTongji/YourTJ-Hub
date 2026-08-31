@@ -22,6 +22,9 @@ type CardState =
 const expanded = ref(false)
 const state = ref<CardState>({ kind: 'idle' })
 const lastStatus = ref<CourseSummaryStatus | null>(null)
+// refreshing 独立于 state.kind：ready 态刷新时 state 仍为 ready（保留内容），
+// 但 refreshing 阻止重叠请求（review P2：双击/连点刷新会并发消耗全局生成配额）。
+const refreshing = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
 // 终态：已生成 / 已禁用，展开时不重复请求。
@@ -72,7 +75,9 @@ watch(expanded, (open) => {
 })
 
 // applyResult 把服务端结果应用到卡片状态。
-// keepContent=true 时（手动刷新失败/限流）保留已有内容，不清空。
+// keepContent=true 时仅对 error/rateLimited 保留已有内容；成功结果
+// （含 insufficient_data——评价被隐藏/删除后刷新）必须替换旧内容（review P2：
+// 不能继续展示引用已不可见评价的过期摘要）。
 function applyResult(result: CourseSummaryResult, keepContent = false) {
   lastStatus.value = result.status
   switch (result.status) {
@@ -86,7 +91,8 @@ function applyResult(result: CourseSummaryResult, keepContent = false) {
       }
       break
     case 'insufficient_data':
-      if (!keepContent) state.value = { kind: 'insufficient' }
+      // 成功语义：无论之前是否有内容，都切换为 insufficient（替换过期摘要）。
+      state.value = { kind: 'insufficient' }
       break
     case 'disabled':
       state.value = { kind: 'disabled' }
@@ -102,12 +108,21 @@ function applyResult(result: CourseSummaryResult, keepContent = false) {
 async function load(refresh = false) {
   clearTimeout(debounceTimer)
   debounceTimer = undefined
-  if (state.value.kind === 'loading') return
-  // 已有内容时刷新：保留内容，仅更新状态（失败不丢旧内容）。
+  if (refreshing.value) return
+  // 已有内容时刷新：保留内容，仅更新状态（失败/限流不丢旧内容）。
   const keepContent = state.value.kind === 'ready'
   if (!keepContent) state.value = { kind: 'loading' }
-  const result = await getCourseSummary(props.courseId, refresh)
-  applyResult(result, keepContent)
+  refreshing.value = true
+  try {
+    const result = await getCourseSummary(props.courseId, refresh)
+    applyResult(result, keepContent)
+  } catch {
+    // 网络错误：必须退出 loading（review P2：否则折叠再展开被 loading guard
+    // 挡住，卡片永远停留在骨架屏）。
+    if (!keepContent) state.value = { kind: 'error' }
+  } finally {
+    refreshing.value = false
+  }
 }
 
 function onRefresh() {
@@ -188,16 +203,18 @@ function sentimentBadgeClass(sentiment: string): string {
           <ChevronDown class="h-4 w-4 text-base-content/45 transition-transform" :class="{ 'rotate-180': expanded }" />
         </span>
       </button>
-      <!-- 右上角手动刷新：已有内容时显示；刷新失败/限流保留旧内容 -->
+      <!-- 右上角手动刷新：已有内容时显示；刷新期间禁用防重叠（review P2） -->
       <button
         v-if="state.kind === 'ready'"
         type="button"
         class="gf-button gf-button-ghost gf-button-sm shrink-0"
+        :class="{ 'pointer-events-none opacity-50': refreshing }"
         :title="t('courseSummary.refresh')"
         :aria-label="t('courseSummary.refresh')"
+        :disabled="refreshing"
         @click.stop="onRefresh"
       >
-        <RefreshCw class="h-3.5 w-3.5" />
+        <RefreshCw class="h-3.5 w-3.5" :class="{ 'motion-safe:animate-spin': refreshing }" />
       </button>
     </div>
 
