@@ -1195,10 +1195,12 @@ CourseDetailResponse:
 
 CourseSummaryStatus:
   type: string
-  enum: [cached, generated, insufficient_data, disabled]
+  enum: [cached, generated, insufficient_data, none, disabled]
   description: |
     Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
-    HTTP failures and never returned by this API.
+    HTTP failures and never returned by this API. `none` is only returned by check-mode
+    preflight (`?check=true`) and means no summary row exists yet — the client should keep
+    the card collapsed and generate on first expand.
 
 CourseSummaryConsensus:
   type: string

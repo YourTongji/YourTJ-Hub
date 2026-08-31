@@ -155,3 +155,61 @@ func rateLimitQuotaFor(action string) int {
 	}
 	return 0
 }
+
+// TestRateLimitCourseSummaryCheckSeparateQuota check 预检（?check=true）走独立
+// course.summary.check 配额：即使 course.summary 的 per-User/per-IP 配额已耗尽，
+// check 请求仍放行（review P2：浏览 N 门课程页的挂载预检不得耗尽生成配额）。
+func TestRateLimitCourseSummaryCheckSeparateQuota(t *testing.T) {
+	ratelimit.Default().ResetAll()
+	hotdataserve.ClearRateLimitConfigCache()
+	t.Cleanup(func() {
+		ratelimit.Default().ResetAll()
+		hotdataserve.ClearRateLimitConfigCache()
+	})
+
+	userLimit := rateLimitUserQuotaFor(RateLimitCourseSummary)
+	if userLimit <= 0 {
+		t.Fatalf("course.summary limitPerUser = %d, want > 0", userLimit)
+	}
+	// 以同一用户身份耗尽 course.summary 的 per-User 生成配额。
+	for i := 0; i < userLimit; i++ {
+		if recorder := rateLimitRecorder(withUser(1001), RateLimitCourseSummaryAware()); recorder.Code != http.StatusOK {
+			t.Fatalf("generate attempt %d status = %d, want 200", i+1, recorder.Code)
+		}
+	}
+	// 生成端点已 429（per-User 维度）。
+	if recorder := rateLimitRecorder(withUser(1001), RateLimitCourseSummaryAware()); recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("generate beyond user limit status = %d, want 429", recorder.Code)
+	}
+	// check 预检（?check=1）走独立 course.summary.check 配额，仍应放行。
+	// 注意 checkQuery 必须排在 RateLimitCourseSummaryAware 之前，让中间件读到 query。
+	checkRecorder := rateLimitRecorder(withUser(1001), checkQuery("1"), RateLimitCourseSummaryAware())
+	if checkRecorder.Code != http.StatusOK {
+		t.Fatalf("check after generate quota exhausted status = %d, want 200", checkRecorder.Code)
+	}
+	// 反向验证：check 请求消耗的是独立配额，不消耗生成配额——
+	// 生成配额仍满（同一用户再次生成依旧 429）。
+	if recorder := rateLimitRecorder(withUser(1001), RateLimitCourseSummaryAware()); recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("generate after check status = %d, want still 429 (check must not consume generate quota)", recorder.Code)
+	}
+}
+
+func rateLimitUserQuotaFor(action string) int {
+	cfg := hotdataserve.GetRateLimitConfigCache()
+	for _, rule := range cfg.Actions {
+		if rule.Action == action {
+			return rule.LimitPerUser
+		}
+	}
+	return 0
+}
+
+// checkQuery 给 GET 请求附加 ?check=1（rateLimitRecorder 固定 POST /，这里用
+// 一个读 query 的中间件模拟真实路由的 check 分流）。
+func checkQuery(value string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request = c.Request.Clone(c.Request.Context())
+		c.Request.URL.RawQuery = "check=" + value
+		c.Next()
+	}
+}

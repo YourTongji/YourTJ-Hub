@@ -1654,7 +1654,9 @@ export async function rebuildCourseStats(): Promise<boolean> {
 
 // ---- B7: AI 课程总结（issue #181） ----
 
-export type CourseSummaryStatus = 'cached' | 'generated' | 'insufficient_data' | 'disabled' | 'error' | 'rateLimited'
+// CourseSummaryStatus 与后端契约一致；error/rateLimited 为前端本地状态。
+// none 仅在 check 预检（?check=true）返回：无缓存行、从未生成过。
+export type CourseSummaryStatus = 'cached' | 'generated' | 'insufficient_data' | 'none' | 'disabled' | 'error' | 'rateLimited'
 
 export type CourseSummarySentiment = 'positive' | 'neutral' | 'negative'
 
@@ -1679,9 +1681,15 @@ export interface CourseSummaryResult {
   retryAfterSeconds?: number
 }
 
-export async function getCourseSummary(courseId: number, refresh = false): Promise<CourseSummaryResult> {
-  const query = refresh ? '?refresh=true' : ''
-  const response = await fetch(`/api/forum/courses/${courseId}/summary${query}`, {
+// getCourseSummary 获取课程 AI 总结。
+// check=true 走只读预检：不生成、不消耗限流，返回 cached/insufficient_data/none/disabled，
+// 供页面挂载时决定是否自动展开。
+export async function getCourseSummary(courseId: number, refresh = false, check = false): Promise<CourseSummaryResult> {
+  const params = new URLSearchParams()
+  if (refresh) params.set('refresh', 'true')
+  if (check) params.set('check', 'true')
+  const query = params.toString()
+  const response = await fetch(`/api/forum/courses/${courseId}/summary${query ? `?${query}` : ''}`, {
     headers: { Accept: 'application/json' },
   })
   if (response.status === 429) {
