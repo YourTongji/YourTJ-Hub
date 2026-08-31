@@ -24,9 +24,6 @@ type CourseSummary struct {
 	Aliases     []string `json:"aliases,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RecentTerms []string `json:"recentTerms,omitempty"`
-	// Keywords 已缓存 AI 总结的高频关键词（#标签，最多 5 个）；未触发过 AI 总结
-	// 或总结末尾词为空时省略（issue #331 R3，推荐卡片展示用）。
-	Keywords    []string `json:"keywords,omitempty"`
 	// RatingAvg 非 NULL rating 均分（legacy 0→NULL 不计）；无评分时 null。
 	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
 	ReviewCount int      `json:"reviewCount,omitempty"`
@@ -370,9 +367,6 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	for _, t := range terms {
 		termByID[t.Id] = t
 	}
-	// R3：推荐卡片 #关键词标签（issue #331）——批量读已缓存 AI 总结，
-	// 仅取 keywords；未触发过总结的课程保持空，避免 N+1。
-	keywordsByCourse := course.ListCourseAiSummaryKeywords(courseIds)
 	summaries := make([]CourseSummary, 0, len(entities))
 	// B1：课程级统计投影（目录列表展示均分与评论数，N+1 防护）。
 	courseStats := course.ListCourseStatsByIDs(courseIds)
@@ -391,7 +385,6 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 			s.RatingAvg = ratingAvgPtrFromStats(stats.RatingCount, stats.RatingSum)
 			s.ReviewCount = stats.ReviewCount
 		}
-		s.Keywords = keywordsByCourse[e.Id]
 		seen := make(map[string]struct{})
 		seenTerms := make(map[string]struct{})
 		for _, oid := range offeringsByCourse[e.Id] {

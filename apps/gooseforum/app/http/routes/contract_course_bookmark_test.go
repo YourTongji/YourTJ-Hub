@@ -115,3 +115,28 @@ func TestCourseBookmarkUnauthenticatedHTTPContract(t *testing.T) {
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "auth-required.json"))
 }
+
+// TestCourseBookmarkInvalidParamsHTTPContract 参数校验失败 → HTTP 200 + common.request.invalidParams。
+// 该路由由 UpButterReq（非严格绑定）承接：绑定错误被忽略后交给 executeValidated，
+// 校验失败统一返回 200 legacy 信封，而非 400。契约已据此声明（paths/courses.yaml），
+// 本测试锁定该行为，防止未来有人把路由改成严格绑定或重新引入不可达的 400 声明。
+func TestCourseBookmarkInvalidParamsHTTPContract(t *testing.T) {
+	conn, router := setupCourseBookmarkContractTest(t)
+	seedBookmarkCourse(t, conn)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, user)
+
+	// action 超出 1..2：struct 校验命中，控制器内的 courseId==0 → 400 守卫不可达。
+	rec := serveJSON(router, "/api/forum/courses/bookmark", `{"courseId":42,"action":5}`, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course bookmark invalid action status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
+
+	// courseId 为 0 同理：走同一条 200 legacy 信封路径。
+	rec = serveJSON(router, "/api/forum/courses/bookmark", `{"courseId":0,"action":1}`, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course bookmark zero courseId status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
+}

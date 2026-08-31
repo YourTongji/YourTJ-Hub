@@ -211,7 +211,10 @@ bookmarkCourse:
       Set-semantics and idempotent: repeating the same transition returns true without
       double counting. Unknown or hidden course ids fail with `course.notFound` (HTTP 404);
       a malformed body binds to zero values and fails validation as
-      `common.request.invalidParams` (HTTP 400). Course bookmarking reuses the project's
+      `common.request.invalidParams` on HTTP 200 — this route binds non-strictly
+      (`UpButterReq`), so validation failures return the legacy 200 envelope
+      rather than 400.
+      Course bookmarking reuses the project's
       bookmark semantics (action 1 = bookmark, action 2 = unbookmark).
     security:
       - bearerAuth: []
@@ -224,7 +227,10 @@ bookmarkCourse:
             $ref: ../components/schemas.yaml#/CourseBookmarkRequest
     responses:
       '200':
-        description: Bookmark applied (or already in the target state).
+        description: |
+          Bookmark applied (or already in the target state). A malformed body or a zero
+          course id also returns HTTP 200 with `common.request.invalidParams`, because this
+          route binds non-strictly — clients must branch on `code`, not on the HTTP status.
         content:
           application/json:
             schema:
@@ -232,14 +238,8 @@ bookmarkCourse:
             examples:
               success:
                 externalValue: ../fixtures/result-true.json
-      '400':
-        description: Malformed body or zero course id.
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/ApiFailure
-            examples:
-              invalidParams:
+              invalidRequest:
+                summary: Validation failure (malformed body, or courseId 0) — HTTP 200 legacy envelope.
                 externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.

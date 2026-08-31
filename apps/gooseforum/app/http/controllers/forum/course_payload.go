@@ -10,13 +10,11 @@ type CourseCatalogProps struct {
 	// Terms 可筛选学期（value=code，label 优先学期名，按 starts_on 倒序），与 term 筛选值域一致。
 	Terms []courseservice.TermOption `json:"terms"`
 	// Campuses 可筛选校区（course_offering.campus 原始值，按字典序），与 campus 筛选值域一致。
-	Campuses   []string          `json:"campuses"`
-	// HotInstructors 按评分提取的热门教师（issue #331 R4，目录页右侧栏；无数据时省略）。
-	HotInstructors []courseservice.HotInstructor `json:"hotInstructors,omitempty"`
+	Campuses []string `json:"campuses"`
 	// BookmarkedCourseIDs 当前登录用户已收藏的课程 id（issue #331 R5，表格收藏状态）；
 	// 未登录/无收藏时省略或为空数组。
-	BookmarkedCourseIDs []uint64 `json:"bookmarkedCourseIDs,omitempty"`
-	Pagination PaginationPayload `json:"pagination"`
+	BookmarkedCourseIDs []uint64          `json:"bookmarkedCourseIDs,omitempty"`
+	Pagination          PaginationPayload `json:"pagination"`
 }
 
 // CourseCatalogQueryPayload 课程目录页查询条件回显（Department/TermCode/Campus/Instructor 为多值数组）。

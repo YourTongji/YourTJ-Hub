@@ -1893,7 +1893,10 @@ export interface paths {
          * @description Set-semantics and idempotent: repeating the same transition returns true without
          *     double counting. Unknown or hidden course ids fail with `course.notFound` (HTTP 404);
          *     a malformed body binds to zero values and fails validation as
-         *     `common.request.invalidParams` (HTTP 400). Course bookmarking reuses the project's
+         *     `common.request.invalidParams` on HTTP 200 — this route binds non-strictly
+         *     (`UpButterReq`), so validation failures return the legacy 200 envelope
+         *     rather than 400.
+         *     Course bookmarking reuses the project's
          *     bookmark semantics (action 1 = bookmark, action 2 = unbookmark).
          */
         post: operations["bookmarkCourse"];
@@ -6329,8 +6332,6 @@ export interface components {
             ratingAvg?: number;
             /** @description Number of visible reviews (including unrated legacy ones). */
             reviewCount?: number;
-            /** @description Cached AI-summary high-frequency keywords (#tags, max 5); omitted when no AI summary has been generated. */
-            keywords?: string[];
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -9299,7 +9300,7 @@ export interface components {
              */
             courseId: number;
             /**
-             * @description 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 400).
+             * @description 1 bookmarks the course, 2 unbookmarks it. A malformed or zero body fails validation with `common.request.invalidParams` (HTTP 200).
              * @enum {integer}
              */
             action: 1 | 2;
@@ -12563,22 +12564,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Bookmark applied (or already in the target state). */
+            /**
+             * @description Bookmark applied (or already in the target state). A malformed body or a zero
+             *     course id also returns HTTP 200 with `common.request.invalidParams`, because this
+             *     route binds non-strictly — clients must branch on `code`, not on the HTTP status.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["InteractionResponse"];
-                };
-            };
-            /** @description Malformed body or zero course id. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

@@ -181,12 +181,6 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 		slog.Error("course_campuses_list_failed", "error", campusErr)
 		campuses = []string{}
 	}
-	// issue #331 R4：热门教师（按评分提取，右侧栏）；查询失败时降级为空数组。
-	hotInstructors, hotErr := courseservice.ListHotInstructors(0)
-	if hotErr != nil {
-		slog.Error("course_hot_instructors_failed", "error", hotErr)
-		hotInstructors = []courseservice.HotInstructor{}
-	}
 	// issue #331 R5：表格收藏状态（登录用户已收藏课程 id）；未登录为空。
 	bookmarkedIds, bookmarkErr := course.ListBookmarkedCourseIDs(component.LoginUserId(c))
 	if bookmarkErr != nil {
@@ -209,11 +203,10 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 			Page:       pageData.Page,
 			Size:       pageData.Size,
 		},
-		Courses:     pageData.List,
-		Departments: departments,
-		Terms:       terms,
-		Campuses:    campuses,
-		HotInstructors:     hotInstructors,
+		Courses:             pageData.List,
+		Departments:         departments,
+		Terms:               terms,
+		Campuses:            campuses,
 		BookmarkedCourseIDs: bookmarkedIds,
 		Pagination: PaginationPayload{
 			Page:     pageData.Page,
