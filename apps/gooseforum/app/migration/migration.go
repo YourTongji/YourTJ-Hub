@@ -100,6 +100,10 @@ func migrateSchema() {
 		slog.Error("dbconnect course teacher identity upgrade failed", "err", err)
 		os.Exit(1)
 	}
+	if err = upgradeCourseAiSummaryStatusIndex(db); err != nil {
+		slog.Error("dbconnect course_ai_summary status index upgrade failed", "err", err)
+		os.Exit(1)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须立即退出（非零码），否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -220,6 +224,24 @@ func upgradeCourseTeacherIdentity(db *gorm.DB) error {
 			return fmt.Errorf("drop legacy course primary_code unique index: %w", err)
 		}
 		slog.Info("dbconnect course legacy unique index dropped, will be recreated as (primary_code, teacher_id)")
+	}
+	return nil
+}
+
+// upgradeCourseAiSummaryStatusIndex 删除 course_ai_summary.status 列的冗余索引
+// （#342/#343 review）：status 低基数（2 值）且查询全部按 course_id 主键访问。
+// 只移除模型上的 index tag 不够——GORM AutoMigrate 按索引名判重，不会删除模型
+// 上已不再声明的索引；存量库（#342 合入时建出了 idx_course_ai_summary_status）
+// 必须显式 DropIndex，全新库无此索引直接跳过。
+func upgradeCourseAiSummaryStatusIndex(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_ai_summary") {
+		return nil // 全新库：AutoMigrate 按新模型建表（无 status 索引）。
+	}
+	if db.Migrator().HasIndex(&course.CourseAiSummaryEntity{}, "idx_course_ai_summary_status") {
+		if err := db.Migrator().DropIndex(&course.CourseAiSummaryEntity{}, "idx_course_ai_summary_status"); err != nil {
+			return fmt.Errorf("drop legacy course_ai_summary status index: %w", err)
+		}
+		slog.Info("dbconnect course_ai_summary legacy status index dropped")
 	}
 	return nil
 }
