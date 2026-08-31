@@ -142,7 +142,7 @@ func buildRelatedTeacherCourses(courseIds []uint64) ([]RelatedCourseItem, error)
 	return items, nil
 }
 
-// sortRelatedItems 稳定排序：review_count 降序 → 平均分降序 → id 降序。
+// sortRelatedItems 排序：review_count 降序 → 平均分降序 → id 降序（末级 id 唯一，结果确定）。
 func sortRelatedItems(items []RelatedCourseItem) {
 	slices.SortFunc(items, func(a, b RelatedCourseItem) int {
 		if a.ReviewCount != b.ReviewCount {
