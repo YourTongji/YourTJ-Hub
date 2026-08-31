@@ -324,6 +324,38 @@ func TestListDistinctTerms(t *testing.T) {
 	}
 }
 
+// TestListDistinctTermsNonNumericCodeLast 非标准学期码（非数字开头，如 1系统同步时
+// 无法识别学期落到的「其他」）排在数字开头的标准学期码之后，保证列表首项是最新学期。
+//
+// 回归背景：starts_on 目前导入流程未写入（生产库全为 NULL），排序回退到 code 字典序；
+// 而「其他」这类中文 code 的字典序大于数字开头的学期码，会把真正的最新学期挤下首位——
+// 目录页「本学期」取列表首项，会因此筛到「其他」而不是本学期。
+func TestListDistinctTermsNonNumericCodeLast(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100083", "CS")
+	// starts_on 一律为 nil，复现导入流程未写入该字段的生产数据形态。
+	newer := createTerm(t, conn, "2026-2027-1", "2026 秋", nil)
+	older := createTerm(t, conn, "2025-2026-2", "2026 春", nil)
+	other := createTerm(t, conn, "其他", "其他", nil)
+	for _, termId := range []uint64{newer, older, other} {
+		_ = createOffering(t, conn, c, termId, "四平路校区")
+	}
+
+	got, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	want := []string{"2026-2027-1", "2025-2026-2", "其他"}
+	if len(got) != len(want) {
+		t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+	}
+	for i, w := range want {
+		if got[i].Code != w {
+			t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+		}
+	}
+}
+
 // TestListDistinctCampuses 校区列表去重与排序：仅可见课程的可见 offering 校区，
 // 排除空值、隐藏课程、隐藏 offering 与软删 offering；按字典序。
 func TestListDistinctCampuses(t *testing.T) {
