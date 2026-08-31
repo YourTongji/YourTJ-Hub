@@ -24,13 +24,12 @@ import CoursePreviewPane from '@/site/components/CoursePreviewPane.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
-import { bookmarkCourse } from '@/runtime/api'
+import { bookmarkCourse, listCourses } from '@/runtime/api'
 import { useFlashMessages } from '@/runtime/flash-message'
-import { fetchPage } from '@/runtime/router'
 import { mergeCourses } from '@/site/utils/course-merge'
 import { rememberCourseCatalogUrl } from '@/site/utils/course-catalog-return'
 import { shortTerm, sortedRecentTerms } from '@/site/utils/term'
-import type { CourseCatalogPageProps, CourseSummaryPayload, LayoutPayload, PagePayload } from '@gooseforum/client'
+import type { CourseCatalogPageProps, CourseSummaryPayload, LayoutPayload } from '@gooseforum/client'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -327,10 +326,18 @@ function closePreview() {
 // 面板以触发 body 解锁；返回本页时面板保持关闭（与整页导航后的行为一致）。
 onDeactivated(() => {
   if (previewCourseId.value != null) closePreview()
+  // 必须一并摘除 document 级捕获监听器：它挂在 document 上，不会随组件停用而消失。
+  // 残留时在详情页点击任意 /courses/{id} 链接（如右侧「相关课程」）仍会触发 handler，
+  // 把当时的详情页 URL 写入 sessionStorage，覆盖真正保存的目录 URL，
+  // 导致「返回课程目录」退化为裸 /courses（搜索/筛选态丢失）。
+  clearTimeout(typeTimer)
+  document.removeEventListener('click', onCourseDetailClick, true)
 })
 onActivated(() => {
   // 从缓存恢复时若 body 仍处于锁定状态（异常残留），兜底解锁。
   if (typeof document !== 'undefined') document.body.style.overflow = ''
+  // 重新挂载捕获监听器（onDeactivated 已摘除），否则返回目录页后不再记录返回态。
+  document.addEventListener('click', onCourseDetailClick, true)
 })
 
 // 收藏状态单一来源：以服务端初始收藏为镜像，本地乐观增删。
@@ -392,13 +399,32 @@ watch(
 )
 
 async function loadMore() {
-  if (loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+  if (loadingMore.value || !pagination.value.hasNext) return
   loadingMore.value = true
   loadError.value = ''
   try {
-    const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<CourseCatalogPageProps>
-    courses.value = mergeCourses(courses.value, payload.props.courses)
-    pagination.value = payload.props.pagination
+    // 翻页走课程 JSON API（GET /api/forum/courses）而非 SSR 页面路由：
+    // SSR 首屏才需要 departments/terms/campuses 等静态筛选项与收藏集合，
+    // 翻页重复请求 SSR 会把这些查询按滚动页数线性放大，而前端只取课程列表。
+    const result = await listCourses({
+      keyword: query.value.keyword,
+      department: query.value.department,
+      term: query.value.term,
+      campus: query.value.campus,
+      instructor: query.value.instructor,
+      onlyWithReviews: query.value.onlyWithReviews,
+      sortBy: query.value.sortBy,
+      page: pagination.value.page + 1,
+      size: page.props.query.size,
+    })
+    courses.value = mergeCourses(courses.value, result.list)
+    pagination.value = {
+      page: result.page,
+      nextPage: result.page + 1,
+      hasNext: result.hasNext,
+      // JSON API 翻页按页码推进，不再依赖 SSR 生成的 nextUrl。
+      nextUrl: '',
+    }
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
   } finally {

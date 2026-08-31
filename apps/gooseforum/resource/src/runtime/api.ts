@@ -1,4 +1,4 @@
-import type { ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -1352,6 +1352,51 @@ export async function getCourseRelated(courseId: number): Promise<CourseRelatedR
     },
   })
   return readApiResponse<CourseRelatedResult>(response, t('api.courseRelatedLoadFailed'))
+}
+
+// CourseCatalogPageResult 课程目录 JSON API 分页结果（GET /api/forum/courses）。
+// 命名区别于 SSR props 的 CourseCatalogPageProps：后者额外携带 departments/terms/
+// campuses/收藏集合等静态面板数据，翻页并不需要。
+export interface CourseCatalogPageResult {
+  list: CourseSummaryPayload[]
+  page: number
+  size: number
+  total: number
+  hasNext: boolean
+}
+
+export interface ListCoursesInput {
+  keyword?: string
+  department?: string[]
+  term?: string[]
+  campus?: string[]
+  instructor?: string[]
+  onlyWithReviews?: boolean
+  sortBy?: string
+  page?: number
+  size?: number
+}
+
+// 课程目录翻页走 JSON API 而非 SSR 页面路由：SSR 首屏才需要 departments/terms/
+// campuses 等静态筛选项与收藏集合，翻页重复请求 SSR 会把这些查询按滚动页数
+// 线性放大（每页重跑 3 个 DISTINCT 扫描 + 收藏集合查询，而前端只取课程列表）。
+export async function listCourses(input: ListCoursesInput = {}): Promise<CourseCatalogPageResult> {
+  const params = new URLSearchParams()
+  if (input.keyword) params.set('keyword', input.keyword)
+  for (const value of input.department ?? []) params.append('department', value)
+  for (const value of input.term ?? []) params.append('term', value)
+  for (const value of input.campus ?? []) params.append('campus', value)
+  for (const value of input.instructor ?? []) params.append('instructor', value)
+  if (input.onlyWithReviews) params.set('onlyWithReviews', '1')
+  if (input.sortBy) params.set('sortBy', input.sortBy)
+  params.set('page', String(input.page ?? 1))
+  params.set('size', String(input.size ?? 20))
+  const response = await fetch(`/api/forum/courses?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<CourseCatalogPageResult>(response, t('common.loadFailed'))
 }
 
 export interface ReviewPage {
