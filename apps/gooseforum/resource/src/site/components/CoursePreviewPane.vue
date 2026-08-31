@@ -195,9 +195,14 @@ onBeforeUnmount(() => {
   document.body.style.overflow = ''
 })
 
+// 预览加载代际：切换课程时递增，使 in-flight 的旧课程响应失效——否则快速点选
+// A→B 后 A 的晚到响应会覆盖 B 的相关课程/评价（对齐详情页 reviewsLoadSeq 守卫）。
+let previewLoadSeq = 0
+
 watch(
   () => props.course?.id,
   (courseId) => {
+    previewLoadSeq += 1
     related.value = null
     reviews.value = null
     if (!courseId) return
@@ -208,24 +213,34 @@ watch(
 )
 
 async function loadRelated(courseId: number) {
+  const seq = previewLoadSeq
   loadingRelated.value = true
   try {
-    related.value = await getCourseRelated(courseId)
+    const result = await getCourseRelated(courseId)
+    // 代际守卫：期间已切换课程，本结果作废，不覆盖新课程状态。
+    if (seq !== previewLoadSeq) return
+    related.value = result
   } catch {
+    if (seq !== previewLoadSeq) return
     related.value = null
   } finally {
-    loadingRelated.value = false
+    // 仅当前代际可动 loading：旧代际完成时新代际仍在途，保留其 loading 状态。
+    if (seq === previewLoadSeq) loadingRelated.value = false
   }
 }
 
 async function loadReviews(courseId: number) {
+  const seq = previewLoadSeq
   loadingReviews.value = true
   try {
-    reviews.value = await listCourseReviews(courseId, 0, '', 3)
+    const result = await listCourseReviews(courseId, 0, '', 3)
+    if (seq !== previewLoadSeq) return
+    reviews.value = result
   } catch {
+    if (seq !== previewLoadSeq) return
     reviews.value = null
   } finally {
-    loadingReviews.value = false
+    if (seq === previewLoadSeq) loadingReviews.value = false
   }
 }
 

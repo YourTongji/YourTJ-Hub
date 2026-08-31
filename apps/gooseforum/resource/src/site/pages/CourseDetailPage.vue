@@ -444,10 +444,44 @@ const pendingDelete = ref<ReviewPayload | null>(null)
 // deleting 防 in-flight 双击：删除请求未返回前禁止重复提交/取消，
 // 避免 pendingDelete 被中途置 null 导致"删 A 后误关 B 的 Dialog"竞态。
 const deleting = ref(false)
+// a11y（对齐举报弹窗）：Esc 关闭 + Tab 焦点陷阱 + 打开即聚焦，兑现 aria-modal 承诺。
+const deleteDialogEl = ref<HTMLElement | null>(null)
+const DELETE_TITLE_ID = 'course-review-delete-title'
+
+function deleteFocusableEls(): HTMLElement[] {
+  if (!deleteDialogEl.value) return []
+  return Array.from(
+    deleteDialogEl.value.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+}
+
+function onDeleteKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelRemoveReview()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const focusable = deleteFocusableEls()
+  if (focusable.length < 2) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 function askRemoveReview(review: ReviewPayload) {
   if (deleting.value) return
   pendingDelete.value = review
+  // 弹窗挂载后移入焦点：aria-modal 声明下键盘/读屏用户不应滞留在触发按钮。
+  nextTick(() => deleteFocusableEls()[0]?.focus())
 }
 
 function cancelRemoveReview() {
@@ -638,10 +672,13 @@ function onShareKeydown(event: KeyboardEvent) {
   }
 }
 
-function openShareDialog(review: ReviewPayload, event?: MouseEvent) {
+async function openShareDialog(review: ReviewPayload, event?: MouseEvent) {
   shareTriggerEl.value = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
-  void openShare(review)
-  nextTick(() => {
+  // 先等 openShare 置 sharePreview 再聚焦：弹窗是 v-if="sharePreview"，异步图片
+  // 内联完成前聚焦时 DOM 尚未挂载，querySelector 落空，焦点滞留在触发按钮上。
+  await openShare(review)
+  if (!sharePreview.value) return // 准备失败（flash 已提示）：无弹窗可聚焦
+  void nextTick(() => {
     shareDialogEl.value?.querySelector<HTMLElement>('button')?.focus()
   })
 }
@@ -1325,19 +1362,22 @@ onBeforeUnmount(() => {
       </Transition>
     </Teleport>
 
-    <!-- 删除确认 Dialog（受控，替代 window.confirm） -->
+    <!-- 删除确认 Dialog（受控，替代 window.confirm；a11y：焦点陷阱 + Esc + 打开即聚焦） -->
     <Teleport to="body">
       <Transition name="gf-modal">
       <div
         v-if="pendingDelete"
+        ref="deleteDialogEl"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
         role="alertdialog"
         aria-modal="true"
+        :aria-labelledby="DELETE_TITLE_ID"
         @click.self="cancelRemoveReview"
+        @keydown="onDeleteKeydown"
       >
         <div class="w-full max-w-sm rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
           <div class="flex items-start justify-between gap-3">
-            <h2 class="text-base font-bold text-base-content">{{ t('courseDetailPage.confirmDeleteTitle') }}</h2>
+            <h2 :id="DELETE_TITLE_ID" class="text-base font-bold text-base-content">{{ t('courseDetailPage.confirmDeleteTitle') }}</h2>
             <button
               type="button"
               class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
