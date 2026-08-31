@@ -31,11 +31,10 @@ func assertRouter(ginApp *gin.Engine) {
 	staticFS, _ := resource.GetStaticFS()
 	staticRoute := ginApp.Group("/")
 	if gzipEnabled() {
-		staticRoute.Use(middleware.CacheMiddleware)
 		staticRoute.Use(gzip.Gzip(gzip.DefaultCompression))
-		slog.Info("static assets gzip enabled", "cache", true)
+		slog.Info("static assets gzip enabled")
 	} else {
-		slog.Info("static assets gzip disabled", "cache", false)
+		slog.Info("static assets gzip disabled")
 	}
 	// dev 模式：/assets/* 反向代理到 Vite 开发服务器（同源相对路径，本机与局域网均可访问）
 	if devServer := viteDevServerURL(); devServer != "" {
