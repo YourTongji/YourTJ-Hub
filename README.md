@@ -132,7 +132,7 @@ apps/
   mobile/           Flutter / Melos 移动端工作区
 packages/
   api-contract/     OpenAPI、fixtures 与生成脚本
-services/           Meilisearch、归档 Casdoor 配置、积分等服务配置
+services/           Meilisearch、积分等服务配置
 deploy/             容器、环境与发布脚本
 docs/               产品、架构、开发和运维文档
 ```

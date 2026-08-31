@@ -33,16 +33,14 @@
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
 - **Wiki 分站（论坛内嵌）**: wiki 由单二进制直接服务（`/wiki` SSR 视图），无独立部署、无独立
-  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。
-  **存量服务器一次性退役旧 wiki 容器/镜像**（PR #219 后，旧 bootstrap 流程初始化过的服务器
-  `/opt/yourtj/docker-compose.yaml` 仍可能保留 `wiki-main`/`wiki-dev` 服务定义与运行中的
-  `yourtj-wiki-main`(127.0.0.1:5284)/`yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
-  - 当前 CI 部署只下发 `deploy/scripts/*.sh` 与二进制，**不替换**远程 compose 文件；只要远程
-    compose 仍定义 `wiki-main`/`wiki-dev`，这两个容器就不是孤儿，`deploy.sh` 的
-    `up -d --remove-orphans` 不会动它们。需先手动把 `/opt/yourtj/docker-compose.yaml` 换成
-    不含 wiki 服务的当前版本（取仓库 `deploy/docker-compose.yaml`，或直接删除文件中
-    `wiki-main`/`wiki-dev` 两个 service 块），之后下一次部署的 `--remove-orphans` 会停删它们。
-  - 想在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
+  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。按 issue
+  #219 的用户决策，旧 VitePress 内容不迁移，新原生 Wiki 从空站启动。**存量服务器需退役旧
+  wiki 容器/镜像**（旧 bootstrap 流程初始化过的服务器的 compose 仍可能保留
+  `wiki-main`/`wiki-dev` 服务定义与运行中的 `yourtj-wiki-main`(127.0.0.1:5284)/
+  `yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
+  - main CI 部署会先备份并覆盖 `/opt/yourtj/docker-compose.yaml`，随后
+    `deploy.sh up -d --remove-orphans` 会停删不再出现在当前 compose 中的旧 wiki 容器。
+  - 若要在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
     （`restart: unless-stopped` 不会复活已 `rm` 的容器）；残留镜像手动清理
     `docker images | awk '/yourtj-wiki/{print $3}' | xargs -r docker rmi -f`
     （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
