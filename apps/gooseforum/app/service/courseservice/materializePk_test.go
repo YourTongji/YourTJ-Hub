@@ -17,6 +17,9 @@ func migrateMaterializeTables(t *testing.T) {
 		&course.Entity{},
 		&course.AliasEntity{},
 		&course.InstructorEntity{},
+		&course.OfferingEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.TermEntity{},
 		&taskQueue.Entity{},
 		&pk.CourseDetailEntity{},
 		&pk.TeacherEntity{},
@@ -250,5 +253,155 @@ func TestMaterializeFromPkSplitsByIdentityTeacher(t *testing.T) {
 		if !distinct[ins.Id] {
 			t.Fatalf("instructor %d not referenced by any card", ins.Id)
 		}
+	}
+}
+
+func TestMaterializeFromPkCreatesOfferingAtClassGranularity(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+	// 学期映射：calendarId=1 → calendar_id_i18n "2025-2026-1" → course_term（缺则自动创建）。
+	if err := conn.Create(&pk.CalendarEntity{CalendarId: 1, CalendarIdI18n: "2025-2026-1"}).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
+
+	report, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	if report.OfferingsInserted != 1 {
+		t.Fatalf("offeringsInserted = %d, want 1", report.OfferingsInserted)
+	}
+
+	var offerings []course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).Find(&offerings).Error; err != nil {
+		t.Fatalf("find offerings: %v", err)
+	}
+	if len(offerings) != 1 {
+		t.Fatalf("offerings = %d, want 1", len(offerings))
+	}
+	o := offerings[0]
+	if o.ClassCode != "A00101" {
+		t.Errorf("class_code = %q, want A00101", o.ClassCode)
+	}
+	if o.Status != course.OfferingStatusVisible {
+		t.Errorf("status = %d, want visible", o.Status)
+	}
+	// term 映射：course_term 应已按 "2025-2026-1" 创建并挂到 offering。
+	var term course.TermEntity
+	if err := conn.Where("code = ?", "2025-2026-1").First(&term).Error; err != nil {
+		t.Fatalf("term not created: %v", err)
+	}
+	if o.TermId != term.Id {
+		t.Errorf("term_id = %d, want %d", o.TermId, term.Id)
+	}
+	// offering_instructor：该班全量教师（张三）。
+	var links []course.OfferingInstructorEntity
+	if err := conn.Where("offering_id = ?", o.Id).Find(&links).Error; err != nil {
+		t.Fatalf("find offering instructors: %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("offering instructors = %d, want 1", len(links))
+	}
+	// 课程卡身份教师 = 教学班首位教师（张三）。
+	var courses []course.Entity
+	if err := conn.Where("primary_code = ?", "A001").Find(&courses).Error; err != nil {
+		t.Fatalf("find courses: %v", err)
+	}
+	if len(courses) != 1 || courses[0].TeacherId == 0 {
+		t.Fatalf("identity teacher not linked: %+v", courses)
+	}
+}
+
+func TestMaterializeFromPkOfferingIdempotent(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+
+	first, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("first materialize: %v", err)
+	}
+	if first.OfferingsInserted != 1 {
+		t.Fatalf("first offeringsInserted = %d, want 1", first.OfferingsInserted)
+	}
+	second, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("second materialize: %v", err)
+	}
+	if second.OfferingsInserted != 0 {
+		t.Errorf("second offeringsInserted = %d, want 0", second.OfferingsInserted)
+	}
+	if second.OfferingsUpdated != 1 {
+		t.Errorf("second offeringsUpdated = %d, want 1", second.OfferingsUpdated)
+	}
+	conn := db.Connect()
+	var count int64
+	if err := conn.Model(&course.OfferingEntity{}).Count(&count).Error; err != nil {
+		t.Fatalf("count offerings: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("offerings after 2 runs = %d, want 1", count)
+	}
+}
+
+func TestMaterializeFromPkDoesNotResurrectHiddenOffering(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+
+	// 先物化得到 offering，再由管理员隐藏；再次物化不得复活 status。
+	if _, err := MaterializeFromPk(context.Background(), []uint64{1}); err != nil {
+		t.Fatalf("first materialize: %v", err)
+	}
+	var offering course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&offering).Error; err != nil {
+		t.Fatalf("find offering: %v", err)
+	}
+	if err := conn.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).
+		Update("status", course.OfferingStatusHidden).Error; err != nil {
+		t.Fatalf("hide offering: %v", err)
+	}
+
+	if _, err := MaterializeFromPk(context.Background(), []uint64{1}); err != nil {
+		t.Fatalf("second materialize: %v", err)
+	}
+	var after course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&after).Error; err != nil {
+		t.Fatalf("find offering after: %v", err)
+	}
+	if after.Status != course.OfferingStatusHidden {
+		t.Errorf("status = %d, want hidden（物化不得复活管理员隐藏的 offering）", after.Status)
+	}
+}
+
+func TestMaterializeFromPkBackfillsTeacherCode(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+
+	// 预置同名同院系教师（teacher_code 为空）：物化应回填工号而非新建。
+	preexisting := course.InstructorEntity{
+		Name:           "张三",
+		NormalizedName: Normalize("张三"),
+		Department:     "数学科学学院",
+		Status:         0,
+	}
+	if err := conn.Create(&preexisting).Error; err != nil {
+		t.Fatalf("seed instructor: %v", err)
+	}
+
+	report, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	if report.InstructorsInserted != 0 {
+		t.Errorf("instructorsInserted = %d, want 0（已存在教师不应重复创建）", report.InstructorsInserted)
+	}
+	var updated course.InstructorEntity
+	if err := conn.First(&updated, preexisting.Id).Error; err != nil {
+		t.Fatalf("find instructor: %v", err)
+	}
+	if updated.TeacherCode != "T001" {
+		t.Errorf("teacher_code = %q, want T001（身份主锚回填）", updated.TeacherCode)
 	}
 }

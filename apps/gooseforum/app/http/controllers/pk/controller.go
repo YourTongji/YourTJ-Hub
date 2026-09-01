@@ -274,13 +274,17 @@ type CourseReviewBriefReq struct {
 	TeacherName string `form:"teacherName"`
 	// CalendarId 可选：限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。
 	CalendarId uint64 `form:"calendarId"`
+	// TeachingClassId 可选：教学班直查（by-offering 精准定位）。提供时按
+	// course_offering.teaching_class_id 精确定位 offering/课程卡，不再走
+	// courseCode+teacherName 猜测；未命中回退旧路径。
+	TeachingClassId uint64 `form:"teachingClassId"`
 }
 
 func CourseReviewBrief(req Request[CourseReviewBriefReq]) Response {
-	if strings.TrimSpace(req.Params.CourseCode) == "" {
+	if strings.TrimSpace(req.Params.CourseCode) == "" && req.Params.TeachingClassId == 0 {
 		return BadRequest("参数错误: 缺少 courseCode")
 	}
-	brief, err := pkservice.FindCourseReviewBrief(req.Params.CourseCode, req.Params.TeacherName, req.Params.CalendarId)
+	brief, err := pkservice.FindCourseReviewBrief(req.Params.CourseCode, req.Params.TeacherName, req.Params.CalendarId, req.Params.TeachingClassId)
 	if err != nil {
 		return internalError(err)
 	}

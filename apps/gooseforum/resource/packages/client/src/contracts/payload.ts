@@ -1008,6 +1008,14 @@ export interface CourseDetailPageProps {
     ratingAvg?: number
     reviewCount?: number
     ratingDistribution?: number[]
+    // 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）。
+    reviewScope?: 'teacher' | 'team' | 'course'
+    // 教学团队键；reviewScope=team 时评分聚合为团队读时聚合值。
+    teamKey?: string
+    // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+    teamInstructors?: string[]
+    // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+    legacyNames?: string[]
     offerings?: Array<{
       id: number
       termCode: string

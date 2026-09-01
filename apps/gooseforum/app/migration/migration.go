@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
@@ -98,6 +99,10 @@ func migrateSchema() {
 	}
 	if err = upgradeCourseTeacherIdentity(db); err != nil {
 		slog.Error("dbconnect course teacher identity upgrade failed", "err", err)
+		os.Exit(1)
+	}
+	if err = upgradeCourseAggregation(db); err != nil {
+		slog.Error("dbconnect course aggregation upgrade failed", "err", err)
 		os.Exit(1)
 	}
 	if err = upgradeCourseAiSummaryStatusIndex(db); err != nil {
@@ -246,6 +251,153 @@ func upgradeCourseAiSummaryStatusIndex(db *gorm.DB) error {
 	return nil
 }
 
+// upgradeCourseAggregation 为课评聚合新增列（Blueprint 课评聚合 Phase 1）：
+//   - course.review_scope / course.team_key：三档课评范围（teacher/team/course）与团队键；
+//   - course_offering.teaching_class_id：教学班持久关联（offering 权威写入源 = PK 物化链）；
+//   - course_instructor.teacher_code：教师身份主锚（替代仅有 (name, department) 自然键）。
+//
+// 存量库显式 ALTER TABLE ADD COLUMN（带默认值），不依赖 AutoMigrate——SQLite 依赖
+// AutoMigrate 补列会整表重建丢数据。
+// 回填（一次性，双方言）：
+//   - offering.teaching_class_id ← course_source_ref.external_id 首段（"{class_id}-{course_ext}"，
+//     EntityTypeOffering；other-* 虚拟班非数字首段保持 0）；
+//   - instructor.teacher_code ← course_source_ref.external_id（EntityTypeInstructor；
+//     syn-{id} 合成工号原样保留，作为稳定身份键）。
+func upgradeCourseAggregation(db *gorm.DB) error {
+	if !db.Migrator().HasTable(courseTableName) {
+		return nil // 全新库：AutoMigrate 直接建全表 + 索引。
+	}
+	if !db.Migrator().HasColumn(&course.Entity{}, "review_scope") {
+		if err := db.Exec("ALTER TABLE course ADD COLUMN review_scope VARCHAR(16) NOT NULL DEFAULT 'teacher'").Error; err != nil {
+			return fmt.Errorf("add course.review_scope column: %w", err)
+		}
+		slog.Info("dbconnect course.review_scope column added (default 'teacher')")
+	}
+	if !db.Migrator().HasColumn(&course.Entity{}, "team_key") {
+		if err := db.Exec("ALTER TABLE course ADD COLUMN team_key VARCHAR(64) NOT NULL DEFAULT ''").Error; err != nil {
+			return fmt.Errorf("add course.team_key column: %w", err)
+		}
+		slog.Info("dbconnect course.team_key column added (default '')")
+	}
+	if db.Migrator().HasTable(&course.OfferingEntity{}) {
+		if !db.Migrator().HasColumn(&course.OfferingEntity{}, "teaching_class_id") {
+			if err := db.Exec("ALTER TABLE course_offering ADD COLUMN teaching_class_id BIGINT NOT NULL DEFAULT 0").Error; err != nil {
+				return fmt.Errorf("add course_offering.teaching_class_id column: %w", err)
+			}
+			slog.Info("dbconnect course_offering.teaching_class_id column added (default 0)")
+		}
+		if err := backfillOfferingTeachingClass(db); err != nil {
+			return fmt.Errorf("backfill course_offering.teaching_class_id: %w", err)
+		}
+	}
+	if db.Migrator().HasTable(&course.InstructorEntity{}) {
+		if !db.Migrator().HasColumn(&course.InstructorEntity{}, "teacher_code") {
+			if err := db.Exec("ALTER TABLE course_instructor ADD COLUMN teacher_code VARCHAR(64) NOT NULL DEFAULT ''").Error; err != nil {
+				return fmt.Errorf("add course_instructor.teacher_code column: %w", err)
+			}
+			slog.Info("dbconnect course_instructor.teacher_code column added (default '')")
+		}
+		if err := backfillInstructorTeacherCode(db); err != nil {
+			return fmt.Errorf("backfill course_instructor.teacher_code: %w", err)
+		}
+	}
+	return nil
+}
+
+// backfillOfferingTeachingClass 从 course_source_ref 回填 offering.teaching_class_id：
+// external_id 格式 "{class_id}-{course_ext}"（converter 生成），首段即一系统教学班 id。
+// other-* 虚拟班（非数字首段）与无 source_ref 的 offering 保持 0。
+func backfillOfferingTeachingClass(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_source_ref") {
+		return nil
+	}
+	type refRow struct {
+		ExternalId string
+		LocalId    uint64
+	}
+	var rows []refRow
+	if err := db.Table("course_source_ref").
+		Select("external_id, local_id").
+		Where("entity_type = ?", course.EntityTypeOffering).
+		Where("external_id <> ''").
+		Order("id ASC").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	backfilled := 0
+	for _, r := range rows {
+		classID, ok := parseTeachingClassID(r.ExternalId)
+		if !ok {
+			continue
+		}
+		res := db.Table("course_offering").
+			Where("id = ? AND teaching_class_id = 0", r.LocalId).
+			Update("teaching_class_id", classID)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			backfilled++
+		}
+	}
+	if backfilled > 0 {
+		slog.Info("dbconnect course_offering.teaching_class_id backfilled from source_ref", "offerings", backfilled)
+	}
+	return nil
+}
+
+// parseTeachingClassID 从 offering external_id（"{class_id}-{course_ext}"）解析教学班 id；
+// 非数字首段（如 other-* 虚拟班）返回 false。
+func parseTeachingClassID(externalID string) (uint64, bool) {
+	head, _, _ := strings.Cut(externalID, "-")
+	id, err := strconv.ParseUint(strings.TrimSpace(head), 10, 64)
+	if err != nil || id == 0 {
+		return 0, false
+	}
+	return id, true
+}
+
+// backfillInstructorTeacherCode 从 course_source_ref 回填 course_instructor.teacher_code：
+// instructor 的 external id 即 teacherCode（或合成 "syn-{teacher_id}"，原样保留作稳定身份键）。
+func backfillInstructorTeacherCode(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_source_ref") {
+		return nil
+	}
+	type refRow struct {
+		ExternalId string
+		LocalId    uint64
+	}
+	var rows []refRow
+	if err := db.Table("course_source_ref").
+		Select("external_id, local_id").
+		Where("entity_type = ?", course.EntityTypeInstructor).
+		Where("external_id <> ''").
+		Order("id ASC").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	backfilled := 0
+	for _, r := range rows {
+		code := strings.TrimSpace(r.ExternalId)
+		if code == "" {
+			continue
+		}
+		res := db.Table("course_instructor").
+			Where("id = ? AND teacher_code = ''", r.LocalId).
+			Update("teacher_code", code)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			backfilled++
+		}
+	}
+	if backfilled > 0 {
+		slog.Info("dbconnect course_instructor.teacher_code backfilled from source_ref", "instructors", backfilled)
+	}
+	return nil
+}
+
 func backfillCourseTeacherIdentity(db *gorm.DB) error {
 	if !db.Migrator().HasTable("course_offering") || !db.Migrator().HasTable("course_offering_instructor") {
 		return nil // 全新库/无课程域：AutoMigrate 随后建表，无需回填。
@@ -331,6 +483,7 @@ func SchemaModels() []any {
 		&course.OfferingStatsEntity{},
 		&course.CourseAiSummaryEntity{},
 		&course.CourseUserActionEntity{},
+		&course.RelationEntity{},
 		// PK 排课数据域（Issue #187 / #186）：13 表。
 		&pk.CalendarEntity{},
 		&pk.CampusEntity{},

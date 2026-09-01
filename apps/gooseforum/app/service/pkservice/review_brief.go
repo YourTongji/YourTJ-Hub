@@ -32,11 +32,23 @@ type ReviewBriefClass struct {
 	ReviewCount int      `json:"reviewCount"`
 }
 
-func FindCourseReviewBrief(courseCode, teacherName string, calendarId uint64) (ReviewBrief, error) {
+func FindCourseReviewBrief(courseCode, teacherName string, calendarId, teachingClassId uint64) (ReviewBrief, error) {
 	brief := ReviewBrief{
 		CourseCode:  normalizeText(courseCode),
 		TeacherName: normalizeText(teacherName),
 		Classes:     []ReviewBriefClass{},
+	}
+
+	// by-offering 精准定位：teachingClassId 直查 course_offering.teaching_class_id。
+	// 命中则直接取该 offering 所属课程卡（course-scope 特判：course.review_scope=course
+	// 时主评 = 课程卡本身），不再走 courseCode+teacherName 猜测。
+	if teachingClassId > 0 {
+		if resolved, err := resolveByTeachingClass(&brief, teachingClassId); err != nil {
+			return brief, err
+		} else if resolved {
+			return brief, nil
+		}
+		// 未命中回退旧路径（teaching_class_id 缺失/offering 隐藏）。
 	}
 
 	row, err := pk.FindCourseDetailByCodeAnyCalendar(brief.CourseCode)
@@ -86,6 +98,65 @@ func FindCourseReviewBrief(courseCode, teacherName string, calendarId uint64) (R
 		return brief, err
 	}
 	return brief, nil
+}
+
+// resolveByTeachingClass 按 teaching_class_id 精准定位 offering/课程卡。
+// 命中返回 true；offering 不存在/已隐藏/无 teaching_class_id 时返回 false（调用方回退旧路径）。
+func resolveByTeachingClass(brief *ReviewBrief, teachingClassId uint64) (bool, error) {
+	offering, err := course.GetOfferingByTeachingClassId(teachingClassId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if offering.Status != course.OfferingStatusVisible {
+		return false, nil
+	}
+	entity := course.GetCourse(offering.CourseId)
+	if entity.Id == 0 || entity.Status != course.StatusVisible {
+		return false, nil
+	}
+	brief.CourseId = entity.Id
+	brief.CourseCode = entity.PrimaryCode
+	brief.CourseName = entity.Name
+	if entity.TeacherId != 0 {
+		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
+			return false, err
+		} else if len(teachers) > 0 {
+			brief.TeacherName = teachers[0].Name
+		}
+	}
+	if stats, err := course.GetCourseStatsMap([]uint64{entity.Id}); err != nil {
+		return false, err
+	} else if s, ok := stats[entity.Id]; ok {
+		brief.ReviewCount = s.ReviewCount
+		if s.RatingCount > 0 {
+			avg := float64(s.RatingSum) / float64(s.RatingCount)
+			brief.RatingAvg = &avg
+		}
+	}
+	brief.Classes = []ReviewBriefClass{
+		{
+			ClassCode:  offering.ClassCode,
+			OfferingId: offering.Id,
+		},
+	}
+	if s, ok := course.ListOfferingStatsByIDs([]uint64{offering.Id})[offering.Id]; ok {
+		brief.Classes[0].ReviewCount = s.ReviewCount
+		if s.RatingCount > 0 {
+			avg := float64(s.RatingSum) / float64(s.RatingCount)
+			brief.Classes[0].RatingAvg = &avg
+		}
+	}
+	teachers, err := classTeacherNames([]uint64{offering.Id})
+	if err != nil {
+		return false, err
+	}
+	if names := teachers[offering.Id]; names != nil {
+		brief.Classes[0].Teachers = names
+	}
+	return true, nil
 }
 
 // fillClassBriefs 填充教学班级课评摘要：PK 教学班课号 → offering.class_code 匹配，

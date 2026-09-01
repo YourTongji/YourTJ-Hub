@@ -5323,6 +5323,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/moderation/course-relation-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List course lineage candidates for review (CourseManager/Admin)
+         * @description CourseManager-scoped list of course_relations candidates (pending/approved/ignored/merged)
+         *     with the rule evidence snapshot. Permission failures are a legacy HTTP 200 business
+         *     failure (`permission.denied`).
+         */
+        post: operations["adminCourseRelationList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a non-merge lineage candidate (CourseManager/Admin)
+         * @description CourseManager-scoped write. Marks a SPLIT_FROM/MERGED_FROM/RELATED candidate approved
+         *     (pending → approved). EQUIVALENT/RENAMED_FROM candidates must go through the merge
+         *     operation (`adminCourseMerge`); passing one here is a 409 `course.relation.notMerge`
+         *     business failure. Writes an audit log entry.
+         */
+        post: operations["adminCourseRelationApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-ignore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ignore a lineage candidate (CourseManager/Admin)
+         * @description CourseManager-scoped write. Marks a candidate ignored (pending → ignored). Writes an
+         *     audit log entry.
+         */
+        post: operations["adminCourseRelationIgnore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Manually create a lineage candidate (CourseManager/Admin)
+         * @description CourseManager-scoped write. Creates a manual (source=manual) pending candidate. Idempotent:
+         *     an existing (fromCourseId, toCourseId, relationType) row is returned as-is. Writes an
+         *     audit log entry.
+         */
+        post: operations["adminCourseRelationCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm equivalence and physically merge a course into another (CourseManager/Admin)
+         * @description CourseManager-scoped write. Human-confirmed physical merge of an EQUIVALENT/RENAMED_FROM
+         *     candidate: offerings (with their reviews and instructor links) move from the from-course to
+         *     the to-course, aliases migrate with conflict skipping, the from-course is hidden, the
+         *     candidate becomes merged with a merge snapshot, and search/stat rebuilds are enqueued.
+         *     Reversible via `adminCourseMergeUndo`. Writes an audit log entry.
+         */
+        post: operations["adminCourseMerge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-merge-undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a confirmed course merge (CourseManager/Admin)
+         * @description CourseManager-scoped write. Reverses a merged candidate from its merge snapshot: offerings
+         *     move back to the from-course, aliases move back, the from-course becomes visible again, and
+         *     the candidate returns to approved. Writes an audit log entry.
+         */
+        post: operations["adminCourseMergeUndo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6442,6 +6576,17 @@ export interface components {
              *     Omitted when the course has no visible reviews.
              */
             ratingDistribution?: number[];
+            /**
+             * @description 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）；缺省为 teacher。
+             * @enum {string}
+             */
+            reviewScope?: "teacher" | "team" | "course";
+            /** @description 教学团队键；非空且 reviewScope=team 时评分聚合为团队读时聚合值。 */
+            teamKey?: string;
+            /** @description team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。 */
+            teamInstructors?: string[];
+            /** @description 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。 */
+            legacyNames?: string[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
@@ -6944,6 +7089,13 @@ export interface components {
             creditX10?: number;
             aliases?: string[];
             instructors?: string[];
+            /**
+             * @description 课评范围三档；字段缺省保留原值，显式空串重置为 teacher。
+             * @enum {string}
+             */
+            reviewScope?: "teacher" | "team" | "course";
+            /** @description 教学团队键；与 reviewScope=team 配合使用，缺省保留原值，显式空串清除。 */
+            teamKey?: string;
         };
         AdminCourseDeleteRequest: {
             /** Format: uint64 */
@@ -6996,6 +7148,108 @@ export interface components {
         AdminReviewDeleteRequest: {
             /** Format: uint64 */
             reviewId: number;
+        };
+        AdminCourseRelationListRequest: {
+            /**
+             * @description 沿革候选状态过滤；空 = 全部。
+             * @enum {string}
+             */
+            status?: "pending" | "approved" | "ignored" | "merged";
+            page?: number;
+            pageSize?: number;
+        };
+        /** @description 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。 */
+        AdminCourseRelationItem: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            fromCourseId: number;
+            /** Format: uint64 */
+            toCourseId: number;
+            /** @enum {string} */
+            relationType: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
+            /** @enum {string} */
+            source: "rule" | "manual";
+            /** Format: double */
+            confidence: number;
+            /** @description 规则证据快照（JSON 文本）；合并后含合并快照。 */
+            evidenceJson: string;
+            manual: boolean;
+            /** @enum {string} */
+            status: "pending" | "approved" | "ignored" | "merged";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdminCourseRelationListResult: {
+            list: components["schemas"]["AdminCourseRelationItem"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+            hasNext: boolean;
+        };
+        AdminCourseRelationListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseRelationListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseRelationActionRequest: {
+            /** Format: uint64 */
+            relationId: number;
+        };
+        AdminCourseRelationItemResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseRelationItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseRelationCreateRequest: {
+            /** Format: uint64 */
+            fromCourseId: number;
+            /** Format: uint64 */
+            toCourseId: number;
+            /** @enum {string} */
+            relationType: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
+            /** @description 人工证据说明。 */
+            evidence?: string;
+            /** Format: double */
+            confidence?: number;
+        };
+        AdminCourseMergeResult: {
+            /** Format: uint64 */
+            relationId: number;
+            /** Format: uint64 */
+            fromCourseId: number;
+            /** Format: uint64 */
+            toCourseId: number;
+            fromName: string;
+            toName: string;
+            /** @description 迁移到新卡的开课实例数。 */
+            movedOfferings: number;
+            /** @description 成功迁移的旧卡别名数。 */
+            migratedAliases: number;
+            /** @description 因目标卡已占用而跳过的别名数。 */
+            skippedAliases: number;
+        };
+        AdminCourseMergeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseMergeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description 沿革区块条目：本卡相关的已确认沿革关系（原名标注 + 关系类型 + 方向）。 */
+        RelationItem: {
+            /** Format: uint64 */
+            relationId: number;
+            /** Format: uint64 */
+            fromCourseId: number;
+            fromName: string;
+            /** Format: uint64 */
+            toCourseId: number;
+            toName: string;
+            /** @enum {string} */
+            relationType: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
+            /** @enum {string} */
+            status: "pending" | "approved" | "ignored" | "merged";
+            /**
+             * @description to=旧卡并入本卡（本卡为当前卡）；from=本卡并入新卡（本卡为历史卡）。
+             * @enum {string}
+             */
+            direction: "to" | "from";
         };
         AdminTopicsListRequest: {
             /** @description 1-based page; values below 1 are treated as page 1. */
@@ -8649,6 +8903,11 @@ export interface components {
             campus: string;
             teachingLanguage: string;
             arrangementInfo: components["schemas"]["PkArrangementInfo"][];
+            /**
+             * Format: uint64
+             * @description 一系统教学班 id（pk_course_detail.id），排课器传 course-review-brief 直查用。
+             */
+            teachingClassId?: number;
             /** @description 仅 course-info-sync 的 major 课程带该字段。 */
             isExclusive?: boolean;
         };
@@ -9150,6 +9409,8 @@ export interface components {
             teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
             /** @description Other course cards with the same primary_code (different teacher identity), top 5 by review count. */
             sameCourseOtherTeachers: components["schemas"]["RelatedCourseItem"][];
+            /** @description 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。 */
+            lineage: components["schemas"]["RelationItem"][];
         };
         CourseSearchPayload: {
             /** Format: uint64 */
@@ -18348,6 +18609,12 @@ export interface operations {
                 teacherName?: string;
                 /** @description 限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
                 calendarId?: number;
+                /**
+                 * @description 教学班直查键（course_offering.teaching_class_id）：有则精准定位该班所属课程卡与
+                 *     offering（course-scope 特判课程卡），不再走 courseCode+teacherName 猜测；未命中
+                 *     （缺失/隐藏）时回退旧路径。与 calendarId 同时传入时以直查结果为准。
+                 */
+                teachingClassId?: number;
             };
             header?: never;
             path?: never;
@@ -18689,6 +18956,276 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of lineage candidates, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate type is not approvable (EQUIVALENT/RENAMED_FROM must merge). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationIgnore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created (or already-existing) lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description From or to course does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseMerge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Merge counts (offerings moved, aliases migrated/skipped), or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseMergeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate or a referenced course does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate not mergeable, already merged, blocked by another pending merge, or target hidden. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseMergeUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Undo counts (offerings moved back), or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseMergeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate was never merged. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

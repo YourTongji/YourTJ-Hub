@@ -452,9 +452,17 @@ CLI 同步（运维 cron 等自动化场景）：
 # 连同步前 3 个学期（选课季加频/补历史）
 ./bin/yourtj-hub course-pk-sync 121 --depth 3
 
-# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor + 课程搜索 outbox）
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor/offering + 课程搜索 outbox）
 ./bin/yourtj-hub course-pk-sync 121 --materialize
 ```
+
+**物化写源（offering 权威写入源，2026 课程沿革）**：`--materialize` 以排课教学班为粒度
+写入课程目录 offering 行（幂等 upsert，按 `teaching_class_id` 定位），并落库
+`course_instructor.teacher_code`；学期自动创建（`term` 按 calendar_id_i18n 幂等 upsert）。
+物化/导入链路**均不写 `offering.status`**（管理端隐藏的教学班不会被物化复活）。
+历史课评数据包导入（见 `docs/operations/course-import-e2e.md`）保持兼容且从属：
+导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 (term, teaching_class_id)
+唯一索引——先物化后导入时导入器复用已有行（不重复建卡）。
 
 凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
 （设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。

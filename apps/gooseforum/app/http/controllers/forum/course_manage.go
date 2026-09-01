@@ -5,11 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
+	"github.com/gin-gonic/gin"
 )
 
 // ---- 课程管理（CourseManager/Admin） ----
@@ -82,6 +83,8 @@ type AdminCourseUpdateReq struct {
 	Name        *string   `json:"name"`
 	Department  *string   `json:"department"`
 	CreditX10   *int      `json:"creditX10"`
+	ReviewScope *string   `json:"reviewScope"`
+	TeamKey     *string   `json:"teamKey"`
 	Aliases     *[]string `json:"aliases"`
 	Instructors *[]string `json:"instructors"`
 }
@@ -96,6 +99,8 @@ func AdminCourseUpdate(req component.BetterRequest[AdminCourseUpdateReq]) compon
 		Name:        req.Params.Name,
 		Department:  req.Params.Department,
 		CreditX10:   req.Params.CreditX10,
+		ReviewScope: req.Params.ReviewScope,
+		TeamKey:     req.Params.TeamKey,
 		Aliases:     req.Params.Aliases,
 		Instructors: req.Params.Instructors,
 	})
@@ -232,6 +237,150 @@ func AdminCourseStatsRebuild(req component.BetterRequest[component.Null]) compon
 	return component.SuccessResponseCode(true, component.MessageCourseStatsRebuildQueued, nil)
 }
 
+// ---- 课程沿革（course_relations 审核）----
+
+// AdminCourseRelationListReq 沿革候选列表请求。
+type AdminCourseRelationListReq struct {
+	Status   string `json:"status"` // 空 = 全部；pending/approved/ignored/merged
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+}
+
+// AdminCourseRelationList 返回沿革候选分页（含证据快照）。
+func AdminCourseRelationList(req component.BetterRequest[AdminCourseRelationListReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	pageData, err := courseservice.AdminRelationList(course.RelationQuery{
+		Status: req.Params.Status,
+		Page:   req.Params.Page,
+		Size:   req.Params.PageSize,
+	})
+	if err != nil {
+		slog.Error("course_relation_list_failed", "error", err)
+		return component.BuildResponse(http.StatusInternalServerError,
+			component.FailDataCode(component.MessageCourseRelationListFailed, nil))
+	}
+	return component.SuccessResponse(pageData)
+}
+
+// AdminCourseRelationApproveReq 批准非合并沿革候选请求。
+type AdminCourseRelationApproveReq struct {
+	RelationId uint64 `json:"relationId" validate:"required"`
+}
+
+// AdminCourseRelationApprove 批准拆分/相关等非合并关系（SPLIT_FROM/MERGED_FROM/RELATED → approved）。
+// EQUIVALENT/RENAMED_FROM 必须走合并（AdminCourseMerge），误传返回语义错误。
+func AdminCourseRelationApprove(req component.BetterRequest[AdminCourseRelationApproveReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	entity, err := courseservice.AdminRelationApprove(req.Params.RelationId)
+	if err != nil {
+		return courseManageErrorResponse(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.UpdateCourse, entity.Id, "course.relation.approved", optlogger.MessageParams{
+		"relationId":   entity.Id,
+		"fromCourseId": entity.FromCourseId,
+		"toCourseId":   entity.ToCourseId,
+		"relationType": entity.RelationType,
+	})
+	return component.SuccessResponse(entity)
+}
+
+// AdminCourseRelationIgnore 忽略沿革候选（pending → ignored）。
+func AdminCourseRelationIgnore(req component.BetterRequest[AdminCourseRelationApproveReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	entity, err := courseservice.AdminRelationIgnore(req.Params.RelationId)
+	if err != nil {
+		return courseManageErrorResponse(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.UpdateCourse, entity.Id, "course.relation.ignored", optlogger.MessageParams{
+		"relationId":   entity.Id,
+		"fromCourseId": entity.FromCourseId,
+		"toCourseId":   entity.ToCourseId,
+		"relationType": entity.RelationType,
+	})
+	return component.SuccessResponse(entity)
+}
+
+// AdminCourseRelationCreateReq 手动创建沿革关系请求。
+type AdminCourseRelationCreateReq struct {
+	FromCourseId uint64  `json:"fromCourseId" validate:"required"`
+	ToCourseId   uint64  `json:"toCourseId" validate:"required"`
+	RelationType string  `json:"relationType" validate:"required"`
+	Evidence     string  `json:"evidence"`
+	Confidence   float64 `json:"confidence"`
+}
+
+// AdminCourseRelationCreate 手动创建沿革关系（source=manual；幂等返回已存在行）。
+func AdminCourseRelationCreate(req component.BetterRequest[AdminCourseRelationCreateReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	entity, err := courseservice.AdminRelationCreate(courseservice.AdminRelationCreateInput{
+		FromCourseId: req.Params.FromCourseId,
+		ToCourseId:   req.Params.ToCourseId,
+		RelationType: req.Params.RelationType,
+		Evidence:     req.Params.Evidence,
+		Confidence:   req.Params.Confidence,
+	})
+	if err != nil {
+		return courseManageErrorResponse(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.CreateCourse, entity.Id, "course.relation.created", optlogger.MessageParams{
+		"relationId":   entity.Id,
+		"fromCourseId": entity.FromCourseId,
+		"toCourseId":   entity.ToCourseId,
+		"relationType": entity.RelationType,
+	})
+	return component.SuccessResponse(entity)
+}
+
+// AdminCourseMerge 人工确认等价后物理合并（EQUIVALENT/RENAMED_FROM）。
+func AdminCourseMerge(req component.BetterRequest[AdminCourseRelationApproveReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	result, err := courseservice.MergeCourses(req.Params.RelationId)
+	if err != nil {
+		return courseManageErrorResponse(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.UpdateCourse, result.ToCourseId, "course.merged", optlogger.MessageParams{
+		"relationId":      result.RelationId,
+		"fromCourseId":    result.FromCourseId,
+		"toCourseId":      result.ToCourseId,
+		"fromName":        result.FromName,
+		"toName":          result.ToName,
+		"movedOfferings":  result.MovedOfferings,
+		"migratedAliases": result.MigratedAliases,
+		"skippedAliases":  result.SkippedAliases,
+	})
+	return component.SuccessResponse(result)
+}
+
+// AdminCourseMergeUndo 撤销已合并的沿革关系（offering/alias 迁回、from 卡恢复）。
+func AdminCourseMergeUndo(req component.BetterRequest[AdminCourseRelationApproveReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	result, err := courseservice.UndoMergeCourse(req.Params.RelationId)
+	if err != nil {
+		return courseManageErrorResponse(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.UpdateCourse, result.ToCourseId, "course.mergeUndone", optlogger.MessageParams{
+		"relationId":     result.RelationId,
+		"fromCourseId":   result.FromCourseId,
+		"toCourseId":     result.ToCourseId,
+		"fromName":       result.FromName,
+		"toName":         result.ToName,
+		"movedOfferings": result.MovedOfferings,
+	})
+	return component.SuccessResponse(result)
+}
+
 // ---- SSR 页面 ----
 
 // CourseManagement 课程/评价管理页面（/moderation/courses）。
@@ -289,6 +438,24 @@ func courseManageErrorResponse(err error) component.Response {
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageReviewContentTooLong,
 				component.MessageParams{"maxLength": courseservice.ReviewContentMaxLength}))
+	case errors.Is(err, courseservice.ErrRelationNotFound):
+		return component.BuildResponse(http.StatusNotFound,
+			component.FailDataCode(component.MessageCourseRelationNotFound, nil))
+	case errors.Is(err, courseservice.ErrRelationNotMergeable):
+		return component.BuildResponse(http.StatusConflict,
+			component.FailDataCode(component.MessageCourseRelationNotMerge, nil))
+	case errors.Is(err, courseservice.ErrRelationAlreadyMerged):
+		return component.BuildResponse(http.StatusConflict,
+			component.FailDataCode(component.MessageCourseRelationMerged, nil))
+	case errors.Is(err, courseservice.ErrMergeConflict):
+		return component.BuildResponse(http.StatusConflict,
+			component.FailDataCode(component.MessageCourseRelationConflict, nil))
+	case errors.Is(err, courseservice.ErrMergeTargetHidden):
+		return component.BuildResponse(http.StatusConflict,
+			component.FailDataCode(component.MessageCourseMergeTargetHidden, nil))
+	case errors.Is(err, courseservice.ErrReviewScopeInvalid):
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageCourseReviewScopeInvalid, nil))
 	default:
 		slog.Error("course_manage_write_failed", "error", err)
 		return component.BuildResponse(http.StatusInternalServerError,

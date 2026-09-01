@@ -56,6 +56,22 @@ func ListCoursesByPrimaryCodes(codes []string) (entities []Entity, err error) {
 	return
 }
 
+// ListVisibleCoursesByTeamKey 返回同 team_key 的其他可见课程卡（team scope 读时聚合用）。
+// 团队目标 = team_key 非空的若干 (code, teacher) 卡共享；排除自身，按 id 升序稳定排序。
+func ListVisibleCoursesByTeamKey(teamKey string, excludeCourseId uint64) ([]Entity, error) {
+	var entities []Entity
+	if teamKey == "" {
+		return entities, nil
+	}
+	err := courseBuilder().
+		Where(queryopt.Eq("status", StatusVisible)).
+		Where(queryopt.Eq("team_key", teamKey)).
+		Where(queryopt.Ne("id", excludeCourseId)).
+		Order("id ASC").
+		Find(&entities).Error
+	return entities, err
+}
+
 // ListCourseQuery 课程目录筛选条件。
 type ListCourseQuery struct {
 	Keyword    string   // 名称/课号/别名/教师（归一化前缀或包含）
@@ -246,6 +262,12 @@ func ListAliasesByCourse(courseId uint64) (entities []AliasEntity, err error) {
 	return
 }
 
+// ListAliasesByCourseTx 事务内按课程返回别名（合并迁移用）。
+func ListAliasesByCourseTx(tx *gorm.DB, courseId uint64) (entities []AliasEntity, err error) {
+	err = tx.Table(aliasTableName).Where("course_id = ?", courseId).Order("id ASC").Find(&entities).Error
+	return
+}
+
 // ListAliasesByCourses 批量返回多门课程的别名（避免列表页 N+1）。
 func ListAliasesByCourses(courseIds []uint64) (entities []AliasEntity, err error) {
 	if len(courseIds) == 0 {
@@ -324,6 +346,24 @@ func ListDistinctTermsTx(tx *gorm.DB) ([]TermEntity, error) {
 // GetOffering 按 ID 读取开课实例（含软删除过滤）。
 func GetOffering(id uint64) (entity OfferingEntity, err error) {
 	err = offeringBuilder().Where("id = ?", id).First(&entity).Error
+	return
+}
+
+// GetOfferingByTeachingClassIdTx 事务内按教学班 id 查找开课实例（含软删除过滤）。
+// teaching_class_id 是物化链权威写入键（offering 权威源 = PK 物化链）。
+func GetOfferingByTeachingClassIdTx(tx *gorm.DB, teachingClassId uint64) (entity OfferingEntity, err error) {
+	err = tx.Table(offeringTableName).
+		Where("teaching_class_id = ?", teachingClassId).
+		Where("deleted_at IS NULL").
+		First(&entity).Error
+	return
+}
+
+// GetOfferingByTeachingClassId 按教学班 id 查找开课实例（含软删除过滤）。
+func GetOfferingByTeachingClassId(teachingClassId uint64) (entity OfferingEntity, err error) {
+	err = offeringBuilder().
+		Where("teaching_class_id = ?", teachingClassId).
+		First(&entity).Error
 	return
 }
 

@@ -247,10 +247,14 @@ _$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$CourseCatalogQueryPayloadImpl(
   keyword: json['keyword'] as String?,
-  department: (json['department'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  department: (json['department'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   term: (json['term'] as List<dynamic>?)?.map((e) => e as String).toList(),
   campus: (json['campus'] as List<dynamic>?)?.map((e) => e as String).toList(),
-  instructor: (json['instructor'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  instructor: (json['instructor'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   onlyWithReviews: json['onlyWithReviews'] as bool?,
   sortBy: json['sortBy'] as String?,
   page: (json['page'] as num).toInt(),
@@ -334,6 +338,14 @@ _$CourseDetailPayloadImpl _$$CourseDetailPayloadImplFromJson(
   ratingDistribution: (json['ratingDistribution'] as List<dynamic>?)
       ?.map((e) => (e as num).toInt())
       .toList(),
+  reviewScope: json['reviewScope'] as String?,
+  teamKey: json['teamKey'] as String?,
+  teamInstructors: (json['teamInstructors'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  legacyNames: (json['legacyNames'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
@@ -351,4 +363,8 @@ Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
   'ratingAvg': instance.ratingAvg,
   'reviewCount': instance.reviewCount,
   'ratingDistribution': instance.ratingDistribution,
+  'reviewScope': instance.reviewScope,
+  'teamKey': instance.teamKey,
+  'teamInstructors': instance.teamInstructors,
+  'legacyNames': instance.legacyNames,
 };

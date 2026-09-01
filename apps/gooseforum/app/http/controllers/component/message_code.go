@@ -173,15 +173,23 @@ const (
 	MessageWikiSyncFailed            MessageCode = "wiki.sync.failed"            // wiki 同步失败。
 	MessageWikiReadFailed            MessageCode = "wiki.readFailed"             // wiki 读取失败（数据库故障；区别于空数据）。
 	// 课程管理（管理端课程/评价管理）
-	MessageCourseNotFound           MessageCode = "course.notFound"           // 课程不存在或已删除。
-	MessageCourseCodeRequired       MessageCode = "course.codeRequired"       // 主课号不能为空。
-	MessageCourseNameRequired       MessageCode = "course.nameRequired"       // 课程名不能为空。
-	MessageCourseCodeConflict       MessageCode = "course.codeConflict"       // 主课号已被其它课程占用。
-	MessageCourseCreditInvalid      MessageCode = "course.creditInvalid"      // 学分格式不正确。
-	MessageCourseListFailed         MessageCode = "course.listFailed"         // 课程列表读取失败。
-	MessageCourseStatsRebuildQueued MessageCode = "course.statsRebuildQueued" // 课程统计重建任务已入队。
-	MessageCourseStatsRebuildFailed MessageCode = "course.statsRebuildFailed" // 课程统计重建任务入队失败。
-	MessageCourseSummaryFailed      MessageCode = "course.summary.failed"     // AI 总结生成失败（LLM 超时/输出非法等，不影响课程页主流程）。
+	MessageCourseNotFound           MessageCode = "course.notFound"            // 课程不存在或已删除。
+	MessageCourseCodeRequired       MessageCode = "course.codeRequired"        // 主课号不能为空。
+	MessageCourseNameRequired       MessageCode = "course.nameRequired"        // 课程名不能为空。
+	MessageCourseCodeConflict       MessageCode = "course.codeConflict"        // 主课号已被其它课程占用。
+	MessageCourseCreditInvalid      MessageCode = "course.creditInvalid"       // 学分格式不正确。
+	MessageCourseListFailed         MessageCode = "course.listFailed"          // 课程列表读取失败。
+	MessageCourseStatsRebuildQueued MessageCode = "course.statsRebuildQueued"  // 课程统计重建任务已入队。
+	MessageCourseStatsRebuildFailed MessageCode = "course.statsRebuildFailed"  // 课程统计重建任务入队失败。
+	MessageCourseRelationNotFound   MessageCode = "course.relation.notFound"   // 沿革候选不存在。
+	MessageCourseRelationConflict   MessageCode = "course.relation.conflict"   // 沿革合并冲突（旧卡存在其他未处理候选）。
+	MessageCourseRelationNotMerge   MessageCode = "course.relation.notMerge"   // 该沿革类型不可合并/不可批准。
+	MessageCourseRelationMerged     MessageCode = "course.relation.merged"     // 该候选已合并，不可重复操作。
+	MessageCourseRelationListFailed MessageCode = "course.relation.listFailed" // 沿革候选列表读取失败。
+	MessageCourseRelationOpFailed   MessageCode = "course.relation.opFailed"   // 沿革操作失败。
+	MessageCourseReviewScopeInvalid MessageCode = "course.reviewScopeInvalid"  // 课评范围取值非法（仅 teacher/team/course）。
+	MessageCourseMergeTargetHidden  MessageCode = "course.mergeTargetHidden"   // 目标课程已隐藏，不可作为合并目标。
+	MessageCourseSummaryFailed      MessageCode = "course.summary.failed"      // AI 总结生成失败（LLM 超时/输出非法等，不影响课程页主流程）。
 )
 
 const (

@@ -71,8 +71,20 @@ type CourseUpdateInput struct {
 	Name        *string   `json:"name"`
 	Department  *string   `json:"department"`
 	CreditX10   *int      `json:"creditX10"`
+	ReviewScope *string   `json:"reviewScope"`
+	TeamKey     *string   `json:"teamKey"`
 	Aliases     *[]string `json:"aliases"`
 	Instructors *[]string `json:"instructors"`
+}
+
+// ValidateReviewScope 校验 review_scope 取值（teacher/team/course），返回归一化值或错误。
+func ValidateReviewScope(v string) (string, error) {
+	switch v {
+	case ReviewScopeTeacher, ReviewScopeTeam, ReviewScopeCourse:
+		return v, nil
+	default:
+		return "", ErrReviewScopeInvalid
+	}
 }
 
 // DeletedCourseInfo 级联删除后的课程快照（供控制器写审计日志）。
@@ -275,6 +287,16 @@ func UpdateCourse(courseId uint64, input CourseUpdateInput) (AdminCourseItem, er
 		}
 		if input.CreditX10 != nil {
 			updates["credit_x10"] = *input.CreditX10
+		}
+		if input.ReviewScope != nil {
+			scope, err := ValidateReviewScope(strings.TrimSpace(*input.ReviewScope))
+			if err != nil {
+				return err
+			}
+			updates["review_scope"] = scope
+		}
+		if input.TeamKey != nil {
+			updates["team_key"] = strings.TrimSpace(*input.TeamKey)
 		}
 		if len(updates) > 0 {
 			if err := tx.Model(&course.Entity{}).Where("id = ?", courseId).Updates(updates).Error; err != nil {

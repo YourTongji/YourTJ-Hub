@@ -35,6 +35,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
 		&course.CourseAiSummaryEntity{},
+		&course.RelationEntity{},
 	); err != nil {
 		t.Fatalf("migrate course contract tables: %v", err)
 	}
@@ -52,6 +53,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
 		&course.CourseAiSummaryEntity{},
+		&course.RelationEntity{},
 		&course.Entity{},
 	} {
 		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
@@ -255,6 +257,32 @@ func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 		if err := conn.Create(st).Error; err != nil {
 			t.Fatalf("create offering stats: %v", err)
 		}
+	}
+	// 沿革数据：旧卡 41（已合并隐藏）→ 当前卡 42，relation 11 merged。
+	// buildLineageItems 语义：direction=to（本卡为当前卡），fromName = 旧卡名，toName = 本卡名。
+	if err := conn.Create(&course.Entity{
+		Id:             41,
+		PrimaryCode:    "099999", // 2025 改制前旧课程码；(code, teacher) 唯一索引下与 42 的 100001 不冲突
+		Name:           "高等数学(A)上",
+		Department:     "数学科学学院",
+		CreditX10:      50,
+		NormalizedName: "高等数学a上",
+		NamePinyin:     "gaodengshuxueashang",
+		NameInitials:   "gdsxas",
+		Status:         course.StatusHidden, // 合并后旧卡隐藏，名称仍可解析（GetMapByIds 无状态过滤）
+	}).Error; err != nil {
+		t.Fatalf("create lineage old card 41: %v", err)
+	}
+	if err := conn.Create(&course.RelationEntity{
+		Id:           11,
+		FromCourseId: 41,
+		ToCourseId:   42,
+		RelationType: string(course.RelationEquivalent),
+		Source:       course.RelationSourceRule,
+		Status:       string(course.RelationStatusMerged),
+		EvidenceJson: `{"originalEvidence":"rule","merge":{"movedOfferingIds":[]}}`,
+	}).Error; err != nil {
+		t.Fatalf("create lineage relation 11: %v", err)
 	}
 }
 

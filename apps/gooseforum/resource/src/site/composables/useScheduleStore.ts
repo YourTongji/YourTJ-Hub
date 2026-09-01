@@ -218,6 +218,7 @@ function sanitizeCourseDetail(raw: unknown): PkCourseDetail[] {
       arrangementInfo: sanitizeArrangementInfo(detail?.arrangementInfo),
       campus: normalizeStringList(detail?.campus).join('、'),
       code: typeof detail?.code === 'string' ? detail.code : '',
+      teachingClassId: typeof detail?.teachingClassId === 'number' ? detail.teachingClassId : undefined,
       isExclusive: typeof detail?.isExclusive === 'boolean' ? detail.isExclusive : undefined,
       status: typeof detail?.status === 'number' ? detail.status : 0,
       teachers: sanitizeTeachers(detail?.teachers),

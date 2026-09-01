@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：272
-- /api JSON 路由：216，已入契约：214（99%），已知未覆盖：0
+- 快照路由总数：278
+- /api JSON 路由：222，已入契约：220（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（214）
+## 已覆盖（220）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -161,6 +161,12 @@
 | POST | `/api/forum/moderation/course-create` | `adminCourseCreate` |
 | POST | `/api/forum/moderation/course-delete` | `adminCourseDelete` |
 | POST | `/api/forum/moderation/course-list` | `adminCourseList` |
+| POST | `/api/forum/moderation/course-merge` | `adminCourseMerge` |
+| POST | `/api/forum/moderation/course-merge-undo` | `adminCourseMergeUndo` |
+| POST | `/api/forum/moderation/course-relation-approve` | `adminCourseRelationApprove` |
+| POST | `/api/forum/moderation/course-relation-create` | `adminCourseRelationCreate` |
+| POST | `/api/forum/moderation/course-relation-ignore` | `adminCourseRelationIgnore` |
+| POST | `/api/forum/moderation/course-relation-list` | `adminCourseRelationList` |
 | POST | `/api/forum/moderation/course-review-delete` | `adminReviewDelete` |
 | POST | `/api/forum/moderation/course-review-edit` | `adminReviewUpdate` |
 | POST | `/api/forum/moderation/course-review-list` | `adminReviewList` |

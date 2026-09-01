@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -87,6 +88,9 @@ type importOfferingRow struct {
 	// 用于详情页按班展示；旧数据包无此字段时为空。
 	ClassCode string `json:"class_code,omitempty"`
 	ClassName string `json:"class_name,omitempty"`
+	// 一系统教学班 id（offering 权威写入源 = PK 物化链；manifest 兼容字段）。
+	// 新数据包提供时写入 teaching_class_id 列；旧数据包为空 → 0 → 退化现状。
+	TeachingClassID string `json:"teaching_class_id,omitempty"`
 }
 
 // --- 导入实现 ---
@@ -770,6 +774,7 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 	}
 
 	existingRef, refErr := sourceRefByExternal(tx, source, row.ID, course.EntityTypeOffering)
+	teachingClassID := parseTeachingClassIDString(row.TeachingClassID)
 	if refErr == nil {
 		if existingRef.Checksum == checksum {
 			report.Skipped++ // 内容未变化
@@ -789,6 +794,9 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 			"faculty":    row.Faculty,
 			"class_code": row.ClassCode,
 			"class_name": row.ClassName,
+		}
+		if teachingClassID > 0 {
+			updates["teaching_class_id"] = teachingClassID
 		}
 		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(updates).Error; err != nil {
 			return fmt.Errorf("update offering %d: %w", offering.Id, err)
@@ -814,13 +822,14 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 	}
 
 	offeringEntity := course.OfferingEntity{
-		CourseId:  courseLocalID,
-		TermId:    termEntity.Id,
-		Campus:    row.Campus,
-		Faculty:   row.Faculty,
-		ClassCode: row.ClassCode,
-		ClassName: row.ClassName,
-		Status:    course.OfferingStatusVisible,
+		CourseId:        courseLocalID,
+		TermId:          termEntity.Id,
+		TeachingClassId: teachingClassID,
+		Campus:          row.Campus,
+		Faculty:         row.Faculty,
+		ClassCode:       row.ClassCode,
+		ClassName:       row.ClassName,
+		Status:          course.OfferingStatusVisible,
 	}
 	if err := tx.Model(&course.OfferingEntity{}).Create(&offeringEntity).Error; err != nil {
 		return fmt.Errorf("create offering: %w", err)
@@ -830,6 +839,15 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 	}
 	report.Inserted++
 	return touchSourceRef(tx, runID, source, row.ID, offeringEntity.Id, course.EntityTypeOffering, checksum)
+}
+
+// parseTeachingClassIDString 解析 manifest offering 行的教学班 id 字符串；空/非法为 0。
+func parseTeachingClassIDString(v string) uint64 {
+	id, err := strconv.ParseUint(strings.TrimSpace(v), 10, 64)
+	if err != nil || id == 0 {
+		return 0
+	}
+	return id
 }
 
 // getOrCreateTermTx 事务内按 code 查找学期，不存在则创建（事务内可见，避免同批次重复建）。

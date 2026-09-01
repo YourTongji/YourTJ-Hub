@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -14,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -34,6 +34,7 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.OfferingInstructorEntity{},
 		&course.SourceRefEntity{},
 		&course.CourseAiSummaryEntity{},
+		&course.RelationEntity{},
 		&rolePermissionRs.Entity{},
 		&optRecord.Entity{},
 		&taskQueue.Entity{},
@@ -51,6 +52,7 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.SourceRefEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		&course.RelationEntity{},
 		&course.Entity{},
 		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},
@@ -72,6 +74,12 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.POST("moderation/course-review-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminReviewList))
 	forumLoginAPI.POST("moderation/course-review-edit", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewUpdate))
 	forumLoginAPI.POST("moderation/course-review-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewDelete))
+	forumLoginAPI.POST("moderation/course-relation-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminCourseRelationList))
+	forumLoginAPI.POST("moderation/course-relation-approve", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationApprove))
+	forumLoginAPI.POST("moderation/course-relation-ignore", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationIgnore))
+	forumLoginAPI.POST("moderation/course-relation-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationCreate))
+	forumLoginAPI.POST("moderation/course-merge", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMerge))
+	forumLoginAPI.POST("moderation/course-merge-undo", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMergeUndo))
 	return conn, router
 }
 
@@ -276,5 +284,262 @@ func TestCourseManageReviewWritePermissionDenied(t *testing.T) {
 		if envelope.Code != 1 || envelope.MessageCode != "permission.denied" {
 			t.Fatalf("%s expected permission.denied, got code=%d messageCode=%q", path, envelope.Code, envelope.MessageCode)
 		}
+	}
+}
+
+// TestCourseRelationPermissionDenied 非 CourseManager 访问沿革/合并端点返回 permission.denied。
+func TestCourseRelationPermissionDenied(t *testing.T) {
+	conn, router := setupCourseManageContractTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, user)
+
+	for _, path := range []string{
+		"/api/forum/moderation/course-relation-list",
+		"/api/forum/moderation/course-relation-approve",
+		"/api/forum/moderation/course-relation-ignore",
+		"/api/forum/moderation/course-relation-create",
+		"/api/forum/moderation/course-merge",
+		"/api/forum/moderation/course-merge-undo",
+	} {
+		body := `{"relationId":1}`
+		if path == "/api/forum/moderation/course-relation-create" {
+			// create 路由在中间件层做必填校验（from/to/type），权限检查前需先通过绑定。
+			body = `{"fromCourseId":1,"toCourseId":2,"relationType":"RELATED"}`
+		}
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, path, body, token)
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code != 1 || envelope.MessageCode != "permission.denied" {
+			t.Fatalf("%s expected permission.denied, got code=%d messageCode=%q", path, envelope.Code, envelope.MessageCode)
+		}
+	}
+}
+
+// TestCourseRelationLifecycle 沿革候选全生命周期：手动创建（幂等）→ 列表 → 批准（非合并类型）。
+func TestCourseRelationLifecycle(t *testing.T) {
+	conn, router := setupCourseManageContractTest(t)
+	manager := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+	token := contractSessionToken(t, manager)
+
+	from := course.Entity{PrimaryCode: "M201", Name: "旧卡", Status: course.StatusVisible}
+	if err := conn.Create(&from).Error; err != nil {
+		t.Fatalf("create from course: %v", err)
+	}
+	to := course.Entity{PrimaryCode: "M202", Name: "新卡", Status: course.StatusVisible}
+	if err := conn.Create(&to).Error; err != nil {
+		t.Fatalf("create to course: %v", err)
+	}
+
+	// 手动创建 SPLIT_FROM 候选（source=manual / status=pending）。
+	createBody, _ := json.Marshal(map[string]any{
+		"fromCourseId": from.Id,
+		"toCourseId":   to.Id,
+		"relationType": "SPLIT_FROM",
+		"evidence":     "人工确认",
+		"confidence":   0.9,
+	})
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(createBody), token)
+	envelope := decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("create relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var created struct {
+		Id           uint64 `json:"id"`
+		FromCourseId uint64 `json:"fromCourseId"`
+		Status       string `json:"status"`
+		Source       string `json:"source"`
+	}
+	if err := json.Unmarshal(envelope.Result, &created); err != nil {
+		t.Fatalf("decode created relation %q: %v", envelope.Result, err)
+	}
+	if created.Id == 0 || created.FromCourseId != from.Id || created.Status != "pending" || created.Source != "manual" {
+		t.Fatalf("created relation = %+v, want pending manual", created)
+	}
+
+	// 幂等：重复创建返回同一行。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(createBody), token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("idempotent create code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var again struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(envelope.Result, &again); err != nil || again.Id != created.Id {
+		t.Fatalf("idempotent create id = %+v, want %d (%v)", again, created.Id, err)
+	}
+
+	// 列表 pending 过滤可见。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-list", `{"status":"pending","page":1,"pageSize":20}`, token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("list relations code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var list struct {
+		Total int64 `json:"total"`
+	}
+	if err := json.Unmarshal(envelope.Result, &list); err != nil || list.Total != 1 {
+		t.Fatalf("list relations = %+v, want total 1 (%v)", list, err)
+	}
+
+	// 批准 SPLIT_FROM（非合并类型 → approved）。
+	approveBody, _ := json.Marshal(map[string]any{"relationId": created.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-approve", string(approveBody), token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("approve relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var approved struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(envelope.Result, &approved); err != nil || approved.Status != "approved" {
+		t.Fatalf("approved relation = %+v, want approved (%v)", approved, err)
+	}
+
+	// 忽略另一条候选 → ignored。
+	ignoreBody, _ := json.Marshal(map[string]any{"fromCourseId": from.Id, "toCourseId": to.Id, "relationType": "RELATED"})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(ignoreBody), token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("create related code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var related struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(envelope.Result, &related); err != nil || related.Id == 0 {
+		t.Fatalf("decode related relation %q: %v", envelope.Result, err)
+	}
+	ignoreRelationBody, _ := json.Marshal(map[string]any{"relationId": related.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-ignore", string(ignoreRelationBody), token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("ignore relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var ignored struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(envelope.Result, &ignored); err != nil || ignored.Status != "ignored" {
+		t.Fatalf("ignored relation = %+v, want ignored (%v)", ignored, err)
+	}
+}
+
+// TestCourseMergeAndUndo 确认等价合并 → 撤销合并的完整闭环（含 409 语义）。
+func TestCourseMergeAndUndo(t *testing.T) {
+	conn, router := setupCourseManageContractTest(t)
+	manager := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+	token := contractSessionToken(t, manager)
+
+	from := course.Entity{PrimaryCode: "M301", Name: "高等数学(A)上", Status: course.StatusVisible}
+	if err := conn.Create(&from).Error; err != nil {
+		t.Fatalf("create from course: %v", err)
+	}
+	to := course.Entity{PrimaryCode: "M302", Name: "高等数学A(I)", Status: course.StatusVisible}
+	if err := conn.Create(&to).Error; err != nil {
+		t.Fatalf("create to course: %v", err)
+	}
+	offering := course.OfferingEntity{CourseId: from.Id, Status: course.OfferingStatusVisible}
+	if err := conn.Create(&offering).Error; err != nil {
+		t.Fatalf("create offering: %v", err)
+	}
+	alias := course.AliasEntity{
+		CourseId:        from.Id,
+		Kind:            course.AliasKindName,
+		Value:           "高数A上",
+		NormalizedValue: "高数a上",
+		Source:          "import",
+	}
+	if err := conn.Create(&alias).Error; err != nil {
+		t.Fatalf("create alias: %v", err)
+	}
+
+	// 手动创建 EQUIVALENT 候选。
+	createBody, _ := json.Marshal(map[string]any{
+		"fromCourseId": from.Id,
+		"toCourseId":   to.Id,
+		"relationType": "EQUIVALENT",
+	})
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(createBody), token)
+	envelope := decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("create relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var created struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(envelope.Result, &created); err != nil || created.Id == 0 {
+		t.Fatalf("decode created relation %q: %v", envelope.Result, err)
+	}
+	relationBody, _ := json.Marshal(map[string]any{"relationId": created.Id})
+
+	// EQUIVALENT 不可直接批准（必须走合并）→ 409 course.relation.notMerge。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-approve", string(relationBody), token)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("approve equivalent status = %d, want 409", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "course.relation.notMerge" {
+		t.Fatalf("approve equivalent messageCode = %q, want course.relation.notMerge", env.MessageCode)
+	}
+
+	// 确认合并：offering/alias 迁移、from 卡隐藏。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge", string(relationBody), token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("merge code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var merged struct {
+		MovedOfferings  int `json:"movedOfferings"`
+		MigratedAliases int `json:"migratedAliases"`
+	}
+	if err := json.Unmarshal(envelope.Result, &merged); err != nil {
+		t.Fatalf("decode merge result %q: %v", envelope.Result, err)
+	}
+	if merged.MovedOfferings != 1 || merged.MigratedAliases != 1 {
+		t.Fatalf("merge result = %+v, want 1 offering + 1 alias", merged)
+	}
+	var fromEntity course.Entity
+	if err := conn.First(&fromEntity, from.Id).Error; err != nil || fromEntity.Status != course.StatusHidden {
+		t.Fatalf("from course status = %d, want hidden (%v)", fromEntity.Status, err)
+	}
+	var offeringEntity course.OfferingEntity
+	if err := conn.First(&offeringEntity, offering.Id).Error; err != nil || offeringEntity.CourseId != to.Id {
+		t.Fatalf("offering course_id = %d, want %d (%v)", offeringEntity.CourseId, to.Id, err)
+	}
+
+	// 重复合并 → 409 course.relation.merged。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge", string(relationBody), token)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("re-merge status = %d, want 409", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "course.relation.merged" {
+		t.Fatalf("re-merge messageCode = %q, want course.relation.merged", env.MessageCode)
+	}
+
+	// 撤销合并：offering 迁回、from 卡恢复可见。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", string(relationBody), token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("undo code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var undone struct {
+		MovedOfferings int `json:"movedOfferings"`
+	}
+	if err := json.Unmarshal(envelope.Result, &undone); err != nil || undone.MovedOfferings != 1 {
+		t.Fatalf("undo result = %+v, want 1 offering back (%v)", undone, err)
+	}
+	if err := conn.First(&fromEntity, from.Id).Error; err != nil || fromEntity.Status != course.StatusVisible {
+		t.Fatalf("from course after undo status = %d, want visible (%v)", fromEntity.Status, err)
+	}
+	if err := conn.First(&offeringEntity, offering.Id).Error; err != nil || offeringEntity.CourseId != from.Id {
+		t.Fatalf("offering after undo course_id = %d, want %d (%v)", offeringEntity.CourseId, from.Id, err)
+	}
+
+	// 未合并候选不可撤销 → 409 course.relation.notMerge。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", string(relationBody), token)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("undo non-merged status = %d, want 409", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "course.relation.notMerge" {
+		t.Fatalf("undo non-merged messageCode = %q, want course.relation.notMerge", env.MessageCode)
 	}
 }

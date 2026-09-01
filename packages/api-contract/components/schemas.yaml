@@ -1182,6 +1182,23 @@ CourseDetail:
         Omitted when the course has no visible reviews.
       items:
         type: integer
+    reviewScope:
+      type: string
+      enum: [teacher, team, course]
+      description: 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）；缺省为 teacher。
+    teamKey:
+      type: string
+      description: 教学团队键；非空且 reviewScope=team 时评分聚合为团队读时聚合值。
+    teamInstructors:
+      type: array
+      description: team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+      items:
+        type: string
+    legacyNames:
+      type: array
+      description: 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+      items:
+        type: string
   additionalProperties: false
 
 CourseDetailResponse:
@@ -1313,9 +1330,39 @@ RelatedCourseItem:
       description: Number of visible reviews for this course.
   additionalProperties: false
 
+RelationItem:
+  type: object
+  description: 沿革区块条目：本卡相关的已确认沿革关系（原名标注 + 关系类型 + 方向）。
+  required: [relationId, fromCourseId, fromName, toCourseId, toName, relationType, status, direction]
+  properties:
+    relationId:
+      type: integer
+      format: uint64
+    fromCourseId:
+      type: integer
+      format: uint64
+    fromName:
+      type: string
+    toCourseId:
+      type: integer
+      format: uint64
+    toName:
+      type: string
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+    status:
+      type: string
+      enum: [pending, approved, ignored, merged]
+    direction:
+      type: string
+      enum: [to, from]
+      description: to=旧卡并入本卡（本卡为当前卡）；from=本卡并入新卡（本卡为历史卡）。
+  additionalProperties: false
+
 CourseRelatedResult:
   type: object
-  required: [teacherOtherCourses, sameCourseOtherTeachers]
+  required: [teacherOtherCourses, sameCourseOtherTeachers, lineage]
   properties:
     teacherOtherCourses:
       type: array
@@ -1327,6 +1374,11 @@ CourseRelatedResult:
       description: Other course cards with the same primary_code (different teacher identity), top 5 by review count.
       items:
         $ref: '#/RelatedCourseItem'
+    lineage:
+      type: array
+      description: 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+      items:
+        $ref: '#/RelationItem'
   additionalProperties: false
 
 CourseRelatedResponse:
@@ -1837,7 +1889,189 @@ AdminCourseUpdateRequest:
       type: array
       items:
         type: string
+    reviewScope:
+      type: string
+      enum: [teacher, team, course]
+      description: 课评范围三档；字段缺省保留原值，显式空串重置为 teacher。
+    teamKey:
+      type: string
+      description: 教学团队键；与 reviewScope=team 配合使用，缺省保留原值，显式空串清除。
   additionalProperties: false
+
+AdminCourseRelationListRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [pending, approved, ignored, merged]
+      description: 沿革候选状态过滤；空 = 全部。
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+  additionalProperties: false
+
+AdminCourseRelationItem:
+  type: object
+  description: 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。
+  required: [id, fromCourseId, toCourseId, relationType, source, confidence, evidenceJson, manual, status, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    fromCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    toCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+    source:
+      type: string
+      enum: [rule, manual]
+    confidence:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+    evidenceJson:
+      type: string
+      description: 规则证据快照（JSON 文本）；合并后含合并快照。
+    manual:
+      type: boolean
+    status:
+      type: string
+      enum: [pending, approved, ignored, merged]
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AdminCourseRelationListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminCourseRelationItem'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminCourseRelationListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseRelationListResult'
+    - $ref: '#/ApiFailure'
+
+AdminCourseRelationActionRequest:
+  type: object
+  required: [relationId]
+  properties:
+    relationId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+AdminCourseRelationItemResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseRelationItem'
+    - $ref: '#/ApiFailure'
+
+AdminCourseRelationCreateRequest:
+  type: object
+  required: [fromCourseId, toCourseId, relationType]
+  properties:
+    fromCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    toCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+    evidence:
+      type: string
+      description: 人工证据说明。
+    confidence:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+  additionalProperties: false
+
+AdminCourseMergeResult:
+  type: object
+  required: [relationId, fromCourseId, toCourseId, fromName, toName, movedOfferings, migratedAliases, skippedAliases]
+  properties:
+    relationId:
+      type: integer
+      format: uint64
+    fromCourseId:
+      type: integer
+      format: uint64
+    toCourseId:
+      type: integer
+      format: uint64
+    fromName:
+      type: string
+    toName:
+      type: string
+    movedOfferings:
+      type: integer
+      description: 迁移到新卡的开课实例数。
+    migratedAliases:
+      type: integer
+      description: 成功迁移的旧卡别名数。
+    skippedAliases:
+      type: integer
+      description: 因目标卡已占用而跳过的别名数。
+  additionalProperties: false
+
+AdminCourseMergeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseMergeResult'
+    - $ref: '#/ApiFailure'
 
 AdminCourseDeleteRequest:
   type: object
@@ -2672,6 +2906,10 @@ PkCourseDetailBrief:
       type: array
       items:
         $ref: '#/PkArrangementInfo'
+    teachingClassId:
+      type: integer
+      format: uint64
+      description: 一系统教学班 id（pk_course_detail.id），排课器传 course-review-brief 直查用。
     isExclusive:
       type: boolean
       description: 仅 course-info-sync 的 major 课程带该字段。

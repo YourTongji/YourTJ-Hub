@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from '@lucide/vue'
 import {
+  approveCourseRelation,
   createAdminCourse,
+  createCourseRelation,
   deleteAdminCourse,
   deleteAdminReview,
   fetchAdminCourses,
   fetchAdminReviews,
+  fetchCourseRelations,
+  getCourseDetail,
+  ignoreCourseRelation,
+  mergeCourseRelation,
   moderationCourseReviewStatus,
   rebuildCourseStats,
+  undoMergeCourseRelation,
   updateAdminCourse,
   updateAdminReview,
   type AdminCourseItem,
   type AdminCourseUpdateInput,
   type AdminReviewItem,
+  type CourseMergeResult,
+  type CourseRelationItem,
 } from '@/runtime/api'
 import EmptyState from '@/site/components/EmptyState.vue'
 import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
@@ -27,7 +36,7 @@ const page = defineProps<{
 }>()
 const { t } = useI18n()
 
-const activeTab = ref<'courses' | 'reviews'>('courses')
+const activeTab = ref<'courses' | 'reviews' | 'relations'>('courses')
 const pageError = ref('')
 
 // ---- 课程管理 ----
@@ -83,6 +92,8 @@ interface CourseForm {
   credit: string
   aliases: string
   instructors: string
+  reviewScope: string
+  teamKey: string
 }
 
 const courseFormOpen = ref(false)
@@ -93,7 +104,7 @@ const courseFormSubmitting = ref(false)
 const courseFormError = ref('')
 
 function emptyCourseForm(): CourseForm {
-  return { primaryCode: '', name: '', department: '', credit: '', aliases: '', instructors: '' }
+  return { primaryCode: '', name: '', department: '', credit: '', aliases: '', instructors: '', reviewScope: 'teacher', teamKey: '' }
 }
 
 function openCreateCourse() {
@@ -113,10 +124,27 @@ function openEditCourse(item: AdminCourseItem) {
     credit: formatCredit(item.creditX10),
     aliases: item.aliases.join(', '),
     instructors: item.instructors.join(', '),
+    reviewScope: 'teacher',
+    teamKey: '',
   }
   courseFormOriginal.value = { ...courseForm.value }
   courseFormError.value = ''
   courseFormOpen.value = true
+  // 管理列表不含 reviewScope/teamKey，异步取详情预填；隐藏课程详情 404 时保持默认值。
+  void loadCourseDetailForForm(item.id)
+}
+
+async function loadCourseDetailForForm(courseId: number) {
+  try {
+    const detail = await getCourseDetail(courseId)
+    if (courseFormEditingId.value !== courseId) return
+    courseForm.value.reviewScope = detail.reviewScope || 'teacher'
+    courseForm.value.teamKey = detail.teamKey || ''
+    courseFormOriginal.value.reviewScope = courseForm.value.reviewScope
+    courseFormOriginal.value.teamKey = courseForm.value.teamKey
+  } catch {
+    // 隐藏课程详情不可读（404）：保留默认 teacher/空，允许直接保存其它字段。
+  }
 }
 
 function closeCourseForm() {
@@ -165,12 +193,10 @@ async function submitCourseForm() {
       const id = courseFormEditingId.value
       const original = courseFormOriginal.value
       const payload: AdminCourseUpdateInput = {}
-      if (form.primaryCode.trim() !== original.primaryCode) payload.primaryCode = form.primaryCode.trim()
-      if (form.name.trim() !== original.name) payload.name = form.name.trim()
-      if (form.department.trim() !== original.department) payload.department = form.department.trim()
-      if (parseCredit(form.credit) !== parseCredit(original.credit)) payload.creditX10 = creditX10
       if (form.aliases !== original.aliases) payload.aliases = parseCommaList(form.aliases)
       if (form.instructors !== original.instructors) payload.instructors = parseCommaList(form.instructors)
+      if (form.reviewScope !== original.reviewScope) payload.reviewScope = form.reviewScope
+      if (form.teamKey !== original.teamKey) payload.teamKey = form.teamKey
       await updateAdminCourse(id, payload)
     }
     closeCourseForm()
@@ -206,6 +232,240 @@ async function confirmDeleteCourse() {
     pageError.value = error instanceof Error ? error.message : t('api.adminCourseDeleteFailed')
   } finally {
     courseDeleteSubmitting.value = false
+  }
+}
+
+// ---- 课程沿革审核 ----
+const relationStatus = ref('pending')
+const relationPage = ref(1)
+const relationItems = ref<CourseRelationItem[]>([])
+const relationHasNext = ref(true)
+const relationLoading = ref(false)
+const relationLoaded = ref(false)
+const relationBusyIds = ref<number[]>([])
+const relationLoadMoreError = ref('')
+const relationMessage = ref('')
+
+const relationStatusOptions = [
+  { key: 'pending', label: 'courseManagement.relationTabs.pending' },
+  { key: 'approved', label: 'courseManagement.relationTabs.approved' },
+  { key: 'ignored', label: 'courseManagement.relationTabs.ignored' },
+  { key: 'merged', label: 'courseManagement.relationTabs.merged' },
+  { key: '', label: 'courseManagement.relationTabs.all' },
+]
+
+const relationTypeOptions = ['EQUIVALENT', 'RENAMED_FROM', 'SPLIT_FROM', 'MERGED_FROM', 'RELATED']
+
+// 旧卡/新卡名称映射：沿革 API 只返回 id，能映射到已加载课程列表则附名称，否则仅显示 id。
+const courseNameById = computed(() => {
+  const map: Record<number, string> = {}
+  for (const item of courseItems.value) map[item.id] = item.name
+  return map
+})
+
+function relationCourseLabel(id: number): string {
+  const name = courseNameById.value[id]
+  return name ? `${name} (#${id})` : `#${id}`
+}
+
+function relationTypeLabel(type: string): string {
+  return t(`courseManagement.relationType.${type}`)
+}
+
+function relationSourceLabel(source: string): string {
+  return t(`courseManagement.relationSource.${source}`)
+}
+
+function relationStatusLabel(status: string): string {
+  return t(`courseManagement.relationTabs.${status}`)
+}
+
+function relationStatusBadgeClass(status: string): string {
+  if (status === 'pending') return 'gf-badge-warning'
+  if (status === 'approved') return 'gf-badge-success'
+  if (status === 'merged') return 'gf-badge-info'
+  return 'gf-badge-muted'
+}
+
+function isMergeableType(type: string): boolean {
+  return type === 'EQUIVALENT' || type === 'RENAMED_FROM'
+}
+
+function formatConfidence(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '—'
+  return `${Math.round(value * 100)}%`
+}
+
+async function loadRelations(reset = false) {
+  if (relationLoading.value) return
+  relationLoading.value = true
+  if (reset) pageError.value = ''
+  else relationLoadMoreError.value = ''
+  try {
+    const payload = await fetchCourseRelations(relationStatus.value, reset ? 1 : relationPage.value, 20)
+    relationItems.value = reset ? payload.list : [...relationItems.value, ...payload.list]
+    relationPage.value = payload.page + 1
+    relationHasNext.value = payload.hasNext
+    relationLoaded.value = true
+    relationLoadMoreError.value = ''
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t('api.adminCourseRelationListFailed')
+    if (reset) pageError.value = message
+    else relationLoadMoreError.value = message
+  } finally {
+    relationLoading.value = false
+  }
+}
+
+function switchRelationStatus(status: string) {
+  if (relationStatus.value === status) return
+  relationStatus.value = status
+  relationPage.value = 1
+  relationItems.value = []
+  relationHasNext.value = true
+  relationLoaded.value = false
+  void loadRelations(true)
+}
+
+function relationBusy(id: number) {
+  return relationBusyIds.value.includes(id)
+}
+
+async function approveRelation(item: CourseRelationItem) {
+  if (relationBusy(item.id)) return
+  relationBusyIds.value = [...relationBusyIds.value, item.id]
+  relationMessage.value = ''
+  pageError.value = ''
+  try {
+    await approveCourseRelation(item.id)
+    relationMessage.value = t('courseManagement.relationApproved')
+    await loadRelations(true)
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : t('api.adminCourseRelationOpFailed')
+  } finally {
+    relationBusyIds.value = relationBusyIds.value.filter((id) => id !== item.id)
+  }
+}
+
+async function ignoreRelation(item: CourseRelationItem) {
+  if (relationBusy(item.id)) return
+  relationBusyIds.value = [...relationBusyIds.value, item.id]
+  relationMessage.value = ''
+  pageError.value = ''
+  try {
+    await ignoreCourseRelation(item.id)
+    relationMessage.value = t('courseManagement.relationIgnored')
+    await loadRelations(true)
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : t('api.adminCourseRelationOpFailed')
+  } finally {
+    relationBusyIds.value = relationBusyIds.value.filter((id) => id !== item.id)
+  }
+}
+
+// ---- 沿革合并 / 撤销合并（确认弹窗） ----
+const relationConfirmTarget = ref<CourseRelationItem | null>(null)
+const relationConfirmAction = ref<'merge' | 'undo'>('merge')
+const relationConfirmSubmitting = ref(false)
+
+function openMergeRelation(item: CourseRelationItem) {
+  relationConfirmAction.value = 'merge'
+  relationConfirmTarget.value = item
+}
+
+function openUndoMergeRelation(item: CourseRelationItem) {
+  relationConfirmAction.value = 'undo'
+  relationConfirmTarget.value = item
+}
+
+function closeRelationConfirm() {
+  relationConfirmTarget.value = null
+  relationConfirmSubmitting.value = false
+}
+
+async function confirmRelationAction() {
+  const item = relationConfirmTarget.value
+  if (!item) return
+  relationConfirmSubmitting.value = true
+  relationMessage.value = ''
+  pageError.value = ''
+  try {
+    if (relationConfirmAction.value === 'merge') {
+      const result: CourseMergeResult = await mergeCourseRelation(item.id)
+      relationMessage.value = t('courseManagement.relationMergeDone', {
+        from: result.fromName || `#${result.fromCourseId}`,
+        to: result.toName || `#${result.toCourseId}`,
+        movedOfferings: result.movedOfferings,
+        migratedAliases: result.migratedAliases,
+      })
+    } else {
+      await undoMergeCourseRelation(item.id)
+      relationMessage.value = t('courseManagement.relationMergeUndoDone')
+    }
+    closeRelationConfirm()
+    await loadRelations(true)
+    // 合并会隐藏旧卡、撤销会恢复旧卡，刷新课程列表保持一致。
+    await loadCourses(true)
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : t('api.courseMergeFailed')
+    closeRelationConfirm()
+  } finally {
+    relationConfirmSubmitting.value = false
+  }
+}
+
+// ---- 手动建关系 ----
+interface RelationCreateForm {
+  fromCourseId: string
+  toCourseId: string
+  relationType: string
+  evidence: string
+  confidence: string
+}
+
+const relationCreateOpen = ref(false)
+const relationCreateForm = ref<RelationCreateForm>(emptyRelationCreateForm())
+const relationCreateSubmitting = ref(false)
+const relationCreateError = ref('')
+
+function emptyRelationCreateForm(): RelationCreateForm {
+  return { fromCourseId: '', toCourseId: '', relationType: 'EQUIVALENT', evidence: '', confidence: '' }
+}
+
+async function submitRelationCreate() {
+  const form = relationCreateForm.value
+  const fromCourseId = Number.parseInt(form.fromCourseId, 10)
+  const toCourseId = Number.parseInt(form.toCourseId, 10)
+  if (!Number.isInteger(fromCourseId) || fromCourseId <= 0) {
+    relationCreateError.value = t('courseManagement.relationCreateFromRequired')
+    return
+  }
+  if (!Number.isInteger(toCourseId) || toCourseId <= 0) {
+    relationCreateError.value = t('courseManagement.relationCreateToRequired')
+    return
+  }
+  if (fromCourseId === toCourseId) {
+    relationCreateError.value = t('courseManagement.relationCreateSame')
+    return
+  }
+  const confidence = Number.parseFloat(form.confidence)
+  relationCreateSubmitting.value = true
+  relationCreateError.value = ''
+  try {
+    await createCourseRelation({
+      fromCourseId,
+      toCourseId,
+      relationType: form.relationType,
+      evidence: form.evidence.trim() || undefined,
+      confidence: Number.isFinite(confidence) && confidence >= 0 ? confidence : undefined,
+    })
+    relationCreateForm.value = emptyRelationCreateForm()
+    relationMessage.value = t('courseManagement.relationCreated')
+    await loadRelations(true)
+  } catch (error) {
+    relationCreateError.value = error instanceof Error ? error.message : t('api.adminCourseRelationCreateFailed')
+  } finally {
+    relationCreateSubmitting.value = false
   }
 }
 
@@ -382,10 +642,13 @@ onMounted(() => {
   void loadCourses(true)
 })
 
-// 首次切到「评价管理」tab 时若尚未加载，触发一次拉取，避免显示空态。
+// 首次切到「评价管理」/「课程沿革」tab 时若尚未加载，触发一次拉取，避免显示空态。
 watch(activeTab, (tab) => {
   if (tab === 'reviews' && !reviewLoaded.value) {
     void loadReviews(true)
+  }
+  if (tab === 'relations' && !relationLoaded.value) {
+    void loadRelations(true)
   }
 })
 </script>
@@ -416,6 +679,14 @@ watch(activeTab, (tab) => {
           @click="activeTab = 'reviews'"
         >
           {{ t('courseManagement.tabs.reviews') }}
+        </button>
+        <button
+          type="button"
+          class="gf-tab"
+          :class="activeTab === 'relations' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+          @click="activeTab = 'relations'"
+        >
+          {{ t('courseManagement.tabs.relations') }}
         </button>
       </div>
       <button
@@ -521,7 +792,7 @@ watch(activeTab, (tab) => {
     </section>
 
     <!-- 评价管理 tab -->
-    <section v-else class="space-y-3">
+    <section v-else-if="activeTab === 'reviews'" class="space-y-3">
       <div class="flex flex-wrap items-center gap-2">
         <div class="relative min-w-0 flex-1">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
@@ -628,6 +899,242 @@ watch(activeTab, (tab) => {
       </div>
     </section>
 
+    <!-- 课程沿革 tab -->
+    <section v-else-if="activeTab === 'relations'" class="space-y-3">
+      <div class="gf-card overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-base-200/60 p-2">
+          <div class="flex items-center gap-1">
+            <button
+              v-for="option in relationStatusOptions"
+              :key="option.key"
+              type="button"
+              class="gf-tab"
+              :class="relationStatus === option.key ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+              @click="switchRelationStatus(option.key)"
+            >
+              {{ t(option.label) }}
+            </button>
+          </div>
+          <button type="button" class="gf-button gf-button-sm gf-button-primary shrink-0" @click="relationCreateOpen = true">
+            <Plus class="h-4 w-4" />
+            {{ t('courseManagement.relationCreateTitle') }}
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[900px] text-left text-sm">
+            <colgroup>
+              <col class="w-[16%]" />
+              <col class="w-[16%]" />
+              <col class="w-[11%]" />
+              <col class="w-[9%]" />
+              <col class="w-[9%]" />
+              <col class="w-[14%]" />
+              <col class="w-[9%]" />
+              <col class="w-[16%]" />
+            </colgroup>
+            <thead class="border-b border-line/70 bg-base-200/40 text-xs text-base-content/55">
+              <tr>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColFrom') }}</th>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColTo') }}</th>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColType') }}</th>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColSource') }}</th>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColConfidence') }}</th>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColEvidence') }}</th>
+                <th class="px-3 py-3 font-medium">{{ t('courseManagement.relationColStatus') }}</th>
+                <th class="px-3 py-3 text-right font-medium">{{ t('courseManagement.columns.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-line/60">
+              <tr v-for="item in relationItems" :key="item.id" class="align-top transition hover:bg-base-200/40">
+                <td class="px-3 py-3"><span class="block truncate" :title="relationCourseLabel(item.fromCourseId)">{{ relationCourseLabel(item.fromCourseId) }}</span></td>
+                <td class="px-3 py-3"><span class="block truncate" :title="relationCourseLabel(item.toCourseId)">{{ relationCourseLabel(item.toCourseId) }}</span></td>
+                <td class="px-3 py-3"><span class="gf-badge gf-badge-ghost text-[11px]">{{ relationTypeLabel(item.relationType) }}</span></td>
+                <td class="px-3 py-3 text-base-content/60">{{ relationSourceLabel(item.source) }}</td>
+                <td class="px-3 py-3 tabular-nums text-base-content/60">{{ formatConfidence(item.confidence) }}</td>
+                <td class="max-w-[180px] px-3 py-3">
+                  <details v-if="item.evidenceJson" class="group">
+                    <summary class="cursor-pointer select-none text-xs text-primary/80 hover:text-primary">{{ t('courseManagement.relationEvidenceToggle') }}</summary>
+                    <pre class="mt-1 whitespace-pre-wrap break-all rounded bg-base-200/70 p-2 font-mono text-[11px] leading-4 text-base-content/65">{{ item.evidenceJson }}</pre>
+                  </details>
+                  <span v-else class="text-base-content/35">—</span>
+                </td>
+                <td class="px-3 py-3"><span class="gf-badge text-[11px]" :class="relationStatusBadgeClass(item.status)">{{ relationStatusLabel(item.status) }}</span></td>
+                <td class="px-3 py-3">
+                  <div class="flex flex-wrap items-center justify-end gap-1.5">
+                    <button
+                      v-if="item.status === 'pending' && isMergeableType(item.relationType)"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-primary shrink-0"
+                      :disabled="relationBusy(item.id)"
+                      @click="openMergeRelation(item)"
+                    >
+                      {{ t('courseManagement.relationMerge') }}
+                    </button>
+                    <button
+                      v-if="item.status === 'pending' && !isMergeableType(item.relationType)"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-outline shrink-0"
+                      :disabled="relationBusy(item.id)"
+                      @click="approveRelation(item)"
+                    >
+                      {{ t('courseManagement.relationApprove') }}
+                    </button>
+                    <button
+                      v-if="item.status === 'pending'"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-ghost shrink-0"
+                      :disabled="relationBusy(item.id)"
+                      @click="ignoreRelation(item)"
+                    >
+                      {{ t('courseManagement.relationIgnore') }}
+                    </button>
+                    <button
+                      v-if="item.status === 'merged'"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-outline shrink-0"
+                      :disabled="relationBusy(item.id)"
+                      @click="openUndoMergeRelation(item)"
+                    >
+                      {{ t('courseManagement.relationMergeUndo') }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <EmptyState
+          v-if="!relationItems.length && relationLoading"
+          :icon="BookOpen"
+          :title="t('courseManagement.loading')"
+          loading
+        />
+        <EmptyState
+          v-else-if="!relationItems.length"
+          :icon="BookOpen"
+          :title="t('courseManagement.relationsEmpty')"
+          :description="t('courseManagement.relationsEmptyDesc')"
+        />
+
+        <InfiniteScrollFooter
+          v-if="relationLoaded && (relationItems.length || relationHasNext)"
+          :has-next="relationHasNext"
+          :loading="relationLoading"
+          :error="relationLoadMoreError"
+          :has-items="relationItems.length > 0"
+          @load-more="loadRelations(false)"
+        />
+      </div>
+    </section>
+
+    <!-- 手动建关系弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="relationCreateOpen"
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+        role="dialog"
+        aria-modal="true"
+        @click.self="relationCreateOpen = false"
+      >
+        <div class="w-full max-w-lg rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
+          <div class="flex items-start justify-between gap-3">
+            <h2 class="text-base font-bold text-base-content">{{ t('courseManagement.relationCreateTitle') }}</h2>
+            <button
+              type="button"
+              class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
+              @click="relationCreateOpen = false"
+            >
+              <X class="h-4 w-4" />
+            </button>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.relationCreateFrom') }}</span>
+              <input v-model="relationCreateForm.fromCourseId" class="gf-input gf-input-md w-full" :placeholder="t('courseManagement.relationCreateIdPlaceholder')" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.relationCreateTo') }}</span>
+              <input v-model="relationCreateForm.toCourseId" class="gf-input gf-input-md w-full" :placeholder="t('courseManagement.relationCreateIdPlaceholder')" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.relationCreateType') }}</span>
+              <select v-model="relationCreateForm.relationType" class="gf-input gf-input-md w-full">
+                <option v-for="type in relationTypeOptions" :key="type" :value="type">{{ relationTypeLabel(type) }}</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.relationCreateConfidence') }}</span>
+              <input v-model="relationCreateForm.confidence" type="number" min="0" max="1" step="0.05" class="gf-input gf-input-md w-full" :placeholder="t('courseManagement.relationCreateConfidencePlaceholder')" />
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.relationCreateEvidence') }}</span>
+              <textarea v-model="relationCreateForm.evidence" class="gf-textarea min-h-24 w-full" :placeholder="t('courseManagement.relationCreateEvidencePlaceholder')" />
+            </label>
+          </div>
+
+          <p v-if="relationCreateError" class="mt-3 text-sm text-error">{{ relationCreateError }}</p>
+
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" class="gf-button gf-button-md gf-button-muted" :disabled="relationCreateSubmitting" @click="relationCreateOpen = false">
+              {{ t('courseManagement.cancel') }}
+            </button>
+            <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="relationCreateSubmitting" @click="submitRelationCreate">
+              <Loader2 v-if="relationCreateSubmitting" class="h-4 w-4 animate-spin" />
+              {{ relationCreateSubmitting ? t('common.loadingShort') : t('courseManagement.relationCreateSubmit') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 沿革合并 / 撤销合并确认弹窗 -->
+    <Teleport to="body">
+      <div
+        v-if="relationConfirmTarget"
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+        role="dialog"
+        aria-modal="true"
+        @click.self="closeRelationConfirm"
+      >
+        <div class="w-full max-w-md rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
+          <h2 class="text-base font-bold text-base-content">
+            {{ relationConfirmAction === 'merge' ? t('courseManagement.relationMerge') : t('courseManagement.relationMergeUndo') }}
+          </h2>
+          <p class="mt-2 text-[13px] leading-5 text-base-content/60">
+            {{
+              relationConfirmAction === 'merge'
+                ? t('courseManagement.relationMergeConfirm', {
+                    from: relationCourseLabel(relationConfirmTarget.fromCourseId),
+                    to: relationCourseLabel(relationConfirmTarget.toCourseId),
+                  })
+                : t('courseManagement.relationMergeUndoConfirm', {
+                    from: relationCourseLabel(relationConfirmTarget.fromCourseId),
+                    to: relationCourseLabel(relationConfirmTarget.toCourseId),
+                  })
+            }}
+          </p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" class="gf-button gf-button-md gf-button-muted" :disabled="relationConfirmSubmitting" @click="closeRelationConfirm">
+              {{ t('courseManagement.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="gf-button gf-button-md"
+              :class="relationConfirmAction === 'merge' ? 'gf-button-primary' : 'gf-button-danger'"
+              :disabled="relationConfirmSubmitting"
+              @click="confirmRelationAction"
+            >
+              <Loader2 v-if="relationConfirmSubmitting" class="h-4 w-4 animate-spin" />
+              {{ relationConfirmSubmitting ? t('common.loadingShort') : (relationConfirmAction === 'merge' ? t('courseManagement.relationMerge') : t('courseManagement.relationMergeUndo')) }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 课程表单弹窗 -->
     <Teleport to="body">
       <div
@@ -676,6 +1183,20 @@ watch(activeTab, (tab) => {
               <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.courseForm.instructors') }}</span>
               <input v-model="courseForm.instructors" class="gf-input gf-input-md w-full" :placeholder="t('courseManagement.courseForm.instructorsPlaceholder')" />
             </label>
+            <template v-if="courseFormEditingId !== 0">
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.courseForm.reviewScope') }}</span>
+                <select v-model="courseForm.reviewScope" class="gf-input gf-input-md w-full">
+                  <option value="teacher">{{ t('courseManagement.courseForm.reviewScopeTeacher') }}</option>
+                  <option value="team">{{ t('courseManagement.courseForm.reviewScopeTeam') }}</option>
+                  <option value="course">{{ t('courseManagement.courseForm.reviewScopeCourse') }}</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-base-content/60">{{ t('courseManagement.courseForm.teamKey') }}</span>
+                <input v-model="courseForm.teamKey" class="gf-input gf-input-md w-full" :placeholder="t('courseManagement.courseForm.teamKeyPlaceholder')" />
+              </label>
+            </template>
           </div>
 
           <p v-if="courseFormError" class="mt-3 text-sm text-error">{{ courseFormError }}</p>
