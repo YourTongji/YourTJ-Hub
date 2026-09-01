@@ -94,8 +94,22 @@ func seedCourseSummaryContractCache(t *testing.T, conn *gorm.DB) {
 		Model:         "qwen3.6-flash-2026-04-16",
 		PromptVersion: "v1",
 		GeneratedAt:   time.Date(2026, 8, 13, 10, 0, 0, 0, cst),
+		Status:        course.AiSummaryRowStatusGenerated,
 	}).Error; err != nil {
 		t.Fatalf("seed ai summary cache: %v", err)
+	}
+}
+
+// seedCourseSummaryContractInsufficient 预置「评价不足已评估」标记行（status=insufficient）。
+func seedCourseSummaryContractInsufficient(t *testing.T, conn *gorm.DB) {
+	t.Helper()
+	if err := conn.Create(&course.CourseAiSummaryEntity{
+		CourseId:      42,
+		PromptVersion: "v1",
+		GeneratedAt:   time.Now(),
+		Status:        course.AiSummaryRowStatusInsufficient,
+	}).Error; err != nil {
+		t.Fatalf("seed ai summary insufficient row: %v", err)
 	}
 }
 
@@ -157,4 +171,80 @@ func TestCourseSummaryMalformedIDHTTPContract(t *testing.T) {
 		t.Fatalf("course summary malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
+}
+
+// TestCourseSummaryCheckNoneHTTPContract check 预检：无缓存行 → 200 + none。
+func TestCourseSummaryCheckNoneHTTPContract(t *testing.T) {
+	conn, router := setupCourseSummaryContractTest(t)
+	seedCourseSummaryContractCourse(t, conn)
+
+	rec := serveCourseGet(router, "/api/forum/courses/42/summary?check=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course summary check-none status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-summary-none.json"))
+}
+
+// TestCourseSummaryCheckCachedHTTPContract check 预检：已有缓存行 → 200 + cached fixture。
+func TestCourseSummaryCheckCachedHTTPContract(t *testing.T) {
+	conn, router := setupCourseSummaryContractTest(t)
+	seedCourseSummaryContractCourse(t, conn)
+	seedCourseSummaryContractCache(t, conn)
+
+	rec := serveCourseGet(router, "/api/forum/courses/42/summary?check=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course summary check-cached status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-summary-cached.json"))
+}
+
+// TestCourseSummaryCheckInsufficientHTTPContract check 预检：insufficient 标记行 → 200 + insufficient_data。
+func TestCourseSummaryCheckInsufficientHTTPContract(t *testing.T) {
+	conn, router := setupCourseSummaryContractTest(t)
+	seedCourseSummaryContractCourse(t, conn)
+	seedCourseSummaryContractInsufficient(t, conn)
+
+	rec := serveCourseGet(router, "/api/forum/courses/42/summary?check=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course summary check-insufficient status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-summary-insufficient-data.json"))
+}
+
+// TestCourseSummaryCheckDoesNotConsumeQuota check 预检不消耗生成限流：
+// 对无缓存课程连续 check 后，首次展开生成仍成功（200 generated，而非 429）。
+func TestCourseSummaryCheckDoesNotConsumeQuota(t *testing.T) {
+	conn, router := setupCourseSummaryContractTest(t)
+	seedCourseSummaryContractCourse(t, conn)
+	// 写入 12 条可见评价（≥10 达标），避免走 insufficient 分支。
+	rating := 4
+	for i := 0; i < 12; i++ {
+		author := uint64(30000 + i)
+		if err := conn.Create(&course.ReviewEntity{
+			OfferingId:   901,
+			AuthorUserId: &author,
+			Rating:       &rating,
+			Content:      "老师讲得很好，作业量适中，给分不错。",
+			Status:       course.ReviewStatusVisible,
+		}).Error; err != nil {
+			t.Fatalf("create contract review %d: %v", i, err)
+		}
+	}
+
+	// 连续 check 3 次（不应消耗任何限流名额）。
+	for i := 0; i < 3; i++ {
+		rec := serveCourseGet(router, "/api/forum/courses/42/summary?check=1")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("check #%d status = %d, want 200: %s", i, rec.Code, rec.Body.String())
+		}
+	}
+	// check 后首次生成（无 provider 配置会走 500，但绝不能是 429 —— 429 意味着
+	// check 消耗了名额）。由于契约测试未配置 LLM provider，期望 500（生成失败），
+	// 且失败后名额返还，第二次生成同样不是 429。
+	for i := 0; i < 2; i++ {
+		rec := serveCourseGet(router, "/api/forum/courses/42/summary")
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("generate #%d after checks must not be 429: %s", i, rec.Body.String())
+		}
+	}
 }

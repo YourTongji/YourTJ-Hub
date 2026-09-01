@@ -31,11 +31,10 @@ func assertRouter(ginApp *gin.Engine) {
 	staticFS, _ := resource.GetStaticFS()
 	staticRoute := ginApp.Group("/")
 	if gzipEnabled() {
-		staticRoute.Use(middleware.CacheMiddleware)
 		staticRoute.Use(gzip.Gzip(gzip.DefaultCompression))
-		slog.Info("static assets gzip enabled", "cache", true)
+		slog.Info("static assets gzip enabled")
 	} else {
-		slog.Info("static assets gzip disabled", "cache", false)
+		slog.Info("static assets gzip disabled")
 	}
 	// dev 模式：/assets/* 反向代理到 Vite 开发服务器（同源相对路径，本机与局域网均可访问）
 	if devServer := viteDevServerURL(); devServer != "" {
@@ -234,7 +233,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。
-	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
+	// check 预检（?check=true）走独立 course.summary.check 配额，不消耗生成配额
+	// （review P2：浏览 N 门课程页的挂载预检不得耗尽 per-User 生成配额）。
+	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimitCourseSummaryAware(), UpUriQueryReq(forum.GetCourseSummary))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 	// 帖子版本历史：公开只读（话题可见即可读），可选 JWT 仅用于 viewer 状态，
 	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。

@@ -32,7 +32,7 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
 - Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
   RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
-  (`jti` + `user_sessions`) in place. Casdoor is not enabled.
+  (`jti` + `user_sessions`) in place.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
   password login, login public-key retrieval, TOTP login verification and account management, logout,
   mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, forum core
@@ -74,7 +74,6 @@ apps/
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
 services/
-  casdoor/   Archived Casdoor deployment config (not enabled; built-in OIDC Provider replaces it)
   search/    Meilisearch deployment config
   credit/    Points (phase 2 placeholder)
 deploy/      Per-environment compose + env.example
@@ -88,7 +87,7 @@ docs/        Docs center (product/architecture/development/operations)
 - Frontend output only via `resource/static/dist` (go:embed); vite :3010 hits the backend in dev,
   single binary in production.
 - `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
-  off-the-shelf components; Casdoor is archived and not enabled).
+  off-the-shelf components).
 - Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it. After
   merging, rewrite upstream's `github.com/leancodebox/GooseForum` import prefix to
   `github.com/YourTongji/YourTJ-Hub/apps/gooseforum` (upstream files keep the old prefix), then run `go mod tidy`.

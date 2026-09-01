@@ -204,13 +204,7 @@ func ginServe() {
 		host = `127.0.0.1`
 	}
 	address := fmt.Sprintf("%v:%v", host, port)
-	srv := &http.Server{
-		Addr:           address,
-		Handler:        engine,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
-	}
+	srv := newHTTPServer(address, engine)
 
 	quit := make(chan os.Signal, 1)
 	signalwatch.ListenSignal(quit)
@@ -237,6 +231,18 @@ func ginServe() {
 	}
 
 	slog.Info("Server exiting")
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 }
 
 func newGinEngine() *gin.Engine {

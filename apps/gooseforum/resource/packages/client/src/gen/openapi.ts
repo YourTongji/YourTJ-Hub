@@ -1964,6 +1964,9 @@ export interface paths {
          *     limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
          *     affects the course page main flow. The summary schema is provider-independent
          *     (OpenAI-compatible chat/completions; qwen/OpenRouter/local Ollama are configuration-only).
+         *     `?check=true` runs a read-only preflight (no generation, no rate-limit consumption) that
+         *     returns `cached` / `insufficient_data` / `none` / `disabled`; it is used by the client on
+         *     mount to decide whether to auto-expand the card or keep it collapsed until first expand.
          */
         get: operations["getCourseSummary"];
         put?: never;
@@ -6398,10 +6401,12 @@ export interface components {
         };
         /**
          * @description Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
-         *     HTTP failures and never returned by this API.
+         *     HTTP failures and never returned by this API. `none` is only returned by check-mode
+         *     preflight (`?check=true`) and means no summary row exists yet — the client should keep
+         *     the card collapsed and generate on first expand.
          * @enum {string}
          */
-        CourseSummaryStatus: "cached" | "generated" | "insufficient_data" | "disabled";
+        CourseSummaryStatus: "cached" | "generated" | "insufficient_data" | "none" | "disabled";
         /**
          * @description Five-level sentiment consensus across visible reviews.
          * @enum {string}
@@ -12709,6 +12714,7 @@ export interface operations {
         parameters: {
             query?: {
                 refresh?: boolean;
+                check?: boolean;
             };
             header?: never;
             path: {

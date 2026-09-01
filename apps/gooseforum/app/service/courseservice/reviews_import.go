@@ -354,6 +354,16 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 	if err != nil {
 		return err
 	}
+	// 评价内容实际变化（未走 checksum 跳过）→ 失效课程 AI 总结缓存（含 insufficient
+	// 标记）：导入补充/修改评价后 summary 必须可重新评估，否则曾被判数据不足的课程
+	// 会永久返回 insufficient_data（review P2）。
+	offering, err := course.GetOfferingTx(tx, offeringLocalID)
+	if err != nil {
+		return fmt.Errorf("load offering %d for ai summary invalidation: %w", offeringLocalID, err)
+	}
+	if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+		return fmt.Errorf("invalidate ai summary for course %d: %w", offering.CourseId, err)
+	}
 	return touchSourceRef(tx, runID, source, refKey, reviewID, course.EntityTypeReview, checksum)
 }
 

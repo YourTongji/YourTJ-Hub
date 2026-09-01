@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-31
 
 Any code, contract, migration, CI, or documentation change starts here. `AGENTS.md` holds repository hard
 constraints; this directory holds the executable process. Do not copy development steps from historical
@@ -19,7 +19,7 @@ PRs or chat messages.
 2. Determine whether the request is read-only analysis, a change, or explicitly authorizes
    commit/push/open PR.
 3. Check branch, worktree, and uncommitted content; never overwrite or commit others' changes.
-4. Create a feature/fix/docs branch from `origin/main`.
+4. Create a feature/fix/docs branch from `origin/dev`.
 5. Write the change impact: backend, web, contract, migration, auth/PII, search, deploy, docs.
 
 The repository-level `$yourtj-development` skill lives in `.agents/skills/yourtj-development` and unifies

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -1541,7 +1542,9 @@ func sanitizeScheduleSectionTimes(input []pageConfig.ScheduleSectionTime) ([]pag
 		seen[item.Section] = true
 		times = append(times, item)
 	}
-	sort.Slice(times, func(i, j int) bool { return times[i].Section < times[j].Section })
+	slices.SortFunc(times, func(a, b pageConfig.ScheduleSectionTime) int {
+		return cmp.Compare(a.Section, b.Section)
+	})
 	return times, true
 }
 

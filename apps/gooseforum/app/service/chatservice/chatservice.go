@@ -2,6 +2,7 @@ package chatservice
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
@@ -172,7 +173,7 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 		msgs = msgs[:limit]
 	}
 	if afterId == 0 {
-		reverseMessages(msgs)
+		slices.Reverse(msgs)
 	}
 
 	list := lo.Map(msgs, func(m messages.Entity, _ int) *vo.MessageVo {
@@ -200,12 +201,6 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 		result.HasMoreBefore = hasMore
 	}
 	return result, nil
-}
-
-func reverseMessages(msgs []messages.Entity) {
-	for left, right := 0, len(msgs)-1; left < right; left, right = left+1, right-1 {
-		msgs[left], msgs[right] = msgs[right], msgs[left]
-	}
 }
 
 // MarkRead 清除指定会话的未读状态。

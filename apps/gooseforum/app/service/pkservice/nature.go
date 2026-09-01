@@ -1,9 +1,10 @@
 package pkservice
 
 import (
+	"cmp"
+	"slices"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 )
@@ -112,13 +113,13 @@ func FindCoursesByNature(calendarId int, ids []int) ([]CourseByNatureItem, error
 		item := byLabel[labelName]
 		item.CourseLabelIds = uniqueIntsDesc(item.CourseLabelIds)
 		item.CourseLabelId = maxInt(item.CourseLabelIds)
-		sort.SliceStable(item.Courses, func(i, j int) bool {
-			return strings.Compare(item.Courses[i].CourseCode, item.Courses[j].CourseCode) < 0
+		slices.SortStableFunc(item.Courses, func(a, b NatureCourseItem) int {
+			return cmp.Compare(a.CourseCode, b.CourseCode)
 		})
 		output = append(output, *item)
 	}
-	sort.SliceStable(output, func(i, j int) bool {
-		return output[i].CourseLabelId > output[j].CourseLabelId
+	slices.SortStableFunc(output, func(a, b CourseByNatureItem) int {
+		return cmp.Compare(b.CourseLabelId, a.CourseLabelId)
 	})
 	return output, nil
 }

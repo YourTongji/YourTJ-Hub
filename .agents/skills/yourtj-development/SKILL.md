@@ -43,7 +43,7 @@ Before editing, state whether the change affects:
 - forum frontend (`resource/`, generated types, GoHTML templates);
 - HTTP/OpenAPI compatibility (packages/api-contract);
 - database migration/backfill/concurrency (app/migration, SQLite dev / PostgreSQL deployment default);
-- auth (GitHub OAuth current; Casdoor OIDC planned), JWT sessions, PII, privacy, retention, or audit;
+- auth (GitHub OAuth and built-in OIDC Provider), JWT sessions, PII, privacy, retention, or audit;
 - credit compliance / signatures / replay (phase 2, only when credit work is in scope);
 - search (Meilisearch), cache, counters, notifications, or background jobs;
 - deployment/config/provider secrets (config.toml);

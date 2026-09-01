@@ -1,11 +1,12 @@
 package markdown2html
 
 import (
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -271,6 +272,8 @@ func loadMarkdownCompatFixtures(t *testing.T) []markdownCompatCase {
 		}
 		fixtures = append(fixtures, fixture)
 	}
-	sort.Slice(fixtures, func(i, j int) bool { return fixtures[i].Name < fixtures[j].Name })
+	slices.SortFunc(fixtures, func(a, b markdownCompatCase) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return fixtures
 }

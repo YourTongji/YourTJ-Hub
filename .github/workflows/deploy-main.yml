@@ -41,7 +41,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/merge-wiki-services.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
@@ -72,19 +72,13 @@ jobs:
             install -m 0755 "$RUN_DIR/deploy.sh" /opt/yourtj/scripts/deploy.sh
             install -m 0755 "$RUN_DIR/backup-db.sh" /opt/yourtj/scripts/backup-db.sh
             install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
-            install -m 0755 "$RUN_DIR/merge-wiki-services.sh" /opt/yourtj/scripts/merge-wiki-services.sh
             # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
             #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
-            #   - 若现有 compose 含未迁移的 wiki 服务, 保留 wiki 服务块,
-            #     避免 --remove-orphans 把未迁移内容带下线(PR review #2)
             if [ -f /opt/yourtj/docker-compose.yaml ]; then
               cp -f /opt/yourtj/docker-compose.yaml /opt/yourtj/docker-compose.yaml.prev
               echo "main: backed up existing compose to docker-compose.yaml.prev"
             fi
             install -m 0644 "$RUN_DIR/docker-compose.yaml" /opt/yourtj/docker-compose.yaml
-            /opt/yourtj/scripts/merge-wiki-services.sh \
-              /opt/yourtj/docker-compose.yaml.prev \
-              /opt/yourtj/docker-compose.yaml
             # 1. 部署前一致性备份(保留最近 7 份)
             /opt/yourtj/scripts/backup-db.sh main
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
