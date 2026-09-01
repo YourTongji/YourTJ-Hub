@@ -282,7 +282,11 @@ func shouldIndexCourse(entity course.Entity) bool {
 // 只检查 error 会把索引拒绝/内部失败当作成功，导致 outbox 永不重试。
 // 这里显式检查 task.Status 与 task.Error，失败即返回错误。
 func waitForTaskChecked(client meilisearch.ServiceManager, taskUID int64, interval time.Duration) error {
-	task, err := client.WaitForTask(taskUID, interval)
+	return waitForTaskCheckedContext(context.Background(), client, taskUID, interval)
+}
+
+func waitForTaskCheckedContext(ctx context.Context, client meilisearch.ServiceManager, taskUID int64, interval time.Duration) error {
+	task, err := client.WaitForTaskWithContext(ctx, taskUID, interval)
 	if err != nil {
 		return err
 	}

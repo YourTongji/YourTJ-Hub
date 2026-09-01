@@ -148,10 +148,8 @@ func TestWriteActionsReturn429(t *testing.T) {
 
 func rateLimitQuotaFor(action string) int {
 	cfg := hotdataserve.GetRateLimitConfigCache()
-	for _, rule := range cfg.Actions {
-		if rule.Action == action {
-			return rule.LimitPerIp
-		}
+	if rule, ok := cfg.RuleForAction(action); ok {
+		return rule.LimitPerIp
 	}
 	return 0
 }
@@ -196,10 +194,8 @@ func TestRateLimitCourseSummaryCheckSeparateQuota(t *testing.T) {
 
 func rateLimitUserQuotaFor(action string) int {
 	cfg := hotdataserve.GetRateLimitConfigCache()
-	for _, rule := range cfg.Actions {
-		if rule.Action == action {
-			return rule.LimitPerUser
-		}
+	if rule, ok := cfg.RuleForAction(action); ok {
+		return rule.LimitPerUser
 	}
 	return 0
 }

@@ -1,6 +1,6 @@
 // Package dataservice provides admin data export/import for users, topics
-// and posts. Export runs as a taskQueue background task; import is a
-// synchronous, validated JSON import with idempotent skip.
+// and posts. Export and import both run as taskQueue background tasks; import
+// uses a staged, validated JSON body with idempotent replay.
 package dataservice
 
 import (

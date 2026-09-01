@@ -665,3 +665,34 @@ func TestResolveAiSummaryConfigFallsBackToToml(t *testing.T) {
 		t.Fatalf("cfg = %#v, want toml baseURL/model with trailing slash trimmed", cfg)
 	}
 }
+
+func TestGetAiSummaryContextCancelsLLM(t *testing.T) {
+	courseID := setupAiSummaryTest(t)
+	seedAiSummaryReviews(t, courseID, 10)
+	preferences.Set("ai_summary.base_url", "http://fake.local/v1")
+	preferences.Set("ai_summary.model", "fake-model")
+	started := make(chan struct{})
+	original := llmChat
+	llmChat = func(ctx context.Context, _ llmprovider.Config, _ string) (string, error) {
+		close(started)
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	t.Cleanup(func() { llmChat = original })
+
+	timeoutErr := errors.New("test llm timeout")
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 20*time.Millisecond, timeoutErr)
+	defer cancel()
+	_, err := GetAiSummaryContext(ctx, courseID, false)
+	if !errors.Is(err, ErrAiSummaryGenerationFailed) {
+		t.Fatalf("GetAiSummaryContext() error = %v, want generation failure", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("LLM was not called")
+	}
+	if !errors.Is(context.Cause(ctx), timeoutErr) {
+		t.Fatalf("context cause = %v, want %v", context.Cause(ctx), timeoutErr)
+	}
+}

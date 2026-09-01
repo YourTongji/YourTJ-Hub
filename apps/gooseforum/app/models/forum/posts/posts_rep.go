@@ -1,6 +1,7 @@
 package posts
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -44,6 +45,12 @@ func SaveTx(tx *gorm.DB, entity *Entity) error {
 
 func Get(id uint64) (entity Entity) {
 	builder().First(&entity, id)
+	return
+}
+
+// GetWithContext is the cancellable worker/request variant of Get.
+func GetWithContext(ctx context.Context, id uint64) (entity Entity, err error) {
+	err = db.ConnectContext(ctx).Table(tableName).First(&entity, id).Error
 	return
 }
 
@@ -91,6 +98,12 @@ func GetMapByIdsUnscoped(ids []uint64) map[uint64]*Entity {
 
 func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
+}
+
+// UpdateProcessStatusTx updates moderation state inside a caller-owned
+// transaction.
+func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
 }
 
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
@@ -502,6 +515,18 @@ func GetByTopicPostNoBefore(topicId uint64, postNo uint64, limit int) (entities 
 func GetByTopicPostNoAtOrAfter(topicId uint64, postNo uint64) (entity Entity, ok bool) {
 	err := builder().
 		Where(queryopt.Eq("topic_id", topicId)).
+		Where(queryopt.Ge("post_no", postNo)).
+		Order(queryopt.Asc("post_no")).
+		Order(queryopt.Asc("id")).
+		First(&entity).Error
+	return entity, err == nil
+}
+
+// GetByTopicPostNoAtOrAfterContext is the cancellable variant used by search
+// projection workers when a topic has no valid first-post pointer.
+func GetByTopicPostNoAtOrAfterContext(ctx context.Context, topicID uint64, postNo uint64) (entity Entity, ok bool) {
+	err := db.ConnectContext(ctx).Table(tableName).
+		Where(queryopt.Eq("topic_id", topicID)).
 		Where(queryopt.Ge("post_no", postNo)).
 		Order(queryopt.Asc("post_no")).
 		Order(queryopt.Asc("id")).

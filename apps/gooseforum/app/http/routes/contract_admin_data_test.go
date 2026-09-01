@@ -1,10 +1,12 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -26,14 +28,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// 本文件覆盖 SiteManager 权限组 img-upload + data-portability 5 条路由的契约测试
+// 本文件覆盖 SiteManager 权限组 img-upload + data-portability 7 条路由的契约测试
 // （issue #277 P3 切片六）。img-upload / data/import 为 multipart 裸 gin handler，
 // data/export/download 为文件流裸 handler，均不经 UpButterReq，但守卫中间件链与
 // route4api.go 的生产注册保持一致。任务行用固定字段种子保证 fixture 确定性；
 // 文件内容落独立的 db4fileconnect 连接，单独迁移。
 
 // setupAdminDataContractTest 在共享 harness（setupHTTPContractTest）之上注册
-// img-upload/data 导出导入 5 条路由。
+// img-upload/data 导出导入 7 条路由。
 func setupAdminDataContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
@@ -56,10 +58,12 @@ func setupAdminDataContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	dataAPI.GET("/data/export/tasks", UpButterReq(api.ListExportTasks))
 	dataAPI.GET("/data/export/download/:taskId", api.DownloadExportTask)
 	dataAPI.POST("/data/import", api.ImportData)
+	dataAPI.GET("/data/import/tasks", UpButterReq(api.ListImportTasks))
+	dataAPI.POST("/data/import/tasks/:taskId/replay", UpUriReq(api.ReplayImportTask))
 	return conn, router
 }
 
-// adminDataGuardScenarios 跑本文件 5 条路由公共的中间件守卫场景：
+// adminDataGuardScenarios 跑本文件 7 条路由公共的中间件守卫场景：
 // 未登录 401 / 冻结账号 403 / 无 SiteManager 权限 403（params.permission="站点管理"）。
 // 守卫由中间件在绑定前拦截，统一用 JSON 请求即可（含 multipart/文件流路由）。
 func adminDataGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
@@ -119,6 +123,40 @@ func assertAdminDataFixture(t *testing.T, recorder *httptest.ResponseRecorder, w
 		t.Fatalf("status = %d, want %d: %s", recorder.Code, wantStatus, recorder.Body.String())
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixture))
+}
+
+func assertAdminImportAcceptedFixture(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	actual := decodeContractEnvelope(t, recorder)
+	fixture := contractFixture(t, "admin-data-import-success.json")
+	if actual.Code != fixture.Code || actual.MessageCode != fixture.MessageCode {
+		t.Fatalf("envelope = %#v, want fixture code/messageCode %d/%q", actual, fixture.Code, fixture.MessageCode)
+	}
+	var actualResult, fixtureResult map[string]any
+	if err := json.Unmarshal(actual.Result, &actualResult); err != nil {
+		t.Fatalf("decode accepted import result: %v", err)
+	}
+	if err := json.Unmarshal(fixture.Result, &fixtureResult); err != nil {
+		t.Fatalf("decode accepted import fixture: %v", err)
+	}
+	if len(actualResult) != len(fixtureResult) {
+		t.Fatalf("accepted import result fields = %#v, want fixture fields %#v", actualResult, fixtureResult)
+	}
+	for name, want := range fixtureResult {
+		got, ok := actualResult[name]
+		if !ok {
+			t.Fatalf("accepted import result missing %q", name)
+		}
+		if name == "taskId" {
+			if id, ok := got.(float64); !ok || id < 1 {
+				t.Fatalf("accepted import taskId = %#v, want a positive number", got)
+			}
+			continue
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("accepted import result.%s = %#v, want fixture value %#v", name, got, want)
+		}
+	}
 }
 
 func TestAdminImgUploadHTTPContract(t *testing.T) {
@@ -339,11 +377,16 @@ func TestAdminImportDataHTTPContract(t *testing.T) {
 
 	t.Run("success imports an empty users table and reports zero rows", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
+		if err := conn.Where("type = ?", dataservice.TaskTypeImport).Delete(&taskQueue.Entity{}).Error; err != nil {
+			t.Fatalf("clear import tasks: %v", err)
+		}
+		restoreImportDir := dataservice.SetImportDirForTest(t.TempDir())
+		defer restoreImportDir()
 		recorder := serveAdminDataMultipart(t, conn, router, path, map[string][]byte{"file": []byte(`{"users":[]}`)})
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-data-import-success.json"))
+		assertAdminImportAcceptedFixture(t, recorder)
 	})
 
 	t.Run("missing file field fails with 400 importFailed", func(t *testing.T) {
@@ -359,4 +402,66 @@ func TestAdminImportDataHTTPContract(t *testing.T) {
 	})
 
 	adminDataGuardScenarios(t, http.MethodPost, path, "admin-data-import")
+}
+
+func TestAdminImportTaskHTTPContract(t *testing.T) {
+	t.Run("list returns the seeded import task", func(t *testing.T) {
+		conn, router := setupAdminDataContractTest(t)
+		if err := conn.Where("type = ?", dataservice.TaskTypeImport).Delete(&taskQueue.Entity{}).Error; err != nil {
+			t.Fatalf("clear import tasks: %v", err)
+		}
+		seedContractTask(t, conn, taskQueue.Entity{
+			Id:          990007,
+			Type:        dataservice.TaskTypeImport,
+			Status:      taskQueue.StatusFailed,
+			TaskJson:    `{"fileName":"adac7b84dc3b7394d8385aa0c65fe27a19915d6ab4b0e0d826d34fb439541d3f.json","sha256":"adac7b84dc3b7394d8385aa0c65fe27a19915d6ab4b0e0d826d34fb439541d3f","format":"json"}`,
+			RetryCount:  2,
+			LastError:   "temporary failure",
+			CreatedAt:   contractTaskCreatedAt,
+			ProcessedAt: contractTaskCreatedAt.Add(time.Minute),
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodGet, "/api/admin/data/import/tasks", "", "admin-data-import-tasks-success.json")
+	})
+
+	t.Run("replay resets a failed task and preserves its staged body", func(t *testing.T) {
+		conn, router := setupAdminDataContractTest(t)
+		if err := conn.Where("type = ?", dataservice.TaskTypeImport).Delete(&taskQueue.Entity{}).Error; err != nil {
+			t.Fatalf("clear import tasks: %v", err)
+		}
+		importDir := t.TempDir()
+		restoreImportDir := dataservice.SetImportDirForTest(importDir)
+		defer restoreImportDir()
+		const fileName = "adac7b84dc3b7394d8385aa0c65fe27a19915d6ab4b0e0d826d34fb439541d3f.json"
+		if err := os.WriteFile(filepath.Join(importDir, fileName), []byte(`{"users":[]}`), 0o600); err != nil {
+			t.Fatalf("stage import body: %v", err)
+		}
+		seedContractTask(t, conn, taskQueue.Entity{
+			Id:          990020,
+			Type:        dataservice.TaskTypeImport,
+			Status:      taskQueue.StatusFailed,
+			TaskJson:    `{"fileName":"` + fileName + `","sha256":"adac7b84dc3b7394d8385aa0c65fe27a19915d6ab4b0e0d826d34fb439541d3f","format":"json"}`,
+			RetryCount:  3,
+			LastError:   "temporary failure",
+			CreatedAt:   contractTaskCreatedAt,
+			ProcessedAt: contractTaskCreatedAt.Add(time.Minute),
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, "/api/admin/data/import/tasks/990020/replay", `{}`, "admin-data-import-replay-success.json")
+	})
+
+	t.Run("replay rejects a task that is not failed", func(t *testing.T) {
+		conn, router := setupAdminDataContractTest(t)
+		if err := conn.Where("type = ?", dataservice.TaskTypeImport).Delete(&taskQueue.Entity{}).Error; err != nil {
+			t.Fatalf("clear import tasks: %v", err)
+		}
+		seedContractTask(t, conn, taskQueue.Entity{
+			Id:       990021,
+			Type:     dataservice.TaskTypeImport,
+			Status:   taskQueue.StatusPending,
+			TaskJson: `{"fileName":"missing.json","sha256":"missing","format":"json"}`,
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, "/api/admin/data/import/tasks/990021/replay", `{}`, "admin-data-import-replay-failed.json")
+	})
+
+	adminDataGuardScenarios(t, http.MethodGet, "/api/admin/data/import/tasks", "admin-data-import-tasks")
+	adminDataGuardScenarios(t, http.MethodPost, "/api/admin/data/import/tasks/990020/replay", "admin-data-import-replay")
 }

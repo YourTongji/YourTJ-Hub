@@ -1,11 +1,12 @@
 package component
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/gin-gonic/gin"
 )
 
 type Status int
@@ -21,6 +22,9 @@ type BetterRequest[T any] struct {
 	userSet    bool
 	userInfo   users.EntityComplete
 	GinContext *gin.Context
+	// Context carries non-HTTP request cancellation for reused controller
+	// paths such as MCP. HTTP adapters may leave it nil and use GinContext.
+	Context context.Context
 }
 type Null struct {
 }

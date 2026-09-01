@@ -8,6 +8,13 @@ import (
 )
 
 func runVersionedDataMigrations() {
+	unlock, err := acquireVersionedMigrationLock()
+	if err != nil {
+		slog.Error("app migration lock unavailable", "err", err)
+		return
+	}
+	defer unlock()
+
 	currentVersion := pageConfig.GetMigrationVersion()
 	if currentVersion >= pageConfig.AppMigrationVersion {
 		return

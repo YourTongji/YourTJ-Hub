@@ -57,6 +57,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/data/import/tasks"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/friend-links"
   },
   {
@@ -538,6 +542,10 @@
   {
     "method": "POST",
     "path": "/api/admin/data/import"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/data/import/tasks/:taskId/replay"
   },
   {
     "method": "POST",

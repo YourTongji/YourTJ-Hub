@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：270
-- /api JSON 路由：214，已入契约：212（99%），已知未覆盖：0
+- 快照路由总数：272
+- /api JSON 路由：216，已入契约：214（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（212）
+## 已覆盖（214）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -20,6 +20,7 @@
 | GET | `/api/admin/badges` | `adminListBadges` |
 | GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
 | GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
+| GET | `/api/admin/data/import/tasks` | `adminListImportTasks` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
 | GET | `/api/admin/http-notify-settings` | `adminGetHttpNotifySettings` |
@@ -93,6 +94,7 @@
 | POST | `/api/admin/category-save` | `adminCategorySave` |
 | POST | `/api/admin/data/export` | `adminCreateExportTask` |
 | POST | `/api/admin/data/import` | `adminImportData` |
+| POST | `/api/admin/data/import/tasks/:taskId/replay` | `adminReplayImportTask` |
 | POST | `/api/admin/file-resources` | `adminListFileResources` |
 | POST | `/api/admin/get-permission-list` | `adminGetPermissionList` |
 | POST | `/api/admin/global-moderator-add` | `adminGlobalModeratorAdd` |

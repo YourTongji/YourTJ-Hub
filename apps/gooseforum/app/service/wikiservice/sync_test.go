@@ -1,7 +1,9 @@
 package wikiservice
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +24,16 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 )
+
+func TestSyncWithConfigContextHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := SyncWithConfigContext(ctx, GitConfig{}, "manual")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("SyncWithConfigContext() err=%v, want context.Canceled", err)
+	}
+}
 
 func TestApplyRepoToDBRewritesRelativeReferences(t *testing.T) {
 	setupWikiTestDB(t)

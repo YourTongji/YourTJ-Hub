@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/admin/components/ui/table'
-import { createExportTask, downloadExportTask, getExportTasks, importData } from '@/admin/runtime/api'
+import { createExportTask, downloadExportTask, getExportTasks, getImportTasks, importData, replayImportTask } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, AdminTaskRow, ImportReport, ManageHomeProps } from '@/admin/types'
 
@@ -29,6 +29,10 @@ const exportFormat = ref<'json' | 'csv'>('json')
 const exportTasks = ref<AdminTaskRow[]>([])
 const tasksLoading = ref(false)
 const tasksError = ref('')
+const importTasks = ref<AdminTaskRow[]>([])
+const importTasksLoading = ref(false)
+const importTasksError = ref('')
+const replayingImportTask = ref<number | null>(null)
 const creating = ref(false)
 const createConfirm = ref(false)
 
@@ -67,7 +71,19 @@ function taskStatusText(status: number) {
 }
 
 function hasActiveTasks() {
-  return exportTasks.value.some(task => task.status !== 2 && task.status !== 3)
+  return [...exportTasks.value, ...importTasks.value].some(task => task.status !== 2 && task.status !== 3)
+}
+
+async function loadImportTasks() {
+  importTasksLoading.value = true
+  importTasksError.value = ''
+  try {
+    importTasks.value = await getImportTasks()
+  } catch (err) {
+    importTasksError.value = err instanceof Error ? err.message : adminText('k00hk')
+  } finally {
+    importTasksLoading.value = false
+  }
 }
 
 async function loadExportTasks() {
@@ -86,7 +102,7 @@ function startPolling() {
   stopPolling()
   pollTimer = setInterval(() => {
     if (!hasActiveTasks()) return
-    void loadExportTasks()
+    void Promise.all([loadExportTasks(), loadImportTasks()])
   }, 5000)
 }
 
@@ -138,6 +154,8 @@ async function submitImport() {
   importing.value = true
   try {
     importReport.value = await importData(importFile.value)
+    await loadImportTasks()
+    startPolling()
     adminToast.success(adminText('k00id'))
   } catch (err) {
     importReport.value = null
@@ -145,6 +163,31 @@ async function submitImport() {
   } finally {
     importing.value = false
   }
+}
+
+async function replayImport(taskId: number) {
+  replayingImportTask.value = taskId
+  try {
+    await replayImportTask(taskId)
+    await loadImportTasks()
+    startPolling()
+    adminToast.success(adminText('k00id'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00hk'))
+  } finally {
+    replayingImportTask.value = null
+  }
+}
+
+function importStatusText(status: ImportReport['status']) {
+  const statusKey: Record<ImportReport['status'], string> = {
+    pending: 'k00i0',
+    running: 'k00i1',
+    success: 'k00i2',
+    failed: 'k00i3',
+    retrying: 'k00i4',
+  }
+  return adminText(statusKey[status])
 }
 
 function formatTime(value: string) {
@@ -157,6 +200,7 @@ function formatTime(value: string) {
 
 onMounted(() => {
   void loadExportTasks()
+  void loadImportTasks()
   startPolling()
 })
 
@@ -280,24 +324,14 @@ onUnmounted(stopPolling)
           </div>
 
           <div v-if="importReport" class="space-y-3 rounded-lg border bg-muted/10 p-4">
-            <div class="flex flex-wrap items-center gap-2 text-sm font-semibold"><CheckCircle2 class="size-4 text-emerald-600" />{{ adminText('k00hf') }}</div>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div class="rounded-md border bg-background p-3">
-                <div class="text-xs text-muted-foreground">{{ adminText('k00hg') }}</div>
-                <div class="mt-1 text-lg font-semibold">{{ importReport.total }}</div>
-              </div>
-              <div class="rounded-md border bg-background p-3">
-                <div class="text-xs text-muted-foreground">{{ adminText('k00hh') }}</div>
-                <div class="mt-1 text-lg font-semibold text-emerald-600">{{ importReport.success }}</div>
-              </div>
-              <div class="rounded-md border bg-background p-3">
-                <div class="text-xs text-muted-foreground">{{ adminText('k00hi') }}</div>
-                <div class="mt-1 text-lg font-semibold text-muted-foreground">{{ importReport.skipped }}</div>
-              </div>
-              <div class="rounded-md border bg-background p-3">
-                <div class="text-xs text-muted-foreground">{{ adminText('k00hj') }}</div>
-                <div class="mt-1 text-lg font-semibold text-destructive">{{ importReport.failed }}</div>
-              </div>
+            <div class="flex flex-wrap items-center gap-2 text-sm font-semibold">
+              <CheckCircle2 class="size-4 text-emerald-600" />
+              {{ adminText('k00hf') }}
+              <Badge variant="secondary">{{ importStatusText(importReport.status) }}</Badge>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span class="font-mono text-xs">#{{ importReport.taskId }}</span>
+              <span v-if="importReport.importedTables.length">{{ importReport.importedTables.join(', ') }}</span>
             </div>
             <div v-if="importReport.importedTables.length" class="flex flex-wrap items-center gap-2 text-sm">
               <span class="text-muted-foreground">{{ adminText('k00hp') }}:</span>
@@ -322,6 +356,27 @@ onUnmounted(stopPolling)
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 border-t pt-4">
+            <div class="flex items-center gap-2 text-sm font-semibold"><Database class="size-4 text-muted-foreground" />{{ adminText('k00h8') }}</div>
+            <div v-if="importTasksLoading && importTasks.length === 0" class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{{ adminText('k0046') }}</div>
+            <div v-else-if="importTasksError" class="rounded-lg border border-dashed p-4 text-center text-sm text-destructive">{{ importTasksError }}</div>
+            <div v-else-if="importTasks.length === 0" class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
+            <div v-else class="space-y-2">
+              <div v-for="task in importTasks" :key="task.id" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-3 text-sm">
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
+                  <span class="font-mono text-xs text-muted-foreground">#{{ task.id }}</span>
+                  <Badge :variant="task.status === 2 ? 'default' : task.status === 3 ? 'destructive' : 'secondary'" class="px-2 py-0 text-xs">{{ taskStatusText(task.status) }}</Badge>
+                  <span class="truncate text-xs text-muted-foreground">{{ formatTime(task.createdAt) }}</span>
+                </div>
+                <Button v-if="task.status === 3" type="button" size="sm" variant="outline" class="h-7 text-xs" :disabled="replayingImportTask === task.id" @click="replayImport(task.id)">
+                  <Loader2 v-if="replayingImportTask === task.id" class="size-3.5 animate-spin" />
+                  <RefreshCw v-else class="size-3.5" />
+                  {{ adminText('k004q') }}
+                </Button>
               </div>
             </div>
           </div>

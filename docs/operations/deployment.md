@@ -405,8 +405,13 @@ instance:
 
 - Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
   topic_user_stat when selected) as JSON or CSV via a background task, then download;
-  import JSON with a per-row validation report and idempotent skip; topic invariants
-  (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
+  upload JSON (maximum 50 MiB) into a staged background task. The task is checksum-addressed and
+  idempotent; identical uploads reuse the same task. The worker applies all rows and topic
+  invariants (post_seq, first/last post pointers, counts, posters) in one database transaction,
+  so validation failures roll back the batch rather than leaving partial data. Staged files use
+  mode `0600`, are deleted after success, and are retained for an explicit replay after failure.
+  Administrators can inspect `GET /api/admin/data/import/tasks` and replay a failed task with
+  `POST /api/admin/data/import/tasks/:taskId/replay`.
 - Export files are written to `data/export/` inside the storage dir with mode 0600
   (owner-only) and cleaned up after 7 days (daily cron). Export contains user emails —
   treat downloads as sensitive. Export creation and download are recorded in the
@@ -459,6 +464,10 @@ CLI 同步（运维 cron 等自动化场景）：
   # 每日 02:30 同步当前学期
   30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
   ```
+
+应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，
+可在 `config.toml` 设置 `[cron].enabled = false`；该开关只停止应用内 scheduler，
+不会停用 task queue worker 或手动 CLI。
 
 - 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
   续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
@@ -617,6 +626,10 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 
   4. 再切 DNS 回旧机。
   - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
 - Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（ADR-003：索引是可重建投影）。
+- 搜索投影任务采用有界重试；Meilisearch 短时不可用时，`topic-search.*`、
+  `user-search.*` 或 `category-search.*` 任务可能进入 `failed`，不会自动无限重试。
+  Meilisearch 恢复后检查 `task_queue`，并运行 `rebuild-search-index` 做一次全量对账；
+  该命令是运维恢复动作，不依赖旧任务仍处于 pending。
 
 ## Runbooks to write
 

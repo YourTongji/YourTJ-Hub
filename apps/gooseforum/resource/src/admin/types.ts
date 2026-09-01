@@ -364,10 +364,8 @@ export interface ReviewQueueItem {
 }
 
 export interface ImportReport {
-  total: number
-  success: number
-  skipped: number
-  failed: number
+  taskId: number
+  status: 'pending' | 'running' | 'retrying' | 'success' | 'failed'
   errors: Array<{ line: number; table: string; reason: string }>
   importedTables: string[]
 }

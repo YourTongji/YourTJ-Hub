@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
@@ -58,6 +59,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 type TrafficOverviewReq struct {
@@ -564,7 +566,12 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 	}
 
-	if err := topics.UpdateProcessStatus(topic.Id, req.Params.ProcessStatus); err != nil {
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := topics.UpdateProcessStatusTx(tx, topic.Id, req.Params.ProcessStatus); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	topic.ProcessStatus = req.Params.ProcessStatus
@@ -579,11 +586,7 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		"status": statusCode,
 	})
 	moderationservice.TopicStatusChanged(req.UserId, topic.Id, topic.Title, req.Params.ProcessStatus == 1)
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-	}
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 封禁/解封不发布 Topic*Event，需同步清理 LLMS 公开投影缓存，避免封禁内容在 10s 窗口内继续导出。
 	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
@@ -647,7 +650,7 @@ func EditTopicPin(req component.BetterRequest[EditTopicPinReq]) component.Respon
 	if err := topics.UpdatePinWeight(topic.Id, req.Params.PinWeight); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.pinWeightChanged", optlogger.MessageParams{
 		"title":        topic.Title,
 		"oldPinWeight": oldPinWeight,
@@ -678,11 +681,15 @@ func EditTopicCategories(req component.BetterRequest[EditTopicCategoriesReq]) co
 
 	oldCategoryIds := append([]uint64(nil), topic.CategoryIds...)
 	topic.CategoryIds = categoryIds
-	if err := topics.SaveNoUpdate(&topic); err != nil {
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
-	}
-
-	if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, categoryIds); err != nil {
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := topics.UpdateCategoryIDsTx(tx, topic.Id, categoryIds); err != nil {
+			return err
+		}
+		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, categoryIds); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.categoriesChanged", optlogger.MessageParams{
@@ -690,11 +697,7 @@ func EditTopicCategories(req component.BetterRequest[EditTopicCategoriesReq]) co
 		"oldCategoryIds": oldCategoryIds,
 		"categoryIds":    categoryIds,
 	})
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-	}
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(append(oldCategoryIds, categoryIds...)...)
 	// 分类变更不发布事件，同步清理 LLMS 投影缓存（投影内嵌 Categories 列表）。
 	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
@@ -1131,9 +1134,15 @@ func SaveCategory(req component.BetterRequest[CategorySaveReq]) component.Respon
 	entity.Slug = req.Params.Slug
 	entity.Sort = req.Params.Sort
 
-	category.SaveOrCreateById(&entity)
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := category.SaveTx(tx, &entity); err != nil {
+			return err
+		}
+		return searchservice.EnqueueCategorySearchTask(tx, entity.Id)
+	}); err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	hotdataserve.ClearCategoryCache()
-	eventbus.Publish(context.Background(), &eventhandlers.CategorySearchIndexUpdatedEvent{CategoryId: entity.Id})
 	return component.SuccessResponse(true)
 }
 
@@ -1151,9 +1160,15 @@ func DeleteCategory(req component.BetterRequest[struct {
 	if topicCategoryIndex.GetOneByCategoryId(entity.Id).Id > 0 {
 		return component.FailResponseCode(component.MessageAdminCategoryHasTopics, nil)
 	}
-	category.DeleteEntity(&entity)
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := category.DeleteTx(tx, &entity); err != nil {
+			return err
+		}
+		return searchservice.EnqueueCategorySearchTask(tx, entity.Id)
+	}); err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	hotdataserve.ClearCategoryCache()
-	eventbus.Publish(context.Background(), &eventhandlers.CategorySearchIndexDeletedEvent{CategoryId: entity.Id})
 	return component.SuccessResponse(true)
 }
 
@@ -1814,7 +1829,7 @@ func TestStorageConnection(req component.BetterRequest[TestStorageConnectionReq]
 			MessageCode: component.MessageAdminStorageTestSuccess,
 		})
 	}
-	if err := storageservice.TestConnection(context.Background(), cfg); err != nil {
+	if err := storageservice.TestConnection(requestContext(req.GinContext), cfg); err != nil {
 		return component.SuccessResponse(TestStorageConnectionResp{
 			Success:     false,
 			MessageCode: component.MessageAdminStorageTestFailed,
@@ -1886,8 +1901,6 @@ func ListExportTasks(req component.BetterRequest[component.Null]) component.Resp
 }
 
 // DownloadExportTask 下载导出文件（issue #324 S4：下载操作审计）。
-// maxDataImportSize 限制导入请求体大小。
-const maxDataImportSize = 50 << 20 // 50MB
 func DownloadExportTask(c *gin.Context) {
 	taskID := c.Param("taskId")
 	task, err := taskQueue.GetByID(taskID)
@@ -1916,9 +1929,32 @@ func DownloadExportTask(c *gin.Context) {
 	c.File(path)
 }
 
+// ListImportTasks 获取导入任务状态列表。
+func ListImportTasks(req component.BetterRequest[component.Null]) component.Response {
+	tasks, err := dataservice.ListImportTasks(20)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(tasks)
+}
+
+type ImportTaskReq struct {
+	TaskId uint64 `uri:"taskId" validate:"required"`
+}
+
+// ReplayImportTask requeues a failed import while preserving its staged body.
+func ReplayImportTask(req component.BetterRequest[ImportTaskReq]) component.Response {
+	task, err := dataservice.ReplayImportTaskContext(requestContext(req.GinContext), req.Params.TaskId)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed,
+			component.MessageParams{"error": "导入任务当前不可重放"})
+	}
+	return component.SuccessResponse(task)
+}
+
 // ImportData 导入 JSON 数据（multipart file 字段）
 func ImportData(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDataImportSize)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, dataservice.MaxImportSize)
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
@@ -1928,20 +1964,31 @@ func ImportData(c *gin.Context) {
 	src, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
-			component.MessageParams{"error": err.Error()}))
+			component.MessageParams{"error": "读取上传文件失败，请稍后重试"}))
 		return
 	}
 	defer func() { _ = src.Close() }()
-	data, err := io.ReadAll(src)
+	data, err := io.ReadAll(io.LimitReader(src, dataservice.MaxImportSize+1))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
-			component.MessageParams{"error": err.Error()}))
+			component.MessageParams{"error": "读取上传文件失败，请稍后重试"}))
 		return
 	}
-	report, err := dataservice.ImportData(context.Background(), data, "json")
+	if len(data) > dataservice.MaxImportSize {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "导入文件超过 50MB 限制"}))
+		return
+	}
+	report, err := dataservice.EnqueueImport(c.Request.Context(), data, "json")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
-			component.MessageParams{"error": err.Error()}))
+		if errors.Is(err, dataservice.ErrImportInvalidFormat) {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
+				component.MessageParams{"error": "导入文件格式无效"}))
+			return
+		}
+		slog.Error("admin import enqueue failed", "error", err)
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "导入任务暂存失败，请稍后重试"}))
 		return
 	}
 	c.JSON(http.StatusOK, component.SuccessData(report))
@@ -2072,30 +2119,35 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := topics.UpdateProcessStatus(topic.Id, targetStatus); err != nil {
+		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
+				return err
+			}
+			// 首楼同步状态
+			if topic.FirstPostId > 0 {
+				if err := posts.UpdateProcessStatusTx(tx, topic.FirstPostId, targetStatus); err != nil {
+					return err
+				}
+			}
+			return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+		}); err != nil {
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
-		// 首楼同步状态
-		if topic.FirstPostId > 0 {
-			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
-		}
-		hotdataserve.ClearTopicListCache()
+		topic.ProcessStatus = targetStatus
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 审核后无条件重建搜索索引（issue #132）：拒绝（ProcessStatus→blocked）
 		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
 		// 残留在公共搜索；批准时 upsert 恢复（下方事件也会重建，幂等）。
 		firstPost := posts.Get(topic.FirstPostId)
-		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-			slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-		}
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if req.Params.Approve && topic.Status == 1 {
 			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
-				eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
 				userStatistics.WriteTopic(topic.UserId)
-				eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 			}
 		}
 		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
@@ -2113,11 +2165,17 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if post.ProcessStatus != posts.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := posts.UpdateProcessStatus(post.Id, targetStatus); err != nil {
+		topicEntity := topics.GetSimple(post.TopicId)
+		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
+				return err
+			}
+			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
+		}); err != nil {
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
 		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
 			userStatistics.WriteComment(post.UserId)
@@ -2128,7 +2186,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 					replyToAuthorID = parent.UserId
 				}
 			}
-			eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
 				TopicId:             post.TopicId,
 				PostId:              post.Id,
 				UserId:              post.UserId,

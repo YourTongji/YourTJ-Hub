@@ -151,6 +151,45 @@ func TestEnqueueCourseSearchTaskTxBound(t *testing.T) {
 	}
 }
 
+func TestEnqueueTopicSearchTaskTxBoundAndDeduplicated(t *testing.T) {
+	setupCourseSearchTestDB(t)
+	conn := dbconnect.Connect()
+	countTasks := func() int64 {
+		var n int64
+		if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeTopicSearch+"%").Count(&n).Error; err != nil {
+			t.Fatalf("count topic tasks: %v", err)
+		}
+		return n
+	}
+
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return EnqueueTopicSearchTask(tx, 42)
+	}); err != nil {
+		t.Fatalf("enqueue topic task: %v", err)
+	}
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return EnqueueTopicSearchTask(tx, 42)
+	}); err != nil {
+		t.Fatalf("deduplicate topic task: %v", err)
+	}
+	if got := countTasks(); got != 1 {
+		t.Fatalf("duplicate topic task count = %d, want 1", got)
+	}
+
+	rollbackErr := conn.Transaction(func(tx *gorm.DB) error {
+		if err := EnqueueTopicSearchTask(tx, 43); err != nil {
+			return err
+		}
+		return errors.New("rollback")
+	})
+	if rollbackErr == nil || rollbackErr.Error() != "rollback" {
+		t.Fatalf("expected rollback error, got %v", rollbackErr)
+	}
+	if got := countTasks(); got != 1 {
+		t.Fatalf("rolled-back topic task count = %d, want 1", got)
+	}
+}
+
 // TestBuildCourseIndexPagesConvertFailure 任一页转换失败必须整体返回错误：
 // 索引已在此前清空，若只累计 FailedCount 继续，该批课程会永久丢失且 CLI 仍报成功。
 func TestBuildCourseIndexPagesConvertFailure(t *testing.T) {

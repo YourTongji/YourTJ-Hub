@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -19,11 +18,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/gin-gonic/gin"
 )
 
 func Logout(c *gin.Context) {
@@ -126,7 +125,7 @@ func Register(c *gin.Context) {
 		slog.Debug("注册激活邮件任务已提交", "userId", userEntity.Id, "email", userEntity.Email, "enableEmailVerification", securityConfig.EnableEmailVerification)
 	}
 
-	eventbus.Publish(context.Background(), &eventhandlers.UserSignUpEvent{
+	eventbus.Publish(detachedRequestContext(c), &eventhandlers.UserSignUpEvent{
 		UserId:   userEntity.Id,
 		Username: userEntity.Username,
 	})

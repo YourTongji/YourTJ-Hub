@@ -195,6 +195,7 @@ func GetRateLimitConfigCache() pageConfig.RateLimitConfig {
 	return rateLimitConfigCache.GetOrLoad("", func() (pageConfig.RateLimitConfig, error) {
 		cfg := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig())
 		mergeDefaultRateLimitActions(&cfg)
+		cfg.BuildActionIndex()
 		return cfg, nil
 	}, configFastCacheTTL)
 }

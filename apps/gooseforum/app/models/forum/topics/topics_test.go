@@ -1,6 +1,7 @@
 package topics
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -11,6 +12,20 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestGetWithContextHonorsCancellation(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate topics table: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := GetWithContext(ctx, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetWithContext() err=%v, want context.Canceled", err)
+	}
+}
 
 func TestTopicAndPostSchemaMigrates(t *testing.T) {
 	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

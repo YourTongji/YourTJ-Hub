@@ -57,7 +57,9 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 		"depth": depth,
 	})
 
+	jobCtx, cancel := detachedJobContext(req.GinContext)
 	go func() {
+		defer cancel()
 		defer func() {
 			if p := recover(); p != nil {
 				slog.Error("pk sync panic", "err", p)
@@ -66,7 +68,7 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 				}
 			}
 		}()
-		report, syncErr := runPkSync(context.Background(), cookie, calendarId, depth, false, claim, resume)
+		report, syncErr := runPkSync(jobCtx, cookie, calendarId, depth, false, claim, resume)
 		if syncErr != nil {
 			slog.Error("pk sync failed", "calendarId", calendarId, "term", term, "err", syncErr)
 			return

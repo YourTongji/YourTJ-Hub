@@ -158,6 +158,27 @@ func TestCache_DeleteAndClear(t *testing.T) {
 	}
 }
 
+func TestCache_DeleteKeepsOtherKeys(t *testing.T) {
+	c := Cache[string]{}
+	defer stopTestCache(&c)
+
+	c.Set("first", "a", time.Minute)
+	c.Set("second", "b", time.Minute)
+	c.Delete("first")
+
+	loads := 0
+	got, err := c.GetOrLoadE("second", func() (string, error) {
+		loads++
+		return "reloaded", nil
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("GetOrLoadE() error = %v", err)
+	}
+	if got != "b" || loads != 0 {
+		t.Fatalf("unrelated key = %q with %d loads, want cached b with no reload", got, loads)
+	}
+}
+
 func stopTestCache[V any](c *Cache[V]) {
 	if c.cache != nil {
 		c.cache.Stop()

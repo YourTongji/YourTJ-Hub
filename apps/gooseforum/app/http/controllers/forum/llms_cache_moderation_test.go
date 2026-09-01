@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -108,6 +109,7 @@ func setupLLMSModerationCacheTestDB(t *testing.T) *gorm.DB {
 		&moderators.Entity{},
 		&moderationLog.Entity{},
 		&users.EntityComplete{},
+		&taskQueue.Entity{},
 	)
 	if err != nil {
 		t.Fatalf("migrate llms moderation cache tables: %v", err)

@@ -158,7 +158,11 @@ func ginServe() {
 	mailservice.RecoverStaleTasks()
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
+	dataservice.RecoverImportTasks()
 	searchservice.RecoverStaleTasks()
+	searchservice.RecoverTopicSearchTasks()
+	searchservice.RecoverUserSearchTasks()
+	searchservice.RecoverCategorySearchTasks()
 	// 启动时确保话题索引的 filterable 属性配置（topicType 过滤依赖；见
 	// EnsureTopicIndexConfigured 注释，review N2：仅手动 rebuild 不覆盖存量部署）。
 	searchservice.EnsureTopicIndexConfigured()
@@ -168,8 +172,15 @@ func ginServe() {
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
+	// 数据导入 worker：消费 import 任务，事务化导入暂存文件中的数据。
+	backgroundservice.RunWorker("data_import_worker", dataservice.TaskTypeImport, dataservice.RunImportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// 主题、用户、分类搜索 worker：消费 transaction-bound outbox，避免业务
+	// 请求/事件 consumer 同步等待 Meilisearch。
+	backgroundservice.RunWorker("topic_search_worker", searchservice.TaskTypeTopicSearch, searchservice.RunTopicSearchTask)
+	backgroundservice.RunWorker("user_search_worker", searchservice.TaskTypeUserSearch, searchservice.RunUserSearchTask)
+	backgroundservice.RunWorker("category_search_worker", searchservice.TaskTypeCategorySearch, searchservice.RunCategorySearchTask)
 	// 课程统计重建 worker：消费 course-stats. 前缀任务（管理页“重建课程统计”触发）
 	backgroundservice.RunWorker("course_stats_worker", courseservice.TaskTypeCourseStatsRebuild, courseservice.RunCourseStatsRebuildTask)
 	// 课评删除隔离窗口清理 worker（issue #175 B3 隐私合规）：消费
