@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -32,6 +33,17 @@ import (
 )
 
 const moderationPageSize = 20
+
+func moderationRequestContext(c *gin.Context) context.Context {
+	if c == nil || c.Request == nil {
+		return context.Background()
+	}
+	return c.Request.Context()
+}
+
+func detachedModerationRequestContext(c *gin.Context) context.Context {
+	return eventbus.DetachedContext(moderationRequestContext(c))
+}
 
 func Moderation(c *gin.Context) {
 	userID := component.LoginUserId(c)
@@ -195,20 +207,18 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 	if topic.ProcessStatus == nextStatus {
 		return component.SuccessResponse(true)
 	}
-	if err := topics.UpdateProcessStatus(topic.Id, nextStatus); err != nil {
+	if err := dbconnect.ConnectContext(moderationRequestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := topics.UpdateProcessStatusTx(tx, topic.Id, nextStatus); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	topic.ProcessStatus = nextStatus
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 审核封禁/解封不发布事件，同步清理 LLMS 投影缓存，避免封禁内容在 10s 窗口内继续导出。
 	llmsservice.ClearCache()
-	firstPost := posts.Get(topic.FirstPostId)
-	if firstPost.Id == 0 {
-		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
-	}
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-	}
 	moderationservice.TopicStatusChanged(req.UserId, topic.Id, topic.Title, nextStatus == 1)
 	return component.SuccessResponse(true)
 }
@@ -237,7 +247,7 @@ func CreateReport(req component.BetterRequest[CreateReportReq]) component.Respon
 		return component.FailResponseCode(component.MessageReportDuplicate, nil)
 	}
 	moderationservice.InvalidateTopic(target.TopicID)
-	eventbus.Publish(context.Background(), &eventhandlers.ReportCreatedEvent{
+	eventbus.Publish(detachedModerationRequestContext(req.GinContext), &eventhandlers.ReportCreatedEvent{
 		ReportId:   report.Id,
 		TargetType: report.TargetType,
 		TargetId:   report.TargetId,
@@ -305,7 +315,12 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 	if post.ProcessStatus == nextStatus {
 		return component.SuccessResponse(true)
 	}
-	if err := posts.UpdateProcessStatus(post.Id, nextStatus); err != nil {
+	if err := dbconnect.ConnectContext(moderationRequestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := posts.UpdateProcessStatusTx(tx, post.Id, nextStatus); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, post.TopicId)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	// 审核封禁/解封回复不发布事件，同步清理 LLMS 投影缓存。

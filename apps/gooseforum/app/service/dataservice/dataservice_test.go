@@ -3,9 +3,11 @@ package dataservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -127,8 +129,14 @@ func TestExportRunAndFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExportFilePath() error = %v", err)
 	}
-	if _, err := os.Stat(path); err != nil {
+	info, err := os.Stat(path)
+	if err != nil {
 		t.Fatalf("export file missing: %v", err)
+	}
+	// issue #324 S4：导出文件含用户 PII，权限必须为 0600（仅属主可读写）。
+	// Windows does not expose POSIX permission bits through os.FileMode.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("export file mode = %o, want 600", info.Mode().Perm())
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -226,6 +234,113 @@ func TestImportDataForeignKeyFailure(t *testing.T) {
 	}
 	if len(report.Errors) != 1 || report.Errors[0].Table != "topics" {
 		t.Fatalf("ImportData() errors = %+v, want one topics error", report.Errors)
+	}
+}
+
+func TestImportDataRollsBackAllRowsOnValidationFailure(t *testing.T) {
+	setupDataTestDB(t)
+	jsonData := []byte(`{"users":[{"id":901001,"username":"atomic-user"},{"id":901002,"username":""}]}`)
+
+	report, err := ImportData(context.Background(), jsonData, "json")
+	if err != nil {
+		t.Fatalf("ImportData() error = %v", err)
+	}
+	if report.Failed != 1 || report.Success != 1 {
+		t.Fatalf("report = %+v, want one success and one failed row", report)
+	}
+	var user users.EntityComplete
+	if err := dbconnect.Connect().Where("username = ?", "atomic-user").First(&user).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("rolled-back user lookup error = %v, want record not found", err)
+	}
+}
+
+func TestEnqueueImportIsIdempotentAndRemovesStagingFileAfterSuccess(t *testing.T) {
+	setupDataTestDB(t)
+	restoreImportDir := SetImportDirForTest(t.TempDir())
+	defer restoreImportDir()
+	data := []byte(`{"users":[]}`)
+
+	first, err := EnqueueImport(context.Background(), data, "json")
+	if err != nil {
+		t.Fatalf("first EnqueueImport() error = %v", err)
+	}
+	second, err := EnqueueImport(context.Background(), data, "json")
+	if err != nil {
+		t.Fatalf("duplicate EnqueueImport() error = %v", err)
+	}
+	if first.TaskID == 0 || first.TaskID != second.TaskID || first.Status != "pending" {
+		t.Fatalf("first=%+v second=%+v, want one pending task", first, second)
+	}
+	var count int64
+	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type = ?", TaskTypeImport).Count(&count).Error; err != nil {
+		t.Fatalf("count import tasks: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("import task count = %d, want 1", count)
+	}
+	var task taskQueue.Entity
+	if err := dbconnect.Connect().First(&task, first.TaskID).Error; err != nil {
+		t.Fatalf("load import task: %v", err)
+	}
+	var payload ImportTask
+	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
+		t.Fatalf("decode import task: %v", err)
+	}
+	path, err := importFilePath(payload.FileName)
+	if err != nil {
+		t.Fatalf("importFilePath() error = %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat staged import: %v", err)
+	}
+	// Windows does not expose POSIX permission bits through os.FileMode.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("staged import mode = %o, want 600", info.Mode().Perm())
+	}
+	running, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("claim import task: claimed=%v err=%v", claimed, err)
+	}
+	if err := RunImportTask(context.Background(), &running); err != nil {
+		t.Fatalf("RunImportTask() error = %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("staged import stat error = %v, want not exist", err)
+	}
+}
+
+func TestReplayImportTaskKeepsStagedFile(t *testing.T) {
+	setupDataTestDB(t)
+	restoreImportDir := SetImportDirForTest(t.TempDir())
+	defer restoreImportDir()
+
+	task, err := EnqueueImport(context.Background(), []byte(`{"users":[]}`), "json")
+	if err != nil {
+		t.Fatalf("EnqueueImport() error = %v", err)
+	}
+	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("id = ?", task.TaskID).
+		Updates(map[string]any{"status": taskQueue.StatusFailed, "last_error": "test failure"}).Error; err != nil {
+		t.Fatalf("mark import task failed: %v", err)
+	}
+
+	replayed, err := ReplayImportTask(task.TaskID)
+	if err != nil {
+		t.Fatalf("ReplayImportTask() error = %v", err)
+	}
+	if replayed.Status != taskQueue.StatusPending || replayed.RetryCount != 0 || replayed.LastError != "" {
+		t.Fatalf("replayed task = %+v, want clean pending task", replayed)
+	}
+	var payload ImportTask
+	if err := json.Unmarshal([]byte(replayed.TaskJson), &payload); err != nil {
+		t.Fatalf("decode replayed payload: %v", err)
+	}
+	path, err := importFilePath(payload.FileName)
+	if err != nil {
+		t.Fatalf("importFilePath() error = %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("replay removed staging file: %v", err)
 	}
 }
 

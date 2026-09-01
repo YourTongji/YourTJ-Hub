@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "admin.data.exportFailed",
+  "params": {
+    "error": "不支持的导出表: secrets"
+  }
+}

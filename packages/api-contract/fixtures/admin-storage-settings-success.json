@@ -1,0 +1,14 @@
+{
+  "result": {
+    "provider": "s3",
+    "endpoint": "https://s3.contract.example.test",
+    "bucket": "contract-bucket",
+    "region": "contract-region",
+    "bucketLookup": "auto",
+    "secure": true,
+    "accessKeyConfigured": true,
+    "secretKeyConfigured": true,
+    "publicUrlPrefix": ""
+  },
+  "code": 0
+}

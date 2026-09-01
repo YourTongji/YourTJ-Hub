@@ -2170,7 +2170,10 @@ mixin _$CourseSummaryPayload {
   String get primaryCode => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
   String get department => throw _privateConstructorUsedError;
-  int get creditX10 => throw _privateConstructorUsedError;
+  int get creditX10 =>
+      throw _privateConstructorUsedError; // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  int? get teacherId => throw _privateConstructorUsedError;
+  String? get teacherName => throw _privateConstructorUsedError;
   List<String>? get aliases => throw _privateConstructorUsedError;
   List<String>? get instructors => throw _privateConstructorUsedError;
   List<String>? get recentTerms =>
@@ -2201,6 +2204,8 @@ abstract class $CourseSummaryPayloadCopyWith<$Res> {
     String name,
     String department,
     int creditX10,
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? recentTerms,
@@ -2232,6 +2237,8 @@ class _$CourseSummaryPayloadCopyWithImpl<
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
+    Object? teacherId = freezed,
+    Object? teacherName = freezed,
     Object? aliases = freezed,
     Object? instructors = freezed,
     Object? recentTerms = freezed,
@@ -2260,6 +2267,14 @@ class _$CourseSummaryPayloadCopyWithImpl<
                 ? _value.creditX10
                 : creditX10 // ignore: cast_nullable_to_non_nullable
                       as int,
+            teacherId: freezed == teacherId
+                ? _value.teacherId
+                : teacherId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            teacherName: freezed == teacherName
+                ? _value.teacherName
+                : teacherName // ignore: cast_nullable_to_non_nullable
+                      as String?,
             aliases: freezed == aliases
                 ? _value.aliases
                 : aliases // ignore: cast_nullable_to_non_nullable
@@ -2301,6 +2316,8 @@ abstract class _$$CourseSummaryPayloadImplCopyWith<$Res>
     String name,
     String department,
     int creditX10,
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? recentTerms,
@@ -2328,6 +2345,8 @@ class __$$CourseSummaryPayloadImplCopyWithImpl<$Res>
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
+    Object? teacherId = freezed,
+    Object? teacherName = freezed,
     Object? aliases = freezed,
     Object? instructors = freezed,
     Object? recentTerms = freezed,
@@ -2356,6 +2375,14 @@ class __$$CourseSummaryPayloadImplCopyWithImpl<$Res>
             ? _value.creditX10
             : creditX10 // ignore: cast_nullable_to_non_nullable
                   as int,
+        teacherId: freezed == teacherId
+            ? _value.teacherId
+            : teacherId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        teacherName: freezed == teacherName
+            ? _value.teacherName
+            : teacherName // ignore: cast_nullable_to_non_nullable
+                  as String?,
         aliases: freezed == aliases
             ? _value._aliases
             : aliases // ignore: cast_nullable_to_non_nullable
@@ -2390,6 +2417,8 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
     required this.name,
     required this.department,
     required this.creditX10,
+    this.teacherId,
+    this.teacherName,
     final List<String>? aliases,
     final List<String>? instructors,
     final List<String>? recentTerms,
@@ -2412,6 +2441,11 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
   final String department;
   @override
   final int creditX10;
+  // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  @override
+  final int? teacherId;
+  @override
+  final String? teacherName;
   final List<String>? _aliases;
   @override
   List<String>? get aliases {
@@ -2450,7 +2484,7 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
 
   @override
   String toString() {
-    return 'CourseSummaryPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, recentTerms: $recentTerms, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
+    return 'CourseSummaryPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, instructors: $instructors, recentTerms: $recentTerms, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -2466,6 +2500,10 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
                 other.department == department) &&
             (identical(other.creditX10, creditX10) ||
                 other.creditX10 == creditX10) &&
+            (identical(other.teacherId, teacherId) ||
+                other.teacherId == teacherId) &&
+            (identical(other.teacherName, teacherName) ||
+                other.teacherName == teacherName) &&
             const DeepCollectionEquality().equals(other._aliases, _aliases) &&
             const DeepCollectionEquality().equals(
               other._instructors,
@@ -2490,6 +2528,8 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
     name,
     department,
     creditX10,
+    teacherId,
+    teacherName,
     const DeepCollectionEquality().hash(_aliases),
     const DeepCollectionEquality().hash(_instructors),
     const DeepCollectionEquality().hash(_recentTerms),
@@ -2522,6 +2562,8 @@ abstract class _CourseSummaryPayload implements CourseSummaryPayload {
     required final String name,
     required final String department,
     required final int creditX10,
+    final int? teacherId,
+    final String? teacherName,
     final List<String>? aliases,
     final List<String>? instructors,
     final List<String>? recentTerms,
@@ -2541,7 +2583,11 @@ abstract class _CourseSummaryPayload implements CourseSummaryPayload {
   @override
   String get department;
   @override
-  int get creditX10;
+  int get creditX10; // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  @override
+  int? get teacherId;
+  @override
+  String? get teacherName;
   @override
   List<String>? get aliases;
   @override
@@ -2853,10 +2899,10 @@ CourseCatalogQueryPayload _$CourseCatalogQueryPayloadFromJson(
 /// @nodoc
 mixin _$CourseCatalogQueryPayload {
   String? get keyword => throw _privateConstructorUsedError;
-  String? get department => throw _privateConstructorUsedError;
-  String? get term => throw _privateConstructorUsedError;
-  String? get campus => throw _privateConstructorUsedError;
-  String? get instructor => throw _privateConstructorUsedError;
+  List<String>? get department => throw _privateConstructorUsedError;
+  List<String>? get term => throw _privateConstructorUsedError;
+  List<String>? get campus => throw _privateConstructorUsedError;
+  List<String>? get instructor => throw _privateConstructorUsedError;
   bool? get onlyWithReviews => throw _privateConstructorUsedError;
   String? get sortBy => throw _privateConstructorUsedError;
   int get page => throw _privateConstructorUsedError;
@@ -2881,10 +2927,10 @@ abstract class $CourseCatalogQueryPayloadCopyWith<$Res> {
   @useResult
   $Res call({
     String? keyword,
-    String? department,
-    String? term,
-    String? campus,
-    String? instructor,
+    List<String>? department,
+    List<String>? term,
+    List<String>? campus,
+    List<String>? instructor,
     bool? onlyWithReviews,
     String? sortBy,
     int page,
@@ -2929,19 +2975,19 @@ class _$CourseCatalogQueryPayloadCopyWithImpl<
             department: freezed == department
                 ? _value.department
                 : department // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             term: freezed == term
                 ? _value.term
                 : term // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             campus: freezed == campus
                 ? _value.campus
                 : campus // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             instructor: freezed == instructor
                 ? _value.instructor
                 : instructor // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as List<String>?,
             onlyWithReviews: freezed == onlyWithReviews
                 ? _value.onlyWithReviews
                 : onlyWithReviews // ignore: cast_nullable_to_non_nullable
@@ -2975,10 +3021,10 @@ abstract class _$$CourseCatalogQueryPayloadImplCopyWith<$Res>
   @useResult
   $Res call({
     String? keyword,
-    String? department,
-    String? term,
-    String? campus,
-    String? instructor,
+    List<String>? department,
+    List<String>? term,
+    List<String>? campus,
+    List<String>? instructor,
     bool? onlyWithReviews,
     String? sortBy,
     int page,
@@ -3023,19 +3069,19 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
         department: freezed == department
             ? _value.department
             : department // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         term: freezed == term
             ? _value.term
             : term // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         campus: freezed == campus
             ? _value.campus
             : campus // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         instructor: freezed == instructor
             ? _value.instructor
             : instructor // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as List<String>?,
         onlyWithReviews: freezed == onlyWithReviews
             ? _value.onlyWithReviews
             : onlyWithReviews // ignore: cast_nullable_to_non_nullable
@@ -3062,29 +3108,64 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
 class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
   const _$CourseCatalogQueryPayloadImpl({
     this.keyword,
-    this.department,
-    this.term,
-    this.campus,
-    this.instructor,
+    final List<String>? department,
+    final List<String>? term,
+    final List<String>? campus,
+    final List<String>? instructor,
     this.onlyWithReviews,
     this.sortBy,
     required this.page,
     required this.size,
-  });
+  }) : _department = department,
+       _term = term,
+       _campus = campus,
+       _instructor = instructor;
 
   factory _$CourseCatalogQueryPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$CourseCatalogQueryPayloadImplFromJson(json);
 
   @override
   final String? keyword;
+  final List<String>? _department;
   @override
-  final String? department;
+  List<String>? get department {
+    final value = _department;
+    if (value == null) return null;
+    if (_department is EqualUnmodifiableListView) return _department;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _term;
   @override
-  final String? term;
+  List<String>? get term {
+    final value = _term;
+    if (value == null) return null;
+    if (_term is EqualUnmodifiableListView) return _term;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _campus;
   @override
-  final String? campus;
+  List<String>? get campus {
+    final value = _campus;
+    if (value == null) return null;
+    if (_campus is EqualUnmodifiableListView) return _campus;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _instructor;
   @override
-  final String? instructor;
+  List<String>? get instructor {
+    final value = _instructor;
+    if (value == null) return null;
+    if (_instructor is EqualUnmodifiableListView) return _instructor;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final bool? onlyWithReviews;
   @override
@@ -3105,12 +3186,16 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
         (other.runtimeType == runtimeType &&
             other is _$CourseCatalogQueryPayloadImpl &&
             (identical(other.keyword, keyword) || other.keyword == keyword) &&
-            (identical(other.department, department) ||
-                other.department == department) &&
-            (identical(other.term, term) || other.term == term) &&
-            (identical(other.campus, campus) || other.campus == campus) &&
-            (identical(other.instructor, instructor) ||
-                other.instructor == instructor) &&
+            const DeepCollectionEquality().equals(
+              other._department,
+              _department,
+            ) &&
+            const DeepCollectionEquality().equals(other._term, _term) &&
+            const DeepCollectionEquality().equals(other._campus, _campus) &&
+            const DeepCollectionEquality().equals(
+              other._instructor,
+              _instructor,
+            ) &&
             (identical(other.onlyWithReviews, onlyWithReviews) ||
                 other.onlyWithReviews == onlyWithReviews) &&
             (identical(other.sortBy, sortBy) || other.sortBy == sortBy) &&
@@ -3120,19 +3205,18 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(
-        runtimeType,
-        keyword,
-        department,
-        term,
-        campus,
-        instructor,
-        onlyWithReviews,
-        sortBy,
-        page,
-        size,
-      );
+  int get hashCode => Object.hash(
+    runtimeType,
+    keyword,
+    const DeepCollectionEquality().hash(_department),
+    const DeepCollectionEquality().hash(_term),
+    const DeepCollectionEquality().hash(_campus),
+    const DeepCollectionEquality().hash(_instructor),
+    onlyWithReviews,
+    sortBy,
+    page,
+    size,
+  );
 
   /// Create a copy of CourseCatalogQueryPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3154,10 +3238,10 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
 abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
   const factory _CourseCatalogQueryPayload({
     final String? keyword,
-    final String? department,
-    final String? term,
-    final String? campus,
-    final String? instructor,
+    final List<String>? department,
+    final List<String>? term,
+    final List<String>? campus,
+    final List<String>? instructor,
     final bool? onlyWithReviews,
     final String? sortBy,
     required final int page,
@@ -3170,13 +3254,13 @@ abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
   @override
   String? get keyword;
   @override
-  String? get department;
+  List<String>? get department;
   @override
-  String? get term;
+  List<String>? get term;
   @override
-  String? get campus;
+  List<String>? get campus;
   @override
-  String? get instructor;
+  List<String>? get instructor;
   @override
   bool? get onlyWithReviews;
   @override
@@ -3207,6 +3291,8 @@ mixin _$CourseOfferingPayload {
   String? get termName => throw _privateConstructorUsedError;
   String? get campus => throw _privateConstructorUsedError;
   String? get faculty => throw _privateConstructorUsedError;
+  String? get classCode => throw _privateConstructorUsedError;
+  String? get className => throw _privateConstructorUsedError;
   List<String>? get instructors => throw _privateConstructorUsedError;
   double? get ratingAvg => throw _privateConstructorUsedError;
   int? get reviewCount => throw _privateConstructorUsedError;
@@ -3234,6 +3320,8 @@ abstract class $CourseOfferingPayloadCopyWith<$Res> {
     String? termName,
     String? campus,
     String? faculty,
+    String? classCode,
+    String? className,
     List<String>? instructors,
     double? ratingAvg,
     int? reviewCount,
@@ -3263,6 +3351,8 @@ class _$CourseOfferingPayloadCopyWithImpl<
     Object? termName = freezed,
     Object? campus = freezed,
     Object? faculty = freezed,
+    Object? classCode = freezed,
+    Object? className = freezed,
     Object? instructors = freezed,
     Object? ratingAvg = freezed,
     Object? reviewCount = freezed,
@@ -3288,6 +3378,14 @@ class _$CourseOfferingPayloadCopyWithImpl<
             faculty: freezed == faculty
                 ? _value.faculty
                 : faculty // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            classCode: freezed == classCode
+                ? _value.classCode
+                : classCode // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            className: freezed == className
+                ? _value.className
+                : className // ignore: cast_nullable_to_non_nullable
                       as String?,
             instructors: freezed == instructors
                 ? _value.instructors
@@ -3322,6 +3420,8 @@ abstract class _$$CourseOfferingPayloadImplCopyWith<$Res>
     String? termName,
     String? campus,
     String? faculty,
+    String? classCode,
+    String? className,
     List<String>? instructors,
     double? ratingAvg,
     int? reviewCount,
@@ -3348,6 +3448,8 @@ class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
     Object? termName = freezed,
     Object? campus = freezed,
     Object? faculty = freezed,
+    Object? classCode = freezed,
+    Object? className = freezed,
     Object? instructors = freezed,
     Object? ratingAvg = freezed,
     Object? reviewCount = freezed,
@@ -3373,6 +3475,14 @@ class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
         faculty: freezed == faculty
             ? _value.faculty
             : faculty // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        classCode: freezed == classCode
+            ? _value.classCode
+            : classCode // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        className: freezed == className
+            ? _value.className
+            : className // ignore: cast_nullable_to_non_nullable
                   as String?,
         instructors: freezed == instructors
             ? _value._instructors
@@ -3400,6 +3510,8 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
     this.termName,
     this.campus,
     this.faculty,
+    this.classCode,
+    this.className,
     final List<String>? instructors,
     this.ratingAvg,
     this.reviewCount,
@@ -3418,6 +3530,10 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
   final String? campus;
   @override
   final String? faculty;
+  @override
+  final String? classCode;
+  @override
+  final String? className;
   final List<String>? _instructors;
   @override
   List<String>? get instructors {
@@ -3435,7 +3551,7 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
 
   @override
   String toString() {
-    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, instructors: $instructors, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
+    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, classCode: $classCode, className: $className, instructors: $instructors, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -3450,6 +3566,10 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
                 other.termName == termName) &&
             (identical(other.campus, campus) || other.campus == campus) &&
             (identical(other.faculty, faculty) || other.faculty == faculty) &&
+            (identical(other.classCode, classCode) ||
+                other.classCode == classCode) &&
+            (identical(other.className, className) ||
+                other.className == className) &&
             const DeepCollectionEquality().equals(
               other._instructors,
               _instructors,
@@ -3469,6 +3589,8 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
     termName,
     campus,
     faculty,
+    classCode,
+    className,
     const DeepCollectionEquality().hash(_instructors),
     ratingAvg,
     reviewCount,
@@ -3499,6 +3621,8 @@ abstract class _CourseOfferingPayload implements CourseOfferingPayload {
     final String? termName,
     final String? campus,
     final String? faculty,
+    final String? classCode,
+    final String? className,
     final List<String>? instructors,
     final double? ratingAvg,
     final int? reviewCount,
@@ -3517,6 +3641,10 @@ abstract class _CourseOfferingPayload implements CourseOfferingPayload {
   String? get campus;
   @override
   String? get faculty;
+  @override
+  String? get classCode;
+  @override
+  String? get className;
   @override
   List<String>? get instructors;
   @override
@@ -3720,7 +3848,10 @@ mixin _$CourseDetailPayload {
   String get primaryCode => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
   String get department => throw _privateConstructorUsedError;
-  int get creditX10 => throw _privateConstructorUsedError;
+  int get creditX10 =>
+      throw _privateConstructorUsedError; // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  int? get teacherId => throw _privateConstructorUsedError;
+  String? get teacherName => throw _privateConstructorUsedError;
   List<String>? get aliases => throw _privateConstructorUsedError;
   List<CourseOfferingPayload>? get offerings =>
       throw _privateConstructorUsedError;
@@ -3751,6 +3882,8 @@ abstract class $CourseDetailPayloadCopyWith<$Res> {
     String name,
     String department,
     int creditX10,
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<CourseOfferingPayload>? offerings,
     double? ratingAvg,
@@ -3779,6 +3912,8 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
+    Object? teacherId = freezed,
+    Object? teacherName = freezed,
     Object? aliases = freezed,
     Object? offerings = freezed,
     Object? ratingAvg = freezed,
@@ -3807,6 +3942,14 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
                 ? _value.creditX10
                 : creditX10 // ignore: cast_nullable_to_non_nullable
                       as int,
+            teacherId: freezed == teacherId
+                ? _value.teacherId
+                : teacherId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            teacherName: freezed == teacherName
+                ? _value.teacherName
+                : teacherName // ignore: cast_nullable_to_non_nullable
+                      as String?,
             aliases: freezed == aliases
                 ? _value.aliases
                 : aliases // ignore: cast_nullable_to_non_nullable
@@ -3848,6 +3991,8 @@ abstract class _$$CourseDetailPayloadImplCopyWith<$Res>
     String name,
     String department,
     int creditX10,
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<CourseOfferingPayload>? offerings,
     double? ratingAvg,
@@ -3875,6 +4020,8 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
+    Object? teacherId = freezed,
+    Object? teacherName = freezed,
     Object? aliases = freezed,
     Object? offerings = freezed,
     Object? ratingAvg = freezed,
@@ -3903,6 +4050,14 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
             ? _value.creditX10
             : creditX10 // ignore: cast_nullable_to_non_nullable
                   as int,
+        teacherId: freezed == teacherId
+            ? _value.teacherId
+            : teacherId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        teacherName: freezed == teacherName
+            ? _value.teacherName
+            : teacherName // ignore: cast_nullable_to_non_nullable
+                  as String?,
         aliases: freezed == aliases
             ? _value._aliases
             : aliases // ignore: cast_nullable_to_non_nullable
@@ -3937,6 +4092,8 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     required this.name,
     required this.department,
     required this.creditX10,
+    this.teacherId,
+    this.teacherName,
     final List<String>? aliases,
     final List<CourseOfferingPayload>? offerings,
     this.ratingAvg,
@@ -3959,6 +4116,11 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
   final String department;
   @override
   final int creditX10;
+  // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  @override
+  final int? teacherId;
+  @override
+  final String? teacherName;
   final List<String>? _aliases;
   @override
   List<String>? get aliases {
@@ -3996,7 +4158,7 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
 
   @override
   String toString() {
-    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution)';
+    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution)';
   }
 
   @override
@@ -4012,6 +4174,10 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
                 other.department == department) &&
             (identical(other.creditX10, creditX10) ||
                 other.creditX10 == creditX10) &&
+            (identical(other.teacherId, teacherId) ||
+                other.teacherId == teacherId) &&
+            (identical(other.teacherName, teacherName) ||
+                other.teacherName == teacherName) &&
             const DeepCollectionEquality().equals(other._aliases, _aliases) &&
             const DeepCollectionEquality().equals(
               other._offerings,
@@ -4036,6 +4202,8 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     name,
     department,
     creditX10,
+    teacherId,
+    teacherName,
     const DeepCollectionEquality().hash(_aliases),
     const DeepCollectionEquality().hash(_offerings),
     ratingAvg,
@@ -4067,6 +4235,8 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
     required final String name,
     required final String department,
     required final int creditX10,
+    final int? teacherId,
+    final String? teacherName,
     final List<String>? aliases,
     final List<CourseOfferingPayload>? offerings,
     final double? ratingAvg,
@@ -4086,7 +4256,11 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
   @override
   String get department;
   @override
-  int get creditX10;
+  int get creditX10; // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  @override
+  int? get teacherId;
+  @override
+  String? get teacherName;
   @override
   List<String>? get aliases;
   @override

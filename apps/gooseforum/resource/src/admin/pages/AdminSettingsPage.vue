@@ -4,10 +4,10 @@ import httpNotifyGuideZh from '@/admin/docs/http-notify-guide.zh.md?raw'
 import httpNotifyGuideEn from '@/admin/docs/http-notify-guide.en.md?raw'
 import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -31,24 +31,31 @@ import {
   getMCPSettings,
   getMailSettings,
   getHttpNotifySettings,
+  getOnesystemSettings,
+  getPkSyncStatus,
   getPostingSettings,
   getRateLimitSettings,
   getSecuritySettings,
+  getScheduleSettings,
   getSiteSettings,
   getStorageMigrateTasks,
   getStorageSettings,
   getTermsOfService,
+  listAiSummaryModels,
   saveAnnouncement,
   saveHttpNotifySettings,
   saveMailSettings,
+  saveOnesystemSettings,
   savePostingSettings,
   saveAiSummarySettings,
   saveMCPSettings,
   saveRateLimitSettings,
   saveSecuritySettings,
+  saveScheduleSettings,
   saveSiteSettings,
   saveStorageSettings,
   saveTermsOfService,
+  syncPkCalendar,
   testMailConnection,
   testStorageConnection,
   uploadAdminImage,
@@ -57,6 +64,7 @@ import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  AiSummaryModelItem,
   AiSummarySettings,
   ManageHomeProps,
   AdminTaskRow,
@@ -65,15 +73,20 @@ import type {
   HttpNotifySettings,
   MailSettings,
   MCPSettings,
+  OnesystemSettings,
+  PkSyncStatusItem,
   PostingSettings,
   RateLimitSettings,
   SecuritySettings,
+  ScheduleSectionTime,
+  ScheduleSettings,
   SiteSettings,
   StorageSettings,
   TermsOfServiceConfig,
 } from '@/admin/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'onesystem' | 'schedule'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -96,6 +109,40 @@ const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
+
+// ---- 一系统同步（issue #248 排课数据自愈入口）----
+const onesystemForm = reactive<{ cookie: string, cookieConfigured: boolean }>({
+  cookie: '',
+  cookieConfigured: false,
+})
+const savingCookie = ref(false)
+const syncForm = reactive<{ term: string, depth: number }>({ term: '', depth: 1 })
+const syncingPk = ref(false)
+const syncStatusItems = ref<PkSyncStatusItem[]>([])
+const syncStatusLoading = ref(false)
+let syncPollTimer: ReturnType<typeof setInterval> | null = null
+
+// ---- 排课器节次作息（控制 /schedule 课表左侧节次时间展示）----
+const DEFAULT_SCHEDULE_SECTION_TIMES: Array<[start: string, end: string]> = [
+  ['08:00', '08:45'],
+  ['08:50', '09:35'],
+  ['10:00', '10:45'],
+  ['10:50', '11:35'],
+  ['13:30', '14:15'],
+  ['14:20', '15:05'],
+  ['15:30', '16:15'],
+  ['16:20', '17:05'],
+  ['17:10', '17:55'],
+  ['18:30', '19:15'],
+  ['19:20', '20:05'],
+  ['20:10', '20:55'],
+]
+
+function defaultScheduleSectionTimes(): ScheduleSectionTime[] {
+  return DEFAULT_SCHEDULE_SECTION_TIMES.map(([start, end], index) => ({ section: index + 1, start, end }))
+}
+
+const scheduleForm = reactive<ScheduleSettings>({ sectionTimes: defaultScheduleSectionTimes() })
 
 interface MigrateTaskPayload {
   lastId?: number
@@ -170,7 +217,15 @@ const mcpForm = reactive<MCPSettings>({
 const aiSummaryForm = reactive<AiSummarySettings>({
   enabled: false,
   globalPerMinute: 5,
+  baseUrl: '',
+  model: '',
+  apiKey: '',
+  apiKeyConfigured: false,
+  temperature: undefined,
+  maxTokens: undefined,
 })
+const aiSummaryModels = ref<AiSummaryModelItem[]>([])
+const aiSummaryModelsLoading = ref(false)
 
 const postingForm = reactive<PostingSettings>({
   textControl: {
@@ -253,6 +308,8 @@ const pageMeta = computed(() => {
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
     terms: { title: adminText('k00gp'), description: adminText('k00gq') },
+    onesystem: { title: adminText('k00t4'), description: adminText('k00t5') },
+    schedule: { title: adminText('k00u1'), description: adminText('k00u2') },
   }
   return meta[props.kind]
 })
@@ -301,9 +358,17 @@ function normalizeMail(settings: Partial<MailSettings> = {}) {
     useSSL: toBool(settings.useSSL, false),
     smtpUsername: settings.smtpUsername ?? '',
     smtpPassword: settings.smtpPassword ?? '',
+    smtpPasswordConfigured: toBool(settings.smtpPasswordConfigured, false),
     fromName: settings.fromName ?? '',
     fromEmail: settings.fromEmail ?? '',
   } satisfies MailSettings
+}
+
+// mailPayload 保存/测试请求负载：去掉只读回显字段（smtpPasswordConfigured），
+// 与 OpenAPI 请求 schema（additionalProperties: false）一致（issue #324 S2）。
+function mailPayload() {
+  const { smtpPasswordConfigured: _configured, ...payload } = normalizeMail(mailForm)
+  return payload
 }
 
 function normalizeSecurity(settings: Partial<SecuritySettings> = {}) {
@@ -351,11 +416,63 @@ function normalizeMCP(settings: Partial<MCPSettings> = {}) {
     writes: toBool(settings.writes, false),
   } satisfies MCPSettings
 }
+// optionalFormNumber 处理 v-model.number 清空输入产生的 ''（运行时值，类型上
+// AiSummarySettings 为 number|undefined）：''/NaN/空一律视为未设置。
+function optionalFormNumber(raw: number | undefined | null | ''): number | undefined {
+  if (raw == null || raw === '') return undefined
+  const value = Number(raw)
+  return Number.isNaN(value) ? undefined : value
+}
+
 function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
+  const temperature = optionalFormNumber(settings.temperature)
+  const maxTokens = optionalFormNumber(settings.maxTokens)
   return {
     enabled: toBool(settings.enabled, false),
     globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
+    baseUrl: (settings.baseUrl ?? '').trim().replace(/\/+$/, ''),
+    model: (settings.model ?? '').trim(),
+    apiKey: '',
+    apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
+    temperature,
+    maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
   } satisfies AiSummarySettings
+}
+
+// aiSummaryPayload 保存请求负载：去掉只读回显字段（apiKeyConfigured），
+// apiKey 留空 = 保留已存密钥（与 OpenAPI 请求 schema 一致）。
+function aiSummaryPayload() {
+  const { apiKeyConfigured: _configured, ...payload } = normalizeAiSummary(aiSummaryForm)
+  return payload satisfies AiSummarySettings
+}
+
+// loadAiSummaryModels 调用 /models 端点拉取模型列表（支持先用临时参数探测，
+// 未实现 /models 的服务返回明确错误，允许手动输入 model 兜底）。
+async function loadAiSummaryModels() {
+  aiSummaryModelsLoading.value = true
+  try {
+    const response = await listAiSummaryModels({
+      baseUrl: aiSummaryForm.baseUrl.trim(),
+      apiKey: aiSummaryForm.apiKey.trim(),
+    })
+    aiSummaryModels.value = response.models ?? []
+    // 列表已填充即视觉反馈；空列表提示手动输入兜底。
+    if (aiSummaryModels.value.length === 0) adminToast.warning(adminText('k00pe'))
+  } catch (err) {
+    aiSummaryModels.value = []
+    adminToast.error(err, adminText('k00pf'))
+  } finally {
+    aiSummaryModelsLoading.value = false
+  }
+}
+
+function validateAiSummary() {
+  const baseUrl = aiSummaryForm.baseUrl.trim()
+  if (baseUrl && !isHttpUrl(baseUrl)) {
+    adminToast.warning(adminText('k00pg'))
+    return false
+  }
+  return true
 }
 
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
@@ -393,6 +510,16 @@ function normalizeHttpNotify(settings: Partial<HttpNotifySettings> = {}) {
   } satisfies HttpNotifySettings
 }
 
+// httpNotifyPayload 保存请求负载：去掉端点只读回显字段（secretConfigured），
+// 与 OpenAPI 请求 schema 一致（issue #324 S1）。
+function httpNotifyPayload() {
+  const settings = normalizeHttpNotify(httpNotifyForm)
+  return {
+    enabled: settings.enabled,
+    endpoints: settings.endpoints.map(({ secretConfigured: _configured, ...endpoint }) => endpoint),
+  } satisfies HttpNotifySettings
+}
+
 function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
   const events = Array.isArray(endpoint.events)
     ? endpoint.events.map(item => String(item).trim()).filter(Boolean)
@@ -404,6 +531,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     enabled,
     url: endpoint.url?.trim() ?? '',
     secret: endpoint.secret ?? '',
+    secretConfigured: toBool(endpoint.secretConfigured, false),
     events,
     timeoutSeconds: Math.min(Math.max(Number(endpoint.timeoutSeconds ?? 2), 1), 15),
     failureCount: enabled ? 0 : Number(endpoint.failureCount ?? 0),
@@ -540,8 +668,17 @@ function normalizeStorage(settings: Partial<StorageSettings> = {}) {
     secure: toBool(settings.secure, true),
     accessKey: settings.accessKey ?? '',
     secretKey: settings.secretKey ?? '',
+    accessKeyConfigured: toBool(settings.accessKeyConfigured, false),
+    secretKeyConfigured: toBool(settings.secretKeyConfigured, false),
     publicUrlPrefix: settings.publicUrlPrefix ?? '',
   } satisfies StorageSettings
+}
+
+// storagePayload 保存/测试请求负载：去掉只读回显字段（accessKeyConfigured/
+// secretKeyConfigured），与 OpenAPI 请求 schema 一致（issue #324 S3）。
+function storagePayload() {
+  const { accessKeyConfigured: _ak, secretKeyConfigured: _sk, ...payload } = normalizeStorage(storageForm)
+  return payload
 }
 
 function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
@@ -549,6 +686,51 @@ function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
     enabled: toBool(settings.enabled, false),
     content: settings.content ?? '',
   } satisfies TermsOfServiceConfig
+}
+
+// normalizeHHMM 校验并规范化 "HH:MM"（补零），非法返回 null。
+function normalizeHHMM(value: unknown): string | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? '').trim())
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour > 23 || minute > 59) return null
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+// 节次固定 1-12：按 section 对齐服务端数据，缺失/非法回退默认作息。
+function normalizeSchedule(settings: Partial<ScheduleSettings> = {}): ScheduleSettings {
+  const bySection = new Map(
+    (Array.isArray(settings.sectionTimes) ? settings.sectionTimes : [])
+      .filter(item => item && Number.isInteger(Number(item.section)))
+      .map(item => [Number(item.section), item]),
+  )
+  return {
+    sectionTimes: DEFAULT_SCHEDULE_SECTION_TIMES.map(([start, end], index) => {
+      const item = bySection.get(index + 1)
+      return {
+        section: index + 1,
+        start: normalizeHHMM(item?.start) ?? start,
+        end: normalizeHHMM(item?.end) ?? end,
+      }
+    }),
+  } satisfies ScheduleSettings
+}
+
+function validateSchedule() {
+  for (const item of scheduleForm.sectionTimes) {
+    const start = normalizeHHMM(item.start)
+    const end = normalizeHHMM(item.end)
+    if (!start || !end || start >= end) {
+      adminToast.warning(adminText('k00u9', { section: item.section }))
+      return false
+    }
+  }
+  return true
+}
+
+function restoreScheduleDefaults() {
+  scheduleForm.sectionTimes = defaultScheduleSectionTimes()
 }
 
 
@@ -577,13 +759,25 @@ async function load() {
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
     else if (props.kind === 'mcp') Object.assign(mcpForm, normalizeMCP(await getMCPSettings()))
-    else if (props.kind === 'ai-summary') Object.assign(aiSummaryForm, normalizeAiSummary(await getAiSummarySettings()))
+    else if (props.kind === 'ai-summary') {
+      Object.assign(aiSummaryForm, normalizeAiSummary(await getAiSummarySettings()))
+      // 自动拉取模型列表填充下拉（失败静默，允许手动输入兜底）。
+      try {
+        aiSummaryModels.value = (await listAiSummaryModels({})).models ?? []
+      } catch {
+        aiSummaryModels.value = []
+      }
+    }
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
       await loadMigrateTasks()
     }
     else if (props.kind === 'terms') Object.assign(termsForm, normalizeTerms(await getTermsOfService()))
+    else if (props.kind === 'onesystem') {
+      await Promise.all([loadOnesystem(), refreshSyncStatus()])
+    }
+    else if (props.kind === 'schedule') Object.assign(scheduleForm, normalizeSchedule(await getScheduleSettings()))
     else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
@@ -593,21 +787,24 @@ async function load() {
 }
 
 async function save() {
-  const httpNotifySettings = props.kind === 'http-notify' ? normalizeHttpNotify(httpNotifyForm) : null
+  const httpNotifySettings = props.kind === 'http-notify' ? httpNotifyPayload() : null
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
+  if (props.kind === 'ai-summary' && !validateAiSummary()) return
+  if (props.kind === 'schedule' && !validateSchedule()) return
 
   saving.value = true
   try {
     if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
-    else if (props.kind === 'mail') await saveMailSettings(normalizeMail(mailForm))
+    else if (props.kind === 'mail') await saveMailSettings(mailPayload())
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
-    else if (props.kind === 'ai-summary') await saveAiSummarySettings(normalizeAiSummary(aiSummaryForm))
+    else if (props.kind === 'ai-summary') await saveAiSummarySettings(aiSummaryPayload())
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
-    else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
+    else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
+    else if (props.kind === 'schedule') await saveScheduleSettings(normalizeSchedule(scheduleForm))
     else await saveAnnouncement(serializeAnnouncement())
     adminToast.success(adminText('k000e'))
   } catch (err) {
@@ -624,7 +821,7 @@ async function sendTestMail() {
   }
   testing.value = true
   try {
-    const response = await testMailConnection(normalizeMail(mailForm), testEmail.value.trim())
+    const response = await testMailConnection(mailPayload(), testEmail.value.trim())
     adminToast.success(resolveApiMessage(response.result || response, adminText('k000h')))
   } catch (err) {
     adminToast.error(err, adminText('k000i'))
@@ -636,7 +833,7 @@ async function sendTestMail() {
 async function testStorage() {
   testing.value = true
   try {
-    const response = await testStorageConnection(normalizeStorage(storageForm))
+    const response = await testStorageConnection(storagePayload())
     if (response.success) {
       adminToast.success(resolveApiMessage(response, adminText('k00g7')))
     } else {
@@ -772,17 +969,138 @@ function onEndpointEventChange(endpoint: HttpNotifyEndpoint, eventName: string, 
   toggleEndpointEvent(endpoint, eventName, (event.target as HTMLInputElement).checked)
 }
 
+// ---- 一系统同步（issue #248）----
+
+async function loadOnesystem() {
+  try {
+    const settings = await getOnesystemSettings()
+    onesystemForm.cookieConfigured = settings.cookieConfigured
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : adminText('k000d')
+  }
+}
+
+async function refreshSyncStatus() {
+  syncStatusLoading.value = true
+  try {
+    syncStatusItems.value = await getPkSyncStatus()
+  } catch (err) {
+    adminToast.error(err, adminText('k00t3'))
+  } finally {
+    syncStatusLoading.value = false
+  }
+}
+
+async function saveCookie() {
+  savingCookie.value = true
+  try {
+    await saveOnesystemSettings(onesystemForm.cookie.trim())
+    onesystemForm.cookieConfigured = onesystemForm.cookie.trim() !== ''
+    onesystemForm.cookie = ''
+    adminToast.success(adminText('k00tv'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00t1'))
+  } finally {
+    savingCookie.value = false
+  }
+}
+
+async function clearCookie() {
+  onesystemForm.cookie = ''
+  savingCookie.value = true
+  try {
+    await saveOnesystemSettings('')
+    onesystemForm.cookieConfigured = false
+    adminToast.success(adminText('k00tw'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00t1'))
+  } finally {
+    savingCookie.value = false
+  }
+}
+
+async function startSync() {
+  const term = syncForm.term.trim()
+  if (!term) {
+    adminToast.warning(adminText('k00ty'))
+    return
+  }
+  syncingPk.value = true
+  try {
+    const depth = Math.min(Math.max(syncForm.depth || 1, 1), 8)
+    const result = await syncPkCalendar(term, depth)
+    adminToast.success(adminText('k00tq', { term: result.term || term }))
+    startSyncPolling(result.calendarId)
+  } catch (err) {
+    adminToast.error(err, adminText('k00t2'))
+  } finally {
+    syncingPk.value = false
+  }
+}
+
+/** 同步为后台异步：每 3s 只轮询本次取得租约的目标学期。 */
+function startSyncPolling(calendarId: number) {
+  stopSyncPolling()
+  const poll = () => {
+    void refreshSyncStatus().then(() => {
+      const item = syncStatusItems.value.find((status) => status.calendarId === calendarId)
+      if (!item || item.status === 'running') return
+      stopSyncPolling()
+      if (item.status === 'failed') {
+        adminToast.error(adminText('k00tz'))
+      } else {
+        adminToast.success(adminText('k00tr'))
+      }
+    })
+  }
+  poll()
+  syncPollTimer = setInterval(poll, 3000)
+}
+
+function stopSyncPolling() {
+  if (syncPollTimer !== null) {
+    clearInterval(syncPollTimer)
+    syncPollTimer = null
+  }
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case 'running': return adminText('k00ts')
+    case 'completed': return adminText('k00tt')
+    case 'failed': return adminText('k00tu')
+    default: return adminText('k00tx')
+  }
+}
+
+function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (status) {
+    case 'running': return 'secondary'
+    case 'completed': return 'default'
+    case 'failed': return 'destructive'
+    default: return 'outline'
+  }
+}
+
+function formatTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 watch(() => props.kind, () => {
+  stopSyncPolling()
   void load()
 })
 
 onMounted(load)
+
+onUnmounted(stopSyncPolling)
 </script>
 
 <template>
   <BasicPage :title="pageMeta.title" :description="pageMeta.description" sticky>
     <template #actions>
-      <Button type="button" :disabled="saving" @click="save">
+      <Button v-if="kind !== 'onesystem'" type="button" :disabled="saving" @click="save">
         <Loader2 v-if="saving" class="size-4 animate-spin" />
         <Save v-else class="size-4" />
         {{ adminText('k004f') }}
@@ -837,7 +1155,15 @@ onMounted(load)
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008m') }}<Input v-model="mailForm.smtpHost" :disabled="!mailForm.enableMail" placeholder="smtp.example.com" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008n') }}<Input v-model.number="mailForm.smtpPort" :disabled="!mailForm.enableMail" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008o') }}<Input v-model="mailForm.smtpUsername" :disabled="!mailForm.enableMail" /></label>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008p') }}<Input v-model="mailForm.smtpPassword" :disabled="!mailForm.enableMail" type="password" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008p') }}
+              <div class="flex items-center gap-2">
+                <Input v-model="mailForm.smtpPassword" :disabled="!mailForm.enableMail" type="password" autocomplete="new-password" />
+                <Badge :variant="mailForm.smtpPasswordConfigured ? 'default' : 'outline'" class="shrink-0">
+                  {{ mailForm.smtpPasswordConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                </Badge>
+              </div>
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+            </label>
           </div>
           <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
             <div><div class="flex items-center gap-2 font-medium"><Shield class="size-4" />{{ adminText('k008q') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k008r') }}</p></div>
@@ -1018,6 +1344,51 @@ onMounted(load)
           <Input v-model.number="aiSummaryForm.globalPerMinute" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
           <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00p7') }}</span>
         </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00p9') }}
+          <Input v-model="aiSummaryForm.baseUrl" :disabled="!aiSummaryForm.enabled" placeholder="https://api.openai.com/v1" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pa') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00pb') }}
+          <div class="flex items-center gap-2">
+            <Input v-model="aiSummaryForm.apiKey" :disabled="!aiSummaryForm.enabled" type="password" autocomplete="new-password" placeholder="sk-..." />
+            <Badge :variant="aiSummaryForm.apiKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+              {{ aiSummaryForm.apiKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+            </Badge>
+          </div>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pc') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00pl') }}
+          <div class="flex items-center gap-2">
+            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="flex-1" />
+            <Select v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled || aiSummaryModels.length === 0">
+              <SelectTrigger class="h-9 w-44 shrink-0">
+                <SelectValue :placeholder="adminText('k00pe')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="m in aiSummaryModels" :key="m.id" :value="m.id">{{ m.id }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="secondary" class="shrink-0" :disabled="!aiSummaryForm.enabled || aiSummaryModelsLoading" @click="loadAiSummaryModels">
+              <RefreshCw class="size-4" :class="{ 'animate-spin': aiSummaryModelsLoading }" />{{ adminText('k00pd') }}
+            </Button>
+          </div>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pm') }}</span>
+        </label>
+        <div class="grid gap-6 sm:grid-cols-2">
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00ph') }}
+            <Input v-model.number="aiSummaryForm.temperature" type="number" step="0.1" min="0" max="2" :disabled="!aiSummaryForm.enabled" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pi') }}</span>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00pj') }}
+            <Input v-model.number="aiSummaryForm.maxTokens" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pk') }}</span>
+          </label>
+        </div>
       </form>
 
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">
@@ -1142,7 +1513,13 @@ onMounted(load)
 
                   <label class="grid gap-2 text-sm font-medium">
                     Secret
-                    <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                    <div class="flex items-center gap-2">
+                      <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                      <Badge :variant="endpoint.secretConfigured ? 'default' : 'outline'" class="shrink-0">
+                        {{ endpoint.secretConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                      </Badge>
+                    </div>
+                    <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
                   </label>
 
                   <div class="space-y-2">
@@ -1193,8 +1570,24 @@ onMounted(load)
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g5') }}<Input v-model="storageForm.publicUrlPrefix" :disabled="storageForm.provider !== 's3'" placeholder="https://cdn.example.com" /></label>
         </div>
         <div class="grid gap-6 md:grid-cols-2">
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}<Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" /></label>
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}<Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}
+            <div class="flex items-center gap-2">
+              <Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" />
+              <Badge :variant="storageForm.accessKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+                {{ storageForm.accessKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+              </Badge>
+            </div>
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}
+            <div class="flex items-center gap-2">
+              <Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" />
+              <Badge :variant="storageForm.secretKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+                {{ storageForm.secretKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+              </Badge>
+            </div>
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+          </label>
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
           <div><div class="flex items-center gap-2 font-medium"><HardDrive class="size-4" />{{ adminText('k00g2') }}</div></div>
@@ -1248,6 +1641,111 @@ onMounted(load)
         </label>
       </form>
 
+      <form v-else-if="kind === 'schedule'" class="max-w-2xl space-y-6" @submit.prevent="save">
+        <p class="text-sm text-muted-foreground">{{ adminText('k00u2') }}</p>
+        <section class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Clock class="size-5 text-muted-foreground" />{{ adminText('k00u1') }}</div>
+            <Button type="button" variant="secondary" @click="restoreScheduleDefaults"><RotateCcw class="size-4" />{{ adminText('k00u6') }}</Button>
+          </div>
+          <div class="grid grid-cols-[minmax(80px,auto)_1fr_1fr] items-center gap-3 text-xs font-medium text-muted-foreground">
+            <span>{{ adminText('k00u3') }}</span>
+            <span>{{ adminText('k00u4') }}</span>
+            <span>{{ adminText('k00u5') }}</span>
+          </div>
+          <div v-for="(item, index) in scheduleForm.sectionTimes" :key="item.section" class="grid grid-cols-[minmax(80px,auto)_1fr_1fr] items-center gap-3 rounded-lg border p-3">
+            <span class="text-sm font-medium">{{ adminText('k00ua', { section: item.section }) }}</span>
+            <label class="grid gap-1">
+              <span class="sr-only">{{ adminText('k00u4') }}</span>
+              <Input v-model="scheduleForm.sectionTimes[index].start" type="time" step="60" />
+            </label>
+            <label class="grid gap-1">
+              <span class="sr-only">{{ adminText('k00u5') }}</span>
+              <Input v-model="scheduleForm.sectionTimes[index].end" type="time" step="60" />
+            </label>
+          </div>
+        </section>
+      </form>
+
+      <div v-else-if="kind === 'onesystem'" class="max-w-3xl space-y-8">
+        <!-- Cookie 凭证配置 -->
+        <form class="space-y-4 rounded-lg border border-border bg-card p-5" @submit.prevent="saveCookie">
+          <div class="flex items-center gap-2 text-base font-medium"><KeyRound class="size-4 text-muted-foreground" />{{ adminText('k00t6') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00t7') }}</p>
+          <div class="flex items-center gap-2">
+            <Badge :variant="onesystemForm.cookieConfigured ? 'default' : 'outline'">
+              {{ onesystemForm.cookieConfigured ? adminText('k00t8') : adminText('k00t9') }}
+            </Badge>
+          </div>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00ta') }}
+            <Textarea v-model="onesystemForm.cookie" :placeholder="adminText('k00tb')" rows="2" autocomplete="off" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00tc') }}</span>
+          </label>
+          <div class="flex gap-2">
+            <Button type="submit" :disabled="savingCookie">
+              <Loader2 v-if="savingCookie" class="size-4 animate-spin" />
+              <Save v-else class="size-4" />
+              {{ adminText('k00td') }}
+            </Button>
+            <Button type="button" variant="outline" :disabled="savingCookie || !onesystemForm.cookieConfigured" @click="clearCookie">
+              {{ adminText('k00te') }}
+            </Button>
+          </div>
+        </form>
+
+        <!-- 排课数据同步（issue #248）-->
+        <div class="space-y-4 rounded-lg border border-border bg-card p-5">
+          <div class="flex items-center gap-2 text-base font-medium"><RefreshCw class="size-4 text-muted-foreground" />{{ adminText('k00tf') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00tg') }}</p>
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
+              {{ adminText('k00th') }}
+              <Input v-model="syncForm.term" :placeholder="adminText('k00ti')" />
+            </label>
+            <label class="grid w-28 gap-2 text-sm font-medium">
+              {{ adminText('k00tj') }}
+              <Input v-model.number="syncForm.depth" type="number" min="1" max="8" />
+            </label>
+            <Button type="button" :disabled="syncingPk" @click="startSync">
+              <Loader2 v-if="syncingPk" class="size-4 animate-spin" />
+              <RefreshCw v-else class="size-4" />
+              {{ adminText('k00tk') }}
+            </Button>
+          </div>
+
+          <div class="border-t pt-4">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-sm font-medium">{{ adminText('k00tl') }}</span>
+              <Button type="button" variant="ghost" size="sm" @click="refreshSyncStatus">
+                <RefreshCw class="size-3.5" />
+                {{ adminText('k00tm') }}
+              </Button>
+            </div>
+            <div v-if="syncStatusLoading" class="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 class="size-4 animate-spin" />
+              {{ adminText('k00tn') }}
+            </div>
+            <p v-else-if="syncStatusItems.length === 0" class="py-6 text-center text-sm text-muted-foreground">{{ adminText('k00to') }}</p>
+            <ul v-else class="divide-y divide-border">
+              <li v-for="item in syncStatusItems" :key="item.calendarId" class="flex items-start gap-3 py-2.5">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-medium">{{ item.calendarName || String(item.calendarId) }}</span>
+                    <Badge :variant="statusVariant(item.status)">{{ statusLabel(item.status) }}</Badge>
+                    <span v-if="item.status === 'running'" class="text-xs text-muted-foreground">{{ item.lastCommittedPage }}/{{ item.totalPages }}</span>
+                  </div>
+                  <p v-if="item.errorMsg" class="mt-1 text-xs text-destructive">{{ item.errorMsg }}</p>
+                  <p class="mt-0.5 text-xs text-muted-foreground">
+                    {{ adminText('k00tp', { rows: item.rowsWritten }) }}
+                    <span v-if="item.finishedAt"> · {{ formatTime(item.finishedAt) }}</span>
+                  </p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
       <form v-else class="max-w-3xl space-y-6" @submit.prevent="save">
         <div class="flex items-center justify-between">

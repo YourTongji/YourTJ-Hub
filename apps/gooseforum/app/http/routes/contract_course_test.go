@@ -106,12 +106,14 @@ func seedCourseContractData(t *testing.T, conn *gorm.DB) {
 		t.Fatalf("create instructor 李四: %v", err)
 	}
 	offering := &course.OfferingEntity{
-		Id:       901,
-		CourseId: entity.Id,
-		TermId:   term.Id,
-		Campus:   "四平路校区",
-		Faculty:  "数学科学学院",
-		Status:   course.OfferingStatusVisible,
+		Id:        901,
+		CourseId:  entity.Id,
+		TermId:    term.Id,
+		Campus:    "四平路校区",
+		Faculty:   "数学科学学院",
+		ClassCode: "10000101",
+		ClassName: "01班",
+		Status:    course.OfferingStatusVisible,
 	}
 	if err := conn.Create(offering).Error; err != nil {
 		t.Fatalf("create offering: %v", err)
@@ -175,12 +177,13 @@ func TestCourseDetailMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course detail malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 // seedCourseRelatedData 写入与 course-related-success fixture 一致的相关课程数据：
-// 课程 42 另有仅李四授课、且位于更早学期（102）的 offering 902，用以覆盖"最近学期开课"
-// 作为 primary 的 term 最近性选择；同教师课程 43 线性代数由张三开课。
+// 课程 42（100001 高等数学，offering 901 由张三+李四授课）的同教师其他课为课程 43
+// 线性代数（张三）；同课号其他教师卡为课程 47（100001 高等数学，身份教师李四）——
+// (code, teacher) 复合身份模型下同课号不同教师是独立课程卡。
 func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 	t.Helper()
 	linear := &course.Entity{
@@ -197,6 +200,21 @@ func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 	if err := conn.Create(linear).Error; err != nil {
 		t.Fatalf("create course 线性代数: %v", err)
 	}
+	// 同课号其他教师卡：课程 47 与 42 同 code 100001，身份教师李四（202）。
+	if err := conn.Create(&course.Entity{
+		Id:             47,
+		PrimaryCode:    "100001",
+		Name:           "高等数学(A)上",
+		Department:     "数学科学学院",
+		CreditX10:      50,
+		NormalizedName: "高等数学a上",
+		NamePinyin:     "gaodengshuxueashang",
+		NameInitials:   "gdsxas",
+		TeacherId:      202, // 李四
+		Status:         course.StatusVisible,
+	}).Error; err != nil {
+		t.Fatalf("create same-code course 47: %v", err)
+	}
 	// 更早学期：offering 902 使用 term 102（code 小于 term 101，排序在 901 之后）。
 	if err := conn.Create(&course.TermEntity{Id: 102, Code: "2024-2025-1", Name: "2024-2025 第一学期", Status: 0}).Error; err != nil {
 		t.Fatalf("create term 102: %v", err)
@@ -204,6 +222,7 @@ func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 	for _, offering := range []*course.OfferingEntity{
 		{Id: 902, CourseId: 42, TermId: 102, Campus: "四平路校区", Faculty: "数学科学学院", Status: course.OfferingStatusVisible},
 		{Id: 903, CourseId: 43, TermId: 101, Campus: "四平路校区", Faculty: "数学科学学院", Status: course.OfferingStatusVisible},
+		{Id: 904, CourseId: 47, TermId: 101, Campus: "四平路校区", Faculty: "数学科学学院", Status: course.OfferingStatusVisible},
 	} {
 		if err := conn.Create(offering).Error; err != nil {
 			t.Fatalf("create offering %d: %v", offering.Id, err)
@@ -212,6 +231,7 @@ func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 	for _, link := range []*course.OfferingInstructorEntity{
 		{OfferingId: 902, InstructorId: 202, Role: "lecturer"}, // 李四
 		{OfferingId: 903, InstructorId: 201, Role: "lecturer"}, // 张三
+		{OfferingId: 904, InstructorId: 202, Role: "lecturer"}, // 李四
 	} {
 		if err := conn.Create(link).Error; err != nil {
 			t.Fatalf("create offering instructor link: %v", err)
@@ -220,6 +240,7 @@ func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 	for _, st := range []*course.CourseStatsEntity{
 		{CourseId: 42, RatingCount: 2, RatingSum: 9, ReviewCount: 2},
 		{CourseId: 43, RatingCount: 2, RatingSum: 9, ReviewCount: 2},
+		{CourseId: 47, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 	} {
 		if err := conn.Create(st).Error; err != nil {
 			t.Fatalf("create course stats: %v", err)
@@ -229,6 +250,7 @@ func seedCourseRelatedData(t *testing.T, conn *gorm.DB) {
 		{OfferingId: 901, RatingCount: 1, RatingSum: 5, ReviewCount: 1},
 		{OfferingId: 902, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 		{OfferingId: 903, RatingCount: 2, RatingSum: 9, ReviewCount: 2},
+		{OfferingId: 904, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 	} {
 		if err := conn.Create(st).Error; err != nil {
 			t.Fatalf("create offering stats: %v", err)
@@ -267,7 +289,7 @@ func TestCourseRelatedMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course related malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 func TestCourseRelatedEmptyHTTPContract(t *testing.T) {

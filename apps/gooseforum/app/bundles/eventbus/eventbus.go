@@ -23,7 +23,7 @@ var (
 	eventProcessor *cqrs.EventProcessor
 	once           sync.Once
 	logger         = &dynamicSlogLogger{}
-	cancelFunc     context.CancelFunc
+	cancelFunc     context.CancelCauseFunc
 	stopWg         sync.WaitGroup
 )
 
@@ -55,7 +55,9 @@ func InitEventBus() {
 		}
 
 		// 注册到全局关闭管理器
-		closer.RegisterPriority(closer.PriorityProducer, Close)
+		closer.RegisterPriorityContext(closer.PriorityProducer, func(ctx context.Context) error {
+			return Close(ctx)
+		})
 
 		// 添加中间件
 		router.AddMiddleware(
@@ -124,6 +126,17 @@ func Publish(ctx context.Context, event any) {
 	}
 }
 
+// DetachedContext marks post-commit work as intentionally independent from
+// the request that triggered it. It removes request cancellation and
+// deadlines; values are preserved by context.WithoutCancel, but the current
+// event bus may replace the context at the consumer boundary.
+func DetachedContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
+}
+
 // PublishE 发布事件，并把发布错误返回给调用方。
 func PublishE(ctx context.Context, event any) error {
 	if eventBus == nil {
@@ -152,7 +165,7 @@ func Start(handlers ...cqrs.EventHandler) {
 	}
 
 	var ctx context.Context
-	ctx, cancelFunc = context.WithCancel(context.Background())
+	ctx, cancelFunc = context.WithCancelCause(context.Background())
 
 	stopWg.Go(func() {
 		defer paniclog.Recover("eventbus_router")
@@ -165,10 +178,22 @@ func Start(handlers ...cqrs.EventHandler) {
 
 }
 
-// Close 关闭事件总线
-func Close() error {
+// Close 关闭事件总线。事件处理器必须响应 ctx 取消；等待超时由上层
+// closer 的 context deadline 统一决定，不再在这里隐藏固定等待时间。
+func Close(parentContexts ...context.Context) error {
+	shutdownCtx := context.Background()
+	if len(parentContexts) > 0 && parentContexts[0] != nil {
+		shutdownCtx = parentContexts[0]
+	}
+
+	var cancelCause error
+	if cause := context.Cause(shutdownCtx); cause != nil {
+		cancelCause = cause
+	} else {
+		cancelCause = context.Canceled
+	}
 	if cancelFunc != nil {
-		cancelFunc()
+		cancelFunc(cancelCause)
 	}
 
 	// 等待 router 停止
@@ -178,15 +203,19 @@ func Close() error {
 		close(done)
 	}()
 
+	var closeErrors []error
 	select {
 	case <-done:
 		slog.Info("event bus stopped")
-	case <-time.After(3 * time.Second):
-		slog.Warn("event bus shutdown timed out")
+	case <-shutdownCtx.Done():
+		closeErrors = append(closeErrors, fmt.Errorf("eventbus: router shutdown: %w", shutdownCtx.Err()))
+		slog.Warn("event bus shutdown timed out", "err", shutdownCtx.Err())
 	}
 
 	if pubSub != nil {
-		return pubSub.Close()
+		if err := pubSub.Close(); err != nil {
+			closeErrors = append(closeErrors, fmt.Errorf("eventbus: close pubsub: %w", err))
+		}
 	}
-	return nil
+	return errors.Join(closeErrors...)
 }

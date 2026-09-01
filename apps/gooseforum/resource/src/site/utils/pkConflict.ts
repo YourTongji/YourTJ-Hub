@@ -128,3 +128,45 @@ export function findConflicts(
   }
   return [...conflicts.values()]
 }
+
+/** 自定义占位事件在占用表中的伪课号前缀（避免与真实课号碰撞）。 */
+export const CUSTOM_EVENT_CODE_PREFIX = 'custom:'
+
+/** 冲突派生用的基础标识：custom 伪课号原样保留（getCourseBaseCode 会误裁尾部字符）。 */
+export function conflictBaseOf(code: string): string {
+  return code.startsWith(CUSTOM_EVENT_CODE_PREFIX) ? code : getCourseBaseCode(code)
+}
+
+/**
+ * 从占用表派生当前课表的全部冲突（容忍式冲突模型）：
+ * 同一格子（天+节次）内周次有交集的两个不同基础课号互为冲突。
+ * 返回 Map<基础课号, 冲突项[]>（含 custom: 占位事件；供课表 ⚠、列表红标、
+ * 统计计数共用同一判据，与 canAddCourse/findConflicts 一致）。
+ */
+export function deriveConflicts(occupied: PkOccupyCell[][][]): Map<string, PkConflictItem[]> {
+  const result = new Map<string, PkConflictItem[]>()
+  const pushConflict = (base: string, item: PkConflictItem) => {
+    const list = result.get(base)
+    if (list) {
+      if (!list.some((existing) => existing.code === item.code)) list.push(item)
+    } else {
+      result.set(base, [item])
+    }
+  }
+  for (const row of occupied) {
+    for (const cell of row) {
+      if (cell.length < 2) continue
+      for (let i = 0; i < cell.length; i++) {
+        for (let j = i + 1; j < cell.length; j++) {
+          const a = cell[i]
+          const b = cell[j]
+          if (!weeksOverlap(a.occupyWeek, b.occupyWeek)) continue
+          if (conflictBaseOf(a.code) === conflictBaseOf(b.code)) continue // 同课换班/同事件不标冲突
+          pushConflict(conflictBaseOf(a.code), { code: b.code, courseName: b.courseName })
+          pushConflict(conflictBaseOf(b.code), { code: a.code, courseName: a.courseName })
+        }
+      }
+    }
+  }
+  return result
+}

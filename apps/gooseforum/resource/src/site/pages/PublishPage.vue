@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { AlertTriangle, Check, FileText, ListChecks, Loader2, Send, X } from '@lucide/vue'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
-import { computePopoverPlacement } from '@/site/utils/popover-position'
 import PageHeader from '@/site/components/PageHeader.vue'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
@@ -45,49 +45,6 @@ const categorySection = ref<HTMLElement | null>(null)
 const headerSection = ref<HTMLElement | null>(null)
 const editorHost = ref<HTMLElement | null>(null)
 const categoryPickerOpen = ref(false)
-const categoryPickerRoot = ref<HTMLElement | null>(null)
-/** 分类面板 Teleport 到 body 后用 fixed 定位跟随触发按钮，避开 overflow-hidden 裁剪 */
-const panelEl = ref<HTMLElement | null>(null)
-const panelStyle = ref({ top: '0px', left: '0px', width: '0px' })
-let panelOpen = false
-let panelFrame: number | null = null
-function computePanelPosition() {
-  const rect = categoryPickerRoot.value?.getBoundingClientRect()
-  const panel = panelEl.value
-  if (!rect) return
-  const panelHeight = panel ? panel.offsetHeight || panel.getBoundingClientRect().height : 0
-  // 6px = 原 absolute 布局的 0.375rem 间距；下方不足自动向上翻转，并钳制在视口内
-  const pos = computePopoverPlacement({
-    trigger: { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
-    panel: { width: rect.width, height: panelHeight },
-    viewport: { width: window.innerWidth, height: window.innerHeight },
-    gap: 6,
-  })
-  panelStyle.value = { top: `${pos.top}px`, left: `${pos.left}px`, width: `${pos.width}px` }
-}
-function repositionPanel() {
-  if (!panelOpen || panelFrame !== null) return
-  panelFrame = window.requestAnimationFrame(() => {
-    panelFrame = null
-    computePanelPosition()
-  })
-}
-watch(categoryPickerOpen, (open) => {
-  if (open) {
-    panelOpen = true
-    void nextTick(() => {
-      computePanelPosition()
-      // Teleport 后面板位于 body 末尾、远离触发按钮，打开时移焦入面板保证键盘 Tab 可达
-      panelEl.value?.focus({ preventScroll: true })
-    })
-    window.addEventListener('scroll', repositionPanel, { passive: true })
-    window.addEventListener('resize', repositionPanel)
-  } else {
-    panelOpen = false
-    window.removeEventListener('scroll', repositionPanel)
-    window.removeEventListener('resize', repositionPanel)
-  }
-})
 const bodySection = ref<HTMLElement | null>(null)
 /** 移动端 toggle 挂载容器（正文 label 行右侧） */
 const editorToggleHost = ref<HTMLElement | null>(null)
@@ -123,6 +80,12 @@ const {
   saveDraftBeforeLeave: () => persistDraft(undefined, false),
 })
 
+// reka-ui Dialog 通过 v-model:open 关闭（Esc/遮罩点击）时不经过 closeLeavePrompt，
+// 这里兜底 resolve 路由守卫的挂起 promise（closeLeavePrompt 幂等）。
+watch(leavePromptOpen, (open) => {
+  if (!open) closeLeavePrompt()
+})
+
 function editorSnapshot() {
   return JSON.stringify({
     title: title.value.trim(),
@@ -147,39 +110,13 @@ function toggleCategory(id: number) {
   categoryIds.value = [...categoryIds.value, id]
 }
 
-/** 分类下拉：点击外部关闭（better-ui：popover 走文档级 pointerdown 收敛） */
-function handleCategoryPickerPointerDown(event: PointerEvent) {
-  const target = event.target
-  if (target instanceof Node && categoryPickerRoot.value?.contains(target)) return
-  // 面板已 Teleport 到 body，不再位于 categoryPickerRoot 内，需单独判定内部点击
-  if (target instanceof Node && panelEl.value?.contains(target)) return
-  categoryPickerOpen.value = false
-}
-
 function handleCategoryPickerKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    categoryPickerOpen.value = false
-    return
-  }
+  // 键盘交互由 reka-ui PopoverTrigger 接管（Enter/Space 打开、ArrowDown 打开、Esc 关闭）
   if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     categoryPickerOpen.value = true
   }
 }
-
-onMounted(() => {
-  document.addEventListener('pointerdown', handleCategoryPickerPointerDown)
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', handleCategoryPickerPointerDown)
-  window.removeEventListener('scroll', repositionPanel)
-  window.removeEventListener('resize', repositionPanel)
-  if (panelFrame !== null) {
-    window.cancelAnimationFrame(panelFrame)
-    panelFrame = null
-  }
-})
 
 async function validateRequiredFields() {
   content.value = editor.value?.syncValue() ?? content.value
@@ -398,53 +335,47 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                     <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.category') }}</span>
                     <span class="text-xs text-base-content/55">{{ t('publish.maxCategories') }}</span>
                   </div>
-                  <div ref="categoryPickerRoot" class="relative mt-1">
-                    <button
-                      type="button"
-                      class="gf-input flex h-11 w-full items-center gap-2 text-left"
-                      :class="categoryMissing ? '!border-error' : ''"
-                      :aria-expanded="categoryPickerOpen"
-                      :aria-label="t('publish.fields.category')"
-                      @click="categoryPickerOpen = !categoryPickerOpen"
-                      @keydown="handleCategoryPickerKeydown"
-                    >
-                      <span v-if="selectedCategories.length" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
-                        <span
-                          v-for="category in selectedCategories"
-                          :key="category.id"
-                          class="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-semibold"
-                          :style="{ backgroundColor: category.color + '22', color: category.color }"
-                        >
-                          <span class="h-1.5 w-1.5 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
-                          <span class="truncate">{{ category.name }}</span>
-                        </span>
-                      </span>
-                      <span v-else class="flex-1 text-sm text-base-content/45">{{ t('publish.selectCategory') }}</span>
-                      <span class="text-xs tabular-nums text-base-content/55">{{ categoryIds.length }}/3</span>
-                      <svg
-                        class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-150"
-                        :class="{ 'rotate-180': categoryPickerOpen }"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
+                  <div class="relative mt-1">
+                    <PopoverRoot v-model:open="categoryPickerOpen">
+                      <PopoverTrigger
+                        class="gf-input flex h-11 w-full items-center gap-2 text-left"
+                        :class="categoryMissing ? '!border-error' : ''"
+                        :aria-label="t('publish.fields.category')"
+                        @keydown="handleCategoryPickerKeydown"
                       >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
+                        <span v-if="selectedCategories.length" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
+                          <span
+                            v-for="category in selectedCategories"
+                            :key="category.id"
+                            class="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-semibold"
+                            :style="{ backgroundColor: category.color + '22', color: category.color }"
+                          >
+                            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
+                            <span class="truncate">{{ category.name }}</span>
+                          </span>
+                        </span>
+                        <span v-else class="flex-1 text-sm text-base-content/45">{{ t('publish.selectCategory') }}</span>
+                        <span class="text-xs tabular-nums text-base-content/55">{{ categoryIds.length }}/3</span>
+                        <svg
+                          class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-150"
+                          :class="{ 'rotate-180': categoryPickerOpen }"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </PopoverTrigger>
 
-                    <Teleport to="body">
-                      <Transition name="gf-menu">
-                        <div
-                          v-if="categoryPickerOpen"
-                          ref="panelEl"
-                          tabindex="-1"
-                          class="gf-menu-surface fixed z-[300] max-h-64 overflow-y-auto p-1 outline-none"
-                          :style="panelStyle"
-                          @keydown.esc="categoryPickerOpen = false"
+                      <PopoverPortal>
+                        <PopoverContent
+                          class="gf-menu-surface z-[300] max-h-64 w-[var(--reka-popover-trigger-width)] overflow-y-auto p-1 outline-none"
+                          :side-offset="6"
+                          align="start"
                         >
                           <button
                             v-for="category in props.categories"
@@ -460,9 +391,9 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                             <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
                           </button>
                           <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
-                        </div>
-                      </Transition>
-                    </Teleport>
+                        </PopoverContent>
+                      </PopoverPortal>
+                    </PopoverRoot>
                   </div>
                   <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
                 </div>
@@ -579,25 +510,21 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
         </div>
       </section>
 
-      <Transition name="gf-modal">
-        <div
-          v-if="leavePromptOpen"
-          class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="leave-prompt-title"
-          @click.self="closeLeavePrompt"
-        >
-          <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
-            <div class="gf-menu-surface w-full p-4 sm:p-5">
+      <DialogRoot v-model:open="leavePromptOpen">
+        <DialogPortal>
+          <DialogOverlay class="fixed inset-0 z-[100] bg-neutral/50 backdrop-blur-sm" />
+          <DialogContent
+            class="fixed left-1/2 top-1/2 z-[100] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 outline-none sm:w-full"
+          >
+            <div class="gf-menu-surface max-h-[90vh] w-full overflow-y-auto p-4 sm:p-5">
               <!-- 头部：警示图标 + 标题 + 描述 + 关闭（对齐全站确认弹窗模式） -->
               <div class="flex items-start gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
                   <FileText class="h-5 w-5" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <h2 id="leave-prompt-title" class="text-base font-bold text-base-content">{{ t('publish.leaveTitle') }}</h2>
-                  <p class="mt-1 text-sm leading-6 text-base-content/55">{{ t('publish.leaveDescription') }}</p>
+                  <DialogTitle class="text-base font-bold text-base-content">{{ t('publish.leaveTitle') }}</DialogTitle>
+                  <DialogDescription class="mt-1 text-sm leading-6 text-base-content/55">{{ t('publish.leaveDescription') }}</DialogDescription>
                 </div>
                 <button
                   type="button"
@@ -638,9 +565,9 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </Transition>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
     </main>
 </template>
 

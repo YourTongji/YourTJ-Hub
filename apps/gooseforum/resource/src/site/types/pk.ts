@@ -97,13 +97,20 @@ export interface PkOccupyCell {
   occupyWeek: number[]
 }
 
-/** 课表条目（平铺，渲染时转网格）。对应 courseOnTable。 */
+/** 课表条目（平铺，渲染时转网格）。对应 courseOnTable。
+ * v2：结构化字段（occupyWeek/teacherAndCode/arrangementText/occupyRoom）随重建写入，
+ * 渲染不再从 showText 反解（showText 保留用于详情卡兜底展示）。 */
 export interface PkCourseOnTable {
   showText: string
   courseName: string
   code: string
   occupyTime: number[]
   occupyDay: number
+  /** 该安排的周次数组（v2；单周视图过滤用，sanitize 容忍缺失）。 */
+  occupyWeek?: number[]
+  teacherAndCode?: string
+  arrangementText?: string
+  occupyRoom?: string
 }
 
 /** 鼠标点击的课程。对应 clickedCourseInfo。 */
@@ -132,10 +139,44 @@ export interface PkXlsCourse {
   teacherName: string
 }
 
-/** P1 /api/pk/calendars：最近 8 个学期。 */
+/** P1 /api/pk/calendars：最近 8 个学期。
+ * startDate/endDate 为可选学期起止日期（YYYY-MM-DD；后端未配置时为 null），
+ * 排课器「当前周次」定位与学期日期条展示用。 */
 export interface PkCalendar {
   calendarId: number
   calendarName: string
+  startDate?: string | null
+  endDate?: string | null
+}
+
+/** 自定义占位事件（v2 多方案）：用户手工标注的不可用时段（如「有事」）。 */
+export interface PkCustomEvent {
+  id: string
+  label: string
+  /** 星期 1-7 */
+  day: number
+  /** 节次集合（1-12） */
+  sections: number[]
+  /** 周次集合 */
+  weeks: number[]
+}
+
+/** 排课方案（v2）：每套方案独立持有已选/备选课程与自定义占位。 */
+export interface PkPlan {
+  id: string
+  name: string
+  createdAt: number
+  stagedCourses: PkStagedCourse[]
+  /** 已选班级课号（含班号） */
+  selectedCourses: string[]
+  customEvents: PkCustomEvent[]
+}
+
+/** 周次视图状态（持久化）：week 为 null 表示「全部周次」堆叠视图。 */
+export interface PkWeekView {
+  week: number | null
+  /** 「当前周次」开关（需学期起始日期；无日期时 UI 禁用） */
+  useCurrent: boolean
 }
 
 /** P3 /api/pk/grades：某学期可选年级（上游 gradeList 为纯数字数组）。 */
@@ -183,12 +224,18 @@ export type PkCourseInfoSyncResult = Record<string, PkCourseDetail[]>
 export interface PkCourseReviewBriefInput {
   courseCode: string
   teacherName: string
+  /** 可选：限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
+  calendarId?: number
 }
 
 /** P13 /api/pk/course-review-brief 响应（复用课评 API 语义）。 */
 export interface PkCourseReviewBrief {
+  /** Hub 课程目录主键（/courses/:courseId 详情页跳转用）；未匹配课评目录时为 0。 */
+  courseId?: number
   ratingAvg?: number | null
   reviewCount: number
+  /** 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。 */
+  classes?: PkReviewBriefClass[]
   reviews?: Array<{
     id: number
     rating?: number
@@ -196,4 +243,15 @@ export interface PkCourseReviewBrief {
     helpfulCount?: number
     authorName?: string
   }>
+}
+
+/** P13 教学班级课评摘要项：按 Hub offering（class_code 匹配）聚合。 */
+export interface PkReviewBriefClass {
+  /** 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
+  classCode: string
+  /** Hub 开课实例主键，供 /courses/:courseId?offeringId=:offeringId 聚焦该班评价。 */
+  offeringId: number
+  teachers: string[]
+  ratingAvg?: number | null
+  reviewCount: number
 }

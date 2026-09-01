@@ -1,8 +1,9 @@
 package job
 
 import (
-	"errors"
+	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
@@ -25,10 +26,36 @@ import (
 var scheduler = cron.New(
 	cron.WithLogger(cron.VerbosePrintfLogger(logging.CronLogging{})),
 )
-var running = false
+var (
+	runMu      sync.Mutex
+	running    bool
+	registered bool
+)
 
 func Run() {
-	closer.RegisterPriority(closer.PriorityProducer, Stop)
+	if !preferences.GetBool("cron.enabled", true) {
+		slog.Info("cron disabled", "compensation", "durable workers and explicit operator jobs remain available")
+		return
+	}
+
+	runMu.Lock()
+	defer runMu.Unlock()
+	if running {
+		slog.Debug("cron already running")
+		return
+	}
+	if !registered {
+		closer.RegisterPriorityContext(closer.PriorityProducer, func(ctx context.Context) error {
+			return Stop(ctx)
+		})
+		registerJobs()
+		registered = true
+	}
+	running = true
+	scheduler.Start()
+}
+
+func registerJobs() {
 	slog.Info("start cron")
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
 	entryID, err := scheduler.AddFunc(backupSpec, upCmd(func() {
@@ -107,22 +134,29 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
-	running = true
-	scheduler.Start()
 }
 
-func Stop() error {
+func Stop(parentContexts ...context.Context) error {
+	shutdownCtx := context.Background()
+	if len(parentContexts) > 0 && parentContexts[0] != nil {
+		shutdownCtx = parentContexts[0]
+	}
+
+	runMu.Lock()
 	if !running {
+		runMu.Unlock()
 		return nil
 	}
-	ctx := scheduler.Stop()
+	running = false
+	stopCtx := scheduler.Stop()
+	runMu.Unlock()
+
 	select {
-	case <-ctx.Done():
-		running = false
+	case <-stopCtx.Done():
 		return nil
-	case <-time.After(10 * time.Second):
-		slog.Error("timed out waiting for job to stop")
-		return errors.New("timed out waiting for job to stop")
+	case <-shutdownCtx.Done():
+		slog.Error("timed out waiting for job to stop", "err", shutdownCtx.Err())
+		return shutdownCtx.Err()
 	}
 }
 

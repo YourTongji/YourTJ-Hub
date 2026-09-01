@@ -22,13 +22,24 @@ func GetCourseByIdTx(tx *gorm.DB, id uint64) (entity Entity) {
 }
 
 // GetCourseByPrimaryCode 按主课号精确查找（含 soft-delete 过滤）。
+// 复合身份模型下同 code 多教师会产生多行；无教师参数时返回 id 最小的一行。
 func GetCourseByPrimaryCode(code string) (entity Entity, err error) {
 	return GetCourseByPrimaryCodeTx(courseBuilder(), code)
 }
 
 // GetCourseByPrimaryCodeTx 事务内按主课号精确查找，能看到同一事务内未提交的写入。
 func GetCourseByPrimaryCodeTx(tx *gorm.DB, code string) (entity Entity, err error) {
-	err = tx.Where(queryopt.Eq("primary_code", code)).First(&entity).Error
+	err = tx.Where(queryopt.Eq("primary_code", code)).Order("id ASC").First(&entity).Error
+	return
+}
+
+// GetCourseByCodeTeacherTx 事务内按 (primary_code, teacher_id) 复合身份查找。
+// teacherId 为 0 时匹配无教师行（teacher_id = 0）。
+func GetCourseByCodeTeacherTx(tx *gorm.DB, code string, teacherId uint64) (entity Entity, err error) {
+	err = tx.
+		Where(queryopt.Eq("primary_code", code)).
+		Where(queryopt.Eq("teacher_id", teacherId)).
+		First(&entity).Error
 	return
 }
 
@@ -47,13 +58,13 @@ func ListCoursesByPrimaryCodes(codes []string) (entities []Entity, err error) {
 
 // ListCourseQuery 课程目录筛选条件。
 type ListCourseQuery struct {
-	Keyword    string // 名称/课号/别名/教师（归一化前缀或包含）
-	Department string // 院系精确
-	TermCode   string // 学期（通过 offering 关联）
-	Campus     string // 校区（通过 offering 关联）
-	Instructor string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母）
-	HasReview  bool   // 仅看有评价（course_review_stats.review_count > 0）
-	SortBy     string // 排序：rating 按评分降序（零评分排末尾）；其它值/空串 id 倒序
+	Keyword    string   // 名称/课号/别名/教师（归一化前缀或包含）
+	Department []string // 院系精确（多值取并集，任一命中）
+	TermCode   []string // 学期（通过 offering 关联，多值取并集）
+	Campus     []string // 校区（通过 offering 关联，多值取并集）
+	Instructor []string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母，多值取并集）
+	HasReview  bool     // 仅看有评价（course_review_stats.review_count > 0）
+	SortBy     string   // 排序：rating 按评分降序（零评分排末尾）；其它值/空串见 ListCourses 排序分支
 	Page       int
 	Size       int
 	// IncludeHidden 为 true 时不过滤 status（管理端查看隐藏课程）；false 仅返回可见课程。
@@ -61,14 +72,16 @@ type ListCourseQuery struct {
 }
 
 // ListCourses 返回课程列表（canonical course 一页），并返回总条数。
-// 排序固定为 id 倒序（新课程优先），保证分页稳定。
+// 前台默认排序：有可见评价的课程优先（仅排序不筛选，无评论课程仍排在后面），
+// 组内保持 id 倒序；管理端（IncludeHidden=true）保持 id 倒序。两组排序键均为全序，
+// 分页稳定（OFFSET 分页不因排序键重复产生抖动）。
 func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) {
 	b := courseBuilder().Where("course.deleted_at IS NULL")
 	if !q.IncludeHidden {
 		b = b.Where(queryopt.Eq("status", StatusVisible))
 	}
-	if q.Department != "" {
-		b = b.Where(queryopt.Eq("department", q.Department))
+	if len(q.Department) > 0 {
+		b = b.Where(queryopt.In("department", q.Department))
 	}
 	if q.Keyword != "" {
 		kw := "%" + q.Keyword + "%"
@@ -85,26 +98,34 @@ OR EXISTS (
 			kw, kw, kw, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, kw,
 		)
 	}
-	if q.Instructor != "" {
-		ins := "%" + escapeLike(q.Instructor) + "%"
+	if len(q.Instructor) > 0 {
+		var conds []string
+		var args []any
+		for _, insName := range q.Instructor {
+			ins := "%" + escapeLike(insName) + "%"
+			conds = append(conds, `(course_instructor.name LIKE ? ESCAPE '!' OR course_instructor.normalized_name LIKE ? ESCAPE '!' OR course_instructor.name_pinyin LIKE ? ESCAPE '!' OR course_instructor.name_initials LIKE ? ESCAPE '!')`)
+			args = append(args, ins, ins, ins, ins)
+		}
+		condSQL := "(" + strings.Join(conds, " OR ") + ")"
+		baseArgs := append([]any{OfferingStatusVisible}, args...)
 		b = b.Where(`EXISTS (
 	SELECT 1 FROM course_offering
 	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
 	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
 	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
-	  AND (course_instructor.name LIKE ? ESCAPE '!' OR course_instructor.normalized_name LIKE ? ESCAPE '!' OR course_instructor.name_pinyin LIKE ? ESCAPE '!' OR course_instructor.name_initials LIKE ? ESCAPE '!')
-)`, OfferingStatusVisible, ins, ins, ins, ins)
+	  AND `+condSQL+`
+)`, baseArgs...)
 	}
 	if q.HasReview {
 		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0 AND course_review_stats.deleted_at IS NULL)`)
 	}
-	if q.TermCode != "" || q.Campus != "" {
+	if len(q.TermCode) > 0 || len(q.Campus) > 0 {
 		ob := offeringBuilder()
-		if q.TermCode != "" {
-			ob = ob.Where("term_id IN (SELECT id FROM course_term WHERE code = ?)", q.TermCode)
+		if len(q.TermCode) > 0 {
+			ob = ob.Where("term_id IN (SELECT id FROM course_term WHERE code IN (?))", q.TermCode)
 		}
-		if q.Campus != "" {
-			ob = ob.Where(queryopt.Eq("campus", q.Campus))
+		if len(q.Campus) > 0 {
+			ob = ob.Where(queryopt.In("campus", q.Campus))
 		}
 		sub := ob.Select("course_id")
 		b = b.Where("id IN (?)", sub)
@@ -121,13 +142,21 @@ OR EXISTS (
 	if q.Page <= 0 {
 		q.Page = 1
 	}
-	// 排序：仅 SortBy=rating 时按评分降序（LEFT JOIN course_review_stats，
-	// 其 course_id 主键唯一故不放大行数）；否则保持 id 倒序保证分页稳定。
-	// COUNT 已在上方按同一套 WHERE 过滤完成，JOIN 只影响排序不影响计数。
-	if q.SortBy == "rating" {
+	// 排序（与 COUNT 无关，已在上方按同一套 WHERE 过滤完成；LEFT JOIN course_review_stats
+	// 的 course_id 主键唯一，不放大行数）：
+	//   - SortBy=rating：按平均分降序，零/无评分课程垫底（组内 id 倒序）；
+	//   - 前台默认：有可见评价（review_count > 0）的课程优先——仅排序不筛选，无评论课程
+	//     仍留在后面；组内保持 id 倒序；
+	//   - 管理端（IncludeHidden=true）：保持 id 倒序（管理侧按导入/ID 检索，不受评价影响）。
+	// 三种排序的排序键 (标志位/score, id) 均为全序，OFFSET 分页稳定。
+	switch {
+	case q.SortBy == "rating":
 		b = b.Joins("LEFT JOIN course_review_stats s ON s.course_id = course.id AND s.deleted_at IS NULL").
 			Order("CASE WHEN s.rating_count > 0 THEN 0 ELSE 1 END ASC, COALESCE(s.rating_sum * 1.0 / NULLIF(s.rating_count, 0), 0) DESC, course.id DESC")
-	} else {
+	case !q.IncludeHidden:
+		b = b.Joins("LEFT JOIN course_review_stats sr ON sr.course_id = course.id AND sr.deleted_at IS NULL").
+			Order("CASE WHEN sr.review_count > 0 THEN 0 ELSE 1 END ASC, course.id DESC")
+	default:
 		b = b.Order("id DESC")
 	}
 	err = b.Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error
@@ -251,18 +280,41 @@ func ListTermsByIDs(ids []uint64) (entities []TermEntity, err error) {
 	return
 }
 
+// termDistinctColumns ListDistinctTerms 的投影与分组列。去重必须显式投影：SELECT *
+// 会把 JOIN 表的列一并带入，而 PostgreSQL 要求 ORDER BY 表达式出现在投影中，且
+// ORDER BY 为计算表达式时不允许 SELECT DISTINCT *（SQLite 宽松允许，因此该缺陷
+// 只在 PostgreSQL 下暴露——生产用 PostgreSQL，本地与 CI 用 SQLite 时测不出来）。
+const termDistinctColumns = "course_term.id, course_term.code, course_term.name, course_term.starts_on, course_term.ends_on, course_term.status, course_term.created_at, course_term.updated_at, course_term.deleted_at"
+
+// termOrdering 学期排序表达式：标准学期码（数字开头）优先，组内按 starts_on 倒序
+// （导入流程未写入 starts_on，生产全为 NULL，实际回退 code 字典序）；「其他」这类
+// 上游同步无法解析的学期码排末尾。
+// 目录页学期列表与开课实例查询必须共用同一表达式，否则同一门课在目录筛选与详情页
+// 看到的学期先后不一致（ListDistinctTerms 的注释即承诺两者排序一致）。
+// substr / BETWEEN 在 SQLite 与 PostgreSQL 下语义一致。
+const termOrdering = "CASE WHEN substr(course_term.code, 1, 1) BETWEEN '0' AND '9' THEN 0 ELSE 1 END, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC"
+
 // ListDistinctTerms 返回所有可见课程关联开课实例的去重学期列表，供目录页学期筛选下拉。
 // 与 ListCourses 的 term 筛选（term_id 命中 course_term.code）同源：限定可见课程的可见 offering
-// 及其 term_id，非空 code，按 starts_on 倒序（未设置时回退 code 字典序），与详情页开课列表的学期排序一致。
+// 及其 term_id，非空 code；按 starts_on 倒序（未设置时回退 code 字典序），与详情页开课列表的学期排序一致。
 func ListDistinctTerms() ([]TermEntity, error) {
+	return ListDistinctTermsTx(termBuilder())
+}
+
+// ListDistinctTermsTx 与 ListDistinctTerms 同一条查询链，但接受指定连接/事务，
+// 供 PostgreSQL 回归测试复用真实代码路径：本查询曾因 SELECT DISTINCT + 表达式排序
+// 只在 PostgreSQL 下报错（SQLite 宽松通过，本地与 CI 的 SQLite 用例全绿），必须能
+// 在真实 PostgreSQL 上回归，因此把它写成可注入连接的形态。
+func ListDistinctTermsTx(tx *gorm.DB) ([]TermEntity, error) {
 	var terms []TermEntity
-	err := termBuilder().
+	err := tx.
+		Select(termDistinctColumns).
 		Joins("JOIN course_offering ON course_offering.term_id = course_term.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?", OfferingStatusVisible).
 		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
 		Where(queryopt.IsNull("course_term.deleted_at")).
 		Where(queryopt.Ne("course_term.code", "")).
-		Distinct().
-		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC").
+		Group(termDistinctColumns).
+		Order(termOrdering).
 		Find(&terms).Error
 	return terms, err
 }
@@ -281,7 +333,7 @@ func ListOfferingsByCourse(courseId uint64) (entities []OfferingEntity, err erro
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.Eq("course_offering.course_id", courseId)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
-		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+		Order(termOrdering + ", course_offering.id ASC").
 		Find(&entities).Error
 	return
 }
@@ -305,7 +357,44 @@ func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err 
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.In("course_offering.course_id", courseIds)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
-		Order("course_offering.course_id ASC, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+		Order("course_offering.course_id ASC, " + termOrdering + ", course_offering.id ASC").
+		Find(&entities).Error
+	return
+}
+
+// ListVisibleOfferingsByClassCodes 按班号批量查可见开课实例（P13 教学班级课评摘要用）。
+// class_code 与 PK 教学班 code 对齐（如 11000101）；PK 侧可能带点（110001.01），
+// 入参按去点归一化后匹配（与前端 normalizeClassCode 语义一致）；旧数据包导入的
+// 班号可能为空，跳过。termId > 0 时只返回该学期（跨学期班号复用时 offering 不串学期）。
+// 与其它公开 offering 查询一致 JOIN course 并过滤 course.status=Visible：
+// 课程被 CourseManager 隐藏时其 offering 不得出现在公开响应。
+func ListVisibleOfferingsByClassCodes(classCodes []string, termId uint64) (entities []OfferingEntity, err error) {
+	unique := make([]string, 0, len(classCodes))
+	seen := make(map[string]struct{}, len(classCodes))
+	for _, code := range classCodes {
+		code = strings.ReplaceAll(strings.TrimSpace(code), ".", "")
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		unique = append(unique, code)
+	}
+	if len(unique) == 0 {
+		return []OfferingEntity{}, nil
+	}
+	b := offeringBuilder().
+		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
+		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
+		Where(queryopt.In("course_offering.class_code", unique)).
+		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
+		Where(queryopt.IsNull("course_offering.deleted_at"))
+	if termId > 0 {
+		b = b.Where(queryopt.Eq("course_offering.term_id", termId))
+	}
+	err = b.Order("course_offering.class_code ASC, " + termOrdering + ", course_offering.id ASC").
 		Find(&entities).Error
 	return
 }
@@ -336,6 +425,15 @@ func ListInstructorsByOfferings(offeringIds []uint64) (entities []InstructorEnti
 		Where(queryopt.In("course_offering_instructor.offering_id", offeringIds)).
 		Order("course_offering_instructor.offering_id ASC, course_instructor.id ASC").
 		Find(&entities).Error
+	return
+}
+
+// ListInstructorsByIDs 批量按 ID 返回教师（课程卡 teacher_id → 姓名解析用）。
+func ListInstructorsByIDs(ids []uint64) (entities []InstructorEntity, err error) {
+	if len(ids) == 0 {
+		return []InstructorEntity{}, nil
+	}
+	err = instructorBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error
 	return
 }
 

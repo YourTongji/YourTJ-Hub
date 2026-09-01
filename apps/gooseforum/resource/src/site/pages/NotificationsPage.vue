@@ -213,8 +213,12 @@ function notificationTemplateText(item: NotificationPayload) {
       return t('notifications.templates.topicPost')
     case 'notifications.templates.follow':
       return t('notifications.templates.follow')
-    case 'notifications.templates.badge':
-      return t('notifications.templates.badge', { badge: item.payload.templateParams?.badgeName || item.payload.metadata?.badgeName || '' })
+    case 'notifications.templates.badge': {
+      // 兼容旧数据：模板参数中的 badgeName 已随收敛移除（简化落地中候选1），
+      // 历史通知可能仍带该字段，运行时继续读取；新数据统一走 metadata。
+      const legacyParams = item.payload.templateParams as { badgeName?: string } | undefined
+      return t('notifications.templates.badge', { badge: legacyParams?.badgeName || item.payload.metadata?.badgeName || '' })
+    }
     case 'notifications.templates.wikiUpdated':
       return t('notifications.templates.wikiUpdated')
     default:

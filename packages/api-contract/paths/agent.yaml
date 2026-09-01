@@ -23,7 +23,7 @@ agentMe:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/agent-unauthorized.json
+                externalValue: ../fixtures/auth-required.json
 
 agentTopicList:
   get:
@@ -74,7 +74,7 @@ agentTopicList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/agent-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing or invalid agent bearer credential.
         content:
@@ -83,7 +83,7 @@ agentTopicList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/agent-unauthorized.json
+                externalValue: ../fixtures/auth-required.json
 
 agentWriteTopic:
   post:
@@ -119,7 +119,7 @@ agentWriteTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/agent-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing or invalid agent bearer credential.
         content:
@@ -128,7 +128,7 @@ agentWriteTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/agent-unauthorized.json
+                externalValue: ../fixtures/auth-required.json
       '429':
         description: Topic-writing rate limit exceeded (IP and bot userId share the human topic.write rule).
         headers:
@@ -143,7 +143,7 @@ agentWriteTopic:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/agent-topic-write-rate-limited.json
+                externalValue: ../fixtures/topic-write-rate-limited.json
 
 agentPostList:
   get:
@@ -204,7 +204,7 @@ agentPostList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/agent-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing or invalid agent bearer credential.
         content:
@@ -213,7 +213,7 @@ agentPostList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/agent-unauthorized.json
+                externalValue: ../fixtures/auth-required.json
 
 agentCreatePost:
   post:
@@ -248,7 +248,7 @@ agentCreatePost:
                 externalValue: ../fixtures/agent-post-create-success.json
               unknownTopic:
                 summary: Unknown topics keep the business 200 failure envelope.
-                externalValue: ../fixtures/agent-post-create-unknown-topic.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '400':
         description: Malformed JSON body or non-numeric path topicId.
         content:
@@ -257,7 +257,7 @@ agentCreatePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/agent-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing or invalid agent bearer credential.
         content:
@@ -266,7 +266,7 @@ agentCreatePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/agent-unauthorized.json
+                externalValue: ../fixtures/auth-required.json
       '429':
         description: Post-create rate limit exceeded (IP and bot userId share the human post.create rule).
         headers:
@@ -324,7 +324,7 @@ agentSearch:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/agent-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing or invalid agent bearer credential.
         content:
@@ -333,4 +333,4 @@ agentSearch:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/agent-unauthorized.json
+                externalValue: ../fixtures/auth-required.json

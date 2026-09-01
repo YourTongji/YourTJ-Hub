@@ -100,6 +100,22 @@ func UnmarkReviewHelpful(req component.BetterRequest[ReviewHelpfulReq]) componen
 	return component.SuccessResponse(true)
 }
 
+// MarkReviewDislike 幂等标记 dislike（与 helpful 同构）。
+func MarkReviewDislike(req component.BetterRequest[ReviewHelpfulReq]) component.Response {
+	if err := courseservice.SetReviewDislike(req.UserId, req.Params.ReviewId, true); err != nil {
+		return reviewErrorResponse(err)
+	}
+	return component.SuccessResponse(true)
+}
+
+// UnmarkReviewDislike 幂等取消 dislike。
+func UnmarkReviewDislike(req component.BetterRequest[ReviewHelpfulReq]) component.Response {
+	if err := courseservice.SetReviewDislike(req.UserId, req.Params.ReviewId, false); err != nil {
+		return reviewErrorResponse(err)
+	}
+	return component.SuccessResponse(true)
+}
+
 // ReportCourseReviewReq 举报评价请求体（URI reviewId + reason/note）。
 type ReportCourseReviewReq struct {
 	ReviewId uint64 `json:"-" uri:"reviewId" validate:"required"`

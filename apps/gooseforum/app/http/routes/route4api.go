@@ -31,11 +31,10 @@ func assertRouter(ginApp *gin.Engine) {
 	staticFS, _ := resource.GetStaticFS()
 	staticRoute := ginApp.Group("/")
 	if gzipEnabled() {
-		staticRoute.Use(middleware.CacheMiddleware)
 		staticRoute.Use(gzip.Gzip(gzip.DefaultCompression))
-		slog.Info("static assets gzip enabled", "cache", true)
+		slog.Info("static assets gzip enabled")
 	} else {
-		slog.Info("static assets gzip disabled", "cache", false)
+		slog.Info("static assets gzip disabled")
 	}
 	// dev 模式：/assets/* 反向代理到 Vite 开发服务器（同源相对路径，本机与局域网均可访问）
 	if devServer := viteDevServerURL(); devServer != "" {
@@ -225,6 +224,8 @@ func apiRoute(ginApp *gin.Engine) {
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
 	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
 	wikiApi.GET("home", UpButterReq(api.WikiHome))
+	// wiki 站内局内搜索（前端搜索面板；段落级 Meilisearch 索引，公开只读）。
+	wikiApi.GET("search", UpQueryReq(forum.WikiSearchJSON))
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
 	// 公开端点加限流（review MEDIUM）：防未认证调用方以超大 body 刷 HMAC
 	// 计算（CPU DoS）与重放触发全量同步。
@@ -232,7 +233,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。
-	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
+	// check 预检（?check=true）走独立 course.summary.check 配额，不消耗生成配额
+	// （review P2：浏览 N 门课程页的挂载预检不得耗尽 per-User 生成配额）。
+	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimitCourseSummaryAware(), UpUriQueryReq(forum.GetCourseSummary))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 	// 帖子版本历史：公开只读（话题可见即可读），可选 JWT 仅用于 viewer 状态，
 	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。
@@ -270,7 +273,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.DELETE("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriReq(forum.DeleteCourseReview))
 	forumLoginApi.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
 	forumLoginApi.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
+	forumLoginApi.PUT("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.MarkReviewDislike))
+	forumLoginApi.DELETE("course-reviews/:reviewId/dislike", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewDislike), UpUriReq(forum.UnmarkReviewDislike))
 	forumLoginApi.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
+	// 课程收藏：登录 + 可写账号 + 独立限流（对齐 topics/bookmark 的 action 1/2 幂等）。
+	forumLoginApi.POST("courses/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitCourseBookmark), UpButterReq(forum.BookmarkCourse))
 	// 课评审核：独立 CourseManager 权限；身份揭示仅 Admin（控制器内二次校验）。
 	// 审核操作挂 course.review.moderate 限流（60s per-IP 60 / per-User 30，issue #176 B4）。
 	// 权限校验前置到 RateLimit 之前：未授权请求直接 403，不消耗共享 per-IP 配额
@@ -365,7 +372,9 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("wiki/sync", UpButterReq(api.WikiSyncRun)).
 		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns)).
 		GET("wiki/sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret)).
-		POST("wiki/sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
+		POST("wiki/sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret)).
+		GET("wiki/sync/cdn", UpButterReq(api.GetWikiAssetCDN)).
+		POST("wiki/sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).
@@ -395,10 +404,16 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("schedule-settings", UpButterReq(api.GetScheduleSettings)).
+		POST("save-schedule-settings", UpButterReq(api.SaveScheduleSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
 		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
+		// 排课数据同步（issue #248 自愈入口）：触发同步 + 查询各学期状态。
+		POST("pk/sync-calendar", UpButterReq(api.SyncPkCalendar)).
+		GET("pk/sync-status", UpButterReq(api.PkSyncStatus)).
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
+		POST("ai-summary-models", UpButterReq(api.ListAiSummaryModels)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
@@ -411,6 +426,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("data/export/tasks", UpButterReq(api.ListExportTasks)).
 		GET("data/export/download/:taskId", api.DownloadExportTask).
 		POST("data/import", api.ImportData).
+		GET("data/import/tasks", UpButterReq(api.ListImportTasks)).
+		POST("data/import/tasks/:taskId/replay", UpUriReq(api.ReplayImportTask)).
 		POST("review-queue", UpButterReq(api.ReviewQueue)).
 		POST("review-action", UpButterReq(api.ReviewAction))
 

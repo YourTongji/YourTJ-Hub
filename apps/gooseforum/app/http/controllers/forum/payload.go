@@ -210,16 +210,17 @@ type SidebarPayload struct {
 type WikiTreeNamespacePayload struct {
 	Name  string                `json:"name"`
 	Label string                `json:"label"`
-	Slug  string                `json:"slug"`
-	Pages []WikiTreePagePayload `json:"pages"`
+	Nodes []WikiTreeNodePayload `json:"nodes"`
 }
 
-// WikiTreePagePayload wiki 导航树的一页。
-type WikiTreePagePayload struct {
-	PageId uint64 `json:"pageId"`
-	Path   string `json:"path"`
-	Title  string `json:"title"`
-	Active bool   `json:"active"`
+// WikiTreeNodePayload wiki 导航树的递归节点。
+type WikiTreeNodePayload struct {
+	Kind     string                `json:"kind"`
+	PageId   uint64                `json:"pageId"`
+	Path     string                `json:"path"`
+	Title    string                `json:"title"`
+	Active   bool                  `json:"active"`
+	Children []WikiTreeNodePayload `json:"children"`
 }
 
 type FooterPayload struct {
@@ -615,7 +616,8 @@ type SearchPageProps struct {
 	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
 }
 
-// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）
+// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）。
+// TeacherId/TeacherName 为 (code, teacher) 复合身份下的卡片身份教师（无教师时省略）。
 type CourseSearchPayload struct {
 	ID          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
@@ -623,6 +625,8 @@ type CourseSearchPayload struct {
 	Department  string   `json:"department"`
 	CreditX10   int      `json:"creditX10"`
 	Aliases     []string `json:"aliases"`
+	TeacherId   uint64   `json:"teacherId,omitempty"`
+	TeacherName string   `json:"teacherName,omitempty"`
 	Instructors []string `json:"instructors"`
 	Terms       []string `json:"terms"`
 	Campus      []string `json:"campus"`
@@ -2441,13 +2445,17 @@ func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 	notifications, nextCursor, hasNext, _ := notificationservice.GetNotificationCursorList(userID, notificationservice.DefaultNotificationPageSize, 0, false)
 	unreadCount, _ := eventNotification.GetUnreadCount(userID)
 	items := BuildNotificationPayloads(notifications)
+	nextPage := 0
+	if hasNext {
+		nextPage = 2
+	}
 	return NotificationsPageProps{
 		Total:         int64(len(items)),
 		UnreadCount:   unreadCount,
 		Notifications: items,
 		Pagination: PaginationPayload{
 			Page:     1,
-			NextPage: lo.Ternary(hasNext, 2, 0),
+			NextPage: nextPage,
 			HasNext:  hasNext,
 			NextURL:  fmt.Sprintf("/api/forum/notifications?filter=all&cursor=%d&limit=%d", nextCursor, notificationservice.DefaultNotificationPageSize),
 		},
@@ -2743,6 +2751,8 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 			Department:  item.Department,
 			CreditX10:   item.CreditX10,
 			Aliases:     item.Aliases,
+			TeacherId:   item.TeacherId,
+			TeacherName: item.TeacherName,
 			Instructors: item.Instructors,
 			Terms:       item.Terms,
 			Campus:      item.Campus,

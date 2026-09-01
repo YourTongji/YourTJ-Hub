@@ -30,6 +30,7 @@ jobs:
   ci-backend:
     runs-on: ubuntu-latest
     outputs:
+      backend: ${{ steps.filter.outputs.backend }}
       backend_pg: ${{ steps.filter.outputs.backend_pg }}
     steps:
       - uses: actions/checkout@v5
@@ -92,6 +93,22 @@ jobs:
           done
           bash deploy/scripts/pgdsn_test.sh
 
+  # wiki 同步锁并发测试（#285 回归）必须通过竞态检测。PR #297 描述引用过
+  # "ci-backend-race"，但此前该 job 不存在；此处落地为真实 job，与
+  # ci-backend-pg 相同的 paths-filter 门控模式（backend 变更时运行）。
+  ci-backend-race:
+    needs: ci-backend
+    if: needs.ci-backend.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Test (race detector, wiki sync concurrency)
+        working-directory: apps/gooseforum
+        run: go test -race ./app/service/wikiservice/
+
   # 全部主库模型必须在 PostgreSQL 上可迁移。回归背景: issue #8 曾因模型里
   # 硬编码 MySQL 类型(bigint unsigned/datetime/tinyint)导致 PG 建表失败、
   # 服务带残缺 schema 启动, 登录/注册运行期才报错。此 job 用真实 PG 验证。
@@ -118,10 +135,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - name: Test (PostgreSQL migration + stats concurrency)
+      - name: Test (PostgreSQL migration + course PG-gated)
         working-directory: apps/gooseforum
         env:
           YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
+        # PostgreSQL$ 覆盖 course 包内所有 PG 门控用例（stats 并发、学期列表）。
+        # 刻意不逐个显式列举：本 PR 修的正是 pg-only 缺陷（SQLite 宽松通过，只有
+        # PostgreSQL 报错），一旦列举就会漏接线，回归护栏形同虚设。同名模式的新
+        # 用例会自动纳入。
         run: |
           go test ./app/migration/ -run 'TestSchema' -v
-          go test ./app/models/forum/course/ -run 'TestUpsertCourseStatsConcurrentPostgreSQL' -v
+          go test ./app/models/forum/course/ -run 'PostgreSQL$' -v

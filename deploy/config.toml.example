@@ -29,6 +29,10 @@ backupDir = "./storage/databasebackup/"
 keep = 7
 spec = "0 3 * * *"
 
+[cron]
+# 应用内定时任务开关；关闭后持久化 worker 与手动 CLI 仍可用。
+enabled = true
+
 [db.default]
 # 主库连接类型: postgres（部署默认）/ sqlite（本地开发；文件库 [db.file] 固定 sqlite）
 connection = "postgres"
@@ -88,6 +92,17 @@ slowSQLThreshold = "200ms"
 [github]
 client_id = ""
 client_secret = ""
+
+# 排课器学期起止日期（可选）：一系统同步数据不含学期日期，排课器「当前周次」
+# 定位与学期日期条展示依赖此配置。键 = 学期标记（pk_calendar.calendar_id_i18n），
+# 值 = start/end 纯日期；course-pk-sync 同步时写入 pk_calendar。未配置的学期
+# start_date/end_date 为 NULL，排课器周次仍可手动选择。
+[pk.semester_dates."2025-2026-1"]
+start = "2025-09-08"
+end = "2026-01-18"
+# [pk.semester_dates."2025-2026-2"]
+# start = "2026-03-02"
+# end = "2026-07-11"
 
 [oidc]
 enabled = false

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-28
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and
@@ -53,6 +53,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [Vision & principles](product/vision-and-principles.md)
 - [Current state & gaps](product/current-state.md)
+- [Wiki authoring](product/wiki-authoring.md)
 - [Identity, login & account lifecycle](product/identity-and-access.md)
 - [Points & cross-platform settlement](product/credit-and-escrow.md)
 

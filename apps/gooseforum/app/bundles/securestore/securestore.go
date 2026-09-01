@@ -55,6 +55,22 @@ const OneSystemCookiePurpose = "yourtj-onesystem-cookie"
 // 与 TOTP/一系统隔离，避免不同用途密文复用同一派生密钥。
 const WikiWebhookSecretPurpose = "yourtj-wiki-webhook-secret"
 
+// MailSmtpPasswordPurpose 邮件 SMTP 密码的加密用途标签（issue #324 S2）。
+const MailSmtpPasswordPurpose = "yourtj-mail-smtp-password"
+
+// HttpNotifySecretPurpose HTTP 通知 webhook 验签密钥的加密用途标签（issue #324 S1）。
+const HttpNotifySecretPurpose = "yourtj-http-notify-secret"
+
+// StorageAccessKeyPurpose 对象存储 accessKey 的加密用途标签（issue #324 S3）。
+const StorageAccessKeyPurpose = "yourtj-storage-access-key"
+
+// StorageSecretKeyPurpose 对象存储 secretKey 的加密用途标签（issue #324 S3）。
+const StorageSecretKeyPurpose = "yourtj-storage-secret-key"
+
+// AiSummaryAPIKeyPurpose 课评 AI 总结 apiKey 的加密用途标签（管理后台可配置，
+// 密文落库、GET 仅回显是否已配置，遵循 issue #324 安全修复模式）。
+const AiSummaryAPIKeyPurpose = "yourtj-ai-summary-api-key"
+
 // EncryptPurpose encrypts plaintext with a purpose-scoped key derived as
 // HMAC-SHA256(baseKey, purpose), so different callers never share a cipher key.
 func EncryptPurpose(plaintext, purpose string) (string, error) {

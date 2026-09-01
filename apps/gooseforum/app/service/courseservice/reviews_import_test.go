@@ -433,3 +433,66 @@ func TestImportReviewsDuplicateIDQuarantined(t *testing.T) {
 		t.Fatalf("first row must win, got %q", review.Content)
 	}
 }
+
+// TestImportReviewsInvalidatesAiSummaryInsufficient 导入补充评价后失效课程 AI 总结
+// 缓存（含 insufficient 标记）：曾被判"评价不足"的课程在导入后必须可重新评估，
+// 否则永久返回 insufficient_data（review P2）。
+func TestImportReviewsInvalidatesAiSummaryInsufficient(t *testing.T) {
+	courseId, _ := setupReviewsImportTest(t)
+	conn := dbconnect.Connect()
+	// 预置 insufficient 标记（模拟历史上评价不足已评估）。
+	if err := conn.Create(&course.CourseAiSummaryEntity{
+		CourseId:      courseId,
+		PromptVersion: "v1",
+		GeneratedAt:   time.Now(),
+		Status:        course.AiSummaryRowStatusInsufficient,
+	}).Error; err != nil {
+		t.Fatalf("seed insufficient marker: %v", err)
+	}
+	// 导入一条评价（内容变化 → 触发失效）。
+	manifestPath := writeReviewsManifestFixture(t,
+		`{"offering_external_id":"o1","rating":4,"content":"导入补充评价","created_at":"2023-01-01T00:00:00Z"}`+"\n",
+		"approval-1")
+	if _, err := ImportReviews(context.Background(), manifestPath, false); err != nil {
+		t.Fatalf("import reviews: %v", err)
+	}
+	// insufficient 标记必须已被删除（课程可重新评估）。
+	if cached := course.GetCourseAiSummary(courseId); cached.CourseId != 0 {
+		t.Fatalf("ai summary row must be invalidated after import, got status=%q", cached.Status)
+	}
+}
+
+// TestImportReviewsSkipDoesNotInvalidate 内容未变化（checksum 相同）的行跳过时不
+// 失效 AI 总结缓存：重复导入同一 manifest 幂等，不产生无谓失效。
+func TestImportReviewsSkipDoesNotInvalidate(t *testing.T) {
+	courseId, _ := setupReviewsImportTest(t)
+	conn := dbconnect.Connect()
+	content := `{"offering_external_id":"o1","rating":4,"content":"同一内容","created_at":"2023-01-01T00:00:00Z"}` + "\n"
+	manifestPath := writeReviewsManifestFixture(t, content, "approval-1")
+	if _, err := ImportReviews(context.Background(), manifestPath, false); err != nil {
+		t.Fatalf("first import: %v", err)
+	}
+	// 生成一条有效总结缓存。
+	if err := conn.Create(&course.CourseAiSummaryEntity{
+		CourseId:      courseId,
+		SummaryJson:   `{"consensus":"recommend","keywords":[],"pros":[],"cons":[],"representativeReviews":[]}`,
+		Model:         "fake-model",
+		PromptVersion: "v1",
+		GeneratedAt:   time.Now(),
+		Status:        course.AiSummaryRowStatusGenerated,
+	}).Error; err != nil {
+		t.Fatalf("seed generated summary: %v", err)
+	}
+	// 重复导入同一 manifest（全部行 checksum 相同 → Skipped）。
+	report, err := ImportReviews(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("second import: %v", err)
+	}
+	if report.Skipped == 0 {
+		t.Fatalf("expected skipped rows on idempotent reimport, got %+v", report)
+	}
+	// 缓存必须保留（未被无效失效）。
+	if cached := course.GetCourseAiSummary(courseId); cached.CourseId == 0 || cached.SummaryJson == "" {
+		t.Fatal("generated summary must survive idempotent reimport")
+	}
+}

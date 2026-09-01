@@ -1,28 +1,54 @@
 <script setup lang="ts">
-// 选课列表/备选池：展示 stagedCourses，提供「选择课程」「保存课表」与退课/清除操作。
-// 点击课程行会把该课设为 clickedCourseInfo，右侧/详情 tab 展示其班级。
+// 已选课程列表（v2 富卡片）：课名+班次数、冲突红标、课号、学院·学分、教师、
+// 排课摘要、退课按钮；顶部「搜索课程名/课号」纯前端过滤。
+// 点击课程行写入 clickedCourseInfo 并 emit('openDetail')，由父级弹出
+// 浮动「选择教学班」弹窗（左右栏高度不再受内联班级列影响）。
 import { computed, ref } from 'vue'
-import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
-import { BookOpen, Save } from '@lucide/vue'
+import { BookOpen, Save, Search } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { queueFlashMessage } from '@/runtime/flash-message'
+import { deriveConflicts } from '@/site/utils/pkConflict'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
 const { t } = useI18n()
 const store = useScheduleStore()
 
+/** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 const pendingDrop = ref<PkStagedCourse | null>(null)
+const keyword = ref('')
 
 const emit = defineEmits<{
   openPicker: []
+  openDetail: []
 }>()
 
-const { panelRef } = useDialogAccessibility(computed(() => pendingDrop.value !== null), {
-  onClose: () => {
-    pendingDrop.value = null
+const dropDialogOpen = computed({
+  get: () => pendingDrop.value !== null,
+  set: (open: boolean) => {
+    if (!open) pendingDrop.value = null
   },
+})
+
+// ---- 冲突派生（与课表/统计同判据）----
+const conflicts = computed(() => deriveConflicts(store.state.occupied))
+
+function courseConflicts(course: PkStagedCourse) {
+  return conflicts.value.get(course.courseCode) ?? []
+}
+
+// ---- 搜索过滤（课程名/课号，纯前端）----
+const filteredCourses = computed(() => {
+  const query = keyword.value.trim().toLowerCase()
+  if (!query) return store.state.commonLists.stagedCourses
+  return store.state.commonLists.stagedCourses.filter(
+    (course) =>
+      (course.courseNameReserved || course.courseName || '').toLowerCase().includes(query) ||
+      course.courseCode.toLowerCase().includes(query),
+  )
 })
 
 function statusLabel(course: PkStagedCourse): string {
@@ -42,6 +68,7 @@ function selectCourse(course: PkStagedCourse) {
     courseCode: course.courseCode,
     courseName: course.courseNameReserved,
   })
+  emit('openDetail')
 }
 
 function dropCourse(course: PkStagedCourse) {
@@ -51,6 +78,9 @@ function dropCourse(course: PkStagedCourse) {
 function confirmDrop() {
   if (!pendingDrop.value) return
   store.popStagedCourse(pendingDrop.value.courseCode)
+  // 退课必须立即持久化，否则刷新/重进页面时 loadSolidify 会用旧的
+  // localStorage 覆盖内存，刚退掉的课程会"复活"（表现为无法退课）。
+  store.solidify()
   pendingDrop.value = null
 }
 
@@ -68,11 +98,50 @@ function saveTimetable() {
 function arrangedClassCount(course: PkStagedCourse): number {
   return course.courseDetail.filter((d) => d.status === 2).length
 }
+
+/** 排课摘要：已排班级的「周次: 天(节)」串联。 */
+function arrangementSummary(course: PkStagedCourse): string {
+  const parts: string[] = []
+  for (const detail of course.courseDetail) {
+    if (detail.status !== 1 && detail.status !== 2) continue
+    for (const arr of detail.arrangementInfo) {
+      const span = arr.occupyTime.length === 1
+        ? `${arr.occupyTime[0]}`
+        : `${arr.occupyTime[0]}-${arr.occupyTime[arr.occupyTime.length - 1]}`
+      const weekday = WEEKDAY_KEYS[arr.occupyDay - 1]
+      const dayLabel = weekday ? t(`schedule.weekdays.${weekday}`) : String(arr.occupyDay)
+      parts.push(t('schedule.arrangementBrief', { day: dayLabel, sections: span, room: arr.occupyRoom || '' }))
+    }
+  }
+  return parts.slice(0, 3).join('；') + (parts.length > 3 ? '…' : '')
+}
+
+/** 教师名串联（优先 stagedCourse.teacher，空则取已排班级教师）。 */
+function teacherSummary(course: PkStagedCourse): string {
+  const named = course.teacher.map((item) => item.teacherName).filter(Boolean)
+  if (named.length > 0) return named.join('、')
+  for (const detail of course.courseDetail) {
+    if (detail.status !== 1 && detail.status !== 2) continue
+    const teachers = detail.teachers.map((item) => item.teacherName).filter(Boolean)
+    if (teachers.length > 0) return teachers.join('、')
+  }
+  return ''
+}
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="flex min-h-0 flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
+      <div class="relative min-w-0 flex-1">
+        <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-base-content/40" />
+        <input
+          v-model="keyword"
+          type="search"
+          class="gf-input gf-input-md w-full pl-8"
+          :placeholder="t('schedule.listSearchPlaceholder')"
+          :aria-label="t('schedule.listSearchPlaceholder')"
+        />
+      </div>
       <button type="button" class="gf-button gf-button-md gf-button-primary" @click="emit('openPicker')">
         {{ t('schedule.openPicker') }}
       </button>
@@ -84,58 +153,80 @@ function arrangedClassCount(course: PkStagedCourse): number {
 
     <EmptyState
       v-if="!store.state.commonLists.stagedCourses.length"
-      class="gf-panel"
+      class="gf-panel flex-1"
       :icon="BookOpen"
       :title="t('schedule.emptyStaged')"
     />
+    <EmptyState
+      v-else-if="!filteredCourses.length"
+      class="gf-panel flex-1"
+      :icon="Search"
+      :title="t('schedule.listSearchEmpty')"
+    />
 
-    <ul v-else class="gf-panel divide-y divide-line/60">
+    <ul v-else class="gf-panel gf-scrollbar-thin flex-1 divide-y divide-line/60 overflow-y-auto overscroll-contain">
       <li
-        v-for="course in store.state.commonLists.stagedCourses"
+        v-for="course in filteredCourses"
         :key="course.courseCode"
-        class="flex items-center gap-2 px-3 py-2"
+        class="px-3 py-2.5"
+        :class="courseConflicts(course).length > 0 ? 'bg-error/5' : ''"
       >
-        <button
-          type="button"
-          class="min-w-0 flex-1 text-left"
-          @click="selectCourse(course)"
-        >
-          <span class="block truncate text-[13px] font-medium text-base-content">
-            {{ course.courseNameReserved }}
-          </span>
-          <span class="block truncate text-[11px] text-base-content/50">
-            {{ course.courseCode }} · {{ t('schedule.credit', { credit: course.credit }) }}
-            <template v-if="arrangedClassCount(course) > 0"> · {{ t('schedule.arrangedCount', { count: arrangedClassCount(course) }) }}</template>
-          </span>
-        </button>
-        <span :class="statusClass(course)">{{ statusLabel(course) }}</span>
-        <button
-          type="button"
-          class="gf-button gf-button-sm gf-button-ghost shrink-0"
-          @click="dropCourse(course)"
-        >
-          {{ course.status === 2 ? t('schedule.dropCourse') : t('schedule.clear') }}
-        </button>
+        <div class="flex items-start gap-2">
+          <button
+            type="button"
+            class="min-w-0 flex-1 text-left"
+            @click="selectCourse(course)"
+          >
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="truncate text-[13px] font-semibold text-base-content">
+                {{ course.courseNameReserved }}
+              </span>
+              <span
+                v-if="courseConflicts(course).length > 0"
+                class="gf-badge gf-badge-error"
+                :title="courseConflicts(course).map((item) => item.courseName).join('、')"
+              >
+                {{ t('schedule.conflictBadge') }}
+              </span>
+              <span :class="statusClass(course)">{{ statusLabel(course) }}</span>
+            </div>
+            <p class="mt-0.5 truncate text-[11px] text-primary/75">
+              {{ course.courseCode }}
+              <span class="text-base-content/50"> · {{ t('schedule.credit', { credit: course.credit }) }}</span>
+              <template v-if="arrangedClassCount(course) > 0">
+                <span class="text-base-content/50"> · </span>{{ t('schedule.classCount', { count: course.courseDetail.length }) }}
+              </template>
+            </p>
+            <p v-if="teacherSummary(course)" class="mt-0.5 truncate text-[11px] text-base-content/55">
+              {{ teacherSummary(course) }}
+            </p>
+            <p v-if="arrangementSummary(course)" class="mt-0.5 line-clamp-2 text-[11px] text-base-content/50">
+              {{ arrangementSummary(course) }}
+            </p>
+          </button>
+          <button
+            type="button"
+            class="gf-button gf-button-sm gf-button-ghost shrink-0"
+            @click="dropCourse(course)"
+          >
+            {{ course.status === 2 ? t('schedule.dropCourse') : t('schedule.clear') }}
+          </button>
+        </div>
       </li>
     </ul>
 
     <!-- 退课确认弹窗 -->
-    <Teleport to="body">
-      <div
-        v-if="pendingDrop"
-        ref="panelRef"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="schedule-drop-title"
-        class="fixed inset-0 z-[2100]"
-      >
-        <div class="absolute inset-0 bg-black/40" @click="pendingDrop = null"></div>
-        <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2">
-          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
-            <h3 id="schedule-drop-title" class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
-            <p class="mt-2 text-[13px] text-base-content/70">
-              {{ pendingDrop.courseNameReserved }}（{{ pendingDrop.courseCode }}）
-            </p>
+    <DialogRoot v-model:open="dropDialogOpen">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent
+          class="fixed left-1/2 top-1/2 z-[2100] w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 outline-none"
+        >
+          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg">
+            <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</DialogTitle>
+            <DialogDescription class="mt-2 text-[13px] text-base-content/70">
+              {{ pendingDrop?.courseNameReserved }}（{{ pendingDrop?.courseCode }}）
+            </DialogDescription>
             <div class="mt-4 flex justify-end gap-2">
               <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="pendingDrop = null">
                 {{ t('schedule.cancel') }}
@@ -145,8 +236,8 @@ function arrangedClassCount(course: PkStagedCourse): number {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </Teleport>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
   </div>
 </template>

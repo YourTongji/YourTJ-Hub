@@ -1,6 +1,7 @@
 package pk
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// ErrFetchLogLeaseLost 表示 worker 已不再持有 fetchlog 租约，不能继续写入同步状态或数据。
+var ErrFetchLogLeaseLost = errors.New("pk: fetch log lease lost")
 
 // ---- 学期/日志 ----
 
@@ -20,6 +24,13 @@ func GetCalendarIdByI18n(i18n string) (uint64, bool) {
 		return 0, false
 	}
 	return entity.CalendarId, true
+}
+
+// GetCalendarByID 按 calendarId 返回学期实体（P13 学期 → course_term 映射用）。
+func GetCalendarByID(id uint64) (CalendarEntity, error) {
+	var entity CalendarEntity
+	err := calendarBuilder().Where(queryopt.Eq("calendar_id", id)).First(&entity).Error
+	return entity, err
 }
 
 // LatestFetchLogByCalendar 返回某学期最近一次同步日志（按 id 倒序取最新）。
@@ -51,20 +62,44 @@ func CreateFetchLog(calendarId uint64) (*FetchLogEntity, error) {
 	return entity, nil
 }
 
-// SaveFetchLog 更新同步日志游标/状态（不重建行，更新 CreatedAt 之外的字段）。
+// SaveFetchLog 用当前 lease_version 围栏更新同步日志游标/状态。失效 worker 的更新必须失败，
+// 以免在新的 owner 已接管后覆盖其游标或终态。
 // running_key 由 status 派生：running 时置 calendar_id，其余（completed/failed）置 NULL——
 // 调用方不可能写出行与 running_key 不一致的脏状态。
 func SaveFetchLog(entity *FetchLogEntity) error {
 	if entity.Status == FetchStatusRunning {
 		entity.RunningKey = &entity.CalendarId
+		now := time.Now()
+		entity.StartedAt = &now
 	} else {
 		entity.RunningKey = nil
 	}
-	if err := fetchLogBuilder().Where("id = ?", entity.Id).Select(
+	res := fetchLogBuilder().Where("id = ? AND lease_version = ? AND status = ?", entity.Id, entity.LeaseVersion, FetchStatusRunning).Select(
 		"status", "total_pages", "last_committed_page", "rows_written", "error_msg", "started_at", "finished_at", "running_key", "updated_at",
-	).Updates(entity).Error; err != nil {
-		return fmt.Errorf("pk: save fetch log: %w", err)
+	).Updates(entity)
+	if res.Error != nil {
+		return fmt.Errorf("pk: save fetch log: %w", res.Error)
 	}
+	if res.RowsAffected != 1 {
+		return ErrFetchLogLeaseLost
+	}
+	return nil
+}
+
+// RenewFetchLogLeaseTx 在同步数据变更的同一事务中续租。若已有新 owner 接管，更新不匹配且
+// 当前事务会回滚，避免旧 worker 在失效后继续删除或写入数据。
+func RenewFetchLogLeaseTx(tx *gorm.DB, entity *FetchLogEntity) error {
+	now := time.Now()
+	res := tx.Model(&FetchLogEntity{}).
+		Where("id = ? AND lease_version = ? AND status = ?", entity.Id, entity.LeaseVersion, FetchStatusRunning).
+		Updates(map[string]any{"started_at": now, "updated_at": now})
+	if res.Error != nil {
+		return fmt.Errorf("pk: renew fetch log lease: %w", res.Error)
+	}
+	if res.RowsAffected != 1 {
+		return ErrFetchLogLeaseLost
+	}
+	entity.StartedAt = &now
 	return nil
 }
 

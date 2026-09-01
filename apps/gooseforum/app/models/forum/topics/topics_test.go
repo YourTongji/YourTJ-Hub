@@ -1,6 +1,7 @@
 package topics
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -11,6 +12,20 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestGetWithContextHonorsCancellation(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate topics table: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := GetWithContext(ctx, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetWithContext() err=%v, want context.Canceled", err)
+	}
+}
 
 func TestTopicAndPostSchemaMigrates(t *testing.T) {
 	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -89,21 +104,6 @@ func TestPublishedQueriesExcludeNonPublicTopics(t *testing.T) {
 		{Id: blockedFirstPostTopicID, Title: "blocked first", FirstPostId: postIDs[4], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
 	}).Error; err != nil {
 		t.Fatalf("create published topics: %v", err)
-	}
-
-	firstBatch, err := GetPublishedAfterID(100, 1)
-	if err != nil {
-		t.Fatalf("GetPublishedAfterID first batch: %v", err)
-	}
-	if len(firstBatch) != 1 || firstBatch[0].Id != firstTopicID {
-		t.Fatalf("first published batch = %#v, want topic %d", firstBatch, firstTopicID)
-	}
-	secondBatch, err := GetPublishedAfterID(firstTopicID, 10)
-	if err != nil {
-		t.Fatalf("GetPublishedAfterID second batch: %v", err)
-	}
-	if len(secondBatch) != 1 || secondBatch[0].Id != secondTopicID {
-		t.Fatalf("second published batch = %#v, want only topic %d", secondBatch, secondTopicID)
 	}
 
 	// GetPublishedBeforeID 按 id 倒序（最新优先）分页，且同样过滤草稿/封禁/首帖异常。

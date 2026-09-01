@@ -1,6 +1,7 @@
 package datamigration
 
 import (
+	"errors"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -73,7 +74,7 @@ func BackfillWikiSingleSourceWithDB(conn *gorm.DB) WikiSingleSourceBackfillResul
 				Order("id DESC").
 				First(&latest).Error
 			if err != nil {
-				if err == gorm.ErrRecordNotFound {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
 					result.Skipped++
 					continue
 				}

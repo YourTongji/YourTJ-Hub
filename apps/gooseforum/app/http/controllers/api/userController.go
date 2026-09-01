@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-
 	"bytes"
 	"errors"
 	"fmt"
@@ -200,7 +198,7 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 
-	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
+	eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
@@ -237,7 +235,7 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
-	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
+	eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 

@@ -15,6 +15,8 @@ type OfferingEntity struct {
 	TermId    uint64         `gorm:"column:term_id;not null;default:0;index:idx_course_offering_term;" json:"termId"`
 	Campus    string         `gorm:"column:campus;type:varchar(64);not null;default:'';" json:"campus"`
 	Faculty   string         `gorm:"column:faculty;type:varchar(255);not null;default:'';" json:"faculty"`
+	ClassCode string         `gorm:"column:class_code;type:varchar(64);not null;default:'';" json:"classCode"`
+	ClassName string         `gorm:"column:class_name;type:varchar(255);not null;default:'';" json:"className"`
 	Status    int8           `gorm:"column:status;not null;default:0;" json:"status"`
 	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
 	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`

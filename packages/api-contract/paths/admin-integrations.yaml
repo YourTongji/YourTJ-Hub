@@ -1,0 +1,648 @@
+adminGetMailSettings:
+  get:
+    tags: [Admin]
+    summary: Read the outbound mail (SMTP) settings
+    operationId: adminGetMailSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored mail settings, or the built-in
+      default configuration when nothing has been saved yet. Exposure
+      boundary (issue #324 S2): the SMTP password is never returned — only
+      `smtpPasswordConfigured` (whether an encrypted password is stored) is
+      reported, mirroring the onesystem `cookieConfigured` pattern. JSON
+      binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Mail settings without the SMTP password (configured state only; stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminMailSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-mail-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveMailSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the outbound mail (SMTP) settings
+    operationId: adminSaveMailSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole mail configuration with the submitted value and
+      clears the mail-settings cache. There is no request validation: the Go
+      struct tags `settings` with `validate:"required"`, but struct-level
+      required never fails, so a malformed or empty body binds to zero
+      values and is saved as-is.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveMailSettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminTestMailConnection:
+  post:
+    tags: [Admin]
+    summary: Send a probe email with the submitted SMTP settings
+    operationId: adminTestMailConnection
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Sends a
+      real test email through the submitted (unsaved) SMTP configuration —
+      nothing is persisted. The outcome is reported inside the success
+      envelope: the envelope `code` is 0 even when the send fails; inspect
+      `result.success` and `result.messageCode`
+      (`admin.mail.testSuccess` / `admin.mail.testFailed`, the latter with
+      `params.error` carrying the raw dial/send error text). A missing or
+      malformed `testEmail` fails request validation
+      (`validate:"required,email"`) with HTTP 200
+      `common.request.invalidParams` before the handler runs — the handler's
+      own `admin.mail.testEmailRequired` branch is unreachable through this
+      route.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminTestMailConnectionRequest
+    responses:
+      '200':
+        description: "Probe outcome inside a success envelope, or a `code: 1` validation failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTestMailConnectionResponse
+            examples:
+              sendSucceeded:
+                externalValue: ../fixtures/admin-test-mail-connection-success.json
+              sendFailed:
+                externalValue: ../fixtures/admin-test-mail-connection-failed.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetStorageSettings:
+  get:
+    tags: [Admin]
+    summary: Read the file storage settings
+    operationId: adminGetStorageSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored storage settings, or the built-in
+      default (local provider) when nothing has been saved yet. Exposure
+      boundary (issue #324 S3): `accessKey`/`secretKey` are never returned —
+      only `accessKeyConfigured`/`secretKeyConfigured` (whether encrypted
+      credentials are stored) are reported. JSON binding is lenient: query
+      string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Storage settings without the object-storage credentials (configured state only; stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStorageSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-storage-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveStorageSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the file storage settings
+    operationId: adminSaveStorageSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. An
+      empty `provider` is normalized to `local`; any provider other than
+      `local`/`s3` fails with HTTP 200 `common.request.invalidParams`; an
+      `s3` configuration without `endpoint` and `bucket` fails with HTTP 200
+      `admin.storage.saveFailed` (params.error is the fixed Chinese sentence
+      `S3 模式需要填写 Endpoint 与 Bucket`). On success the whole storage
+      configuration is replaced and the storage-settings cache is cleared.
+      The Go struct tags `settings` with `validate:"required"`, but
+      struct-level required never fails, so a missing/malformed body saves
+      the normalized zero-value configuration (`provider=local`).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveStorageSettingsRequest
+    responses:
+      '200':
+        description: "Configuration saved (`result` is the string `success`), or a `code: 1` business failure (invalid provider, incomplete S3 configuration)."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              s3MissingEndpointOrBucket:
+                externalValue: ../fixtures/admin-save-storage-settings-save-failed.json
+              invalidProvider:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminTestStorageConnection:
+  post:
+    tags: [Admin]
+    summary: Probe the submitted storage configuration
+    operationId: adminTestStorageConnection
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Tests
+      the submitted (unsaved) storage configuration — nothing is persisted.
+      An empty `provider` is normalized to `local`, and the local provider
+      always succeeds without touching any backend. For `s3` the server
+      performs a real bucket check; the outcome is reported inside the
+      success envelope (`code` stays 0): `result.success` plus
+      `admin.storage.testSuccess` / `admin.storage.testFailed`, the latter
+      with `params.error` carrying the raw connection error text.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminTestStorageConnectionRequest
+    responses:
+      '200':
+        description: Probe outcome inside a success envelope (`code` is 0 on both success and failure).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTestStorageConnectionResponse
+            examples:
+              localProviderAlwaysSucceeds:
+                externalValue: ../fixtures/admin-test-storage-connection-success.json
+              s3BackendUnreachable:
+                externalValue: ../fixtures/admin-test-storage-connection-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminCreateStorageMigrateTask:
+  post:
+    tags: [Admin]
+    summary: Enqueue a background file-migration task to object storage
+    operationId: adminCreateStorageMigrateTask
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Enqueues a background task (task_queue type `file-migrate`) that
+      migrates locally stored file BLOBs to the configured S3-compatible
+      storage; returns the task id. The migration only runs when the active
+      (already saved) storage provider is `s3`; with any other provider the
+      service rejects the request and the handler reports HTTP 200
+      `admin.storage.migrateFailed` with params.error `file migration
+      requires an s3-compatible storage provider`. Note: the
+      `admin.storage.migrateInvalidProvider` message code exists in the
+      codebase but is unreachable — the controller compares against a
+      distinct sentinel error, so the provider-mismatch path falls through
+      to `admin.storage.migrateFailed`. A configured-but-unreachable S3
+      backend also fails with `admin.storage.migrateFailed` (params.error
+      carries the wrapped connection error). JSON binding is lenient: a
+      missing body binds `clearAfterMigrate=false`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCreateStorageMigrateTaskRequest
+    responses:
+      '200':
+        description: "Task id of the enqueued migration, or a `code: 1` business failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTaskCreatedResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-data-export-success.json
+              providerNotS3:
+                externalValue: ../fixtures/admin-storage-migrate-task-migrate-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminListStorageMigrateTasks:
+  get:
+    tags: [Admin]
+    summary: List recent file-migration tasks
+    operationId: adminListStorageMigrateTasks
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns up to 20 most recent task_queue rows of type
+      `file-migrate`, newest id first; `taskJson` is the serialized
+      migration payload (cursor/totals). With no migration tasks the result
+      is an empty list. JSON binding is lenient: query string and body are
+      ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Recent migration tasks.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStorageMigrateTaskListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-storage-migrate-tasks-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetMcpSettings:
+  get:
+    tags: [Admin]
+    summary: Read the built-in MCP server settings
+    operationId: adminGetMcpSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored MCP settings (`enabled` master
+      switch for the `/mcp` endpoint, `writes` switch for the write tools),
+      or the built-in default configuration when nothing has been saved
+      yet. JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: MCP settings (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminMcpSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-mcp-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveMcpSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the built-in MCP server settings
+    operationId: adminSaveMcpSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole MCP configuration with the submitted value and
+      clears the MCP-settings cache. There is no request validation: the Go
+      struct tags `settings` with `validate:"required"`, but struct-level
+      required never fails, so a malformed or empty body binds to zero
+      values and is saved as-is.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveMcpSettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetScheduleSettings:
+  get:
+    tags: [Admin]
+    summary: Read the schedule section times
+    operationId: adminGetScheduleSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the stored section times (the 12 class
+      periods shown on the /schedule timetable), or the built-in default
+      table when nothing has been saved yet. JSON binding is lenient: query
+      string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Section times (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminScheduleSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-schedule-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveScheduleSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the schedule section times
+    operationId: adminSaveScheduleSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole section-times configuration, clears the
+      schedule-settings cache, and the new table takes effect on the next
+      /schedule SSR render. Validation: every entry must name a section in
+      1..12 with strict `HH:MM` start/end clock values where start is
+      strictly earlier than end; any invalid entry rejects the whole
+      submission with HTTP 200 `common.request.invalidParams`
+      (nothing is dropped silently). Valid input is deduplicated per section
+      (first entry wins) and stored sorted by section ascending.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveScheduleSettingsRequest
+    responses:
+      '200':
+        description: "Configuration saved (`result` is the string `success`), or a `code: 1` validation failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

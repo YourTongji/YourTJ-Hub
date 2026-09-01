@@ -99,7 +99,7 @@ func AdminCourseList(q AdminCourseQuery) (AdminCoursePage, error) {
 	}
 	entities, total, err := course.ListCourses(course.ListCourseQuery{
 		Keyword:       Normalize(q.Keyword),
-		Department:    q.Department,
+		Department:    normalizeMulti([]string{q.Department}),
 		Page:          page,
 		Size:          size,
 		IncludeHidden: true,
@@ -179,7 +179,8 @@ func CreateCourse(input CourseCreateInput) (AdminCourseItem, error) {
 	department := strings.TrimSpace(input.Department)
 	var item AdminCourseItem
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		existing, err := course.GetCourseByPrimaryCodeTx(tx, code)
+		// 手动新增的课程无教师（teacher_id=0），冲突检查按 (code, 无教师) 复合身份。
+		existing, err := course.GetCourseByCodeTeacherTx(tx, code, 0)
 		if err == nil && existing.Id > 0 {
 			return ErrCourseCodeConflict
 		}
@@ -248,7 +249,8 @@ func UpdateCourse(courseId uint64, input CourseUpdateInput) (AdminCourseItem, er
 			if code == "" {
 				return ErrCourseCodeRequired
 			}
-			existing, err := course.GetCourseByPrimaryCodeTx(tx, code)
+			// 改课号冲突检查按 (新 code, 当前教师) 复合身份。
+			existing, err := course.GetCourseByCodeTeacherTx(tx, code, entity.TeacherId)
 			if err == nil && existing.Id > 0 && existing.Id != courseId {
 				return ErrCourseCodeConflict
 			}
@@ -355,10 +357,15 @@ func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 		}
 		var reviewCount int64
 		if len(offeringIds) > 0 {
-			// 评价关联的 helpful 标记先清理（物理删除，避免悬挂）。
+			// 评价关联的 helpful/dislike 标记先清理（物理删除，避免悬挂）。
 			if err := tx.Unscoped().Table((&course.HelpfulEntity{}).TableName()).
 				Where("review_id IN (SELECT id FROM course_review WHERE offering_id IN ? AND deleted_at IS NULL)", offeringIds).
 				Delete(&course.HelpfulEntity{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Unscoped().Table((&course.DislikeEntity{}).TableName()).
+				Where("review_id IN (SELECT id FROM course_review WHERE offering_id IN ? AND deleted_at IS NULL)", offeringIds).
+				Delete(&course.DislikeEntity{}).Error; err != nil {
 				return err
 			}
 			if err := tx.Model(&course.ReviewEntity{}).

@@ -21,6 +21,69 @@ import type {
   PkOptionalType,
 } from '@/site/types/pk'
 
+// ---- OpenAPI 契约 wire 形状（与 packages/api-contract 对齐；前端类型见 site/types/pk.ts）----
+
+/** P2 校区契约项：campusId/campusName。 */
+interface PkCampusWireItem {
+  campusId: string
+  campusName: string
+}
+
+/** P2 院系契约项：facultyId/facultyName。 */
+interface PkFacultyWireItem {
+  facultyId: string
+  facultyName: string
+}
+
+/** P5 courses-by-major 契约项：教学班字段为 courses（前端 PkCourse 用 courseDetail）。 */
+interface PkCourseByMajorWireItem {
+  courseCode: string
+  courseName: string
+  faculty: string
+  facultyI18n: string
+  credit: number
+  grade: number
+  courseNature: string[]
+  courses: PkCourseDetail[]
+}
+
+/** P7 courses-by-nature 契约项：data 为分组数组，courses 元素带课程信息。 */
+interface PkNatureCourseWireItem {
+  campus: string[]
+  courseCode: string
+  courseName: string
+  faculty: string
+  facultyI18n: string
+  credit: number
+  courseLabelName: string
+  crossDiscipline: boolean
+}
+
+interface PkCourseByNatureWireItem {
+  courseLabelId: number
+  courseLabelIds: number[]
+  courseLabelName: string
+  crossDiscipline: boolean
+  courses: PkNatureCourseWireItem[]
+}
+
+/** P9 course-search 契约：data = { courses, sizeLimit }。 */
+interface PkSearchCourseWireItem {
+  courseCode: string
+  courseName: string
+  faculty: string
+  facultyI18n: string
+  courseNature: string[]
+  campus: string[]
+  campus_list: string[]
+  credit: number
+}
+
+interface PkSearchResultWire {
+  courses: PkSearchCourseWireItem[]
+  sizeLimit: number
+}
+
 interface PkEnvelope<T> {
   code: number
   msg?: string
@@ -81,19 +144,25 @@ export function getPkCalendars(): Promise<PkCalendar[]> {
   return getPk<PkCalendar[]>('/api/pk/calendars', t('api.pkCalendarsFailed'))
 }
 
-/** P2 校区列表。 */
+/** P2 校区列表。契约 data = [{ campusId, campusName }]，映射为 {code,name}。 */
 export function getPkCampuses(): Promise<PkDictItem[]> {
-  return getPk<PkDictItem[]>('/api/pk/campuses', t('api.pkCampusesFailed'))
+  return getPk<PkCampusWireItem[]>('/api/pk/campuses', t('api.pkCampusesFailed')).then((list) =>
+    list.map((item) => ({ code: item.campusId, name: item.campusName })),
+  )
 }
 
-/** P2 院系列表。 */
+/** P2 院系列表。契约 data = [{ facultyId, facultyName }]，映射为 {code,name}。 */
 export function getPkFaculties(): Promise<PkDictItem[]> {
-  return getPk<PkDictItem[]>('/api/pk/faculties', t('api.pkFacultiesFailed'))
+  return getPk<PkFacultyWireItem[]>('/api/pk/faculties', t('api.pkFacultiesFailed')).then((list) =>
+    list.map((item) => ({ code: item.facultyId, name: item.facultyName })),
+  )
 }
 
-/** P3 某学期可选年级。 */
+/** P3 某学期可选年级。契约 data = { gradeList: [...] }。 */
 export function getPkGrades(calendarId: number): Promise<PkGrade[]> {
-  return postPk<PkGrade[]>('/api/pk/grades', { calendarId }, t('api.pkGradesFailed'))
+  return postPk<{ gradeList: PkGrade[] }>('/api/pk/grades', { calendarId }, t('api.pkGradesFailed')).then(
+    (result) => result.gradeList,
+  )
 }
 
 /** P4 年级→专业。 */
@@ -101,13 +170,31 @@ export function getPkMajors(grade: number, calendarId: number): Promise<PkMajor[
   return postPk<PkMajor[]>('/api/pk/majors', { grade, calendarId }, t('api.pkMajorsFailed'))
 }
 
-/** P5 专业课表（必修来源，验收标准 1）。 */
+/** P5 专业课表（必修来源，验收标准 1）。契约教学班字段为 courses，映射为 courseDetail。 */
 export function getPkCoursesByMajor(
   grade: number,
   code: string,
   calendarId: number,
 ): Promise<PkCourse[]> {
-  return postPk<PkCourse[]>('/api/pk/courses-by-major', { grade, code, calendarId }, t('api.pkCoursesByMajorFailed'))
+  return postPk<PkCourseByMajorWireItem[]>(
+    '/api/pk/courses-by-major',
+    { grade, code, calendarId },
+    t('api.pkCoursesByMajorFailed'),
+  ).then((list) =>
+    list.map((item) => ({
+      courseCode: item.courseCode,
+      courseName: item.courseName,
+      courseNameReserved: item.courseName,
+      courseType: '必',
+      faculty: item.faculty,
+      credit: item.credit,
+      courseNature: item.courseNature,
+      status: 0,
+      teacher: [],
+      courseDetail: item.courses,
+      grade: item.grade,
+    })),
+  )
 }
 
 /** P6 通识/选修类型（coursenature_by_calendar 优先）。 */
@@ -115,9 +202,29 @@ export function getPkOptionalTypes(calendarId: number): Promise<PkOptionalType[]
   return postPk<PkOptionalType[]>('/api/pk/optional-types', { calendarId }, t('api.pkOptionalTypesFailed'))
 }
 
-/** P7 按性质查课程。 */
+/** P7 按性质查课程。契约 data 为分组数组，扁平化为课程列表并带上性质标签。 */
 export function getPkCoursesByNature(calendarId: number, ids: number[]): Promise<PkCourse[]> {
-  return postPk<PkCourse[]>('/api/pk/courses-by-nature', { calendarId, ids }, t('api.pkCoursesByNatureFailed'))
+  return postPk<PkCourseByNatureWireItem[]>(
+    '/api/pk/courses-by-nature',
+    { calendarId, ids },
+    t('api.pkCoursesByNatureFailed'),
+  ).then((groups) =>
+    groups.flatMap((group) =>
+      group.courses.map((item) => ({
+        courseCode: item.courseCode,
+        courseName: item.courseName,
+        courseNameReserved: item.courseName,
+        courseType: '选',
+        faculty: item.faculty,
+        credit: item.credit,
+        courseNature: [group.courseLabelName],
+        campus: item.campus,
+        status: 0,
+        teacher: [],
+        courseDetail: [],
+      })),
+    ),
+  )
 }
 
 /** P8 批量课程详情字典（选修/备选来源，验收标准 1）。 */
@@ -144,7 +251,21 @@ export interface PkCourseSearchInput {
 }
 
 export function searchPkCourses(input: PkCourseSearchInput): Promise<PkCourse[]> {
-  return postPk<PkCourse[]>('/api/pk/course-search', input, t('api.pkCourseSearchFailed'))
+  return postPk<PkSearchResultWire>('/api/pk/course-search', input, t('api.pkCourseSearchFailed')).then((result) =>
+    result.courses.map((item) => ({
+      courseCode: item.courseCode,
+      courseName: item.courseName,
+      courseNameReserved: item.courseName,
+      courseType: '查',
+      faculty: item.faculty,
+      credit: item.credit,
+      courseNature: item.courseNature,
+      campus: item.campus,
+      status: 0,
+      teacher: [],
+      courseDetail: [],
+    })),
+  )
 }
 
 /** P10 时间段查课（timeslot 未就绪时 LIKE 降级 + auxiliaryReady:false）。 */
@@ -160,9 +281,11 @@ export function getPkCoursesByTime(
   )
 }
 
-/** P11 数据过期校验（fetchlog 最近同步日期）。 */
+/** P11 数据过期校验。契约 data 为裸字符串（YYYY-MM-DD）或 null。 */
 export function getPkLatestUpdate(): Promise<PkLatestUpdate> {
-  return getPk<PkLatestUpdate>('/api/pk/latest-update', t('api.pkLatestUpdateFailed'))
+  return getPk<string | null>('/api/pk/latest-update', t('api.pkLatestUpdateFailed')).then((value) => ({
+    latestSyncAt: value,
+  }))
 }
 
 /** P12 增量同步最新（保留已选；isExclusive 仅 major 课程回传）。 */
@@ -174,6 +297,7 @@ export function syncPkCourseInfo(input: PkCourseInfoSyncInput): Promise<PkCourse
 export function getPkCourseReviewBrief(input: PkCourseReviewBriefInput): Promise<PkCourseReviewBrief> {
   const query = new URLSearchParams({ courseCode: input.courseCode })
   if (input.teacherName) query.set('teacherName', input.teacherName)
+  if (input.calendarId) query.set('calendarId', String(input.calendarId))
   return getPk<PkCourseReviewBrief>(
     `/api/pk/course-review-brief?${query.toString()}`,
     t('api.pkCourseReviewBriefFailed'),

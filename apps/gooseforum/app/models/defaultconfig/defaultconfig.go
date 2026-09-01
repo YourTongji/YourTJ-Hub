@@ -29,73 +29,52 @@ type pageConfigDefaults struct {
 	AiSummary    pageConfig.AiSummaryConfig
 }
 
-var (
-	loadPageConfigDefaultsOnce sync.Once
-	pageConfigDefaultsValue    pageConfigDefaults
-	errPageConfigDefaults      error
-)
-
-func loadPageConfigDefaults() (pageConfigDefaults, error) {
-	loadPageConfigDefaultsOnce.Do(func() {
-		errPageConfigDefaults = loadJSON("announcement.json", &pageConfigDefaultsValue.Announcement)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("email.json", &pageConfigDefaultsValue.Email)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("friend_links.json", &pageConfigDefaultsValue.FriendLinks)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("posting.json", &pageConfigDefaultsValue.Posting)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("security.json", &pageConfigDefaultsValue.Security)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("site.json", &pageConfigDefaultsValue.Site)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("site_theme.json", &pageConfigDefaultsValue.SiteTheme)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("sponsors.json", &pageConfigDefaultsValue.Sponsors)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("terms.json", &pageConfigDefaultsValue.Terms)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("privacy.json", &pageConfigDefaultsValue.Privacy)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("storage.json", &pageConfigDefaultsValue.Storage)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("mcp.json", &pageConfigDefaultsValue.MCP)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("ai_summary.json", &pageConfigDefaultsValue.AiSummary)
-		if errPageConfigDefaults != nil {
-			return
-		}
-	})
-	return pageConfigDefaultsValue, errPageConfigDefaults
-}
+var loadPageConfigDefaults = sync.OnceValues(func() (pageConfigDefaults, error) {
+	var defaults pageConfigDefaults
+	if err := loadJSON("announcement.json", &defaults.Announcement); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("email.json", &defaults.Email); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("friend_links.json", &defaults.FriendLinks); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("posting.json", &defaults.Posting); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("security.json", &defaults.Security); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("site.json", &defaults.Site); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("site_theme.json", &defaults.SiteTheme); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("sponsors.json", &defaults.Sponsors); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("terms.json", &defaults.Terms); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("privacy.json", &defaults.Privacy); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("storage.json", &defaults.Storage); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("ratelimit.json", &defaults.RateLimit); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("mcp.json", &defaults.MCP); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("ai_summary.json", &defaults.AiSummary); err != nil {
+		return defaults, err
+	}
+	return defaults, nil
+})
 
 func mustPageConfigDefaults() pageConfigDefaults {
 	defaults, err := loadPageConfigDefaults()
@@ -167,6 +146,27 @@ func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
 
 func GetDefaultMCPSettingsConfig() pageConfig.MCPSettingsConfig {
 	return mustPageConfigDefaults().MCP
+}
+
+// GetDefaultScheduleSettingsConfig 排课器节次作息表默认值（12 节），
+// 与前端内置默认作息表保持一致；未保存配置时 SSR/管理端回显该默认。
+func GetDefaultScheduleSettingsConfig() pageConfig.ScheduleSettingsConfig {
+	return pageConfig.ScheduleSettingsConfig{
+		SectionTimes: []pageConfig.ScheduleSectionTime{
+			{Section: 1, Start: "08:00", End: "08:45"},
+			{Section: 2, Start: "08:50", End: "09:35"},
+			{Section: 3, Start: "10:00", End: "10:45"},
+			{Section: 4, Start: "10:50", End: "11:35"},
+			{Section: 5, Start: "13:30", End: "14:15"},
+			{Section: 6, Start: "14:20", End: "15:05"},
+			{Section: 7, Start: "15:30", End: "16:15"},
+			{Section: 8, Start: "16:20", End: "17:05"},
+			{Section: 9, Start: "17:10", End: "17:55"},
+			{Section: 10, Start: "18:30", End: "19:15"},
+			{Section: 11, Start: "19:20", End: "20:05"},
+			{Section: 12, Start: "20:10", End: "20:55"},
+		},
+	}
 }
 
 func GetDefaultAiSummaryConfig() pageConfig.AiSummaryConfig {

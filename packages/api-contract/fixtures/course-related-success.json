@@ -14,11 +14,11 @@
     ],
     "sameCourseOtherTeachers": [
       {
-        "offeringId": 902,
-        "termCode": "2024-2025-1",
-        "termName": "2024-2025 第一学期",
-        "campus": "四平路校区",
-        "instructors": ["李四"],
+        "id": 47,
+        "primaryCode": "100001",
+        "name": "高等数学(A)上",
+        "department": "数学科学学院",
+        "teacherName": "李四",
         "ratingAvg": 4,
         "ratingCount": 1,
         "reviewCount": 1

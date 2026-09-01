@@ -85,17 +85,17 @@ type ExternalInformation struct {
 
 type EntityComplete struct {
 	// base
-	Id             uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                                //
-	Username       string     `gorm:"column:username;uniqueIndex:uniq_users_username;type:varchar(64);not null;default:'';" json:"username"` //
-	Email          string     `gorm:"column:email;index;type:varchar(128);not null;default:'';" json:"email"`                                //
-	Password       string     `gorm:"column:password;type:varchar(128);not null;default:'';" json:"-"`                                       //
-	TokenVersion   uint64     `gorm:"column:token_version;not null;default:0;" json:"-"`                                                     // 登录令牌版本，改密后自增
-	Locale         string     `gorm:"column:locale;type:varchar(16);not null;default:'';" json:"locale"`                                     // 用户语言偏好
-	IsFrozen       int8       `gorm:"column:is_frozen;not null;default:0;" json:"isFrozen"`                                                  // 状态：0正常 1冻结
-	IsActivated    int8       `gorm:"column:is_activated;not null;default:0;" json:"isActivated"`                                            // 是否验证通过: 0未激活 1 已激活
-	ActivatedAt    *time.Time `gorm:"column:activated_at;" json:"activatedAt"`                                                               // 激活时间
-	EmailChangedAt *time.Time `gorm:"column:email_changed_at;" json:"emailChangedAt"`                                                        // 邮箱变更时间（24 小时冷静期起点）
-	ActorType      int8       `gorm:"column:actor_type;not null;default:0;" json:"actorType"`                                                // 账号主体类型：0 人类 1 机器人（Agent）
+	Id             uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                                                         //
+	Username       string     `gorm:"column:username;uniqueIndex:uniq_users_username;type:varchar(64);not null;default:'';" json:"username"`                          //
+	Email          string     `gorm:"column:email;index;uniqueIndex:uniq_users_email_nonempty,where:email <> '';type:varchar(128);not null;default:'';" json:"email"` // 非空邮箱全局唯一；空邮箱允许多个机器人/OAuth账号共存
+	Password       string     `gorm:"column:password;type:varchar(128);not null;default:'';" json:"-"`                                                                //
+	TokenVersion   uint64     `gorm:"column:token_version;not null;default:0;" json:"-"`                                                                              // 登录令牌版本，改密后自增
+	Locale         string     `gorm:"column:locale;type:varchar(16);not null;default:'';" json:"locale"`                                                              // 用户语言偏好
+	IsFrozen       int8       `gorm:"column:is_frozen;not null;default:0;" json:"isFrozen"`                                                                           // 状态：0正常 1冻结
+	IsActivated    int8       `gorm:"column:is_activated;not null;default:0;" json:"isActivated"`                                                                     // 是否验证通过: 0未激活 1 已激活
+	ActivatedAt    *time.Time `gorm:"column:activated_at;" json:"activatedAt"`                                                                                        // 激活时间
+	EmailChangedAt *time.Time `gorm:"column:email_changed_at;" json:"emailChangedAt"`                                                                                 // 邮箱变更时间（24 小时冷静期起点）
+	ActorType      int8       `gorm:"column:actor_type;not null;default:0;" json:"actorType"`                                                                         // 账号主体类型：0 人类 1 机器人（Agent）
 
 	// info
 	Nickname            string              `gorm:"column:nickname;type:varchar(64);not null;default:'';" json:"nickname"`                                  //

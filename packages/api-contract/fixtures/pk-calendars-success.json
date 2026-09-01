@@ -1,1 +1,1 @@
-{"code":0,"msg":"查询成功","data":[{"calendarId":99999,"calendarName":"本地测试学期"},{"calendarId":99998,"calendarName":"2025-2026 第一学期"}]}
+{"code":0,"msg":"查询成功","data":[{"calendarId":99999,"calendarName":"本地测试学期","startDate":"2025-09-08","endDate":"2026-01-18"},{"calendarId":99998,"calendarName":"2025-2026 第一学期","startDate":null,"endDate":null}]}

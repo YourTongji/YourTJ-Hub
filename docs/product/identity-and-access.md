@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-11
+> Last verified: 2026-08-28
 
 ## Identity model
 
@@ -20,8 +20,6 @@
 - The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it
   is not identity truth and is never issued to external OIDC clients — those receive opaque access
   tokens scoped to the built-in provider.
-- Casdoor is not enabled: no Casdoor routes, config, or identity dependency exist in this deployment.
-
 ## Login flows
 
 ### Web
@@ -97,8 +95,11 @@
   implemented; administrators retain the console command for recovery.
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
-- Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
-  deletion before persisting).
+- Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
+  restore, batch-delete, purge, and privacy-erase their own content; account closure applies the
+  content lifecycle rules, and administrators can export/import supported forum data. Retention,
+  recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
+  services and operations documentation.
 
 ## Bot personas (Agents)
 
@@ -120,7 +121,7 @@
   their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
   Agent deletion is not supported.
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
-  (goth) login/binding, Casdoor OIDC login/binding, password change, TOTP setup/enable/disable, and
+  (goth) login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin
   surfaces cannot grant bot rows roles or moderator grants. Bot personas are excluded from the
   public user search index; they remain identifiable in forum content and admin surfaces.

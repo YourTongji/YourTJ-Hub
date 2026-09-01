@@ -168,9 +168,10 @@ const (
 	MessageWikiSaveFailed            MessageCode = "wiki.saveFailed"             // wiki 保存失败。
 	MessageWikiNamespaceNameConflict MessageCode = "wiki.namespace.nameConflict" // namespace 名称已存在（契约 409 语义）。
 	MessageWikiPathConflict          MessageCode = "wiki.page.pathConflict"      // wiki 路径已存在（契约 409 语义）。
-	MessageWikiRevisionConflict      MessageCode = "wiki.revision.conflict"      // 版本 CAS 冲突：页面已被他人更新，需基于最新版本重编（409 语义）。
+	MessageWikiRevisionConflict      MessageCode = "wiki.revision.conflict"      // 页面 CAS 冲突：页面已被他人更新，需基于最新版本重编（409 语义）。
 	MessageWikiSyncRunning           MessageCode = "wiki.sync.running"           // wiki 同步已在运行中（防重入）。
 	MessageWikiSyncFailed            MessageCode = "wiki.sync.failed"            // wiki 同步失败。
+	MessageWikiReadFailed            MessageCode = "wiki.readFailed"             // wiki 读取失败（数据库故障；区别于空数据）。
 	// 课程管理（管理端课程/评价管理）
 	MessageCourseNotFound           MessageCode = "course.notFound"           // 课程不存在或已删除。
 	MessageCourseCodeRequired       MessageCode = "course.codeRequired"       // 主课号不能为空。
@@ -276,6 +277,10 @@ const (
 	MessageAdminReviewNotFound      MessageCode = "admin.review.notFound"      // 审核对象不存在。
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
+	// AI 课程总结（issue #181）：models 列表自动获取
+	MessageAdminAiSummaryModelsFailed      MessageCode = "admin.aiSummary.modelsFailed"      // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
+	MessageAdminAiSummaryModelsUnsupported MessageCode = "admin.aiSummary.modelsUnsupported" // 提供方未实现 /models 端点，需手动输入模型。
+	MessageAdminAiSummarySaveFailed        MessageCode = "admin.aiSummary.saveFailed"        // 保存 AI 总结配置失败，params.error 可带原始错误。
 	// Agent（机器人账号）管理
 	MessageAdminAgentUsernameInvalid MessageCode = "admin.agent.usernameInvalid" // 用户名格式不符合规则。
 	MessageAdminAgentUsernameExists  MessageCode = "admin.agent.usernameExists"  // 用户名已存在。

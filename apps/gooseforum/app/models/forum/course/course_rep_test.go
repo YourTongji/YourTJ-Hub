@@ -170,7 +170,7 @@ func TestListCoursesInstructor(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, total, err := ListCourses(ListCourseQuery{Instructor: tc.input, Size: 50})
+			got, total, err := ListCourses(ListCourseQuery{Instructor: []string{tc.input}, Size: 50})
 			if err != nil {
 				t.Fatalf("ListCourses(instructor=%q) err = %v", tc.input, err)
 			}
@@ -181,7 +181,7 @@ func TestListCoursesInstructor(t *testing.T) {
 	}
 
 	t.Run("no_match", func(t *testing.T) {
-		got, total, err := ListCourses(ListCourseQuery{Instructor: "王", Size: 50})
+		got, total, err := ListCourses(ListCourseQuery{Instructor: []string{"王"}, Size: 50})
 		if err != nil {
 			t.Fatalf("ListCourses err = %v", err)
 		}
@@ -192,7 +192,8 @@ func TestListCoursesInstructor(t *testing.T) {
 }
 
 // TestListCoursesSortByRating SortBy=rating 按平均分降序，零/无评分课程排末尾（id 倒序兜底）；
-// COUNT 与排序无关（LEFT JOIN 不放大计数），默认排序仍为 id 倒序。
+// COUNT 与排序无关（LEFT JOIN 不放大计数）。同数据下同时锁定前台默认排序（有评价优先）
+// 与管理端排序（id 倒序）两个新分支。
 func TestListCoursesSortByRating(t *testing.T) {
 	conn := setupCourseRepTest(t)
 	// 创建顺序即 id 升序：a(avg4.0) b(avg5.0) c(avg3.0) d(无评分行) e(rating_count=0)。
@@ -216,13 +217,26 @@ func TestListCoursesSortByRating(t *testing.T) {
 		t.Fatalf("sortBy=rating: total=%d ids=%v, want total=5 ids=%v", total, courseIDs(got), want)
 	}
 
+	// 前台默认排序：有评价（review_count > 0）的课程优先——仅排序不筛选，
+	// 无评论课程仍排在后面；组内保持 id 倒序。
+	// 有评价组：a/b/c（id 倒序 c > b > a）；无评价组：d（无统计行）与 e（review_count=0），id 倒序 e > d。
 	gotDefault, totalDefault, err := ListCourses(ListCourseQuery{Size: 50})
 	if err != nil {
 		t.Fatalf("ListCourses(default) err = %v", err)
 	}
-	wantDefault := []uint64{e, d, c, b, a}
+	wantDefault := []uint64{c, b, a, e, d}
 	if totalDefault != 5 || !slices.Equal(courseIDs(gotDefault), wantDefault) {
 		t.Fatalf("default sort: total=%d ids=%v, want total=5 ids=%v", totalDefault, courseIDs(gotDefault), wantDefault)
+	}
+
+	// 管理端（IncludeHidden=true）：保持 id 倒序，不受评价影响。
+	gotAdmin, totalAdmin, err := ListCourses(ListCourseQuery{Size: 50, IncludeHidden: true})
+	if err != nil {
+		t.Fatalf("ListCourses(includeHidden) err = %v", err)
+	}
+	wantAdmin := []uint64{e, d, c, b, a}
+	if totalAdmin != 5 || !slices.Equal(courseIDs(gotAdmin), wantAdmin) {
+		t.Fatalf("admin sort: total=%d ids=%v, want total=5 ids=%v", totalAdmin, courseIDs(gotAdmin), wantAdmin)
 	}
 }
 
@@ -310,6 +324,38 @@ func TestListDistinctTerms(t *testing.T) {
 	}
 }
 
+// TestListDistinctTermsNonNumericCodeLast 非标准学期码（非数字开头，如 1系统同步时
+// 无法识别学期落到的「其他」）排在数字开头的标准学期码之后，保证列表首项是最新学期。
+//
+// 回归背景：starts_on 目前导入流程未写入（生产库全为 NULL），排序回退到 code 字典序；
+// 而「其他」这类中文 code 的字典序大于数字开头的学期码，会把真正的最新学期挤下首位——
+// 目录页「本学期」取列表首项，会因此筛到「其他」而不是本学期。
+func TestListDistinctTermsNonNumericCodeLast(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100083", "CS")
+	// starts_on 一律为 nil，复现导入流程未写入该字段的生产数据形态。
+	newer := createTerm(t, conn, "2026-2027-1", "2026 秋", nil)
+	older := createTerm(t, conn, "2025-2026-2", "2026 春", nil)
+	other := createTerm(t, conn, "其他", "其他", nil)
+	for _, termId := range []uint64{newer, older, other} {
+		_ = createOffering(t, conn, c, termId, "四平路校区")
+	}
+
+	got, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	want := []string{"2026-2027-1", "2025-2026-2", "其他"}
+	if len(got) != len(want) {
+		t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+	}
+	for i, w := range want {
+		if got[i].Code != w {
+			t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+		}
+	}
+}
+
 // TestListDistinctCampuses 校区列表去重与排序：仅可见课程的可见 offering 校区，
 // 排除空值、隐藏课程、隐藏 offering 与软删 offering；按字典序。
 func TestListDistinctCampuses(t *testing.T) {
@@ -371,7 +417,7 @@ func TestListCoursesLikeEscaping(t *testing.T) {
 	linkCourseInstructor(t, conn, cB, li)
 
 	// "%" 转义后按字面匹配，两个教师名均不含 %，应返回 0；未转义则 %% 会命中全部。
-	got, total, err := ListCourses(ListCourseQuery{Instructor: "%", Size: 50})
+	got, total, err := ListCourses(ListCourseQuery{Instructor: []string{"%"}, Size: 50})
 	if err != nil {
 		t.Fatalf("ListCourses(instructor=%%) err = %v", err)
 	}
@@ -411,7 +457,7 @@ func TestListCoursesInstructorHiddenOfferingExcluded(t *testing.T) {
 		t.Fatalf("link instructor: %v", err)
 	}
 
-	got, total, err := ListCourses(ListCourseQuery{Instructor: "王五", Size: 50})
+	got, total, err := ListCourses(ListCourseQuery{Instructor: []string{"王五"}, Size: 50})
 	if err != nil {
 		t.Fatalf("ListCourses(instructor=王五) err = %v", err)
 	}
@@ -462,5 +508,129 @@ func TestListCoursesByPrimaryCodesExcludesHidden(t *testing.T) {
 	}
 	if got[0].PrimaryCode != "100001" {
 		t.Fatalf("primary_code = %q, want 100001", got[0].PrimaryCode)
+	}
+}
+
+// TestListVisibleOfferingsByClassCodes P13 回归（review P1/P2/P3）：
+// - 入参班号带点（122004.01）去点后匹配 offering.class_code（12200401）
+// - JOIN course.status=Visible：隐藏课程的 offering 不得出现在公开响应
+// - termId > 0 时只返回该学期（跨学期班号复用不串学期）
+func TestListVisibleOfferingsByClassCodes(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	visible := createCourse(t, conn, "122004", "CS")
+	hidden := createCourse(t, conn, "199999", "CS")
+	if err := conn.Model(&Entity{}).Where("id = ?", hidden).Update("status", StatusHidden).Error; err != nil {
+		t.Fatalf("hide course: %v", err)
+	}
+	term1 := createTerm(t, conn, "2025-2026-1", "学期1", parseTermDate(t, "2025-09-01"))
+	term2 := createTerm(t, conn, "2025-2026-2", "学期2", parseTermDate(t, "2026-02-23"))
+
+	offerings := []OfferingEntity{
+		{CourseId: visible, TermId: term1, ClassCode: "12200401", Status: OfferingStatusVisible},
+		{CourseId: visible, TermId: term2, ClassCode: "12200401", Status: OfferingStatusVisible}, // 跨学期班号复用
+		{CourseId: hidden, TermId: term1, ClassCode: "12200401", Status: OfferingStatusVisible},  // 隐藏课程的可见 offering
+		{CourseId: visible, TermId: term1, ClassCode: "12200401", Status: OfferingStatusHidden},  // 隐藏 offering
+	}
+	for _, o := range offerings {
+		if err := conn.Create(&o).Error; err != nil {
+			t.Fatalf("create offering: %v", err)
+		}
+	}
+
+	// 带点入参 + 不限定学期：只返回可见课程的两个学期 offering（隐藏课程/隐藏 offering 排除）。
+	got, err := ListVisibleOfferingsByClassCodes([]string{"122004.01"}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes err = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("all-terms result size = %d, want 2; got %+v", len(got), got)
+	}
+
+	// 限定 term1：只剩该学期的 offering。
+	got1, err := ListVisibleOfferingsByClassCodes([]string{"122004.01"}, term1)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes(term1) err = %v", err)
+	}
+	if len(got1) != 1 || got1[0].TermId != term1 {
+		t.Fatalf("term-scoped result = %+v, want single offering of term %d", got1, term1)
+	}
+
+	// 空入参：空数组而非 nil。
+	gotEmpty, err := ListVisibleOfferingsByClassCodes([]string{"  "}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes(empty) err = %v", err)
+	}
+	if gotEmpty == nil || len(gotEmpty) != 0 {
+		t.Fatalf("empty result = %v, want non-nil empty slice", gotEmpty)
+	}
+}
+
+// TestTermOrderingConsistentAcrossQueries 目录页学期列表与开课实例查询共用同一排序：
+// 标准学期码（数字开头）优先，上游同步无法解析的「其他」排末尾。
+//
+// 回归背景：修 PostgreSQL 报错时为 ListDistinctTerms 加了「标准学期码优先」判别式，
+// 但三处 offering 查询仍只按 COALESCE(starts_on, code) 排序——starts_on 全为 NULL
+// 时会把「其他」排到最前，同一门课在目录筛选与详情页看到的学期先后不一致；
+// 而 ListDistinctTerms 的注释恰恰承诺两者排序一致。
+func TestTermOrderingConsistentAcrossQueries(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100084", "CS")
+	newer := createTerm(t, conn, "2026-2027-1", "2026 秋", nil)
+	older := createTerm(t, conn, "2025-2026-2", "2026 春", nil)
+	other := createTerm(t, conn, "其他", "其他", nil)
+
+	// 建 offering 顺序刻意与期望排序相反（older → other → newer）：
+	// 若排序失效、退化成按 id 或按 code 字典序，断言就会失败。
+	oOlder := createOffering(t, conn, c, older, "四平路校区")
+	oOther := createOffering(t, conn, c, other, "四平路校区")
+	oNewer := createOffering(t, conn, c, newer, "四平路校区")
+	// 三个 offering 共用班号，使 P13 班号查询能一次性命中全部三条以比较顺序。
+	for _, id := range []uint64{oOlder, oOther, oNewer} {
+		if err := conn.Model(&OfferingEntity{}).Where("id = ?", id).Update("class_code", "12200401").Error; err != nil {
+			t.Fatalf("set class_code on offering %d: %v", id, err)
+		}
+	}
+
+	// 目录页学期列表：最新学期居首，「其他」压后。
+	terms, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	if got := termCodes(terms); !slices.Equal(got, []string{"2026-2027-1", "2025-2026-2", "其他"}) {
+		t.Fatalf("term codes = %v, want [2026-2027-1 2025-2026-2 其他]", got)
+	}
+
+	// 详情页开课实例：与学期列表同一顺序。
+	offerings, err := ListOfferingsByCourse(c)
+	if err != nil {
+		t.Fatalf("ListOfferingsByCourse err = %v", err)
+	}
+	if len(offerings) != 3 {
+		t.Fatalf("ListOfferingsByCourse len = %d, want 3", len(offerings))
+	}
+	if offerings[0].Id != oNewer {
+		t.Fatalf("ListOfferingsByCourse first = %d, want %d (最新学期)", offerings[0].Id, oNewer)
+	}
+	if last := offerings[len(offerings)-1]; last.Id != oOther {
+		t.Fatalf("ListOfferingsByCourse last = %d, want %d (「其他」排末尾)", last.Id, oOther)
+	}
+
+	// 批量版本（列表页避免 N+1）同样顺序。
+	batch, err := ListOfferingsByCourses([]uint64{c})
+	if err != nil {
+		t.Fatalf("ListOfferingsByCourses err = %v", err)
+	}
+	if len(batch) != 3 || batch[0].Id != oNewer {
+		t.Fatalf("ListOfferingsByCourses first = %d, want %d", batch[0].Id, oNewer)
+	}
+
+	// P13 班号查询同样顺序。
+	byClass, err := ListVisibleOfferingsByClassCodes([]string{"12200401"}, 0)
+	if err != nil {
+		t.Fatalf("ListVisibleOfferingsByClassCodes err = %v", err)
+	}
+	if len(byClass) != 3 || byClass[0].Id != oNewer {
+		t.Fatalf("ListVisibleOfferingsByClassCodes first = %d, want %d (got %d offerings)",
+			byClass[0].Id, oNewer, len(byClass))
 	}
 }

@@ -57,7 +57,7 @@ listCourseReviews:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/course-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '404':
         description: |
           The offering does not exist, does not belong to the given course, or is not visible.
@@ -117,7 +117,7 @@ createCourseReview:
                 externalValue: ../fixtures/course-review-create-success.json
               invalidRequest:
                 summary: Request-level validation failure (legacy HTTP 200 envelope).
-                externalValue: ../fixtures/course-review-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '400':
         description: |
           Malformed JSON request body (binding failure), or a service-level validation failure
@@ -130,7 +130,7 @@ createCourseReview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/course-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -139,7 +139,7 @@ createCourseReview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -230,7 +230,7 @@ updateCourseReview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The caller is not the review author, or the account is frozen.
         content:
@@ -292,7 +292,7 @@ deleteCourseReview:
               $ref: ../components/schemas.yaml#/ReviewActionResponse
             examples:
               success:
-                externalValue: ../fixtures/course-review-delete-success.json
+                externalValue: ../fixtures/result-true.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -301,7 +301,7 @@ deleteCourseReview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The caller is not the review author, or the account is frozen.
         content:
@@ -361,7 +361,7 @@ markReviewHelpful:
               $ref: ../components/schemas.yaml#/ReviewActionResponse
             examples:
               success:
-                externalValue: ../fixtures/course-review-helpful-success.json
+                externalValue: ../fixtures/result-true.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -370,7 +370,7 @@ markReviewHelpful:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '404':
         description: The review does not exist, is hidden, or is deleted.
         content:
@@ -421,7 +421,7 @@ unmarkReviewHelpful:
               $ref: ../components/schemas.yaml#/ReviewActionResponse
             examples:
               success:
-                externalValue: ../fixtures/course-review-unhelpful-success.json
+                externalValue: ../fixtures/result-true.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -430,7 +430,7 @@ unmarkReviewHelpful:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '404':
         description: The review does not exist, is hidden, or is deleted.
         content:
@@ -442,6 +442,127 @@ unmarkReviewHelpful:
                 externalValue: ../fixtures/course-review-not-found.json
       '429':
         description: Helpful rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+markReviewDislike:
+  put:
+    tags: [Forum]
+    summary: Mark a course review as disliked
+    operationId: markReviewDislike
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write, idempotent: marking an already-disliked review succeeds. Hidden or
+      deleted reviews report 404 `review.notFound`. The caller's own dislike state is exposed
+      via the review DTO's `viewer.isDisliked`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Dislike rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+unmarkReviewDislike:
+  delete:
+    tags: [Forum]
+    summary: Unmark a course review as disliked
+    operationId: unmarkReviewDislike
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write, idempotent: unmarking a review that is not disliked succeeds. Hidden or
+      deleted reviews report 404 `review.notFound`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Dislike rate limit exceeded.
         headers:
           Retry-After:
             required: true
@@ -489,7 +610,7 @@ reportCourseReview:
               $ref: ../components/schemas.yaml#/ReviewActionResponse
             examples:
               success:
-                externalValue: ../fixtures/course-review-report-success.json
+                externalValue: ../fixtures/result-true.json
               targetInvalid:
                 externalValue: ../fixtures/course-review-report-target-invalid.json
               ownContent:
@@ -504,7 +625,7 @@ reportCourseReview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '429':
         description: Report rate limit exceeded.
         headers:
@@ -546,7 +667,7 @@ moderationCourseReviewStatus:
               $ref: ../components/schemas.yaml#/ReviewActionResponse
             examples:
               success:
-                externalValue: ../fixtures/course-review-moderation-status-success.json
+                externalValue: ../fixtures/result-true.json
               notFound:
                 externalValue: ../fixtures/course-review-not-found.json
       '401':
@@ -557,7 +678,7 @@ moderationCourseReviewStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The caller is not a CourseManager.
         content:
@@ -566,7 +687,7 @@ moderationCourseReviewStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               permissionDenied:
-                externalValue: ../fixtures/course-review-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
       '429':
         description: Course-review moderation rate limit exceeded (60s window).
         headers:
@@ -617,7 +738,7 @@ moderationCourseReviewReportList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The caller is not a CourseManager.
         content:
@@ -626,7 +747,7 @@ moderationCourseReviewReportList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               permissionDenied:
-                externalValue: ../fixtures/course-review-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
       '429':
         description: Course-review moderation rate limit exceeded (60s window).
         headers:
@@ -669,7 +790,7 @@ moderationCourseReviewReveal:
               success:
                 externalValue: ../fixtures/course-review-moderation-reveal-success.json
               permissionDenied:
-                externalValue: ../fixtures/course-review-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
               notFound:
                 externalValue: ../fixtures/course-review-not-found.json
       '429':
@@ -692,4 +813,4 @@ moderationCourseReviewReveal:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/course-review-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json

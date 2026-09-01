@@ -63,6 +63,8 @@
         "department": "教务处",
         "creditX10": 20,
         "aliases": ["同济导论"],
+        "teacherId": 2001,
+        "teacherName": "张老师",
         "instructors": ["张老师"],
         "terms": ["2025-2026-1"],
         "campus": ["四平路"]

@@ -1,0 +1,22 @@
+{
+  "result": {
+    "enabled": true,
+    "endpoints": [
+      {
+        "id": "ep1",
+        "name": "契约 webhook",
+        "enabled": true,
+        "url": "https://hook.example.test/notify",
+        "secretConfigured": true,
+        "events": [
+          "topic.created"
+        ],
+        "timeoutSeconds": 5,
+        "failureCount": 0,
+        "lastError": "",
+        "abnormalTerminated": false
+      }
+    ]
+  },
+  "code": 0
+}

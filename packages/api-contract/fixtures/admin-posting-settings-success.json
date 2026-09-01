@@ -1,0 +1,27 @@
+{
+  "result": {
+    "textControl": {
+      "minPostLength": 5,
+      "maxPostLength": 20000,
+      "minTitleLength": 4,
+      "maxTitleLength": 120,
+      "newUserPostCooldownMinutes": 10
+    },
+    "uploadControl": {
+      "allowAttachments": true,
+      "authorizedExtensions": [
+        "png",
+        "jpg"
+      ],
+      "maxAttachmentSizeKb": 2048,
+      "maxDailyUploadsPerUser": 20,
+      "newUserUploadCooldownMinutes": 30
+    },
+    "llms": {
+      "enabled": true,
+      "fullText": false,
+      "files": true
+    }
+  },
+  "code": 0
+}

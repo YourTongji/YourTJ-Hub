@@ -1,16 +1,21 @@
 package forum
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
-	"github.com/samber/lo"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
 
 func Home(c *gin.Context) {
-	sort, _ := lo.Coalesce(c.Query("sort"), "latest")
-	page := lo.Ternary(cast.ToInt(c.Query("page")) <= 0, 1, cast.ToInt(c.Query("page")))
+	sort := c.Query("sort")
+	if sort == "" {
+		sort = "latest"
+	}
+	page := cast.ToInt(c.Query("page"))
+	if page <= 0 {
+		page = 1
+	}
 
 	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(page, sort)
 	payload := PagePayload{

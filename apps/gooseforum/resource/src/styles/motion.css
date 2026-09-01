@@ -256,18 +256,76 @@
   transform: translateY(-4px);
 }
 
-.gf-local-expand-enter-active,
+/* 写评/编辑表单（gf-local-expand）：打开时按内容真实高度展开（grid-rows 0fr→1fr，
+   无 max-height 硬编码，内容随高度释放淡入）；关闭时保持展开高度，仅做固定位移的
+   柔和淡出（better-ui：退出不做高度塌陷，且短于进入）。 */
+.gf-local-expand {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.gf-local-expand-enter-active {
+  transition:
+    grid-template-rows 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gf-local-expand-enter-from {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
 .gf-local-expand-leave-active {
-  overflow: hidden;
+  grid-template-rows: 1fr;
   transition:
     opacity 0.16s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.gf-local-expand-enter-from,
 .gf-local-expand-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(0.99);
+}
+
+/* 提交失败按钮反馈：水平抖动（一次性高注意力提示，仅失败态触发） */
+@keyframes gf-shake-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.gf-submit-error {
+  animation: gf-shake-x 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* 新评价定位高亮：表单收起后平滑滚动到该条评论，主题色泛光一次并退火（1.8s），
+   锚定用户视线后回归常态（可重复触发）。 */
+@keyframes gf-review-highlight-fade {
+  0% {
+    background-color: color-mix(in oklab, var(--gf-color-primary) 14%, transparent);
+    box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--gf-color-primary) 45%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+
+.gf-review-highlight {
+  animation: gf-review-highlight-fade 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .gf-modal-enter-active,
@@ -361,6 +419,57 @@
   transform: translateY(3px);
 }
 
+/* 分享评论卡（对齐 serverless）：纸张弹入 + 打印机墨盒扫光 */
+@keyframes gf-share-paper-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(-96px) scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(8px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.share-paper-enter {
+  animation: gf-share-paper-reveal 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: top center;
+}
+
+.share-printer-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.share-printer-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(14, 165, 233, 0.18) 25%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(14, 165, 233, 0.18) 75%,
+    transparent 100%
+  );
+  animation: gf-share-printer-sweep 2.2s ease-in-out infinite;
+}
+
+@keyframes gf-share-printer-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gf-page-enter-active,
   .gf-page-leave-active,
@@ -403,40 +512,17 @@
   .user-card-content-leave-to {
     transform: none;
   }
-}
 
-.gf-ripple {
-  position: fixed;
-  z-index: 1000;
-  pointer-events: none;
-  overflow: hidden;
-  contain: strict;
+  .share-paper-enter,
+  .share-printer-bar::after,
+  .gf-submit-error,
+  .gf-review-highlight {
+    animation: none;
+  }
 }
 
 /* Blue Archive touch overlay: must never steal hit-testing from real UI. */
 #gf-ba-touch-effect-host,
 #gf-ba-touch-effect-host * {
   pointer-events: none !important;
-}
-
-.gf-ripple__wave {
-  position: absolute;
-  border-radius: 9999px;
-  background: color-mix(in oklab, var(--gf-color-primary) 22%, transparent);
-  transform: scale(0);
-  opacity: 0.6;
-  animation: gf-ripple 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-@keyframes gf-ripple {
-  to {
-    transform: scale(1);
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gf-ripple__wave {
-    animation-duration: 0.01ms;
-  }
 }

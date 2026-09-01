@@ -52,6 +52,7 @@ const (
 	AiSummarySettings   = `aiSummarySettings`
 	OneSystemSettings   = `onesystemSettings`
 	WikiSyncSettings    = `wikiSyncSettings`
+	ScheduleSettings    = `scheduleSettings`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -161,9 +162,59 @@ type ChromeGroup struct {
 	Items     []ChromeItem `json:"items"`
 }
 
-// MailSettingsConfig 邮件设置配置
+// MailSettingsConfig 邮件设置配置（S2，issue #324）：smtpPassword 只落库密文
+// （securestore AES-256-GCM），运行时由 hotdataserve 解密为明文置于 json:"-"
+// 字段——明文/密文绝不随 JSON 序列化导出（管理端 GET 仅回显是否已配置）。
+// 持久化走 MailSettingsStorage（密文带 json 标签）。
 type MailSettingsConfig struct {
 	// SMTP服务器设置
+	EnableMail   bool   `json:"enableMail"`
+	SmtpHost     string `json:"smtpHost"`
+	SmtpPort     int    `json:"smtpPort"`
+	UseSSL       bool   `json:"useSSL"`
+	SmtpUsername string `json:"smtpUsername"`
+	SmtpPassword string `json:"-"` // 运行时明文（服务内存）；密文见 MailSettingsStorage
+	FromName     string `json:"fromName"`
+	FromEmail    string `json:"fromEmail"`
+}
+
+// MailSettingsStorage 邮件设置的落库 JSON 形状：与对外 MailSettingsConfig 分离，
+// 密文只在持久化序列化时出现，不进入 API 响应/缓存结构。
+// SmtpPassword 为 v25 迁移前的存量明文（json:"smtpPassword"，兼容读取，迁移后清空）；
+// SmtpPasswordEncrypted 为 securestore 密文（优先于明文）。
+type MailSettingsStorage struct {
+	EnableMail            bool   `json:"enableMail"`
+	SmtpHost              string `json:"smtpHost"`
+	SmtpPort              int    `json:"smtpPort"`
+	UseSSL                bool   `json:"useSSL"`
+	SmtpUsername          string `json:"smtpUsername"`
+	SmtpPassword          string `json:"smtpPassword,omitempty"`          // 迁移前存量明文（兼容读取）
+	SmtpPasswordEncrypted string `json:"smtpPasswordEncrypted,omitempty"` // 密文（AES-256-GCM）
+	FromName              string `json:"fromName"`
+	FromEmail             string `json:"fromEmail"`
+}
+
+// ToConfig 将落库形状转为领域结构（密码为密文原样拷贝，调用方解密）。
+func (s MailSettingsStorage) ToConfig() MailSettingsConfig {
+	password := s.SmtpPasswordEncrypted
+	if password == "" {
+		password = s.SmtpPassword
+	}
+	return MailSettingsConfig{
+		EnableMail:   s.EnableMail,
+		SmtpHost:     s.SmtpHost,
+		SmtpPort:     s.SmtpPort,
+		UseSSL:       s.UseSSL,
+		SmtpUsername: s.SmtpUsername,
+		SmtpPassword: password,
+		FromName:     s.FromName,
+		FromEmail:    s.FromEmail,
+	}
+}
+
+// MailSettingsInput 管理端保存/测试请求的绑定形状：smtpPassword 为明文输入
+// （仅请求瞬间存在，绝不落库）。空密码 = 保持已存值（issue #324 S2）。
+type MailSettingsInput struct {
 	EnableMail   bool   `json:"enableMail"`
 	SmtpHost     string `json:"smtpHost"`
 	SmtpPort     int    `json:"smtpPort"`
@@ -172,6 +223,51 @@ type MailSettingsConfig struct {
 	SmtpPassword string `json:"smtpPassword"`
 	FromName     string `json:"fromName"`
 	FromEmail    string `json:"fromEmail"`
+}
+
+// ToConfig 将输入形状转为领域结构（含明文密码，供 mailservice 发送使用）。
+func (i MailSettingsInput) ToConfig() MailSettingsConfig {
+	return MailSettingsConfig(i)
+}
+
+// MailSettingsView 管理端 GET 回显形状：不含密码，仅回显是否已配置（issue #324 S2）。
+type MailSettingsView struct {
+	EnableMail             bool   `json:"enableMail"`
+	SmtpHost               string `json:"smtpHost"`
+	SmtpPort               int    `json:"smtpPort"`
+	UseSSL                 bool   `json:"useSSL"`
+	SmtpUsername           string `json:"smtpUsername"`
+	SmtpPasswordConfigured bool   `json:"smtpPasswordConfigured"`
+	FromName               string `json:"fromName"`
+	FromEmail              string `json:"fromEmail"`
+}
+
+// ToView 由落库形状生成回显视图。
+func (s MailSettingsStorage) ToView() MailSettingsView {
+	return MailSettingsView{
+		EnableMail:             s.EnableMail,
+		SmtpHost:               s.SmtpHost,
+		SmtpPort:               s.SmtpPort,
+		UseSSL:                 s.UseSSL,
+		SmtpUsername:           s.SmtpUsername,
+		SmtpPasswordConfigured: strings.TrimSpace(s.SmtpPassword) != "" || strings.TrimSpace(s.SmtpPasswordEncrypted) != "",
+		FromName:               s.FromName,
+		FromEmail:              s.FromEmail,
+	}
+}
+
+// ToView 由领域结构生成回显视图（默认配置路径：密码恒为空）。
+func (c MailSettingsConfig) ToView() MailSettingsView {
+	return MailSettingsView{
+		EnableMail:             c.EnableMail,
+		SmtpHost:               c.SmtpHost,
+		SmtpPort:               c.SmtpPort,
+		UseSSL:                 c.UseSSL,
+		SmtpUsername:           c.SmtpUsername,
+		SmtpPasswordConfigured: strings.TrimSpace(c.SmtpPassword) != "",
+		FromName:               c.FromName,
+		FromEmail:              c.FromEmail,
+	}
 }
 
 // AnnouncementItem 单则公告（多则公告模式）
@@ -234,7 +330,11 @@ type SecurityAndRegistration struct {
 	CaptchaRequired         bool     `json:"captchaRequired"`   // 注册/登录/找回密码是否要求验证码
 }
 
-// StorageSettingsConfig 存储设置配置（本地 SQLite BLOB 或 S3 兼容对象存储）
+// StorageSettings 存储设置配置（本地 SQLite BLOB 或 S3 兼容对象存储）。
+// S3 凭据（issue #324 S3）：accessKey/secretKey 只落库密文（securestore
+// AES-256-GCM），运行时由 hotdataserve 解密为明文置于 json:"-" 字段——明文/
+// 密文绝不随 JSON 序列化导出（管理端 GET 仅回显是否已配置）。
+// 持久化走 StorageSettingsStorage（密文带 json 标签）。
 type StorageSettings struct {
 	Provider        string `json:"provider"`        // local | s3
 	Endpoint        string `json:"endpoint"`        // S3 兼容 endpoint，如 https://cos.ap-shanghai.myqcloud.com
@@ -242,9 +342,112 @@ type StorageSettings struct {
 	Region          string `json:"region"`          // 区域（COS/OSS 必须，R2 可忽略）
 	BucketLookup    string `json:"bucketLookup"`    // auto | dns | path（COS 需 dns，MinIO/R2 可 auto/path）
 	Secure          bool   `json:"secure"`          // 是否使用 HTTPS
-	AccessKey       string `json:"accessKey"`       // 访问密钥
-	SecretKey       string `json:"secretKey"`       // 私密密钥
+	AccessKey       string `json:"-"`               // 运行时明文（服务内存）；密文见 StorageSettingsStorage
+	SecretKey       string `json:"-"`               // 运行时明文（服务内存）；密文见 StorageSettingsStorage
 	PublicUrlPrefix string `json:"publicUrlPrefix"` // 可选公开访问前缀（CDN），留空则走 /file/img 代理
+}
+
+// StorageSettingsStorage 存储设置的落库 JSON 形状：与对外 StorageSettings 分离，
+// 密文只在持久化序列化时出现，不进入 API 响应/缓存结构。
+// AccessKey/SecretKey 为 v25 迁移前的存量明文（兼容读取，迁移后清空）；
+// AccessKeyEncrypted/SecretKeyEncrypted 为 securestore 密文（优先于明文）。
+type StorageSettingsStorage struct {
+	Provider           string `json:"provider"`
+	Endpoint           string `json:"endpoint"`
+	Bucket             string `json:"bucket"`
+	Region             string `json:"region"`
+	BucketLookup       string `json:"bucketLookup"`
+	Secure             bool   `json:"secure"`
+	AccessKey          string `json:"accessKey,omitempty"`          // 迁移前存量明文（兼容读取）
+	SecretKey          string `json:"secretKey,omitempty"`          // 迁移前存量明文（兼容读取）
+	AccessKeyEncrypted string `json:"accessKeyEncrypted,omitempty"` // 密文（AES-256-GCM）
+	SecretKeyEncrypted string `json:"secretKeyEncrypted,omitempty"` // 密文（AES-256-GCM）
+	PublicUrlPrefix    string `json:"publicUrlPrefix"`
+}
+
+// ToConfig 将落库形状转为领域结构（凭据为密文或存量明文原样拷贝，调用方解密/识别）。
+func (s StorageSettingsStorage) ToConfig() StorageSettings {
+	accessKey := s.AccessKeyEncrypted
+	if accessKey == "" {
+		accessKey = s.AccessKey
+	}
+	secretKey := s.SecretKeyEncrypted
+	if secretKey == "" {
+		secretKey = s.SecretKey
+	}
+	return StorageSettings{
+		Provider:        s.Provider,
+		Endpoint:        s.Endpoint,
+		Bucket:          s.Bucket,
+		Region:          s.Region,
+		BucketLookup:    s.BucketLookup,
+		Secure:          s.Secure,
+		AccessKey:       accessKey,
+		SecretKey:       secretKey,
+		PublicUrlPrefix: s.PublicUrlPrefix,
+	}
+}
+
+// StorageSettingsView 管理端 GET 回显形状：不含凭据，仅回显是否已配置（issue #324 S3）。
+type StorageSettingsView struct {
+	Provider            string `json:"provider"`
+	Endpoint            string `json:"endpoint"`
+	Bucket              string `json:"bucket"`
+	Region              string `json:"region"`
+	BucketLookup        string `json:"bucketLookup"`
+	Secure              bool   `json:"secure"`
+	AccessKeyConfigured bool   `json:"accessKeyConfigured"`
+	SecretKeyConfigured bool   `json:"secretKeyConfigured"`
+	PublicUrlPrefix     string `json:"publicUrlPrefix"`
+}
+
+// ToView 由落库形状生成回显视图。
+func (s StorageSettingsStorage) ToView() StorageSettingsView {
+	return StorageSettingsView{
+		Provider:            s.Provider,
+		Endpoint:            s.Endpoint,
+		Bucket:              s.Bucket,
+		Region:              s.Region,
+		BucketLookup:        s.BucketLookup,
+		Secure:              s.Secure,
+		AccessKeyConfigured: strings.TrimSpace(s.AccessKey) != "" || strings.TrimSpace(s.AccessKeyEncrypted) != "",
+		SecretKeyConfigured: strings.TrimSpace(s.SecretKey) != "" || strings.TrimSpace(s.SecretKeyEncrypted) != "",
+		PublicUrlPrefix:     s.PublicUrlPrefix,
+	}
+}
+
+// ToView 由领域结构生成回显视图（默认配置路径：凭据恒为空）。
+func (c StorageSettings) ToView() StorageSettingsView {
+	return StorageSettingsView{
+		Provider:            c.Provider,
+		Endpoint:            c.Endpoint,
+		Bucket:              c.Bucket,
+		Region:              c.Region,
+		BucketLookup:        c.BucketLookup,
+		Secure:              c.Secure,
+		AccessKeyConfigured: strings.TrimSpace(c.AccessKey) != "",
+		SecretKeyConfigured: strings.TrimSpace(c.SecretKey) != "",
+		PublicUrlPrefix:     c.PublicUrlPrefix,
+	}
+}
+
+// StorageSettingsInput 管理端保存/测试请求的绑定形状：accessKey/secretKey 为明文
+// 输入（仅请求瞬间存在，绝不落库）。空值 = 保持已存密文（issue #324 S3）。
+type StorageSettingsInput struct {
+	Provider        string `json:"provider"`
+	Endpoint        string `json:"endpoint"`
+	Bucket          string `json:"bucket"`
+	Region          string `json:"region"`
+	BucketLookup    string `json:"bucketLookup"`
+	Secure          bool   `json:"secure"`
+	AccessKey       string `json:"accessKey"`
+	SecretKey       string `json:"secretKey"`
+	PublicUrlPrefix string `json:"publicUrlPrefix"`
+}
+
+// ToConfig 将输入形状转为领域结构（含明文凭据，供测试连接等服务使用）。
+func (i StorageSettingsInput) ToConfig() StorageSettings {
+	return StorageSettings(i)
 }
 
 // TermsOfServiceConfig 服务条款配置
@@ -311,11 +514,182 @@ type RateLimitConfig struct {
 	NewUserCaptchaAfterPosts int             `json:"newUserCaptchaAfterPosts"` // 新用户窗口内连发 N 帖后要求验证码，0 关闭
 	NewUserCaptchaDays       int             `json:"newUserCaptchaDays"`       // 新用户判定窗口（注册 N 天内），0 表示所有用户
 	MinSubmitSeconds         int             `json:"minSubmitSeconds"`         // 验证码提交耗时下限（秒），低于判定为机器
+	actionIndex              map[string]RateLimitRule
+}
+
+// BuildActionIndex prepares the immutable first-match action lookup used by
+// request paths. Duplicate actions keep the existing first-rule-wins behavior.
+func (c *RateLimitConfig) BuildActionIndex() {
+	index := make(map[string]RateLimitRule, len(c.Actions))
+	for _, rule := range c.Actions {
+		if _, exists := index[rule.Action]; !exists {
+			index[rule.Action] = rule
+		}
+	}
+	c.actionIndex = index
+}
+
+// RuleForAction returns a configured action without scanning the rule slice.
+// The index is built at the hot-reload boundary before the config is published.
+func (c RateLimitConfig) RuleForAction(action string) (RateLimitRule, bool) {
+	rule, ok := c.actionIndex[action]
+	return rule, ok
 }
 
 type HttpNotifyConfig struct {
 	Enabled   bool                 `json:"enabled"`
 	Endpoints []HttpNotifyEndpoint `json:"endpoints"`
+}
+
+// HttpNotifyEndpoint 通知端点（S1，issue #324）：Secret 只落库密文（securestore
+// AES-256-GCM），运行时由 hotdataserve 解密为明文置于 json:"-" 字段——明文/
+// 密文绝不随 JSON 序列化导出（管理端 GET 仅回显是否已配置）。
+// 持久化走 HttpNotifyStorageEndpoint（密文带 json 标签）。
+type HttpNotifyEndpoint struct {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Enabled            bool     `json:"enabled"`
+	URL                string   `json:"url"`
+	Secret             string   `json:"-"` // 运行时明文（服务内存）；密文见 HttpNotifyStorageEndpoint
+	Events             []string `json:"events"`
+	TimeoutSeconds     int      `json:"timeoutSeconds"`
+	FailureCount       int      `json:"failureCount"`
+	LastError          string   `json:"lastError"`
+	AbnormalTerminated bool     `json:"abnormalTerminated"`
+}
+
+// HttpNotifyStorageEndpoint 通知端点的落库 JSON 形状：与对外 HttpNotifyEndpoint
+// 分离，密文只在持久化序列化时出现，不进入 API 响应/缓存结构。
+// Secret 为 v25 迁移前的存量明文（json:"secret"，兼容读取，迁移后清空）；
+// SecretEncrypted 为 securestore 密文（优先于明文）。
+type HttpNotifyStorageEndpoint struct {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Enabled            bool     `json:"enabled"`
+	URL                string   `json:"url"`
+	Secret             string   `json:"secret,omitempty"`          // 迁移前存量明文（兼容读取）
+	SecretEncrypted    string   `json:"secretEncrypted,omitempty"` // 密文（AES-256-GCM）
+	Events             []string `json:"events"`
+	TimeoutSeconds     int      `json:"timeoutSeconds"`
+	FailureCount       int      `json:"failureCount"`
+	LastError          string   `json:"lastError"`
+	AbnormalTerminated bool     `json:"abnormalTerminated"`
+}
+
+// ToConfig 将落库形状转为领域结构（密钥为密文或存量明文原样拷贝，调用方解密/识别）。
+func (s HttpNotifyStorageEndpoint) ToConfig() HttpNotifyEndpoint {
+	secret := s.SecretEncrypted
+	if secret == "" {
+		secret = s.Secret
+	}
+	return HttpNotifyEndpoint{
+		Id:                 s.Id,
+		Name:               s.Name,
+		Enabled:            s.Enabled,
+		URL:                s.URL,
+		Secret:             secret,
+		Events:             s.Events,
+		TimeoutSeconds:     s.TimeoutSeconds,
+		FailureCount:       s.FailureCount,
+		LastError:          s.LastError,
+		AbnormalTerminated: s.AbnormalTerminated,
+	}
+}
+
+// HttpNotifyStorageConfig 通知设置的落库 JSON 形状。
+type HttpNotifyStorageConfig struct {
+	Enabled   bool                        `json:"enabled"`
+	Endpoints []HttpNotifyStorageEndpoint `json:"endpoints"`
+}
+
+// ToConfig 将落库形状转为领域结构。
+func (s HttpNotifyStorageConfig) ToConfig() HttpNotifyConfig {
+	endpoints := make([]HttpNotifyEndpoint, 0, len(s.Endpoints))
+	for _, e := range s.Endpoints {
+		endpoints = append(endpoints, e.ToConfig())
+	}
+	return HttpNotifyConfig{Enabled: s.Enabled, Endpoints: endpoints}
+}
+
+// HttpNotifyEndpointView 管理端 GET 回显形状：不含密钥，仅回显是否已配置（issue #324 S1）。
+type HttpNotifyEndpointView struct {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Enabled            bool     `json:"enabled"`
+	URL                string   `json:"url"`
+	SecretConfigured   bool     `json:"secretConfigured"`
+	Events             []string `json:"events"`
+	TimeoutSeconds     int      `json:"timeoutSeconds"`
+	FailureCount       int      `json:"failureCount"`
+	LastError          string   `json:"lastError"`
+	AbnormalTerminated bool     `json:"abnormalTerminated"`
+}
+
+// HttpNotifyView 管理端 GET 回显形状：不含密钥（issue #324 S1）。
+type HttpNotifyView struct {
+	Enabled   bool                     `json:"enabled"`
+	Endpoints []HttpNotifyEndpointView `json:"endpoints"`
+}
+
+// ToView 由落库形状生成回显视图。
+func (s HttpNotifyStorageConfig) ToView() HttpNotifyView {
+	endpoints := make([]HttpNotifyEndpointView, 0, len(s.Endpoints))
+	for _, e := range s.Endpoints {
+		endpoints = append(endpoints, HttpNotifyEndpointView{
+			Id:                 e.Id,
+			Name:               e.Name,
+			Enabled:            e.Enabled,
+			URL:                e.URL,
+			SecretConfigured:   strings.TrimSpace(e.SecretEncrypted) != "" || strings.TrimSpace(e.Secret) != "",
+			Events:             e.Events,
+			TimeoutSeconds:     e.TimeoutSeconds,
+			FailureCount:       e.FailureCount,
+			LastError:          e.LastError,
+			AbnormalTerminated: e.AbnormalTerminated,
+		})
+	}
+	return HttpNotifyView{Enabled: s.Enabled, Endpoints: endpoints}
+}
+
+// ToView 由领域结构生成回显视图（默认配置路径：密钥恒为空）。
+func (c HttpNotifyConfig) ToView() HttpNotifyView {
+	endpoints := make([]HttpNotifyEndpointView, 0, len(c.Endpoints))
+	for _, e := range c.Endpoints {
+		endpoints = append(endpoints, HttpNotifyEndpointView{
+			Id:                 e.Id,
+			Name:               e.Name,
+			Enabled:            e.Enabled,
+			URL:                e.URL,
+			SecretConfigured:   strings.TrimSpace(e.Secret) != "",
+			Events:             e.Events,
+			TimeoutSeconds:     e.TimeoutSeconds,
+			FailureCount:       e.FailureCount,
+			LastError:          e.LastError,
+			AbnormalTerminated: e.AbnormalTerminated,
+		})
+	}
+	return HttpNotifyView{Enabled: c.Enabled, Endpoints: endpoints}
+}
+
+// HttpNotifyEndpointInput 管理端保存请求的绑定形状：secret 为明文输入
+// （仅请求瞬间存在，绝不落库）。空值 = 保持同 id 端点的已存密文（issue #324 S1）。
+type HttpNotifyEndpointInput struct {
+	Id                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Enabled            bool     `json:"enabled"`
+	URL                string   `json:"url"`
+	Secret             string   `json:"secret"`
+	Events             []string `json:"events"`
+	TimeoutSeconds     int      `json:"timeoutSeconds"`
+	FailureCount       int      `json:"failureCount"`
+	LastError          string   `json:"lastError"`
+	AbnormalTerminated bool     `json:"abnormalTerminated"`
+}
+
+// HttpNotifyConfigInput 管理端保存请求的绑定形状（issue #324 S1）。
+type HttpNotifyConfigInput struct {
+	Enabled   bool                      `json:"enabled"`
+	Endpoints []HttpNotifyEndpointInput `json:"endpoints"`
 }
 
 // MCPSettingsConfig 内置 MCP server 配置，可在管理面板热修改。
@@ -324,12 +698,108 @@ type MCPSettingsConfig struct {
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
 }
 
-// AiSummaryConfig AI 课程总结开关配置（B7，issue #181），可在管理面板热修改。
-// GlobalPerMinute 为全局每分钟 LLM 生成上限（成本护栏）；Provider 相关配置
-// （base_url/api_key/model 等）在 config.toml [ai_summary] 段，不进 DB。
+// ScheduleSettingsConfig 排课器节次作息表配置（12 节上课时间），可在管理面板热修改；
+// SSR 透传给 /schedule 页面 props，未配置时回退内置默认作息。
+type ScheduleSettingsConfig struct {
+	SectionTimes []ScheduleSectionTime `json:"sectionTimes"`
+}
+
+// ScheduleSectionTime 单个节次的开始/结束时间（HH:MM）。
+type ScheduleSectionTime struct {
+	Section int    `json:"section"` // 节次 1..12
+	Start   string `json:"start"`   // 开始时间 HH:MM
+	End     string `json:"end"`     // 结束时间 HH:MM
+}
+
+// AiSummaryConfig AI 课程总结配置（B7，issue #181），可在管理面板热修改。
+// Enabled 总开关、GlobalPerMinute 全局每分钟 LLM 生成上限（成本护栏）。
+// BaseURL/Model/APIKey/Temperature/MaxTokens 为 provider 参数：管理后台配置
+// 优先，未配置时回退 config.toml [ai_summary]（向后兼容）。
+// APIKey 为运行时明文（securestore 解密），标 json:"-"：明文/密文绝不随
+// JSON 序列化导出（遵循 issue #324 安全模式），持久化走 AiSummarySettingsStorage。
 type AiSummaryConfig struct {
-	Enabled         bool `json:"enabled"`         // 总开关（关闭时端点返回 status=disabled）
-	GlobalPerMinute int  `json:"globalPerMinute"` // 全局每分钟生成上限（0 = 用默认 5）
+	Enabled         bool     `json:"enabled"`               // 总开关（关闭时端点返回 status=disabled）
+	GlobalPerMinute int      `json:"globalPerMinute"`       // 全局每分钟生成上限（0 = 用默认 5）
+	BaseURL         string   `json:"baseUrl"`               // OpenAI-compatible 端点，如 https://api.openai.com/v1
+	Model           string   `json:"model"`                 // 模型 ID，如 gpt-4o
+	APIKey          string   `json:"-"`                     // 运行时明文（服务内存）；密文见 AiSummarySettingsStorage
+	Temperature     *float64 `json:"temperature,omitempty"` // 可选；不配用默认 0.3
+	MaxTokens       *int     `json:"maxTokens,omitempty"`   // 可选；不配用默认 1024
+}
+
+// AiSummarySettingsStorage AI 总结配置的落库 JSON 形状：与对外 AiSummaryConfig 分离，
+// apiKey 密文只在持久化序列化时出现，不进入 API 响应/缓存结构。
+type AiSummarySettingsStorage struct {
+	Enabled         bool     `json:"enabled"`
+	GlobalPerMinute int      `json:"globalPerMinute"`
+	BaseURL         string   `json:"baseUrl"`
+	Model           string   `json:"model"`
+	APIKeyEncrypted string   `json:"apiKeyEncrypted,omitempty"` // 密文（AES-256-GCM）
+	Temperature     *float64 `json:"temperature,omitempty"`
+	MaxTokens       *int     `json:"maxTokens,omitempty"`
+}
+
+// ToConfig 将落库形状转为领域结构（apiKey 密文原样拷贝，调用方解密）。
+func (s AiSummarySettingsStorage) ToConfig() AiSummaryConfig {
+	return AiSummaryConfig{
+		Enabled:         s.Enabled,
+		GlobalPerMinute: s.GlobalPerMinute,
+		BaseURL:         s.BaseURL,
+		Model:           s.Model,
+		APIKey:          s.APIKeyEncrypted,
+		Temperature:     s.Temperature,
+		MaxTokens:       s.MaxTokens,
+	}
+}
+
+// AiSummarySettingsView 管理端 GET 回显形状：apiKey 仅回显是否已配置
+// （明文/密文均不出现在响应中）。
+type AiSummarySettingsView struct {
+	Enabled          bool     `json:"enabled"`
+	GlobalPerMinute  int      `json:"globalPerMinute"`
+	BaseURL          string   `json:"baseUrl"`
+	Model            string   `json:"model"`
+	APIKeyConfigured bool     `json:"apiKeyConfigured"`
+	Temperature      *float64 `json:"temperature,omitempty"`
+	MaxTokens        *int     `json:"maxTokens,omitempty"`
+}
+
+// ToView 由落库形状生成回显视图。
+func (s AiSummarySettingsStorage) ToView() AiSummarySettingsView {
+	return AiSummarySettingsView{
+		Enabled:          s.Enabled,
+		GlobalPerMinute:  s.GlobalPerMinute,
+		BaseURL:          s.BaseURL,
+		Model:            s.Model,
+		APIKeyConfigured: strings.TrimSpace(s.APIKeyEncrypted) != "",
+		Temperature:      s.Temperature,
+		MaxTokens:        s.MaxTokens,
+	}
+}
+
+// ToView 由领域结构生成回显视图（默认配置路径：apiKey 恒为空）。
+func (c AiSummaryConfig) ToView() AiSummarySettingsView {
+	return AiSummarySettingsView{
+		Enabled:          c.Enabled,
+		GlobalPerMinute:  c.GlobalPerMinute,
+		BaseURL:          c.BaseURL,
+		Model:            c.Model,
+		APIKeyConfigured: strings.TrimSpace(c.APIKey) != "",
+		Temperature:      c.Temperature,
+		MaxTokens:        c.MaxTokens,
+	}
+}
+
+// AiSummarySettingsInput 管理端保存请求的绑定形状：apiKey 为明文（仅在请求瞬间
+// 存在），空串表示保留已存密文。
+type AiSummarySettingsInput struct {
+	Enabled         bool     `json:"enabled"`
+	GlobalPerMinute int      `json:"globalPerMinute"`
+	BaseURL         string   `json:"baseUrl"`
+	Model           string   `json:"model"`
+	APIKey          string   `json:"apiKey,omitempty"`
+	Temperature     *float64 `json:"temperature,omitempty"`
+	MaxTokens       *int     `json:"maxTokens,omitempty"`
 }
 
 // OneSystemSettingsConfig 一系统同步凭证配置：只落库密文（securestore AES-256-GCM），
@@ -350,9 +820,18 @@ func (s OneSystemSettingsStorage) ToConfig() OneSystemSettingsConfig {
 	return OneSystemSettingsConfig{CookieEncrypted: s.CookieEncrypted}
 }
 
-// WikiSyncSettingsConfig GitHub webhook 验签密钥配置：只落库密文
-// （securestore AES-256-GCM），明文仅在保存时短暂出现；读取时由
-// 同步服务在内存中解密，管理端 GET 仅回显是否已配置。
+// WikiAssetCDNSelf 资源由论坛自身提供（/wiki/_assets/ 路由，默认）。
+const WikiAssetCDNSelf = "self"
+
+// WikiAssetCDNJsDelivr 资源由 jsDelivr CDN 提供（gh 镜像 GitHub 仓库文件）。
+const WikiAssetCDNJsDelivr = "jsDelivr"
+
+// WikiAssetCDNDefault 默认资源 CDN（self：论坛二进制内置服务，无外部依赖）。
+const WikiAssetCDNDefault = WikiAssetCDNSelf
+
+// WikiSyncSettingsConfig wiki 同步设置（webhook 验签密钥 + 资源 CDN）：
+// 密钥只落库密文（securestore AES-256-GCM），明文仅在保存时短暂出现；
+// 读取时由同步服务在内存中解密，管理端 GET 仅回显是否已配置。
 // WebhookSecretEncrypted / WebhookSecretCleared 标 json:"-"：
 // 密文与清除标记绝不随 JSON 序列化导出，持久化走 WikiSyncSettingsStorage。
 type WikiSyncSettingsConfig struct {
@@ -361,6 +840,9 @@ type WikiSyncSettingsConfig struct {
 	// 存在旧明文 [wiki.git].webhook_secret 也保持禁用（fail-closed），
 	// 避免管理员误以为已禁用而旧密钥仍生效。
 	WebhookSecretCleared bool `json:"-"`
+	// AssetCDN wiki 资源（图片/附件）的对外提供方式：self（默认，走
+	// /wiki/_assets/）或 jsDelivr（gh 镜像）。渲染期由同步器据此生成资源 URL。
+	AssetCDN string `json:"-"`
 }
 
 // WikiSyncSettingsStorage wiki 同步设置的落库 JSON 形状：与对外
@@ -368,24 +850,17 @@ type WikiSyncSettingsConfig struct {
 type WikiSyncSettingsStorage struct {
 	WebhookSecretEncrypted string `json:"webhookSecretEncrypted"`
 	WebhookSecretCleared   bool   `json:"webhookSecretCleared"`
+	// AssetCDN 空串 = 默认 self（存量配置无此字段）。
+	AssetCDN string `json:"assetCDN,omitempty"`
 }
 
-// ToConfig 将落库形状转为领域结构。
+// ToConfig 将落库形状转为领域结构（AssetCDN 空串归一为默认 self）。
 func (s WikiSyncSettingsStorage) ToConfig() WikiSyncSettingsConfig {
-	return WikiSyncSettingsConfig(s)
-}
-
-type HttpNotifyEndpoint struct {
-	Id                 string   `json:"id"`
-	Name               string   `json:"name"`
-	Enabled            bool     `json:"enabled"`
-	URL                string   `json:"url"`
-	Secret             string   `json:"secret"`
-	Events             []string `json:"events"`
-	TimeoutSeconds     int      `json:"timeoutSeconds"`
-	FailureCount       int      `json:"failureCount"`
-	LastError          string   `json:"lastError"`
-	AbnormalTerminated bool     `json:"abnormalTerminated"`
+	cfg := WikiSyncSettingsConfig(s)
+	if cfg.AssetCDN == "" {
+		cfg.AssetCDN = WikiAssetCDNDefault
+	}
+	return cfg
 }
 
 type SiteThemeConfig struct {

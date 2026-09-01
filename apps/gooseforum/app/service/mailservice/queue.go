@@ -66,7 +66,9 @@ func AddToQueue(task EmailTask) error {
 // StartEmailProcessor starts the background email queue worker.
 func StartEmailProcessor() {
 	emailProcessor.once.Do(func() {
-		closer.RegisterPriority(closer.PriorityProducer, StopEmailProcessor)
+		closer.RegisterPriorityContext(closer.PriorityProducer, func(context.Context) error {
+			return StopEmailProcessor()
+		})
 		emailProcessor.wg.Go(func() {
 			defer paniclog.Recover("mail_processor")
 			ticker := time.NewTicker(5 * time.Second)

@@ -1,0 +1,275 @@
+adminUserList:
+  post:
+    tags: [Admin]
+    summary: Page through users for the admin console
+    operationId: adminUserList
+    description: |
+      Admin console operation gated by the `UserManager` role permission (Admin
+      role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>).
+      Results sort by user id descending and support exact user-id plus
+      substring username/email filters. The response includes the account email
+      (PII — admin-only surface). The request page is 1-based but the echoed
+      `page` is 0-based (requested page minus one, floored at 0); pageSize is
+      bounded into 10-30. `roleList` is null when the user holds no role, and
+      `roleId` is omitted from the wire payload when 0. JSON binding is
+      lenient: a malformed body binds to zero values and returns the first
+      unfiltered page.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminUserListRequest
+    responses:
+      '200':
+        description: User page.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminUserListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-user-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the UserManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-all-role-item-permission-denied.json
+
+adminEditUser:
+  post:
+    tags: [Admin]
+    summary: Edit a user's frozen/activation state and role
+    operationId: adminEditUser
+    description: |
+      Admin console operation gated by the `UserManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Editable
+      fields are exactly `status` (frozen flag), `validate` (activation flag),
+      and `roleId`; email and other profile fields are not editable here. The
+      request has no field-level validation tags, so omitted fields bind to
+      zero values and **overwrite** the stored state (0 unfrozen / 0 pending
+      activation / 0 no role) — callers must always send the full triple.
+      Unknown users fail with `admin.user.targetFetchFailed` (HTTP 200);
+      granting any role (`roleId` != 0) to a bot (Agent) account fails with
+      `admin.agent.roleNotAllowed` (HTTP 200); persistence failures surface as
+      `user.updateFailed` (HTTP 200). Every changed field is written to the
+      operation audit log. JSON binding is lenient: a malformed body binds to
+      zero values and fails as `admin.user.targetFetchFailed` (HTTP 200)
+      because userId 0 resolves to no user.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminEditUserRequest
+    responses:
+      '200':
+        description: User updated, or a legacy business failure envelope (`admin.user.targetFetchFailed` / `admin.agent.roleNotAllowed` / `user.updateFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminUserActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              targetFetchFailed:
+                externalValue: ../fixtures/admin-user-edit-target-fetch-failed.json
+              agentRoleNotAllowed:
+                externalValue: ../fixtures/admin-category-moderator-add-agent-role-not-allowed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the UserManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-all-role-item-permission-denied.json
+
+adminUserBadgeOptions:
+  post:
+    tags: [Admin]
+    summary: List grantable badges and a user's active badges
+    operationId: adminUserBadgeOptions
+    description: |
+      Admin console operation gated by the `UserManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. `options`
+      lists every enabled manual-grant badge (built-in system definitions plus
+      enabled custom overrides); `active` lists the target user's currently
+      active badges (empty array when none, also for userId 0 or unknown
+      users). JSON binding is lenient: a malformed body binds to zero values.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminUserBadgeOptionsRequest
+    responses:
+      '200':
+        description: Grantable badge options and the user's active badges.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminUserBadgeOptionsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-user-badge-options-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the UserManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-all-role-item-permission-denied.json
+
+adminSaveUserBadges:
+  post:
+    tags: [Admin]
+    summary: Replace a user's manually-granted badge set
+    operationId: adminSaveUserBadges
+    description: |
+      Admin console operation gated by the `UserManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Grants
+      every submitted code that resolves to an enabled manual-grant badge
+      (codes outside that set are silently ignored, duplicates are
+      deduplicated) and revokes the user's previously manually-granted badges
+      missing from the submission; auto-granted badges are never touched. The
+      target user's existence is not verified beyond a zero id: `userId` 0
+      fails with `user.notFound` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and fails as `user.notFound`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveUserBadgesRequest
+    responses:
+      '200':
+        description: Badges saved, or a legacy business failure envelope (`user.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminUserActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              userNotFound:
+                externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the UserManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-all-role-item-permission-denied.json
+
+adminGetAllRoleItem:
+  get:
+    tags: [Admin]
+    summary: List all roles as label/value options
+    operationId: adminGetAllRoleItem
+    description: |
+      Admin console operation gated by the `UserManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Returns
+      every non-deleted role as a name/label/value option (name and label are
+      both the role name), unlike adminRoleList which pages roles with their
+      localized permission sets. Binding is lenient: query parameters bind to
+      an empty request struct and are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All roles as options (empty array when none exist).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminRoleOptionsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-get-all-role-item-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the UserManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-all-role-item-permission-denied.json

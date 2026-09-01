@@ -22,30 +22,6 @@ func (receiver OptEnum) TargetTypeEnum() TargetTypeEnum {
 	return System
 }
 
-func (receiver OptEnum) Name() string {
-	switch receiver {
-	case EditUser:
-		return "操作用户"
-	case EditTopic:
-		return "编辑主题"
-	case EditCategory:
-		return "编辑分类"
-	case RevealCourseReviewAuthor:
-		return "揭示课评匿名作者"
-	case CreateCourse:
-		return "新增课程"
-	case UpdateCourse:
-		return "编辑课程"
-	case DeleteCourse:
-		return "删除课程"
-	case UpdateReview:
-		return "编辑课评"
-	case DeleteReview:
-		return "删除课评"
-	}
-	return ""
-}
-
 func (receiver OptEnum) toInt() int {
 	return cast.ToInt(receiver)
 }
@@ -60,47 +36,29 @@ const (
 	DeleteCourse
 	UpdateReview
 	DeleteReview
+	// SyncPk 排课数据同步（issue #248）：归属 System，不新增 TargetTypeEnum 值，
+	// 避免改动枚举序列影响已持久化的审计记录。
+	SyncPk
+	// ExportData 数据导出（issue #324 S4）：创建导出任务/下载导出文件均审计。
+	// 追加在末尾，避免改动既有枚举序列。
+	ExportData
 )
 
 type TargetTypeEnum int
-
-func (receiver TargetTypeEnum) Name() string {
-	switch receiver {
-	case System:
-		return "系统"
-	case User:
-		return "用户"
-	case Topic:
-		return "主题"
-	case DocProject:
-		return "文档项目"
-	case DocVersion:
-		return "文档版本"
-	case DocContent:
-		return "文档内容"
-	case Category:
-		return "分类"
-	case CourseReview:
-		return "课评"
-	case Course:
-		return "课程"
-	default:
-		return ""
-	}
-}
 
 func (receiver TargetTypeEnum) toInt() int {
 	return cast.ToInt(receiver)
 }
 
+// TargetType 数值已持久化到 opt_records 审计表，前端按数字渲染历史记录
+// （OptRecordsManagementPage targetTypeCodeMap）。删除 Doc* 类型后显式固定
+// 剩余数值：3/4/5 空缺保留给已删除的 DocProject/DocVersion/DocContent，
+// 不得用 iota 重排，否则历史审计记录语义漂移。
 const (
-	System       TargetTypeEnum = iota
-	User                        = iota
-	Topic                       = iota
-	DocProject                  = iota
-	DocVersion                  = iota
-	DocContent                  = iota
-	Category                    = iota
-	CourseReview                = iota
-	Course                      = iota
+	System       TargetTypeEnum = 0
+	User                        = 1
+	Topic                       = 2
+	Category                    = 6
+	CourseReview                = 7
+	Course                      = 8
 )

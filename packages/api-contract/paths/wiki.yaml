@@ -1,12 +1,12 @@
 getWikiTree:
   get:
     tags: [Wiki]
-    summary: Public wiki page tree across namespaces
+    summary: Public hierarchical wiki tree across namespaces
     security: []
     operationId: getWikiTree
     responses:
       '200':
-        description: Namespace-labeled page tree with an active-page flag for each page.
+        description: Namespace-labeled recursive directory/page tree with active-page flags.
         content:
           application/json:
             schema:
@@ -29,7 +29,7 @@ listWikiNamespaces:
     operationId: listWikiNamespaces
     responses:
       '200':
-        description: Namespaces ordered by sort order then name, each with its approved-page count.
+        description: Namespaces ordered by sort order then name, each with its public page count.
         content:
           application/json:
             schema:
@@ -47,7 +47,7 @@ listWikiNamespaces:
 getWikiHome:
   get:
     tags: [Wiki]
-    summary: Public wiki home feed with namespaces and recent approved revisions
+    summary: Public wiki home feed with namespaces and recently updated pages
     security: []
     operationId: getWikiHome
     responses:
@@ -67,17 +67,58 @@ getWikiHome:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
 
+searchWikiSearch:
+  get:
+    tags: [Wiki]
+    summary: Search wiki pages at paragraph granularity
+    security: []
+    operationId: searchWikiSearch
+    parameters:
+      - name: q
+        in: query
+        required: true
+        description: Search keywords (trimmed; empty query returns an empty result without hitting the search backend).
+        schema:
+          type: string
+          maxLength: 100
+      - name: limit
+        in: query
+        description: Maximum number of page-level results (clamped to 12 when omitted or out of range).
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 12
+    responses:
+      '200':
+        description: |
+          Page-level aggregated search results. Each item aggregates the paragraph hits of one
+          wiki page and carries its paragraph anchors for precise in-page navigation. When the
+          search backend is unavailable the response degrades to an empty items list with
+          `searchUnavailable: true` (still HTTP 200). `total` is the page-level result count
+          (distinct pages), not the paragraph hit count.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiSearchResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-search-success.json
+              empty:
+                summary: Empty query returns a deterministic empty result.
+                externalValue: ../fixtures/wiki-search-empty.json
+
 getAdminWikiTree:
   get:
     tags: [Wiki Admin]
-    summary: Admin wiki page tree with sort order (PageManager or Admin only)
+    summary: Admin hierarchical wiki tree with sort order (PageManager or Admin only)
     operationId: getAdminWikiTree
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     responses:
       '200':
-        description: Namespace-labeled page tree including sort order for admin editing.
+        description: Namespace-labeled recursive directory/page tree including sort order for admin editing.
         content:
           application/json:
             schema:
@@ -93,7 +134,7 @@ getAdminWikiTree:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wiki-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: The account is not a PageManager or Admin (or it is frozen).
         content:
@@ -102,4 +143,10 @@ getAdminWikiTree:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               forbidden:
-                externalValue: ../fixtures/wiki-namespace-forbidden.json
+                externalValue: ../fixtures/permission-denied.json
+      '500':
+        description: Wiki tree query failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure

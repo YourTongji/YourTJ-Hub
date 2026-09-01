@@ -76,6 +76,10 @@ func migrateSchema() {
 	var err error
 
 	db := dbconnect.Connect()
+	if err = validateUniqueUserEmails(db); err != nil {
+		slog.Error("dbconnect migration email uniqueness preflight failed", "err", err)
+		os.Exit(1)
+	}
 	if err = validateUniqueUsernames(db); err != nil {
 		slog.Error("dbconnect migration preflight failed", "err", err)
 		os.Exit(1)
@@ -90,6 +94,14 @@ func migrateSchema() {
 	}
 	if err = upgradeImportRunCompositeIndex(db); err != nil {
 		slog.Error("dbconnect course_import_run index upgrade failed", "err", err)
+		os.Exit(1)
+	}
+	if err = upgradeCourseTeacherIdentity(db); err != nil {
+		slog.Error("dbconnect course teacher identity upgrade failed", "err", err)
+		os.Exit(1)
+	}
+	if err = upgradeCourseAiSummaryStatusIndex(db); err != nil {
+		slog.Error("dbconnect course_ai_summary status index upgrade failed", "err", err)
 		os.Exit(1)
 	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
@@ -114,6 +126,41 @@ func migrateSchema() {
 type duplicateUsername struct {
 	Username string
 	Count    int64
+}
+
+type duplicateUserEmail struct {
+	Email string
+	Count int64
+}
+
+// validateUniqueUserEmails fails before AutoMigrate attempts to add the
+// partial unique index for non-empty user emails. Empty emails are valid for
+// bot/OAuth accounts and are intentionally excluded from the index. Identity
+// rows are never rewritten automatically: legacy duplicate non-empty emails
+// require an operator to resolve the conflicting accounts before startup.
+func validateUniqueUserEmails(db *gorm.DB) error {
+	if !db.Migrator().HasTable("users") {
+		return nil
+	}
+
+	var duplicates []duplicateUserEmail
+	if err := db.Table("users").
+		Select("email, COUNT(*) AS count").
+		Where("email IS NOT NULL AND email <> ?", "").
+		Group("email").
+		Having("COUNT(*) > 1").
+		Order("email ASC").
+		Limit(10).
+		Scan(&duplicates).Error; err != nil {
+		return fmt.Errorf("inspect duplicate user emails: %w", err)
+	}
+	if len(duplicates) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"cannot create uniq_users_email_nonempty: found duplicate non-empty user emails %v; resolve each conflicting account before restarting",
+		duplicates,
+	)
 }
 
 // validateUniqueUsernames fails before AutoMigrate attempts to add the global
@@ -141,6 +188,96 @@ func upgradeImportRunCompositeIndex(db *gorm.DB) error {
 			return fmt.Errorf("drop legacy course_import_run unique index: %w", err)
 		}
 		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
+	}
+	return nil
+}
+
+// upgradeCourseTeacherIdentity 把 course 身份从「一门课一个 primary_code」
+// 升级为「(primary_code, teacher_id) 复合身份」（issue #326）：
+//  1. teacher_id 列：存量库显式 ALTER TABLE ADD COLUMN（NOT NULL DEFAULT 0，
+//     0 = 无教师哨兵值），不依赖 AutoMigrate——SQLite 依赖 AutoMigrate 补列会
+//     整表重建丢数据。
+//  2. 唯一索引 uniq_course_primary_code（单列）→ uniq_course_code_teacher
+//     (primary_code, teacher_id) 复合：GORM AutoMigrate 按索引名判重，
+//     同名旧索引不会被重建，必须先显式 DropIndex 旧索引。
+func upgradeCourseTeacherIdentity(db *gorm.DB) error {
+	if !db.Migrator().HasTable(courseTableName) {
+		return nil // 全新库：AutoMigrate 直接建全表 + 复合索引。
+	}
+	if !db.Migrator().HasColumn(&course.Entity{}, "teacher_id") {
+		// 带默认值 0（无教师）的 NOT NULL 列：存量行回填 0，符合新模型。
+		if err := db.Exec("ALTER TABLE course ADD COLUMN teacher_id BIGINT NOT NULL DEFAULT 0").Error; err != nil {
+			return fmt.Errorf("add course.teacher_id column: %w", err)
+		}
+		slog.Info("dbconnect course.teacher_id column added (default 0)")
+		// 回填身份教师：存量库从 offering 教师关联取每门课的首位教师
+		// （id 最小可见 offering 的 id 最小 instructor），与物化/导入的
+		// "教学班首位教师"语义一致；无 offering 或教师关联的课程保持 0。
+		// 旧模型 primary_code 单列唯一 → 每 code 只有一行，回填不会造成
+		// (code, teacher_id) 复合唯一冲突。
+		if err := backfillCourseTeacherIdentity(db); err != nil {
+			return fmt.Errorf("backfill course.teacher_id: %w", err)
+		}
+	}
+	if db.Migrator().HasIndex(&course.Entity{}, "uniq_course_primary_code") {
+		if err := db.Migrator().DropIndex(&course.Entity{}, "uniq_course_primary_code"); err != nil {
+			return fmt.Errorf("drop legacy course primary_code unique index: %w", err)
+		}
+		slog.Info("dbconnect course legacy unique index dropped, will be recreated as (primary_code, teacher_id)")
+	}
+	return nil
+}
+
+// upgradeCourseAiSummaryStatusIndex 删除 course_ai_summary.status 列的冗余索引
+// （#342/#343 review）：status 低基数（2 值）且查询全部按 course_id 主键访问。
+// 只移除模型上的 index tag 不够——GORM AutoMigrate 按索引名判重，不会删除模型
+// 上已不再声明的索引；存量库（#342 合入时建出了 idx_course_ai_summary_status）
+// 必须显式 DropIndex，全新库无此索引直接跳过。
+func upgradeCourseAiSummaryStatusIndex(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_ai_summary") {
+		return nil // 全新库：AutoMigrate 按新模型建表（无 status 索引）。
+	}
+	if db.Migrator().HasIndex(&course.CourseAiSummaryEntity{}, "idx_course_ai_summary_status") {
+		if err := db.Migrator().DropIndex(&course.CourseAiSummaryEntity{}, "idx_course_ai_summary_status"); err != nil {
+			return fmt.Errorf("drop legacy course_ai_summary status index: %w", err)
+		}
+		slog.Info("dbconnect course_ai_summary legacy status index dropped")
+	}
+	return nil
+}
+
+func backfillCourseTeacherIdentity(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_offering") || !db.Migrator().HasTable("course_offering_instructor") {
+		return nil // 全新库/无课程域：AutoMigrate 随后建表，无需回填。
+	}
+	type offeringTeacher struct {
+		CourseId     uint64
+		OfferingId   uint64
+		InstructorId uint64
+	}
+	var rows []offeringTeacher
+	if err := db.Table("course_offering o").
+		Select("o.course_id, o.id AS offering_id, oi.instructor_id").
+		Joins("JOIN course_offering_instructor oi ON oi.offering_id = o.id").
+		Where("o.deleted_at IS NULL").
+		Order("o.course_id ASC, o.id ASC, oi.instructor_id ASC").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	seen := make(map[uint64]struct{}, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.CourseId]; ok {
+			continue
+		}
+		seen[r.CourseId] = struct{}{}
+		if err := db.Table(courseTableName).
+			Where("id = ? AND teacher_id = 0", r.CourseId).
+			Update("teacher_id", r.InstructorId).Error; err != nil {
+			return err
+		}
+	}
+	if len(seen) > 0 {
+		slog.Info("dbconnect course.teacher_id backfilled from offering instructors", "courses", len(seen))
 	}
 	return nil
 }
@@ -189,9 +326,11 @@ func SchemaModels() []any {
 		&course.SourceRefEntity{},
 		&course.ReviewEntity{},
 		&course.HelpfulEntity{},
+		&course.DislikeEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
 		&course.CourseAiSummaryEntity{},
+		&course.CourseUserActionEntity{},
 		// PK 排课数据域（Issue #187 / #186）：13 表。
 		&pk.CalendarEntity{},
 		&pk.CampusEntity{},
@@ -390,6 +529,8 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 }
 
 const courseReviewTableName = "course_review"
+
+const courseTableName = "course"
 
 // dedupeWikiRevisionNumbers 在 AutoMigrate 创建 uniq_wiki_rev_page_no 唯一索引前，
 // 清理存量 wiki_page_revisions 中 (page_id, revision_no) 重复的行（旧版并发写入

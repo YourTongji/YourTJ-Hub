@@ -1,15 +1,16 @@
 package localcache
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/jellydator/ttlcache/v3"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/jellydator/ttlcache/v3"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -19,30 +20,29 @@ var errCacheInvalidated = errors.New("localcache: value invalidated during load"
 
 // Cache is a small in-process cache facade backed by ttlcache.
 //
-// Invalidation is epoch-based so that a value loaded concurrently with an
-// invalidation is never served afterwards: every mutation that can make
-// in-flight loads stale (Set, Delete, Clear, UpdateIfPresent) bumps the cache
-// epoch, and every entry records the epoch it was produced under. A read
-// accepts an entry only when its epoch matches the current one, so a stale
-// write that lands after a Delete is treated as a miss and reloaded instead
-// of being served. Security-relevant caches (e.g. the user-info snapshot used
-// for TokenVersion checks) rely on this under concurrent "revoke all
-// sessions" style invalidations.
+// Invalidation is version-based so that a value loaded concurrently with an
+// invalidation is never served afterwards. Clear advances the whole-cache
+// epoch; key mutations advance only that key's version. A read accepts an
+// entry only when both versions match, so a stale write that lands after a
+// Delete is treated as a miss and reloaded instead of being served.
 type Cache[V any] struct {
 	MaxEntries uint64
 
-	once  sync.Once
-	cache *ttlcache.Cache[string, cachedEntry[V]]
-	group singleflight.Group
-	epoch atomic.Uint64
+	once        sync.Once
+	cache       *ttlcache.Cache[string, cachedEntry[V]]
+	group       singleflight.Group
+	epoch       atomic.Uint64
+	versionMu   sync.RWMutex
+	keyVersions map[string]uint64
 }
 
 // cachedEntry couples a value with the cache epoch it was produced under.
 // Entries whose epoch no longer matches the current one are stale and must
 // not be served.
 type cachedEntry[V any] struct {
-	value V
-	epoch uint64
+	value      V
+	epoch      uint64
+	keyVersion uint64
 }
 
 func (c *Cache[V]) init() {
@@ -52,7 +52,7 @@ func (c *Cache[V]) init() {
 			ttlcache.WithDisableTouchOnHit[string, cachedEntry[V]](),
 		)
 		go c.cache.Start()
-		closer.RegisterPriority(closer.PriorityCache, func() error {
+		closer.RegisterPriorityContext(closer.PriorityCache, func(context.Context) error {
 			c.cache.Stop()
 			return nil
 		})
@@ -97,12 +97,13 @@ func (c *Cache[V]) GetOrLoadE(
 				return value, nil
 			}
 			epoch := c.epoch.Load()
+			keyVersion := c.currentKeyVersion(key)
 			newVal, err := getData()
 			if err != nil {
 				slog.Debug("localcache: loader error", "key", key, "err", err)
 				return *new(V), err
 			}
-			c.cache.Set(key, cachedEntry[V]{value: newVal, epoch: epoch}, timeout)
+			c.cache.Set(key, cachedEntry[V]{value: newVal, epoch: epoch, keyVersion: keyVersion}, timeout)
 			slog.Debug("localcache: stored", "key", key, "ttl", timeout)
 			return newVal, nil
 		})
@@ -129,7 +130,7 @@ func (c *Cache[V]) getValid(key string) (V, bool) {
 		return *new(V), false
 	}
 	entry := item.Value()
-	if entry.epoch != c.epoch.Load() {
+	if entry.epoch != c.epoch.Load() || entry.keyVersion != c.currentKeyVersion(key) {
 		slog.Debug("localcache: dropping stale entry", "key", key)
 		c.cache.Delete(key)
 		return *new(V), false
@@ -141,12 +142,15 @@ func (c *Cache[V]) Clear() {
 	c.init()
 	c.cache.DeleteAll()
 	c.epoch.Add(1)
+	c.versionMu.Lock()
+	clear(c.keyVersions)
+	c.versionMu.Unlock()
 }
 
 func (c *Cache[V]) Set(key string, value V, timeout time.Duration) {
 	c.init()
-	c.epoch.Add(1)
-	c.cache.Set(key, cachedEntry[V]{value: value, epoch: c.epoch.Load()}, timeout)
+	keyVersion := c.bumpKeyVersion(key)
+	c.cache.Set(key, cachedEntry[V]{value: value, epoch: c.epoch.Load(), keyVersion: keyVersion}, timeout)
 	slog.Debug("localcache: set", "key", key, "ttl", timeout)
 }
 
@@ -156,8 +160,8 @@ func (c *Cache[V]) UpdateIfPresent(key string, update func(V) V, timeout time.Du
 	if item == nil {
 		return false
 	}
-	c.epoch.Add(1)
-	c.cache.Set(key, cachedEntry[V]{value: update(item.Value().value), epoch: c.epoch.Load()}, timeout)
+	keyVersion := c.bumpKeyVersion(key)
+	c.cache.Set(key, cachedEntry[V]{value: update(item.Value().value), epoch: c.epoch.Load(), keyVersion: keyVersion}, timeout)
 	slog.Debug("localcache: updated", "key", key, "ttl", timeout)
 	return true
 }
@@ -165,6 +169,22 @@ func (c *Cache[V]) UpdateIfPresent(key string, update func(V) V, timeout time.Du
 func (c *Cache[V]) Delete(key string) {
 	c.init()
 	c.cache.Delete(key)
-	c.epoch.Add(1)
+	c.bumpKeyVersion(key)
 	slog.Debug("localcache: deleted", "key", key)
+}
+
+func (c *Cache[V]) currentKeyVersion(key string) uint64 {
+	c.versionMu.RLock()
+	defer c.versionMu.RUnlock()
+	return c.keyVersions[key]
+}
+
+func (c *Cache[V]) bumpKeyVersion(key string) uint64 {
+	c.versionMu.Lock()
+	defer c.versionMu.Unlock()
+	if c.keyVersions == nil {
+		c.keyVersions = make(map[string]uint64)
+	}
+	c.keyVersions[key]++
+	return c.keyVersions[key]
 }

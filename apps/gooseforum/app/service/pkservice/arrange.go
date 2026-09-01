@@ -1,7 +1,9 @@
 package pkservice
 
 import (
+	"cmp"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -179,25 +181,25 @@ func mergeArrangementInfo(teachers []teacherRow) []ArrangementInfo {
 	for _, line := range uniq {
 		objs = append(objs, arrangementTextToObj(line))
 	}
-	sort.SliceStable(objs, func(i, j int) bool {
+	slices.SortStableFunc(objs, func(a, b ArrangementInfo) int {
 		ad, bd := 99, 99
-		if objs[i].OccupyDay != nil {
-			ad = *objs[i].OccupyDay
+		if a.OccupyDay != nil {
+			ad = *a.OccupyDay
 		}
-		if objs[j].OccupyDay != nil {
-			bd = *objs[j].OccupyDay
+		if b.OccupyDay != nil {
+			bd = *b.OccupyDay
 		}
 		if ad != bd {
-			return ad < bd
+			return cmp.Compare(ad, bd)
 		}
 		at, bt := 99, 99
-		if len(objs[i].OccupyTime) > 0 {
-			at = objs[i].OccupyTime[0]
+		if len(a.OccupyTime) > 0 {
+			at = a.OccupyTime[0]
 		}
-		if len(objs[j].OccupyTime) > 0 {
-			bt = objs[j].OccupyTime[0]
+		if len(b.OccupyTime) > 0 {
+			bt = b.OccupyTime[0]
 		}
-		return at < bt
+		return cmp.Compare(at, bt)
 	})
 	return objs
 }

@@ -546,3 +546,46 @@ func TestFetchLogNewRunningAfterCompleted(t *testing.T) {
 		t.Errorf("new log running_key = %v, want %d", re.RunningKey, calendarID)
 	}
 }
+
+func TestFetchLogLeaseFencesStaleWorker(t *testing.T) {
+	migratePkTables(t)
+
+	old, _, err := ClaimSyncCalendar(121)
+	if err != nil {
+		t.Fatalf("claim old worker: %v", err)
+	}
+	staleAt := time.Now().Add(-2 * time.Hour)
+	if err := db.Connect().Model(&pk.FetchLogEntity{}).Where("id = ?", old.Id).Update("started_at", staleAt).Error; err != nil {
+		t.Fatalf("make lease stale: %v", err)
+	}
+	newer, _, err := ClaimSyncCalendar(121)
+	if err != nil {
+		t.Fatalf("claim replacement worker: %v", err)
+	}
+	if newer.LeaseVersion != old.LeaseVersion+1 {
+		t.Fatalf("replacement lease version = %d, want %d", newer.LeaseVersion, old.LeaseVersion+1)
+	}
+	now := time.Now()
+	if err := db.Connect().Create(&pk.CalendarEntity{CalendarId: 121, CalendarIdI18n: "2025-2026-1", SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now}).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
+	if err := deleteCalendarData(old, 121); err == nil {
+		t.Fatal("stale worker should not be able to delete calendar data")
+	}
+	var calendarCount int64
+	if err := db.Connect().Model(&pk.CalendarEntity{}).Where("calendar_id = ?", 121).Count(&calendarCount).Error; err != nil {
+		t.Fatalf("count calendar after fenced delete: %v", err)
+	}
+	if calendarCount != 1 {
+		t.Fatalf("stale worker deleted calendar data, count = %d", calendarCount)
+	}
+
+	old.Status = pk.FetchStatusCompleted
+	if err := pk.SaveFetchLog(old); err == nil {
+		t.Fatal("stale worker should not be able to overwrite the replacement lease")
+	}
+	current, ok := pk.LatestFetchLogByCalendar(121)
+	if !ok || current.Status != pk.FetchStatusRunning || current.LeaseVersion != newer.LeaseVersion {
+		t.Fatalf("current fetch log = %+v, want replacement running lease", current)
+	}
+}

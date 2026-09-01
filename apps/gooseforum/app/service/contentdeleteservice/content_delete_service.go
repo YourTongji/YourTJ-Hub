@@ -124,13 +124,15 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 	// wiki 分站页面话题：同步清理 wiki_pages 及其修订，避免删除话题后残留
 	// 孤儿页面继续出现在公开导航树/首页（与 DeleteAllUserContent 级联一致）。
 	if topic.TopicType == topics.TopicTypeWiki {
-		if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
+		if page := wikiPages.GetByTopicIdUnscoped(topic.Id); page.Id != 0 {
+			pageID := page.Id
 			if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
 				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
 			}
 			if err := wikiPages.Delete(page.Id); err != nil {
 				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
 			}
+			deleteWikiPageSearchIndex(pageID)
 		}
 	}
 
@@ -165,7 +167,7 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 	}
 
 	// 删除立即生效：全渠道清除 + 通知预览置空 + 附件转入受限恢复态。
-	clearTopicCaches(topic.Id)
+	clearTopicCaches(topic.Id, topic.CategoryIds...)
 	notificationservice.NullifyContentPreviews(topic.Id, 0)
 	fileusageservice.HardenTargetFiles(topicsTarget(topic.Id), time.Now().Add(RecoveryWindow))
 	eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{
@@ -207,8 +209,8 @@ func markTopicDeleted(topicID uint64, visibility string, operatorID uint64, reas
 	}
 }
 
-func clearTopicCaches(topicID uint64) {
-	hotdataserve.ClearTopicListCache()
+func clearTopicCaches(topicID uint64, categoryIDs ...uint64) {
+	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	llmsservice.ClearCache()
 	slog.Debug("topic delete caches cleared", "topicId", topicID)
 }
@@ -217,45 +219,63 @@ func clearTopicCaches(topicID uint64) {
 //   - 无子回复：软删，直接消失。
 //   - 有子回复：墓碑态（保留行可见，正文由前端渲染为占位），讨论树完整。
 func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
-	post := posts.Get(postID)
-	if post.Id == 0 || post.PostNo <= 1 {
-		return DeletePostResult{}, component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
-	}
-	if post.UserId != userID {
-		return DeletePostResult{}, component.NewMessageError(component.MessageTopicOperationDenied, "不能删除他人的回复", nil)
-	}
+	var post posts.Entity
+	var result DeletePostResult
+	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		loaded, err := posts.GetUnscopedTx(tx, postID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+		}
+		if err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		if loaded.PostNo <= 1 {
+			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+		}
+		post = loaded
+		if post.UserId != userID {
+			return component.NewMessageError(component.MessageTopicOperationDenied, "不能删除他人的回复", nil)
+		}
 
-	hasChildren := posts.HasChildren(postID)
-	if post.VisibilityStatus != posts.VisibilityActive || post.RetentionStatus != posts.RetentionNormal {
-		if post.VisibilityStatus == posts.VisibilityUserDeleted && post.DeletedBy == userID {
-			return DeletePostResult{HasChildren: hasChildren}, nil
+		hasChildren, err := posts.HasChildrenTx(tx, postID)
+		if err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
 		}
-		return DeletePostResult{}, component.NewMessageError(component.MessageTopicOperationDenied, "该回复已被处理", nil)
-	}
-	// 撤销发帖积分（dev 合并语义：删除回复即撤销 PostCreated 奖励，防刷分）。
-	// 幂等：重复撤销由 points_record.source_key 唯一索引 + 既有 tombstone 保证；
-	// 失败则中止删除（帖子保持 ACTIVE，用户可重试）。
-	if err := pointservice.ReversePostReward(post.UserId, postID); err != nil {
-		return DeletePostResult{}, component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
-	}
-	if hasChildren {
-		if err := posts.MarkUserDeletedKeepVisible(postID, userID, ""); err != nil {
-			return DeletePostResult{}, component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		result.HasChildren = hasChildren
+		if post.VisibilityStatus != posts.VisibilityActive || post.RetentionStatus != posts.RetentionNormal {
+			if post.VisibilityStatus == posts.VisibilityUserDeleted && post.DeletedBy == userID {
+				return nil
+			}
+			return component.NewMessageError(component.MessageTopicOperationDenied, "该回复已被处理", nil)
 		}
-	} else {
-		if err := posts.MarkUserDeleted(postID, userID, ""); err != nil {
-			return DeletePostResult{}, component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+
+		// Reward reversal and content deletion must commit or roll back together.
+		// ReversePostRewardTx is idempotent through the deletion tombstone key.
+		if err := pointservice.ReversePostRewardTx(tx, post.UserId, postID); err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
 		}
+		if hasChildren {
+			err = posts.MarkUserDeletedKeepVisibleTx(tx, postID, userID, "")
+		} else {
+			err = posts.MarkUserDeletedTx(tx, postID, userID, "")
+		}
+		if err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
+		if err := posts.ResetPendingReviewTx(tx, postID); err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		return nil
+	})
+	if err != nil {
+		return DeletePostResult{}, err
 	}
-	// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
-	_ = posts.ResetPendingReview(postID)
-	// 回滚创建奖励（对齐 dev 删除路径的积分语义）。
-	reversePostReward(post.UserId, postID)
 
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, post, true)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
@@ -268,7 +288,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	})
 	moderationservice.PostDeleted(userID, postDeletionSnapshot(post), "", userID)
 	recordEvent(contentDeleteEvent.EventDeleted, ContentTypePost, postID, post.TopicId, userID)
-	return DeletePostResult{HasChildren: hasChildren}, nil
+	return result, nil
 }
 
 // DeletePostAsModerator 管理员删除回复（治理删除），作者不可自行恢复。
@@ -276,37 +296,50 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	if strings.TrimSpace(reason) == "" {
 		return component.NewMessageError(component.MessageRequestInvalidParams, "管理员删除回复必须填写原因", nil)
 	}
-	// 用 UnscopedGet 读取含已软删行：作者自删（USER_DELETED）的回复也必须能
-	// 升级为治理删除，否则"自删+恢复"可绕过版主删除（review H1 逃罚）。
-	post := posts.UnscopedGet(postID)
-	if post.Id == 0 {
-		return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
-	}
-	// 首楼守卫：治理删除话题应走 admin/topics/delete，不允许通过回复删除端点
-	// 删除话题首楼（否则话题渲染/搜索索引/统计错乱，review H3）。
-	if post.PostNo <= 1 {
-		return component.NewMessageError(component.MessageRequestInvalidParams, "不能删除话题首楼，请使用话题删除", nil)
-	}
-	// 幂等：已 PURGED 或隐私擦除（ACCOUNT_ANONYMIZED）的内容不再处理。
-	if post.RetentionStatus == posts.RetentionPurged {
+	var post posts.Entity
+	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		loaded, err := posts.GetUnscopedTx(tx, postID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+		}
+		if err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		post = loaded
+		// 首楼守卫：治理删除话题应走 admin/topics/delete，不允许通过回复删除端点
+		// 删除话题首楼（否则话题渲染/搜索索引/统计错乱，review H3）。
+		if post.PostNo <= 1 {
+			return component.NewMessageError(component.MessageRequestInvalidParams, "不能删除话题首楼，请使用话题删除", nil)
+		}
+		// 幂等：已 PURGED 或隐私擦除（ACCOUNT_ANONYMIZED）的内容不再处理。
+		if post.RetentionStatus == posts.RetentionPurged {
+			return nil
+		}
+		// 幂等：已是治理删除态，直接成功（不覆盖原删除原因）。
+		if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
+			return nil
+		}
+
+		// Reward reversal and moderator deletion must commit or roll back together.
+		if err := pointservice.ReversePostRewardTx(tx, post.UserId, postID); err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		if err := posts.MarkModeratorRemovedTx(tx, postID, moderatorID, reason); err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
+		if err := posts.ResetPendingReviewTx(tx, postID); err != nil {
+			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
 		return nil
+	}); err != nil {
+		return err
 	}
-	// 幂等：已是治理删除态，直接成功（不覆盖原删除原因）。
-	if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
-		return nil
-	}
-	if err := posts.MarkModeratorRemoved(postID, moderatorID, reason); err != nil {
-		return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
-	}
-	// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
-	_ = posts.ResetPendingReview(postID)
-	// 回滚创建奖励（治理删除同样撤销积分）。
-	reversePostReward(post.UserId, postID)
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, post, true)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
 	notificationservice.NullifyContentPreviews(post.TopicId, postID)
@@ -338,9 +371,8 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		}
 		restoreTopicPosts(topic.Id, userID)
 		restoreWikiTopicPages(topic)
-		rebuildTopicSearchIndex(contentID)
 		fileusageservice.RecoverTargetFiles(topicsTarget(contentID))
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		llmsservice.ClearCache()
 		eventbus.Publish(context.Background(), &eventhandlers.ContentRestoredEvent{
 			ContentType: string(ContentTypeTopic),
@@ -380,7 +412,7 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 			if err := posts.ListByTopicID(topicEntity.Id, &activePosts); err == nil {
 				_ = postservice.RebuildTopicPostStats(topicEntity, activePosts)
 			}
-			hotdataserve.ClearTopicListCache()
+			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 			llmsservice.ClearCache()
 		}
 		fileusageservice.RecoverTargetFiles(postsTarget(post.Id))
@@ -458,6 +490,20 @@ func restoreWikiTopicPages(topic topics.Entity) {
 		Where("page_id = ?", page.Id).Update("deleted_at", gorm.Expr("NULL")).Error; err != nil {
 		slog.Error("failed to restore wiki page revisions", "pageId", page.Id, "error", err)
 	}
+	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
+		slog.Warn("failed to restore wiki page search index", "pageId", page.Id, "error", err)
+	}
+}
+
+// deleteWikiPageSearchIndex 清理 Wiki 页面删除后留下的段落索引。
+// 搜索索引是可重建投影，清理失败不应阻断内容删除；下一次全量重建或页面同步会修复它。
+func deleteWikiPageSearchIndex(pageID uint64) {
+	if pageID == 0 {
+		return
+	}
+	if err := searchservice.DeleteWikiPageDocuments(pageID); err != nil {
+		slog.Warn("failed to delete wiki page search index", "pageId", pageID, "error", err)
+	}
 }
 
 // RestoreTopicAsModerator 管理端恢复被治理删除的话题（PRD R7 / review MEDIUM-2）。
@@ -476,9 +522,8 @@ func RestoreTopicAsModerator(moderatorID uint64, topicID uint64) error {
 	}
 	restoreModeratorRemovedTopicPosts(topic, moderatorID)
 	restoreWikiTopicPages(topic)
-	rebuildTopicSearchIndex(topicID)
 	fileusageservice.RecoverTargetFiles(topicsTarget(topicID))
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	llmsservice.ClearCache()
 	eventbus.Publish(context.Background(), &eventhandlers.ContentRestoredEvent{
 		ContentType: string(ContentTypeTopic),
@@ -518,17 +563,6 @@ func restoreModeratorRemovedTopicPosts(topic topics.Entity, moderatorID uint64) 
 
 func topicDeleteCascadeReason(topicID uint64) string {
 	return "topic_delete:" + fmt.Sprint(topicID)
-}
-
-func rebuildTopicSearchIndex(topicID uint64) {
-	topic := topics.Get(topicID)
-	if topic.Id == 0 {
-		return
-	}
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document after restore", "topicId", topicID, "err", err)
-	}
 }
 
 // PurgeContent 永久删除（R4）：置 PURGED、清理附件引用、通知预览置空。
@@ -586,7 +620,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
-			hotdataserve.ClearTopicListCache()
+			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 			llmsservice.ClearCache()
 		}
 		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{
@@ -759,7 +793,7 @@ func ExpireRecoverableBatch(limit int) error {
 		purgeTopicPosts(topic.Id, topic.UserId)
 		fileusageservice.PurgeTargetFiles(topicsTarget(topic.Id))
 		notificationservice.NullifyContentPreviews(topic.Id, 0)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		llmsservice.ClearCache()
 		slog.Info("retention: topic purged after recovery window", "topicId", topic.Id)
 	}
@@ -797,19 +831,6 @@ func topicsTarget(topicID uint64) fileusageservice.TargetRef {
 
 func postsTarget(postID uint64) fileusageservice.TargetRef {
 	return fileusageservice.TargetRef{TargetType: "post", TargetID: postID}
-}
-
-// reversePostReward 删除回复时回滚其创建奖励（与 dev 物理删除路径一致）。
-// ReversePostRewardTx 幂等：无对应奖励记录时只写回滚墓碑、不动余额。
-func reversePostReward(userId, postID uint64) {
-	if userId == 0 || postID == 0 {
-		return
-	}
-	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		return pointservice.ReversePostRewardTx(tx, userId, postID)
-	}); err != nil {
-		slog.Error("reverse post reward on delete failed", "userId", userId, "postId", postID, "err", err)
-	}
 }
 
 // reapplyPostReward 恢复回复时回补创建奖励。先清除删除回滚墓碑（post-deleted:ID），
@@ -861,14 +882,6 @@ func DeleteAllUserContent(userID uint64) error {
 			break
 		}
 		for _, topic := range activeWikiTopics {
-			if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
-				if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
-					slog.Warn("delete wiki page revisions on account close failed", "userId", userID, "pageId", page.Id, "err", err)
-				}
-				if err := wikiPages.Delete(page.Id); err != nil {
-					slog.Warn("delete wiki page on account close failed", "userId", userID, "pageId", page.Id, "err", err)
-				}
-			}
 			if err := DeleteTopicByUser(userID, topic.Id); err != nil {
 				slog.Warn("delete user wiki topic on account close failed", "userId", userID, "topicId", topic.Id, "err", err)
 			}

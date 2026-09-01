@@ -1,13 +1,14 @@
 package forum
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
@@ -18,7 +19,21 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/gin-gonic/gin"
+	gormLogger "gorm.io/gorm/logger"
 )
+
+type queryCounterLogger struct {
+	count atomic.Int64
+}
+
+func (l *queryCounterLogger) LogMode(gormLogger.LogLevel) gormLogger.Interface { return l }
+func (l *queryCounterLogger) Info(context.Context, string, ...any)             {}
+func (l *queryCounterLogger) Warn(context.Context, string, ...any)             {}
+func (l *queryCounterLogger) Error(context.Context, string, ...any)            {}
+func (l *queryCounterLogger) Trace(context.Context, time.Time, func() (string, int64), error) {
+	l.count.Add(1)
+}
 
 func TestTopicMetaJSONLDIncludesForumRequiredFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -235,10 +250,20 @@ func TestBuildTopicDetailPropsReadsTopicPostTables(t *testing.T) {
 	conn.Create(&posts.Entity{Id: secondReplyPostID, TopicId: topicID, PostNo: 3, UserId: replyerID, ReplyToPostId: firstPostID, Content: "second reply", RenderedHTML: "<p>second reply</p>", RenderedVersion: 1, CreatedAt: now.Add(2 * time.Minute), UpdatedAt: now.Add(2 * time.Minute)})
 	conn.Create(&topicUserAction.Entity{UserId: authorID, TopicId: topicID, LikedAt: &now, WatchedAt: &now})
 
+	queryCounter := &queryCounterLogger{}
+	previousLogger := conn.Config.Logger
+	conn.Config.Logger = queryCounter
+	t.Cleanup(func() { conn.Config.Logger = previousLogger })
+	queryStart := queryCounter.count.Load()
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(nil)
 	c.Request = httptest.NewRequest(http.MethodGet, "/p/post/990010", nil)
 	props := buildTopicDetailProps(c, &topic, &firstPost, 0)
+	queryCount := queryCounter.count.Load() - queryStart
+	t.Logf("topic detail representative query count=%d; no projection cache added without p95/memory evidence", queryCount)
+	if queryCount == 0 {
+		t.Fatal("topic detail measurement captured no queries")
+	}
 
 	if props.Topic.ID != topicID || props.Topic.MaxPostNo != 3 {
 		t.Fatalf("topic payload mismatch: %#v", props.Topic)

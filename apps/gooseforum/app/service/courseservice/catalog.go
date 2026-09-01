@@ -2,6 +2,7 @@ package courseservice
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
@@ -10,12 +11,16 @@ import (
 var ErrCourseNotFound = errors.New("course not found")
 
 // CourseSummary 课程列表卡片（B1：携带评分聚合）。
+// (code, teacher) 复合身份模型下每张卡 = 一个课程行；TeacherId/TeacherName
+// 为卡片身份教师（teacher_id=0 无教师时省略，前端显示「无教师」）。
 type CourseSummary struct {
 	Id          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
 	Name        string   `json:"name"`
 	Department  string   `json:"department"`
 	CreditX10   int      `json:"creditX10"`
+	TeacherId   uint64   `json:"teacherId,omitempty"`
+	TeacherName string   `json:"teacherName,omitempty"`
 	Aliases     []string `json:"aliases,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RecentTerms []string `json:"recentTerms,omitempty"`
@@ -25,12 +30,15 @@ type CourseSummary struct {
 }
 
 // OfferingSummary 开课实例摘要（详情页；B1 携带 offering 级评分聚合）。
+// ClassCode/ClassName 为班号信息（如 32000101 / 01班），旧数据包导入时为空。
 type OfferingSummary struct {
 	Id          uint64   `json:"id"`
 	TermCode    string   `json:"termCode"`
 	TermName    string   `json:"termName,omitempty"`
 	Campus      string   `json:"campus,omitempty"`
 	Faculty     string   `json:"faculty,omitempty"`
+	ClassCode   string   `json:"classCode,omitempty"`
+	ClassName   string   `json:"className,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
 	ReviewCount int      `json:"reviewCount,omitempty"`
@@ -43,6 +51,8 @@ type CourseDetail struct {
 	Name        string            `json:"name"`
 	Department  string            `json:"department"`
 	CreditX10   int               `json:"creditX10"`
+	TeacherId   uint64            `json:"teacherId,omitempty"`
+	TeacherName string            `json:"teacherName,omitempty"`
 	Aliases     []string          `json:"aliases,omitempty"`
 	Offerings   []OfferingSummary `json:"offerings,omitempty"`
 	RatingAvg   *float64          `json:"ratingAvg,omitempty"`
@@ -70,17 +80,38 @@ type TermOption struct {
 	Label string `json:"label"`
 }
 
-// CatalogQuery 目录筛选条件。
+// CatalogQuery 目录筛选条件（Department/TermCode/Campus/Instructor 支持多值并集）。
 type CatalogQuery struct {
 	Keyword    string
-	Department string
-	TermCode   string
-	Campus     string
-	Instructor string
+	Department []string
+	TermCode   []string
+	Campus     []string
+	Instructor []string
 	HasReview  bool
 	SortBy     string
 	Page       int
 	Size       int
+}
+
+// normalizeMulti 清理多值筛选：按逗号拆分、去空白、去重、丢弃空值。
+// 兼容重复参数（?x=a&x=b）与逗号分隔（?x=a,b）两种传法（issue 多值筛选）。
+func normalizeMulti(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	var out []string
+	for _, raw := range values {
+		for _, part := range strings.Split(raw, ",") {
+			v := strings.TrimSpace(part)
+			if v == "" {
+				continue
+			}
+			if _, ok := seen[v]; ok {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // CatalogPage 目录分页结果。
@@ -107,10 +138,10 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	}
 	entities, total, err := course.ListCourses(course.ListCourseQuery{
 		Keyword:    Normalize(q.Keyword),
-		Department: q.Department,
-		TermCode:   q.TermCode,
-		Campus:     q.Campus,
-		Instructor: q.Instructor,
+		Department: normalizeMulti(q.Department),
+		TermCode:   normalizeMulti(q.TermCode),
+		Campus:     normalizeMulti(q.Campus),
+		Instructor: normalizeMulti(q.Instructor),
 		HasReview:  q.HasReview,
 		SortBy:     q.SortBy,
 		Page:       page,
@@ -171,8 +202,16 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 		Name:        entity.Name,
 		Department:  entity.Department,
 		CreditX10:   entity.CreditX10,
+		TeacherId:   entity.TeacherId,
 		Aliases:     []string{},
 		Offerings:   []OfferingSummary{},
+	}
+	if entity.TeacherId != 0 {
+		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
+			return CourseDetail{}, err
+		} else if len(teachers) > 0 {
+			detail.TeacherName = teachers[0].Name
+		}
 	}
 	aliases, err := course.ListAliasesByCourse(entity.Id)
 	if err != nil {
@@ -239,6 +278,8 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 			Id:          o.Id,
 			Campus:      o.Campus,
 			Faculty:     o.Faculty,
+			ClassCode:   o.ClassCode,
+			ClassName:   o.ClassName,
 			Instructors: instructorsByOffering[o.Id],
 		}
 		if s, ok := offeringStats[o.Id]; ok {
@@ -256,8 +297,23 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 
 func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	courseIds := make([]uint64, 0, len(entities))
+	teacherIds := make([]uint64, 0, len(entities))
 	for _, e := range entities {
 		courseIds = append(courseIds, e.Id)
+		if e.TeacherId != 0 {
+			teacherIds = append(teacherIds, e.TeacherId)
+		}
+	}
+	// 课程卡身份教师：按 teacher_id 批量解析姓名（无教师卡保持空）。
+	teacherNameByID := make(map[uint64]string)
+	if len(teacherIds) > 0 {
+		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range teachers {
+			teacherNameByID[t.Id] = t.Name
+		}
 	}
 	aliases, err := course.ListAliasesByCourses(courseIds)
 	if err != nil {
@@ -321,6 +377,8 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 			Name:        e.Name,
 			Department:  e.Department,
 			CreditX10:   e.CreditX10,
+			TeacherId:   e.TeacherId,
+			TeacherName: teacherNameByID[e.TeacherId],
 			Aliases:     aliasesByCourse[e.Id],
 		}
 		if stats, ok := courseStats[e.Id]; ok {

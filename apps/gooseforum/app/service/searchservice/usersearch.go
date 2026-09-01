@@ -1,16 +1,35 @@
 package searchservice
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
 )
+
+// TaskTypeUserSearch is the user-search outbox task type prefix.
+const TaskTypeUserSearch = "user-search."
+
+type UserSearchTask struct {
+	UserId uint64 `json:"userId"`
+}
+
+// EnqueueUserSearchTask adds a user projection task to the caller's
+// transaction. The worker reads the current row, so updates are idempotent.
+func EnqueueUserSearchTask(tx *gorm.DB, userID uint64) error {
+	if userID == 0 {
+		return errors.New("user search task requires user id")
+	}
+	return enqueueSearchTask(tx, TaskTypeUserSearch, "sync", UserSearchTask{UserId: userID})
+}
 
 // UserSearchDocument 用户搜索文档结构（只含公开可搜字段 + 拼音辅助字段）
 type UserSearchDocument struct {
@@ -46,6 +65,12 @@ func shouldIndexUser(user *users.EntityComplete) bool {
 // BuildSingleUserSearchDocument upserts a human user document, or deletes it
 // when the user is missing from the public index, soft-deleted, or a bot.
 func BuildSingleUserSearchDocument(user *users.EntityComplete) (*meilisearch.TaskInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
+	return BuildSingleUserSearchDocumentContext(ctx, user)
+}
+
+func BuildSingleUserSearchDocumentContext(ctx context.Context, user *users.EntityComplete) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
 	}
@@ -57,7 +82,7 @@ func BuildSingleUserSearchDocument(user *users.EntityComplete) (*meilisearch.Tas
 	pk := "id"
 	if shouldIndexUser(user) {
 		doc := convertUserToSearchDocument(user)
-		task, err := index.AddDocuments(doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+		task, err := index.AddDocumentsWithContext(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 处理用户 ID:%v 失败: %v\n", doc.ID, err))
 			return nil, fmt.Errorf("add user search document: %w", err)
@@ -65,7 +90,7 @@ func BuildSingleUserSearchDocument(user *users.EntityComplete) (*meilisearch.Tas
 		slog.Info(fmt.Sprintf("处理用户 ID:%v, TaskUID: %v\n", doc.ID, getTaskUID(task)))
 		return task, nil
 	}
-	task, err := index.DeleteDocument(cast.ToString(user.Id), nil)
+	task, err := index.DeleteDocumentWithContext(ctx, cast.ToString(user.Id), nil)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 删除用户文档失败: %v, Error: %v\n", user.Id, err))
 		return nil, fmt.Errorf("delete user search document: %w", err)
@@ -76,18 +101,75 @@ func BuildSingleUserSearchDocument(user *users.EntityComplete) (*meilisearch.Tas
 
 // DeleteUserSearchDocument removes a user document by id.
 func DeleteUserSearchDocument(userID uint64) (*meilisearch.TaskInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
+	return DeleteUserSearchDocumentContext(ctx, userID)
+}
+
+func DeleteUserSearchDocumentContext(ctx context.Context, userID uint64) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(UserIndex)
-	task, err := index.DeleteDocument(cast.ToString(userID), nil)
+	task, err := index.DeleteDocumentWithContext(ctx, cast.ToString(userID), nil)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 删除用户文档失败: %v, Error: %v\n", userID, err))
 		return nil, fmt.Errorf("delete user search document: %w", err)
 	}
 	slog.Info(fmt.Sprintf("删除用户 ID:%v, TaskUID: %v\n", userID, getTaskUID(task)))
 	return task, nil
+}
+
+// RunUserSearchTask rebuilds or removes the latest user search document.
+func RunUserSearchTask(ctx context.Context, task *taskQueue.Entity) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if task == nil {
+		return errors.New("user search task is nil")
+	}
+	var payload UserSearchTask
+	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
+		return err
+	}
+	if payload.UserId == 0 {
+		return errors.New("user search task requires user id")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !meiliconnect.IsAvailable() {
+		return errors.New("meilisearch 服务不可用")
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, searchTaskWaitTimeout)
+	defer cancel()
+	client := meiliconnect.GetClient()
+	user, err := users.GetWithContext(operationCtx, payload.UserId)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		deleteTask, deleteErr := client.Index(UserIndex).DeleteDocumentWithContext(operationCtx, cast.ToString(payload.UserId), nil)
+		if deleteErr != nil {
+			return deleteErr
+		}
+		return waitForTaskCheckedContext(operationCtx, client, deleteTask.TaskUID, searchTaskWaitTimeout)
+	}
+	searchTask, err := BuildSingleUserSearchDocumentContext(operationCtx, &user)
+	if err != nil {
+		return err
+	}
+	if searchTask == nil {
+		return errors.New("meilisearch returned no user task")
+	}
+	return waitForTaskCheckedContext(operationCtx, client, searchTask.TaskUID, searchTaskWaitTimeout)
+}
+
+// RecoverUserSearchTasks restores expired user projection leases after a
+// process restart.
+func RecoverUserSearchTasks() error {
+	return taskQueue.RecoverStaleRunning(TaskTypeUserSearch, taskQueue.LeaseDuration)
 }
 
 // BuildUserIndex rebuilds the whole Meilisearch user index.

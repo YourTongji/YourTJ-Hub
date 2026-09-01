@@ -1,0 +1,304 @@
+adminGetFriendLinks:
+  get:
+    tags: [Admin]
+    summary: Read the friend-links page configuration
+    operationId: adminGetFriendLinks
+    description: |
+      Admin console operation gated by the `PageManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `页面管理` in zh). Returns the stored friend-link groups, or the built-in
+      default configuration when nothing has been saved yet. Groups with a
+      null `links` array are normalized to an empty array. JSON binding is
+      lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Friend-link groups (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminFriendLinksResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-friend-links-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the PageManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
+
+adminSaveFriendLinks:
+  post:
+    tags: [Admin]
+    summary: Replace the friend-links page configuration
+    operationId: adminSaveFriendLinks
+    description: |
+      Admin console operation gated by the `PageManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Replaces
+      the whole friend-links configuration with the submitted groups and
+      clears the friend-links cache. Groups with a null `links` array are
+      normalized to an empty array before persistence. There is no
+      count/URL validation, and no request validation tags: JSON binding is
+      lenient, so a malformed or empty body binds to zero values and is saved
+      as-is (a null group list).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveFriendLinksRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the PageManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
+
+adminGetSponsors:
+  get:
+    tags: [Admin]
+    summary: Read the sponsors page configuration
+    operationId: adminGetSponsors
+    description: |
+      Admin console operation gated by the `PageManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Returns the stored sponsors configuration, or the
+      built-in default configuration when nothing has been saved yet. Null
+      sponsor tier arrays are normalized to empty arrays, and blank
+      content/contact titles or descriptions are filled from the built-in
+      defaults. JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Sponsors configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminSponsorsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sponsors-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the PageManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
+
+adminSaveSponsors:
+  post:
+    tags: [Admin]
+    summary: Replace the sponsors page configuration
+    operationId: adminSaveSponsors
+    description: |
+      Admin console operation gated by the `PageManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Replaces
+      the whole sponsors configuration with the submitted value and clears
+      the sponsors cache. Null sponsor tier arrays are normalized to empty
+      arrays, and blank content/contact titles or descriptions are filled
+      from the built-in defaults before persistence. There is no request
+      validation: JSON binding is lenient, so a malformed or empty body binds
+      to zero values and is saved (after default-filling) as-is.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveSponsorsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the PageManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
+
+adminGetAnnouncement:
+  get:
+    tags: [Admin]
+    summary: Read the announcement configuration
+    operationId: adminGetAnnouncement
+    description: |
+      Admin console operation gated by the `PageManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Returns the stored announcement configuration, or
+      the built-in default configuration when nothing has been saved yet.
+      `publishedAt` and `items` are omitted when empty; when `items` is
+      non-empty it takes precedence over the single-announcement `content`
+      on the public site. JSON binding is lenient: query string and body are
+      ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Announcement configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAnnouncementResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-announcement-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the PageManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
+
+adminSaveAnnouncement:
+  post:
+    tags: [Admin]
+    summary: Replace the announcement configuration
+    operationId: adminSaveAnnouncement
+    description: |
+      Admin console operation gated by the `PageManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Replaces
+      the whole announcement configuration with the submitted value and
+      clears the announcement cache. The server overwrites `publishedAt`
+      with the current time on every save. Although `settings` carries a
+      `required` validation tag, struct-level `required` never fails, so a
+      missing or malformed body (lenient binding) is saved as a zero-value
+      configuration with a server-stamped `publishedAt`. There is no
+      reachable validation failure.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveAnnouncementRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the PageManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-announcement-permission-denied.json

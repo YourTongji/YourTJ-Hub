@@ -1,9 +1,8 @@
 package courseservice
 
 import (
-	"sort"
-	"strconv"
-	"strings"
+	"cmp"
+	"slices"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
@@ -11,26 +10,15 @@ import (
 // RelatedListLimit 每个相关课程列表的条目上限（同教师其他课 / 同课程其他教师各前 5）。
 const RelatedListLimit = 5
 
-// RelatedCourseItem 同教师其他课程条目（course 维度，可跳转课程详情页）。
+// RelatedCourseItem 相关课程条目（course 维度，可跳转课程详情页）。
+// (code, teacher) 复合身份模型下同课号不同教师是独立课程卡：同教师其他课与
+// 同课程其他教师两个区块都返回该结构；TeacherName 为卡片身份教师（无教师时省略）。
 type RelatedCourseItem struct {
 	Id          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
 	Name        string   `json:"name"`
 	Department  string   `json:"department"`
-	Instructors []string `json:"instructors,omitempty"`
-	RatingAvg   float64  `json:"ratingAvg"`
-	RatingCount int      `json:"ratingCount"`
-	ReviewCount int      `json:"reviewCount"`
-}
-
-// RelatedTeacherOfferingItem 同课程其他教师条目（offering 维度）。
-// Hub 中一门 canonical course 唯一对应一个 primary_code，"同课程其他教师"指该课程
-// 与"最近学期开课教师组合"不同的其他开课实例；评分统计按 offering 聚合。
-type RelatedTeacherOfferingItem struct {
-	OfferingId  uint64   `json:"offeringId"`
-	TermCode    string   `json:"termCode"`
-	TermName    string   `json:"termName,omitempty"`
-	Campus      string   `json:"campus,omitempty"`
+	TeacherName string   `json:"teacherName,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RatingAvg   float64  `json:"ratingAvg"`
 	RatingCount int      `json:"ratingCount"`
@@ -39,8 +27,8 @@ type RelatedTeacherOfferingItem struct {
 
 // CourseRelated 课程详情页相关课程区块数据。
 type CourseRelated struct {
-	TeacherOtherCourses     []RelatedCourseItem          `json:"teacherOtherCourses"`
-	SameCourseOtherTeachers []RelatedTeacherOfferingItem `json:"sameCourseOtherTeachers"`
+	TeacherOtherCourses     []RelatedCourseItem `json:"teacherOtherCourses"`
+	SameCourseOtherTeachers []RelatedCourseItem `json:"sameCourseOtherTeachers"`
 }
 
 // GetCourseRelated 返回课程的"同教师其他课"与"同课程其他教师"（各前 RelatedListLimit 条）。
@@ -52,7 +40,7 @@ func GetCourseRelated(courseId uint64) (CourseRelated, error) {
 	}
 	result := CourseRelated{
 		TeacherOtherCourses:     []RelatedCourseItem{},
-		SameCourseOtherTeachers: []RelatedTeacherOfferingItem{},
+		SameCourseOtherTeachers: []RelatedCourseItem{},
 	}
 	instructorIds, err := course.ListInstructorIDsByCourse(courseId)
 	if err != nil {
@@ -62,13 +50,23 @@ func GetCourseRelated(courseId uint64) (CourseRelated, error) {
 	if err != nil {
 		return CourseRelated{}, err
 	}
+	// 同课号卡（sameCourseOtherTeachers 区块负责）不重复出现在同教师区块。
 	if len(otherIds) > 0 {
-		result.TeacherOtherCourses, err = buildRelatedTeacherCourses(otherIds)
-		if err != nil {
-			return CourseRelated{}, err
+		byID := course.GetMapByIds(otherIds)
+		distinct := otherIds[:0]
+		for _, id := range otherIds {
+			if c, ok := byID[id]; ok && c.PrimaryCode != entity.PrimaryCode {
+				distinct = append(distinct, id)
+			}
+		}
+		if len(distinct) > 0 {
+			result.TeacherOtherCourses, err = buildRelatedTeacherCourses(distinct)
+			if err != nil {
+				return CourseRelated{}, err
+			}
 		}
 	}
-	result.SameCourseOtherTeachers, err = buildSameCourseOtherTeachers(courseId)
+	result.SameCourseOtherTeachers, err = buildSameCourseOtherTeachers(entity)
 	if err != nil {
 		return CourseRelated{}, err
 	}
@@ -91,6 +89,23 @@ func buildRelatedTeacherCourses(courseIds []uint64) ([]RelatedCourseItem, error)
 	if err != nil {
 		return nil, err
 	}
+	// 卡片身份教师：按 teacher_id 批量解析姓名（无教师卡保持空）。
+	teacherIds := make([]uint64, 0, len(courseIds))
+	for _, id := range courseIds {
+		if c, ok := courseById[id]; ok && c.TeacherId != 0 {
+			teacherIds = append(teacherIds, c.TeacherId)
+		}
+	}
+	teacherNameByID := make(map[uint64]string)
+	if len(teacherIds) > 0 {
+		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range teachers {
+			teacherNameByID[t.Id] = t.Name
+		}
+	}
 	items := make([]RelatedCourseItem, 0, len(courseIds))
 	for _, id := range courseIds {
 		c, ok := courseById[id]
@@ -103,6 +118,7 @@ func buildRelatedTeacherCourses(courseIds []uint64) ([]RelatedCourseItem, error)
 			PrimaryCode: c.PrimaryCode,
 			Name:        c.Name,
 			Department:  c.Department,
+			TeacherName: teacherNameByID[c.TeacherId],
 			RatingAvg:   ratingAvgFromStats(st.RatingSum, st.RatingCount),
 			RatingCount: st.RatingCount,
 			ReviewCount: st.ReviewCount,
@@ -126,16 +142,22 @@ func buildRelatedTeacherCourses(courseIds []uint64) ([]RelatedCourseItem, error)
 	return items, nil
 }
 
-// sortRelatedItems 稳定排序：review_count 降序 → 平均分降序 → id 降序。
+// sortRelatedItems 排序：review_count 降序 → 平均分降序 → id 降序（末级 id 唯一，结果确定）。
 func sortRelatedItems(items []RelatedCourseItem) {
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ReviewCount != items[j].ReviewCount {
-			return items[i].ReviewCount > items[j].ReviewCount
+	slices.SortFunc(items, func(a, b RelatedCourseItem) int {
+		if a.ReviewCount != b.ReviewCount {
+			return cmp.Compare(b.ReviewCount, a.ReviewCount)
 		}
-		if items[i].RatingAvg != items[j].RatingAvg {
-			return items[i].RatingAvg > items[j].RatingAvg
+		if a.RatingAvg != b.RatingAvg {
+			if a.RatingAvg > b.RatingAvg {
+				return -1
+			}
+			if a.RatingAvg < b.RatingAvg {
+				return 1
+			}
+			return 0
 		}
-		return items[i].Id > items[j].Id
+		return cmp.Compare(b.Id, a.Id)
 	})
 }
 
@@ -189,124 +211,57 @@ func instructorsByCourses(courseIds []uint64) (map[uint64][]string, error) {
 	return result, nil
 }
 
-// buildSameCourseOtherTeachers 同课程（同一 canonical course）其他教师开课的 offering。
-// 以最近学期开课（ListOfferingsByCourse 的 term 倒序）的教师组合为"当前教师"，
-// 其余教师组合各取最近一条 offering（按组合去重），按统计排序取前 RelatedListLimit 条。
-func buildSameCourseOtherTeachers(courseId uint64) ([]RelatedTeacherOfferingItem, error) {
-	offerings, err := course.ListOfferingsByCourse(courseId)
+// buildSameCourseOtherTeachers 同课程（同一 primary_code）其他教师卡。
+// (code, teacher) 复合身份模型下同课号每行 = 一张独立课程卡（含无教师行），
+// 该区块直接返回同课号的其他可见课程行，按统计排序取前 RelatedListLimit 条。
+func buildSameCourseOtherTeachers(entity course.Entity) ([]RelatedCourseItem, error) {
+	others, err := course.ListOtherCoursesByPrimaryCode(entity.PrimaryCode, entity.Id)
 	if err != nil {
 		return nil, err
 	}
-	if len(offerings) == 0 {
-		return []RelatedTeacherOfferingItem{}, nil
+	if len(others) == 0 {
+		return []RelatedCourseItem{}, nil
 	}
-	offeringIds := make([]uint64, 0, len(offerings))
-	for _, o := range offerings {
-		offeringIds = append(offeringIds, o.Id)
-	}
-	links, err := course.ListOfferingInstructorLinks(offeringIds)
-	if err != nil {
-		return nil, err
-	}
-	instructorList, err := course.ListInstructorsByOfferings(offeringIds)
-	if err != nil {
-		return nil, err
-	}
-	nameByInstructor := make(map[uint64]string, len(instructorList))
-	for _, ins := range instructorList {
-		nameByInstructor[ins.Id] = ins.Name
-	}
-	instructorIDsByOffering := make(map[uint64][]uint64, len(offerings))
-	for _, l := range links {
-		instructorIDsByOffering[l.OfferingId] = append(instructorIDsByOffering[l.OfferingId], l.InstructorId)
-	}
-	// 教师组合签名：排序后的教师 ID 拼接（团队授课顺序无关）。
-	signatureByOffering := make(map[uint64]string, len(offerings))
-	for oid, ids := range instructorIDsByOffering {
-		signatureByOffering[oid] = instructorSignature(ids)
-	}
-	// offerings 已按 term 倒序：首条教师组合视为"当前教师"，其余组合各取最近一条。
-	seen := map[string]bool{signatureByOffering[offerings[0].Id]: true}
-	chosen := make([]course.OfferingEntity, 0, len(offerings))
-	for _, o := range offerings {
-		sig := signatureByOffering[o.Id]
-		if seen[sig] {
-			continue
+	ids := make([]uint64, 0, len(others))
+	teacherIds := make([]uint64, 0, len(others))
+	for _, o := range others {
+		ids = append(ids, o.Id)
+		if o.TeacherId != 0 {
+			teacherIds = append(teacherIds, o.TeacherId)
 		}
-		seen[sig] = true
-		chosen = append(chosen, o)
 	}
-	if len(chosen) == 0 {
-		return []RelatedTeacherOfferingItem{}, nil
+	// 卡片身份教师：按 teacher_id 批量解析姓名（无教师卡保持空）。
+	teacherNameByID := make(map[uint64]string)
+	if len(teacherIds) > 0 {
+		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range teachers {
+			teacherNameByID[t.Id] = t.Name
+		}
 	}
-	terms, err := course.ListTermsByIDs(offeringTermIDs(offerings))
+	stats, err := course.GetCourseStatsMap(ids)
 	if err != nil {
 		return nil, err
 	}
-	termByID := make(map[uint64]course.TermEntity, len(terms))
-	for _, t := range terms {
-		termByID[t.Id] = t
-	}
-	stats, err := course.GetOfferingStatsMap(offeringIds)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]RelatedTeacherOfferingItem, 0, len(chosen))
-	for _, o := range chosen {
-		item := RelatedTeacherOfferingItem{
-			OfferingId: o.Id,
-			Campus:     o.Campus,
-		}
-		if t, ok := termByID[o.TermId]; ok {
-			item.TermCode = t.Code
-			item.TermName = t.Name
-		}
-		for _, id := range instructorIDsByOffering[o.Id] {
-			if name, ok := nameByInstructor[id]; ok {
-				item.Instructors = append(item.Instructors, name)
-			}
-		}
+	items := make([]RelatedCourseItem, 0, len(others))
+	for _, o := range others {
 		st := stats[o.Id]
-		item.RatingAvg = ratingAvgFromStats(st.RatingSum, st.RatingCount)
-		item.RatingCount = st.RatingCount
-		item.ReviewCount = st.ReviewCount
-		items = append(items, item)
+		items = append(items, RelatedCourseItem{
+			Id:          o.Id,
+			PrimaryCode: o.PrimaryCode,
+			Name:        o.Name,
+			Department:  o.Department,
+			TeacherName: teacherNameByID[o.TeacherId],
+			RatingAvg:   ratingAvgFromStats(st.RatingSum, st.RatingCount),
+			RatingCount: st.RatingCount,
+			ReviewCount: st.ReviewCount,
+		})
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ReviewCount != items[j].ReviewCount {
-			return items[i].ReviewCount > items[j].ReviewCount
-		}
-		if items[i].RatingAvg != items[j].RatingAvg {
-			return items[i].RatingAvg > items[j].RatingAvg
-		}
-		return items[i].OfferingId > items[j].OfferingId
-	})
+	sortRelatedItems(items)
 	if len(items) > RelatedListLimit {
 		items = items[:RelatedListLimit]
 	}
 	return items, nil
-}
-
-// instructorSignature 生成教师 ID 组合的稳定签名（排序后以逗号拼接）。
-func instructorSignature(ids []uint64) string {
-	if len(ids) == 0 {
-		return ""
-	}
-	sorted := make([]uint64, len(ids))
-	copy(sorted, ids)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-	parts := make([]string, 0, len(sorted))
-	for _, id := range sorted {
-		parts = append(parts, strconv.FormatUint(id, 10))
-	}
-	return strings.Join(parts, ",")
-}
-
-// offeringTermIDs 收集多个 offering 的学期 ID。
-func offeringTermIDs(offerings []course.OfferingEntity) []uint64 {
-	ids := make([]uint64, 0, len(offerings))
-	for _, o := range offerings {
-		ids = append(ids, o.TermId)
-	}
-	return ids
 }

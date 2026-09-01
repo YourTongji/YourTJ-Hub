@@ -263,19 +263,20 @@ export interface SidebarPayload {
   wikiTree?: WikiTreeNamespace[]
 }
 
-export interface WikiTreePage {
+export interface WikiTreeNode {
+  /** A Markdown page or a non-clickable repository directory. */
+  kind: 'page' | 'directory'
   pageId: number
   path: string
   title: string
   active: boolean
+  children: WikiTreeNode[]
 }
 
 export interface WikiTreeNamespace {
   name: string
   label: string
-  /** 有效 URL key（slug，未分配时降级=显示名）；拼 /wiki/{slug}/{page.path} 用。 */
-  slug: string
-  pages: WikiTreePage[]
+  nodes: WikiTreeNode[]
 }
 
 export interface FooterPayload {
@@ -813,11 +814,9 @@ export interface NotificationPayload {
   }
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段统一走 metadata。
 export interface NotificationTemplateParams {
   preview?: string
-  followerName?: string
-  badgeCode?: string
-  badgeName?: string
 }
 
 export interface MessagesPageProps {
@@ -937,6 +936,9 @@ export interface CourseSearchPayload {
   department: string
   creditX10: number
   aliases?: string[]
+  // (code, teacher) 复合身份：卡片身份教师（teacher_id=0 无教师时省略）。
+  teacherId?: number
+  teacherName?: string
   instructors?: string[]
   terms?: string[]
   campus?: string[]
@@ -948,10 +950,10 @@ export interface CourseSearchPayload {
 export interface CourseCatalogPageProps {
   query: {
     keyword?: string
-    department?: string
-    term?: string
-    campus?: string
-    instructor?: string
+    department?: string[]
+    term?: string[]
+    campus?: string[]
+    instructor?: string[]
     onlyWithReviews?: boolean
     sortBy?: string
     page: number
@@ -969,6 +971,8 @@ export interface CourseCatalogPageProps {
   terms: Array<{ value: string; label: string }>
   /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
   campuses: string[]
+  /** 当前登录用户已收藏的课程 id（issue #331）；未登录/无收藏时省略或为空。 */
+  bookmarkedCourseIDs?: number[]
 }
 
 export interface CourseSummaryPayload {
@@ -977,6 +981,9 @@ export interface CourseSummaryPayload {
   name: string
   department: string
   creditX10: number
+  // (code, teacher) 复合身份：卡片身份教师（teacher_id=0 无教师时省略，前端显示「无教师」）。
+  teacherId?: number
+  teacherName?: string
   aliases?: string[]
   instructors?: string[]
   recentTerms?: string[]
@@ -992,6 +999,9 @@ export interface CourseDetailPageProps {
     name: string
     department: string
     creditX10: number
+    // (code, teacher) 复合身份：卡片身份教师（teacher_id=0 无教师时省略，前端显示「无教师」）。
+    teacherId?: number
+    teacherName?: string
     aliases?: string[]
     // B1 统计投影（PRD §5.1）：均分 / 评论数 / 1-5 星各档计数（index 0 = 1 星）。
     // 无评分/无评价时省略（omitempty），前端按 undefined 降级展示。
@@ -1004,6 +1014,9 @@ export interface CourseDetailPageProps {
       termName?: string
       campus?: string
       faculty?: string
+      // 班号信息（如 32000101 / 01班）；旧数据包导入的 offering 无此字段。
+      classCode?: string
+      className?: string
       instructors?: string[]
       ratingAvg?: number
       reviewCount?: number
@@ -1020,7 +1033,10 @@ export interface CourseManagementPageProps {
 }
 
 export interface SchedulePageProps {
-  // 排课器数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts），SSR 仅提供空壳。
+  // 排课器课程数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts）。
+  // sectionTimes：后台「设置 → 排课器作息」维护的 12 节起止时间（SSR 注入，
+  // 供课表左侧时间与上午/下午/晚上分组；未配置时前端走内置默认表）。
+  sectionTimes?: Array<{ section: number; start: string; end: string }>
 }
 
 // ---- wiki 分站 ----
@@ -1030,9 +1046,7 @@ export interface WikiNamespacePayload {
   description: string
   pageCount: number
   updatedAt: string
-  /** 有效 URL key（slug，未分配时降级=显示名）。 */
-  slug: string
-  /** 首个 approved 页面的完整路径（namespace/slug），供首页 namespace 卡跳转。 */
+  /** 首个 approved 页面的完整路径（首段 = 命名空间目录名），供首页 namespace 卡跳转。 */
   firstPagePath?: string
 }
 
@@ -1041,8 +1055,6 @@ export interface WikiRecentPagePayload {
   path: string
   title: string
   updatedAt: string
-  editorId: number
-  editorName: string
 }
 
 export interface WikiHomeProps {
@@ -1061,7 +1073,10 @@ export interface WikiTocItem {
 export interface WikiContributorPayload {
   userId: number
   username: string
+  /** GitHub noreply 邮箱可解析时的动态头像直链；自定义邮箱贡献者为空。 */
   avatarUrl: string
+  /** GitHub 主页外链（{username}）；自定义邮箱贡献者为空。 */
+  githubUrl?: string
   count: number
   lastEditedAt: string
 }
@@ -1076,8 +1091,6 @@ export interface WikiPageDetailPayload {
   content: string
   toc: WikiTocItem[]
   updatedAt: string
-  editorId: number
-  editorName: string
   likeCount: number
   viewCount: number
   postCount: number

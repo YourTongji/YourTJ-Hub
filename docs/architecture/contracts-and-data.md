@@ -6,50 +6,53 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-14
+> Last verified: 2026-08-28
 
 ## Contract status
 
-The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point is
-`packages/api-contract/openapi.yaml`; it currently covers these operations only:
+The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
+protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
+`packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
+the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list,
+and CI rejects any route that is neither contracted nor listed. By domain:
 
-- `POST /api/login`;
-- `GET /api/login-public-key`;
-- `POST /api/auth/totp/verify`;
-- `GET /api/user/totp/status`;
-- `POST /api/user/totp/setup`;
-- `POST /api/user/totp/enable`;
-- `POST /api/user/totp/disable`;
-- `POST /api/logout`;
-- `POST /api/auth/oidc/exchange`;
-- `POST /api/forum/topics/write`;
-- `GET /api/user/sessions`;
-- `POST /api/user/sessions/revoke`;
-- `POST /api/user/sessions/revoke-all`;
-- `GET /api/v1/agent/me`;
-- `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
-- `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
-- `GET /api/v1/agent/search`.
-- `GET /api/forum/courses` and `GET /api/forum/courses/{courseId}` (course catalog read endpoints, `security: []`);
-- `GET /api/forum/courses/{courseId}/reviews` and `POST /api/forum/course-reviews`;
-- `PATCH /api/forum/course-reviews/{reviewId}` and `DELETE /api/forum/course-reviews/{reviewId}`;
-- `PUT /api/forum/course-reviews/{reviewId}/helpful`,
-  `DELETE /api/forum/course-reviews/{reviewId}/helpful`, and
-  `POST /api/forum/course-reviews/{reviewId}/reports`;
-- `POST /api/forum/moderation/course-review-status`,
-  `POST /api/forum/moderation/course-review-reports`, and
-  `POST /api/forum/moderation/course-review-reveal`.
-- Wiki 域（`paths/wiki.yaml`，GitHub 唯一真实源模型）：公开读
-  `GET /api/wiki/{tree,namespaces,home}` + 写即发布/CAS/版本历史/回滚/diff/编辑者/命名空间
-  CRUD 等站内写端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR，命名空间由仓库顶层目录
-  同步驱动）；保留管理端 `/api/admin/wiki/*`（PageManager：只读树 + `sync/status` /
-  `sync` / `sync/runs` / `sync/webhook-secret` 读写）与公开 `POST /api/wiki/webhook`
-  （GitHub push 事件，HMAC-SHA256 验签，触发即时同步）；**URL 语义 = slug**：页面
-  `path` 首段与 `namespace` 列存 URL key（frontmatter `slug` 优先，目录名纯 ASCII 时
-  默认 slug=目录名，中文目录无 slug 时降级=显示名），显示名从 `wiki_namespaces.name`
-  取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；管理端树
-  `WikiAdminTreePage` 带 `sourcePath` 字段；生成 TS 类型 + 手写 Dart mirror
-  （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+- auth and account: password login, login public key, TOTP (verify + management), logout,
+  registration/password recovery, mobile OIDC exchange, session management, captcha, user-card,
+  profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
+  bindings/unbind, and the user content lifecycle (my-content, deleted-content, restore,
+  batch-delete, purge, privacy-erase, content-event, account-close);
+- forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
+  topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
+  chat, and the moderator workbench (`/api/forum/moderation/*`);
+- admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
+  agent administration, operation records, traffic overview, page settings, site settings, and
+  data import/export;
+- Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
+  scheduler;
+- Wiki 域（`paths/wiki.yaml` + `paths/wiki-sync.yaml`，GitHub 唯一真实源模型）：公开读
+  `GET /api/wiki/{tree,namespaces,home}`；管理端 `/api/admin/wiki/*`（PageManager：只读树 +
+  `sync/status` / `sync` / `sync/runs` / `sync/webhook-secret` 读写 + asset CDN 设置）与公开
+  `POST /api/wiki/webhook`（GitHub push 事件，HMAC-SHA256 验签）。写即发布/CAS/版本历史/回滚/
+  diff/编辑者/命名空间 CRUD 等站内写端点均已**退役**（编辑/审核/历史/贡献者走 GitHub PR，
+  命名空间由仓库顶层目录同步驱动），不得重新加入契约——覆盖门禁会拦下任何未申报的路由变化。
+  公开读与 `/api/admin/wiki/{tree,sync/status,sync/runs}` 在数据库查询失败时返回
+  **HTTP 500 + `wiki.readFailed`**（契约已声明 500 响应），与真实空 wiki（200 + 空结果）
+  严格区分（issue #287）；GitHub SSOT 下站内无「编辑者」概念，`wiki.home` 的 `recent[]` 与
+  详情负载的 `editorId`/`editorName` 字段已移除；Git 作者信息由详情页 `contributors[]` 提供
+  （无论坛数字用户 ID）：同步器从仓库 `git log` 按 email 聚合贡献者与提交数，GitHub noreply
+  隐私邮箱解析出 `username` → 前端拼 `avatarUrl`（`github.com/{user}.png`）与 `githubUrl`
+  外链；自定义邮箱贡献者两者为空（前端降级首字母占位）（issues #291/#310）。
+
+- Wiki 局内搜索 `GET /api/wiki/search` 使用 Meilisearch 的 `wiki_pages` 段落索引：每个段落
+  一个文档，公开 API 再按页面聚合结果。`q` 最长 100 个字符，`limit` 默认 12、最大 20；
+  `total` 是去重后的公开页面数，不是段落命中数；Meilisearch 不可用时返回 HTTP 200、空
+  `items` 与 `searchUnavailable: true`。结果中的 `anchors` 来源于 `wiki_pages.para_anchors`
+  投影，前端用 `#s-<n>` 精确跳转。页面更新、无段落页面和 Wiki 软删都会先清理该页面旧
+  段落文档，搜索索引只作为可重建投影。
+
+The remaining **Partial** gaps are not missing routes but: the OIDC Provider standard endpoint
+suite (separate OAuth/OIDC contract track), AI-readable text surfaces (`/llms.txt` etc.), and
+hand-maintained Dart mirrors (generation remains Planned).
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
@@ -92,12 +95,24 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
   this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
   exercise their runtime deserialization where the mobile client consumes a controlled operation.
+- **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
+  dumps every route `RegisterByGin` registers under the default config into
+  `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —
+  they are only registered with `oidc.enabled=true` and are tracked in their own slice). After a route
+  change, regenerate with `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`;
+  `go test ./...` fails on snapshot drift. `scripts/check-route-coverage.mjs` (part of `pnpm run check`)
+  then requires every snapshot route to be either an OpenAPI operation or listed in
+  `packages/api-contract/route-coverage.json` (`excluded` for non-JSON-API routes such as SSR pages and
+  static assets, `knownUncovered` with an owning slice for pending `/api` routes), rejects stale or
+  dangling list entries and contract operations with no matching route, and regenerates the committed
+  `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
+  generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
 
-Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
-stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a
-base-versus-head bundled-spec breaking gate in a separate change only when `dev` has stable operation
-coverage on both sides of the comparison; that gate must compare the PR base and head contracts rather
-than a hand-maintained duplicate baseline.
+Breaking-change comparison is not a current gate. Enable a base-versus-head bundled-spec breaking
+gate (for example `oasdiff` against the bundled base and head specs) in a separate change; that gate
+must compare the PR base and head contracts rather than a hand-maintained duplicate baseline. Route
+coverage reached 100% of `/api` routes with issue #277, so both sides of a PR comparison now carry
+complete operation coverage and the precondition for such a gate is met.
 
 ## Data model
 
@@ -137,6 +152,10 @@ than a hand-maintained duplicate baseline.
   out of rendered SQL instead of relying on an otherwise inert configuration flag.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
+- Wiki paragraph search follows the same projection rule: `wiki_pages.para_anchors` is derived from
+  rendered Wiki Markdown, and the `wiki_pages` Meilisearch index is rebuilt from the database or
+  incrementally replaced per page. Public search applies the page visibility boundary both in the
+  index filter and in the service aggregation defense check.
 
 ## Task queue & background workers
 
@@ -144,7 +163,9 @@ than a hand-maintained duplicate baseline.
   across handlers:
   - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
   - `export` (data export)
+  - `import` (staged, checksum-addressed JSON import)
   - `file-migrate` (BLOB → object storage migration)
+  - `topic-search.*`, `user-search.*`, `category-search.*`, and `course-search.*` (search projections)
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
   the same task simultaneously from the queue's perspective. Each claim generates a fresh,
@@ -162,6 +183,16 @@ than a hand-maintained duplicate baseline.
   only prevents the stale worker from writing terminal state over the new owner.
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
+- Import requests are bounded at 50 MiB and staged with mode `0600`; the task payload stores only the
+  filename, format, and SHA-256. The worker rechecks the digest, runs row validation and invariant
+  rebuilding in one transaction, and keeps the source file on failure. `POST
+  /api/admin/data/import/tasks/{taskId}/replay` resets a failed task after the operator has fixed the
+  cause. Identical uploads reuse the same task instead of overwriting a failed task's source.
+- Search projection rows are transaction-bound for the main topic/category/wiki write paths. User
+  profile, likes/follows, and content delete/restore event paths enqueue after the business commit;
+  they therefore have a short crash window but remain idempotent, retryable, and rebuildable. A
+  worker re-reads current database state before upserting or deleting the external document, so an
+  unavailable Meilisearch instance only delays a rebuildable projection.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
 
 ## Config-driven features (pageConfig)
@@ -209,5 +240,6 @@ and per-topic documents preserve the stored Markdown source.
   generated-artifact placeholder until the OpenAPI pipeline lands). Backend/TS contract changes that
   affect the mobile surface must update the Dart mirrors in the same PR; fixture contract tests
   (`core/test/fixtures`) back runtime deserialization.
-- Dart generation and full-route coverage are Planned; do not claim they are current contract gates.
+- Automated Dart generation remains Planned; route coverage is a current contract gate as described
+  above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).

@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -82,8 +83,10 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
+	assertCourseTeacherIdentitySchema(t, db)
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：
@@ -121,6 +124,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
 		t.Fatalf("drop legacy-missing username index: %v", err)
 	}
+	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_email_nonempty"); err != nil {
+		t.Fatalf("drop legacy-missing email index: %v", err)
+	}
 	if err := db.Migrator().DropColumn(&pointsRecord.Entity{}, "source_key"); err != nil {
 		t.Fatalf("drop legacy-missing points_record.source_key: %v", err)
 	}
@@ -136,6 +142,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Fatal("precondition failed: legacy users table should not have username unique index")
 	}
+	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_email_nonempty") {
+		t.Fatal("precondition failed: legacy users table should not have email unique index")
+	}
 	if db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {
 		t.Fatal("precondition failed: legacy points_record table should not have source_key")
 	}
@@ -146,6 +155,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	// 部署新二进制：全量 AutoMigrate 应补齐新表且不破坏旧表
 	if err := validateUniqueUsernames(db); err != nil {
 		t.Fatalf("username preflight on postgres upgrade failed: %v", err)
+	}
+	if err := validateUniqueUserEmails(db); err != nil {
+		t.Fatalf("email preflight on postgres upgrade failed: %v", err)
 	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
@@ -181,8 +193,10 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
 	}
+	assertUniqueUserEmailSchema(t, db)
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
+	assertCourseTeacherIdentitySchema(t, db)
 	var legacyPointsCount int64
 	if err := db.Model(&pointsRecord.Entity{}).Where("action = ? AND points_change = ?", "init", 100).Count(&legacyPointsCount).Error; err != nil {
 		t.Fatalf("count legacy points records after upgrade: %v", err)
@@ -211,6 +225,42 @@ func assertPkFetchLogLeaseSchema(t *testing.T, db *gorm.DB) {
 	}
 }
 
+// assertCourseTeacherIdentitySchema 校验 course 的 (primary_code, teacher_id)
+// 复合身份 schema（issue #326）：teacher_id 列存在、复合唯一索引
+// uniq_course_code_teacher 已建、旧单列索引 uniq_course_primary_code 不再存在；
+// 并做行为断言——同 code 不同 teacher 可插入、重复 (code, teacher) 被唯一约束
+// 拦截（gorm.ErrDuplicatedKey）、无教师行（teacher_id=0）与有教师行共存。
+func assertCourseTeacherIdentitySchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasColumn(&course.Entity{}, "teacher_id") {
+		t.Error("course.teacher_id column missing after postgres migration")
+	}
+	if !db.Migrator().HasIndex(&course.Entity{}, "uniq_course_code_teacher") {
+		t.Error("course.uniq_course_code_teacher composite unique index missing after postgres migration")
+	}
+	if db.Migrator().HasIndex(&course.Entity{}, "uniq_course_primary_code") {
+		t.Error("stale course.uniq_course_primary_code single-column index must not exist after postgres migration")
+	}
+	// 行为断言：复合身份允许同 code 不同 teacher。
+	if err := db.Create(&course.Entity{PrimaryCode: "326-pg-a", TeacherId: 1, Name: "PG 复合身份 A"}).Error; err != nil {
+		t.Fatalf("insert same code different teacher: %v", err)
+	}
+	if err := db.Create(&course.Entity{PrimaryCode: "326-pg-a", TeacherId: 2, Name: "PG 复合身份 B"}).Error; err != nil {
+		t.Fatalf("insert same code teacher B: %v", err)
+	}
+	// 重复 (code, teacher) 被唯一约束拦截。
+	dup := course.Entity{PrimaryCode: "326-pg-a", TeacherId: 1, Name: "PG 复合身份 dup"}
+	if err := db.Create(&dup).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("duplicate (code, teacher) error = %v, want gorm.ErrDuplicatedKey", err)
+	}
+	// 无教师行（teacher_id=0）与有教师行共存。
+	if err := db.Create(&course.Entity{PrimaryCode: "326-pg-no", Name: "PG 无教师"}).Error; err != nil {
+		t.Fatalf("insert no-teacher course: %v", err)
+	}
+	if err := db.Create(&course.Entity{PrimaryCode: "326-pg-no", TeacherId: 3, Name: "PG 无教师旁"}).Error; err != nil {
+		t.Fatalf("insert teacher course alongside no-teacher row: %v", err)
+	}
+}
 func assertPointsSourceKeySchema(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	if !db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {

@@ -158,7 +158,11 @@ func ginServe() {
 	mailservice.RecoverStaleTasks()
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
+	dataservice.RecoverImportTasks()
 	searchservice.RecoverStaleTasks()
+	searchservice.RecoverTopicSearchTasks()
+	searchservice.RecoverUserSearchTasks()
+	searchservice.RecoverCategorySearchTasks()
 	// 启动时确保话题索引的 filterable 属性配置（topicType 过滤依赖；见
 	// EnsureTopicIndexConfigured 注释，review N2：仅手动 rebuild 不覆盖存量部署）。
 	searchservice.EnsureTopicIndexConfigured()
@@ -168,8 +172,15 @@ func ginServe() {
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
+	// 数据导入 worker：消费 import 任务，事务化导入暂存文件中的数据。
+	backgroundservice.RunWorker("data_import_worker", dataservice.TaskTypeImport, dataservice.RunImportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// 主题、用户、分类搜索 worker：消费 transaction-bound outbox，避免业务
+	// 请求/事件 consumer 同步等待 Meilisearch。
+	backgroundservice.RunWorker("topic_search_worker", searchservice.TaskTypeTopicSearch, searchservice.RunTopicSearchTask)
+	backgroundservice.RunWorker("user_search_worker", searchservice.TaskTypeUserSearch, searchservice.RunUserSearchTask)
+	backgroundservice.RunWorker("category_search_worker", searchservice.TaskTypeCategorySearch, searchservice.RunCategorySearchTask)
 	// 课程统计重建 worker：消费 course-stats. 前缀任务（管理页“重建课程统计”触发）
 	backgroundservice.RunWorker("course_stats_worker", courseservice.TaskTypeCourseStatsRebuild, courseservice.RunCourseStatsRebuildTask)
 	// 课评删除隔离窗口清理 worker（issue #175 B3 隐私合规）：消费
@@ -183,6 +194,9 @@ func ginServe() {
 	// 启动时异步执行一次 wiki GitHub 同步（D1）：进程启动后立即拉取仓库最新
 	// head 并投影到论坛。未配置 [wiki.git].repo 时幂等跳过（Sync 报错仅告警，
 	// 不阻塞服务启动）；失败不重试，由每日定时同步兜底。
+	// 崩溃恢复（issue #290）：上次进程被杀/重启遗留的 running 运行行在
+	// 启动时回收为 failed，管理端手动同步按钮不会被永久禁用。
+	wikiservice.ReconcileStaleRuns()
 	if wikiservice.LoadGitConfig().Enabled() {
 		go func() {
 			defer paniclog.Recover("wiki_startup_sync")
@@ -201,13 +215,7 @@ func ginServe() {
 		host = `127.0.0.1`
 	}
 	address := fmt.Sprintf("%v:%v", host, port)
-	srv := &http.Server{
-		Addr:           address,
-		Handler:        engine,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
-	}
+	srv := newHTTPServer(address, engine)
 
 	quit := make(chan os.Signal, 1)
 	signalwatch.ListenSignal(quit)
@@ -234,6 +242,18 @@ func ginServe() {
 	}
 
 	slog.Info("Server exiting")
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 }
 
 func newGinEngine() *gin.Engine {

@@ -33,16 +33,14 @@
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
 - **Wiki 分站（论坛内嵌）**: wiki 由单二进制直接服务（`/wiki` SSR 视图），无独立部署、无独立
-  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。
-  **存量服务器一次性退役旧 wiki 容器/镜像**（PR #219 后，旧 bootstrap 流程初始化过的服务器
-  `/opt/yourtj/docker-compose.yaml` 仍可能保留 `wiki-main`/`wiki-dev` 服务定义与运行中的
-  `yourtj-wiki-main`(127.0.0.1:5284)/`yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
-  - 当前 CI 部署只下发 `deploy/scripts/*.sh` 与二进制，**不替换**远程 compose 文件；只要远程
-    compose 仍定义 `wiki-main`/`wiki-dev`，这两个容器就不是孤儿，`deploy.sh` 的
-    `up -d --remove-orphans` 不会动它们。需先手动把 `/opt/yourtj/docker-compose.yaml` 换成
-    不含 wiki 服务的当前版本（取仓库 `deploy/docker-compose.yaml`，或直接删除文件中
-    `wiki-main`/`wiki-dev` 两个 service 块），之后下一次部署的 `--remove-orphans` 会停删它们。
-  - 想在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
+  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。按 issue
+  #219 的用户决策，旧 VitePress 内容不迁移，新原生 Wiki 从空站启动。**存量服务器需退役旧
+  wiki 容器/镜像**（旧 bootstrap 流程初始化过的服务器的 compose 仍可能保留
+  `wiki-main`/`wiki-dev` 服务定义与运行中的 `yourtj-wiki-main`(127.0.0.1:5284)/
+  `yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
+  - main CI 部署会先备份并覆盖 `/opt/yourtj/docker-compose.yaml`，随后
+    `deploy.sh up -d --remove-orphans` 会停删不再出现在当前 compose 中的旧 wiki 容器。
+  - 若要在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
     （`restart: unless-stopped` 不会复活已 `rm` 的容器）；残留镜像手动清理
     `docker images | awk '/yourtj-wiki/{print $3}' | xargs -r docker rmi -f`
     （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
@@ -56,9 +54,12 @@
 
 1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
    顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
-   （旧站路径映射为 `<namespace>/<slug>.md`）。
-2. 旧站的静态资源（图片/附件）随文件一并提交到仓库（同步器只投影 `.md`；
-   图片等资源从 GitHub raw 引用，或移入仓库后改写为相对路径）。
+   （旧站路径映射为 `<namespace>/<path>.md`）。
+2. 旧站的静态资源（图片/附件）随文件一并提交到仓库。同步器只将 `.md` 作为页面投影，
+   但会把页面中的仓库相对资源引用重写为论坛二进制提供的受控
+   `/wiki/_assets/<repository-path>` 路由；不需要 GitHub raw URL。相对页面链接保留 `.md`
+   源文件后缀，投影后会变为无后缀的 `/wiki/...` 路由。作者语义与路径限制见
+   [Wiki authoring](../product/wiki-authoring.md)。
 3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
    后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
 4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次
@@ -84,7 +85,9 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 - **命名空间/页面来源**：命名空间 = 仓库顶层目录名（支持中文等 Unicode 字符，目录
   消失自动删除命名空间）；页面 = 目录内 `.md` 文件（路径去 `.md` 后缀；frontmatter
   `title`/`order`/`description` 驱动页面标题/排序与命名空间描述，`index.md` 的
-  description/order 写入命名空间元数据）。
+  description/order 写入命名空间元数据）。任意子目录都会在导航树中保留为可折叠目录节点，
+  不要求 `index.md`；`index.md` 存在时仍是该目录下可直接访问的页面。同步完成后会重算页面
+  到最近祖先索引页的 `parent_id`，所以目录新增、移动、删除或恢复不会保留已删除的父引用。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
   - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致
@@ -96,13 +99,23 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 - **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
   （镜像升级后首次同步会保留仓库原始大小写/Unicode——此前实现做小写归一。对混合
   大小写仓库，首次同步会软删旧的小写路径页面并以仓库实际大小写重建（新 topic，
-  原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响。中文目录在
-  `index.md` 声明 `slug` 后，页面 URL 首段迁移为 slug，旧链接仍可经显示名回退解析）。
-  （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
+  原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响）。
+  URL 首段 = 仓库顶层目录名，重命名目录即改变 URL（旧链接不回退解析）。
+  （同步用全量 `clone --single-branch` + `fetch` + `reset --hard`，**不使用 pull**；
+  全量历史用于页面贡献者统计。存量浅克隆（旧版 `--depth=1`）在下次同步自动
+  `fetch --unshallow` 补全历史并重建全部页面贡献者缓存，升级首轮耗时取决于仓库大小）。
 - **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
   同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）；
   仓库移除页面 → 页面软删（评论/互动保留），仓库移除顶层目录 → 命名空间自动删除（含贡献者记录）。
+- **崩溃恢复**（issue #290）：进程被杀/重启遗留的 `running` 运行行在下次启动、状态读取（管理端
+  刷新 `/admin/wiki`）或下次同步开始时统一回收为 `failed`，不会永久禁用手动同步；管理端手动
+  同步 accepted 后轮询 `sync/status` + `sync/runs` 直到新 run 行进入终态并刷新页面树（约 5 分钟
+  上限，超时提示手动刷新）。
+- **重命名/移动（issue #288）**：Git 重命名/移动文件（内容不变）后，同步器按正文 `content_hash`
+  唯一匹配收养原页面行——迁移 `path`/`namespace`/`parent_id`、恢复软删并复用原 topic，回复/点赞/
+  收藏/订阅与 watcher 通知全部跟随新路径，旧 URL 不再解析（无重定向）。同 hash 多候选（复制）
+  或内容同时变化时不做猜测：保持「新建 + 软删旧页」的旧行为（互动保留在旧 topic 上）。
 
 ## Server layout (Docker Compose)
 
@@ -392,14 +405,42 @@ instance:
 
 - Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
   topic_user_stat when selected) as JSON or CSV via a background task, then download;
-  import JSON with a per-row validation report and idempotent skip; topic invariants
-  (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
-- Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
-  (daily cron). Export contains user emails — treat downloads as sensitive.
+  upload JSON (maximum 50 MiB) into a staged background task. The task is checksum-addressed and
+  idempotent; identical uploads reuse the same task. The worker applies all rows and topic
+  invariants (post_seq, first/last post pointers, counts, posters) in one database transaction,
+  so validation failures roll back the batch rather than leaving partial data. Staged files use
+  mode `0600`, are deleted after success, and are retained for an explicit replay after failure.
+  Administrators can inspect `GET /api/admin/data/import/tasks` and replay a failed task with
+  `POST /api/admin/data/import/tasks/:taskId/replay`.
+- Export files are written to `data/export/` inside the storage dir with mode 0600
+  (owner-only) and cleaned up after 7 days (daily cron). Export contains user emails —
+  treat downloads as sensitive. Export creation and download are recorded in the
+  operation audit log (`opt_record`, issue #324).
+
+## 管理端设置密钥（issue #324）
+
+- SMTP 密码、对象存储 accessKey/secretKey、HTTP 通知端点 secret 均以 securestore
+  AES-256-GCM 密文落库（与一系统 Cookie / wiki webhook secret 同一模式），管理端
+  GET 仅回显是否已配置，绝不回显明文或密文；保存时密钥字段留空表示保留已存值。
+- 升级到包含 v25 数据迁移的版本后，存量明文密钥会在下次启动时自动加密迁移
+  （幂等；迁移失败不推进版本，下次启动重试）。
 
 ## 一系统排课同步（course-pk-sync，issue #186）
 
 将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+> **管理端入口（推荐，issue #248）**：部署实例的排课器学期下拉为空，通常是因为
+> `pk_calendar` 尚无数据且未同步。无需登录服务器，在**管理端 → 设置 → 一系统同步**
+> 页面即可：
+> 1. 配置一系统 Cookie（加密落库，不存明文）；
+> 2. 输入一系统数字学期 ID（如 `121`）或已同步过的学期名（如 `2025-2026-1`）点「立即同步」；
+> 3. 同步在后台执行（`POST /api/admin/pk/sync-calendar`），页面「同步状态」列表每 3s 轮询
+>    `GET /api/admin/pk/sync-status`（`pk_fetch_log` 游标）直至结束，可看到行数/进度/失败原因。
+>
+> 未配置任何 Cookie 来源（管理端设置/`ONESYSTEM_COOKIE` 环境变量）时入口会拒绝触发。
+> 同一学期同步中的并发仍受 fetchlog 1 小时 running 窗口保护（见下）。
+
+CLI 同步（运维 cron 等自动化场景）：
 
 ```bash
 # 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
@@ -424,6 +465,10 @@ instance:
   30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
   ```
 
+应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，
+可在 `config.toml` 设置 `[cron].enabled = false`；该开关只停止应用内 scheduler，
+不会停用 task queue worker 或手动 CLI。
+
 - 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
   续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
   fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
@@ -431,6 +476,22 @@ instance:
   进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
 - 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
   需到管理端重新保存。
+
+### 学期起止日期（可选，config 维护）
+
+一系统 manualArrange 数据不含学期起止日期。排课器「当前周次」自动定位与学期日期条
+展示依赖 `config.toml [pk.semester_dates]`（键 = 学期标记 `pk_calendar.calendar_id_i18n`，
+如 `2025-2026-1`；值 = start/end 纯日期）。`course-pk-sync` 同步该学期时写入
+`pk_calendar.start_date/end_date`，P1 `/api/pk/calendars` 原样返回（未配置为 null）：
+
+```toml
+[pk.semester_dates."2025-2026-1"]
+start = "2025-09-08"
+end = "2026-01-18"
+```
+
+- 修改日期后需重跑该学期同步（幂等）才会写入数据库。
+- 未配置的学期两列为 NULL，排课器周次仍可手动选择（「当前周次」开关禁用）。
 
 ## 服务器迁移 runbook（旧机 → 新机）
 
@@ -565,6 +626,10 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 
   4. 再切 DNS 回旧机。
   - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
 - Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（ADR-003：索引是可重建投影）。
+- 搜索投影任务采用有界重试；Meilisearch 短时不可用时，`topic-search.*`、
+  `user-search.*` 或 `category-search.*` 任务可能进入 `failed`，不会自动无限重试。
+  Meilisearch 恢复后检查 `task_queue`，并运行 `rebuild-search-index` 做一次全量对账；
+  该命令是运维恢复动作，不依赖旧任务仍处于 pending。
 
 ## Runbooks to write
 

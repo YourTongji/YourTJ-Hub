@@ -1,12 +1,11 @@
 package dbconnect
 
 import (
-	"fmt"
+	"context"
 	"sync"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/sqlconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 
 	"gorm.io/gorm"
 )
@@ -23,23 +22,24 @@ var dbConnect sqlconnect.Connect
 
 func Connect() *gorm.DB {
 	once.Do(func() {
-		if preferences.IsTestMode() {
-			dbConnect = sqlconnect.GetConnect(sqlconnect.TestConfig())
-		} else {
-			dbConfig := preferences.GetExclusivePreferences("db.default")
-			dbConnect = sqlconnect.GetConnectByPreferences(dbConfig)
-		}
-		if dbConnect.Error != nil {
-			// 连接失败时立即失败，避免 nil *gorm.DB 在后续 AutoMigrate 上解引用崩溃
-			panic(fmt.Sprintf("dbconnect: %v", dbConnect.Error))
-		}
+		dbConnect = sqlconnect.ConnectByPrefix("db.default")
 		// 注册到全局关闭管理器
-		closer.RegisterPriority(closer.PriorityDatabase, func() error {
+		closer.RegisterPriorityContext(closer.PriorityDatabase, func(context.Context) error {
 			dbConnect.Close()
 			return nil
 		})
 	})
 	return dbConnect.Connect
+}
+
+// ConnectContext returns the default database handle bound to ctx. Queries
+// started from request or worker code should use this entry point so driver
+// cancellation reaches the database instead of continuing in the background.
+func ConnectContext(ctx context.Context) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return Connect().WithContext(ctx)
 }
 
 func IsSqlite() bool {

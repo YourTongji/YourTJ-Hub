@@ -32,20 +32,32 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
 - Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
   RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
-  (`jti` + `user_sessions`) in place. Casdoor is not enabled.
+  (`jti` + `user_sessions`) in place.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
   password login, login public-key retrieval, TOTP login verification and account management, logout,
-  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, account
+  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, forum core
+  interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
+  post like/bookmark, follow-user, report), user account and identity (captcha, user-card,
+  profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
+  bindings/unbind), notifications/unread/chat, forum moderation workbench, the admin console
+  (`/api/admin/*`: user/role/category/moderator management, topic/post moderation, agent
+  administration, operation records, traffic overview, page settings, site settings, data
+  import/export), account
   registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
   the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
-  (public tree/namespaces/home + admin sync/status|sync|sync/runs + webhook; the legacy in-forum
-  write/revision/rollback/diff/editor endpoints were retired with the GitHub-SSoT model),
+  (public tree/namespaces/home + admin read-only tree + sync/status|sync|sync/runs +
+  sync/webhook-secret + asset CDN + webhook; the legacy in-forum write/revision/rollback/diff/editor
+  and namespace-CRUD endpoints were retired with the GitHub-SSoT model),
   and the PK scheduler (14 ops:
   courses-by-major/optional-types/courses-by-nature/course-details/course-search/courses-by-time/
   latest-update/course-info-sync/course-review-brief),
+  the user content lifecycle (my-content/deleted-content lists, content-restore/batch-delete/
+  purge/privacy-erase/event, account-close), aggregate search (`/api/forum/search`) and public
+  site statistics,
   with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
-  paths are split per domain under `paths/`; broader route coverage still needs manual or
-  annotation-based work.
+  paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
+  `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a
+  contract operation; new routes must be added to the contract or the exclusion list.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules
@@ -62,7 +74,6 @@ apps/
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
 services/
-  casdoor/   Archived Casdoor deployment config (not enabled; built-in OIDC Provider replaces it)
   search/    Meilisearch deployment config
   credit/    Points (phase 2 placeholder)
 deploy/      Per-environment compose + env.example
@@ -76,7 +87,7 @@ docs/        Docs center (product/architecture/development/operations)
 - Frontend output only via `resource/static/dist` (go:embed); vite :3010 hits the backend in dev,
   single binary in production.
 - `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
-  off-the-shelf components; Casdoor is archived and not enabled).
+  off-the-shelf components).
 - Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it. After
   merging, rewrite upstream's `github.com/leancodebox/GooseForum` import prefix to
   `github.com/YourTongji/YourTJ-Hub/apps/gooseforum` (upstream files keep the old prefix), then run `go mod tidy`.
@@ -93,6 +104,11 @@ docs/        Docs center (product/architecture/development/operations)
   covers an operation, contract changes must also update the mobile Dart mirrors in
   `apps/mobile/packages/core/lib/src/gen/` (same PR) and web TS types
   (`resource/packages/client/src/contracts/`) in the same commit. Dart generation remains Planned.
+  Route coverage is gated: every route from `RegisterByGin` (snapshot
+  `packages/api-contract/fixtures/routes-snapshot.json`, regenerate with
+  `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`) must be an
+  OpenAPI operation or listed in `packages/api-contract/route-coverage.json`, and the generated
+  `packages/api-contract/coverage-matrix.md` must be committed — `pnpm run check` and CI fail otherwise.
 - Design-token changes ship in the same PR: changing `resource/src/styles/tokens.css` requires
   updating `apps/mobile/packages/ui_kit/lib/src/theme/tokens.json` in the same commit.
 - Docs use the four implementation status words (`Current`/`Partial`/`Planned`/`Decision needed`),
@@ -114,6 +130,9 @@ docs/        Docs center (product/architecture/development/operations)
   are exempt; the regression test stays.
 - TODO markers use three tiers (`FIXME` / `TODO` / `XXX`), see
   docs/development/coding-conventions.md.
+- Test layout follows the per-language convention (Go `*_test.go` co-located, frontend `resource/test/`,
+  Flutter `test/`, contract fixtures under `packages/api-contract/fixtures/`), see
+  docs/development/testing.md#test-layout.
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration
@@ -144,5 +163,7 @@ docs/        Docs center (product/architecture/development/operations)
 
 - [Docs center](docs/README.md) (fact-source table + status words)
 - [Development entry](docs/development/README.md)
+- Repository skills: `$yourtj-development`, `$yourtj-pre-push-checks`, `$yourtj-simplifications`,
+  `$yourtj-doc-standards`, `$yourtj-code-review` (see `.agents/skills/`)
 - Architecture decision records live in the project note (yourtj-hub ADR note), not in git
 - Upstream: GooseForum (apps/gooseforum, the fork itself); YourTJ-Platform (local, same-brand archived repo)

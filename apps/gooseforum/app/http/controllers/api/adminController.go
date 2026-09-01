@@ -1,18 +1,24 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
@@ -53,6 +59,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 type TrafficOverviewReq struct {
@@ -559,7 +566,12 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 	}
 
-	if err := topics.UpdateProcessStatus(topic.Id, req.Params.ProcessStatus); err != nil {
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := topics.UpdateProcessStatusTx(tx, topic.Id, req.Params.ProcessStatus); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	topic.ProcessStatus = req.Params.ProcessStatus
@@ -574,11 +586,7 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		"status": statusCode,
 	})
 	moderationservice.TopicStatusChanged(req.UserId, topic.Id, topic.Title, req.Params.ProcessStatus == 1)
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-	}
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 封禁/解封不发布 Topic*Event，需同步清理 LLMS 公开投影缓存，避免封禁内容在 10s 窗口内继续导出。
 	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
@@ -642,7 +650,7 @@ func EditTopicPin(req component.BetterRequest[EditTopicPinReq]) component.Respon
 	if err := topics.UpdatePinWeight(topic.Id, req.Params.PinWeight); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.pinWeightChanged", optlogger.MessageParams{
 		"title":        topic.Title,
 		"oldPinWeight": oldPinWeight,
@@ -673,11 +681,15 @@ func EditTopicCategories(req component.BetterRequest[EditTopicCategoriesReq]) co
 
 	oldCategoryIds := append([]uint64(nil), topic.CategoryIds...)
 	topic.CategoryIds = categoryIds
-	if err := topics.SaveNoUpdate(&topic); err != nil {
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
-	}
-
-	if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, categoryIds); err != nil {
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := topics.UpdateCategoryIDsTx(tx, topic.Id, categoryIds); err != nil {
+			return err
+		}
+		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, categoryIds); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.categoriesChanged", optlogger.MessageParams{
@@ -685,11 +697,7 @@ func EditTopicCategories(req component.BetterRequest[EditTopicCategoriesReq]) co
 		"oldCategoryIds": oldCategoryIds,
 		"categoryIds":    categoryIds,
 	})
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-	}
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(append(oldCategoryIds, categoryIds...)...)
 	// 分类变更不发布事件，同步清理 LLMS 投影缓存（投影内嵌 Categories 列表）。
 	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
@@ -1126,9 +1134,15 @@ func SaveCategory(req component.BetterRequest[CategorySaveReq]) component.Respon
 	entity.Slug = req.Params.Slug
 	entity.Sort = req.Params.Sort
 
-	category.SaveOrCreateById(&entity)
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := category.SaveTx(tx, &entity); err != nil {
+			return err
+		}
+		return searchservice.EnqueueCategorySearchTask(tx, entity.Id)
+	}); err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	hotdataserve.ClearCategoryCache()
-	eventbus.Publish(context.Background(), &eventhandlers.CategorySearchIndexUpdatedEvent{CategoryId: entity.Id})
 	return component.SuccessResponse(true)
 }
 
@@ -1146,9 +1160,15 @@ func DeleteCategory(req component.BetterRequest[struct {
 	if topicCategoryIndex.GetOneByCategoryId(entity.Id).Id > 0 {
 		return component.FailResponseCode(component.MessageAdminCategoryHasTopics, nil)
 	}
-	category.DeleteEntity(&entity)
+	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := category.DeleteTx(tx, &entity); err != nil {
+			return err
+		}
+		return searchservice.EnqueueCategorySearchTask(tx, entity.Id)
+	}); err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	hotdataserve.ClearCategoryCache()
-	eventbus.Publish(context.Background(), &eventhandlers.CategorySearchIndexDeletedEvent{CategoryId: entity.Id})
 	return component.SuccessResponse(true)
 }
 
@@ -1302,26 +1322,43 @@ func PublishSiteTheme(req component.BetterRequest[component.Null]) component.Res
 	return component.SuccessResponse(config)
 }
 
-// GetMailSettings 获取邮件设置
+// GetMailSettings 获取邮件设置：仅回显是否已配置密码，不回显密码明文/密文
+// （issue #324 S2，参照 onesystem cookieConfigured 模式）。
 func GetMailSettings(req component.BetterRequest[component.Null]) component.Response {
-	// 获取当前站点设置
-	defaultSettings := defaultconfig.GetDefaultEmailSettingsConfig()
-	emailSettings := pageConfig.GetConfigByPageType(pageConfig.EmailSettings, defaultSettings)
-	return component.SuccessResponse(emailSettings)
+	return component.SuccessResponse(hotdataserve.GetMailSettingsView())
 }
 
 type SaveMailSettingsReq struct {
-	Settings pageConfig.MailSettingsConfig `json:"settings" validate:"required"`
+	Settings pageConfig.MailSettingsInput `json:"settings" validate:"required"`
 }
 
-// SaveMailSettings 保存邮件设置
+// SaveMailSettings 保存邮件设置：smtpPassword 明文仅在请求瞬间存在——非空时
+// securestore 加密后落库；为空/掩码时保留已存密文（issue #324 S2）。
 func SaveMailSettings(req component.BetterRequest[SaveMailSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.EmailSettings, req.Params.Settings, hotdataserve.ClearMailSettingsConfigCache)
+	input := req.Params.Settings
+	entity := pageConfig.GetByPageType(pageConfig.EmailSettings)
+	storage := jsonopt.Decode[pageConfig.MailSettingsStorage](entity.Config)
+	storage.EnableMail = input.EnableMail
+	storage.SmtpHost = input.SmtpHost
+	storage.SmtpPort = input.SmtpPort
+	storage.UseSSL = input.UseSSL
+	storage.SmtpUsername = input.SmtpUsername
+	storage.FromName = input.FromName
+	storage.FromEmail = input.FromEmail
+	if pwd := strings.TrimSpace(input.SmtpPassword); pwd != "" {
+		sealed, err := securestore.EncryptPurpose(pwd, securestore.MailSmtpPasswordPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密 SMTP 密码失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.SmtpPasswordEncrypted = sealed
+		storage.SmtpPassword = ""
+	}
+	return savePageConfig(pageConfig.EmailSettings, storage, hotdataserve.ClearMailSettingsConfigCache)
 }
 
 type TestMailConnectionReq struct {
-	Settings  pageConfig.MailSettingsConfig `json:"settings" validate:"required"`
-	TestEmail string                        `json:"testEmail" validate:"required,email"`
+	Settings  pageConfig.MailSettingsInput `json:"settings" validate:"required"`
+	TestEmail string                       `json:"testEmail" validate:"required,email"`
 }
 
 type TestMailConnectionResp struct {
@@ -1336,7 +1373,12 @@ func TestMailConnection(req component.BetterRequest[TestMailConnectionReq]) comp
 		return component.FailResponseCode(component.MessageAdminTestEmailRequired, nil)
 	}
 
-	err := mailservice.SendTestEmailWithConfig(req.Params.Settings, req.Params.TestEmail)
+	cfg := req.Params.Settings.ToConfig()
+	// 管理端 GET 不再回显密码：测试时密码留空则使用已存密码（issue #324 S2）。
+	if cfg.SmtpPassword == "" {
+		cfg.SmtpPassword = hotdataserve.GetMailSettingsConfigCache().SmtpPassword
+	}
+	err := mailservice.SendTestEmailWithConfig(cfg, req.Params.TestEmail)
 	if err != nil {
 		errText := err.Error()
 		return component.SuccessResponse(TestMailConnectionResp{
@@ -1460,21 +1502,160 @@ func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.
 	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
 }
 
-// GetAiSummarySettings 获取 AI 课程总结开关设置（B7, issue #181）。
-// 仅含开关与全局配额；provider/base_url/api_key/model 在 config.toml [ai_summary] 段，
-// 不进 DB、不回显。
-func GetAiSummarySettings(req component.BetterRequest[component.Null]) component.Response {
-	config := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig())
+// GetScheduleSettings 获取排课器节次作息表设置（未保存过时回内置默认 12 节作息）
+func GetScheduleSettings(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig())
 	return component.SuccessResponse(config)
 }
 
-type SaveAiSummarySettingsReq struct {
-	Settings pageConfig.AiSummaryConfig `json:"settings" validate:"required"`
+type SaveScheduleSettingsReq struct {
+	Settings pageConfig.ScheduleSettingsConfig `json:"settings" validate:"required"`
 }
 
-// SaveAiSummarySettings 保存 AI 课程总结开关设置。
+// SaveScheduleSettings 保存排课器节次作息表设置：条目需节次 1..12 且起止时间为
+// 合法 HH:MM，任一条目非法整单拒绝（invalidParams，避免静默丢弃管理员输入）；
+// 合法输入按节次升序排序并去重（同节次保留首个）后落库。
+func SaveScheduleSettings(req component.BetterRequest[SaveScheduleSettingsReq]) component.Response {
+	sectionTimes, ok := sanitizeScheduleSectionTimes(req.Params.Settings.SectionTimes)
+	if !ok {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, hotdataserve.ClearScheduleSettingsConfigCache)
+}
+
+// isValidScheduleClockTime 校验严格 HH:MM（两位小时/分钟 + 冒号）且时钟值合法
+// （time.Parse 的 "15" 布局可接受一位小时，故先做显式形状检查）。
+func isValidScheduleClockTime(value string) bool {
+	if len(value) != 5 || value[2] != ':' {
+		return false
+	}
+	_, err := time.Parse("15:04", value)
+	return err == nil
+}
+
+// sanitizeScheduleSectionTimes 校验并规范化节次条目：非法返回 false；
+// 否则返回按节次升序、去重后的切片。起止时序（start < end，严格 HH:MM
+// 下字典序即时间序）同样整单拒绝——管理端 UI 逐行校验时序，API 直连
+// 客户端不能绕过该不变量。
+func sanitizeScheduleSectionTimes(input []pageConfig.ScheduleSectionTime) ([]pageConfig.ScheduleSectionTime, bool) {
+	seen := make(map[int]bool, len(input))
+	times := make([]pageConfig.ScheduleSectionTime, 0, len(input))
+	for _, item := range input {
+		if item.Section < 1 || item.Section > 12 {
+			return nil, false
+		}
+		if !isValidScheduleClockTime(item.Start) || !isValidScheduleClockTime(item.End) {
+			return nil, false
+		}
+		// 严格 HH:MM 下字典序即时间序：start >= end（倒序或零时长）整单拒绝。
+		if item.Start >= item.End {
+			return nil, false
+		}
+		if seen[item.Section] {
+			continue
+		}
+		seen[item.Section] = true
+		times = append(times, item)
+	}
+	slices.SortFunc(times, func(a, b pageConfig.ScheduleSectionTime) int {
+		return cmp.Compare(a.Section, b.Section)
+	})
+	return times, true
+}
+
+// GetAiSummarySettings 获取 AI 课程总结配置（B7, issue #181）。
+// apiKey 仅回显是否已配置（明文/密文均不出现在响应中，issue #324 安全模式）。
+func GetAiSummarySettings(req component.BetterRequest[component.Null]) component.Response {
+	return component.SuccessResponse(hotdataserve.GetAiSummarySettingsView())
+}
+
+type SaveAiSummarySettingsReq struct {
+	Settings pageConfig.AiSummarySettingsInput `json:"settings" validate:"required"`
+}
+
+// SaveAiSummarySettings 保存 AI 课程总结配置：apiKey 明文仅在请求瞬间存在——
+// 非空时 securestore 加密后落库；为空时保留已存密文（issue #324 安全模式）。
 func SaveAiSummarySettings(req component.BetterRequest[SaveAiSummarySettingsReq]) component.Response {
-	return savePageConfig(pageConfig.AiSummarySettings, req.Params.Settings, hotdataserve.ClearAiSummarySettingsConfigCache)
+	input := req.Params.Settings
+	if strings.TrimSpace(input.BaseURL) != "" {
+		if !isValidHTTPURL(input.BaseURL) {
+			return component.FailResponseCode(component.MessageAdminAiSummarySaveFailed,
+				component.MessageParams{"error": "BaseURL 必须是合法的 http(s) URL"})
+		}
+	}
+	entity := pageConfig.GetByPageType(pageConfig.AiSummarySettings)
+	storage := jsonopt.Decode[pageConfig.AiSummarySettingsStorage](entity.Config)
+	storage.Enabled = input.Enabled
+	storage.GlobalPerMinute = input.GlobalPerMinute
+	storage.BaseURL = strings.TrimRight(strings.TrimSpace(input.BaseURL), "/")
+	storage.Model = strings.TrimSpace(input.Model)
+	storage.Temperature = input.Temperature
+	storage.MaxTokens = input.MaxTokens
+	if key := strings.TrimSpace(input.APIKey); key != "" {
+		sealed, err := securestore.EncryptPurpose(key, securestore.AiSummaryAPIKeyPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密 AI 总结 apiKey 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.APIKeyEncrypted = sealed
+	}
+	// TODO: 尚无清除已存密钥的入口（apiKey 留空 = 保留已存密文）；如需显式
+	// 清除需扩展保存契约（新字段或独立操作），另行跟进。
+	return savePageConfig(pageConfig.AiSummarySettings, storage, hotdataserve.ClearAiSummarySettingsConfigCache)
+}
+
+// isValidHTTPURL 校验 BaseURL 为合法 http(s) 绝对 URL（允许内网/本机端点——
+// 自托管 LLM 如 Ollama 常为内网地址，不做私网拒绝，仅防注入协议头）。
+func isValidHTTPURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
+		return false
+	}
+	return true
+}
+
+// ListAiSummaryModelsReq 拉取模型列表请求：支持携带临时 baseUrl/apiKey 以便
+// 「先测试再保存」；留空则使用当前已保存配置。
+type ListAiSummaryModelsReq struct {
+	BaseURL string `json:"baseUrl"`
+	APIKey  string `json:"apiKey,omitempty"`
+}
+
+// ListAiSummaryModelsResp 模型列表响应。
+type ListAiSummaryModelsResp struct {
+	Models []llmprovider.ModelInfo `json:"models"`
+}
+
+// ListAiSummaryModels 拉取 OpenAI-compatible /models 列表（管理后台自动获取 model）。
+// 未实现 /models 的服务返回明确错误，前端允许手动输入 model 兜底。
+func ListAiSummaryModels(req component.BetterRequest[ListAiSummaryModelsReq]) component.Response {
+	cfg := llmprovider.Config{
+		BaseURL: strings.TrimRight(strings.TrimSpace(req.Params.BaseURL), "/"),
+		APIKey:  strings.TrimSpace(req.Params.APIKey),
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		stored := hotdataserve.GetAiSummarySettingsConfigCache()
+		cfg.BaseURL = strings.TrimRight(stored.BaseURL, "/")
+		cfg.APIKey = stored.APIKey
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "请先填写 BaseURL（端点地址）"})
+	}
+	if !isValidHTTPURL(cfg.BaseURL) {
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "BaseURL 必须是合法的 http(s) URL"})
+	}
+	ctx, cancel := context.WithTimeout(req.GinContext.Request.Context(), llmprovider.ModelsTimeout)
+	defer cancel()
+	models, err := cfg.ListModels(ctx)
+	if err != nil {
+		if errors.Is(err, llmprovider.ErrModelsUnsupported) {
+			return component.FailResponseCode(component.MessageAdminAiSummaryModelsUnsupported, nil)
+		}
+		return component.FailResponseCode(component.MessageAdminAiSummaryModelsFailed,
+			component.MessageParams{"error": "拉取模型列表失败"})
+	}
+	return component.SuccessResponse(ListAiSummaryModelsResp{Models: models})
 }
 
 // GetOnesystemSettings 获取一系统同步凭证配置：仅返回是否已配置，不回显密文或明文。
@@ -1504,47 +1685,120 @@ func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]
 	return savePageConfig(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsStorage{CookieEncrypted: encrypted}, hotdataserve.ClearOnesystemSettingsConfigCache)
 }
 
+// GetHttpNotifySettings 获取 HTTP 通知设置：仅回显各端点是否已配置密钥，不回显
+// 密钥明文/密文（issue #324 S1）。
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {
-	config := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig())
-	return component.SuccessResponse(config)
+	return component.SuccessResponse(hotdataserve.GetHttpNotifyView())
 }
 
 type SaveHttpNotifySettingsReq struct {
-	Settings pageConfig.HttpNotifyConfig `json:"settings" validate:"required"`
+	Settings pageConfig.HttpNotifyConfigInput `json:"settings" validate:"required"`
 }
 
+// SaveHttpNotifySettings 保存 HTTP 通知设置：各端点 secret 明文仅在请求瞬间存在——
+// 非空时 securestore 加密后落库；为空时按 id（无 id 按 url）保留已存密文/存量明文
+// （issue #324 S1）。
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
-	return savePageConfig(pageConfig.HttpNotify, req.Params.Settings, hotdataserve.ClearHttpNotifyConfigCache)
+	input := req.Params.Settings
+	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
+	storage := jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config)
+	existing := make(map[string]pageConfig.HttpNotifyStorageEndpoint, len(storage.Endpoints))
+	for _, e := range storage.Endpoints {
+		key := e.Id
+		if key == "" {
+			key = e.URL
+		}
+		existing[key] = e
+	}
+	next := make([]pageConfig.HttpNotifyStorageEndpoint, 0, len(input.Endpoints))
+	for _, ep := range input.Endpoints {
+		key := ep.Id
+		if key == "" {
+			key = ep.URL
+		}
+		orig := existing[key]
+		sealed := orig.SecretEncrypted
+		legacy := orig.Secret
+		if secret := strings.TrimSpace(ep.Secret); secret != "" {
+			encrypted, err := securestore.EncryptPurpose(secret, securestore.HttpNotifySecretPurpose)
+			if err != nil {
+				return component.FailResponseError(fmt.Errorf("加密 webhook secret 失败（请确认 app.signingKey 已配置）：%w", err))
+			}
+			sealed = encrypted
+			legacy = ""
+		}
+		next = append(next, pageConfig.HttpNotifyStorageEndpoint{
+			Id:                 ep.Id,
+			Name:               ep.Name,
+			Enabled:            ep.Enabled,
+			URL:                ep.URL,
+			Secret:             legacy,
+			SecretEncrypted:    sealed,
+			Events:             ep.Events,
+			TimeoutSeconds:     ep.TimeoutSeconds,
+			FailureCount:       ep.FailureCount,
+			LastError:          ep.LastError,
+			AbnormalTerminated: ep.AbnormalTerminated,
+		})
+	}
+	return savePageConfig(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Enabled: input.Enabled, Endpoints: next}, hotdataserve.ClearHttpNotifyConfigCache)
 }
 
-// GetStorageSettings 获取存储设置
+// GetStorageSettings 获取存储设置：仅回显是否已配置凭据，不回显凭据明文/密文
+// （issue #324 S3）。
 func GetStorageSettings(req component.BetterRequest[component.Null]) component.Response {
-	cfg := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig())
-	return component.SuccessResponse(cfg)
+	return component.SuccessResponse(hotdataserve.GetStorageSettingsView())
 }
 
 type SaveStorageSettingsReq struct {
-	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+	Settings pageConfig.StorageSettingsInput `json:"settings" validate:"required"`
 }
 
-// SaveStorageSettings 保存存储设置
+// SaveStorageSettings 保存存储设置：accessKey/secretKey 明文仅在请求瞬间存在——
+// 非空时 securestore 加密后落库；为空时保留已存密文（issue #324 S3）。
 func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) component.Response {
-	cfg := req.Params.Settings
-	if cfg.Provider == "" {
-		cfg.Provider = storageservice.ProviderLocal
+	input := req.Params.Settings
+	provider := input.Provider
+	if provider == "" {
+		provider = storageservice.ProviderLocal
 	}
-	if cfg.Provider != storageservice.ProviderLocal && cfg.Provider != storageservice.ProviderS3 {
+	if provider != storageservice.ProviderLocal && provider != storageservice.ProviderS3 {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	if cfg.Provider == storageservice.ProviderS3 && (cfg.Endpoint == "" || cfg.Bucket == "") {
+	if provider == storageservice.ProviderS3 && (input.Endpoint == "" || input.Bucket == "") {
 		return component.FailResponseCode(component.MessageAdminStorageSaveFailed,
 			component.MessageParams{"error": "S3 模式需要填写 Endpoint 与 Bucket"})
 	}
-	return savePageConfig(pageConfig.StorageSettingsPage, cfg, hotdataserve.ClearStorageSettingsConfigCache)
+	entity := pageConfig.GetByPageType(pageConfig.StorageSettingsPage)
+	storage := jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config)
+	storage.Provider = provider
+	storage.Endpoint = input.Endpoint
+	storage.Bucket = input.Bucket
+	storage.Region = input.Region
+	storage.BucketLookup = input.BucketLookup
+	storage.Secure = input.Secure
+	storage.PublicUrlPrefix = input.PublicUrlPrefix
+	if key := strings.TrimSpace(input.AccessKey); key != "" {
+		sealed, err := securestore.EncryptPurpose(key, securestore.StorageAccessKeyPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密存储 accessKey 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.AccessKeyEncrypted = sealed
+		storage.AccessKey = ""
+	}
+	if key := strings.TrimSpace(input.SecretKey); key != "" {
+		sealed, err := securestore.EncryptPurpose(key, securestore.StorageSecretKeyPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密存储 secretKey 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		storage.SecretKeyEncrypted = sealed
+		storage.SecretKey = ""
+	}
+	return savePageConfig(pageConfig.StorageSettingsPage, storage, hotdataserve.ClearStorageSettingsConfigCache)
 }
 
 type TestStorageConnectionReq struct {
-	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+	Settings pageConfig.StorageSettingsInput `json:"settings" validate:"required"`
 }
 
 type TestStorageConnectionResp struct {
@@ -1555,7 +1809,17 @@ type TestStorageConnectionResp struct {
 
 // TestStorageConnection 测试存储连接（不落库）
 func TestStorageConnection(req component.BetterRequest[TestStorageConnectionReq]) component.Response {
-	cfg := req.Params.Settings
+	cfg := req.Params.Settings.ToConfig()
+	// 管理端 GET 不再回显凭据：测试时凭据留空则使用已存凭据（issue #324 S3）。
+	if cfg.AccessKey == "" || cfg.SecretKey == "" {
+		stored := hotdataserve.GetStorageSettingsConfigCache()
+		if cfg.AccessKey == "" {
+			cfg.AccessKey = stored.AccessKey
+		}
+		if cfg.SecretKey == "" {
+			cfg.SecretKey = stored.SecretKey
+		}
+	}
 	if cfg.Provider == "" {
 		cfg.Provider = storageservice.ProviderLocal
 	}
@@ -1565,7 +1829,7 @@ func TestStorageConnection(req component.BetterRequest[TestStorageConnectionReq]
 			MessageCode: component.MessageAdminStorageTestSuccess,
 		})
 	}
-	if err := storageservice.TestConnection(context.Background(), cfg); err != nil {
+	if err := storageservice.TestConnection(requestContext(req.GinContext), cfg); err != nil {
 		return component.SuccessResponse(TestStorageConnectionResp{
 			Success:     false,
 			MessageCode: component.MessageAdminStorageTestFailed,
@@ -1613,13 +1877,17 @@ type CreateExportTaskReq struct {
 	Format string   `json:"format" validate:"required,oneof=json csv"`
 }
 
-// CreateExportTask 创建数据导出后台任务
+// CreateExportTask 创建数据导出后台任务（issue #324 S4：操作审计）。
 func CreateExportTask(req component.BetterRequest[CreateExportTaskReq]) component.Response {
 	taskID, err := dataservice.ExportData(req.Params.Tables, req.Params.Format)
 	if err != nil {
 		return component.FailResponseCode(component.MessageAdminDataExportFailed,
 			component.MessageParams{"error": err.Error()})
 	}
+	optlogger.UserOptCode(req.UserId, optlogger.ExportData, taskID, "admin.opt.data.exported", optlogger.MessageParams{
+		"tables": req.Params.Tables,
+		"format": req.Params.Format,
+	})
 	return successDataMap("taskId", taskID)
 }
 
@@ -1632,8 +1900,7 @@ func ListExportTasks(req component.BetterRequest[component.Null]) component.Resp
 	return component.SuccessResponse(tasks)
 }
 
-// DownloadExportTask 下载导出文件
-const maxDataImportSize = 50 << 20 // 50MB
+// DownloadExportTask 下载导出文件（issue #324 S4：下载操作审计）。
 func DownloadExportTask(c *gin.Context) {
 	taskID := c.Param("taskId")
 	task, err := taskQueue.GetByID(taskID)
@@ -1656,12 +1923,38 @@ func DownloadExportTask(c *gin.Context) {
 	}
 	fileName := filepath.Base(path)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	optlogger.UserOptCode(c.GetUint64("userId"), optlogger.ExportData, task.Id, "admin.opt.data.exported.download", optlogger.MessageParams{
+		"fileName": fileName,
+	})
 	c.File(path)
+}
+
+// ListImportTasks 获取导入任务状态列表。
+func ListImportTasks(req component.BetterRequest[component.Null]) component.Response {
+	tasks, err := dataservice.ListImportTasks(20)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(tasks)
+}
+
+type ImportTaskReq struct {
+	TaskId uint64 `uri:"taskId" validate:"required"`
+}
+
+// ReplayImportTask requeues a failed import while preserving its staged body.
+func ReplayImportTask(req component.BetterRequest[ImportTaskReq]) component.Response {
+	task, err := dataservice.ReplayImportTaskContext(requestContext(req.GinContext), req.Params.TaskId)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed,
+			component.MessageParams{"error": "导入任务当前不可重放"})
+	}
+	return component.SuccessResponse(task)
 }
 
 // ImportData 导入 JSON 数据（multipart file 字段）
 func ImportData(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDataImportSize)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, dataservice.MaxImportSize)
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
@@ -1671,20 +1964,31 @@ func ImportData(c *gin.Context) {
 	src, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
-			component.MessageParams{"error": err.Error()}))
+			component.MessageParams{"error": "读取上传文件失败，请稍后重试"}))
 		return
 	}
 	defer func() { _ = src.Close() }()
-	data, err := io.ReadAll(src)
+	data, err := io.ReadAll(io.LimitReader(src, dataservice.MaxImportSize+1))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
-			component.MessageParams{"error": err.Error()}))
+			component.MessageParams{"error": "读取上传文件失败，请稍后重试"}))
 		return
 	}
-	report, err := dataservice.ImportData(context.Background(), data, "json")
+	if len(data) > dataservice.MaxImportSize {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "导入文件超过 50MB 限制"}))
+		return
+	}
+	report, err := dataservice.EnqueueImport(c.Request.Context(), data, "json")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
-			component.MessageParams{"error": err.Error()}))
+		if errors.Is(err, dataservice.ErrImportInvalidFormat) {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
+				component.MessageParams{"error": "导入文件格式无效"}))
+			return
+		}
+		slog.Error("admin import enqueue failed", "error", err)
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "导入任务暂存失败，请稍后重试"}))
 		return
 	}
 	c.JSON(http.StatusOK, component.SuccessData(report))
@@ -1757,7 +2061,12 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 		for _, p := range result.Data {
 			topicIDs = append(topicIDs, p.TopicId)
 		}
-		topicMap := topics.GetMapByIds(topicIDs)
+		topicMap, err := topics.GetMapByIds(topicIDs)
+		if err != nil {
+			slog.Error("admin review queue: load topics failed", "error", err)
+			return component.BuildResponse(http.StatusInternalServerError,
+				component.FailDataCode(component.MessageAdminReviewFailed, nil))
+		}
 		for _, p := range result.Data {
 			username := ""
 			if u, ok := userMap[p.UserId]; ok {
@@ -1810,30 +2119,35 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := topics.UpdateProcessStatus(topic.Id, targetStatus); err != nil {
+		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
+				return err
+			}
+			// 首楼同步状态
+			if topic.FirstPostId > 0 {
+				if err := posts.UpdateProcessStatusTx(tx, topic.FirstPostId, targetStatus); err != nil {
+					return err
+				}
+			}
+			return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+		}); err != nil {
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
-		// 首楼同步状态
-		if topic.FirstPostId > 0 {
-			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
-		}
-		hotdataserve.ClearTopicListCache()
+		topic.ProcessStatus = targetStatus
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 审核后无条件重建搜索索引（issue #132）：拒绝（ProcessStatus→blocked）
 		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
 		// 残留在公共搜索；批准时 upsert 恢复（下方事件也会重建，幂等）。
 		firstPost := posts.Get(topic.FirstPostId)
-		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-			slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-		}
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if req.Params.Approve && topic.Status == 1 {
 			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
-				eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
 				userStatistics.WriteTopic(topic.UserId)
-				eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 			}
 		}
 		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
@@ -1851,11 +2165,17 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if post.ProcessStatus != posts.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := posts.UpdateProcessStatus(post.Id, targetStatus); err != nil {
+		topicEntity := topics.GetSimple(post.TopicId)
+		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
+				return err
+			}
+			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
+		}); err != nil {
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
 		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
 			userStatistics.WriteComment(post.UserId)
@@ -1866,7 +2186,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 					replyToAuthorID = parent.UserId
 				}
 			}
-			eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
 				TopicId:             post.TopicId,
 				PostId:              post.Id,
 				UserId:              post.UserId,

@@ -62,6 +62,52 @@ func TestTopicListCacheReadsTopics(t *testing.T) {
 	}
 }
 
+func TestInvalidateTopicListCacheForCategories(t *testing.T) {
+	ClearTopicListCache()
+	defer ClearTopicListCache()
+
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			topicSimpleVoCache.Set(latestTopicsCacheKey(sort, page), TopicSimpleVoPage{}, time.Minute)
+			topicSimpleVoCache.Set(topicsByCategoryCacheKey(3, sort, page), TopicSimpleVoPage{}, time.Minute)
+			topicSimpleVoCache.Set(topicsByCategoryCacheKey(4, sort, page), TopicSimpleVoPage{}, time.Minute)
+		}
+	}
+
+	InvalidateTopicListCacheForCategories(3, 3, 0)
+
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			for _, key := range []string{latestTopicsCacheKey(sort, page), topicsByCategoryCacheKey(3, sort, page)} {
+				loaded := false
+				if _, err := topicSimpleVoCache.GetOrLoadE(key, func() (TopicSimpleVoPage, error) {
+					loaded = true
+					return TopicSimpleVoPage{}, nil
+				}, time.Minute); err != nil {
+					t.Fatalf("reload invalidated key %q: %v", key, err)
+				} else if !loaded {
+					t.Fatalf("key %q remained cached after topic invalidation", key)
+				}
+			}
+		}
+	}
+
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			key := topicsByCategoryCacheKey(4, sort, page)
+			loaded := false
+			if _, err := topicSimpleVoCache.GetOrLoadE(key, func() (TopicSimpleVoPage, error) {
+				loaded = true
+				return TopicSimpleVoPage{}, nil
+			}, time.Minute); err != nil {
+				t.Fatalf("read unaffected category key: %v", err)
+			} else if loaded {
+				t.Fatalf("unaffected category page was invalidated: %q", key)
+			}
+		}
+	}
+}
+
 func TestCategoryCacheReadsCleanCategories(t *testing.T) {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(&category.Entity{}); err != nil {

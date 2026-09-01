@@ -79,6 +79,12 @@ jobs:
           git config user.name "${GH_USER}"
           git config user.email "${GH_EMAIL}"
           git checkout -b main origin/main
+          # main 上残留的 CRLF blob 在 .gitattributes(text eol=lf) 下会被识别成本地修改,
+          # 直接 merge 会被 "local changes would be overwritten" 中止; 合并前先就地归一化
+          git add --renormalize .
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: normalize line endings on main"
+          fi
           git merge origin/dev --no-ff -m "chore: release $NEW_VERSION from dev"
           git tag "$NEW_VERSION"
           REMOTE="https://x-access-token:${RELEASE_TOKEN}@github.com/YourTongji/YourTJ-Hub.git"

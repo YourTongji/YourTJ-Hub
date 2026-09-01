@@ -85,7 +85,7 @@ func TestE2ELegacyImportFullChain(t *testing.T) {
 		"courses.jsonl": `{"id":"c1","code":"100001","name":"高等数学(A)上","department":"数学科学学院","credit":5,"aliases":["高数"]}` + "\n" +
 			`{"id":"c2","code":"100002","name":"线性代数","department":"数学科学学院","credit":3}` + "\n",
 		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院","title":"教授"}` + "\n",
-		"offerings.jsonl": `{"id":"o1","course_id":"c1","term":"2025-2026-1","campus":"四平路校区","faculty":"数学科学学院","instructor_ids":["i1"]}` + "\n" +
+		"offerings.jsonl": `{"id":"o1","course_id":"c1","term":"2025-2026-1","campus":"四平路校区","faculty":"数学科学学院","class_code":"10000101","class_name":"01班","instructor_ids":["i1"]}` + "\n" +
 			`{"id":"o2","course_id":"c2","term":"2025-2026-1","campus":"嘉定校区","instructor_ids":["i1"]}` + "\n",
 		"reviews.jsonl": `{"offering_external_id":"o1","rating":4,"content":"老师讲得很清楚","created_at":"2023-06-01T08:00:00+08:00","legacy_helpful_count":3}` + "\n" +
 			`{"offering_external_id":"o2","rating":0,"content":"无评分历史评价","created_at":"2023-06-02T08:00:00+08:00","legacy_helpful_count":1}` + "\n",
@@ -186,6 +186,9 @@ func TestE2ELegacyImportFullChain(t *testing.T) {
 	if len(detail.Offerings) != 1 || detail.Offerings[0].TermCode != "2025-2026-1" {
 		t.Fatalf("course detail offerings unexpected: %+v", detail.Offerings)
 	}
+	if detail.Offerings[0].ClassCode != "10000101" || detail.Offerings[0].ClassName != "01班" {
+		t.Fatalf("course detail offering class info unexpected: %+v", detail.Offerings[0])
+	}
 	if detail.RatingAvg == nil || *detail.RatingAvg != 4.0 {
 		t.Fatalf("detail rating avg = %v, want 4.0", detail.RatingAvg)
 	}
@@ -278,5 +281,113 @@ func TestE2ELegacyImportQuarantineAmbiguity(t *testing.T) {
 	}
 	if !hasDuplicateReason {
 		t.Fatalf("expected duplicate-code quarantine reason in report, got %+v", dryReport.Errors)
+	}
+}
+
+// TestE2ELegacyImportMultiTeacherSplit issue #326 验收：
+// 同课号不同教师拆成独立课程卡（(code, teacher) 复合身份），评价按
+// reviews.course_id 行级精确归因到对应教师卡（零近似、零 unmapped）。
+func TestE2ELegacyImportMultiTeacherSplit(t *testing.T) {
+	migrateCourseImportTables(t)
+
+	// 上游行级导出：同 code 100100 两条课程行，分别挂 teacher i1/i2；
+	// offering 各挂 1 个（o1→c1、o2→c2），评价 o1 2 条、o2 1 条。
+	files := map[string]string{
+		"courses.jsonl": `{"id":"c1","code":"100100","name":"高等数学(B)上","department":"数学科学学院","credit":5,"teacher_code":"i1"}` + "\n" +
+			`{"id":"c2","code":"100100","name":"高等数学(B)上","department":"数学科学学院","credit":5,"teacher_code":"i2"}` + "\n",
+		"instructors.jsonl": `{"id":"i1","name":"颜启明","department":"数学科学学院"}` + "\n" +
+			`{"id":"i2","name":"古晞","department":"数学科学学院"}` + "\n",
+		"offerings.jsonl": `{"id":"o1","course_id":"c1","term":"2025-2026-1","instructor_ids":["i1"]}` + "\n" +
+			`{"id":"o2","course_id":"c2","term":"2025-2026-1","instructor_ids":["i2"]}` + "\n",
+		"reviews.jsonl": `{"id":"r1","offering_external_id":"o1","rating":5,"content":"颜老师讲得好","created_at":"2023-06-01T08:00:00+08:00"}` + "\n" +
+			`{"id":"r2","offering_external_id":"o1","rating":4,"content":"条理清晰","created_at":"2023-06-02T08:00:00+08:00"}` + "\n" +
+			`{"id":"r3","offering_external_id":"o2","rating":3,"content":"古老师一般","created_at":"2023-06-03T08:00:00+08:00"}` + "\n",
+	}
+	manifestPath := writeLegacyE2EPackage(t, files, map[string]int{
+		"courses.jsonl": 2, "instructors.jsonl": 2, "offerings.jsonl": 2, "reviews.jsonl": 3,
+	}, "e2e-approval-326")
+
+	// catalog 导入：2 课程 + 2 教师 + 2 offering = 6 行。
+	report, err := ImportCatalog(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("catalog import: %v", err)
+	}
+	if report.Inserted != 6 || report.Quarantined != 0 {
+		t.Fatalf("catalog report unexpected: %+v", report)
+	}
+	// reviews 导入：3 条全部落库。
+	reviewReport, err := ImportReviews(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("reviews import: %v", err)
+	}
+	if reviewReport.Inserted != 3 || reviewReport.Quarantined != 0 {
+		t.Fatalf("reviews report unexpected: %+v", reviewReport)
+	}
+	if err := course.RebuildAllCourseStats(); err != nil {
+		t.Fatalf("rebuild course stats: %v", err)
+	}
+
+	conn := dbconnect.Connect()
+	// 同 code 100100 两张卡，teacher_id 分别解析到两位教师。
+	var courses []course.Entity
+	if err := conn.Where("primary_code = ?", "100100").Order("id ASC").Find(&courses).Error; err != nil {
+		t.Fatalf("find split courses: %v", err)
+	}
+	if len(courses) != 2 {
+		t.Fatalf("same-code courses = %d, want 2 (教师拆分)", len(courses))
+	}
+	var teachers []course.InstructorEntity
+	if err := conn.Where("name IN ?", []string{"颜启明", "古晞"}).Find(&teachers).Error; err != nil {
+		t.Fatalf("find teachers: %v", err)
+	}
+	teacherIDByName := map[string]uint64{}
+	for _, ins := range teachers {
+		teacherIDByName[ins.Name] = ins.Id
+	}
+	if teacherIDByName["颜启明"] == 0 || teacherIDByName["古晞"] == 0 {
+		t.Fatalf("teachers not resolved: %+v", teacherIDByName)
+	}
+
+	// 两张卡的 teacher_id 分别对应颜启明/古晞（身份教师）。
+	byTeacher := map[uint64]course.Entity{}
+	for _, c := range courses {
+		byTeacher[c.TeacherId] = c
+	}
+	yanCard := byTeacher[teacherIDByName["颜启明"]]
+	guCard := byTeacher[teacherIDByName["古晞"]]
+	if yanCard.Id == 0 || guCard.Id == 0 {
+		t.Fatalf("split cards teacher_id wrong: %+v", byTeacher)
+	}
+
+	// 评价精确归因：颜启明卡 2 评（rating 5+4 → avg 4.5）、古晞卡 1 评（rating 3）。
+	yanDetail, err := GetCourseDetail(yanCard.Id)
+	if err != nil {
+		t.Fatalf("get 颜启明 detail: %v", err)
+	}
+	if yanDetail.TeacherName != "颜启明" || yanDetail.ReviewCount != 2 || yanDetail.RatingAvg == nil || *yanDetail.RatingAvg != 4.5 {
+		t.Fatalf("颜启明 card = teacher %q reviews %d avg %v, want 颜启明/2/4.5", yanDetail.TeacherName, yanDetail.ReviewCount, yanDetail.RatingAvg)
+	}
+	guDetail, err := GetCourseDetail(guCard.Id)
+	if err != nil {
+		t.Fatalf("get 古晞 detail: %v", err)
+	}
+	if guDetail.TeacherName != "古晞" || guDetail.ReviewCount != 1 || guDetail.RatingAvg == nil || *guDetail.RatingAvg != 3.0 {
+		t.Fatalf("古晞 card = teacher %q reviews %d avg %v, want 古晞/1/3.0", guDetail.TeacherName, guDetail.ReviewCount, guDetail.RatingAvg)
+	}
+
+	// 相关区块：同课号其他教师卡互指。
+	relatedYan, err := GetCourseRelated(yanCard.Id)
+	if err != nil {
+		t.Fatalf("get related for 颜启明: %v", err)
+	}
+	if len(relatedYan.SameCourseOtherTeachers) != 1 || relatedYan.SameCourseOtherTeachers[0].Id != guCard.Id {
+		t.Fatalf("颜启明 same-course-other-teachers = %+v, want 古晞卡", relatedYan.SameCourseOtherTeachers)
+	}
+	relatedGu, err := GetCourseRelated(guCard.Id)
+	if err != nil {
+		t.Fatalf("get related for 古晞: %v", err)
+	}
+	if len(relatedGu.SameCourseOtherTeachers) != 1 || relatedGu.SameCourseOtherTeachers[0].Id != yanCard.Id {
+		t.Fatalf("古晞 same-course-other-teachers = %+v, want 颜启明卡", relatedGu.SameCourseOtherTeachers)
 	}
 }

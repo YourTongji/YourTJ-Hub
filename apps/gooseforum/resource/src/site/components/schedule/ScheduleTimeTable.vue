@@ -1,12 +1,25 @@
 <script setup lang="ts">
-// 12×7 课表网格（calendarId>=120 新制为 11 行）。长课合并单元格，短课叠进长课格。
-// 对齐上游 TimeTable.vue 的渲染算法与交互：点击空格查时段课程、长按课程块看详情。
+// 课表网格（v2：周次视图 + 容忍式冲突标注 + 自定义占位 + 导出图片）。
+// - calendarId>=120 新制为 11 行；同列节次区间聚类（相交/包含/部分重叠同格渲染），
+//   单块 rowspan 只吞自己簇覆盖的行——部分重叠的冲突课必须同格可见。
+// - 周次视图：weekView.week 为 null → 全部周次；指定周 → 按 occupyWeek 过滤
+//   后显示（聚类按过滤后集合重算）。
+// - 同格多课（单双周同位共存 / 容忍式冲突）竖向堆叠渲染，每块显示
+//   课名+周次（单双周可辨）；周次无交集不判冲突（weeksOverlap 判据）。
+// - 冲突标注：deriveConflicts 统一判据（同天+同节+周次交集），⚠ 角标。
+// - 自定义占位（custom: 伪课号）渲染为灰块，不进课程详情；导出 PNG（html-to-image）。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BookOpen } from '@lucide/vue'
+import { toPng } from 'html-to-image'
+import { AlertTriangle, BookOpen, CalendarCog, Download } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import SiteSelect from '@/site/components/SiteSelect.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { queueFlashMessage } from '@/runtime/flash-message'
 import { courseColorSlotFor, courseContentVar, courseSlotVar } from '@/site/utils/courseColors'
+import { clusterBySections, currentWeekForDate, formatWeeksText, MAX_WEEK } from '@/site/utils/pkArrange'
+import { conflictBaseOf, deriveConflicts, CUSTOM_EVENT_CODE_PREFIX } from '@/site/utils/pkConflict'
+import { dayPartBoundaries, sectionTimesFor, type DayPart } from '@/site/utils/sectionTimes'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -14,22 +27,17 @@ const store = useScheduleStore()
 
 /** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+/** 「全部周次」下拉哨兵值（reka-ui SelectItem 不允许空字符串 value）。 */
+const WEEK_ALL = 'all'
 
-const timeTable = ref<PkCourseOnTable[][][]>([])
-const maxSpans = ref<number[][]>([])
+const cellCourses = ref<PkCourseOnTable[][][]>([])
+const cellSpans = ref<number[][]>([])
 const occupiedGrid = ref<boolean[][]>([])
-
-interface CourseLineInfo {
-  title: string
-  mobileTitle: string
-  mobileMeta: string
-  sub: string
-  meta: string
-}
 
 const emit = defineEmits<{
   openDetail: [course: PkCourseOnTable]
   cellClick: [day: number, section: number]
+  customize: []
 }>()
 
 // ---- 移动端长按检测 ----
@@ -46,7 +54,7 @@ function onPressStart(course: PkCourseOnTable, event: Event) {
   pressStartY = Number(pointer?.clientY ?? 0)
   pressTimer = setTimeout(() => {
     pressTimer = undefined
-    emit('openDetail', course)
+    openCourseDetail(course)
   }, 420)
 }
 
@@ -74,14 +82,69 @@ function setupMobileDetection() {
   return () => query.removeEventListener('change', apply)
 }
 
-// ---- 课程块展示文本解析 ----
-function hashColor(input: string): number {
-  let h = 0
-  for (let i = 0; i < input.length; i++) h = (h * 31 + input.charCodeAt(i)) >>> 0
-  return h
+// ---- 学期日期与周次定位 ----
+
+/** 当前学期的起止日期（store.calendars 匹配 calendarId；无数据为 null）。 */
+const activeCalendar = computed(
+  () => store.state.calendars.find((cal) => cal.calendarId === store.state.majorSelected.calendarId) ?? null,
+)
+
+/** 由学期起始日期定位的当前周（学期外/无日期为 null，「当前周次」开关禁用）。 */
+const currentWeek = computed(() => {
+  const cal = activeCalendar.value
+  if (!cal?.startDate) return null
+  // endDate 之后（学期已结束）返回 null：开关禁用，不停留在最后一周。
+  return currentWeekForDate(cal.startDate, new Date(), cal.endDate ?? undefined)
+})
+
+/** 「当前周次」开关可用性：需要学期起始日期且今天在学期内。 */
+const canUseCurrentWeek = computed(() => currentWeek.value !== null)
+
+/** 周次下拉选项：全部周次（哨兵 all，reka-ui SelectItem 禁空串 value）+ 第 1..16 周。 */
+const weekOptions = computed(() => [
+  { value: WEEK_ALL, label: t('schedule.weekAll') },
+  ...Array.from({ length: MAX_WEEK }, (_, i) => ({
+    value: String(i + 1),
+    label: t('schedule.weekN', { n: i + 1 }),
+  })),
+])
+
+const weekValue = computed({
+  get: () => (store.state.weekView.week === null ? WEEK_ALL : String(store.state.weekView.week)),
+  set: (value: string) => {
+    store.setWeekView({ week: value === WEEK_ALL ? null : Number(value), useCurrent: false })
+  },
+})
+
+/** 「当前周次」开关：勾选定位当前周，取消回到全部周次。 */
+function toggleCurrentWeek(event: Event) {
+  const checked = event.target instanceof HTMLInputElement && event.target.checked
+  store.setWeekView({ week: checked ? currentWeek.value : null, useCurrent: checked })
+}
+
+/** 学期日期条文本（有任一端日期时展示）。 */
+const semesterDateText = computed(() => {
+  const cal = activeCalendar.value
+  if (!cal?.startDate && !cal?.endDate) return ''
+  return [cal.startDate, cal.endDate].filter(Boolean).join(' ~ ')
+})
+
+// ---- 冲突派生（与占用表同判据）----
+const conflicts = computed(() => deriveConflicts(store.state.occupied))
+
+/** 课程块是否冲突（conflictBaseOf 归一：custom 原样、真实课号取基础课号，兼容无点班号）。 */
+function isConflicted(course: PkCourseOnTable): boolean {
+  return (conflicts.value.get(conflictBaseOf(course.code))?.length ?? 0) > 0
+}
+
+// ---- 课程块渲染（v2：结构化字段分层，不再从 showText 反解）----
+
+function isCustomEvent(course: PkCourseOnTable): boolean {
+  return course.code.startsWith(CUSTOM_EVENT_CODE_PREFIX)
 }
 
 function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
+  if (isCustomEvent(course)) return {}
   const seed = course.code || course.courseName || course.showText || 'course'
   const slot = courseColorSlotFor(seed)
   const bgVar = courseSlotVar(slot)
@@ -95,6 +158,12 @@ function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
   }
 }
 
+/** 左侧色条颜色（内容色；custom 事件无色条）。 */
+function accentColor(course: PkCourseOnTable): string {
+  if (isCustomEvent(course)) return 'transparent'
+  return `var(${courseContentVar(courseColorSlotFor(course.code || course.courseName || 'course'))})`
+}
+
 function compactName(name: string): string {
   const cleaned = String(name || '')
     .replace(/[（(][^()（）]*[）)]/g, '')
@@ -105,63 +174,45 @@ function compactName(name: string): string {
   return chars.length > 7 ? `${chars.slice(0, 6).join('')}…` : cleaned
 }
 
-function compactMeta(teacher: string, room: string): string {
-  const teacherText = String(teacher || '').replace(/[A-Z0-9]+$/i, '').trim()
-  const roomText = String(room || '').replace(/校区/g, '').replace(/教学楼|学院楼|综合楼/g, '').replace(/\s+/g, '').trim()
-  return [teacherText, roomText].filter(Boolean).join(' · ')
+/** 教师名（teacherAndCode "张三(T001)" → "张三"）。 */
+function teacherName(course: PkCourseOnTable): string {
+  return String(course.teacherAndCode || '').replace(/\([^)]*\)$/g, '').trim()
 }
 
-function formatCourseLines(course: PkCourseOnTable): CourseLineInfo {
-  const raw = String(course.showText || '').trim()
-  // "教师 课程名(班号) 周X A-B节 [周次] 教室"
-  const match = /^(\S+)\s+(.+?)\(([^)]+)\)\s+(.+)$/.exec(raw)
-  if (match) {
-    const teacher = match[1]
-    const name = match[2].trim()
-    const code = match[3].trim()
-    const rest = match[4].trim()
-    const dayMatch = rest.match(/(星期[一二三四五六日])([0-9]{1,2}-[0-9]{1,2})节/)
-    const weekMatch = rest.match(/\[([^\]]+)\]/)
-    const roomMatch = rest.match(/\]\s*(.+)$/)
-    const shortDay = dayMatch ? `${dayMatch[1].replace('星期', '周')}${dayMatch[2]}` : ''
-    const weekText = weekMatch ? weekMatch[1] : ''
-    const room = roomMatch ? roomMatch[1].trim() : ''
-    if (isMobile.value) {
-      return {
-        title: name,
-        mobileTitle: compactName(name),
-        mobileMeta: compactMeta(teacher, room),
-        sub: '',
-        meta: '',
-      }
-    }
-    return {
-      title: `${teacher} ${name}(${code})`,
-      mobileTitle: compactName(name),
-      mobileMeta: compactMeta(teacher, room),
-      sub: [shortDay, weekText, room].filter(Boolean).join(' '),
-      meta: '',
-    }
+/** 周次节次教室行（结构化字段；缺字段时回退 arrangementText/showText）。 */
+function courseSubline(course: PkCourseOnTable): string {
+  const parts: string[] = []
+  const weeks = formatWeeksText(course.occupyWeek)
+  if (weeks) parts.push(t('schedule.weeksN', { range: weeks }))
+  const sections = course.occupyTime
+  if (sections.length > 0) {
+    const span = sections.length === 1 ? `${sections[0]}` : `${sections[0]}-${sections[sections.length - 1]}`
+    parts.push(t('schedule.sectionsN', { range: span }))
   }
-  return {
-    title: course.courseName || course.code || t('schedule.courseFallback'),
-    mobileTitle: compactName(course.courseName || course.code || t('schedule.courseFallback')),
-    mobileMeta: course.code || '',
-    sub: raw,
-    meta: course.code || '',
-  }
+  if (course.occupyRoom) parts.push(course.occupyRoom)
+  if (parts.length > 0) return parts.join(' ')
+  return course.arrangementText || course.showText
 }
 
-// ---- 网格渲染（对齐上游 updateTimeTable） ----
+// ---- 网格渲染（对齐上游 updateTimeTable；单周模式按过滤后集合重算）----
+
+/** 周次过滤后的课表行（week=null 全量；指定周按 occupyWeek 命中）。 */
+function filteredCourses(): PkCourseOnTable[] {
+  const week = store.state.weekView.week
+  const all = store.state.timeTableData
+  if (week === null) return all
+  return all.filter((course) => (course.occupyWeek ?? []).includes(week))
+}
+
 function updateTimeTable() {
   const maxRows = store.readTimeTableRows()
-  const newTimeTable = Array.from({ length: maxRows }, () =>
+  const spans = Array.from({ length: maxRows }, () => Array(7).fill(1) as number[])
+  const covered = Array.from({ length: maxRows }, () => Array(7).fill(false) as boolean[])
+  const coursesGrid = Array.from({ length: maxRows }, () =>
     Array.from({ length: 7 }, () => [] as PkCourseOnTable[]),
   )
-  const newMaxSpans = Array.from({ length: maxRows }, () => Array(7).fill(1) as number[])
-  const newOccupied = Array.from({ length: maxRows }, () => Array(7).fill(false) as boolean[])
 
-  const safeCourses = store.state.timeTableData.filter(
+  const safeCourses = filteredCourses().filter(
     (course) =>
       Array.isArray(course?.occupyTime) &&
       course.occupyTime.length > 0 &&
@@ -171,86 +222,100 @@ function updateTimeTable() {
       course.occupyTime.every((slot) => slot >= 1 && slot <= maxRows),
   )
 
-  const sortedCourses = [...safeCourses].sort((a, b) => b.occupyTime.length - a.occupyTime.length)
+  const byDay: PkCourseOnTable[][] = Array.from({ length: 7 }, () => [])
+  for (const course of safeCourses) byDay[course.occupyDay - 1].push(course)
 
-  interface CellRange {
-    startTime: number
-    endTime: number
-    courses: PkCourseOnTable[]
-  }
-  const cellRanges: (CellRange | null)[][] = Array.from({ length: maxRows }, () => Array(7).fill(null))
-
-  for (const course of sortedCourses) {
-    const startRow = course.occupyTime[0] - 1
-    const dayIndex = course.occupyDay - 1
-    let merged = false
-
-    for (let checkRow = 0; checkRow <= startRow; checkRow++) {
-      const existingRange = cellRanges[checkRow][dayIndex]
-      if (
-        existingRange &&
-        existingRange.startTime <= course.occupyTime[0] &&
-        existingRange.endTime >= course.occupyTime[course.occupyTime.length - 1]
-      ) {
-        existingRange.courses.push(course)
-        newTimeTable[checkRow][dayIndex].push(course)
-        merged = true
-        break
-      }
-    }
-
-    if (!merged) {
-      newTimeTable[startRow][dayIndex].push(course)
-      cellRanges[startRow][dayIndex] = {
-        startTime: course.occupyTime[0],
-        endTime: course.occupyTime[course.occupyTime.length - 1],
-        courses: [course],
+  // 节次区间聚类：相交（含部分重叠/包含）的课程同格渲染，
+  // 避免一块的 rowspan 吞掉部分重叠的另一块（容忍式冲突必须可见）。
+  for (let day = 0; day < 7; day++) {
+    for (const cluster of clusterBySections(byDay[day])) {
+      const row = cluster.start - 1
+      spans[row][day] = cluster.end - row
+      coursesGrid[row][day] = cluster.items
+      for (let r = row + 1; r < row + spans[row][day]; r++) {
+        if (r < maxRows) covered[r][day] = true
       }
     }
   }
 
-  for (let row = 0; row < maxRows; row++) {
-    for (let col = 0; col < 7; col++) {
-      const courses = newTimeTable[row][col]
-      if (courses.length > 0) {
-        newMaxSpans[row][col] = Math.max(...courses.map((c) => c.occupyTime.length))
-      }
-    }
-  }
-
-  for (let row = 0; row < maxRows; row++) {
-    for (let col = 0; col < 7; col++) {
-      const span = newMaxSpans[row][col]
-      if (span > 1) {
-        for (let i = 1; i < span; i++) {
-          if (row + i < maxRows) newOccupied[row + i][col] = true
-        }
-      }
-    }
-  }
-
-  timeTable.value = newTimeTable
-  maxSpans.value = newMaxSpans
-  occupiedGrid.value = newOccupied
+  cellSpans.value = spans
+  cellCourses.value = coursesGrid
+  occupiedGrid.value = covered
 }
 
-// ---- 学分统计 ----
-const creditSummary = computed(() => {
-  if (!store.isMajorSelected()) return null
-  return store.creditSummary()
+/** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
+const hasCourses = computed(() => cellCourses.value.some((row) => row.some((cell) => cell.length > 0)))
+
+const sectionTimes = computed(() => sectionTimesFor(store.readTimeTableRows(), store.state.sectionTimeOverrides))
+
+/** 每行节次的起止时间（无数据返回空串）。 */
+function sectionTimeText(index: number): string {
+  const item = sectionTimes.value[index]
+  return item ? `${item.start}-${item.end}` : ''
+}
+
+/** 上午/下午/晚上分组边界（每段首个节次，1-based；0 表示该行不分组）。 */
+const dayPartStarts = computed(() => {
+  const boundaries = dayPartBoundaries(sectionTimes.value)
+  return boundaries
 })
 
-/** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
-const hasCourses = computed(() => timeTable.value.some((row) => row.some((cell) => cell.length > 0)))
+/** 该行是否为某时段分组首行（渲染分组标签）。 */
+function dayPartLabelAt(index: number): string | null {
+  const row = index + 1
+  for (const [part, start] of Object.entries(dayPartStarts.value)) {
+    if (start === row) {
+      const key = part as DayPart
+      return t(`schedule.dayPart.${key}`)
+    }
+  }
+  return null
+}
+
+/** 该格在当前周次视图下是否已被占用（单周模式按周过滤，空格可点选加课）。 */
+function cellOccupiedForView(dayIndex: number, rowIndex: number): boolean {
+  const items = store.state.occupied?.[rowIndex]?.[dayIndex] ?? []
+  const week = store.state.weekView.week
+  if (week === null) return items.length > 0
+  return items.some((item) => (item.occupyWeek ?? []).includes(week))
+}
 
 function handleCellClick(dayIndex: number, rowIndex: number) {
   if (!store.isMajorSelected()) return
-  if ((store.state.occupied?.[rowIndex]?.[dayIndex] ?? []).length > 0) return
+  if (cellOccupiedForView(dayIndex, rowIndex)) return
   emit('cellClick', dayIndex + 1, rowIndex + 1)
 }
 
+/** 课程块激活（点击/长按/回车）：custom 占位不进课程详情（避免伪课号触发课评请求）。 */
+function openCourseDetail(course: PkCourseOnTable) {
+  if (isCustomEvent(course)) return
+  emit('openDetail', course)
+}
+
+// ---- 导出图片（html-to-image）----
+
+const exportTarget = ref<HTMLElement | null>(null)
+const exporting = ref(false)
+
+async function exportPng() {
+  const node = exportTarget.value
+  if (!node || exporting.value) return
+  exporting.value = true
+  try {
+    const dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: getComputedStyle(node).backgroundColor || '#ffffff' })
+    const link = document.createElement('a')
+    link.download = 'yourtj-schedule.png'
+    link.href = dataUrl
+    link.click()
+  } catch {
+    queueFlashMessage(t('schedule.exportImageFailed'), 'error')
+  } finally {
+    exporting.value = false
+  }
+}
+
 watch(
-  () => store.state.timeTableData,
+  () => [store.state.timeTableData, store.state.weekView.week],
   () => updateTimeTable(),
   { deep: true, immediate: true },
 )
@@ -269,47 +334,70 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="min-w-0">
+    <!-- 工具条：周次控制 + 学期日期 + 自定义 + 导出图片 -->
+    <div class="mb-2 flex flex-wrap items-center gap-2">
+      <label
+        class="flex items-center gap-1.5 text-[12px] text-base-content/70"
+        :title="canUseCurrentWeek ? undefined : t('schedule.currentWeekDisabled')"
+      >
+        <input
+          type="checkbox"
+          class="checkbox checkbox-sm"
+          :disabled="!canUseCurrentWeek"
+          :checked="store.state.weekView.useCurrent"
+          @change="toggleCurrentWeek"
+        />
+        {{ t('schedule.currentWeek') }}
+      </label>
+      <div class="w-28">
+        <SiteSelect
+          v-model="weekValue"
+          :options="weekOptions"
+          :label="t('schedule.weekView')"
+          :aria-label="t('schedule.weekView')"
+        />
+      </div>
+      <span v-if="semesterDateText" class="hidden text-[11px] text-base-content/55 sm:inline">{{ semesterDateText }}</span>
+      <span class="flex-1"></span>
+      <button type="button" class="gf-button gf-button-sm gf-button-outline" @click="emit('customize')">
+        <CalendarCog class="h-3.5 w-3.5" />
+        {{ t('schedule.customize') }}
+      </button>
+      <button
+        type="button"
+        class="gf-button gf-button-sm gf-button-primary"
+        :disabled="exporting"
+        @click="exportPng"
+      >
+        <Download class="h-3.5 w-3.5" />
+        {{ t('schedule.exportImage') }}
+      </button>
+    </div>
+
     <div v-if="isMobile" class="px-1 pb-2 text-[11px] text-base-content/55">
       {{ t('schedule.longPressHint') }}
     </div>
 
     <div
+      ref="exportTarget"
       class="overflow-x-auto rounded-2xl border border-line/70 bg-base-100 shadow-sm"
     >
-      <div
-        v-if="creditSummary"
-        class="relative border-b border-line/70 bg-base-200/45 px-3 py-2"
-      >
-        <span
-          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[11px] font-black leading-none text-warning-content"
-          :title="t('schedule.creditNote')"
-        >
-          !
-        </span>
-        <div class="flex flex-wrap items-center gap-3 text-[11px] text-base-content/80 md:text-xs">
-          <span class="font-bold text-base-content">{{ t('schedule.creditSummary') }}</span>
-          <span>{{ t('schedule.selectedCredit', { value: creditSummary.selectedTotal.toFixed(1) }) }}</span>
-          <span>{{ t('schedule.majorCredit', { value: creditSummary.selectedMajor.toFixed(1) }) }}</span>
-          <span>{{ t('schedule.generalCredit', { value: creditSummary.selectedGeneral.toFixed(1) }) }}</span>
-        </div>
-      </div>
-
       <EmptyState
-        v-if="timeTable.length > 0 && !hasCourses"
+        v-if="cellCourses.length > 0 && !hasCourses"
         class="border-b border-line/60"
         :icon="BookOpen"
         :title="t('schedule.timetableEmptyTitle')"
         :description="t('schedule.timetableEmptyHint')"
       />
-      <EmptyState v-else-if="timeTable.length === 0" :icon="BookOpen" :title="t('schedule.selectMajorFirst')" />
+      <EmptyState v-else-if="cellCourses.length === 0" :icon="BookOpen" :title="t('schedule.selectMajorFirst')" />
       <table
-        v-if="hasCourses || timeTable.length === 0"
+        v-if="hasCourses || cellCourses.length === 0"
         class="w-full border-collapse table-fixed"
         :class="isMobile ? 'min-w-[400px]' : ''"
       >
         <thead>
           <tr class="bg-base-200/60">
-            <th class="w-[42px] border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:w-[78px] md:p-2 md:text-xs">
+            <th class="w-[42px] border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:w-[86px] md:p-2 md:text-xs">
               {{ t('schedule.arrangement') }}
             </th>
             <th
@@ -323,21 +411,27 @@ onBeforeUnmount(() => {
         </thead>
         <tbody>
           <tr
-            v-for="(row, index) in timeTable"
+            v-for="(row, index) in cellCourses"
             :key="index"
-            :class="[index === timeTable.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
+            :class="[index === cellCourses.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
           >
             <td
               class="border border-line/70 p-1 text-center text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
             >
+              <span v-if="dayPartLabelAt(index)" class="mb-0.5 block text-[10px] font-bold text-primary/80">
+                {{ dayPartLabelAt(index) }}
+              </span>
               {{ t('schedule.sectionLabel', { section: index + 1 }) }}
+              <span v-if="sectionTimeText(index)" class="block whitespace-nowrap text-[9px] font-normal text-base-content/45">
+                {{ sectionTimeText(index) }}
+              </span>
             </td>
             <template v-for="(courses, dayIndex) in row" :key="dayIndex">
               <!-- rowspan 已占用的列槽不渲染 td，否则整行多出一列导致错位 -->
               <td
                 v-if="!occupiedGrid[index][dayIndex]"
                 class="border border-line/70 p-[2px] align-top text-center md:p-1"
-                :rowspan="maxSpans[index][dayIndex]"
+                :rowspan="cellSpans[index][dayIndex]"
                 :tabindex="courses.length > 0 ? undefined : 0"
                 :role="courses.length > 0 ? undefined : 'button'"
                 :aria-label="courses.length > 0 ? undefined : t('schedule.emptyCell')"
@@ -345,17 +439,18 @@ onBeforeUnmount(() => {
                 @keydown.enter.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
                 @keydown.space.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
               >
-                <div
-                  v-if="courses.length > 0"
-                  class="h-full overflow-hidden rounded-xl"
-                  :style="{ height: maxSpans[index][dayIndex] * (isMobile ? 44 : 54) + 'px' }"
-                >
+                <!-- 同格多课：竖向堆叠（单双周同位共存 / 容忍式冲突都同格可见） -->
+                <div v-if="courses.length > 0" class="flex min-h-0 flex-col rounded-xl">
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
-                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '']"
-                    :style="courseCardStyle(course)"
+                    class="relative flex min-h-0 min-w-0 flex-1 flex-col justify-center px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
+                    :class="[
+                      isMobile ? 'text-center' : 'text-left',
+                      courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '',
+                      'border-l-[3px]',
+                    ]"
+                    :style="{ ...courseCardStyle(course), borderLeftColor: accentColor(course) }"
                     @touchstart.stop="onPressStart(course, $event)"
                     @touchmove.stop="onPressMove($event)"
                     @touchend.stop="onPressCancel()"
@@ -366,18 +461,40 @@ onBeforeUnmount(() => {
                     tabindex="0"
                     role="button"
                     :aria-label="course.courseName || course.code"
-                    @click.stop="emit('openDetail', course)"
-                    @keydown.enter.stop.prevent="emit('openDetail', course)"
-                    @keydown.space.stop.prevent="emit('openDetail', course)"
+                    @click.stop="openCourseDetail(course)"
+                    @keydown.enter.stop.prevent="openCourseDetail(course)"
+                    @keydown.space.stop.prevent="openCourseDetail(course)"
                   >
-                    <template v-if="isMobile">
-                      <span class="max-w-full truncate text-[11px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
-                      <span v-if="formatCourseLines(course).mobileMeta" class="mt-0.5 max-w-full truncate text-[10px] opacity-85">{{ formatCourseLines(course).mobileMeta }}</span>
-                    </template>
-                    <template v-else>
-                      <span class="break-words font-extrabold tracking-tight">{{ formatCourseLines(course).title }}</span>
-                      <span v-if="formatCourseLines(course).sub" class="mt-1 break-words whitespace-pre-line opacity-95">{{ formatCourseLines(course).sub }}</span>
-                    </template>
+                    <span
+                      v-if="isConflicted(course) && !isCustomEvent(course)"
+                      class="absolute right-0.5 top-0.5 z-10 flex items-center justify-center rounded-full bg-black/25 text-[10px] leading-none"
+                      :title="t('schedule.conflictBadge')"
+                      :aria-label="t('schedule.conflictBadge')"
+                    >
+                      <AlertTriangle class="h-3 w-3" />
+                    </span>
+                    <div class="my-auto w-full min-w-0">
+                      <template v-if="isMobile">
+                        <span class="max-w-full truncate text-[11px] font-extrabold leading-tight">{{ compactName(course.courseName) }}</span>
+                        <span v-if="courseSubline(course)" class="mt-0.5 max-w-full truncate text-[10px] opacity-85">{{ courseSubline(course) }}</span>
+                      </template>
+                      <template v-else>
+                        <!-- 同格多课紧凑块：课名 + 周次（单双周/部分学期可辨） -->
+                        <template v-if="courses.length > 1">
+                          <span class="block truncate text-[11px] font-extrabold leading-tight">{{ compactName(course.courseName) }}</span>
+                          <span v-if="formatWeeksText(course.occupyWeek)" class="block truncate text-[10px] opacity-85">
+                            {{ t('schedule.weeksN', { range: formatWeeksText(course.occupyWeek) }) }}
+                          </span>
+                        </template>
+                        <template v-else>
+                          <!-- 分层课程块：课名 / 班号 / 教师 / 周次节次教室 -->
+                          <span class="block break-words font-extrabold tracking-tight">{{ course.courseName || course.code }}</span>
+                          <span v-if="course.code && !isCustomEvent(course)" class="mt-0.5 block break-words text-[10px] opacity-85">{{ course.code }}</span>
+                          <span v-if="teacherName(course) && !isCustomEvent(course)" class="mt-0.5 block break-words text-[10px] opacity-85">{{ teacherName(course) }}</span>
+                          <span v-if="courseSubline(course)" class="mt-1 block break-words opacity-95">{{ courseSubline(course) }}</span>
+                        </template>
+                      </template>
+                    </div>
                   </div>
                 </div>
               </td>

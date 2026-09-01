@@ -1,0 +1,22 @@
+{
+  "result": {
+    "list": [
+      {
+        "roleId": 9001,
+        "roleName": "见习版主",
+        "effective": 1,
+        "permissions": [
+          {
+            "id": 2,
+            "name": "话题管理"
+          }
+        ],
+        "createTime": "2026-08-01T08:00:00Z"
+      }
+    ],
+    "page": 0,
+    "size": 10,
+    "total": 1
+  },
+  "code": 0
+}

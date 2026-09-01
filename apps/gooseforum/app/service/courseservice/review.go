@@ -39,16 +39,20 @@ var (
 )
 
 // ReviewAuthorPayload 评价作者（公开展示用，匿名时不泄漏身份）。
+// AvatarUrl 仅 member 作者回填（论坛用户头像）；anonymous/legacy 为空字符串，
+// 前端对空头像显示生成的匿名占位头像（boring-avatars）。
 type ReviewAuthorPayload struct {
-	Kind  string `json:"kind"`  // anonymous / member / legacy
-	Label string `json:"label"` // 展示名
+	Kind      string `json:"kind"`                // anonymous / member / legacy
+	Label     string `json:"label"`               // 展示名
+	AvatarUrl string `json:"avatarUrl,omitempty"` // 仅在 member 时非空
 }
 
 // ReviewViewerPayload 当前用户的个性化状态。
 type ReviewViewerPayload struct {
-	CanEdit   bool `json:"canEdit"`
-	CanDelete bool `json:"canDelete"`
-	IsHelpful bool `json:"isHelpful"`
+	CanEdit    bool `json:"canEdit"`
+	CanDelete  bool `json:"canDelete"`
+	IsHelpful  bool `json:"isHelpful"`
+	IsDisliked bool `json:"isDisliked"`
 }
 
 // ReviewPayload 公开评价 DTO：匿名内容不得包含用户 ID/用户名/头像。
@@ -61,6 +65,7 @@ type ReviewPayload struct {
 	Author       ReviewAuthorPayload `json:"author"`
 	Viewer       ReviewViewerPayload `json:"viewer"`
 	HelpfulCount int64               `json:"helpfulCount"`
+	DislikeCount int64               `json:"dislikeCount"`
 	CreatedAt    string              `json:"createdAt"`
 	UpdatedAt    string              `json:"updatedAt"`
 	// OfferingRatingAvg / OfferingReviewCount：offering 级统计（PRD §5.1 B1，reviews?offeringId= 端点展示）。
@@ -367,6 +372,31 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 	})
 }
 
+// SetReviewDislike 幂等设置/取消 dislike（与 helpful 同构：登录用户、唯一约束防重、
+// 物理删除恢复生命周期）。
+func SetReviewDislike(userId, reviewId uint64, dislike bool) error {
+	if userId == 0 {
+		return ErrReviewNotOwned
+	}
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		entity, err := course.GetReviewTx(tx, reviewId)
+		if err != nil || entity.Status != course.ReviewStatusVisible {
+			return ErrReviewNotFound
+		}
+		if dislike {
+			if err := course.CreateDislikeTx(tx, &course.DislikeEntity{ReviewId: reviewId, UserId: userId}); err != nil {
+				// 仅唯一约束冲突视为已标记（幂等）；其余错误如实上报，避免吞掉 DB 故障。
+				if errors.Is(err, gorm.ErrDuplicatedKey) {
+					return nil
+				}
+				return err
+			}
+			return nil
+		}
+		return course.DeleteDislikeTx(tx, reviewId, userId)
+	})
+}
+
 // ReviewListMaxItems 评价列表单次返回上限（防止热门课程响应无界；分页由后续 slice 增强）。
 // 注意：B2 分页（issue #174）上线后 HTTP 列表走 ListReviewsPage，旧路径
 // ListReviewsByOffering/ListReviewsByCourse 仅供内部调用（如无 HTTP 调用方时
@@ -595,7 +625,7 @@ func SetReviewVisibility(reviewId uint64, hidden bool) error {
 }
 
 // listReviewPayloads 批量构造公开 DTO：匿名/legacy 评价不泄漏身份；
-// member 评价的作者名批量回填（避免 N+1 查询）。
+// member 评价的作者名与头像批量回填（避免 N+1 查询）。
 func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]ReviewPayload, error) {
 	reviewIds := make([]uint64, 0, len(entities))
 	authorIds := make([]uint64, 0, len(entities))
@@ -606,25 +636,36 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 		}
 	}
 	helpfulCounts := course.CountHelpfulByReviewIds(reviewIds)
+	dislikeCounts := course.CountDislikeByReviewIds(reviewIds)
 	var userMap map[uint64]*users.EntityComplete
 	if len(authorIds) > 0 {
 		userMap = users.GetMapByIds(authorIds)
 	}
 	myHelpful := make(map[uint64]bool)
+	myDisliked := make(map[uint64]bool)
 	if viewerId > 0 {
-		// 批量查询当前用户的 helpful 标记，避免逐条 GetHelpful 的 N+1；
+		// 批量查询当前用户的 helpful/dislike 标记，避免逐条 N+1；
 		// 查询错误如实向上返回（原先被静默吞掉会误报 isHelpful=false）。
 		ids, err := course.ListHelpfulReviewIDsByUser(viewerId, reviewIds)
 		if err != nil {
 			return nil, err
 		}
 		myHelpful = ids
+		dislikedIds, err := course.ListDislikeReviewIDsByUser(viewerId, reviewIds)
+		if err != nil {
+			return nil, err
+		}
+		myDisliked = dislikedIds
 	}
 	payloads := make([]ReviewPayload, 0, len(entities))
 	for _, e := range entities {
 		p := buildReviewPayload(e, viewerId, helpfulCounts[e.Id])
+		p.DislikeCount = dislikeCounts[e.Id]
 		if myHelpful[e.Id] {
 			p.Viewer.IsHelpful = true
+		}
+		if myDisliked[e.Id] {
+			p.Viewer.IsDisliked = true
 		}
 		if p.Author.Kind == "member" {
 			if user, ok := userMap[e.AuthorID()]; ok && user != nil {
@@ -632,6 +673,7 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 				if user.Nickname != "" {
 					p.Author.Label = user.Nickname
 				}
+				p.Author.AvatarUrl = user.GetWebAvatarUrl()
 			}
 		}
 		payloads = append(payloads, p)
@@ -665,6 +707,9 @@ func fillOfferingStats(payloads []ReviewPayload) {
 		}
 	}
 }
+
+// fillReviewAuthorLabel 回填 member 作者展示名与头像（论坛用户公开信息；
+// 匿名/legacy 保持空头像，由前端生成匿名占位头像）。
 func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 	if p == nil || p.Author.Kind != "member" || authorUserId == 0 {
 		return
@@ -677,6 +722,7 @@ func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 	if user.Nickname != "" {
 		p.Author.Label = user.Nickname
 	}
+	p.Author.AvatarUrl = user.GetWebAvatarUrl()
 }
 
 // buildReviewPayload 构造公开 DTO：匿名评价不泄漏任何身份信息。
@@ -701,7 +747,7 @@ func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCoun
 		OfferingId:   entity.OfferingId,
 		Rating:       entity.Rating,
 		Content:      entity.Content,
-		ContentHtml:  markdown2html.PostMarkdownToHTML(entity.Content),
+		ContentHtml:  markdown2html.PostMarkdownToHTML(markdown2html.NormalizeCourseReviewSections(entity.Content)),
 		Author:       author,
 		Viewer:       viewer,
 		HelpfulCount: helpfulCount + int64(entity.LegacyHelpfulCount),

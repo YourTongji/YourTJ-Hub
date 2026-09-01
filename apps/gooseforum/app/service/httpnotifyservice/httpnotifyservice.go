@@ -169,15 +169,45 @@ func recordDeliveryResult(endpoint pageConfig.HttpNotifyEndpoint, success bool, 
 	defer updateMu.Unlock()
 
 	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
-	config := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyConfig{Endpoints: []pageConfig.HttpNotifyEndpoint{}})
+	// 落库形状读改写：端点 secret 为密文（或 v25 迁移前的存量明文），
+	// 原样保留，绝不用领域形状（json:"-" 不含密钥）覆盖（issue #324 S1）。
+	storage := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Endpoints: []pageConfig.HttpNotifyStorageEndpoint{}})
+	config := storage.ToConfig()
 	config, changed := applyDeliveryResult(config, endpoint.Id, endpoint.URL, success, message)
 	if !changed {
 		return
 	}
 	entity.PageType = pageConfig.HttpNotify
-	entity.Config = jsonopt.Encode(config)
+	entity.Config = jsonopt.Encode(mergeDeliveryState(storage, config))
 	pageConfig.CreateOrSave(&entity)
 	hotdataserve.ClearHttpNotifyConfigCache()
+}
+
+// mergeDeliveryState 把 applyDeliveryResult 的投递状态变更合并回落库形状，
+// 按 id（无 id 按 url）匹配端点，仅更新失败计数/错误/启用/熔断字段，
+// 保留各端点密文/存量明文 secret 字段原样。
+func mergeDeliveryState(storage pageConfig.HttpNotifyStorageConfig, applied pageConfig.HttpNotifyConfig) pageConfig.HttpNotifyStorageConfig {
+	byKey := make(map[string]*pageConfig.HttpNotifyStorageEndpoint, len(storage.Endpoints))
+	for i := range storage.Endpoints {
+		key := storage.Endpoints[i].Id
+		if key == "" {
+			key = storage.Endpoints[i].URL
+		}
+		byKey[key] = &storage.Endpoints[i]
+	}
+	for _, ep := range applied.Endpoints {
+		key := ep.Id
+		if key == "" {
+			key = ep.URL
+		}
+		if target := byKey[key]; target != nil {
+			target.FailureCount = ep.FailureCount
+			target.LastError = ep.LastError
+			target.Enabled = ep.Enabled
+			target.AbnormalTerminated = ep.AbnormalTerminated
+		}
+	}
+	return storage
 }
 
 func applyDeliveryResult(config pageConfig.HttpNotifyConfig, endpointId string, endpointURL string, success bool, message string) (pageConfig.HttpNotifyConfig, bool) {

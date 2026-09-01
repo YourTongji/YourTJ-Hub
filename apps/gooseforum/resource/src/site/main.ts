@@ -27,6 +27,23 @@ applyStoredTheme()
 applyStoredAppearanceSettings()
 installBaTouchEffect()
 
+// 加载 Noto Serif SC（wiki/正文衬线字体）。用国内可直连的 Google Fonts 镜像
+// （fonts.googleapis.cn）加速，标签带预连接；请求失败不阻塞页面渲染。
+function installNotoSerifSc() {
+  const preconnect = document.createElement('link')
+  preconnect.rel = 'preconnect'
+  preconnect.href = 'https://fonts.googleapis.cn'
+  preconnect.crossOrigin = ''
+  document.head.appendChild(preconnect)
+
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = 'https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap'
+  link.onerror = () => link.remove()
+  document.head.appendChild(link)
+}
+installNotoSerifSc()
+
 function commitPage(nextPage: typeof initialPage) {
   currentPage.value = nextPage
   applySiteThemePayload(nextPage.payload.layout.theme)

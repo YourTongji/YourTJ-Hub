@@ -25,6 +25,9 @@ type Entity struct {
 	Content      string `gorm:"column:content;type:text;" json:"content"`
 	RenderedHTML string `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`
 	Toc          string `gorm:"column:toc;type:text;" json:"toc"`
+	// ParaAnchors 段落级锚点索引 JSON（wiki 局内搜索：命中定位到段落）。
+	// 空串表示该页无段落锚点（同步前存量/无正文页面）。
+	ParaAnchors string `gorm:"column:para_anchors;type:text;" json:"paraAnchors"`
 	// git 溯源：内容哈希（幂等 diff 依据）、提交 SHA/时间、贡献者快照。
 	ContentHash      string     `gorm:"column:content_hash;type:varchar(64);not null;default:'';index:idx_wiki_page_hash,priority:1;" json:"contentHash"`
 	LastCommitSha    string     `gorm:"column:last_commit_sha;type:varchar(64);not null;default:'';" json:"lastCommitSha"`

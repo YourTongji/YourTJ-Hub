@@ -1,8 +1,10 @@
 package topics
 
 import (
+	"context"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -74,6 +76,15 @@ func UpdateTopicEditableTx(tx *gorm.DB, entity *Entity) error {
 		}).Error
 }
 
+// UpdateCategoryIDsTx changes only the topic category payload inside a
+// caller-owned transaction.
+func UpdateCategoryIDsTx(tx *gorm.DB, id uint64, categoryIDs []uint64) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"category_id": jsonopt.Encode(categoryIDs),
+		"updated_at":  time.Now(),
+	}).Error
+}
+
 // UpdateWikiSyncedMetaTx 事务内只更新由 wiki 修订派生的话题字段
 // （标题/摘要/首图/水印/更新时间）。不触碰并发回复/点赞/浏览维护的统计与
 // 指针字段——整行 Save 会把 post_count/post_seq/posters/last_post_id/
@@ -98,15 +109,15 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
-// GetTx 事务内按 id 获取话题（避免单连接测试库下事务内走全局连接死锁）。
-func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
-	tx.Table(tableName).First(&entity, id)
-	return
-}
-
 // GetWithError 返回实体与查询错误，供需要区分“记录不存在”与“查询失败”的调用方使用。
 func GetWithError(id uint64) (entity Entity, err error) {
 	err = builder().First(&entity, id).Error
+	return
+}
+
+// GetWithContext is the cancellable worker/request variant of GetWithError.
+func GetWithContext(ctx context.Context, id uint64) (entity Entity, err error) {
+	err = dbconnect.ConnectContext(ctx).Table(tableName).First(&entity, id).Error
 	return
 }
 
@@ -126,21 +137,25 @@ func QueryById(startId uint64, limit int) (entities []*Entity) {
 	return
 }
 
-func GetMapByIds(ids []uint64) map[uint64]Entity {
+// GetMapByIds 返回 id 集合对应的主题 map。
+// 显式返回查询错误：wiki 读路径（filterPublicPages）必须区分 DB 故障与空结果，
+// 不能把 topics 查询失败伪装成空 wiki（issue #287）。
+func GetMapByIds(ids []uint64) (map[uint64]Entity, error) {
 	var list []Entity
 	if len(ids) == 0 {
-		return map[uint64]Entity{}
+		return map[uint64]Entity{}, nil
 	}
-	builder().Where("id in ?", ids).Find(&list)
+	err := builder().Where("id in ?", ids).Find(&list).Error
 	result := make(map[uint64]Entity, len(list))
 	for _, item := range list {
 		result[item.Id] = item
 	}
-	return result
+	return result, err
 }
 
 func GetPointerMapByIds(ids []uint64) map[uint64]*Entity {
-	valueMap := GetMapByIds(ids)
+	// 展示层 hydration 保持 best-effort 语义：查询失败返回空 map（与历史行为一致）。
+	valueMap, _ := GetMapByIds(ids)
 	result := make(map[uint64]*Entity, len(valueMap))
 	for id, item := range valueMap {
 		entity := item
@@ -172,23 +187,6 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
-		Limit(limit).
-		Find(&entities).Error
-	return
-}
-
-func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err error) {
-	if limit <= 0 {
-		return []*Entity{}, nil
-	}
-	err = builder().
-		Where(queryopt.Gt("id", afterID)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
-		Order(queryopt.Asc("id")).
 		Limit(limit).
 		Find(&entities).Error
 	return
@@ -488,6 +486,17 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
 }
 
+// UpdateProcessStatusTx updates moderation state and lets callers enqueue an
+// outbox task in the same transaction.
+func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
+}
+
+// UpdateStatusTx updates publish status inside a caller-owned transaction.
+func UpdateStatusTx(tx *gorm.DB, id uint64, status int8) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("status", status).Error
+}
+
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
 // 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
 // 语义叠加导致审核队列出现幽灵项。
@@ -497,6 +506,13 @@ func ResetPendingReview(id uint64) error {
 
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"pin_weight": pinWeight,
+	}).Error
+}
+
+// UpdatePinWeightTx updates pin weight inside a caller-owned transaction.
+func UpdatePinWeightTx(tx *gorm.DB, id uint64, pinWeight int) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
 	}).Error
 }

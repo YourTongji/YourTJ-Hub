@@ -25,6 +25,7 @@ const (
 	AiSummaryStatusGenerated        AiSummaryStatus = "generated"         // 本次新生成
 	AiSummaryStatusInsufficientData AiSummaryStatus = "insufficient_data" // 有效评价不足，未生成
 	AiSummaryStatusDisabled         AiSummaryStatus = "disabled"          // 功能未启用
+	AiSummaryStatusNone             AiSummaryStatus = "none"              // check 预检：无缓存行，未生成过
 )
 
 // AiSummaryConsensus 五档口碑共识（与前端 AISummaryCard 的 ConsensusLevel 对齐）。
@@ -84,6 +85,7 @@ const (
 	aiSummaryCourseWindow    = 10 * time.Minute
 	aiSummaryGlobalKey       = "ai.summary.global"
 	aiSummaryCourseKeyPrefix = "ai.summary.course:"
+	aiSummaryTimeout         = 30 * time.Second
 )
 
 // aiSummaryGlobalLimit 全局每分钟生成上限；0 表示用默认值（成本护栏，
@@ -104,6 +106,37 @@ var llmChat llmChatFunc = func(ctx context.Context, cfg llmprovider.Config, prom
 		},
 		ResponseFormat: &llmprovider.ResponseFormat{Type: "json_object"},
 	})
+}
+
+// resolveAiSummaryConfig 组装 LLM provider 配置：管理后台 pageConfig 配置优先
+// （BaseURL/Model 任一已配置即整体优先，APIKey 已由缓存解密为运行时明文），
+// 未配置时回退 config.toml [ai_summary]（向后兼容现有部署）。
+func resolveAiSummaryConfig() llmprovider.Config {
+	aiCfg := hotdataserve.GetAiSummarySettingsConfigCache()
+	if strings.TrimSpace(aiCfg.BaseURL) != "" || strings.TrimSpace(aiCfg.Model) != "" {
+		return llmprovider.Config{
+			BaseURL:     strings.TrimRight(aiCfg.BaseURL, "/"),
+			APIKey:      aiCfg.APIKey,
+			Model:       aiCfg.Model,
+			Temperature: float64Or(aiCfg.Temperature, 0.3),
+			MaxTokens:   intOr(aiCfg.MaxTokens, 1024),
+		}
+	}
+	return llmprovider.LoadConfig()
+}
+
+func float64Or(v *float64, def float64) float64 {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+func intOr(v *int, def int) int {
+	if v == nil {
+		return def
+	}
+	return *v
 }
 
 // aiSummarySystemPrompt 约束 LLM 只输出 JSON 且字段与前端契约一致（英文枚举）。
@@ -153,8 +186,28 @@ var (
 )
 
 // GetAiSummary 课程 AI 总结主流程（状态机见设计文档）：
-// 课程可见 → 开关 → DB 缓存（!refresh）→ 单课/全局限流 → 取评价 → LLM → sanitize → 落库。
+// 课程可见 → 开关 → DB 缓存（!refresh）→ 取评价 → 数据不足落库 insufficient
+// （不消耗限流）→ 限流 → LLM → sanitize → 落库 generated。
+//
+// 限流后置：只有真正要调 LLM 才消耗单课/全局名额；数据不足（insufficient）
+// 不消耗任何名额；LLM 失败/未配置/落库失败返还单课名额（全局名额保留——
+// 确实发生了调用，防刷语义不变）。
 func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
+	return GetAiSummaryContext(context.Background(), courseId, refresh)
+}
+
+// GetAiSummaryContext keeps request cancellation attached to the provider
+// call and applies the service-level upper bound for every caller. Background
+// jobs should still pass their own worker context so shutdown can cancel it.
+func GetAiSummaryContext(ctx context.Context, courseId uint64, refresh bool) (AiSummaryResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeoutCause(ctx, aiSummaryTimeout, context.DeadlineExceeded)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
+	}
 	// 1. 课程存在且可见。
 	entity := course.GetCourse(courseId)
 	if entity.Id == 0 || entity.Status != course.StatusVisible {
@@ -167,24 +220,47 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		return AiSummaryResult{Status: AiSummaryStatusDisabled}, nil
 	}
 
-	// 3. DB 缓存优先（!refresh 时）。
+	// 3. DB 缓存优先（!refresh 时）：
+	//    - insufficient 行：已评估过且评价不足，评价不变不重复尝试（写路径已保证
+	//      评价变更会删除该行，届时自然重新评估）。
+	//    - generated 行（含存量无 status 列的行，DEFAULT 'generated'）：直接命中。
 	if !refresh {
-		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 && cached.SummaryJson != "" {
-			payload, err := decodeAiSummaryPayload(cached.SummaryJson)
-			if err != nil {
-				slog.Warn("ai_summary_cache_decode_failed", "courseId", courseId, "error", err)
-			} else {
-				return AiSummaryResult{
-					Status:      AiSummaryStatusCached,
-					Summary:     &payload,
-					GeneratedAt: cached.GeneratedAt.Format(time.RFC3339),
-					Model:       cached.Model,
-				}, nil
+		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 {
+			if cached.Status == course.AiSummaryRowStatusInsufficient {
+				return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
+			}
+			if cached.SummaryJson != "" {
+				payload, decodeErr := decodeAiSummaryPayload(cached.SummaryJson)
+				if decodeErr != nil {
+					slog.Warn("ai_summary_cache_decode_failed", "courseId", courseId, "error", decodeErr)
+				} else {
+					return AiSummaryResult{
+						Status:      AiSummaryStatusCached,
+						Summary:     &payload,
+						GeneratedAt: cached.GeneratedAt.Format(time.RFC3339),
+						Model:       cached.Model,
+					}, nil
+				}
 			}
 		}
 	}
 
-	// 4. 限流（先于 LLM 调用消耗，成本护栏）：
+	// 4. 取最新 N 条可见有效评价（纯读，不消耗任何名额）。
+	reviews, err := listRecentVisibleReviews(courseId)
+	if err != nil {
+		return AiSummaryResult{}, err
+	}
+	if len(reviews) < AiSummaryMinReviews {
+		// 数据不足：落库 insufficient 标记（下次 check/请求直接命中，不再评估），
+		// 不消耗任何限流名额。
+		if err := upsertAiSummaryInsufficient(courseId); err != nil {
+			slog.Error("ai_summary_insufficient_upsert_failed", "courseId", courseId, "error", err)
+			return AiSummaryResult{}, err
+		}
+		return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
+	}
+
+	// 5. 限流（成本护栏，仅在确认要调 LLM 时消耗）：
 	//    先查单课 10 分钟窗口是否已满（Count 不计数）——被单课拒绝的请求
 	//    不消耗全局每分钟配额（review P1：避免个别课的 refresh 刷爆全局生成池）；
 	//    再消耗全局配额（Allow 计数），最后记录单课生成（Allow 计数）。
@@ -240,36 +316,32 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		}
 		return AiSummaryResult{}, &AiSummaryRateLimitError{RetryAfter: retryAfter}
 	}
-	// 5. 取最新 N 条可见有效评价（仅 visible + 有正文，分页续取凑满）。
-	reviews, err := listRecentVisibleReviews(courseId)
-	if err != nil {
-		return AiSummaryResult{}, err
-	}
-	if len(reviews) < AiSummaryMinReviews {
-		return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
-	}
 
-	// 7. 构建 prompt 并调用 LLM。
-	cfg := llmprovider.LoadConfig()
+	// 6. 构建 prompt 并调用 LLM。任何失败都返还单课名额：
+	//    用户可立即重试，不会被已消耗的名额卡 10 分钟（全局名额保留）。
+	cfg := resolveAiSummaryConfig()
 	if !cfg.Enabled() {
 		slog.Warn("ai_summary_provider_not_configured", "courseId", courseId)
+		store.Reset(courseKey)
 		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
 	}
 	prompt := buildAiSummaryPrompt(entity.Name, entity.PrimaryCode, reviews)
-	raw, err := llmChat(context.Background(), cfg, prompt)
+	raw, err := llmChat(ctx, cfg, prompt)
 	if err != nil {
 		slog.Error("ai_summary_generation_failed", "courseId", courseId, "error", err)
+		store.Reset(courseKey)
 		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
 	}
 
-	// 8. sanitize 校验输出（枚举/数组截断/非法值按评分分布兜底）。
+	// 7. sanitize 校验输出（枚举/数组截断/非法值按评分分布兜底）。
 	payload, err := sanitizeAiSummaryPayload(raw, reviews)
 	if err != nil {
 		slog.Error("ai_summary_sanitize_failed", "courseId", courseId, "error", err)
+		store.Reset(courseKey)
 		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
 	}
 
-	// 9. 落库（UPSERT 覆盖）。
+	// 8. 落库（UPSERT 覆盖，status=generated）。
 	summaryJSON, err := json.Marshal(payload)
 	if err != nil {
 		return AiSummaryResult{}, err
@@ -281,8 +353,10 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		Model:         cfg.Model,
 		PromptVersion: promptVersion,
 		GeneratedAt:   now,
+		Status:        course.AiSummaryRowStatusGenerated,
 	}); err != nil {
 		slog.Error("ai_summary_upsert_failed", "courseId", courseId, "error", err)
+		store.Reset(courseKey)
 		return AiSummaryResult{}, err
 	}
 	return AiSummaryResult{
@@ -291,6 +365,53 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		GeneratedAt: now.Format(time.RFC3339),
 		Model:       cfg.Model,
 	}, nil
+}
+
+// CheckAiSummary check 预检（前端挂载时调用）：只读 DB 返回当前状态，
+// 不生成、不消耗任何限流名额。返回：
+//   - cached：已有有效总结（携带 payload，前端自动展开）
+//   - insufficient_data：已评估过且评价不足（前端保持折叠，展示占位）
+//   - none：从未生成过（前端保持折叠，点击展开才触发生成）
+//   - disabled：功能未启用
+func CheckAiSummary(courseId uint64) (AiSummaryResult, error) {
+	entity := course.GetCourse(courseId)
+	if entity.Id == 0 || entity.Status != course.StatusVisible {
+		return AiSummaryResult{}, ErrAiSummaryCourseNotFound
+	}
+	aiCfg := hotdataserve.GetAiSummarySettingsConfigCache()
+	if !aiCfg.Enabled {
+		return AiSummaryResult{Status: AiSummaryStatusDisabled}, nil
+	}
+	cached := course.GetCourseAiSummary(courseId)
+	if cached.CourseId == 0 {
+		return AiSummaryResult{Status: AiSummaryStatusNone}, nil
+	}
+	if cached.Status == course.AiSummaryRowStatusInsufficient {
+		return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
+	}
+	if cached.SummaryJson != "" {
+		if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {
+			return AiSummaryResult{
+				Status:      AiSummaryStatusCached,
+				Summary:     &payload,
+				GeneratedAt: cached.GeneratedAt.Format(time.RFC3339),
+				Model:       cached.Model,
+			}, nil
+		}
+	}
+	// 行存在但 summary 损坏/为空：按未生成处理，允许重新生成。
+	return AiSummaryResult{Status: AiSummaryStatusNone}, nil
+}
+
+// upsertAiSummaryInsufficient 落库「评价不足已评估」标记（无 summary_json）。
+// 评价变更时写路径 DeleteCourseAiSummaryTx 会删除该行，课程重新可评估。
+func upsertAiSummaryInsufficient(courseId uint64) error {
+	return course.UpsertCourseAiSummary(&course.CourseAiSummaryEntity{
+		CourseId:      courseId,
+		PromptVersion: promptVersion,
+		GeneratedAt:   time.Now(),
+		Status:        course.AiSummaryRowStatusInsufficient,
+	})
 }
 
 // AiSummaryRateLimitError 全局/单课生成限流错误（携带 Retry-After 供控制器回写 header）。

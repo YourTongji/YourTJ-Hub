@@ -1,6 +1,7 @@
 package posts
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func SaveOrCreateById(entity *Entity) int64 {
@@ -46,9 +48,9 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
-// GetTx 事务内按 id 获取帖子（避免单连接测试库下事务内走全局连接死锁）。
-func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
-	tx.Table(tableName).First(&entity, id)
+// GetWithContext is the cancellable worker/request variant of Get.
+func GetWithContext(ctx context.Context, id uint64) (entity Entity, err error) {
+	err = db.ConnectContext(ctx).Table(tableName).First(&entity, id).Error
 	return
 }
 
@@ -98,11 +100,23 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
 }
 
+// UpdateProcessStatusTx updates moderation state inside a caller-owned
+// transaction.
+func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
+}
+
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
 // 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
 // 语义叠加导致审核队列出现幽灵项。
 func ResetPendingReview(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("process_status", ProcessStatusNormal).Error
+}
+
+// ResetPendingReviewTx resets moderation state as part of the delete transaction.
+func ResetPendingReviewTx(tx *gorm.DB, id uint64) error {
+	return tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+		Update("process_status", ProcessStatusNormal).Error
 }
 
 // UpdateWikiSyncedContentTx 事务内只更新由 wiki 修订派生的首楼字段
@@ -120,13 +134,19 @@ func UpdateWikiSyncedContentTx(tx *gorm.DB, entity *Entity) error {
 		}).Error
 }
 
-func DeleteEntity(entity *Entity) int64 {
-	return builder().Delete(entity).RowsAffected
-}
-
 // UnscopedGet 返回含已删除（软删）在内的回复，供恢复/清理/审计使用。
 func UnscopedGet(id uint64) (entity Entity) {
 	builder().Unscoped().First(&entity, id)
+	return
+}
+
+// GetUnscopedTx returns a post with a row lock held by the caller's transaction.
+// Delete and reward transitions must inspect the same post state before either
+// side of the transition is committed.
+func GetUnscopedTx(tx *gorm.DB, id uint64) (entity Entity, err error) {
+	err = tx.Table(tableName).Unscoped().
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where(queryopt.Eq("id", id)).Take(&entity).Error
 	return
 }
 
@@ -138,6 +158,17 @@ func HasChildren(postId uint64) bool {
 		Where("deleted_at IS NULL").
 		Count(&count)
 	return count > 0
+}
+
+// HasChildrenTx checks for active children inside the caller's transaction.
+func HasChildrenTx(tx *gorm.DB, postID uint64) (bool, error) {
+	var count int64
+	if err := tx.Table(tableName).
+		Where(queryopt.Eq("reply_to_post_id", postID)).
+		Where("deleted_at IS NULL").Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // GetUserDeletedPage 分页返回用户已删除的回复（含软删行与墓碑态行）。
@@ -181,6 +212,11 @@ func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
 	}).Error
 }
 
+// MarkUserDeletedTx marks a post as user-deleted in the caller's transaction.
+func MarkUserDeletedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) error {
+	return markDeletedTx(tx, id, VisibilityUserDeleted, deletedBy, reason, true)
+}
+
 // MarkUserDeletedKeepVisible 标记回复为用户删除但保留行可见（墓碑态）：
 // 用于"存在子回复"的场景，讨论树需要保留该行以维持结构，正文由前端渲染为占位。
 // 墓碑态行不置 deleted_at（保持讨论树可见），以 updated_at 作为删除时刻的近似：
@@ -194,6 +230,12 @@ func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) erro
 		"deleted_by":        deletedBy,
 		"delete_reason":     reason,
 	}).Error
+}
+
+// MarkUserDeletedKeepVisibleTx marks a post as a user-deleted tombstone in the
+// caller's transaction.
+func MarkUserDeletedKeepVisibleTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) error {
+	return markDeletedTx(tx, id, VisibilityUserDeleted, deletedBy, reason, false)
 }
 
 // MarkDeletedKeepVisible 标记回复为删除但保留行可见（墓碑态），visibility 区分用户/管理员来源。
@@ -221,22 +263,32 @@ func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
 	}).Error
 }
 
-// SoftDeleteByTopicId 将某话题下的所有回复软删（级联删除），返回受影响行数。
-// visibility 为空时默认 USER_DELETED；管理端级联应传 MODERATOR_REMOVED。
-func SoftDeleteByTopicId(topicId uint64, deletedBy uint64, reason string, visibility string) int64 {
-	if visibility == "" {
-		visibility = VisibilityUserDeleted
+// MarkModeratorRemovedTx marks a post as moderator-deleted in the caller's
+// transaction.
+func MarkModeratorRemovedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) error {
+	return markDeletedTx(tx, id, VisibilityModeratorRemoved, deletedBy, reason, true)
+}
+
+func markDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, reason string, setDeletedAt bool) error {
+	values := map[string]any{
+		"visibility_status": visibility,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
 	}
-	return builder().Unscoped().
-		Where(queryopt.Eq("topic_id", topicId)).
-		Where("deleted_at IS NULL").
-		Updates(map[string]any{
-			"deleted_at":        time.Now(),
-			"visibility_status": visibility,
-			"retention_status":  RetentionRecoverable,
-			"deleted_by":        deletedBy,
-			"delete_reason":     reason,
-		}).RowsAffected
+	if setDeletedAt {
+		values["deleted_at"] = time.Now()
+	} else {
+		values["updated_at"] = time.Now()
+	}
+	result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(values)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // SoftDeleteByIDs 按回复 ID 列表软删（级联删除），返回受影响行数。
@@ -351,41 +403,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	})
 }
 
-// MarkPurgedByTopicID 将某话题下已删除的回复置为已永久删除（话题永久删除级联）。
-// 只处理已进入删除生命周期的回复（非 ACTIVE），其他用户仍 ACTIVE 的回复
-// 属于他人内容，不得被话题作者/自动过期的级联永久删除（PRD Out of Scope）。
-// 帖子行更新与版本清空在同一事务内，任一步失败整体回滚并返回错误。
-func MarkPurgedByTopicID(topicID uint64) (int64, error) {
-	var rows int64
-	err := db.Connect().Transaction(func(tx *gorm.DB) error {
-		var targets []uint64
-		if err := tx.Table(tableName).Unscoped().
-			Where(queryopt.Eq("topic_id", topicID)).
-			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-			Select("id").
-			Scan(&targets).Error; err != nil {
-			return err
-		}
-		result := tx.Table(tableName).Unscoped().
-			Where(queryopt.Eq("topic_id", topicID)).
-			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-			Updates(map[string]any{
-				"deleted_at":       time.Now(),
-				"retention_status": RetentionPurged,
-				"content":          "",
-				"rendered_html":    "",
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		rows = result.RowsAffected
-		return postRevisions.BlankContentByPostIdsTx(tx, targets)
-	})
-	return rows, err
-}
-
 // ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。
 func ListUnscopedByTopicID(topicID uint64, list *[]*Entity) error {
 	return builder().Unscoped().
@@ -417,21 +434,6 @@ func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []
 		Limit(pageutil.BoundPageSize(limit) + 1).
 		Find(&entities)
 	return
-}
-
-// RestoreDeletedByTopicID 恢复某话题下所有被级联软删的回复。
-func RestoreDeletedByTopicID(topicID uint64) int64 {
-	return builder().Unscoped().
-		Where(queryopt.Eq("topic_id", topicID)).
-		Where("deleted_at IS NOT NULL").
-		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Updates(map[string]any{
-			"deleted_at":        gorm.Expr("NULL"),
-			"visibility_status": VisibilityActive,
-			"retention_status":  RetentionNormal,
-			"deleted_by":        0,
-			"delete_reason":     "",
-		}).RowsAffected
 }
 
 // RestoreCascadeDeletedByTopicID restores only user-deleted rows changed by
@@ -471,16 +473,6 @@ func GetFirstPageByTopicId(topicId uint64) (entities []*Entity) {
 	return
 }
 
-func GetByTopicPostNoAsc(topicId uint64, limit int) (entities []*Entity) {
-	builder().
-		Where(queryopt.Eq("topic_id", topicId)).
-		Limit(limit).
-		Order(queryopt.Asc("post_no")).
-		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return
-}
-
 func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) (entities []*Entity, err error) {
 	if limit <= 0 {
 		return []*Entity{}, nil
@@ -494,17 +486,6 @@ func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) 
 		Order(queryopt.Asc("id")).
 		Limit(limit).
 		Find(&entities).Error
-	return
-}
-
-func GetByTopicPostNoDesc(topicId uint64, limit int) (entities []*Entity) {
-	builder().
-		Where(queryopt.Eq("topic_id", topicId)).
-		Limit(limit).
-		Order(queryopt.Desc("post_no")).
-		Order(queryopt.Desc("id")).
-		Find(&entities)
-	reversePosts(entities)
 	return
 }
 
@@ -534,6 +515,18 @@ func GetByTopicPostNoBefore(topicId uint64, postNo uint64, limit int) (entities 
 func GetByTopicPostNoAtOrAfter(topicId uint64, postNo uint64) (entity Entity, ok bool) {
 	err := builder().
 		Where(queryopt.Eq("topic_id", topicId)).
+		Where(queryopt.Ge("post_no", postNo)).
+		Order(queryopt.Asc("post_no")).
+		Order(queryopt.Asc("id")).
+		First(&entity).Error
+	return entity, err == nil
+}
+
+// GetByTopicPostNoAtOrAfterContext is the cancellable variant used by search
+// projection workers when a topic has no valid first-post pointer.
+func GetByTopicPostNoAtOrAfterContext(ctx context.Context, topicID uint64, postNo uint64) (entity Entity, ok bool) {
+	err := db.ConnectContext(ctx).Table(tableName).
+		Where(queryopt.Eq("topic_id", topicID)).
 		Where(queryopt.Ge("post_no", postNo)).
 		Order(queryopt.Asc("post_no")).
 		Order(queryopt.Asc("id")).

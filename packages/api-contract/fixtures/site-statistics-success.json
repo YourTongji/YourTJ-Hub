@@ -1,0 +1,11 @@
+{
+  "result": {
+    "userCount": 1024,
+    "userMonthCount": 3,
+    "topicMaxId": 2048,
+    "topicMonthCount": 5,
+    "postMaxId": 4096,
+    "linksCount": 2
+  },
+  "code": 0
+}

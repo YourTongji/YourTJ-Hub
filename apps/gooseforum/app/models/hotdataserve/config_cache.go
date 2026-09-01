@@ -1,9 +1,13 @@
 package hotdataserve
 
 import (
+	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -49,10 +53,38 @@ func GetSiteChromeConfigCache() pageConfig.SiteChromeConfig {
 
 var mailSettingsConfigCache = &localcache.Cache[pageConfig.MailSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
+// GetMailSettingsConfigCache 读取邮件设置（smtpPassword 为运行时解密明文，
+// 仅存于服务内存，绝不随 JSON 序列化导出；落库为 securestore 密文，issue #324 S2）。
+// 兼容 v25 迁移前的存量明文密码（SmtpPassword 字段原样使用）。
 func GetMailSettingsConfigCache() pageConfig.MailSettingsConfig {
 	return mailSettingsConfigCache.GetOrLoad("", func() (pageConfig.MailSettingsConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.EmailSettings, defaultconfig.GetDefaultEmailSettingsConfig()), nil
+		entity := pageConfig.GetByPageType(pageConfig.EmailSettings)
+		if entity.Id == 0 {
+			return defaultconfig.GetDefaultEmailSettingsConfig(), nil
+		}
+		storage := jsonopt.Decode[pageConfig.MailSettingsStorage](entity.Config)
+		cfg := storage.ToConfig()
+		if storage.SmtpPasswordEncrypted != "" {
+			plain, err := securestore.DecryptPurpose(storage.SmtpPasswordEncrypted, securestore.MailSmtpPasswordPurpose)
+			if err != nil {
+				slog.Warn("mail smtp password decrypt failed (signing key rotated?)", "err", err)
+				cfg.SmtpPassword = ""
+			} else {
+				cfg.SmtpPassword = plain
+			}
+		}
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// GetMailSettingsView 读取邮件设置的管理端回显视图（不含密码明文/密文，仅回显
+// 是否已配置；issue #324 S2）。
+func GetMailSettingsView() pageConfig.MailSettingsView {
+	entity := pageConfig.GetByPageType(pageConfig.EmailSettings)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultEmailSettingsConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.MailSettingsStorage](entity.Config).ToView()
 }
 
 var announcementConfigCache = &localcache.Cache[pageConfig.AnnouncementConfig]{MaxEntries: cacheconfig.Current().PageConfig}
@@ -75,10 +107,46 @@ func GetSecuritySettingsConfigCache() pageConfig.SecurityAndRegistration {
 
 var storageSettingsConfigCache = &localcache.Cache[pageConfig.StorageSettings]{MaxEntries: cacheconfig.Current().PageConfig}
 
+// GetStorageSettingsConfigCache 读取存储设置（accessKey/secretKey 为运行时解密
+// 明文，仅存于服务内存，绝不随 JSON 序列化导出；落库为 securestore 密文，issue #324 S3）。
+// 兼容 v25 迁移前的存量明文凭据（AccessKey/SecretKey 字段原样使用）。
 func GetStorageSettingsConfigCache() pageConfig.StorageSettings {
 	return storageSettingsConfigCache.GetOrLoad("", func() (pageConfig.StorageSettings, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig()), nil
+		entity := pageConfig.GetByPageType(pageConfig.StorageSettingsPage)
+		if entity.Id == 0 {
+			return defaultconfig.GetDefaultStorageSettingsConfig(), nil
+		}
+		storage := jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config)
+		cfg := storage.ToConfig()
+		decrypt := func(encrypted, purpose string) string {
+			if encrypted == "" {
+				return ""
+			}
+			plain, err := securestore.DecryptPurpose(encrypted, purpose)
+			if err != nil {
+				slog.Warn("storage credential decrypt failed (signing key rotated?)", "err", err)
+				return ""
+			}
+			return plain
+		}
+		if storage.AccessKeyEncrypted != "" {
+			cfg.AccessKey = decrypt(storage.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose)
+		}
+		if storage.SecretKeyEncrypted != "" {
+			cfg.SecretKey = decrypt(storage.SecretKeyEncrypted, securestore.StorageSecretKeyPurpose)
+		}
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// GetStorageSettingsView 读取存储设置的管理端回显视图（不含凭据明文/密文，仅
+// 回显是否已配置；issue #324 S3）。
+func GetStorageSettingsView() pageConfig.StorageSettingsView {
+	entity := pageConfig.GetByPageType(pageConfig.StorageSettingsPage)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultStorageSettingsConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config).ToView()
 }
 
 var termsOfServiceConfigCache = &localcache.Cache[pageConfig.TermsOfServiceConfig]{MaxEntries: cacheconfig.Current().PageConfig}
@@ -127,6 +195,7 @@ func GetRateLimitConfigCache() pageConfig.RateLimitConfig {
 	return rateLimitConfigCache.GetOrLoad("", func() (pageConfig.RateLimitConfig, error) {
 		cfg := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig())
 		mergeDefaultRateLimitActions(&cfg)
+		cfg.BuildActionIndex()
 		return cfg, nil
 	}, configFastCacheTTL)
 }
@@ -154,10 +223,45 @@ func ClearRateLimitConfigCache() {
 
 var httpNotifyConfigCache = &localcache.Cache[pageConfig.HttpNotifyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
+// GetHttpNotifyConfigCache 读取 HTTP 通知配置（各端点 secret 为运行时解密明文，
+// 仅存于服务内存，绝不随 JSON 序列化导出；落库为 securestore 密文，issue #324 S1）。
+// 兼容 v25 迁移前的存量明文 secret（Secret 字段原样使用）。
 func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {
 	return httpNotifyConfigCache.GetOrLoad("", func() (pageConfig.HttpNotifyConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig()), nil
+		entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
+		if entity.Id == 0 {
+			return defaultconfig.GetDefaultHttpNotifyConfig(), nil
+		}
+		storage := jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config)
+		cfg := storage.ToConfig()
+		for i := range cfg.Endpoints {
+			secret := cfg.Endpoints[i].Secret
+			if secret == "" {
+				continue
+			}
+			// 仅当 SecretEncrypted 非空时才走解密路径（ToConfig 已优先取密文）；
+			// 存量明文（Secret 字段）原样使用，等待 v25 迁移加密。
+			if storage.Endpoints[i].SecretEncrypted != "" {
+				if plain, err := securestore.DecryptPurpose(secret, securestore.HttpNotifySecretPurpose); err == nil {
+					cfg.Endpoints[i].Secret = plain
+				} else {
+					slog.Warn("http notify secret decrypt failed (signing key rotated?)", "err", err)
+					cfg.Endpoints[i].Secret = ""
+				}
+			}
+		}
+		return cfg, nil
 	}, configRareCacheTTL)
+}
+
+// GetHttpNotifyView 读取 HTTP 通知设置的管理端回显视图（不含密钥明文/密文，仅
+// 回显是否已配置；issue #324 S1）。
+func GetHttpNotifyView() pageConfig.HttpNotifyView {
+	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultHttpNotifyConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config).ToView()
 }
 
 var mcpSettingsConfigCache = &localcache.Cache[pageConfig.MCPSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
@@ -172,13 +276,49 @@ func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
 }
 
+var scheduleSettingsConfigCache = &localcache.Cache[pageConfig.ScheduleSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetScheduleSettingsConfigCache() pageConfig.ScheduleSettingsConfig {
+	return scheduleSettingsConfigCache.GetOrLoad("", func() (pageConfig.ScheduleSettingsConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearScheduleSettingsConfigCache() {
+	scheduleSettingsConfigCache.Clear()
+}
+
 var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
-// GetAiSummarySettingsConfigCache 读取 AI 课程总结开关配置（5s TTL 热缓存）。
+// GetAiSummarySettingsConfigCache 读取 AI 课程总结配置（5s TTL 热缓存）。
+// 落库形状为 AiSummarySettingsStorage（apiKey 密文带 json 标签），读取后转
+// 领域结构并解密 apiKey 为运行时明文（仅存服务内存，绝不随 JSON 导出）。
+// 解密失败（如 signing key 轮换）时 apiKey 置空并告警，避免静默用错误密钥调用。
 func GetAiSummarySettingsConfigCache() pageConfig.AiSummaryConfig {
 	return aiSummarySettingsConfigCache.GetOrLoad("", func() (pageConfig.AiSummaryConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig()), nil
+		storage := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, pageConfig.AiSummarySettingsStorage{})
+		cfg := storage.ToConfig()
+		if encrypted := strings.TrimSpace(cfg.APIKey); encrypted != "" {
+			plain, err := securestore.DecryptPurpose(encrypted, securestore.AiSummaryAPIKeyPurpose)
+			if err != nil {
+				slog.Warn("ai_summary api key decrypt failed (signing key rotated?)", "err", err)
+				cfg.APIKey = ""
+			} else {
+				cfg.APIKey = plain
+			}
+		}
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// GetAiSummarySettingsView 读取 AI 课程总结配置的管理端回显视图：apiKey 仅回显
+// 是否已配置（明文/密文均不出现在响应中，issue #324 安全模式）。
+func GetAiSummarySettingsView() pageConfig.AiSummarySettingsView {
+	entity := pageConfig.GetByPageType(pageConfig.AiSummarySettings)
+	if entity.Id == 0 {
+		return defaultconfig.GetDefaultAiSummaryConfig().ToView()
+	}
+	return jsonopt.Decode[pageConfig.AiSummarySettingsStorage](entity.Config).ToView()
 }
 
 func ClearAiSummarySettingsConfigCache() {

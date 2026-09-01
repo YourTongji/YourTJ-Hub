@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Clock, Eye, MessageSquare } from '@lucide/vue'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { showUserCard } from '@/runtime/user-card-events'
+import { consumeWikiJumpState } from '@/runtime/use-wiki-search'
 import MarkdownImageViewer from '@/site/components/MarkdownImageViewer.vue'
 import PostStream from '@/site/components/PostStream.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -20,6 +21,66 @@ const page = defineProps<{
 const { t } = useI18n()
 const markdownImageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
 const mobileTocOpen = ref(false)
+
+// ---- wiki 局内搜索命中定位（段落级锚点，方案 B）----
+// hitAnchors 为搜索面板跳转带入的命中段落集合；⌘G/Ctrl+G 连续定位下一处。
+// 直接 URL hash（#s-<n> 或标题锚点）在挂载后定位并短暂高亮。
+const hitAnchors = ref<string[]>([])
+const hitCursor = ref(0)
+
+function flashElement(element: HTMLElement) {
+  element.classList.remove('wiki-hit-flash')
+  void element.offsetWidth // 强制 reflow，重触发 CSS 动画
+  element.classList.add('wiki-hit-flash')
+}
+
+function scrollToAnchor(anchor: string) {
+  const element = document.getElementById(anchor)
+  if (!(element instanceof HTMLElement)) return
+  const top = element.getBoundingClientRect().top + window.scrollY - 88
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  // 平滑滚动是异步的：等滚动结束（scrollend，fallback 定时器）再触发高亮动画，
+  // 避免动画在滚动途中就淡出。
+  let flashed = false
+  const finishFlash = () => {
+    if (flashed) return
+    flashed = true
+    if (document.contains(element)) flashElement(element)
+  }
+  window.addEventListener('scrollend', finishFlash, { once: true })
+  window.setTimeout(finishFlash, 700)
+}
+
+function jumpToNextHit() {
+  if (hitAnchors.value.length === 0) return
+  hitCursor.value = (hitCursor.value + 1) % hitAnchors.value.length
+  scrollToAnchor(hitAnchors.value[hitCursor.value])
+}
+
+function handleHitKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+    event.preventDefault()
+    jumpToNextHit()
+  }
+}
+
+onMounted(() => {
+  const hash = window.location.hash.slice(1)
+  if (hash) {
+    requestAnimationFrame(() => scrollToAnchor(decodeURIComponent(hash)))
+  }
+  const jump = consumeWikiJumpState()
+  if (jump && jump.anchors.length) {
+    hitAnchors.value = jump.anchors
+    hitCursor.value = 0
+    requestAnimationFrame(() => scrollToAnchor(jump.anchors[0]))
+    document.addEventListener('keydown', handleHitKeydown)
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleHitKeydown)
+})
 
 const interactions = ref({
   likeCount: page.props.page.likeCount,
@@ -98,14 +159,6 @@ function sameUrl(left: string, right: string) {
                   <Clock class="h-3.5 w-3.5" />
                   {{ formatDateTime(page.props.page.updatedAt) }}
                 </span>
-                <a
-                  v-if="page.props.page.editorId"
-                  :href="`/u/${page.props.page.editorId}`"
-                  class="inline-flex items-center gap-1.5 font-medium text-base-content/75 hover:text-primary"
-                  @click="showUserCard({ id: page.props.page.editorId, username: page.props.page.editorName, avatarUrl: '' }, $event)"
-                >
-                  {{ page.props.page.editorName }}
-                </a>
                 <span class="inline-flex items-center gap-1.5">
                   <Eye class="h-3.5 w-3.5" />
                   {{ formatNumber(page.props.page.viewCount) }}
@@ -189,6 +242,30 @@ function sameUrl(left: string, right: string) {
                       <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
                       <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
                     </a>
+                    <a
+                      v-else-if="contributor.githubUrl"
+                      :href="contributor.githubUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex min-w-0 items-center gap-2.5 rounded-md p-1 transition-colors hover:bg-base-200"
+                      :title="contributor.githubUrl"
+                    >
+                      <img
+                        v-if="contributor.avatarUrl"
+                        :src="contributor.avatarUrl"
+                        :alt="contributor.username"
+                        loading="lazy"
+                        class="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-line"
+                      />
+                      <span
+                        v-else
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-base-200 text-[11px] font-bold text-base-content/55"
+                      >
+                        {{ contributor.username.slice(0, 1).toUpperCase() }}
+                      </span>
+                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
+                      <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
+                    </a>
                     <div
                       v-else
                       class="flex min-w-0 items-center gap-2.5 rounded-md p-1"
@@ -207,7 +284,7 @@ function sameUrl(left: string, right: string) {
         </div>
       </section>
 
-      <!-- 评论流：复用话题评论，按 topicId -->
+      <!-- 评论流：复用话题评论，按 topicId（保留回复栏；话题列表首帖已由正文承接） -->
       <PostStream
         class="mt-4"
         :topic-id="page.props.page.topicId"
@@ -218,6 +295,7 @@ function sameUrl(left: string, right: string) {
         :interactions="interactions"
         :hot-topics="page.props.hotTopics"
         hide-first-post
+        :initial-post-stream-hidden="true"
         :sync-url="false"
         auto-load-first-window
         wide

@@ -234,6 +234,8 @@ export interface MailSettings {
   smtpPassword: string
   fromName: string
   fromEmail: string
+  /** GET 回显（issue #324 S2）：密码是否已配置（服务端加密存储，不回显密码）。 */
+  smtpPasswordConfigured?: boolean
 }
 
 export interface SecuritySettings {
@@ -271,6 +273,51 @@ export interface MCPSettings {
 export interface AiSummarySettings {
   enabled: boolean
   globalPerMinute: number
+  /** OpenAI-compatible 端点，如 https://api.openai.com/v1 */
+  baseUrl: string
+  /** 模型 ID，如 gpt-4o */
+  model: string
+  /** 保存请求携带的明文 apiKey（留空 = 保留已存密钥）；GET 回显恒为空 */
+  apiKey: string
+  /** GET 回显（issue #324 安全模式）：apiKey 是否已配置（服务端加密存储，不回显密钥） */
+  apiKeyConfigured?: boolean
+  temperature?: number
+  maxTokens?: number
+}
+
+/** /models 端点返回的模型条目（OpenAI compatible）。 */
+export interface AiSummaryModelItem {
+  id: string
+  owned_by: string
+}
+
+export interface OnesystemSettings {
+  cookieConfigured: boolean
+}
+
+/** 单个学期的排课数据同步状态（issue #248 管理端同步入口）。 */
+export interface PkSyncStatusItem {
+  calendarId: number
+  calendarName: string
+  status: string
+  rowsWritten: number
+  totalPages: number
+  lastCommittedPage: number
+  errorMsg: string
+  startedAt?: string | null
+  finishedAt?: string | null
+}
+
+/** 排课器节次作息：单节开始/结束时间（HH:MM）。 */
+export interface ScheduleSectionTime {
+  section: number
+  start: string
+  end: string
+}
+
+/** 排课器节次作息设置（控制 /schedule 课表左侧的节次时间展示）。 */
+export interface ScheduleSettings {
+  sectionTimes: ScheduleSectionTime[]
 }
 
 export interface StorageSettings {
@@ -283,6 +330,9 @@ export interface StorageSettings {
   accessKey: string
   secretKey: string
   publicUrlPrefix: string
+  /** GET 回显（issue #324 S3）：凭据是否已配置（服务端加密存储，不回显凭据）。 */
+  accessKeyConfigured?: boolean
+  secretKeyConfigured?: boolean
 }
 
 export interface TermsOfServiceConfig {
@@ -314,10 +364,8 @@ export interface ReviewQueueItem {
 }
 
 export interface ImportReport {
-  total: number
-  success: number
-  skipped: number
-  failed: number
+  taskId: number
+  status: 'pending' | 'running' | 'retrying' | 'success' | 'failed'
   errors: Array<{ line: number; table: string; reason: string }>
   importedTables: string[]
 }
@@ -355,6 +403,8 @@ export interface HttpNotifyEndpoint {
   failureCount: number
   lastError: string
   abnormalTerminated: boolean
+  /** GET 回显（issue #324 S1）：端点密钥是否已配置（服务端加密存储，不回显密钥）。 */
+  secretConfigured?: boolean
 }
 
 export interface HttpNotifySettings {
@@ -436,23 +486,24 @@ export interface AdminAgentRotateResult {
 
 export interface WikiNamespace {
   name: string
-  slug: string
   description: string
   sortOrder: number
   pageCount: number
   updatedAt: string
 }
 
-export interface WikiPageNode {
+export interface WikiTreeNode {
+  kind: 'page' | 'directory'
   pageId: number
   path: string
   sourcePath: string
   title: string
   sortOrder: number
+  children: WikiTreeNode[]
 }
 
 export interface WikiNamespaceTree {
   name: string
   label: string
-  pages: WikiPageNode[]
+  nodes: WikiTreeNode[]
 }

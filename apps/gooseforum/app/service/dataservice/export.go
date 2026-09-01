@@ -1,6 +1,6 @@
 // Package dataservice provides admin data export/import for users, topics
-// and posts. Export runs as a taskQueue background task; import is a
-// synchronous, validated JSON import with idempotent skip.
+// and posts. Export and import both run as taskQueue background tasks; import
+// uses a staged, validated JSON body with idempotent replay.
 package dataservice
 
 import (
@@ -150,7 +150,9 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 	tmpFile := filepath.Join(exportDir, payload.FileName+".tmp")
 	finalFile := filepath.Join(exportDir, payload.FileName)
 
-	file, err := os.Create(tmpFile)
+	// 导出文件含用户 PII（email 等）：0600 仅属主可读写，避免同机其他用户可读
+	// （issue #324 S4；os.Create 默认 0666&umask，不满足）。
+	file, err := os.OpenFile(tmpFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("创建导出文件失败: %w", err)
 	}

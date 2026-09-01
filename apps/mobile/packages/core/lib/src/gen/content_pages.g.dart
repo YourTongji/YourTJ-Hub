@@ -185,6 +185,8 @@ _$CourseSummaryPayloadImpl _$$CourseSummaryPayloadImplFromJson(
   name: json['name'] as String,
   department: json['department'] as String,
   creditX10: (json['creditX10'] as num).toInt(),
+  teacherId: (json['teacherId'] as num?)?.toInt(),
+  teacherName: json['teacherName'] as String?,
   aliases: (json['aliases'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -206,6 +208,8 @@ Map<String, dynamic> _$$CourseSummaryPayloadImplToJson(
   'name': instance.name,
   'department': instance.department,
   'creditX10': instance.creditX10,
+  'teacherId': instance.teacherId,
+  'teacherName': instance.teacherName,
   'aliases': instance.aliases,
   'instructors': instance.instructors,
   'recentTerms': instance.recentTerms,
@@ -243,10 +247,10 @@ _$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$CourseCatalogQueryPayloadImpl(
   keyword: json['keyword'] as String?,
-  department: json['department'] as String?,
-  term: json['term'] as String?,
-  campus: json['campus'] as String?,
-  instructor: json['instructor'] as String?,
+  department: (json['department'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  term: (json['term'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  campus: (json['campus'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  instructor: (json['instructor'] as List<dynamic>?)?.map((e) => e as String).toList(),
   onlyWithReviews: json['onlyWithReviews'] as bool?,
   sortBy: json['sortBy'] as String?,
   page: (json['page'] as num).toInt(),
@@ -275,6 +279,8 @@ _$CourseOfferingPayloadImpl _$$CourseOfferingPayloadImplFromJson(
   termName: json['termName'] as String?,
   campus: json['campus'] as String?,
   faculty: json['faculty'] as String?,
+  classCode: json['classCode'] as String?,
+  className: json['className'] as String?,
   instructors: (json['instructors'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -290,6 +296,8 @@ Map<String, dynamic> _$$CourseOfferingPayloadImplToJson(
   'termName': instance.termName,
   'campus': instance.campus,
   'faculty': instance.faculty,
+  'classCode': instance.classCode,
+  'className': instance.className,
   'instructors': instance.instructors,
   'ratingAvg': instance.ratingAvg,
   'reviewCount': instance.reviewCount,
@@ -313,6 +321,8 @@ _$CourseDetailPayloadImpl _$$CourseDetailPayloadImplFromJson(
   name: json['name'] as String,
   department: json['department'] as String,
   creditX10: (json['creditX10'] as num).toInt(),
+  teacherId: (json['teacherId'] as num?)?.toInt(),
+  teacherName: json['teacherName'] as String?,
   aliases: (json['aliases'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -334,6 +344,8 @@ Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
   'name': instance.name,
   'department': instance.department,
   'creditX10': instance.creditX10,
+  'teacherId': instance.teacherId,
+  'teacherName': instance.teacherName,
   'aliases': instance.aliases,
   'offerings': instance.offerings,
   'ratingAvg': instance.ratingAvg,

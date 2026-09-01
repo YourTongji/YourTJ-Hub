@@ -6,8 +6,25 @@ info:
     The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
     login public-key retrieval, TOTP login verification and account management, logout,
     session management (list/revoke/revoke-all), mobile OIDC code exchange, account
-    registration, password recovery (forgot/reset), topic writing,
-    and the Agent (bot persona) public API.
+    registration, password recovery (forgot/reset), topic writing, forum post CRUD
+    (create/update/delete, window and revision reads), forum interactions
+    (like/bookmark/watch on topics and posts, follow, report), user account and
+    profile operations (captcha, user card, profile/email/username/avatar/password
+    changes, OAuth bindings), notification reads and read-marking, direct chat
+    (send/messages/mark-read), admin topic/post moderation, Admin-gated operations
+    (Agent account management, operation audit log paging, traffic overview),
+    admin user management (user list/edit, user badge grants, role options),
+    admin role management (permission options, role list/save/delete), admin
+    category and moderator management (category CRUD, global and per-category
+    moderators), admin page settings (friend links, sponsors, announcement),
+    admin site/integration settings (site/chrome/theme/security/posting/rate-limit/
+    http-notify/onesystem/ai-summary/legal documents, mail, storage with migration
+    tasks, MCP), admin content operations (badge CRUD, review queue and review
+    actions, file resources), admin media upload, and admin data portability
+    (export tasks, download, import), the Agent (bot persona) public API,
+    the user content lifecycle (own/deleted content lists, restore,
+    batch-delete, purge, privacy erase, delete telemetry, account close),
+    aggregate search, and public site statistics.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -17,8 +34,12 @@ tags:
     description: Session login and authentication flows.
   - name: Forum
     description: Forum writing operations.
+  - name: User
+    description: User account and profile operations.
   - name: Agent
     description: Bot persona (Agent) public operations authenticated by an opaque bearer token.
+  - name: Admin
+    description: Admin console operations restricted to role-permission holders (Admin role is a superset).
   - name: Wiki
     description: Wiki public reading operations; content is a read-only projection synced from the GitHub wiki repository (single source of truth).
   - name: Wiki Admin
@@ -58,6 +79,106 @@ paths:
     $ref: ./paths/auth-sessions.yaml#/revokeAllSessions
   /api/forum/topics/write:
     $ref: ./paths/forum-topics.yaml#/writeTopic
+  /api/forum/topics/status:
+    $ref: ./paths/forum-topic-interactions.yaml#/updateTopicStatus
+  /api/forum/topics/delete:
+    $ref: ./paths/forum-topic-interactions.yaml#/deleteTopic
+  /api/forum/topics/like:
+    $ref: ./paths/forum-topic-interactions.yaml#/likeTopic
+  /api/forum/topics/bookmark:
+    $ref: ./paths/forum-topic-interactions.yaml#/bookmarkTopic
+  /api/forum/topics/watch:
+    $ref: ./paths/forum-topic-interactions.yaml#/watchTopic
+  /api/forum/posts/create:
+    $ref: ./paths/forum-posts.yaml#/createPost
+  /api/forum/posts/update:
+    $ref: ./paths/forum-posts.yaml#/updatePost
+  /api/forum/posts/delete:
+    $ref: ./paths/forum-posts.yaml#/deletePost
+  /api/forum/posts/window:
+    $ref: ./paths/forum-posts.yaml#/getPostWindow
+  /api/forum/posts/revisions:
+    $ref: ./paths/forum-posts.yaml#/getPostRevisions
+  /api/forum/posts/like:
+    $ref: ./paths/forum-posts.yaml#/likePost
+  /api/forum/posts/bookmark:
+    $ref: ./paths/forum-posts.yaml#/bookmarkPost
+  /api/forum/follow-user:
+    $ref: ./paths/forum-interactions.yaml#/followUser
+  /api/forum/report:
+    $ref: ./paths/forum-interactions.yaml#/createReport
+  /api/forum/moderation/topic-status:
+    $ref: ./paths/forum-moderation.yaml#/moderationUpdateTopicStatus
+  /api/forum/moderation/post-status:
+    $ref: ./paths/forum-moderation.yaml#/moderationUpdatePostStatus
+  /api/forum/moderation/reports:
+    $ref: ./paths/forum-moderation.yaml#/listModerationReports
+  /api/forum/moderation/report-status:
+    $ref: ./paths/forum-moderation.yaml#/moderationUpdateReportStatus
+  /api/forum/moderation/logs:
+    $ref: ./paths/forum-moderation.yaml#/listModerationLogs
+  /api/forum/moderation/view-deleted-content:
+    $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
+  /api/get-captcha:
+    $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user-card:
+    $ref: ./paths/user-account.yaml#/getUserCard
+  /api/set-user-info:
+    $ref: ./paths/user-account.yaml#/setUserInfo
+  /api/set-user-profile-cover:
+    $ref: ./paths/user-account.yaml#/setUserProfileCover
+  /api/set-user-email:
+    $ref: ./paths/user-account.yaml#/setUserEmail
+  /api/resend-activation-email:
+    $ref: ./paths/user-account.yaml#/resendActivationEmail
+  /api/set-user-name:
+    $ref: ./paths/user-account.yaml#/setUserName
+  /api/set-preset-avatar:
+    $ref: ./paths/user-account.yaml#/setPresetAvatar
+  /api/wear-badge:
+    $ref: ./paths/user-account.yaml#/wearBadge
+  /api/upload-avatar:
+    $ref: ./paths/user-account.yaml#/uploadAvatar
+  /api/change-password:
+    $ref: ./paths/user-account.yaml#/changePassword
+  /api/oauth/bindings:
+    $ref: ./paths/user-account.yaml#/getOAuthBindings
+  /api/auth/{provider}/unbind:
+    $ref: ./paths/user-account.yaml#/unbindOAuth
+  /api/forum/unread-status:
+    $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/notifications:
+    $ref: ./paths/forum-notifications.yaml#/getNotifications
+  /api/forum/notification/mark-read:
+    $ref: ./paths/forum-notifications.yaml#/markNotificationRead
+  /api/forum/notification/mark-all-read:
+    $ref: ./paths/forum-notifications.yaml#/markAllNotificationsRead
+  /api/forum/chat/send:
+    $ref: ./paths/forum-chat.yaml#/sendChatMessage
+  /api/forum/chat/messages:
+    $ref: ./paths/forum-chat.yaml#/getChatMessages
+  /api/forum/chat/mark-read:
+    $ref: ./paths/forum-chat.yaml#/markChatRead
+  /api/forum/get-site-statistics:
+    $ref: ./paths/forum-read.yaml#/getSiteStatistics
+  /api/forum/search:
+    $ref: ./paths/forum-read.yaml#/searchForum
+  /api/forum/user/my-content:
+    $ref: ./paths/user-content.yaml#/myContentList
+  /api/forum/user/deleted-content:
+    $ref: ./paths/user-content.yaml#/deletedContentList
+  /api/forum/user/content-restore:
+    $ref: ./paths/user-content.yaml#/restoreContent
+  /api/forum/user/content-batch-delete:
+    $ref: ./paths/user-content.yaml#/batchDeleteContent
+  /api/forum/user/content-purge:
+    $ref: ./paths/user-content.yaml#/purgeContent
+  /api/forum/user/content-privacy-erase:
+    $ref: ./paths/user-content.yaml#/privacyEraseContent
+  /api/forum/user/content-event:
+    $ref: ./paths/user-content.yaml#/reportContentEvent
+  /api/forum/user/account-close:
+    $ref: ./paths/user-content.yaml#/closeAccount
   /api/v1/agent/me:
     $ref: ./paths/agent.yaml#/agentMe
   /api/v1/agent/topics:
@@ -75,6 +196,9 @@ paths:
   /api/forum/courses:
     get:
       $ref: ./paths/courses.yaml#/listCourses/get
+  /api/forum/courses/bookmark:
+    post:
+      $ref: ./paths/courses.yaml#/bookmarkCourse/post
   /api/forum/courses/{courseId}:
     get:
       $ref: ./paths/courses.yaml#/getCourse/get
@@ -100,6 +224,11 @@ paths:
       $ref: ./paths/course-reviews.yaml#/markReviewHelpful/put
     delete:
       $ref: ./paths/course-reviews.yaml#/unmarkReviewHelpful/delete
+  /api/forum/course-reviews/{reviewId}/dislike:
+    put:
+      $ref: ./paths/course-reviews.yaml#/markReviewDislike/put
+    delete:
+      $ref: ./paths/course-reviews.yaml#/unmarkReviewDislike/delete
   /api/forum/course-reviews/{reviewId}/reports:
     post:
       $ref: ./paths/course-reviews.yaml#/reportCourseReview/post
@@ -121,6 +250,185 @@ paths:
   /api/wiki/home:
     get:
       $ref: ./paths/wiki.yaml#/getWikiHome/get
+  /api/admin/topics/list:
+    $ref: ./paths/admin-topics.yaml#/adminListTopics
+  /api/admin/topics/source:
+    $ref: ./paths/admin-topics.yaml#/adminGetTopicSource
+  /api/admin/topics/edit:
+    $ref: ./paths/admin-topics.yaml#/adminEditTopic
+  /api/admin/topics/delete:
+    $ref: ./paths/admin-topics.yaml#/adminDeleteTopic
+  /api/admin/topics/restore:
+    $ref: ./paths/admin-topics.yaml#/adminRestoreTopic
+  /api/admin/topics/pin-edit:
+    $ref: ./paths/admin-topics.yaml#/adminEditTopicPin
+  /api/admin/topics/categories-edit:
+    $ref: ./paths/admin-topics.yaml#/adminEditTopicCategories
+  /api/admin/posts/delete:
+    $ref: ./paths/admin-topics.yaml#/adminDeletePost
+  /api/admin/agent-list:
+    $ref: ./paths/admin-operations.yaml#/adminAgentList
+  /api/admin/agent-create:
+    $ref: ./paths/admin-operations.yaml#/adminAgentCreate
+  /api/admin/agent-update:
+    $ref: ./paths/admin-operations.yaml#/adminAgentUpdate
+  /api/admin/agent-rotate-token:
+    $ref: ./paths/admin-operations.yaml#/adminAgentRotateToken
+  /api/admin/agent-disable:
+    $ref: ./paths/admin-operations.yaml#/adminAgentDisable
+  /api/admin/opt-record-page:
+    $ref: ./paths/admin-operations.yaml#/adminOptRecordPage
+  /api/admin/traffic-overview:
+    $ref: ./paths/admin-operations.yaml#/adminTrafficOverview
+  /api/admin/user-list:
+    $ref: ./paths/admin-users.yaml#/adminUserList
+  /api/admin/user-edit:
+    $ref: ./paths/admin-users.yaml#/adminEditUser
+  /api/admin/user-badge-options:
+    $ref: ./paths/admin-users.yaml#/adminUserBadgeOptions
+  /api/admin/save-user-badges:
+    $ref: ./paths/admin-users.yaml#/adminSaveUserBadges
+  /api/admin/get-all-role-item:
+    $ref: ./paths/admin-users.yaml#/adminGetAllRoleItem
+  /api/admin/get-permission-list:
+    $ref: ./paths/admin-roles.yaml#/adminGetPermissionList
+  /api/admin/role-list:
+    $ref: ./paths/admin-roles.yaml#/adminRoleList
+  /api/admin/role-save:
+    $ref: ./paths/admin-roles.yaml#/adminRoleSave
+  /api/admin/role-delete:
+    $ref: ./paths/admin-roles.yaml#/adminRoleDelete
+  /api/admin/category-list:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryList
+  /api/admin/category-save:
+    $ref: ./paths/admin-categories.yaml#/adminCategorySave
+  /api/admin/category-delete:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryDelete
+  /api/admin/global-moderator-list:
+    $ref: ./paths/admin-categories.yaml#/adminGlobalModeratorList
+  /api/admin/global-moderator-add:
+    $ref: ./paths/admin-categories.yaml#/adminGlobalModeratorAdd
+  /api/admin/global-moderator-delete:
+    $ref: ./paths/admin-categories.yaml#/adminGlobalModeratorDelete
+  /api/admin/category-moderator-add:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryModeratorAdd
+  /api/admin/category-moderator-delete:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryModeratorDelete
+  /api/admin/friend-links:
+    $ref: ./paths/admin-pages.yaml#/adminGetFriendLinks
+  /api/admin/save-friend-links:
+    $ref: ./paths/admin-pages.yaml#/adminSaveFriendLinks
+  /api/admin/sponsors:
+    $ref: ./paths/admin-pages.yaml#/adminGetSponsors
+  /api/admin/save-sponsors:
+    $ref: ./paths/admin-pages.yaml#/adminSaveSponsors
+  /api/admin/announcement:
+    $ref: ./paths/admin-pages.yaml#/adminGetAnnouncement
+  /api/admin/save-announcement:
+    $ref: ./paths/admin-pages.yaml#/adminSaveAnnouncement
+  /api/admin/server-version:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetServerVersion
+  /api/admin/site-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSiteSettings
+  /api/admin/save-site-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSiteSettings
+  /api/admin/site-chrome:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSiteChrome
+  /api/admin/save-site-chrome:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSiteChrome
+  /api/admin/site-theme:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSiteTheme
+  /api/admin/save-site-theme:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSiteTheme
+  /api/admin/publish-site-theme:
+    $ref: ./paths/admin-site-settings.yaml#/adminPublishSiteTheme
+  /api/admin/security-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSecuritySettings
+  /api/admin/save-security-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSecuritySettings
+  /api/admin/posting-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetPostingSettings
+  /api/admin/save-posting-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSavePostingSettings
+  /api/admin/rate-limit-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetRateLimitSettings
+  /api/admin/save-rate-limit-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveRateLimitSettings
+  /api/admin/http-notify-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetHttpNotifySettings
+  /api/admin/save-http-notify-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveHttpNotifySettings
+  /api/admin/onesystem-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetOnesystemSettings
+  /api/admin/save-onesystem-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveOnesystemSettings
+  /api/admin/ai-summary-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetAiSummarySettings
+  /api/admin/save-ai-summary-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveAiSummarySettings
+  /api/admin/ai-summary-models:
+    $ref: ./paths/admin-site-settings.yaml#/adminListAiSummaryModels
+  /api/admin/terms-of-service:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetTermsOfService
+  /api/admin/save-terms-of-service:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveTermsOfService
+  /api/admin/privacy-policy:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetPrivacyPolicy
+  /api/admin/save-privacy-policy:
+    $ref: ./paths/admin-site-settings.yaml#/adminSavePrivacyPolicy
+  /api/admin/mail-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetMailSettings
+  /api/admin/save-mail-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveMailSettings
+  /api/admin/test-mail-connection:
+    $ref: ./paths/admin-integrations.yaml#/adminTestMailConnection
+  /api/admin/storage-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetStorageSettings
+  /api/admin/save-storage-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveStorageSettings
+  /api/admin/test-storage-connection:
+    $ref: ./paths/admin-integrations.yaml#/adminTestStorageConnection
+  /api/admin/storage-migrate-task:
+    $ref: ./paths/admin-integrations.yaml#/adminCreateStorageMigrateTask
+  /api/admin/storage-migrate-tasks:
+    $ref: ./paths/admin-integrations.yaml#/adminListStorageMigrateTasks
+  /api/admin/mcp-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetMcpSettings
+  /api/admin/save-mcp-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveMcpSettings
+  /api/admin/schedule-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetScheduleSettings
+  /api/admin/save-schedule-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveScheduleSettings
+  /api/admin/badges:
+    $ref: ./paths/admin-content-ops.yaml#/adminListBadges
+  /api/admin/badge-save:
+    $ref: ./paths/admin-content-ops.yaml#/adminSaveBadge
+  /api/admin/badge-delete:
+    $ref: ./paths/admin-content-ops.yaml#/adminDeleteBadge
+  /api/admin/review-queue:
+    $ref: ./paths/admin-content-ops.yaml#/adminListReviewQueue
+  /api/admin/review-action:
+    $ref: ./paths/admin-content-ops.yaml#/adminReviewAction
+  /api/admin/file-resources:
+    $ref: ./paths/admin-content-ops.yaml#/adminListFileResources
+  /api/admin/img-upload:
+    $ref: ./paths/admin-data.yaml#/adminUploadImage
+  /api/admin/data/export:
+    $ref: ./paths/admin-data.yaml#/adminCreateExportTask
+  /api/admin/data/export/tasks:
+    $ref: ./paths/admin-data.yaml#/adminListExportTasks
+  /api/admin/data/export/download/{taskId}:
+    $ref: ./paths/admin-data.yaml#/adminDownloadExportTask
+  /api/admin/data/import:
+    $ref: ./paths/admin-data.yaml#/adminImportData
+  /api/admin/data/import/tasks:
+    $ref: ./paths/admin-data.yaml#/adminListImportTasks
+  /api/admin/data/import/tasks/{taskId}/replay:
+    $ref: ./paths/admin-data.yaml#/adminReplayImportTask
+  /api/wiki/search:
+    get:
+      $ref: ./paths/wiki.yaml#/searchWikiSearch/get
   /api/admin/wiki/tree:
     get:
       $ref: ./paths/wiki.yaml#/getAdminWikiTree/get
@@ -141,6 +449,17 @@ paths:
       $ref: ./paths/wiki-sync.yaml#/getWikiWebhookSecret/get
     post:
       $ref: ./paths/wiki-sync.yaml#/saveWikiWebhookSecret/post
+  /api/admin/wiki/sync/cdn:
+    get:
+      $ref: ./paths/wiki-sync.yaml#/getWikiAssetCDN/get
+    post:
+      $ref: ./paths/wiki-sync.yaml#/saveWikiAssetCDN/post
+  /api/admin/pk/sync-calendar:
+    post:
+      $ref: ./paths/pk-admin.yaml#/adminSyncPkCalendar/post
+  /api/admin/pk/sync-status:
+    get:
+      $ref: ./paths/pk-admin.yaml#/adminGetPkSyncStatus/get
   # PK 排课器 13 端点（Issue #187）。
   /api/pk/calendars:
     get:
@@ -314,6 +633,180 @@ components:
       $ref: ./components/schemas.yaml#/WriteTopicSuccess
     WriteTopicResponse:
       $ref: ./components/schemas.yaml#/WriteTopicResponse
+    TopicInteractionRequest:
+      $ref: ./components/schemas.yaml#/TopicInteractionRequest
+    PostInteractionRequest:
+      $ref: ./components/schemas.yaml#/PostInteractionRequest
+    InteractionSuccess:
+      $ref: ./components/schemas.yaml#/InteractionSuccess
+    InteractionResponse:
+      $ref: ./components/schemas.yaml#/InteractionResponse
+    UpdateTopicStatusRequest:
+      $ref: ./components/schemas.yaml#/UpdateTopicStatusRequest
+    DeleteTopicRequest:
+      $ref: ./components/schemas.yaml#/DeleteTopicRequest
+    CreatePostRequest:
+      $ref: ./components/schemas.yaml#/CreatePostRequest
+    CreatePostResult:
+      $ref: ./components/schemas.yaml#/CreatePostResult
+    CreatePostSuccess:
+      $ref: ./components/schemas.yaml#/CreatePostSuccess
+    CreatePostResponse:
+      $ref: ./components/schemas.yaml#/CreatePostResponse
+    UpdatePostRequest:
+      $ref: ./components/schemas.yaml#/UpdatePostRequest
+    UpdatePostResult:
+      $ref: ./components/schemas.yaml#/UpdatePostResult
+    UpdatePostSuccess:
+      $ref: ./components/schemas.yaml#/UpdatePostSuccess
+    UpdatePostResponse:
+      $ref: ./components/schemas.yaml#/UpdatePostResponse
+    DeletePostRequest:
+      $ref: ./components/schemas.yaml#/DeletePostRequest
+    DeletePostResult:
+      $ref: ./components/schemas.yaml#/DeletePostResult
+    DeletePostSuccess:
+      $ref: ./components/schemas.yaml#/DeletePostSuccess
+    DeletePostResponse:
+      $ref: ./components/schemas.yaml#/DeletePostResponse
+    PostWindowPayload:
+      $ref: ./components/schemas.yaml#/PostWindowPayload
+    PostWindowSuccess:
+      $ref: ./components/schemas.yaml#/PostWindowSuccess
+    PostWindowResponse:
+      $ref: ./components/schemas.yaml#/PostWindowResponse
+    PostRevisionPayload:
+      $ref: ./components/schemas.yaml#/PostRevisionPayload
+    PostRevisionsResult:
+      $ref: ./components/schemas.yaml#/PostRevisionsResult
+    PostRevisionsSuccess:
+      $ref: ./components/schemas.yaml#/PostRevisionsSuccess
+    PostRevisionsResponse:
+      $ref: ./components/schemas.yaml#/PostRevisionsResponse
+    FollowUserRequest:
+      $ref: ./components/schemas.yaml#/FollowUserRequest
+    CreateReportRequest:
+      $ref: ./components/schemas.yaml#/CreateReportRequest
+    CaptchaResult:
+      $ref: ./components/schemas.yaml#/CaptchaResult
+    CaptchaSuccess:
+      $ref: ./components/schemas.yaml#/CaptchaSuccess
+    ExternalInformationItem:
+      $ref: ./components/schemas.yaml#/ExternalInformationItem
+    ExternalInformation:
+      $ref: ./components/schemas.yaml#/ExternalInformation
+    UserBadge:
+      $ref: ./components/schemas.yaml#/UserBadge
+    UserCard:
+      $ref: ./components/schemas.yaml#/UserCard
+    UserCardSuccess:
+      $ref: ./components/schemas.yaml#/UserCardSuccess
+    UserCardResponse:
+      $ref: ./components/schemas.yaml#/UserCardResponse
+    UserUpdateSuccess:
+      $ref: ./components/schemas.yaml#/UserUpdateSuccess
+    UserUpdateResponse:
+      $ref: ./components/schemas.yaml#/UserUpdateResponse
+    SetUserInfoRequest:
+      $ref: ./components/schemas.yaml#/SetUserInfoRequest
+    SetUserProfileCoverRequest:
+      $ref: ./components/schemas.yaml#/SetUserProfileCoverRequest
+    SetUserEmailRequest:
+      $ref: ./components/schemas.yaml#/SetUserEmailRequest
+    ResendActivationResult:
+      $ref: ./components/schemas.yaml#/ResendActivationResult
+    ResendActivationSuccess:
+      $ref: ./components/schemas.yaml#/ResendActivationSuccess
+    ResendActivationResponse:
+      $ref: ./components/schemas.yaml#/ResendActivationResponse
+    SetUserNameRequest:
+      $ref: ./components/schemas.yaml#/SetUserNameRequest
+    SetPresetAvatarRequest:
+      $ref: ./components/schemas.yaml#/SetPresetAvatarRequest
+    PresetAvatarResult:
+      $ref: ./components/schemas.yaml#/PresetAvatarResult
+    PresetAvatarSuccess:
+      $ref: ./components/schemas.yaml#/PresetAvatarSuccess
+    PresetAvatarResponse:
+      $ref: ./components/schemas.yaml#/PresetAvatarResponse
+    WearBadgeRequest:
+      $ref: ./components/schemas.yaml#/WearBadgeRequest
+    UploadAvatarRequest:
+      $ref: ./components/schemas.yaml#/UploadAvatarRequest
+    UploadAvatarResult:
+      $ref: ./components/schemas.yaml#/UploadAvatarResult
+    UploadAvatarSuccess:
+      $ref: ./components/schemas.yaml#/UploadAvatarSuccess
+    UploadAvatarResponse:
+      $ref: ./components/schemas.yaml#/UploadAvatarResponse
+    ChangePasswordRequest:
+      $ref: ./components/schemas.yaml#/ChangePasswordRequest
+    ChangePasswordSuccess:
+      $ref: ./components/schemas.yaml#/ChangePasswordSuccess
+    ChangePasswordResponse:
+      $ref: ./components/schemas.yaml#/ChangePasswordResponse
+    OAuthBinding:
+      $ref: ./components/schemas.yaml#/OAuthBinding
+    OAuthBindingsResult:
+      $ref: ./components/schemas.yaml#/OAuthBindingsResult
+    OAuthBindingsSuccess:
+      $ref: ./components/schemas.yaml#/OAuthBindingsSuccess
+    OAuthBindingsResponse:
+      $ref: ./components/schemas.yaml#/OAuthBindingsResponse
+    UnbindOAuthSuccess:
+      $ref: ./components/schemas.yaml#/UnbindOAuthSuccess
+    UnbindOAuthResponse:
+      $ref: ./components/schemas.yaml#/UnbindOAuthResponse
+    UnreadStatusResult:
+      $ref: ./components/schemas.yaml#/UnreadStatusResult
+    UnreadStatusSuccess:
+      $ref: ./components/schemas.yaml#/UnreadStatusSuccess
+    UnreadStatusResponse:
+      $ref: ./components/schemas.yaml#/UnreadStatusResponse
+    NotificationTopicRef:
+      $ref: ./components/schemas.yaml#/NotificationTopicRef
+    NotificationPayload:
+      $ref: ./components/schemas.yaml#/NotificationPayload
+    NotificationListResult:
+      $ref: ./components/schemas.yaml#/NotificationListResult
+    NotificationListSuccess:
+      $ref: ./components/schemas.yaml#/NotificationListSuccess
+    NotificationListResponse:
+      $ref: ./components/schemas.yaml#/NotificationListResponse
+    MarkNotificationReadRequest:
+      $ref: ./components/schemas.yaml#/MarkNotificationReadRequest
+    NotificationMarkReadSuccess:
+      $ref: ./components/schemas.yaml#/NotificationMarkReadSuccess
+    NotificationMarkReadResponse:
+      $ref: ./components/schemas.yaml#/NotificationMarkReadResponse
+    NotificationMarkAllReadSuccess:
+      $ref: ./components/schemas.yaml#/NotificationMarkAllReadSuccess
+    NotificationMarkAllReadResponse:
+      $ref: ./components/schemas.yaml#/NotificationMarkAllReadResponse
+    SendChatMessageRequest:
+      $ref: ./components/schemas.yaml#/SendChatMessageRequest
+    SendChatMessageResult:
+      $ref: ./components/schemas.yaml#/SendChatMessageResult
+    SendChatMessageSuccess:
+      $ref: ./components/schemas.yaml#/SendChatMessageSuccess
+    SendChatMessageResponse:
+      $ref: ./components/schemas.yaml#/SendChatMessageResponse
+    GetChatMessagesRequest:
+      $ref: ./components/schemas.yaml#/GetChatMessagesRequest
+    ChatMessageVo:
+      $ref: ./components/schemas.yaml#/ChatMessageVo
+    ChatMessagesResult:
+      $ref: ./components/schemas.yaml#/ChatMessagesResult
+    ChatMessagesSuccess:
+      $ref: ./components/schemas.yaml#/ChatMessagesSuccess
+    ChatMessagesResponse:
+      $ref: ./components/schemas.yaml#/ChatMessagesResponse
+    MarkChatReadRequest:
+      $ref: ./components/schemas.yaml#/MarkChatReadRequest
+    ChatMarkReadSuccess:
+      $ref: ./components/schemas.yaml#/ChatMarkReadSuccess
+    ChatMarkReadResponse:
+      $ref: ./components/schemas.yaml#/ChatMarkReadResponse
     RateLimitedFailure:
       $ref: ./components/schemas.yaml#/RateLimitedFailure
     AgentMe:
@@ -400,6 +893,46 @@ components:
       $ref: ./components/schemas.yaml#/CourseReviewAuthorRevealPayload
     ModerationCourseReviewRevealResponse:
       $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealResponse
+    ModerationTopicStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationTopicStatusRequest
+    ModerationPostStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationPostStatusRequest
+    ModerationActionSuccess:
+      $ref: ./components/schemas.yaml#/ModerationActionSuccess
+    ModerationActionResponse:
+      $ref: ./components/schemas.yaml#/ModerationActionResponse
+    ModerationReportListRequest:
+      $ref: ./components/schemas.yaml#/ModerationReportListRequest
+    ModerationReportItem:
+      $ref: ./components/schemas.yaml#/ModerationReportItem
+    ModerationReportListResult:
+      $ref: ./components/schemas.yaml#/ModerationReportListResult
+    ModerationReportListSuccess:
+      $ref: ./components/schemas.yaml#/ModerationReportListSuccess
+    ModerationReportListResponse:
+      $ref: ./components/schemas.yaml#/ModerationReportListResponse
+    ModerationReportStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationReportStatusRequest
+    ModerationLogListRequest:
+      $ref: ./components/schemas.yaml#/ModerationLogListRequest
+    ModerationLogSubject:
+      $ref: ./components/schemas.yaml#/ModerationLogSubject
+    ModerationLogItem:
+      $ref: ./components/schemas.yaml#/ModerationLogItem
+    ModerationLogListResult:
+      $ref: ./components/schemas.yaml#/ModerationLogListResult
+    ModerationLogListSuccess:
+      $ref: ./components/schemas.yaml#/ModerationLogListSuccess
+    ModerationLogListResponse:
+      $ref: ./components/schemas.yaml#/ModerationLogListResponse
+    ViewDeletedContentRequest:
+      $ref: ./components/schemas.yaml#/ViewDeletedContentRequest
+    ModerationDeletedContentView:
+      $ref: ./components/schemas.yaml#/ModerationDeletedContentView
+    ViewDeletedContentSuccess:
+      $ref: ./components/schemas.yaml#/ViewDeletedContentSuccess
+    ViewDeletedContentResponse:
+      $ref: ./components/schemas.yaml#/ViewDeletedContentResponse
     AdminCourseListRequest:
       $ref: ./components/schemas.yaml#/AdminCourseListRequest
     AdminCourseItem:
@@ -428,8 +961,344 @@ components:
       $ref: ./components/schemas.yaml#/AdminReviewUpdateRequest
     AdminReviewDeleteRequest:
       $ref: ./components/schemas.yaml#/AdminReviewDeleteRequest
+    AdminTopicsListRequest:
+      $ref: ./components/schemas.yaml#/AdminTopicsListRequest
+    AdminTopicBase:
+      $ref: ./components/schemas.yaml#/AdminTopicBase
+    AdminTopicListItem:
+      $ref: ./components/schemas.yaml#/AdminTopicListItem
+    AdminTopicsListResult:
+      $ref: ./components/schemas.yaml#/AdminTopicsListResult
+    AdminTopicsListSuccess:
+      $ref: ./components/schemas.yaml#/AdminTopicsListSuccess
+    AdminTopicsListResponse:
+      $ref: ./components/schemas.yaml#/AdminTopicsListResponse
+    AdminTopicSourceRequest:
+      $ref: ./components/schemas.yaml#/AdminTopicSourceRequest
+    AdminTopicSource:
+      $ref: ./components/schemas.yaml#/AdminTopicSource
+    AdminTopicSourceSuccess:
+      $ref: ./components/schemas.yaml#/AdminTopicSourceSuccess
+    AdminTopicSourceResponse:
+      $ref: ./components/schemas.yaml#/AdminTopicSourceResponse
+    AdminEditTopicRequest:
+      $ref: ./components/schemas.yaml#/AdminEditTopicRequest
+    AdminDeleteTopicRequest:
+      $ref: ./components/schemas.yaml#/AdminDeleteTopicRequest
+    AdminRestoreTopicRequest:
+      $ref: ./components/schemas.yaml#/AdminRestoreTopicRequest
+    AdminDeletePostRequest:
+      $ref: ./components/schemas.yaml#/AdminDeletePostRequest
+    AdminEditTopicPinRequest:
+      $ref: ./components/schemas.yaml#/AdminEditTopicPinRequest
+    AdminEditTopicCategoriesRequest:
+      $ref: ./components/schemas.yaml#/AdminEditTopicCategoriesRequest
+    AdminOperationSuccess:
+      $ref: ./components/schemas.yaml#/AdminOperationSuccess
+    AdminOperationResponse:
+      $ref: ./components/schemas.yaml#/AdminOperationResponse
+    AdminUserListRequest:
+      $ref: ./components/schemas.yaml#/AdminUserListRequest
+    AdminUserRoleOption:
+      $ref: ./components/schemas.yaml#/AdminUserRoleOption
+    AdminBadge:
+      $ref: ./components/schemas.yaml#/AdminBadge
+    AdminUserBadge:
+      $ref: ./components/schemas.yaml#/AdminUserBadge
+    AdminUserItem:
+      $ref: ./components/schemas.yaml#/AdminUserItem
+    AdminUserListResult:
+      $ref: ./components/schemas.yaml#/AdminUserListResult
+    AdminUserListSuccess:
+      $ref: ./components/schemas.yaml#/AdminUserListSuccess
+    AdminUserListResponse:
+      $ref: ./components/schemas.yaml#/AdminUserListResponse
+    AdminEditUserRequest:
+      $ref: ./components/schemas.yaml#/AdminEditUserRequest
+    AdminUserActionSuccess:
+      $ref: ./components/schemas.yaml#/AdminUserActionSuccess
+    AdminUserActionResponse:
+      $ref: ./components/schemas.yaml#/AdminUserActionResponse
+    AdminUserBadgeOptionsRequest:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsRequest
+    AdminUserBadgeOptionsResult:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsResult
+    AdminUserBadgeOptionsSuccess:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsSuccess
+    AdminUserBadgeOptionsResponse:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsResponse
+    AdminSaveUserBadgesRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveUserBadgesRequest
+    AdminRoleOption:
+      $ref: ./components/schemas.yaml#/AdminRoleOption
+    AdminRoleOptionsResponse:
+      $ref: ./components/schemas.yaml#/AdminRoleOptionsResponse
+    AdminPermissionOption:
+      $ref: ./components/schemas.yaml#/AdminPermissionOption
+    AdminPermissionListResponse:
+      $ref: ./components/schemas.yaml#/AdminPermissionListResponse
+    AdminRolePermissionItem:
+      $ref: ./components/schemas.yaml#/AdminRolePermissionItem
+    AdminRoleItem:
+      $ref: ./components/schemas.yaml#/AdminRoleItem
+    AdminRoleListResult:
+      $ref: ./components/schemas.yaml#/AdminRoleListResult
+    AdminRoleListSuccess:
+      $ref: ./components/schemas.yaml#/AdminRoleListSuccess
+    AdminRoleListResponse:
+      $ref: ./components/schemas.yaml#/AdminRoleListResponse
+    AdminRoleSaveRequest:
+      $ref: ./components/schemas.yaml#/AdminRoleSaveRequest
+    AdminRoleDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminRoleDeleteRequest
+    AdminBoolSuccess:
+      $ref: ./components/schemas.yaml#/AdminBoolSuccess
+    AdminBoolResponse:
+      $ref: ./components/schemas.yaml#/AdminBoolResponse
+    AdminCategoryListRequest:
+      $ref: ./components/schemas.yaml#/AdminCategoryListRequest
+    AdminCategoryModeratorItem:
+      $ref: ./components/schemas.yaml#/AdminCategoryModeratorItem
+    AdminCategoryItem:
+      $ref: ./components/schemas.yaml#/AdminCategoryItem
+    AdminCategoryListResponse:
+      $ref: ./components/schemas.yaml#/AdminCategoryListResponse
+    AdminCategorySaveRequest:
+      $ref: ./components/schemas.yaml#/AdminCategorySaveRequest
+    AdminCategoryDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminCategoryDeleteRequest
+    AdminModeratorUserRequest:
+      $ref: ./components/schemas.yaml#/AdminModeratorUserRequest
+    AdminModeratorDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminModeratorDeleteRequest
+    AdminCategoryModeratorAddRequest:
+      $ref: ./components/schemas.yaml#/AdminCategoryModeratorAddRequest
+    AdminModeratorListResponse:
+      $ref: ./components/schemas.yaml#/AdminModeratorListResponse
+    AdminFriendLinkItem:
+      $ref: ./components/schemas.yaml#/AdminFriendLinkItem
+    AdminFriendLinksGroup:
+      $ref: ./components/schemas.yaml#/AdminFriendLinksGroup
+    AdminFriendLinksResponse:
+      $ref: ./components/schemas.yaml#/AdminFriendLinksResponse
+    AdminSaveFriendLinksRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveFriendLinksRequest
+    AdminSponsorItem:
+      $ref: ./components/schemas.yaml#/AdminSponsorItem
+    AdminSponsorsTiers:
+      $ref: ./components/schemas.yaml#/AdminSponsorsTiers
+    AdminSponsorsPageIntro:
+      $ref: ./components/schemas.yaml#/AdminSponsorsPageIntro
+    AdminSponsorsContact:
+      $ref: ./components/schemas.yaml#/AdminSponsorsContact
+    AdminSponsorsRule:
+      $ref: ./components/schemas.yaml#/AdminSponsorsRule
+    AdminSponsorsConfig:
+      $ref: ./components/schemas.yaml#/AdminSponsorsConfig
+    AdminSponsorsResponse:
+      $ref: ./components/schemas.yaml#/AdminSponsorsResponse
+    AdminSaveSponsorsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSponsorsRequest
+    AdminAnnouncementItem:
+      $ref: ./components/schemas.yaml#/AdminAnnouncementItem
+    AdminAnnouncementConfig:
+      $ref: ./components/schemas.yaml#/AdminAnnouncementConfig
+    AdminAnnouncementResponse:
+      $ref: ./components/schemas.yaml#/AdminAnnouncementResponse
+    AdminSaveAnnouncementRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveAnnouncementRequest
+    AdminPageConfigSaveSuccess:
+      $ref: ./components/schemas.yaml#/AdminPageConfigSaveSuccess
+    AdminPageConfigSaveResponse:
+      $ref: ./components/schemas.yaml#/AdminPageConfigSaveResponse
+    AdminServerVersionInfo:
+      $ref: ./components/schemas.yaml#/AdminServerVersionInfo
+    AdminServerVersionResponse:
+      $ref: ./components/schemas.yaml#/AdminServerVersionResponse
+    AdminSiteSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminSiteSettingsConfig
+    AdminSiteSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminSiteSettingsResponse
+    AdminSaveSiteSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteSettingsRequest
+    AdminSiteChromeItem:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeItem
+    AdminSiteChromeGroup:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeGroup
+    AdminSiteChromeFooterPrimary:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeFooterPrimary
+    AdminSiteChromeFooterItem:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeFooterItem
+    AdminSiteChromeFooter:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeFooter
+    AdminSiteChromeConfig:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeConfig
+    AdminSiteChromeResponse:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeResponse
+    AdminSaveSiteChromeRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteChromeRequest
+    AdminSiteThemeTokens:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeTokens
+    AdminSiteThemeDefinition:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeDefinition
+    AdminSiteThemePrepublish:
+      $ref: ./components/schemas.yaml#/AdminSiteThemePrepublish
+    AdminSiteThemeConfig:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeConfig
+    AdminSiteThemeResponse:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeResponse
+    AdminSaveSiteThemeSettings:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteThemeSettings
+    AdminSaveSiteThemeRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteThemeRequest
+    AdminSecuritySettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminSecuritySettingsConfig
+    AdminSecuritySettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminSecuritySettingsResponse
+    AdminSaveSecuritySettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSecuritySettingsRequest
+    AdminPostingTextControl:
+      $ref: ./components/schemas.yaml#/AdminPostingTextControl
+    AdminPostingUploadControl:
+      $ref: ./components/schemas.yaml#/AdminPostingUploadControl
+    AdminPostingLLMS:
+      $ref: ./components/schemas.yaml#/AdminPostingLLMS
+    AdminPostingSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminPostingSettingsConfig
+    AdminPostingSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminPostingSettingsResponse
+    AdminSavePostingSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSavePostingSettingsRequest
+    AdminRateLimitRule:
+      $ref: ./components/schemas.yaml#/AdminRateLimitRule
+    AdminRateLimitSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminRateLimitSettingsConfig
+    AdminRateLimitSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminRateLimitSettingsResponse
+    AdminSaveRateLimitSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveRateLimitSettingsRequest
+    AdminHttpNotifyEndpoint:
+      $ref: ./components/schemas.yaml#/AdminHttpNotifyEndpoint
+    AdminHttpNotifySettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminHttpNotifySettingsConfig
+    AdminHttpNotifySettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminHttpNotifySettingsResponse
+    AdminSaveHttpNotifySettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveHttpNotifySettingsRequest
+    AdminOnesystemSettingsResult:
+      $ref: ./components/schemas.yaml#/AdminOnesystemSettingsResult
+    AdminOnesystemSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminOnesystemSettingsResponse
+    AdminSaveOnesystemSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveOnesystemSettingsRequest
+    AdminAiSummarySettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminAiSummarySettingsConfig
+    AdminAiSummarySettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminAiSummarySettingsResponse
+    AdminSaveAiSummarySettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveAiSummarySettingsRequest
+    AdminLegalDocumentConfig:
+      $ref: ./components/schemas.yaml#/AdminLegalDocumentConfig
+    AdminTermsOfServiceResponse:
+      $ref: ./components/schemas.yaml#/AdminTermsOfServiceResponse
+    AdminSaveTermsOfServiceRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveTermsOfServiceRequest
+    AdminPrivacyPolicyResponse:
+      $ref: ./components/schemas.yaml#/AdminPrivacyPolicyResponse
+    AdminSavePrivacyPolicyRequest:
+      $ref: ./components/schemas.yaml#/AdminSavePrivacyPolicyRequest
+    AdminMailSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminMailSettingsConfig
+    AdminMailSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminMailSettingsResponse
+    AdminSaveMailSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveMailSettingsRequest
+    AdminTestMailConnectionRequest:
+      $ref: ./components/schemas.yaml#/AdminTestMailConnectionRequest
+    AdminConnectionTestResult:
+      $ref: ./components/schemas.yaml#/AdminConnectionTestResult
+    AdminTestMailConnectionResponse:
+      $ref: ./components/schemas.yaml#/AdminTestMailConnectionResponse
+    AdminStorageSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminStorageSettingsConfig
+    AdminStorageSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminStorageSettingsResponse
+    AdminSaveStorageSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveStorageSettingsRequest
+    AdminTestStorageConnectionRequest:
+      $ref: ./components/schemas.yaml#/AdminTestStorageConnectionRequest
+    AdminTestStorageConnectionResponse:
+      $ref: ./components/schemas.yaml#/AdminTestStorageConnectionResponse
+    AdminCreateStorageMigrateTaskRequest:
+      $ref: ./components/schemas.yaml#/AdminCreateStorageMigrateTaskRequest
+    AdminTaskCreatedResult:
+      $ref: ./components/schemas.yaml#/AdminTaskCreatedResult
+    AdminTaskCreatedResponse:
+      $ref: ./components/schemas.yaml#/AdminTaskCreatedResponse
+    AdminTaskQueueItem:
+      $ref: ./components/schemas.yaml#/AdminTaskQueueItem
+    AdminStorageMigrateTaskListResponse:
+      $ref: ./components/schemas.yaml#/AdminStorageMigrateTaskListResponse
+    AdminMcpSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminMcpSettingsConfig
+    AdminMcpSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminMcpSettingsResponse
+    AdminSaveMcpSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveMcpSettingsRequest
+    AdminScheduleSectionTime:
+      $ref: ./components/schemas.yaml#/AdminScheduleSectionTime
+    AdminScheduleSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminScheduleSettingsConfig
+    AdminScheduleSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminScheduleSettingsResponse
+    AdminSaveScheduleSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveScheduleSettingsRequest
+    AdminBadgeListItem:
+      $ref: ./components/schemas.yaml#/AdminBadgeListItem
+    AdminBadgeListResponse:
+      $ref: ./components/schemas.yaml#/AdminBadgeListResponse
+    AdminSaveBadgeRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveBadgeRequest
+    AdminDeleteBadgeRequest:
+      $ref: ./components/schemas.yaml#/AdminDeleteBadgeRequest
+    AdminReviewQueueRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueRequest
+    AdminReviewQueueItem:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueItem
+    AdminReviewQueueResult:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueResult
+    AdminReviewQueueResponse:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueResponse
+    AdminReviewActionRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewActionRequest
+    AdminFileResourceItem:
+      $ref: ./components/schemas.yaml#/AdminFileResourceItem
+    AdminFileResourcePageResult:
+      $ref: ./components/schemas.yaml#/AdminFileResourcePageResult
+    AdminFileResourcePageRequest:
+      $ref: ./components/schemas.yaml#/AdminFileResourcePageRequest
+    AdminFileResourcePageResponse:
+      $ref: ./components/schemas.yaml#/AdminFileResourcePageResponse
+    AdminImgUploadResult:
+      $ref: ./components/schemas.yaml#/AdminImgUploadResult
+    AdminImgUploadResponse:
+      $ref: ./components/schemas.yaml#/AdminImgUploadResponse
+    AdminCreateExportTaskRequest:
+      $ref: ./components/schemas.yaml#/AdminCreateExportTaskRequest
+    AdminExportTaskListResponse:
+      $ref: ./components/schemas.yaml#/AdminExportTaskListResponse
+    AdminImportReportError:
+      $ref: ./components/schemas.yaml#/AdminImportReportError
+    AdminImportReport:
+      $ref: ./components/schemas.yaml#/AdminImportReport
+    AdminImportDataResponse:
+      $ref: ./components/schemas.yaml#/AdminImportDataResponse
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
+    PostPayload:
+      $ref: ./components/schemas.yaml#/PostPayload
+    ReplyTargetPayload:
+      $ref: ./components/schemas.yaml#/ReplyTargetPayload
     RevokeSessionRequest:
       $ref: ./components/schemas.yaml#/RevokeSessionRequest
     SessionListResponse:
@@ -442,8 +1311,8 @@ components:
       $ref: ./components/schemas.yaml#/SessionMessageSuccess
     UserSession:
       $ref: ./components/schemas.yaml#/UserSession
-    WikiTreePage:
-      $ref: ./components/schemas.yaml#/WikiTreePage
+    WikiTreeNode:
+      $ref: ./components/schemas.yaml#/WikiTreeNode
     WikiTreeNamespace:
       $ref: ./components/schemas.yaml#/WikiTreeNamespace
     WikiTreeResult:
@@ -462,8 +1331,8 @@ components:
       $ref: ./components/schemas.yaml#/WikiHomeResult
     WikiHomeResponse:
       $ref: ./components/schemas.yaml#/WikiHomeResponse
-    WikiAdminTreePage:
-      $ref: ./components/schemas.yaml#/WikiAdminTreePage
+    WikiAdminTreeNode:
+      $ref: ./components/schemas.yaml#/WikiAdminTreeNode
     WikiAdminTreeNamespace:
       $ref: ./components/schemas.yaml#/WikiAdminTreeNamespace
     WikiAdminTreeResult:
@@ -566,3 +1435,135 @@ components:
       $ref: ./components/schemas.yaml#/PkCourseInfoSyncResponse
     PkReviewBriefResponse:
       $ref: ./components/schemas.yaml#/PkReviewBriefResponse
+    MyContentItem:
+      $ref: ./components/schemas.yaml#/MyContentItem
+    MyContentListResult:
+      $ref: ./components/schemas.yaml#/MyContentListResult
+    MyContentListSuccess:
+      $ref: ./components/schemas.yaml#/MyContentListSuccess
+    MyContentListResponse:
+      $ref: ./components/schemas.yaml#/MyContentListResponse
+    DeletedContentItem:
+      $ref: ./components/schemas.yaml#/DeletedContentItem
+    DeletedContentListResult:
+      $ref: ./components/schemas.yaml#/DeletedContentListResult
+    DeletedContentListSuccess:
+      $ref: ./components/schemas.yaml#/DeletedContentListSuccess
+    DeletedContentListResponse:
+      $ref: ./components/schemas.yaml#/DeletedContentListResponse
+    RestoreContentRequest:
+      $ref: ./components/schemas.yaml#/RestoreContentRequest
+    ContentLifecycleSuccess:
+      $ref: ./components/schemas.yaml#/ContentLifecycleSuccess
+    ContentLifecycleResponse:
+      $ref: ./components/schemas.yaml#/ContentLifecycleResponse
+    BatchDeleteContentRequest:
+      $ref: ./components/schemas.yaml#/BatchDeleteContentRequest
+    BatchDeleteResultItem:
+      $ref: ./components/schemas.yaml#/BatchDeleteResultItem
+    BatchDeleteResult:
+      $ref: ./components/schemas.yaml#/BatchDeleteResult
+    BatchDeleteContentSuccess:
+      $ref: ./components/schemas.yaml#/BatchDeleteContentSuccess
+    BatchDeleteContentResponse:
+      $ref: ./components/schemas.yaml#/BatchDeleteContentResponse
+    PurgeContentRequest:
+      $ref: ./components/schemas.yaml#/PurgeContentRequest
+    PrivacyEraseRequest:
+      $ref: ./components/schemas.yaml#/PrivacyEraseRequest
+    ContentEventRequest:
+      $ref: ./components/schemas.yaml#/ContentEventRequest
+    AccountCloseRequest:
+      $ref: ./components/schemas.yaml#/AccountCloseRequest
+    ContentActionSuccess:
+      $ref: ./components/schemas.yaml#/ContentActionSuccess
+    ContentActionResponse:
+      $ref: ./components/schemas.yaml#/ContentActionResponse
+    SiteStatisticsResult:
+      $ref: ./components/schemas.yaml#/SiteStatisticsResult
+    SiteStatisticsSuccess:
+      $ref: ./components/schemas.yaml#/SiteStatisticsSuccess
+    SearchResultPayload:
+      $ref: ./components/schemas.yaml#/SearchResultPayload
+    ForumSearchSuccess:
+      $ref: ./components/schemas.yaml#/ForumSearchSuccess
+    ForumSearchResponse:
+      $ref: ./components/schemas.yaml#/ForumSearchResponse
+    AdminAgentCreateRequest:
+      $ref: ./components/schemas.yaml#/AdminAgentCreateRequest
+    AdminAgentCreateResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentCreateResponse
+    AdminAgentCreateSuccess:
+      $ref: ./components/schemas.yaml#/AdminAgentCreateSuccess
+    AdminAgentDisableResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentDisableResponse
+    AdminAgentDisableSuccess:
+      $ref: ./components/schemas.yaml#/AdminAgentDisableSuccess
+    AdminAgentIdRequest:
+      $ref: ./components/schemas.yaml#/AdminAgentIdRequest
+    AdminAgentItem:
+      $ref: ./components/schemas.yaml#/AdminAgentItem
+    AdminAgentListResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentListResponse
+    AdminAgentRotateTokenResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentRotateTokenResponse
+    AdminAgentRotateTokenSuccess:
+      $ref: ./components/schemas.yaml#/AdminAgentRotateTokenSuccess
+    AdminAgentUpdateRequest:
+      $ref: ./components/schemas.yaml#/AdminAgentUpdateRequest
+    AdminAgentUpdateResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentUpdateResponse
+    AdminDailyTraffic:
+      $ref: ./components/schemas.yaml#/AdminDailyTraffic
+    AdminOptRecordItem:
+      $ref: ./components/schemas.yaml#/AdminOptRecordItem
+    AdminOptRecordPageRequest:
+      $ref: ./components/schemas.yaml#/AdminOptRecordPageRequest
+    AdminOptRecordPageResponse:
+      $ref: ./components/schemas.yaml#/AdminOptRecordPageResponse
+    AdminTrafficOverviewRequest:
+      $ref: ./components/schemas.yaml#/AdminTrafficOverviewRequest
+    AdminTrafficOverviewResponse:
+      $ref: ./components/schemas.yaml#/AdminTrafficOverviewResponse
+    CategorySearchPayload:
+      $ref: ./components/schemas.yaml#/CategorySearchPayload
+    CourseRelatedResponse:
+      $ref: ./components/schemas.yaml#/CourseRelatedResponse
+    CourseRelatedResult:
+      $ref: ./components/schemas.yaml#/CourseRelatedResult
+    CourseSearchPayload:
+      $ref: ./components/schemas.yaml#/CourseSearchPayload
+    PaginationPayload:
+      $ref: ./components/schemas.yaml#/PaginationPayload
+    PkSyncCalendarRequest:
+      $ref: ./components/schemas.yaml#/PkSyncCalendarRequest
+    PkSyncCalendarResponse:
+      $ref: ./components/schemas.yaml#/PkSyncCalendarResponse
+    PkSyncCalendarSuccess:
+      $ref: ./components/schemas.yaml#/PkSyncCalendarSuccess
+    PkSyncStatusItem:
+      $ref: ./components/schemas.yaml#/PkSyncStatusItem
+    PkSyncStatusResponse:
+      $ref: ./components/schemas.yaml#/PkSyncStatusResponse
+    PkSyncStatusSuccess:
+      $ref: ./components/schemas.yaml#/PkSyncStatusSuccess
+    RelatedCourseItem:
+      $ref: ./components/schemas.yaml#/RelatedCourseItem
+    ReportHandlerPayload:
+      $ref: ./components/schemas.yaml#/ReportHandlerPayload
+    TopicCategoryPayload:
+      $ref: ./components/schemas.yaml#/TopicCategoryPayload
+    TopicPayload:
+      $ref: ./components/schemas.yaml#/TopicPayload
+    UserSearchPayload:
+      $ref: ./components/schemas.yaml#/UserSearchPayload
+    WikiAssetCDNSaveRequest:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNSaveRequest
+    WikiAssetCDNSaveResponse:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNSaveResponse
+    WikiAssetCDNSaveResult:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNSaveResult
+    WikiAssetCDNStatus:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNStatus
+    WikiAssetCDNResponse:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNResponse

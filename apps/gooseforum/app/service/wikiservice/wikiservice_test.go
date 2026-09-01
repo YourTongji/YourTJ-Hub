@@ -1,14 +1,18 @@
 package wikiservice
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -30,10 +34,12 @@ func setupWikiTestDB(t *testing.T) {
 		&users.EntityComplete{},
 		&rolePermissionRs.Entity{},
 		&topicUserAction.Entity{},
+		&eventNotification.Entity{},
 		&wikiNamespaces.Entity{},
 		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},
 		&wikiSyncRuns.Entity{},
+		&taskQueue.Entity{},
 	}
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate wiki schema: %v", err)
@@ -140,17 +146,17 @@ func TestValidatePath(t *testing.T) {
 		{"deployment/waline", true},
 		{"guide/sub/page-name", true},
 		{"同济新手教程/学校/简介", true},          // 中文命名空间与页面段（GitHub SSOT）
-		{"中文/目录/页面", true},               // 纯中文路径
-		{"Guide/Getting-Started", true},   // 保留大小写（不再小写归一）
-		{"guide/UPPER", true},             // 大写段合法
-		{"guide", false},                  // 至少 namespace + 一个 slug 段
-		{"guide/..", false},               // 禁止 ..
-		{"guide/.hidden", false},          // 禁止点开头段
-		{"guide/a b", false},              // 空格非法
-		{"guide/a\tb", false},             // 控制字符非法
-		{"guide/a:b", false},              // 保留字符非法
-		{"guide/a*b", false},              // 保留字符非法
-		{"guide/中文 空格", false},           // 中文路径含空格非法
+		{"中文/目录/页面", true},              // 纯中文路径
+		{"Guide/Getting-Started", true}, // 保留大小写（不再小写归一）
+		{"guide/UPPER", true},           // 大写段合法
+		{"guide", false},                // 至少 namespace + 一个页面段
+		{"guide/..", false},             // 禁止 ..
+		{"guide/.hidden", false},        // 禁止点开头段
+		{"guide/a b", false},            // 空格非法
+		{"guide/a\tb", false},           // 控制字符非法
+		{"guide/a:b", false},            // 保留字符非法
+		{"guide/a*b", false},            // 保留字符非法
+		{"guide/中文 空格", false},          // 中文路径含空格非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -173,15 +179,15 @@ func TestValidateNamespace(t *testing.T) {
 		{"deployment", true},
 		{"my-namespace", true},
 		{"同济新手教程", true}, // 中文命名空间（GitHub 顶层目录名）
-		{"使用指南", true},    // 中文命名空间
-		{"Guide", true},    // 保留大小写
-		{"UPPER", true},    // 保留大小写
+		{"使用指南", true},   // 中文命名空间
+		{"Guide", true},  // 保留大小写
+		{"UPPER", true},  // 保留大小写
 		{"has space", false},
-		{"中文 空格", false}, // 中间空格非法
-		{" 前导空格", true},  // 首尾空格被 trim 后为合法名称（trim 后再校验）
-		{".hidden", false},    // 点开头（隐藏目录）非法
-		{"a:b", false},        // 保留字符非法
-		{"a*b", false},        // 保留字符非法
+		{"中文 空格", false},   // 中间空格非法
+		{" 前导空格", true},    // 首尾空格被 trim 后为合法名称（trim 后再校验）
+		{".hidden", false}, // 点开头（隐藏目录）非法
+		{"a:b", false},     // 保留字符非法
+		{"a*b", false},     // 保留字符非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -212,7 +218,10 @@ func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/new", "New", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(2*time.Hour))
 
-	tree := BuildTree("docs/new")
+	tree, err := BuildTree("docs/new")
+	if err != nil {
+		t.Fatalf("build tree: %v", err)
+	}
 	if len(tree) != 2 {
 		t.Fatalf("tree namespaces=%d, want 2: %+v", len(tree), tree)
 	}
@@ -226,12 +235,12 @@ func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
 	if docs == nil {
 		t.Fatal("tree missing docs namespace")
 	}
-	if len(docs.Pages) != 2 {
-		t.Fatalf("docs pages=%d, want 2: %+v", len(docs.Pages), docs.Pages)
+	if len(docs.Nodes) != 2 {
+		t.Fatalf("docs nodes=%d, want 2: %+v", len(docs.Nodes), docs.Nodes)
 	}
 	paths := map[string]bool{}
 	activeCount := 0
-	for _, p := range docs.Pages {
+	for _, p := range docs.Nodes {
 		paths[p.Path] = true
 		if p.Active {
 			activeCount++
@@ -255,7 +264,10 @@ func TestBuildTreeAPIRelativePaths(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/guide/tips", "Tips", base)
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(time.Hour))
 
-	res := BuildTreeAPI()
+	res, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("build tree api: %v", err)
+	}
 	if len(res.Namespaces) != 2 {
 		t.Fatalf("namespaces=%d, want 2: %+v", len(res.Namespaces), res.Namespaces)
 	}
@@ -266,14 +278,65 @@ func TestBuildTreeAPIRelativePaths(t *testing.T) {
 			break
 		}
 	}
-	if docs == nil || len(docs.Pages) != 1 {
+	if docs == nil || len(docs.Nodes) != 1 {
 		t.Fatalf("docs tree: %+v", res.Namespaces)
 	}
-	if docs.Pages[0].Path != "guide/tips" {
-		t.Fatalf("API tree path=%q, want relative guide/tips", docs.Pages[0].Path)
+	if docs.Nodes[0].Kind != WikiTreeNodeDirectory || len(docs.Nodes[0].Children) != 1 || docs.Nodes[0].Children[0].Path != "guide/tips" {
+		t.Fatalf("API tree nodes=%+v, want guide directory with relative guide/tips", docs.Nodes)
 	}
-	if docs.Pages[0].Active {
+	if docs.Nodes[0].Children[0].Active {
 		t.Fatal("API tree page should not be active (no active path)")
+	}
+}
+
+// TestBuildTreePreservesRepositoryDirectories verifies that directory segments are
+// emitted as tree nodes even when the directory has no index.md page. The content
+// repository treats directories as hierarchy, not as a requirement for a parent
+// markdown file.
+func TestBuildTreePreservesRepositoryDirectories(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	index := seedProjectedWikiPage(t, "guide", "guide/index", "指南首页", base)
+	admissionIndex := seedProjectedWikiPage(t, "guide", "guide/admission/index", "入学", base.Add(time.Minute))
+	process := seedProjectedWikiPage(t, "guide", "guide/admission/process", "流程", base.Add(2*time.Minute))
+	faq := seedProjectedWikiPage(t, "guide", "guide/faq/common", "常见问题", base.Add(3*time.Minute))
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", admissionIndex.Id).Update("sort_order", 2).Error; err != nil {
+		t.Fatalf("set admission order: %v", err)
+	}
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", process.Id).Update("sort_order", 1).Error; err != nil {
+		t.Fatalf("set process order: %v", err)
+	}
+
+	tree, err := BuildTree("guide/admission/process")
+	if err != nil {
+		t.Fatalf("build tree: %v", err)
+	}
+	if len(tree) != 1 {
+		t.Fatalf("namespaces=%d, want 1: %+v", len(tree), tree)
+	}
+	// Root index remains a page. admission has an index.md page and faq has no
+	// index.md, but both directories must retain their descendants.
+	nodes := tree[0].Nodes
+	if len(nodes) != 3 {
+		t.Fatalf("root nodes=%d, want index + admission + faq: %+v", len(nodes), nodes)
+	}
+	byPath := make(map[string]TreeNode, len(nodes))
+	for _, node := range nodes {
+		byPath[node.Path] = node
+	}
+	if node := byPath["guide/index"]; node.Kind != WikiTreeNodePage || node.PageId != index.Id {
+		t.Fatalf("root index node=%+v", node)
+	}
+	admissionNode := byPath["guide/admission"]
+	if admissionNode.Kind != WikiTreeNodeDirectory || len(admissionNode.Children) != 2 {
+		t.Fatalf("admission directory=%+v", admissionNode)
+	}
+	if admissionNode.Children[0].PageId != process.Id || !admissionNode.Children[0].Active || admissionNode.Children[1].PageId != admissionIndex.Id {
+		t.Fatalf("admission children=%+v, want process then index by sibling order", admissionNode.Children)
+	}
+	faqNode := byPath["guide/faq"]
+	if faqNode.Kind != WikiTreeNodeDirectory || len(faqNode.Children) != 1 || faqNode.Children[0].PageId != faq.Id {
+		t.Fatalf("faq directory=%+v", faqNode)
 	}
 }
 
@@ -285,7 +348,10 @@ func TestBuildHomeRecentByUpdatedAt(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/mid", "Mid", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "docs", "docs/new", "New", base.Add(2*time.Hour))
 
-	home := BuildHome()
+	home, err := BuildHome()
+	if err != nil {
+		t.Fatalf("build home: %v", err)
+	}
 	if len(home.Recent) != 3 {
 		t.Fatalf("recent count=%d, want 3: %+v", len(home.Recent), home.Recent)
 	}
@@ -306,7 +372,10 @@ func TestBuildNamespaceSummaries(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/b", "B", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(2*time.Hour))
 
-	summaries := BuildNamespaceSummaries()
+	summaries, err := BuildNamespaceSummaries()
+	if err != nil {
+		t.Fatalf("build namespace summaries: %v", err)
+	}
 	if len(summaries) != 2 {
 		t.Fatalf("summaries=%d, want 2: %+v", len(summaries), summaries)
 	}
@@ -325,6 +394,52 @@ func TestBuildNamespaceSummaries(t *testing.T) {
 	}
 	if docs.FirstPagePath != "docs/a" {
 		t.Fatalf("docs firstPagePath=%q, want docs/a", docs.FirstPagePath)
+	}
+}
+
+// TestBuildNamespaceSummariesIndexPreferred 命名空间存在 index 页时，
+// firstPagePath 优先指向 {namespace}/index（仓库规范：顶层目录 index.md 即
+// 命名空间首页），而非按 id/排序取首个页面（issue：首页冒号跳转不符）。
+// review P2：updatedAt 必须聚合全部公开页面（含 index 页自身），不得因
+// 命中 index 提前终止扫描。
+func TestBuildNamespaceSummariesIndexPreferred(t *testing.T) {
+	setupWikiTestDB(t)
+	conn := dbconnect.Connect()
+	base := time.Now().Add(-24 * time.Hour).Truncate(time.Second)
+	// 模拟 id 顺序：academics 子页面先创建（id 更小），index 页后创建。
+	seedProjectedWikiPage(t, "同济新手教程", "同济新手教程/academics/课程、选择与培养", "课程", base)
+	seedProjectedWikiPage(t, "同济新手教程", "同济新手教程/index", "新手教程", base.Add(time.Hour))
+
+	// GORM autoUpdateTime 会在插入时把 updated_at 覆盖为 now：用 SQL 强制
+	// 写回确定性时间（页面/命名空间各自时间），才能验证 updatedAt 聚合语义。
+	if err := conn.Table("wiki_pages").Where("path = ?", "同济新手教程/academics/课程、选择与培养").
+		Update("updated_at", base).Error; err != nil {
+		t.Fatalf("set academics updated_at: %v", err)
+	}
+	if err := conn.Table("wiki_pages").Where("path = ?", "同济新手教程/index").
+		Update("updated_at", base.Add(time.Hour)).Error; err != nil {
+		t.Fatalf("set index updated_at: %v", err)
+	}
+	if err := conn.Table("wiki_namespaces").Where("name = ?", "同济新手教程").
+		Update("updated_at", base).Error; err != nil {
+		t.Fatalf("set namespace updated_at: %v", err)
+	}
+
+	summaries, err := BuildNamespaceSummaries()
+	if err != nil {
+		t.Fatalf("build namespace summaries: %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("summaries=%d, want 1: %+v", len(summaries), summaries)
+	}
+	if summaries[0].FirstPagePath != "同济新手教程/index" {
+		t.Fatalf("firstPagePath=%q, want 同济新手教程/index (index preferred over first page)",
+			summaries[0].FirstPagePath)
+	}
+	// index 页是最新页面：updatedAt 必须反映 index 页时间（base+1h），
+	// 而不是 namespace 行时间或首个页面时间（review P2：不得提前 break）。
+	if want := base.Add(time.Hour); !summaries[0].UpdatedAt.Equal(want) {
+		t.Fatalf("updatedAt=%v, want %v (max across all pages incl. index)", summaries[0].UpdatedAt, want)
 	}
 }
 
@@ -358,12 +473,16 @@ func TestLoadPageDetailFromProjection(t *testing.T) {
 }
 
 // TestBuildContributorsFromProjection 贡献者读 wiki_pages.contributors_json 缓存；
-// GitHub 贡献者无论坛账号，userId/avatarUrl 恒为空，仅 username/count。
+// GitHub 贡献者无论坛账号，userId 恒 0；noreply 邮箱解析出 username 时
+// avatarUrl/githubUrl 可用，否则三者皆空（前端降级首字母占位）。
 func TestBuildContributorsFromProjection(t *testing.T) {
 	setupWikiTestDB(t)
 	page := seedProjectedWikiPage(t, "docs", "docs/contrib", "Contrib", time.Now())
 	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
-		Update("contributors_json", `[{"name":"Alice","count":5},{"name":"Bob","count":2}]`).Error; err != nil {
+		Update("contributors_json", `[
+			{"name":"Alice","email":"12345+alice@users.noreply.github.com","username":"alice","count":5},
+			{"name":"Bob","email":"bob@example.com","count":2}
+		]`).Error; err != nil {
 		t.Fatalf("set contributors: %v", err)
 	}
 	contribs := BuildContributors(page.Id)
@@ -373,14 +492,214 @@ func TestBuildContributorsFromProjection(t *testing.T) {
 	if contribs[0].Username != "Alice" || contribs[0].Count != 5 {
 		t.Fatalf("contributors[0]=%+v, want Alice/5", contribs[0])
 	}
+	if contribs[0].UserId != 0 {
+		t.Fatalf("contributor userId should be 0: %+v", contribs[0])
+	}
+	if contribs[0].AvatarUrl != "https://github.com/alice.png?size=56" {
+		t.Fatalf("contributor avatarUrl = %q, want github avatar URL", contribs[0].AvatarUrl)
+	}
+	if contribs[0].GithubUrl != "https://github.com/alice" {
+		t.Fatalf("contributor githubUrl = %q, want github profile URL", contribs[0].GithubUrl)
+	}
+	// 自定义邮箱：无头像/链接（降级）。
 	if contribs[1].Username != "Bob" || contribs[1].Count != 2 {
 		t.Fatalf("contributors[1]=%+v, want Bob/2", contribs[1])
 	}
-	if contribs[0].UserId != 0 || contribs[0].AvatarUrl != "" {
-		t.Fatalf("contributor user linkage should be empty: %+v", contribs[0])
+	if contribs[1].AvatarUrl != "" || contribs[1].GithubUrl != "" {
+		t.Fatalf("custom-email contributor should have no avatar/link: %+v", contribs[1])
 	}
 	if got := BuildContributors(0); len(got) != 0 {
 		t.Fatalf("unknown page contributors=%d, want 0", len(got))
+	}
+}
+
+// TestGithubUsernameFromEmail 从 GitHub noreply 隐私邮箱解析用户名：
+// 新版 {id}+{username}、旧版 {username}、自定义邮箱/非法用户名返回空。
+func TestGithubUsernameFromEmail(t *testing.T) {
+	cases := []struct {
+		email string
+		want  string
+	}{
+		{"12345+alice@users.noreply.github.com", "alice"},
+		{"bob@users.noreply.github.com", "bob"},
+		{"c-harlie@users.noreply.github.com", "c-harlie"},
+		{"bob@example.com", ""},                    // 自定义邮箱
+		{"", ""},                                   // 空
+		{"-bad@users.noreply.github.com", ""},      // 连字符开头非法
+		{"bad-@users.noreply.github.com", ""},      // 连字符结尾非法
+		{"has space@users.noreply.github.com", ""}, // 空格非法
+		{"12345+@users.noreply.github.com", ""},    // + 后为空
+		{"@users.noreply.github.com", ""},          // local 为空
+	}
+	for _, tc := range cases {
+		if got := githubUsernameFromEmail(tc.email); got != tc.want {
+			t.Errorf("githubUsernameFromEmail(%q) = %q, want %q", tc.email, got, tc.want)
+		}
+	}
+}
+
+// TestBuildContributorsSnapshotAggregatesByUsername 贡献者快照按可解析 username
+// 聚合（合并 GitHub 新旧 noreply 格式——username 相同；自定义邮箱降级按 email），
+// 展示名取最近提交的 name，count 排序。
+func TestBuildContributorsSnapshotAggregatesByUsername(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	repo := t.TempDir()
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	// 旧版 noreply 格式：{username}@users.noreply.github.com。
+	git("config", "user.email", "old@users.noreply.github.com")
+	git("config", "user.name", "Old Name")
+	writeRepoFile(t, repo, "guide/start.md", "# 一")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c1")
+	// 同一人换新版 noreply 格式（{id}+{username}）+ 改显示名 → 按 username 合并为 1 人。
+	git("config", "user.email", "12345+old@users.noreply.github.com")
+	git("config", "user.name", "New Name")
+	writeRepoFile(t, repo, "guide/start.md", "# 二")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c2")
+	// 自定义邮箱另一人（无法解析 username，按 email 聚合）。
+	git("config", "user.email", "bob@example.com")
+	git("config", "user.name", "Bob")
+	writeRepoFile(t, repo, "guide/start.md", "# 三")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c3")
+
+	raw := buildContributorsSnapshot(repo, "guide/start.md")
+	var got []gitContributor
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("unmarshal snapshot %q: %v", raw, err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("contributors=%d, want 2 (same user merged): %+v", len(got), got)
+	}
+	// 同人合并后 count=2，展示名 = 最近提交的 New Name。
+	if got[0].Name != "New Name" || got[0].Count != 2 || got[0].Username != "old" {
+		t.Fatalf("merged contributor = %+v, want New Name/2/old", got[0])
+	}
+	if got[1].Name != "Bob" || got[1].Count != 1 || got[1].Username != "" {
+		t.Fatalf("custom email contributor = %+v, want Bob/1/no username", got[1])
+	}
+}
+
+// TestRebuildGitTracesRefreshesUnchangedPages 浅克隆→全量升级后全量重建贡献者
+// 缓存（review P1 回归）：applyRepoToDB 幂等跳过内容未变的页面，rebuildGitTraces
+// 必须仍然刷新存量页面的 contributors_json——旧 depth-1 缓存只有一位作者，
+// 且生产 source_path 不带 .md 后缀（gitLogPath 补全后 git pathspec 才能匹配）。
+func TestRebuildGitTracesRefreshesUnchangedPages(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "# 一")
+	initGitRepo(t, repo)
+	// 第二个 noreply 作者提交 → git log 有两位作者。
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("config", "user.email", "12345+alice@users.noreply.github.com")
+	git("config", "user.name", "Alice")
+	writeRepoFile(t, repo, "guide/start.md", "# 二")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c2")
+
+	page := seedProjectedWikiPage(t, "guide", "guide/start", "Start", time.Now())
+	// 生产数据：source_path 不带 .md（gitLogPath 必须补全才能匹配 pathspec）。
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+		Update("source_path", "guide/start").Error; err != nil {
+		t.Fatalf("set source_path: %v", err)
+	}
+	// 旧缓存：只有 1 位作者（模拟 depth-1 时代的缓存）。
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+		Update("contributors_json", `[{"name":"test","count":1}]`).Error; err != nil {
+		t.Fatalf("set old contributors: %v", err)
+	}
+
+	rebuildGitTraces(GitConfig{CloneDir: repo})
+
+	page = wikiPages.Get(page.Id)
+	if page.ContributorsJSON == `[{"name":"test","count":1}]` {
+		t.Fatal("contributors_json not refreshed after rebuildGitTraces")
+	}
+	var got []gitContributor
+	if err := json.Unmarshal([]byte(page.ContributorsJSON), &got); err != nil {
+		t.Fatalf("unmarshal refreshed contributors %q: %v", page.ContributorsJSON, err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("contributors=%d, want 2 (both git authors): %+v", len(got), got)
+	}
+	foundAlice := false
+	for _, c := range got {
+		if c.Username == "alice" {
+			foundAlice = true
+		}
+	}
+	if !foundAlice {
+		t.Fatalf("alice missing after rebuild: %+v", got)
+	}
+	if page.LastCommitSha == "" {
+		t.Fatal("last_commit_sha not set after rebuild")
+	}
+}
+
+// TestBuildContributorsSnapshotFollowsRename 贡献者统计跨 Git 重命名历史
+// （review P2 回归）：git mv 后在新路径 git log --follow 必须归因重命名前的
+// 旧作者；source_path 不带 .md 的形式同样工作（gitLogPath 补全）。
+func TestBuildContributorsSnapshotFollowsRename(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	repo := t.TempDir()
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.email", "alice@users.noreply.github.com")
+	git("config", "user.name", "Alice")
+	writeRepoFile(t, repo, "guide/old.md", "# 一")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c1")
+	git("config", "user.email", "bob@users.noreply.github.com")
+	git("config", "user.name", "Bob")
+	git("mv", "guide/old.md", "guide/new.md")
+	git("commit", "-q", "-m", "c2 rename")
+
+	// 新路径：--follow 必须归因重命名前的 Alice。
+	raw := buildContributorsSnapshot(repo, "guide/new.md")
+	var got []gitContributor
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("unmarshal snapshot %q: %v", raw, err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("contributors=%d, want 2 (alice+bob via --follow): %+v", len(got), got)
+	}
+	byName := map[string]int{}
+	for _, c := range got {
+		byName[c.Name] = c.Count
+	}
+	if byName["Alice"] != 1 || byName["Bob"] != 1 {
+		t.Fatalf("rename attribution wrong: %+v", got)
+	}
+
+	// source_path 形式（不带 .md）也必须工作：gitLogPath 补 .md。
+	raw2 := buildContributorsSnapshot(repo, "guide/new")
+	var got2 []gitContributor
+	if err := json.Unmarshal([]byte(raw2), &got2); err != nil {
+		t.Fatalf("unmarshal snapshot (no .md) %q: %v", raw2, err)
+	}
+	if len(got2) != 2 {
+		t.Fatalf("contributors (no .md path)=%d, want 2: %+v", len(got2), got2)
 	}
 }
 
@@ -448,7 +767,7 @@ func TestGitConfigEditURLPathEscapesSegments(t *testing.T) {
 	if got != want {
 		t.Fatalf("EditURL(100%%) = %q, want %q", got, want)
 	}
-	// 普通 slug 路径保持原样（无转义副作用）。
+	// 普通路径保持原样（无转义副作用）。
 	got = cfg.EditURL("guide/getting-started")
 	want = "https://github.com/YourTongji/YourTJ-Wiki/edit/main/guide/getting-started.md"
 	if got != want {
