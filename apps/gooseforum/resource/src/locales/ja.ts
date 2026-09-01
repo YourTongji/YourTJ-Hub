@@ -559,6 +559,7 @@ export default {
     stagedWithConflicts: '追加しました——「{course}」など {count} 件と時間が重複しています',
     classPickerTitle: 'クラスを選択',
     classPickerHint: 'クラスをクリックして時間割に追加します。時間の重複も追加され、表示で警告されます。',
+    classReviewsTitle: 'クラス別レビュー',
   },
   courseDetailPage: {
     backToList: 'コースカタログに戻る',

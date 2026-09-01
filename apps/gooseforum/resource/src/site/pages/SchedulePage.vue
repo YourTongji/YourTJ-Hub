@@ -380,7 +380,7 @@ onBeforeUnmount(() => {
       <DialogPortal>
         <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
         <DialogContent
-          class="fixed left-1/2 top-1/2 z-[2100] max-h-[85vh] w-[92vw] max-w-[520px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto outline-none"
+          class="fixed left-1/2 top-1/2 z-[2100] max-h-[85vh] w-[92vw] max-w-[520px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto outline-none lg:max-w-[880px]"
         >
           <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
             <div class="flex items-start justify-between gap-2 border-b border-line/60 px-4 py-3">
