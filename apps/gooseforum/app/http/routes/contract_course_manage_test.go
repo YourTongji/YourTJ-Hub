@@ -331,14 +331,14 @@ func TestCourseRelationLifecycle(t *testing.T) {
 	}
 
 	// 手动创建 SPLIT_FROM 候选（source=manual / status=pending）。
-	createBody, _ := json.Marshal(map[string]any{
+	createBody := mustJSON(map[string]any{
 		"fromCourseId": from.Id,
 		"toCourseId":   to.Id,
 		"relationType": "SPLIT_FROM",
 		"evidence":     "人工确认",
 		"confidence":   0.9,
 	})
-	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(createBody), token)
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", createBody, token)
 	envelope := decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("create relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -357,7 +357,7 @@ func TestCourseRelationLifecycle(t *testing.T) {
 	}
 
 	// 幂等：重复创建返回同一行。
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(createBody), token)
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", createBody, token)
 	envelope = decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("idempotent create code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -383,8 +383,8 @@ func TestCourseRelationLifecycle(t *testing.T) {
 	}
 
 	// 批准 SPLIT_FROM（非合并类型 → approved）。
-	approveBody, _ := json.Marshal(map[string]any{"relationId": created.Id})
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-approve", string(approveBody), token)
+	approveBody := mustJSON(map[string]any{"relationId": created.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-approve", approveBody, token)
 	envelope = decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("approve relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -397,8 +397,8 @@ func TestCourseRelationLifecycle(t *testing.T) {
 	}
 
 	// 忽略另一条候选 → ignored。
-	ignoreBody, _ := json.Marshal(map[string]any{"fromCourseId": from.Id, "toCourseId": to.Id, "relationType": "RELATED"})
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(ignoreBody), token)
+	ignoreBody := mustJSON(map[string]any{"fromCourseId": from.Id, "toCourseId": to.Id, "relationType": "RELATED"})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", ignoreBody, token)
 	envelope = decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("create related code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -409,8 +409,8 @@ func TestCourseRelationLifecycle(t *testing.T) {
 	if err := json.Unmarshal(envelope.Result, &related); err != nil || related.Id == 0 {
 		t.Fatalf("decode related relation %q: %v", envelope.Result, err)
 	}
-	ignoreRelationBody, _ := json.Marshal(map[string]any{"relationId": related.Id})
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-ignore", string(ignoreRelationBody), token)
+	ignoreRelationBody := mustJSON(map[string]any{"relationId": related.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-ignore", ignoreRelationBody, token)
 	envelope = decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("ignore relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -454,12 +454,12 @@ func TestCourseMergeAndUndo(t *testing.T) {
 	}
 
 	// 手动创建 EQUIVALENT 候选。
-	createBody, _ := json.Marshal(map[string]any{
+	createBody := mustJSON(map[string]any{
 		"fromCourseId": from.Id,
 		"toCourseId":   to.Id,
 		"relationType": "EQUIVALENT",
 	})
-	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", string(createBody), token)
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-create", createBody, token)
 	envelope := decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("create relation code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -470,10 +470,10 @@ func TestCourseMergeAndUndo(t *testing.T) {
 	if err := json.Unmarshal(envelope.Result, &created); err != nil || created.Id == 0 {
 		t.Fatalf("decode created relation %q: %v", envelope.Result, err)
 	}
-	relationBody, _ := json.Marshal(map[string]any{"relationId": created.Id})
+	relationBody := mustJSON(map[string]any{"relationId": created.Id})
 
 	// EQUIVALENT 不可直接批准（必须走合并）→ 409 course.relation.notMerge。
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-approve", string(relationBody), token)
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-approve", relationBody, token)
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("approve equivalent status = %d, want 409", recorder.Code)
 	}
@@ -482,7 +482,7 @@ func TestCourseMergeAndUndo(t *testing.T) {
 	}
 
 	// 确认合并：offering/alias 迁移、from 卡隐藏。
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge", string(relationBody), token)
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge", relationBody, token)
 	envelope = decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("merge code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -507,7 +507,7 @@ func TestCourseMergeAndUndo(t *testing.T) {
 	}
 
 	// 重复合并 → 409 course.relation.merged。
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge", string(relationBody), token)
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge", relationBody, token)
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("re-merge status = %d, want 409", recorder.Code)
 	}
@@ -516,7 +516,7 @@ func TestCourseMergeAndUndo(t *testing.T) {
 	}
 
 	// 撤销合并：offering 迁回、from 卡恢复可见。
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", string(relationBody), token)
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", relationBody, token)
 	envelope = decodeContractEnvelope(t, recorder)
 	if envelope.Code != 0 {
 		t.Fatalf("undo code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
@@ -535,7 +535,7 @@ func TestCourseMergeAndUndo(t *testing.T) {
 	}
 
 	// 未合并候选不可撤销 → 409 course.relation.notMerge。
-	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", string(relationBody), token)
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", relationBody, token)
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("undo non-merged status = %d, want 409", recorder.Code)
 	}

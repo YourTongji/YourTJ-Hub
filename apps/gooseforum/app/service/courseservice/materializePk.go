@@ -227,26 +227,6 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	return out, nil
 }
 
-// namesOf 提取教师姓名列表。
-func namesOf(refs []pkTeacherRef) []string {
-	out := make([]string, 0, len(refs))
-	for _, r := range refs {
-		out = append(out, r.Name)
-	}
-	return out
-}
-
-// codesOf 提取教师工号列表。
-func codesOf(refs []pkTeacherRef) []string {
-	out := make([]string, 0, len(refs))
-	for _, r := range refs {
-		if r.Code != "" {
-			out = append(out, r.Code)
-		}
-	}
-	return out
-}
-
 // appendTeacherRefs 批量追加教师引用（按姓名去重）。
 func appendTeacherRefs(slice []pkTeacherRef, refs ...pkTeacherRef) []pkTeacherRef {
 	for _, ref := range refs {

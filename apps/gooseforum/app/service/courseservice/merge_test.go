@@ -1,6 +1,7 @@
 package courseservice
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -248,7 +249,7 @@ func TestMergeCoursesConflictGuard(t *testing.T) {
 		t.Fatalf("create rel2: %v", err)
 	}
 
-	if _, err := MergeCourses(rel1.Id); err != ErrMergeConflict {
+	if _, err := MergeCourses(rel1.Id); !errors.Is(err, ErrMergeConflict) {
 		t.Fatalf("merge = %v, want ErrMergeConflict", err)
 	}
 }
@@ -262,7 +263,7 @@ func TestMergeCoursesRejectsNonMergeable(t *testing.T) {
 	if err := conn.Create(&rel).Error; err != nil {
 		t.Fatalf("create relation: %v", err)
 	}
-	if _, err := MergeCourses(rel.Id); err != ErrRelationNotMergeable {
+	if _, err := MergeCourses(rel.Id); !errors.Is(err, ErrRelationNotMergeable) {
 		t.Fatalf("merge = %v, want ErrRelationNotMergeable", err)
 	}
 	// from 卡未被隐藏。
@@ -337,7 +338,7 @@ func TestUndoMergeCourse(t *testing.T) {
 		t.Errorf("relation manual = false, want true（人工确认记录保留）")
 	}
 	// 再次撤销被拒绝。
-	if _, err := UndoMergeCourse(relation.Id); err != ErrRelationNotMergeable {
+	if _, err := UndoMergeCourse(relation.Id); !errors.Is(err, ErrRelationNotMergeable) {
 		t.Fatalf("second undo = %v, want ErrRelationNotMergeable", err)
 	}
 }
@@ -416,7 +417,7 @@ func TestAdminRelationApprove(t *testing.T) {
 	if err := conn.Create(&equiv).Error; err != nil {
 		t.Fatalf("create equiv relation: %v", err)
 	}
-	if _, err := AdminRelationApprove(equiv.Id); err != ErrRelationNotMergeable {
+	if _, err := AdminRelationApprove(equiv.Id); !errors.Is(err, ErrRelationNotMergeable) {
 		t.Fatalf("approve equiv = %v, want ErrRelationNotMergeable", err)
 	}
 }
