@@ -802,6 +802,15 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 			if err := searchservice.EnqueueCourseSearchTask(tx, offering.CourseId); err != nil {
 				return fmt.Errorf("enqueue old course search task %d: %w", offering.CourseId, err)
 			}
+			// offering 改派到新课程：新旧课程的可见评价集合都变化，
+			// 必须失效 AI 总结缓存（含 insufficient 标记），否则改派前
+			// 判"评价不足"的课程会永久返回 insufficient_data（review 补漏）。
+			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+				return fmt.Errorf("invalidate ai summary for old course %d: %w", offering.CourseId, err)
+			}
+			if err := course.DeleteCourseAiSummaryTx(tx, courseLocalID); err != nil {
+				return fmt.Errorf("invalidate ai summary for new course %d: %w", courseLocalID, err)
+			}
 		}
 		if err := searchservice.EnqueueCourseSearchTask(tx, courseLocalID); err != nil {
 			return fmt.Errorf("enqueue course search task %d: %w", courseLocalID, err)
