@@ -3,8 +3,8 @@ package dataservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -35,6 +35,8 @@ type ImportReport struct {
 	Failed   int           `json:"failed"`
 	Errors   []ImportError `json:"errors"`
 	Imported []string      `json:"importedTables"`
+	TaskID   uint64        `json:"taskId,omitempty"`
+	Status   string        `json:"status,omitempty"`
 }
 
 // ImportData 导入 JSON 数据（仅支持 JSON 格式）。
@@ -43,7 +45,12 @@ type ImportReport struct {
 // 导入完成后重建话题 invariants（首末帖指针、计数、post_seq、参与者统计、
 // 分类索引），保证 round-trip 后结构与源库一致且可继续回复（issue #135）。
 // postRevisions 依赖 posts 存在（外键校验），在 posts 之后导入。
-func ImportData(_ context.Context, data []byte, format string) (*ImportReport, error) {
+var errImportRowsFailed = errors.New("导入存在失败行，事务已回滚")
+
+func ImportData(ctx context.Context, data []byte, format string) (*ImportReport, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if format != "json" {
 		return nil, fmt.Errorf("导入仅支持 JSON 格式")
 	}
@@ -55,23 +62,26 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 		Errors:   []ImportError{},
 		Imported: []string{},
 	}
-	importUsers(parsed["users"], report)
-	importTopics(parsed["topics"], report)
-	importPosts(parsed["posts"], report)
-	importPostRevisions(parsed["postRevisions"], report)
-	importTopicCategoryIndexes(parsed["topicCategoryIndex"], report)
-	importTopicUserStats(parsed["topicUserStat"], report)
-	// 显式主键写入不会推进 PostgreSQL sequence，必须先推进序列再重建派生数据：
-	// rebuild 期间 ensureTopicCategoryIndexes / rebuildTopicUserStats 会用自增 ID
-	// 创建新行，若序列仍停在导入前小值，新行可能复用已导入显式 ID 撞主键，
-	// 分类索引/参与者统计行被静默丢弃（PR #160 复审 🟠）。
-	resetPostgresSequences()
-	// 话题 invariants 需要 posts 全部落库后才能推导，必须在 posts 导入之后执行。
-	// 仅当本次导入涉及非空 topics 且无失败行时才全库重建：失败导入的数据可能
-	// 不完整，重建会产生误导性结果；仅导入 users 或空 topics 时也跳过全库扫描
-	// 与副作用（PR #160 review, suggestion 3 / 复审 🟡）。
-	if len(parsed["topics"]) > 0 && report.Failed == 0 {
-		rebuildTopicInvariants()
+	txErr := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		importUsers(tx, parsed["users"], report)
+		importTopics(tx, parsed["topics"], report)
+		importPosts(tx, parsed["posts"], report)
+		importPostRevisions(tx, parsed["postRevisions"], report)
+		importTopicCategoryIndexes(tx, parsed["topicCategoryIndex"], report)
+		importTopicUserStats(tx, parsed["topicUserStat"], report)
+		if report.Failed > 0 {
+			return errImportRowsFailed
+		}
+		if err := resetPostgresSequences(tx); err != nil {
+			return err
+		}
+		if len(parsed["topics"]) > 0 {
+			return rebuildTopicInvariants(tx)
+		}
+		return nil
+	})
+	if txErr != nil && !errors.Is(txErr, errImportRowsFailed) {
+		return nil, txErr
 	}
 	for _, t := range []string{"users", "topics", "posts", "postRevisions", "topicCategoryIndex", "topicUserStat"} {
 		if _, ok := parsed[t]; ok {
@@ -86,19 +96,19 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 // topic_user_stat（均 autoIncrement 主键，PR #160 review, warning 1）：PG 上
 // 显式主键写入不推进序列，若漏推，下一次 INSERT 可能复用已导入 ID 触发
 // 主键冲突。SQLite 无 sequence 概念，无需处理。
-func resetPostgresSequences() {
+func resetPostgresSequences(db *gorm.DB) error {
 	if dbconnect.IsSqlite() {
-		return
+		return nil
 	}
-	db := dbconnect.Connect()
 	for _, table := range []string{"users", "topics", "posts", "post_revisions", "topic_category_index", "topic_user_stat"} {
 		if err := db.Exec(fmt.Sprintf(
 			`SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM %s), 1), true)`,
 			table, table,
 		)).Error; err != nil {
-			slog.Error("resetPostgresSequences: 推进序列失败", "table", table, "err", err)
+			return fmt.Errorf("resetPostgresSequences: 推进 %s 序列失败: %w", table, err)
 		}
 	}
+	return nil
 }
 
 // parseImportJSON 解析导入 JSON 为按表分组的行。
@@ -141,8 +151,7 @@ func parseImportJSON(data []byte) (map[string][]map[string]any, error) {
 	return result, nil
 }
 
-func importUsers(rows []map[string]any, report *ImportReport) {
-	db := dbconnect.Connect()
+func importUsers(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++
@@ -201,8 +210,7 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 	}
 }
 
-func importTopics(rows []map[string]any, report *ImportReport) {
-	db := dbconnect.Connect()
+func importTopics(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++
@@ -236,7 +244,8 @@ func importTopics(rows []map[string]any, report *ImportReport) {
 			_ = json.Unmarshal([]byte(cats), &categoryIDs)
 		}
 		for _, cid := range categoryIDs {
-			if category.Get(cid).Id == 0 {
+			var cat category.Entity
+			if err := db.First(&cat, cid).Error; err != nil {
 				report.Failed++
 				report.Errors = append(report.Errors, ImportError{Line: line, Table: "topics", Reason: fmt.Sprintf("分类 %d 不存在", cid)})
 				categoryIDs = nil
@@ -297,8 +306,7 @@ func importTopics(rows []map[string]any, report *ImportReport) {
 	}
 }
 
-func importTopicCategoryIndexes(rows []map[string]any, report *ImportReport) {
-	db := dbconnect.Connect()
+func importTopicCategoryIndexes(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++
@@ -343,8 +351,7 @@ func importTopicCategoryIndexes(rows []map[string]any, report *ImportReport) {
 	}
 }
 
-func importTopicUserStats(rows []map[string]any, report *ImportReport) {
-	db := dbconnect.Connect()
+func importTopicUserStats(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++
@@ -408,12 +415,10 @@ func importTopicUserStats(rows []map[string]any, report *ImportReport) {
 //     指针但仍需重建统计，PR #160 review, warning 2）。
 //
 // 仅当话题缺失关键字段时补算指针，避免覆盖新导出格式中导出的精确值。
-func rebuildTopicInvariants() {
-	db := dbconnect.Connect()
+func rebuildTopicInvariants(db *gorm.DB) error {
 	var list []topics.Entity
 	if err := db.Find(&list).Error; err != nil {
-		slog.Error("rebuildTopicInvariants: 加载话题列表失败", "err", err)
-		return
+		return fmt.Errorf("rebuildTopicInvariants: 加载话题列表失败: %w", err)
 	}
 	for _, topic := range list {
 		// 判断该话题是否需要按 posts 回填指针：invariants 缺失（旧格式导出，
@@ -423,8 +428,12 @@ func rebuildTopicInvariants() {
 			// 新格式导出：指针/计数已精确恢复，仅补齐缺失的派生表。
 			// 分类索引缺失时按 topics.categoryIds 补齐；
 			// 参与者统计缺失（默认 UI 路径不导出该表）时从 posts 重建。
-			ensureTopicCategoryIndexes(db, topic.Id)
-			ensureTopicUserStats(db, topic.Id)
+			if err := ensureTopicCategoryIndexes(db, topic.Id); err != nil {
+				return err
+			}
+			if err := ensureTopicUserStats(db, topic.Id); err != nil {
+				return err
+			}
 			continue
 		}
 		var postList []*posts.Entity
@@ -433,8 +442,7 @@ func rebuildTopicInvariants() {
 		if err := db.Where("topic_id = ? AND visibility_status = ?", topic.Id, posts.VisibilityActive).
 			Order("post_no asc").Order("id asc").
 			Find(&postList).Error; err != nil {
-			slog.Error("rebuildTopicInvariants: 加载话题 posts 失败", "topicId", topic.Id, "err", err)
-			continue
+			return fmt.Errorf("rebuildTopicInvariants: 加载话题 %d posts 失败: %w", topic.Id, err)
 		}
 		// 无 posts 的话题（空话题在源库不存在）跳过，避免全 0 误判后白扫
 		if len(postList) == 0 {
@@ -484,26 +492,30 @@ func rebuildTopicInvariants() {
 			updates["last_posted_at"] = *lastTime
 		}
 		if err := db.Model(&topics.Entity{}).Where("id = ?", topic.Id).Updates(updates).Error; err != nil {
-			slog.Error("rebuildTopicInvariants: 更新话题 invariants 失败", "topicId", topic.Id, "err", err)
-			continue
+			return fmt.Errorf("rebuildTopicInvariants: 更新话题 %d invariants 失败: %w", topic.Id, err)
 		}
 		// 参与者统计：导入文件带 topicUserStat 时保留导出值，缺失时从 posts 重建
-		ensureTopicUserStats(db, topic.Id)
-		ensureTopicCategoryIndexes(db, topic.Id)
+		if err := ensureTopicUserStats(db, topic.Id); err != nil {
+			return err
+		}
+		if err := ensureTopicCategoryIndexes(db, topic.Id); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // ensureTopicUserStats 话题参与者统计缺失（count==0）时从 posts 重建。
 // 导入文件显式携带 topicUserStat 时保留导出值（count>0 不重建）。
-func ensureTopicUserStats(db *gorm.DB, topicID uint64) {
+func ensureTopicUserStats(db *gorm.DB, topicID uint64) error {
 	var count int64
 	if err := db.Model(&topicUserStat.Entity{}).Where("topic_id = ?", topicID).Count(&count).Error; err != nil {
-		slog.Error("ensureTopicUserStats: 统计失败", "topicId", topicID, "err", err)
-		return
+		return fmt.Errorf("ensureTopicUserStats: 统计话题 %d 失败: %w", topicID, err)
 	}
 	if count == 0 {
-		rebuildTopicUserStats(db, topicID)
+		return rebuildTopicUserStats(db, topicID)
 	}
+	return nil
 }
 
 // rebuildPosters 从 posts 重建话题参与者列表：话题作者置前，其余按出现顺序。
@@ -525,11 +537,10 @@ func rebuildPosters(topicUserID uint64, postList []*posts.Entity) []topics.Poste
 }
 
 // ensureTopicCategoryIndexes 为话题补齐分类索引行（issue #135）。
-func ensureTopicCategoryIndexes(db *gorm.DB, topicID uint64) {
+func ensureTopicCategoryIndexes(db *gorm.DB, topicID uint64) error {
 	var topic topics.Entity
 	if err := db.First(&topic, topicID).Error; err != nil {
-		slog.Error("ensureTopicCategoryIndexes: 加载话题失败", "topicId", topicID, "err", err)
-		return
+		return fmt.Errorf("ensureTopicCategoryIndexes: 加载话题 %d 失败: %w", topicID, err)
 	}
 	for _, cid := range topic.CategoryIds {
 		if cid == 0 {
@@ -539,8 +550,7 @@ func ensureTopicCategoryIndexes(db *gorm.DB, topicID uint64) {
 		if err := db.Model(&topicCategoryIndex.Entity{}).
 			Where("topic_id = ? AND category_id = ?", topicID, cid).
 			Count(&count).Error; err != nil {
-			slog.Error("ensureTopicCategoryIndexes: 统计分类索引失败", "topicId", topicID, "categoryId", cid, "err", err)
-			continue
+			return fmt.Errorf("ensureTopicCategoryIndexes: 统计话题 %d 分类 %d 失败: %w", topicID, cid, err)
 		}
 		if count > 0 {
 			continue
@@ -550,21 +560,21 @@ func ensureTopicCategoryIndexes(db *gorm.DB, topicID uint64) {
 			CategoryId: cid,
 			Effective:  1,
 		}).Error; err != nil {
-			slog.Error("ensureTopicCategoryIndexes: 创建分类索引失败", "topicId", topicID, "categoryId", cid, "err", err)
+			return fmt.Errorf("ensureTopicCategoryIndexes: 创建话题 %d 分类 %d 索引失败: %w", topicID, cid, err)
 		}
 	}
+	return nil
 }
 
 // rebuildTopicUserStats 从 posts 重建话题参与者统计（reply_count/last_reply_at）。
 // 与 postservice.RebuildTopicPostStats 语义一致：仅统计 visibility_status=ACTIVE
 // 的回复（PR #160 review, suggestion 7）。
-func rebuildTopicUserStats(db *gorm.DB, topicID uint64) {
+func rebuildTopicUserStats(db *gorm.DB, topicID uint64) error {
 	var postList []*posts.Entity
 	if err := db.Where("topic_id = ?", topicID).
 		Order("post_no asc").Order("id asc").
 		Find(&postList).Error; err != nil {
-		slog.Error("rebuildTopicUserStats: 加载话题 posts 失败", "topicId", topicID, "err", err)
-		return
+		return fmt.Errorf("rebuildTopicUserStats: 加载话题 %d posts 失败: %w", topicID, err)
 	}
 	byUser := map[uint64]uint32{}
 	lastByUser := map[uint64]time.Time{}
@@ -585,16 +595,16 @@ func rebuildTopicUserStats(db *gorm.DB, topicID uint64) {
 			ReplyCount:  count,
 			LastReplyAt: last,
 		}).Error; err != nil {
-			slog.Error("rebuildTopicUserStats: 创建参与者统计失败", "topicId", topicID, "userId", userID, "err", err)
+			return fmt.Errorf("rebuildTopicUserStats: 创建话题 %d 用户 %d 统计失败: %w", topicID, userID, err)
 		}
 	}
+	return nil
 }
 
 // importPostRevisions 导入帖子版本快照（首楼编辑 PR 新增的表）。
 // 依赖 posts 存在：postId 对应的帖子必须已导入，否则跳过该行并报错。
 // 与导出顺序一致，在 posts 之后调用；已存在记录跳过（幂等）。
-func importPostRevisions(rows []map[string]any, report *ImportReport) {
-	db := dbconnect.Connect()
+func importPostRevisions(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++
@@ -650,8 +660,7 @@ func importPostRevisions(rows []map[string]any, report *ImportReport) {
 	}
 }
 
-func importPosts(rows []map[string]any, report *ImportReport) {
-	db := dbconnect.Connect()
+func importPosts(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++

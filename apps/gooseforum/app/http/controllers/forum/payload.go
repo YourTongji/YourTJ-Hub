@@ -2445,13 +2445,17 @@ func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 	notifications, nextCursor, hasNext, _ := notificationservice.GetNotificationCursorList(userID, notificationservice.DefaultNotificationPageSize, 0, false)
 	unreadCount, _ := eventNotification.GetUnreadCount(userID)
 	items := BuildNotificationPayloads(notifications)
+	nextPage := 0
+	if hasNext {
+		nextPage = 2
+	}
 	return NotificationsPageProps{
 		Total:         int64(len(items)),
 		UnreadCount:   unreadCount,
 		Notifications: items,
 		Pagination: PaginationPayload{
 			Page:     1,
-			NextPage: lo.Ternary(hasNext, 2, 0),
+			NextPage: nextPage,
 			HasNext:  hasNext,
 			NextURL:  fmt.Sprintf("/api/forum/notifications?filter=all&cursor=%d&limit=%d", nextCursor, notificationservice.DefaultNotificationPageSize),
 		},

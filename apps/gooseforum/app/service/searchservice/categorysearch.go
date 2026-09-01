@@ -1,16 +1,35 @@
 package searchservice
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
 )
+
+// TaskTypeCategorySearch is the category-search outbox task type prefix.
+const TaskTypeCategorySearch = "category-search."
+
+type CategorySearchTask struct {
+	CategoryId uint64 `json:"categoryId"`
+}
+
+// EnqueueCategorySearchTask adds a category projection task to the caller's
+// transaction. The worker reads the current row, so updates are idempotent.
+func EnqueueCategorySearchTask(tx *gorm.DB, categoryID uint64) error {
+	if categoryID == 0 {
+		return errors.New("category search task requires category id")
+	}
+	return enqueueSearchTask(tx, TaskTypeCategorySearch, "sync", CategorySearchTask{CategoryId: categoryID})
+}
 
 // CategorySearchDocument 分类搜索文档结构（只含公开可搜字段 + 拼音辅助字段）
 type CategorySearchDocument struct {
@@ -37,6 +56,12 @@ func convertCategoryToSearchDocument(entity *category.Entity) CategorySearchDocu
 
 // BuildSingleCategorySearchDocument upserts a category document.
 func BuildSingleCategorySearchDocument(entity *category.Entity) (*meilisearch.TaskInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
+	return BuildSingleCategorySearchDocumentContext(ctx, entity)
+}
+
+func BuildSingleCategorySearchDocumentContext(ctx context.Context, entity *category.Entity) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
 	}
@@ -47,7 +72,7 @@ func BuildSingleCategorySearchDocument(entity *category.Entity) (*meilisearch.Ta
 	index := client.Index(CategoryIndex)
 	pk := "id"
 	doc := convertCategoryToSearchDocument(entity)
-	task, err := index.AddDocuments(doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+	task, err := index.AddDocumentsWithContext(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 处理分类 ID:%v 失败: %v\n", doc.ID, err))
 		return nil, fmt.Errorf("add category search document: %w", err)
@@ -58,18 +83,76 @@ func BuildSingleCategorySearchDocument(entity *category.Entity) (*meilisearch.Ta
 
 // DeleteCategorySearchDocument removes a category document by id.
 func DeleteCategorySearchDocument(categoryID uint64) (*meilisearch.TaskInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
+	return DeleteCategorySearchDocumentContext(ctx, categoryID)
+}
+
+func DeleteCategorySearchDocumentContext(ctx context.Context, categoryID uint64) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(CategoryIndex)
-	task, err := index.DeleteDocument(cast.ToString(categoryID), nil)
+	task, err := index.DeleteDocumentWithContext(ctx, cast.ToString(categoryID), nil)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("Meilisearch 删除分类文档失败: %v, Error: %v\n", categoryID, err))
 		return nil, fmt.Errorf("delete category search document: %w", err)
 	}
 	slog.Info(fmt.Sprintf("删除分类 ID:%v, TaskUID: %v\n", categoryID, getTaskUID(task)))
 	return task, nil
+}
+
+// RunCategorySearchTask rebuilds or removes the latest category search
+// document. A missing category is an explicit delete operation.
+func RunCategorySearchTask(ctx context.Context, task *taskQueue.Entity) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if task == nil {
+		return errors.New("category search task is nil")
+	}
+	var payload CategorySearchTask
+	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
+		return err
+	}
+	if payload.CategoryId == 0 {
+		return errors.New("category search task requires category id")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !meiliconnect.IsAvailable() {
+		return errors.New("meilisearch 服务不可用")
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, searchTaskWaitTimeout)
+	defer cancel()
+	client := meiliconnect.GetClient()
+	entity, err := category.GetWithContext(operationCtx, payload.CategoryId)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		deleteTask, deleteErr := client.Index(CategoryIndex).DeleteDocumentWithContext(operationCtx, cast.ToString(payload.CategoryId), nil)
+		if deleteErr != nil {
+			return deleteErr
+		}
+		return waitForTaskCheckedContext(operationCtx, client, deleteTask.TaskUID, searchTaskWaitTimeout)
+	}
+	searchTask, err := BuildSingleCategorySearchDocumentContext(operationCtx, &entity)
+	if err != nil {
+		return err
+	}
+	if searchTask == nil {
+		return errors.New("meilisearch returned no category task")
+	}
+	return waitForTaskCheckedContext(operationCtx, client, searchTask.TaskUID, searchTaskWaitTimeout)
+}
+
+// RecoverCategorySearchTasks restores expired category projection leases after
+// a process restart.
+func RecoverCategorySearchTasks() error {
+	return taskQueue.RecoverStaleRunning(TaskTypeCategorySearch, taskQueue.LeaseDuration)
 }
 
 // BuildCategoryIndex rebuilds the whole Meilisearch category index.

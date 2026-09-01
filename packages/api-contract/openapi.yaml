@@ -422,6 +422,10 @@ paths:
     $ref: ./paths/admin-data.yaml#/adminDownloadExportTask
   /api/admin/data/import:
     $ref: ./paths/admin-data.yaml#/adminImportData
+  /api/admin/data/import/tasks:
+    $ref: ./paths/admin-data.yaml#/adminListImportTasks
+  /api/admin/data/import/tasks/{taskId}/replay:
+    $ref: ./paths/admin-data.yaml#/adminReplayImportTask
   /api/wiki/search:
     get:
       $ref: ./paths/wiki.yaml#/searchWikiSearch/get

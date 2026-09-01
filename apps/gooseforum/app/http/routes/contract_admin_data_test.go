@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,6 +57,8 @@ func setupAdminDataContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	dataAPI.GET("/data/export/tasks", UpButterReq(api.ListExportTasks))
 	dataAPI.GET("/data/export/download/:taskId", api.DownloadExportTask)
 	dataAPI.POST("/data/import", api.ImportData)
+	dataAPI.GET("/data/import/tasks", UpButterReq(api.ListImportTasks))
+	dataAPI.POST("/data/import/tasks/:taskId/replay", UpUriReq(api.ReplayImportTask))
 	return conn, router
 }
 
@@ -339,11 +342,26 @@ func TestAdminImportDataHTTPContract(t *testing.T) {
 
 	t.Run("success imports an empty users table and reports zero rows", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
+		restoreImportDir := dataservice.SetImportDirForTest(t.TempDir())
+		defer restoreImportDir()
 		recorder := serveAdminDataMultipart(t, conn, router, path, map[string][]byte{"file": []byte(`{"users":[]}`)})
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-data-import-success.json"))
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code != 0 {
+			t.Fatalf("code = %d, want 0", envelope.Code)
+		}
+		var result struct {
+			TaskID uint64 `json:"taskId"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(envelope.Result, &result); err != nil {
+			t.Fatalf("decode import task result: %v", err)
+		}
+		if result.TaskID == 0 || result.Status != "pending" {
+			t.Fatalf("import result = %+v, want pending task", result)
+		}
 	})
 
 	t.Run("missing file field fails with 400 importFailed", func(t *testing.T) {

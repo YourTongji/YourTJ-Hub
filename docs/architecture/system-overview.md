@@ -82,9 +82,29 @@
 
 - Meilisearch optionally enabled (config [meilisearch]). Aggregate search (one box covering
   topics/users/categories with scope tabs; pinyin/initials matching for users and categories) landed
-  in issue #22. Index sync is event-driven (topic/user/category events). When Meilisearch is
-  unavailable the search page shows a full unavailable state; per-index failures degrade partially
-  via `failedScopes`. The index is a rebuildable projection (`rebuild-search-index` CLI).
+  in issue #22. Index sync is event-driven (topic/user/category events) through transaction-bound
+  `task_queue` outbox rows. Workers read the latest committed database state, use a lease and
+  retry/recovery path, and keep Meilisearch as a rebuildable projection (`rebuild-search-index` CLI).
+  When Meilisearch is unavailable the search page shows a full unavailable state; per-index failures
+  degrade partially via `failedScopes`.
+
+### Async boundaries and consistency
+
+- A request-scoped database, HTTP, or LLM operation receives the incoming request context and must
+  stop on cancellation/deadline. Post-commit notifications use the explicit
+  `eventbus.DetachedContext` boundary, while workers receive their own lifetime context; legacy
+  synchronous wrappers retain bounded timeouts for compatibility.
+- Admin JSON import is accepted only up to 50 MiB, staged as an owner-readable (`0600`) file, and
+  represented by a deduplicated `import` task. The worker validates the SHA-256 payload and applies
+  all rows plus invariant rebuilding in one database transaction; failures retain the staging file
+  and can be replayed from the admin task endpoint.
+- Course AI summary remains synchronous at the public API boundary for wire compatibility, but the
+  provider call is cancellable and capped at 30 seconds. Database caching and rate limits remain the
+  cost and duplicate-generation guard; moving this API to an asynchronous response is a separate
+  contract change.
+- Topic-list cache invalidation is keyed to the changed category set; the cache is process-local.
+  Redis or another shared cache is deliberately deferred until deployment has a measured
+  multi-instance requirement and an explicit rollback plan.
 
 ### Wiki 分站 (Current)
 
@@ -132,5 +152,9 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   rebuildable projections.
 - Critical side effects (notifications, index sync, points distribution) are idempotent, retryable,
   observable.
+- The transaction outbox is the reliability seam for this single-binary deployment; adding a broker
+  is not implied by the current architecture. Connection-pool sizing and query-cache/projection
+  changes require measurements from the target PostgreSQL deployment (CPU, concurrency, p95 latency,
+  and memory) before changing defaults.
 - For OpenAPI-covered operations, contract changes ship in the same PR: Go behavior/struct →
   `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation remains Planned.

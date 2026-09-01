@@ -405,8 +405,13 @@ instance:
 
 - Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
   topic_user_stat when selected) as JSON or CSV via a background task, then download;
-  import JSON with a per-row validation report and idempotent skip; topic invariants
-  (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
+  upload JSON (maximum 50 MiB) into a staged background task. The task is checksum-addressed and
+  idempotent; identical uploads reuse the same task. The worker applies all rows and topic
+  invariants (post_seq, first/last post pointers, counts, posters) in one database transaction,
+  so validation failures roll back the batch rather than leaving partial data. Staged files use
+  mode `0600`, are deleted after success, and are retained for an explicit replay after failure.
+  Administrators can inspect `GET /api/admin/data/import/tasks` and replay a failed task with
+  `POST /api/admin/data/import/tasks/:taskId/replay`.
 - Export files are written to `data/export/` inside the storage dir with mode 0600
   (owner-only) and cleaned up after 7 days (daily cron). Export contains user emails —
   treat downloads as sensitive. Export creation and download are recorded in the

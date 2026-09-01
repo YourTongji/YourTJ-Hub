@@ -7210,13 +7210,13 @@ AdminTaskQueueItem:
       format: uint64
     type:
       type: string
-      description: Task type prefix (`export` for data exports, `file-migrate` for storage migrations).
+      description: Task type prefix (`export`, `import`, `file-migrate`, or a search projection prefix).
     status:
       type: integer
       description: "0=pending, 1=running, 2=success, 3=failed, 4=retrying."
     taskJson:
       type: string
-      description: Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate).
+      description: Serialized task payload (JSON text; import payloads carry only fileName/format/sha256; export payloads carry tables/format/fileName/progress/errorCount; migrate payloads carry lastId/total/processed/failed/clearAfterMigrate).
     retryCount:
       type: integer
     lastError:
@@ -7777,7 +7777,52 @@ AdminImportDataResponse:
           required: [result]
           properties:
             result:
-              $ref: '#/AdminImportReport'
+              $ref: '#/AdminImportTaskAcceptedResult'
+    - $ref: '#/ApiFailure'
+
+AdminImportTaskAcceptedResult:
+  type: object
+  required: [taskId, status, errors, importedTables]
+  properties:
+    taskId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Enqueued import task id.
+    status:
+      type: string
+      enum: [pending, running, retrying, failed, success]
+    errors:
+      type: array
+      items:
+        $ref: '#/AdminImportReportError'
+    importedTables:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminImportTaskListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminTaskQueueItem'
+          description: Up to 20 most recent import tasks, newest id first.
+
+AdminImportTaskReplayResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminTaskQueueItem'
     - $ref: '#/ApiFailure'
 
 # --- User content lifecycle (issue #94) and forum read ops (issue #277) ---

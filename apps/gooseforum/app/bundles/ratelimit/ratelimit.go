@@ -9,6 +9,7 @@
 package ratelimit
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -142,7 +143,9 @@ func Default() Store {
 // StartCleanup starts the periodic expired-window cleanup worker.
 func StartCleanup() {
 	cleanupOnce.Do(func() {
-		closer.RegisterPriority(closer.PriorityCache, StopCleanup)
+		closer.RegisterPriorityContext(closer.PriorityCache, func(context.Context) error {
+			return StopCleanup()
+		})
 		cleanupWg.Go(func() {
 			defer paniclog.Recover("ratelimit_cleanup")
 			ticker := time.NewTicker(time.Minute)

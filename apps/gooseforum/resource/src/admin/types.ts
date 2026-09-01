@@ -370,6 +370,8 @@ export interface ImportReport {
   failed: number
   errors: Array<{ line: number; table: string; reason: string }>
   importedTables: string[]
+  taskId?: number
+  status?: 'pending' | 'running' | 'retrying' | 'success' | 'failed'
 }
 
 export interface PostingSettings {

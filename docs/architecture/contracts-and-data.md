@@ -163,7 +163,9 @@ complete operation coverage and the precondition for such a gate is met.
   across handlers:
   - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
   - `export` (data export)
+  - `import` (staged, checksum-addressed JSON import)
   - `file-migrate` (BLOB → object storage migration)
+  - `topic-search.*`, `user-search.*`, `category-search.*`, and `course-search.*` (search projections)
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
   the same task simultaneously from the queue's perspective. Each claim generates a fresh,
@@ -181,6 +183,15 @@ complete operation coverage and the precondition for such a gate is met.
   only prevents the stale worker from writing terminal state over the new owner.
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
+- Import requests are bounded at 50 MiB and staged with mode `0600`; the task payload stores only the
+  filename, format, and SHA-256. The worker rechecks the digest, runs row validation and invariant
+  rebuilding in one transaction, and keeps the source file on failure. `POST
+  /api/admin/data/import/tasks/{taskId}/replay` resets a failed task after the operator has fixed the
+  cause. Identical uploads reuse the same task instead of overwriting a failed task's source.
+- Search projection rows are enqueued in the same transaction as topic/user/category mutations.
+  A worker re-reads current database state before upserting or deleting the external document, so
+  rollback cannot leave a committed-looking projection task behind and an unavailable Meilisearch
+  instance only delays a rebuildable projection.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
 
 ## Config-driven features (pageConfig)

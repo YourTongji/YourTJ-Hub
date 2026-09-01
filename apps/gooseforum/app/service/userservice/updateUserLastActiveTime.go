@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jellydator/ttlcache/v3"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/jellydator/ttlcache/v3"
 )
 
 type userActivity struct {
@@ -49,7 +49,9 @@ func (store *userActivityStore) init() {
 		})
 		go store.cache.Start()
 		if store.registerCloser {
-			closer.RegisterPriority(closer.PriorityFlush, CloseUpdateUserLastActiveTime)
+			closer.RegisterPriorityContext(closer.PriorityFlush, func(context.Context) error {
+				return CloseUpdateUserLastActiveTime()
+			})
 		}
 	})
 }

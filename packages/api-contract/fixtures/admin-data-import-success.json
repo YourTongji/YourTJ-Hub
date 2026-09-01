@@ -1,9 +1,7 @@
 {
   "result": {
-    "total": 0,
-    "success": 0,
-    "skipped": 0,
-    "failed": 0,
+    "taskId": 123456,
+    "status": "pending",
     "errors": [],
     "importedTables": [
       "users"

@@ -1,6 +1,7 @@
 package closer
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -108,8 +109,9 @@ func TestCloseAllTimesOutBlockedCallback(t *testing.T) {
 	})
 
 	closeTimeout = 20 * time.Millisecond
-	Register(func() error {
-		select {}
+	RegisterContext(func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
 	})
 
 	start := time.Now()
@@ -137,9 +139,10 @@ func TestCloseWithTimeoutIncludesEntryDetails(t *testing.T) {
 	})
 
 	closeTimeout = time.Millisecond
-	err := closeWithTimeout(closerEntry{
-		f: func() error {
-			select {}
+	err := closeWithTimeout(context.Background(), closerEntry{
+		f: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
 		},
 		caller:   "test.go:42",
 		priority: PriorityFlush,
@@ -153,5 +156,32 @@ func TestCloseWithTimeoutIncludesEntryDetails(t *testing.T) {
 		if !strings.Contains(message, want) {
 			t.Fatalf("timeout error %q does not contain %q", message, want)
 		}
+	}
+}
+
+func TestCloseAllJoinsErrorsAndPassesCancellationContext(t *testing.T) {
+	resetCloserForTest(t)
+	t.Cleanup(func() {
+		resetCloserForTest(t)
+	})
+
+	first := errors.New("first close error")
+	second := errors.New("second close error")
+	RegisterContext(func(ctx context.Context) error {
+		if ctx == nil {
+			t.Fatal("close callback received nil context")
+		}
+		return first
+	})
+	RegisterContext(func(ctx context.Context) error {
+		if ctx == nil {
+			t.Fatal("close callback received nil context")
+		}
+		return second
+	})
+
+	err := CloseAll()
+	if !errors.Is(err, first) || !errors.Is(err, second) {
+		t.Fatalf("CloseAll() error = %v, want both callback errors", err)
 	}
 }

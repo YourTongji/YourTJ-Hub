@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -40,7 +41,11 @@ func GetCourseSummary(req component.BetterRequest[GetCourseSummaryReq]) componen
 		}
 		return component.SuccessResponse(result)
 	}
-	result, err := courseservice.GetAiSummary(req.Params.CourseId, req.Params.Refresh)
+	ctx := context.Background()
+	if req.GinContext != nil && req.GinContext.Request != nil {
+		ctx = req.GinContext.Request.Context()
+	}
+	result, err := courseservice.GetAiSummaryContext(ctx, req.Params.CourseId, req.Params.Refresh)
 	if err != nil {
 		switch {
 		case errors.Is(err, courseservice.ErrAiSummaryCourseNotFound):

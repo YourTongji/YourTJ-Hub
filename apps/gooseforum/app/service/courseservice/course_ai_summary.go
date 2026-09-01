@@ -85,6 +85,7 @@ const (
 	aiSummaryCourseWindow    = 10 * time.Minute
 	aiSummaryGlobalKey       = "ai.summary.global"
 	aiSummaryCourseKeyPrefix = "ai.summary.course:"
+	aiSummaryTimeout         = 30 * time.Second
 )
 
 // aiSummaryGlobalLimit 全局每分钟生成上限；0 表示用默认值（成本护栏，
@@ -192,6 +193,21 @@ var (
 // 不消耗任何名额；LLM 失败/未配置/落库失败返还单课名额（全局名额保留——
 // 确实发生了调用，防刷语义不变）。
 func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
+	ctx, cancel := context.WithTimeoutCause(context.Background(), aiSummaryTimeout, context.DeadlineExceeded)
+	defer cancel()
+	return GetAiSummaryContext(ctx, courseId, refresh)
+}
+
+// GetAiSummaryContext keeps request cancellation attached to the provider
+// call. The legacy wrapper above supplies a bounded context for non-HTTP
+// callers; background jobs should pass their own worker context.
+func GetAiSummaryContext(ctx context.Context, courseId uint64, refresh bool) (AiSummaryResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
+	}
 	// 1. 课程存在且可见。
 	entity := course.GetCourse(courseId)
 	if entity.Id == 0 || entity.Status != course.StatusVisible {
@@ -310,7 +326,7 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
 	}
 	prompt := buildAiSummaryPrompt(entity.Name, entity.PrimaryCode, reviews)
-	raw, err := llmChat(context.Background(), cfg, prompt)
+	raw, err := llmChat(ctx, cfg, prompt)
 	if err != nil {
 		slog.Error("ai_summary_generation_failed", "courseId", courseId, "error", err)
 		store.Reset(courseKey)

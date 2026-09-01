@@ -17,6 +17,7 @@ func TestMergeDefaultRateLimitActionsAddsRewardAbuseGuards(t *testing.T) {
 		}},
 	}
 	mergeDefaultRateLimitActions(&cfg)
+	cfg.BuildActionIndex()
 
 	found := map[string]pageConfig.RateLimitRule{}
 	for _, rule := range cfg.Actions {
@@ -29,5 +30,11 @@ func TestMergeDefaultRateLimitActionsAddsRewardAbuseGuards(t *testing.T) {
 	}
 	if got := found["topic.write"].WindowSeconds; got != 999 {
 		t.Errorf("existing topic.write window = %d, want 999", got)
+	}
+	if rule, ok := cfg.RuleForAction("topic.write"); !ok || rule.WindowSeconds != 999 {
+		t.Fatalf("indexed topic.write rule = %+v, %v; want first configured rule", rule, ok)
+	}
+	if _, ok := cfg.RuleForAction("unknown"); ok {
+		t.Fatal("unknown action should not be indexed")
 	}
 }

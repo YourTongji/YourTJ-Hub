@@ -4651,11 +4651,11 @@ export interface paths {
          *     at 50MB); only JSON is accepted — either an object keyed by table name
          *     (`users`/`topics`/`posts`/`postRevisions`/`topicCategoryIndex`/
          *     `topicUserStat`) or an array of row objects with an optional `table`
-         *     field (defaulting to `users`). Import is idempotent (existing rows are
-         *     skipped and counted), runs in users → topics → posts → postRevisions →
-         *     derived-tables order, and rebuilds topic invariants afterwards. The
-         *     response report counts total/success/skipped/failed rows with per-row
-         *     error details. Failure responses use real HTTP statuses: missing
+         *     field (defaulting to `users`). The request only stages a deduplicated
+         *     `import` task and returns its id/status; the worker performs the
+         *     idempotent import in users → topics → posts → postRevisions →
+         *     derived-tables order and rebuilds topic invariants in one transaction.
+         *     Failure responses use real HTTP statuses: missing
          *     `file` field → HTTP 400 `admin.data.importFailed` (params.error
          *     `未获取到上传文件`); unparsable content, an empty file, a payload
          *     without known tables, or an unknown table name → HTTP 400
@@ -4664,6 +4664,53 @@ export interface paths {
          *     inside `result.failed`/`result.errors`.
          */
         post: operations["adminImportData"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/import/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent data-import tasks
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Returns up to 20 most recent `import` task_queue rows, newest id first.
+         *     The task payload contains only the staged filename, format, and SHA-256;
+         *     the imported body is never returned by this endpoint.
+         */
+        get: operations["adminListImportTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/import/tasks/{taskId}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay a failed data-import task
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Only a failed `import` task with an intact checksum-addressed staging
+         *     file can be replayed. The source file is not replaced and the task is
+         *     reset to `pending`; active or successful tasks are rejected as a
+         *     business failure using the standard HTTP 200 failure envelope.
+         */
+        post: operations["adminReplayImportTask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7944,11 +7991,11 @@ export interface components {
         AdminTaskQueueItem: {
             /** Format: uint64 */
             id: number;
-            /** @description Task type prefix (`export` for data exports, `file-migrate` for storage migrations). */
+            /** @description Task type prefix (`export`, `import`, `file-migrate`, or a search projection prefix). */
             type: string;
             /** @description 0=pending, 1=running, 2=success, 3=failed, 4=retrying. */
             status: number;
-            /** @description Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate). */
+            /** @description Serialized task payload (JSON text; import payloads carry only fileName/format/sha256; export payloads carry tables/format/fileName/progress/errorCount; migrate payloads carry lastId/total/processed/failed/clearAfterMigrate). */
             taskJson: string;
             retryCount: number;
             lastError: string;
@@ -8185,7 +8232,7 @@ export interface components {
             importedTables: string[];
         };
         AdminImportDataResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["AdminImportReport"];
+            result: components["schemas"]["AdminImportTaskAcceptedResult"];
         }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
             /** Format: uint64 */
@@ -9391,6 +9438,24 @@ export interface components {
             secretKeyConfigured: boolean;
             publicUrlPrefix: string;
         };
+        AdminImportTaskAcceptedResult: {
+            /**
+             * Format: uint64
+             * @description Enqueued import task id.
+             */
+            taskId: number;
+            /** @enum {string} */
+            status: "pending" | "running" | "retrying" | "failed" | "success";
+            errors: components["schemas"]["AdminImportReportError"][];
+            importedTables: string[];
+        };
+        AdminImportTaskListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Up to 20 most recent import tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        AdminImportTaskReplayResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTaskQueueItem"];
+        }) | components["schemas"]["ApiFailure"];
         /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
         WikiSearchItem: {
             /** @description Display name of the namespace (fallback: URL key). */
@@ -17046,7 +17111,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Import finished; `result` is the per-table report (may still contain per-row failures). */
+            /** @description Import task accepted; poll adminListImportTasks for worker status. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17056,6 +17121,93 @@ export interface operations {
                 };
             };
             /** @description Missing file or unimportable payload. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListImportTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent data-import tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportTaskListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReplayImportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requeued task, or a business failure when it is not replayable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportTaskReplayResponse"];
+                };
+            };
+            /** @description Missing or malformed task id path parameter. */
             400: {
                 headers: {
                     [name: string]: unknown;

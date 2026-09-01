@@ -16,6 +16,8 @@ const (
 	topicListCacheTTL  = 5 * time.Second
 )
 
+var topicListSorts = [...]string{"latest", "hot", "popular", "new"}
+
 type TopicSimpleVoPage struct {
 	Topics  []*vo.TopicsSimpleVo
 	HasNext bool
@@ -29,7 +31,7 @@ func GetLatestTopicsSimpleVoPaginated(page int, sort string) TopicSimpleVoPage {
 	if !shouldCacheTopicPage(page) {
 		return loadLatestTopicsSimpleVoPaginated(page, sort)
 	}
-	key := "home:GetLatestTopics:" + sort + ":" + strconv.Itoa(page)
+	key := latestTopicsCacheKey(sort, page)
 	return topicSimpleVoCache.GetOrLoad(key, func() (TopicSimpleVoPage, error) {
 		return loadLatestTopicsSimpleVoPaginated(page, sort), nil
 	}, topicListCacheTTL)
@@ -41,7 +43,7 @@ func GetTopicsByCategorySimpleVo(categoryId uint64, sort string, page int) Topic
 	if !shouldCacheTopicPage(page) {
 		return loadTopicsByCategorySimpleVo(categoryId, sort, page)
 	}
-	key := "GetTopicsByCategory:" + strconv.FormatUint(categoryId, 10) + ":" + sort + ":" + strconv.Itoa(page)
+	key := topicsByCategoryCacheKey(categoryId, sort, page)
 	return topicSimpleVoCache.GetOrLoad(key, func() (TopicSimpleVoPage, error) {
 		return loadTopicsByCategorySimpleVo(categoryId, sort, page), nil
 	}, topicListCacheTTL)
@@ -65,6 +67,14 @@ func normalizeTopicSort(sort string) string {
 
 func shouldCacheTopicPage(page int) bool {
 	return page <= maxCachedTopicPage
+}
+
+func latestTopicsCacheKey(sort string, page int) string {
+	return "home:GetLatestTopics:" + sort + ":" + strconv.Itoa(page)
+}
+
+func topicsByCategoryCacheKey(categoryID uint64, sort string, page int) string {
+	return "GetTopicsByCategory:" + strconv.FormatUint(categoryID, 10) + ":" + sort + ":" + strconv.Itoa(page)
 }
 
 func loadLatestTopicsSimpleVoPaginated(page int, sort string) TopicSimpleVoPage {
@@ -106,4 +116,31 @@ func topicEntitiesToPointers(data []topics.Entity) []*topics.Entity {
 
 func ClearTopicListCache() {
 	topicSimpleVoCache.Clear()
+}
+
+// InvalidateTopicListCacheForCategories invalidates home pages and category
+// pages for categories touched by a topic mutation. Other category pages stay
+// warm and are still protected from stale in-flight loads by localcache.
+func InvalidateTopicListCacheForCategories(categoryIDs ...uint64) {
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			topicSimpleVoCache.Delete(latestTopicsCacheKey(sort, page))
+		}
+	}
+
+	seen := make(map[uint64]struct{}, len(categoryIDs))
+	for _, categoryID := range categoryIDs {
+		if categoryID == 0 {
+			continue
+		}
+		if _, ok := seen[categoryID]; ok {
+			continue
+		}
+		seen[categoryID] = struct{}{}
+		for page := 1; page <= maxCachedTopicPage; page++ {
+			for _, sort := range topicListSorts {
+				topicSimpleVoCache.Delete(topicsByCategoryCacheKey(categoryID, sort, page))
+			}
+		}
+	}
 }

@@ -43,11 +43,13 @@ func WikiSyncRun(req component.BetterRequest[component.Null]) component.Response
 	if !wikiservice.LoadGitConfig().Enabled() {
 		return component.FailResponseCode(component.MessageWikiSyncFailed, nil)
 	}
+	jobCtx, cancel := detachedJobContext(req.GinContext)
 	go func() {
+		defer cancel()
 		// review MEDIUM：goroutine panic 会终止整个进程（startup/cron 同步
 		// 均有 paniclog.Recover，此处对齐）。
 		defer recovery.Recover("wiki_manual_sync")
-		if _, err := wikiservice.Sync("manual"); err != nil {
+		if _, err := wikiservice.SyncContext(jobCtx, "manual"); err != nil {
 			if errors.Is(err, wikiservice.ErrSyncAlreadyRunning) {
 				return // 已合并：运行中同步完成后会自动补跑（syncPending）
 			}
@@ -216,11 +218,13 @@ func WikiWebhook(c *gin.Context) {
 				}
 			}
 		}
+		jobCtx, cancel := detachedJobContext(c)
 		go func() {
+			defer cancel()
 			// review MEDIUM：goroutine panic 会终止整个进程（startup/cron 同步
 			// 均有 paniclog.Recover，此处对齐）。
 			defer recovery.Recover("wiki_webhook_sync")
-			if _, err := wikiservice.Sync("webhook"); err != nil {
+			if _, err := wikiservice.SyncContext(jobCtx, "webhook"); err != nil {
 				if errors.Is(err, wikiservice.ErrSyncAlreadyRunning) {
 					return // 已合并：运行中同步完成后自动补跑
 				}

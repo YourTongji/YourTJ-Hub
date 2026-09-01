@@ -426,6 +426,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("data/export/tasks", UpButterReq(api.ListExportTasks)).
 		GET("data/export/download/:taskId", api.DownloadExportTask).
 		POST("data/import", api.ImportData).
+		GET("data/import/tasks", UpButterReq(api.ListImportTasks)).
+		POST("data/import/tasks/:taskId/replay", UpUriReq(api.ReplayImportTask)).
 		POST("review-queue", UpButterReq(api.ReviewQueue)).
 		POST("review-action", UpButterReq(api.ReviewAction))
 

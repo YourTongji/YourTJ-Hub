@@ -9,16 +9,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -323,8 +322,8 @@ func (s *Service) checkWriteRateLimit(action string, req *mcp.CallToolRequest, u
 	if !cfg.Enabled {
 		return nil
 	}
-	rule := findRateLimitRule(cfg.Actions, action)
-	if rule == nil || (rule.LimitPerIp <= 0 && rule.LimitPerUser <= 0) {
+	rule, ok := cfg.RuleForAction(action)
+	if !ok || (rule.LimitPerIp <= 0 && rule.LimitPerUser <= 0) {
 		return nil
 	}
 
@@ -393,17 +392,6 @@ func (s *Service) checkWriteRateLimit(action string, req *mcp.CallToolRequest, u
 			"window", rule.WindowSeconds,
 		)
 		return fmt.Errorf("rate limited (%s): retry after %ds", action, seconds)
-	}
-	return nil
-}
-
-// findRateLimitRule returns the quota for an action, or nil if none is
-// configured. Mirrors the lookup in middleware/rateLimit.go.
-func findRateLimitRule(rules []pageConfig.RateLimitRule, action string) *pageConfig.RateLimitRule {
-	for i := range rules {
-		if rules[i].Action == action {
-			return &rules[i]
-		}
 	}
 	return nil
 }

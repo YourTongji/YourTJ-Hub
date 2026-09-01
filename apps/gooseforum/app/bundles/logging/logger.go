@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -166,7 +167,7 @@ func Init() {
 	slog.SetDefault(logger)
 
 	// 注册到全局关闭管理器
-	closer.RegisterPriority(closer.PriorityLogger, func() error {
+	closer.RegisterPriorityContext(closer.PriorityLogger, func(context.Context) error {
 		Shutdown()
 		return nil
 	})

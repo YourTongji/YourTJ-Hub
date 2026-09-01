@@ -9,7 +9,6 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
@@ -96,8 +95,8 @@ func applyRateLimit(c *gin.Context, action string) {
 		c.Next()
 		return
 	}
-	rule := findRateLimitRule(cfg.Actions, action)
-	if rule == nil || (rule.LimitPerIp <= 0 && rule.LimitPerUser <= 0) {
+	rule, ok := cfg.RuleForAction(action)
+	if !ok || (rule.LimitPerIp <= 0 && rule.LimitPerUser <= 0) {
 		c.Next()
 		return
 	}
@@ -156,13 +155,4 @@ func applyRateLimit(c *gin.Context, action string) {
 		return
 	}
 	c.Next()
-}
-
-func findRateLimitRule(rules []pageConfig.RateLimitRule, action string) *pageConfig.RateLimitRule {
-	for i := range rules {
-		if rules[i].Action == action {
-			return &rules[i]
-		}
-	}
-	return nil
 }

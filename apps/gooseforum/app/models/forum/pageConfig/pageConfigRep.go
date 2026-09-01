@@ -48,11 +48,15 @@ func GetMigrationVersion() uint32 {
 	return cast.ToUint32(configEntity.Config)
 }
 
-func SyncMigrationVersion(version uint32) {
+func SyncMigrationVersion(version uint32) error {
 	configEntity := GetByPageType(Migration)
 	configEntity.PageType = Migration
 	configEntity.Config = cast.ToString(version)
-	CreateOrSave(&configEntity)
+	if configEntity.Id == 0 {
+		result := builder().Create(&configEntity)
+		return result.Error
+	}
+	return builder().Save(&configEntity).Error
 }
 
 // wikiSyncSettingsMu 序列化 WikiSyncSettings 的读改写：webhook secret 与

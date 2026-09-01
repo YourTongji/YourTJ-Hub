@@ -6,6 +6,25 @@ import (
 	"testing"
 )
 
+func TestRateLimitActionIndexPreservesFirstDuplicate(t *testing.T) {
+	cfg := RateLimitConfig{Actions: []RateLimitRule{
+		{Action: "login", WindowSeconds: 60, LimitPerIp: 1},
+		{Action: "login", WindowSeconds: 3600, LimitPerIp: 99},
+		{Action: "register", WindowSeconds: 120, LimitPerIp: 2},
+	}}
+	cfg.BuildActionIndex()
+
+	if got, ok := cfg.RuleForAction("login"); !ok || got.WindowSeconds != 60 || got.LimitPerIp != 1 {
+		t.Fatalf("login rule = %+v, %v; want first duplicate", got, ok)
+	}
+	if got, ok := cfg.RuleForAction("register"); !ok || got.LimitPerIp != 2 {
+		t.Fatalf("register rule = %+v, %v; want configured rule", got, ok)
+	}
+	if _, ok := cfg.RuleForAction("missing"); ok {
+		t.Fatal("missing action should not be found")
+	}
+}
+
 // TestOneSystemSettingsConfigJSONOmitsCiphertext 验证领域结构不随 JSON 序列化泄漏密文，
 // 落库形状保留密文（review MEDIUM）。
 func TestOneSystemSettingsConfigJSONOmitsCiphertext(t *testing.T) {
