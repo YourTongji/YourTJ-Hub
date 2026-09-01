@@ -114,10 +114,13 @@ function handleContentKeydown(event: KeyboardEvent) {
       :class="triggerClass"
       :aria-label="props.label || undefined"
     >
-      <SelectValue :placeholder="props.placeholder ?? ''">
+      <!-- SelectValue 根 span 是 trigger(flex) 的子项：flex-1 撑开可用宽度，
+           min-w-0 允许其收缩到内容宽度以下，否则长学期名会把 trigger 撑破溢出。 -->
+      <SelectValue :placeholder="props.placeholder ?? ''" class="min-w-0 flex-1">
         <template #default="{ selectedLabel }">
+          <!-- 内层文本 span 必须是 block：inline 元素上 text-overflow: ellipsis 不生效 -->
           <span
-            class="min-w-0 truncate"
+            class="block truncate"
             :class="selectedLabel.length ? 'text-base-content' : 'text-base-content/45'"
           >
             {{ selectedLabel[0] ?? props.placeholder ?? '' }}
