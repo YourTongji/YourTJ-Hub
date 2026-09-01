@@ -504,6 +504,10 @@ export function getImportTasks() {
   return getJson<AdminTaskRow[]>('/api/admin/data/import/tasks', adminText('k00hk'))
 }
 
+export function replayImportTask(taskId: number) {
+  return postJson<AdminTaskRow>(`/api/admin/data/import/tasks/${taskId}/replay`, {}, adminText('k00hk'))
+}
+
 export function getAgentList() {
   return postJson<AdminAgent[]>('/api/admin/agent-list', {}, adminText('k00k2'))
 }

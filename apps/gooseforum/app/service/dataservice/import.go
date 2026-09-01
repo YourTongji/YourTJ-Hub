@@ -52,11 +52,11 @@ func ImportData(ctx context.Context, data []byte, format string) (*ImportReport,
 		ctx = context.Background()
 	}
 	if format != "json" {
-		return nil, fmt.Errorf("导入仅支持 JSON 格式")
+		return nil, fmt.Errorf("%w: 导入仅支持 JSON 格式", ErrImportInvalidFormat)
 	}
 	parsed, err := parseImportJSON(data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrImportInvalidFormat, err)
 	}
 	report := &ImportReport{
 		Errors:   []ImportError{},
@@ -247,7 +247,11 @@ func importTopics(db *gorm.DB, rows []map[string]any, report *ImportReport) {
 			var cat category.Entity
 			if err := db.First(&cat, cid).Error; err != nil {
 				report.Failed++
-				report.Errors = append(report.Errors, ImportError{Line: line, Table: "topics", Reason: fmt.Sprintf("分类 %d 不存在", cid)})
+				reason := fmt.Sprintf("分类 %d 不存在", cid)
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					reason = "分类校验失败"
+				}
+				report.Errors = append(report.Errors, ImportError{Line: line, Table: "topics", Reason: reason})
 				categoryIDs = nil
 				break
 			}
@@ -328,7 +332,11 @@ func importTopicCategoryIndexes(db *gorm.DB, rows []map[string]any, report *Impo
 		var cat category.Entity
 		if err := db.First(&cat, categoryID).Error; err != nil {
 			report.Failed++
-			report.Errors = append(report.Errors, ImportError{Line: line, Table: "topicCategoryIndex", Reason: "categoryId 不存在"})
+			reason := "categoryId 不存在"
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				reason = "categoryId 校验失败"
+			}
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "topicCategoryIndex", Reason: reason})
 			continue
 		}
 		var existing topicCategoryIndex.Entity

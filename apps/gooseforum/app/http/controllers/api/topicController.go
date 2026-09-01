@@ -41,6 +41,13 @@ func requestContext(c *gin.Context) context.Context {
 	return c.Request.Context()
 }
 
+func betterRequestContext[T any](req component.BetterRequest[T]) context.Context {
+	if req.Context != nil {
+		return req.Context
+	}
+	return requestContext(req.GinContext)
+}
+
 func detachedRequestContext(c *gin.Context) context.Context {
 	return eventbus.DetachedContext(requestContext(c))
 }
@@ -247,7 +254,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	isEdit := topic.Id > 0
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
-	err = db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if isEdit {
 			// 锁序与 UpdatePost 首楼分支保持一致（posts → topics）：先写
 			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
@@ -369,7 +376,7 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.SuccessResponse(true)
 	}
 	topic.Status = nextStatus
-	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if err := topics.UpdateStatusTx(tx, topic.Id, nextStatus); err != nil {
 			return err
 		}
@@ -637,7 +644,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	}
 
 	now := time.Now()
-	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if err := posts.SaveTx(tx, &postEntity); err != nil {
 			return err
 		}

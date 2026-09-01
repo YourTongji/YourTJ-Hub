@@ -60,6 +60,34 @@ func TestHandleTopicDeleted(t *testing.T) {
 	}
 }
 
+func TestHandleTopicPublishedAndUpdated(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		handler func(context.Context, *TopicPublishedEvent) error
+	}{
+		{name: "published", handler: handleTopicPublished},
+		{name: "updated", handler: func(ctx context.Context, event *TopicPublishedEvent) error {
+			return handleTopicUpdated(ctx, (*TopicUpdatedEvent)(event))
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+			conn := setupSearchOutboxDB(t)
+			event := &TopicPublishedEvent{Topic: &topics.Entity{Id: 321, UserId: 654, Title: "published topic"}}
+			if err := test.handler(ctx, event); err != nil {
+				t.Fatalf("handle topic %s error = %v", test.name, err)
+			}
+			var count int64
+			if err := conn.Model(&taskQueue.Entity{}).Where("type = ?", "topic-search.sync").Count(&count).Error; err != nil {
+				t.Fatalf("count topic outbox tasks: %v", err)
+			}
+			if count != 1 {
+				t.Fatalf("topic outbox task count = %d, want 1", count)
+			}
+		})
+	}
+}
+
 func TestUserSearchIndexUpdatedEventSubject(t *testing.T) {
 	if id, userId, title := (*UserSearchIndexUpdatedEvent)(nil).Subject(); id != 0 || userId != 0 || title != "" {
 		t.Fatalf("nil event Subject() = (%d, %d, %q), want (0, 0, \"\")", id, userId, title)

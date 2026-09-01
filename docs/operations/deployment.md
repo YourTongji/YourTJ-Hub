@@ -465,6 +465,10 @@ CLI 同步（运维 cron 等自动化场景）：
   30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
   ```
 
+应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，
+可在 `config.toml` 设置 `[cron].enabled = false`；该开关只停止应用内 scheduler，
+不会停用 task queue worker 或手动 CLI。
+
 - 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
   续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
   fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
@@ -622,6 +626,10 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 
   4. 再切 DNS 回旧机。
   - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
 - Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（ADR-003：索引是可重建投影）。
+- 搜索投影任务采用有界重试；Meilisearch 短时不可用时，`topic-search.*`、
+  `user-search.*` 或 `category-search.*` 任务可能进入 `failed`，不会自动无限重试。
+  Meilisearch 恢复后检查 `task_queue`，并运行 `rebuild-search-index` 做一次全量对账；
+  该命令是运维恢复动作，不依赖旧任务仍处于 pending。
 
 ## Runbooks to write
 

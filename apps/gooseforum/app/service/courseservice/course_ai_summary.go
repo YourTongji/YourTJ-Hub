@@ -193,18 +193,18 @@ var (
 // 不消耗任何名额；LLM 失败/未配置/落库失败返还单课名额（全局名额保留——
 // 确实发生了调用，防刷语义不变）。
 func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
-	ctx, cancel := context.WithTimeoutCause(context.Background(), aiSummaryTimeout, context.DeadlineExceeded)
-	defer cancel()
-	return GetAiSummaryContext(ctx, courseId, refresh)
+	return GetAiSummaryContext(context.Background(), courseId, refresh)
 }
 
 // GetAiSummaryContext keeps request cancellation attached to the provider
-// call. The legacy wrapper above supplies a bounded context for non-HTTP
-// callers; background jobs should pass their own worker context.
+// call and applies the service-level upper bound for every caller. Background
+// jobs should still pass their own worker context so shutdown can cancel it.
 func GetAiSummaryContext(ctx context.Context, courseId uint64, refresh bool) (AiSummaryResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx, cancel := context.WithTimeoutCause(ctx, aiSummaryTimeout, context.DeadlineExceeded)
+	defer cancel()
 	if err := ctx.Err(); err != nil {
 		return AiSummaryResult{}, ErrAiSummaryGenerationFailed
 	}

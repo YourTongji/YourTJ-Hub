@@ -82,9 +82,11 @@
 
 - Meilisearch optionally enabled (config [meilisearch]). Aggregate search (one box covering
   topics/users/categories with scope tabs; pinyin/initials matching for users and categories) landed
-  in issue #22. Index sync is event-driven (topic/user/category events) through transaction-bound
-  `task_queue` outbox rows. Workers read the latest committed database state, use a lease and
-  retry/recovery path, and keep Meilisearch as a rebuildable projection (`rebuild-search-index` CLI).
+  in issue #22. Index sync is event-driven (topic/user/category events) through `task_queue` outbox
+  rows. Main topic/category/wiki writes enqueue in their transaction; post-commit user/profile and
+  lifecycle events enqueue asynchronously. Workers read the latest committed database state, use a
+  lease and retry/recovery path, and keep Meilisearch as a rebuildable projection
+  (`rebuild-search-index` CLI).
   When Meilisearch is unavailable the search page shows a full unavailable state; per-index failures
   degrade partially via `failedScopes`.
 

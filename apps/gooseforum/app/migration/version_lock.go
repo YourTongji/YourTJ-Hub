@@ -82,11 +82,15 @@ func acquirePostgresMigrationLock(db *gorm.DB) (func(), error) {
 }
 
 func acquireSQLiteMigrationLock(db *gorm.DB) (func(), error) {
+	return acquireSQLiteMigrationLockWithWait(db, versionedMigrationLockWait)
+}
+
+func acquireSQLiteMigrationLockWithWait(db *gorm.DB, wait time.Duration) (func(), error) {
 	if err := db.Exec(`
 CREATE TABLE IF NOT EXISTS app_migration_lock (
 		id INTEGER PRIMARY KEY,
 		owner TEXT NOT NULL DEFAULT '',
-		expires_at DATETIME NOT NULL DEFAULT '1970-01-01T00:00:00Z'
+		expires_at INTEGER NOT NULL DEFAULT 0
 )`).Error; err != nil {
 		return nil, fmt.Errorf("migration: create sqlite lock table: %w", err)
 	}
@@ -95,7 +99,7 @@ CREATE TABLE IF NOT EXISTS app_migration_lock (
 	}
 
 	owner := fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
-	deadline := time.Now().Add(versionedMigrationLockWait)
+	deadline := time.Now().Add(wait)
 	for {
 		now := time.Now().UTC()
 		expiresAt := now.Add(versionedMigrationLockLease)
@@ -104,9 +108,9 @@ UPDATE app_migration_lock
 SET owner = ?, expires_at = ?
 WHERE id = ? AND (owner = '' OR expires_at <= ?)`,
 			owner,
-			expiresAt.Format(time.RFC3339Nano),
+			expiresAt.UnixNano(),
 			versionedMigrationLockID,
-			now.Format(time.RFC3339Nano),
+			now.UnixNano(),
 		)
 		if result.Error != nil {
 			return nil, fmt.Errorf("migration: acquire sqlite lock: %w", result.Error)
@@ -115,7 +119,7 @@ WHERE id = ? AND (owner = '' OR expires_at <= ?)`,
 			return startSQLiteLockLease(db, owner), nil
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("migration: sqlite lock still held after %s", versionedMigrationLockWait)
+			return nil, fmt.Errorf("migration: sqlite lock still held after %s", wait)
 		}
 		time.Sleep(versionedMigrationLockRetry)
 	}
@@ -133,7 +137,7 @@ func startSQLiteLockLease(db *gorm.DB, owner string) func() {
 			case <-ticker.C:
 				now := time.Now().UTC()
 				result := db.Exec(`UPDATE app_migration_lock SET expires_at = ? WHERE id = ? AND owner = ?`,
-					now.Add(versionedMigrationLockLease).Format(time.RFC3339Nano),
+					now.Add(versionedMigrationLockLease).UnixNano(),
 					versionedMigrationLockID,
 					owner,
 				)
@@ -150,7 +154,7 @@ func startSQLiteLockLease(db *gorm.DB, owner string) func() {
 		cancel()
 		<-done
 		if err := db.Exec(`UPDATE app_migration_lock SET owner = '', expires_at = ? WHERE id = ? AND owner = ?`,
-			time.Now().UTC().Format(time.RFC3339Nano), versionedMigrationLockID, owner).Error; err != nil {
+			time.Now().UTC().UnixNano(), versionedMigrationLockID, owner).Error; err != nil {
 			slog.Warn("migration: release sqlite lock failed", "err", err)
 		}
 	})

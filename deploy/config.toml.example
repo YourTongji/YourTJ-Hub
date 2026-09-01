@@ -29,6 +29,10 @@ backupDir = "./storage/databasebackup/"
 keep = 7
 spec = "0 3 * * *"
 
+[cron]
+# 应用内定时任务开关；关闭后持久化 worker 与手动 CLI 仍可用。
+enabled = true
+
 [db.default]
 # 主库连接类型: postgres（部署默认）/ sqlite（本地开发；文件库 [db.file] 固定 sqlite）
 connection = "postgres"

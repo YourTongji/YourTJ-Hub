@@ -188,10 +188,11 @@ complete operation coverage and the precondition for such a gate is met.
   rebuilding in one transaction, and keeps the source file on failure. `POST
   /api/admin/data/import/tasks/{taskId}/replay` resets a failed task after the operator has fixed the
   cause. Identical uploads reuse the same task instead of overwriting a failed task's source.
-- Search projection rows are enqueued in the same transaction as topic/user/category mutations.
-  A worker re-reads current database state before upserting or deleting the external document, so
-  rollback cannot leave a committed-looking projection task behind and an unavailable Meilisearch
-  instance only delays a rebuildable projection.
+- Search projection rows are transaction-bound for the main topic/category/wiki write paths. User
+  profile, likes/follows, and content delete/restore event paths enqueue after the business commit;
+  they therefore have a short crash window but remain idempotent, retryable, and rebuildable. A
+  worker re-reads current database state before upserting or deleting the external document, so an
+  unavailable Meilisearch instance only delays a rebuildable projection.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
 
 ## Config-driven features (pageConfig)

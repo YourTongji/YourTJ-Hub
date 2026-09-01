@@ -32,7 +32,7 @@ type Cache[V any] struct {
 	cache       *ttlcache.Cache[string, cachedEntry[V]]
 	group       singleflight.Group
 	epoch       atomic.Uint64
-	versionMu   sync.Mutex
+	versionMu   sync.RWMutex
 	keyVersions map[string]uint64
 }
 
@@ -174,8 +174,8 @@ func (c *Cache[V]) Delete(key string) {
 }
 
 func (c *Cache[V]) currentKeyVersion(key string) uint64 {
-	c.versionMu.Lock()
-	defer c.versionMu.Unlock()
+	c.versionMu.RLock()
+	defer c.versionMu.RUnlock()
 	return c.keyVersions[key]
 }
 

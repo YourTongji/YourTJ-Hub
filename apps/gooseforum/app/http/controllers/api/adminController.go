@@ -1944,10 +1944,10 @@ type ImportTaskReq struct {
 
 // ReplayImportTask requeues a failed import while preserving its staged body.
 func ReplayImportTask(req component.BetterRequest[ImportTaskReq]) component.Response {
-	task, err := dataservice.ReplayImportTask(req.Params.TaskId)
+	task, err := dataservice.ReplayImportTaskContext(requestContext(req.GinContext), req.Params.TaskId)
 	if err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed,
-			component.MessageParams{"error": err.Error()})
+			component.MessageParams{"error": "导入任务当前不可重放"})
 	}
 	return component.SuccessResponse(task)
 }
@@ -1964,14 +1964,14 @@ func ImportData(c *gin.Context) {
 	src, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
-			component.MessageParams{"error": err.Error()}))
+			component.MessageParams{"error": "读取上传文件失败，请稍后重试"}))
 		return
 	}
 	defer func() { _ = src.Close() }()
 	data, err := io.ReadAll(io.LimitReader(src, dataservice.MaxImportSize+1))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
-			component.MessageParams{"error": err.Error()}))
+			component.MessageParams{"error": "读取上传文件失败，请稍后重试"}))
 		return
 	}
 	if len(data) > dataservice.MaxImportSize {
@@ -1981,8 +1981,14 @@ func ImportData(c *gin.Context) {
 	}
 	report, err := dataservice.EnqueueImport(c.Request.Context(), data, "json")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
-			component.MessageParams{"error": err.Error()}))
+		if errors.Is(err, dataservice.ErrImportInvalidFormat) {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
+				component.MessageParams{"error": "导入文件格式无效"}))
+			return
+		}
+		slog.Error("admin import enqueue failed", "error", err)
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "导入任务暂存失败，请稍后重试"}))
 		return
 	}
 	c.JSON(http.StatusOK, component.SuccessData(report))

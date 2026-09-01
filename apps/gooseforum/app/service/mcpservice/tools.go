@@ -178,7 +178,7 @@ func registerCreateTopic(s *mcp.Server, svc *Service) {
 		Name:        "create_topic",
 		Description: "以当前 Agent 身份发布一个主题（创建即发布）。受 topic.write 限流约束。",
 		InputSchema: objectSchema(props, required),
-	}, recoverToolHandler("create_topic", func(_ context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+	}, recoverToolHandler("create_topic", func(ctx context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
 		agentID, err := svc.userID(req)
 		if err != nil {
 			return nil, nil, err
@@ -191,7 +191,7 @@ func registerCreateTopic(s *mcp.Server, svc *Service) {
 			Content:    asString(in["content"]),
 			CategoryId: asUintSlice(in["categoryId"]),
 		}
-		resp := api.AgentWriteTopic(component.BetterRequest[api.AgentWriteTopicReq]{Params: params, UserId: agentID})
+		resp := api.AgentWriteTopic(component.BetterRequest[api.AgentWriteTopicReq]{Params: params, UserId: agentID, Context: ctx})
 		v, err := serviceResult(resp)
 		if err != nil {
 			return nil, nil, err
@@ -257,7 +257,7 @@ func registerCreatePost(s *mcp.Server, svc *Service) {
 		Name:        "create_post",
 		Description: "以当前 Agent 身份在指定主题下发帖（回复）。受 post.create 限流约束。",
 		InputSchema: objectSchema(props, required),
-	}, recoverToolHandler("create_post", func(_ context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+	}, recoverToolHandler("create_post", func(ctx context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
 		agentID, err := svc.userID(req)
 		if err != nil {
 			return nil, nil, err
@@ -270,7 +270,7 @@ func registerCreatePost(s *mcp.Server, svc *Service) {
 			Content:       asString(in["content"]),
 			ReplyToPostId: asUint(in["replyToPostId"]),
 		}
-		resp := api.AgentCreatePost(component.BetterRequest[api.AgentCreatePostReq]{Params: params, UserId: agentID})
+		resp := api.AgentCreatePost(component.BetterRequest[api.AgentCreatePostReq]{Params: params, UserId: agentID, Context: ctx})
 		v, err := serviceResult(resp)
 		if err != nil {
 			return nil, nil, err

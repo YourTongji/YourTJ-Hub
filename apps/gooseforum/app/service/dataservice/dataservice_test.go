@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -133,8 +134,9 @@ func TestExportRunAndFile(t *testing.T) {
 		t.Fatalf("export file missing: %v", err)
 	}
 	// issue #324 S4：导出文件含用户 PII，权限必须为 0600（仅属主可读写）。
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Fatalf("export file mode = %o, want 600", perm)
+	// Windows does not expose POSIX permission bits through os.FileMode.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("export file mode = %o, want 600", info.Mode().Perm())
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -292,7 +294,8 @@ func TestEnqueueImportIsIdempotentAndRemovesStagingFileAfterSuccess(t *testing.T
 	if err != nil {
 		t.Fatalf("stat staged import: %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	// Windows does not expose POSIX permission bits through os.FileMode.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("staged import mode = %o, want 600", info.Mode().Perm())
 	}
 	running, claimed, err := taskQueue.ClaimTask(task.Id)

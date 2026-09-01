@@ -25,6 +25,9 @@ const TaskTypeImport = "import"
 
 var importDir = "data/import"
 
+// ErrImportInvalidFormat identifies client-correctable import input errors.
+var ErrImportInvalidFormat = errors.New("invalid import format")
+
 // ImportTask is the small task payload. The import body stays in a mode-0600
 // staging file instead of being copied into task_queue.task_json.
 type ImportTask struct {
@@ -44,19 +47,19 @@ func SetImportDirForTest(dir string) func() {
 // task. A repeated identical body reuses an existing active/success/failed
 // task, so a client retry cannot create duplicate imports. Failed tasks keep
 // their staging file and must be replayed explicitly.
-func EnqueueImport(ctx context.Context, data []byte, format string) (*ImportReport, error) {
+func EnqueueImport(ctx context.Context, data []byte, format string) (*ImportTaskAcceptedResult, error) {
 	if format != "json" {
-		return nil, fmt.Errorf("导入仅支持 JSON 格式")
+		return nil, fmt.Errorf("%w: 导入仅支持 JSON 格式", ErrImportInvalidFormat)
 	}
 	if len(data) == 0 {
-		return nil, fmt.Errorf("导入文件为空")
+		return nil, fmt.Errorf("%w: 导入文件为空", ErrImportInvalidFormat)
 	}
 	if len(data) > MaxImportSize {
-		return nil, fmt.Errorf("导入文件超过 %d MB 限制", MaxImportSize>>20)
+		return nil, fmt.Errorf("%w: 导入文件超过 %d MB 限制", ErrImportInvalidFormat, MaxImportSize>>20)
 	}
 	parsed, err := parseImportJSON(data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrImportInvalidFormat, err)
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -100,12 +103,22 @@ func EnqueueImport(ctx context.Context, data []byte, format string) (*ImportRepo
 	}
 
 	status := importTaskStatus(task.Status)
-	return &ImportReport{
+	return &ImportTaskAcceptedResult{
 		Status:   status,
 		TaskID:   task.Id,
 		Errors:   []ImportError{},
 		Imported: importTableNames(parsed),
 	}, nil
+}
+
+// ImportTaskAcceptedResult is the stable HTTP result returned when an import
+// has been staged and queued. Row-level totals are available from the task
+// status endpoint after the worker processes the staged body.
+type ImportTaskAcceptedResult struct {
+	TaskID   uint64        `json:"taskId"`
+	Status   string        `json:"status"`
+	Errors   []ImportError `json:"errors"`
+	Imported []string      `json:"importedTables"`
 }
 
 func stageImportFile(path string, data []byte) error {
@@ -205,8 +218,16 @@ func isWithinDirectory(base, path string) bool {
 // ReplayImportTask puts a failed import back into the pending state without
 // replacing its retained, checksum-addressed staging file.
 func ReplayImportTask(id uint64) (taskQueue.Entity, error) {
+	return ReplayImportTaskContext(context.Background(), id)
+}
+
+// ReplayImportTaskContext requeues a failed import using the caller's context.
+func ReplayImportTaskContext(ctx context.Context, id uint64) (taskQueue.Entity, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var task taskQueue.Entity
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ? AND type = ?", id, TaskTypeImport).First(&task).Error; err != nil {
 			return err
 		}
@@ -239,6 +260,7 @@ func ReplayImportTask(id uint64) (taskQueue.Entity, error) {
 		if result.RowsAffected != 1 {
 			return fmt.Errorf("导入任务 %d 状态已变化", id)
 		}
+		task = taskQueue.Entity{}
 		return tx.Where("id = ?", id).First(&task).Error
 	})
 	return task, err

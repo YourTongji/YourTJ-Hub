@@ -132,6 +132,39 @@ func TestCloseAllTimesOutBlockedCallback(t *testing.T) {
 	}
 }
 
+func TestCloseAllHardTimeoutReturnsFromUncooperativeCallback(t *testing.T) {
+	resetCloserForTest(t)
+	t.Cleanup(func() {
+		resetCloserForTest(t)
+	})
+
+	closeTimeout = 20 * time.Millisecond
+	started := make(chan struct{})
+	release := make(chan struct{})
+	RegisterContext(func(context.Context) error {
+		close(started)
+		<-release
+		return nil
+	})
+
+	done := make(chan struct{})
+	go func() {
+		CloseAll()
+		close(done)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("uncooperative callback did not start")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("CloseAll did not enforce its hard timeout")
+	}
+	close(release)
+}
+
 func TestCloseWithTimeoutIncludesEntryDetails(t *testing.T) {
 	resetCloserForTest(t)
 	t.Cleanup(func() {

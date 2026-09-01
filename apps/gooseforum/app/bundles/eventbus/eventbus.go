@@ -126,9 +126,10 @@ func Publish(ctx context.Context, event any) {
 	}
 }
 
-// DetachedContext marks an event/outbox consumer as intentionally independent
-// from the request that triggered it. It preserves values for logging while
-// removing request cancellation and deadlines from post-commit work.
+// DetachedContext marks post-commit work as intentionally independent from
+// the request that triggered it. It removes request cancellation and
+// deadlines; values are preserved by context.WithoutCancel, but the current
+// event bus may replace the context at the consumer boundary.
 func DetachedContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()

@@ -109,10 +109,9 @@ func register(skip int, priority Priority, f CloseFunc) {
 }
 
 // CloseAll runs all registered shutdown callbacks in deterministic priority
-// order. It invokes callbacks synchronously so a non-cooperative legacy
-// callback remains visible instead of leaking an untracked goroutine after a
-// timeout. The variadic form preserves callers that do not yet have a root
-// context while allowing the server to provide one.
+// order and waits synchronously for each callback up to the hard timeout. The
+// variadic form preserves callers that do not yet have a root context while
+// allowing the server to provide one.
 func CloseAll(parentContexts ...context.Context) error {
 	parent := context.Background()
 	if len(parentContexts) > 0 && parentContexts[0] != nil {
@@ -157,17 +156,20 @@ func closeWithTimeout(parent context.Context, entry closerEntry) error {
 	ctx, cancel := context.WithTimeoutCause(parent, closeTimeout, errCloseTimeout)
 	defer cancel()
 
-	err := entry.f(ctx)
-	if err != nil {
+	result := make(chan error, 1)
+	go func() { result <- entry.f(ctx) }()
+	select {
+	case err := <-result:
 		if errors.Is(context.Cause(ctx), errCloseTimeout) {
 			return timeoutError(entry)
 		}
-		return fmt.Errorf("close failed: priority=%d registered_at=%s: %w", entry.priority, entry.caller, err)
-	}
-	if errors.Is(context.Cause(ctx), errCloseTimeout) {
+		if err != nil {
+			return fmt.Errorf("close failed: priority=%d registered_at=%s: %w", entry.priority, entry.caller, err)
+		}
+		return nil
+	case <-ctx.Done():
 		return timeoutError(entry)
 	}
-	return nil
 }
 
 var errCloseTimeout = errors.New("closer: callback deadline exceeded")
