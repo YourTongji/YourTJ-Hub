@@ -193,6 +193,10 @@ async function submitCourseForm() {
       const id = courseFormEditingId.value
       const original = courseFormOriginal.value
       const payload: AdminCourseUpdateInput = {}
+      if (form.primaryCode.trim() !== original.primaryCode) payload.primaryCode = form.primaryCode.trim()
+      if (form.name.trim() !== original.name) payload.name = form.name.trim()
+      if (form.department.trim() !== original.department) payload.department = form.department.trim()
+      if (parseCredit(form.credit) !== parseCredit(original.credit)) payload.creditX10 = creditX10
       if (form.aliases !== original.aliases) payload.aliases = parseCommaList(form.aliases)
       if (form.instructors !== original.instructors) payload.instructors = parseCommaList(form.instructors)
       if (form.reviewScope !== original.reviewScope) payload.reviewScope = form.reviewScope
