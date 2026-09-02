@@ -2,6 +2,7 @@ package datamigration
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -39,7 +40,7 @@ func EnsurePostingSettingsTopicLimitWithDB(conn *gorm.DB) PostingSettingsMigrati
 		Config string `gorm:"column:config"`
 	}
 	if err := conn.Table("page_config").Where("page_type = ?", pageConfig.PostingSettings).First(&entity).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			result.Skipped = true
 		} else {
 			result.Failed = 1
