@@ -220,6 +220,29 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
 
+	// 昵称与用户名同一份保留/禁用名单（整串归一化全等），防冒充性昵称
+	// （"官方/客服/管理员" 等）。昵称非空才检查；空 = 保留系统随机默认。
+	if nickname := strings.TrimSpace(req.Params.Nickname); nickname != "" {
+		if _, err := moderationservice.CheckNicknameAllowed(nickname); err != nil {
+			return component.FailResponseError(err)
+		}
+	}
+	// 个人资料自由文本（bio/signature/website/websiteName）做内容敏感词
+	// 拦截（精确子串，block）。命中即拒并写审核日志，不落库。
+	profileText := strings.Join([]string{
+		req.Params.Bio,
+		req.Params.Signature,
+		req.Params.Website,
+		req.Params.WebsiteName,
+	}, "\n")
+	if hit, word := moderationservice.CheckContentAllowed(profileText); hit {
+		moderationservice.SensitiveContentBlocked(req.UserId, "user_profile", 0, word, truncateExcerpt(profileText))
+		return component.FailResponseCode(
+			component.MessageContentSensitiveBlocked,
+			component.MessageParams{"word": word},
+		)
+	}
+
 	userEntity.Nickname = req.Params.Nickname
 	// 全字段覆盖：bio/signature 允许清空（空字符串也要落库）
 	userEntity.Bio = req.Params.Bio

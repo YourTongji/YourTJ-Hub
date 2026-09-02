@@ -26,6 +26,11 @@ func TestCheckUsernameAllowedWithConfig(t *testing.T) {
 		{name: "reserved uppercase", username: "ROOT", wantCode: component.MessageAuthUsernameReserved},
 		{name: "banned exact", username: "spammer", wantCode: component.MessageAuthUsernameBanned},
 		{name: "banned case-insensitive", username: "Spammer", wantCode: component.MessageAuthUsernameBanned},
+		{name: "reserved leet variant", username: "adm1n", wantCode: component.MessageAuthUsernameReserved},
+		{name: "reserved full-width", username: "ａｄｍｉｎ", wantCode: component.MessageAuthUsernameReserved},
+		{name: "reserved zero-width", username: "a\u200bdmin", wantCode: component.MessageAuthUsernameReserved},
+		{name: "no substring", username: "myadmin", wantCode: ""},
+		{name: "no prefix", username: "rootuser_x", wantCode: ""},
 		{name: "no hit", username: "normal_user", wantCode: ""},
 	}
 	for _, tt := range tests {
@@ -61,6 +66,9 @@ func TestCheckContentAllowedWithConfig(t *testing.T) {
 		{name: "hit first word", content: "一起来讨论赌博问题", wantHit: true, wantWord: "赌博"},
 		{name: "hit second word", content: "代考服务", wantHit: true, wantWord: "代考"},
 		{name: "hit case-insensitive", content: "SPAMMER 内容", wantHit: true, wantWord: "spammer"},
+		{name: "hit full-width", content: "全角ＳＰＡＭＭＥＲ", wantHit: true, wantWord: "spammer"},
+		{name: "hit zero-width evasion", content: "赌\u200b博", wantHit: true, wantWord: "赌博"},
+		{name: "no leet fold on content", content: "sp4mmer", wantHit: false, wantWord: ""},
 		{name: "no hit", content: "正常内容", wantHit: false, wantWord: ""},
 	}
 	for _, tt := range tests {
@@ -139,5 +147,44 @@ func TestFreezeUsersByBannedUsername(t *testing.T) {
 	}
 	if logs[0].ActorUserId != 0 {
 		t.Fatalf("log actorUserId = %d, want 0 (system)", logs[0].ActorUserId)
+	}
+}
+
+func TestCheckNicknameAllowedWithConfig(t *testing.T) {
+	cfg := pageConfig.SecurityAndRegistration{
+		ReservedUsernames: []string{"Admin", "官方"},
+		BannedUsernames:   []string{"spammer"},
+	}
+
+	tests := []struct {
+		name     string
+		nickname string
+		wantCode component.MessageCode
+	}{
+		{name: "reserved exact", nickname: "Admin", wantCode: component.MessageAuthNicknameReserved},
+		{name: "reserved lowercase", nickname: "admin", wantCode: component.MessageAuthNicknameReserved},
+		{name: "reserved chinese", nickname: "官方", wantCode: component.MessageAuthNicknameReserved},
+		{name: "banned", nickname: "SPAMMER", wantCode: component.MessageAuthNicknameBanned},
+		{name: "leet variant", nickname: "adm1n", wantCode: component.MessageAuthNicknameReserved},
+		{name: "full-width", nickname: "ａｄｍｉｎ", wantCode: component.MessageAuthNicknameReserved},
+		{name: "no hit", nickname: "普通鹅友", wantCode: ""},
+		{name: "no substring", nickname: "小admin迷", wantCode: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, err := CheckNicknameAllowedWithConfig(tt.nickname, cfg)
+			if code != tt.wantCode {
+				t.Fatalf("CheckNicknameAllowedWithConfig(%q) code = %q, want %q", tt.nickname, code, tt.wantCode)
+			}
+			if tt.wantCode == "" {
+				if err != nil {
+					t.Fatalf("CheckNicknameAllowedWithConfig(%q) error = %v, want nil", tt.nickname, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("CheckNicknameAllowedWithConfig(%q) error = nil, want non-nil", tt.nickname)
+			}
+		})
 	}
 }

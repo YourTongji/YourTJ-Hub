@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 )
 
@@ -77,6 +78,10 @@ func AgentCreate(req component.BetterRequest[AgentCreateReq]) component.Response
 	params := req.Params
 	if !component.ValidateUsername(params.Username) {
 		return component.FailResponseCode(component.MessageAdminAgentUsernameInvalid, nil)
+	}
+	// 保留/禁用用户名检查：Agent 用户名同样不允许占用官方/保留名。
+	if _, err := moderationservice.CheckUsernameAllowed(params.Username); err != nil {
+		return component.FailResponseError(err)
 	}
 	result, err := agentservice.Create(agentservice.CreateParams{
 		Username:        params.Username,

@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/wordmatch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -21,17 +22,35 @@ func CheckUsernameAllowed(username string) (component.MessageCode, error) {
 }
 
 // CheckUsernameAllowedWithConfig 使用给定配置检查用户名，便于测试。
+// 匹配为整串归一化后全等（wordmatch.NameOptions：大小写/NFKC/零宽折叠 +
+// ASCII leetspeak 折叠），不子串匹配，避免误伤 myadmin 之类合法名。
 func CheckUsernameAllowedWithConfig(username string, cfg pageConfig.SecurityAndRegistration) (component.MessageCode, error) {
-	lowerUsername := strings.ToLower(username)
-	for _, reserved := range cfg.ReservedUsernames {
-		if strings.ToLower(reserved) == lowerUsername {
-			return component.MessageAuthUsernameReserved, component.NewMessageError(component.MessageAuthUsernameReserved, "该用户名已被保留，不可使用", nil)
-		}
+	reserved := wordmatch.Compile(cfg.ReservedUsernames, wordmatch.NameOptions)
+	if _, ok := reserved.Equal(username); ok {
+		return component.MessageAuthUsernameReserved, component.NewMessageError(component.MessageAuthUsernameReserved, "该用户名已被保留，不可使用", nil)
 	}
-	for _, banned := range cfg.BannedUsernames {
-		if strings.ToLower(banned) == lowerUsername {
-			return component.MessageAuthUsernameBanned, component.NewMessageError(component.MessageAuthUsernameBanned, "该用户名已被禁用，不可使用", nil)
-		}
+	banned := wordmatch.Compile(cfg.BannedUsernames, wordmatch.NameOptions)
+	if _, ok := banned.Equal(username); ok {
+		return component.MessageAuthUsernameBanned, component.NewMessageError(component.MessageAuthUsernameBanned, "该用户名已被禁用，不可使用", nil)
+	}
+	return "", nil
+}
+
+// CheckNicknameAllowed 检查昵称是否命中保留或禁用名单（与用户名同一份名单、
+// 同一归一化全等规则，防止 "官方/客服/管理员" 之类冒充性昵称），未命中返回空错误码与 nil。
+func CheckNicknameAllowed(nickname string) (component.MessageCode, error) {
+	return CheckNicknameAllowedWithConfig(nickname, hotdataserve.GetSecuritySettingsConfigCache())
+}
+
+// CheckNicknameAllowedWithConfig 使用给定配置检查昵称，便于测试。
+func CheckNicknameAllowedWithConfig(nickname string, cfg pageConfig.SecurityAndRegistration) (component.MessageCode, error) {
+	reserved := wordmatch.Compile(cfg.ReservedUsernames, wordmatch.NameOptions)
+	if _, ok := reserved.Equal(nickname); ok {
+		return component.MessageAuthNicknameReserved, component.NewMessageError(component.MessageAuthNicknameReserved, "该昵称已被保留，不可使用", nil)
+	}
+	banned := wordmatch.Compile(cfg.BannedUsernames, wordmatch.NameOptions)
+	if _, ok := banned.Equal(nickname); ok {
+		return component.MessageAuthNicknameBanned, component.NewMessageError(component.MessageAuthNicknameBanned, "该昵称已被禁用，不可使用", nil)
 	}
 	return "", nil
 }
@@ -42,14 +61,12 @@ func CheckContentAllowed(content string) (hit bool, word string) {
 }
 
 // CheckContentAllowedWithConfig 使用给定配置检查内容，便于测试。
+// 词表经 wordmatch.ContentOptions（大小写/NFKC/零宽折叠，不含 leetspeak）
+// 归一化后单遍 AC 扫描；命中返回配置中的原词。
 func CheckContentAllowedWithConfig(content string, cfg pageConfig.SecurityAndRegistration) (hit bool, word string) {
-	lowerContent := strings.ToLower(content)
-	for _, sensitive := range cfg.SensitiveWords {
-		if sensitive != "" && strings.Contains(lowerContent, strings.ToLower(sensitive)) {
-			return true, sensitive
-		}
-	}
-	return false, ""
+	matcher := wordmatch.Compile(cfg.SensitiveWords, wordmatch.ContentOptions)
+	word, hit = matcher.Find(content)
+	return hit, word
 }
 
 // FreezeUsersByBannedUsername 冻结与禁用用户名匹配（大小写不敏感）的存量账号，并写入审核日志。
