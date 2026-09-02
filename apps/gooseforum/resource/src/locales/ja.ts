@@ -517,6 +517,7 @@ export default {
     // ---- v2：複数プラン / 週表示 / 許容型の重複 / カスタム予定 ----
     myPlans: 'マイプラン',
     planAdd: 'プランを追加',
+    planLimitReached: 'プランは最大 {n} 件まで作成できます',
     planDefaultName: 'プラン {n}',
     planDelete: 'プランを削除',
     planDeleteConfirm: '「{name}」を削除しますか？このプランの科目とカスタム予定も削除されます。',

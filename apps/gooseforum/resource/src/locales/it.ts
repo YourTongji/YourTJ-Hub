@@ -517,6 +517,7 @@ export default {
     // ---- v2: piani multipli / vista settimanale / conflitti tollerati / segnaposto ----
     myPlans: 'I miei piani',
     planAdd: 'Aggiungi piano',
+    planLimitReached: 'Massimo {n} piani',
     planDefaultName: 'Piano {n}',
     planDelete: 'Elimina piano',
     planDeleteConfirm: 'Eliminare "{name}"? I corsi e i segnaposto di questo piano verranno rimossi.',

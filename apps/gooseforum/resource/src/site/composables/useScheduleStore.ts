@@ -62,6 +62,9 @@ export const COURSE_STATUS = {
   SELECTED: 2,
 } as const
 
+/** 方案数量上限：防无限创建拖垮 localStorage；达到上限时 UI 禁用「新增方案」。 */
+export const MAX_PLANS = 10
+
 interface CommonLists {
   /** 必修课（按年级分组展示） */
   compulsoryCourses: PkCourse[]
@@ -135,8 +138,27 @@ function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${planSeq.toString(36)}`
 }
 
-function nextPlanName(): string {
-  return i18n.global.t('schedule.planDefaultName', { n: state.plans.length + 1 })
+/** 从默认方案名（如「方案 {n}」）提取序号；自定义名/旧数据不匹配时返回 0。 */
+function planNameIndex(name: string): number {
+  const template = i18n.global.t('schedule.planDefaultName', { n: '{n}' })
+  const [prefix, suffix] = template.split('{n}')
+  if (!name.startsWith(prefix) || !name.endsWith(suffix)) return 0
+  const digits = name.slice(prefix.length, name.length - suffix.length)
+  return /^\d+$/.test(digits) ? Number(digits) : 0
+}
+
+/**
+ * 推导下一个方案名：取现存方案序号最大值 +1（无匹配序号时从 1 开始）。
+ * plans 传「保留后」的方案集合：删最后一个时传空数组 → 新方案回到「方案 1」，
+ * 避免历史实现「方案数 +1」在删除后持续自增，以及删除中间方案后与现存方案重名。
+ */
+function nextPlanName(plans: PkPlan[] = state.plans): string {
+  let max = 0
+  for (const plan of plans) {
+    const index = planNameIndex(plan.name)
+    if (index > max) max = index
+  }
+  return i18n.global.t('schedule.planDefaultName', { n: max + 1 })
 }
 
 function createEmptyPlan(name?: string): PkPlan {
@@ -625,7 +647,9 @@ export function useScheduleStore() {
 
   // ---- 方案 CRUD ----
 
-  function createPlan(): PkPlan {
+  /** 新增方案；达到 MAX_PLANS 上限时返回 null（UI 禁用按钮兜底）。 */
+  function createPlan(): PkPlan | null {
+    if (state.plans.length >= MAX_PLANS) return null
     const plan = createEmptyPlan(nextPlanName())
     state.plans = [...state.plans, plan]
     return plan
@@ -642,8 +666,8 @@ export function useScheduleStore() {
   function deletePlan(planId: string): void {
     const remaining = state.plans.filter((plan) => plan.id !== planId)
     if (remaining.length === 0) {
-      // 删最后一个：自动建空方案，保证始终至少一个。
-      const fresh = createEmptyPlan(nextPlanName())
+      // 删最后一个：自动建空方案，保证始终至少一个；remaining 为空 → 名称回到「方案 1」。
+      const fresh = createEmptyPlan(nextPlanName(remaining))
       state.plans = [fresh]
       state.activePlanId = fresh.id
     } else {

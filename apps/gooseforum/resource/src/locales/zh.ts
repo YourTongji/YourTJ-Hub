@@ -520,6 +520,7 @@ export default {
     myPlans: '我的方案',
     planDefaultName: '方案 {n}',
     planAdd: '新增方案',
+    planLimitReached: '最多可创建 {n} 个方案',
     planDelete: '删除方案',
     planDeleteConfirm: '确定删除「{name}」？该方案内的课程与自定义占位将一并删除。',
     planMore: '更多操作',

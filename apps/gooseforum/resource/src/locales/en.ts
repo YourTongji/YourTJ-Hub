@@ -517,6 +517,7 @@ export default {
     // ---- v2: multi-plan / week view / tolerant conflicts / custom placeholders ----
     myPlans: 'My Plans',
     planAdd: 'Add plan',
+    planLimitReached: 'Up to {n} plans',
     planDefaultName: 'Plan {n}',
     planDelete: 'Delete plan',
     planDeleteConfirm: 'Delete "{name}"? Courses and custom placeholders in this plan will be removed.',
