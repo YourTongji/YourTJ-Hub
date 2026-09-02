@@ -139,7 +139,7 @@ echo "  dev 环境:       同 PG_DSN / SIGNING_KEY / MEILI_MASTER_KEY / WIKI_WEB
 echo "                   GitHub 凭据不填（DB siteUrl 无环境隔离, dev 保持空）"
 echo "  AI_API_KEY(可选): 两环境都可留空（AI 总结默认关闭）"
 echo "  命令示例（在本地持 GH token 处执行, 值从服务器读取, 勿回显）:"
-echo "    ssh root@<host> \"awk '/^\\\\[db.default\\\\]/{f=1} f&&/^url =/{print;exit}' /opt/yourtj/main/config.toml\" \\"
+echo "    ssh root@<host> \"awk '/^\\\\[db.default\\\\]/{f=1} f&&/^url =/{sub(/^url = \\\"/,\\\"\\\"); sub(/\\\"$/,\\\"\\\"); print; exit}' /opt/yourtj/main/config.toml\" \\"
 echo "      | gh secret set PG_DSN --env production"
 echo ""
 echo "  下一步: 推送 dev 分支触发 CI 部署（渲染 config 随镜像下发; apply-config.sh 做健康回滚）"

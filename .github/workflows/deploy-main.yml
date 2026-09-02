@@ -65,7 +65,7 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           source: "deploy/rendered/config-main.toml"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
-          strip_components: 1
+          strip_components: 2
       # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
       # (scp-action 丢弃空路径), 必须单独上传不 strip
       - name: Upload compose file to prod host
@@ -111,3 +111,5 @@ jobs:
               /opt/yourtj/scripts/deploy.sh main main-${{ github.sha }} 5234
             # 3. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
             rm -f /opt/yourtj/docker-compose.yaml.prev
+            # 4. 清理本 run 上传的临时文件(含明文渲染 config)
+            rm -rf "$RUN_DIR"

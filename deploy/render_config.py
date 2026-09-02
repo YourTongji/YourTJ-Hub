@@ -12,8 +12,10 @@
       main: 仅 AI_API_KEY 允许为空（GitHub 凭据生产必须非空）;
       dev:  AI_API_KEY + GH_CLIENT_ID/GH_CLIENT_SECRET 允许为空
             （dev 因 DB 站点设置无环境隔离保持 GitHub 登录关闭）;
+  - PG_DSN 的 dbname 必须等于实例期望 pg_dbname（防跨库连错: dev 配到 yourtj_main 即拒绝）;
   - 产物必须能被 tomllib 解析;
-  - 摘要只回显 token 名与值长度/前 4 字符，绝不打印 secret 值。
+  - 诊断信息只输出键名/来源/长度，绝不打印 secret 值或前缀；stdout 模式（--out -）下
+    stdout 只含 TOML 文档，诊断一律走 stderr。
 
 用法:
   SIGNING_KEY=... PG_DSN=... python3 deploy/render_config.py --env dev \
@@ -31,6 +33,7 @@ import os
 import re
 import sys
 import tomllib
+import urllib.parse
 
 TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 
@@ -108,6 +111,50 @@ def render(text, values):
     return out
 
 
+def dsn_dbname(dsn):
+    """从 libpq key=value 或 postgres:// URL DSN 提取 dbname；解析失败返回 None。
+
+    支持两种格式（与 deploy/scripts/pgdsn.sh 语义一致）:
+      postgres://user:pass@host:port/dbname?sslmode=disable
+      host=postgres user=u password=p dbname=xxx port=5432 sslmode=disable
+    """
+    dsn = dsn.strip()
+    if not dsn:
+        return None
+    if re.match(r"^[a-z]+://", dsn, re.IGNORECASE):
+        rest = dsn.split("://", 1)[1]
+        # 去掉 authority（host[:port][@userinfo] 前的部分），取首个 / 后的路径段
+        if "/" not in rest:
+            return None
+        path_query = rest.split("/", 1)[1]
+        db = path_query.split("?")[0].split("#")[0]
+        return urllib.parse.unquote(db) if db else None
+    # key=value 格式（dbname 值不含空格/引号——本仓库 DSN 由 init-server 生成，值无空格）
+    for tok in dsn.split():
+        if tok.startswith("dbname="):
+            v = tok[len("dbname=") :]
+            if len(v) >= 2 and v[0] in "\"'" and v[-1] == v[0]:
+                v = v[1:-1]
+            return v or None
+    return None
+
+
+def validate_pg_dsn(values, instance):
+    """fail-closed: PG_DSN 的 dbname 必须与实例期望一致（防跨库连错生产库）。"""
+    pg_val = values.get("PG_DSN")
+    expect_db = instance.get("pg_dbname")
+    if not pg_val or not expect_db:
+        return
+    actual = dsn_dbname(pg_val)
+    if not actual:
+        raise SystemExit("render: PG_DSN 无法解析 dbname（fail-closed，拒绝输出）")
+    if actual != expect_db:
+        raise SystemExit(
+            f"render: PG_DSN dbname='{actual}' ≠ 实例期望 '{expect_db}'"
+            "（疑似跨库连错，拒绝输出）"
+        )
+
+
 def build_values(env, instance, environ, tokens, allow_empty):
     """组装 token → 值。返回 (values, summary)；空必需值即失败。"""
     instance_token_map = {
@@ -136,13 +183,12 @@ def build_values(env, instance, environ, tokens, allow_empty):
 
 
 def summarize(summary):
-    """只输出键名、来源、值长度与前 4 字符，绝不打印完整 secret。"""
+    """向 stderr 输出键名/来源/长度，绝不打印 secret 值或其前缀。"""
     for tok, val, src in summary:
         if isinstance(val, list):
-            print(f"  {tok}: {src} (array len={len(val)})")
+            print(f"  {tok}: {src} (array len={len(val)})", file=sys.stderr)
         else:
-            head = val[:4] if val else "(empty)"
-            print(f"  {tok}: {src} len={len(val)} head={head!r}")
+            print(f"  {tok}: {src} len={len(val)}", file=sys.stderr)
 
 
 def cmd_render(args):
@@ -155,21 +201,24 @@ def cmd_render(args):
     if args.allow_empty_extra:
         allow |= {x.strip() for x in args.allow_empty_extra.split(",") if x.strip()}
     values, summary = build_values(args.env, instance, os.environ, tokens, allow)
+    # 跨库防护: DSN dbname 必须匹配实例
+    validate_pg_dsn(values, instance)
     rendered = render(text, values)
     try:
         tomllib.loads(rendered)
     except tomllib.TOMLDecodeError as e:
         raise SystemExit(f"render: 产物 TOML 解析失败（fail-closed，不输出）: {e}")
-    print(f"render: {args.env} 渲染校验通过，token 清单:")
+    print(f"render: {args.env} 渲染校验通过，token 清单:", file=sys.stderr)
     summarize(summary)
     out = args.out
     if out == "-":
+        # stdout 是产物通道：只写 TOML，诊断已走 stderr
         sys.stdout.write(rendered)
-    else:
-        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-        with open(out, "w", encoding="utf-8") as f:
-            f.write(rendered)
-        print(f"render: 已写入 {out}")
+        return
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(rendered)
+    print(f"render: 已写入 {out}")
 
 
 def cmd_compare_example(args):
@@ -211,7 +260,7 @@ def main(argv=None):
     )
     pr.add_argument("--tmpl", default=DEFAULT_TMPL)
     pr.add_argument("--instances-dir", default=DEFAULT_INSTANCES_DIR)
-    pr.add_argument("--out", default="-", help="输出路径（默认 stdout）")
+    pr.add_argument("--out", default="-", help="输出路径（默认 stdout，纯 TOML）")
     pr.add_argument(
         "--allow-empty-extra", default="", help="额外允许为空的 token（逗号分隔）"
     )

@@ -55,3 +55,5 @@ jobs:
             EXPECT_SERVER_URL="${{ steps.expected.outputs.exp_server_url }}" \
             EXPECT_DBNAME="${{ steps.expected.outputs.exp_dbname }}" \
               /opt/yourtj/scripts/verify-instance.sh ${{ matrix.env }}
+            # 清理本 run 上传的临时脚本
+            rm -rf "$RUN_DIR"

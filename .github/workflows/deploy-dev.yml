@@ -81,7 +81,7 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           source: "deploy/rendered/config-dev.toml"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
-          strip_components: 1
+          strip_components: 2
       # compose 由 init-server.sh 一次性安装到服务器, dev 部署不更新它,
       # 避免 dev 分支的 compose 变更影响共享的生产实例(PR review #3)。
       # 部署只需 pull 镜像 + up 已有 compose 中的服务
@@ -109,3 +109,5 @@ jobs:
             #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
             IMAGE_KEEP_N=3 CONFIG_FILE="$RUN_DIR/config-dev.toml" \
               /opt/yourtj/scripts/deploy.sh dev dev-${{ github.sha }} 5235
+            # 3. 部署成功/失败后清理本 run 上传的临时文件(含明文渲染 config)
+            rm -rf "$RUN_DIR"

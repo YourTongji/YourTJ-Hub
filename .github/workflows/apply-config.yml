@@ -62,3 +62,5 @@ jobs:
             # apply-config.sh: 备份 → 原子替换 → force-recreate 重挂 → 健康检查 → 失败恢复
             /opt/yourtj/scripts/apply-config.sh ${{ github.event.inputs.env }} \
               "$RUN_DIR/config-${{ github.event.inputs.env }}.toml"
+            # 清理本 run 上传的临时文件（含明文渲染 config）
+            rm -rf "$RUN_DIR"

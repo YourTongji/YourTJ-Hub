@@ -3,7 +3,7 @@
 
 运行: python3 deploy/render_config_test.py  （退出码非 0 = 失败，无需外部依赖）
 覆盖: token 解析 / 占位替换 / TOML 转义 / 残留拒绝 / 空必需值拒绝 / allow-empty 白名单 /
-      example↔tmpl 键集一致性 / dev 端到端渲染产物可解析。
+      PG_DSN dbname 跨库校验 / stdout 纯 TOML / example↔tmpl 键集一致性 / dev 端到端渲染。
 """
 
 from __future__ import annotations
@@ -77,6 +77,36 @@ expect_exit(
     lambda: rc.render("a = {{SERVER_URL}} }}\n", {"SERVER_URL": "x"}),
 )
 
+# --- 2.5 PG_DSN dbname 解析与跨库校验 ---
+check_eq(
+    "dsn key=value 解析",
+    "yourtj_dev",
+    rc.dsn_dbname(
+        "host=postgres user=yourtj password=x dbname=yourtj_dev port=5432 sslmode=disable"
+    ),
+)
+check_eq(
+    "dsn URL 解析",
+    "yourtj_main",
+    rc.dsn_dbname("postgres://yourtj:x@postgres:5432/yourtj_main?sslmode=disable"),
+)
+check_eq(
+    "dsn URL 空库返回 None", None, rc.dsn_dbname("postgres://yourtj:x@postgres:5432")
+)
+check_eq("dsn 空串返回 None", None, rc.dsn_dbname(""))
+check_eq("dsn 无 dbname 返回 None", None, rc.dsn_dbname("host=postgres user=yourtj"))
+
+inst_dev = {"pg_dbname": "yourtj_dev"}
+rc.validate_pg_dsn({"PG_DSN": "host=x dbname=yourtj_dev"}, inst_dev)  # 不抛
+expect_exit(
+    "PG_DSN dbname 与实例不符应拒绝",
+    lambda: rc.validate_pg_dsn({"PG_DSN": "host=x dbname=yourtj_main"}, inst_dev),
+)
+expect_exit(
+    "PG_DSN 无法解析 dbname 应拒绝",
+    lambda: rc.validate_pg_dsn({"PG_DSN": "host=x port=5432"}, inst_dev),
+)
+
 # --- 3. 真实模板 token 分类与空值 fail-closed ---
 fake_instance = {
     "instance": "dev",
@@ -128,6 +158,19 @@ check(
     "summary 标记 secret",
     "SIGNING_KEY" in secret_toks and "GH_CLIENT_ID" not in secret_toks,
 )
+# summarize() 输出（stderr）不得含任何 secret 值或前缀（防日志泄露部分密钥）
+import contextlib
+import io
+
+buf = io.StringIO()
+with contextlib.redirect_stderr(buf):
+    rc.summarize(summary)
+sum_text = buf.getvalue()
+check(
+    "summarize 输出不含 secret 值前缀",
+    "s" * 4 not in sum_text and "Ov23" not in sum_text,
+)
+check("summarize 输出含键名与长度", "SIGNING_KEY" in sum_text and "len=32" in sum_text)
 
 # main 场景: GH 凭据未设 → 必须失败（fail-closed 生产）
 fake_main = {
@@ -188,6 +231,57 @@ with tempfile.TemporaryDirectory() as td:
         check(
             "dev 产物无 {{ 残留", "{{" not in rendered_txt and "}}" not in rendered_txt
         )
+    # stderr 诊断不得包含 secret 值前缀
+    check(
+        "stderr 不含 secret 前缀",
+        "k" * 4 not in proc.stderr and "Ov23" not in proc.stderr,
+    )
+
+    # 6.5 stdout 模式（--out -）: stdout 只含 TOML, 诊断全在 stderr
+    proc_stdout = subprocess.run(
+        [
+            sys.executable,
+            os.path.join(HERE, "render_config.py"),
+            "render",
+            "--env",
+            "dev",
+            "--out",
+            "-",
+        ],
+        env=env_full,
+        capture_output=True,
+        text=True,
+    )
+    check("stdout 模式 exit 0", proc_stdout.returncode == 0)
+    if proc_stdout.returncode == 0:
+        stdout_cfg = tomllib.loads(proc_stdout.stdout)
+        check(
+            "stdout 是纯 TOML（可解析）",
+            stdout_cfg["server"]["url"] == "https://dev.yourtj.de",
+        )
+    check("stdout 模式诊断在 stderr", "render:" in proc_stdout.stderr)
+
+    # 6.6 跨库 DSN（dev 指向 yourtj_main）端到端拒绝
+    env_cross = dict(env_full)
+    env_cross["PG_DSN"] = (
+        "host=postgres user=yourtj password=x dbname=yourtj_main port=5432 sslmode=disable"
+    )
+    proc_cross = subprocess.run(
+        [
+            sys.executable,
+            os.path.join(HERE, "render_config.py"),
+            "render",
+            "--env",
+            "dev",
+            "--out",
+            "-",
+        ],
+        env=env_cross,
+        capture_output=True,
+        text=True,
+    )
+    check("跨库 DSN 端到端拒绝（exit != 0）", proc_cross.returncode != 0)
+    check("跨库错误信息含 dbname", "dbname" in proc_cross.stderr)
 
 # --- 7. 坏模板端到端拒绝（fail-closed 不产文件） ---
 with tempfile.TemporaryDirectory() as td:

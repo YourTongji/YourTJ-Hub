@@ -33,7 +33,7 @@ INST_DIR="$ROOT/$INSTANCE"
 CFG="$INST_DIR/config.toml"
 MARKER="$INST_DIR/.config.sha256"
 PREV="$CFG.prev"
-
+LOCK_DIR="$INST_DIR/.config.lock"
 PORT_VAR="$([ "$INSTANCE" = "main" ] && echo MAIN_PORT || echo DEV_PORT)"
 PORT="5234"
 [ "$INSTANCE" = "dev" ] && PORT="5235"
@@ -68,15 +68,22 @@ if [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$NEW_SHA" ]; then
   exit 0
 fi
 
-# --- 备份（单槽 prev; 并发/残留防护） ---
+# --- 持锁（与 deploy.sh 同一把锁, mkdir 原子; 防止并发互相覆盖回滚点） ---
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  log "FATAL: config 锁 $LOCK_DIR 已存在（另一 apply/deploy 正在进行）"
+  log "       确认无并发后: rm -rf $LOCK_DIR 再重试"
+  exit 1
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+# --- 备份（单槽 prev; 残留防护） ---
 if [ -e "$PREV" ]; then
-  log "FATAL: $PREV 已存在（并发 apply 或上次失败残留），拒绝覆盖回滚点"
+  log "FATAL: $PREV 已存在（上次失败残留），拒绝覆盖回滚点"
   log "       确认无并发后: rm -f $PREV 再重试"
   exit 1
 fi
 cp -f "$CFG" "$PREV" || { log "FATAL: 备份现网 config 失败"; exit 1; }
 log "已备份现网 config → $PREV"
-
 # --- 原子替换（同目录 .new + mv = rename 原子） ---
 cp -f "$RENDERED" "$CFG.new" || { log "FATAL: 写入 $CFG.new 失败"; rm -f "$CFG.new"; exit 1; }
 mv -f "$CFG.new" "$CFG" || { log "FATAL: mv 替换 config 失败"; rm -f "$CFG.new"; exit 1; }
