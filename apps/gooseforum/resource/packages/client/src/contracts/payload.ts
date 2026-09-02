@@ -342,6 +342,7 @@ export interface TopicDetailPayload {
   isWatched: boolean
   createdAt: string
   updatedAt: string
+  contentType: 0 | 1 | 2 | 3
 }
 
 export interface PostPayload {
@@ -380,6 +381,7 @@ export interface PostPayload {
   likeCount: number
   isLiked: boolean
   isBookmarked: boolean
+  isAnswer: boolean
 }
 
 export interface ReplyTargetPayload {
