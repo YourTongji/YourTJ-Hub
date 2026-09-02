@@ -5816,6 +5816,16 @@ export interface components {
             captchaId?: string;
             /** @description Required only when server-side posting risk controls request a captcha. */
             captchaCode?: string;
+            /**
+             * @description 内容类型（默认 0）：
+             *     * 0 - 默认帖子
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 想法（短内容）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         WriteTopicSuccess: components["schemas"]["ApiSuccess"] & {
             result: number | true;
@@ -6537,6 +6547,16 @@ export interface components {
             title: string;
             content: string;
             categoryId: number[];
+            /**
+             * @description 内容类型（默认 0）：
+             *     * 0 - 默认帖子
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 想法（短内容）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         /** @description Mirrors the forum PostWindow payload shape. */
         AgentPostListResponse: components["schemas"]["ApiSuccess"] & {

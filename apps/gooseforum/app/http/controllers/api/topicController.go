@@ -103,6 +103,7 @@ type WriteTopicReq struct {
 	Website     string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
 	CaptchaId   string   `json:"captchaId,omitempty"`
 	CaptchaCode string   `json:"captchaCode,omitempty"`
+	ContentType int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
 }
 
 // WriteTopic creates or updates a topic and its first post.
@@ -247,6 +248,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		firstPost.Content = req.Params.Content
 		firstPost.RenderedHTML = markdown2html.PostMarkdownToHTML(req.Params.Content)
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
+		firstPost.ContentType = req.Params.ContentType
 		if pendingReview {
 			firstPost.ProcessStatus = posts.ProcessStatusPending
 		}
@@ -293,6 +295,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				RenderedHTML:    markdown2html.PostMarkdownToHTML(req.Params.Content),
 				RenderedVersion: markdown2html.GetPostVersion(),
 				ProcessStatus:   posts.ProcessStatusNormal,
+				ContentType:     req.Params.ContentType,
 			}
 			if pendingReview {
 				firstPost.ProcessStatus = posts.ProcessStatusPending
