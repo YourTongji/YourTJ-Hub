@@ -414,6 +414,11 @@ instance:
   progress; or run `./bin/yourtj-hub migrate-files --endpoint ... --bucket ... [--clear-after-migrate]`
   on the server. Migration is cursor-driven and resumable; the BLOB column is kept unless
   `--clear-after-migrate` is set, so reads stay correct during/after migration.
+- **帖子图片直传**：配置 S3 提供方后，帖子图片改为浏览器直传——浏览器向
+  `POST /file/img-upload/init` 请求短时效预签名 POST 策略，直接上传到 bucket，再
+  `POST /file/img-upload/complete` 由服务端校验（归属/大小/MIME/解码图片头）后发布；
+  本地提供方保持服务端代理 multipart 上传。bucket 需配置 CORS（精确论坛源 + POST），
+  未完成对象 2 小时后由清理任务移除。详见 [Object storage](object-storage.md)。
 
 ## Data export/import
 

@@ -18,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/robfig/cron/v3"
@@ -125,6 +126,15 @@ func registerJobs() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "10 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("17 * * * *", upCmd(func() {
+		// 清理超过 2 小时未完成的直接上传（S3 presigned，issue #366）：
+		// 删除对象与 pending 元数据行，避免中断/过期上传遗留孤儿对象。
+		removed, cleanupErr := storageservice.CleanupPending(context.Background(), time.Now().Add(-2*time.Hour), 500)
+		if cleanupErr != nil || removed > 0 {
+			slog.Info("cleanup pending uploads", "removed", removed, "err", cleanupErr)
+		}
+	}))
+	slog.Info("reg pending upload cleanup", "entryID", entryID, "err", err)
 	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
 	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
 	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")

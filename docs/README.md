@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-28
+> Last verified: 2026-09-02
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and
@@ -73,6 +73,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 ### Operations
 
 - [Deployment & release](operations/deployment.md)
+- [Object storage](operations/object-storage.md)
 
 ### Decision records
 

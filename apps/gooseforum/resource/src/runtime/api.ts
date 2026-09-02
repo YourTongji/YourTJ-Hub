@@ -668,6 +668,57 @@ export async function createPost(topicId: number, content: string, replyToPostId
 }
 
 export async function uploadImage(file: File): Promise<string> {
+  const initResponse = await fetch('/file/img-upload/init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
+  })
+  const init = await readApiResponse<ImageUploadInitResult>(initResponse, t('api.imageUploadFailed'))
+  if (init.mode === 'proxy') return uploadImageThroughServer(file)
+  if (init.mode !== 'direct' || !init.name || !init.upload?.url || init.upload.method !== 'POST') {
+    if (init.name) await abortDirectImageUpload(init.name)
+    throw new Error(t('api.imageUploadEmpty'))
+  }
+
+  const formData = new FormData()
+  for (const [key, value] of Object.entries(init.upload.fields || {})) formData.append(key, value)
+  formData.append('file', file, file.name)
+  let uploadResponse: Response
+  try {
+    uploadResponse = await fetch(init.upload.url, { method: 'POST', body: formData })
+  } catch (uploadError) {
+    try {
+      return await completeDirectImageUpload(init.name)
+    } catch {
+      // 对象请求可能仍在途；服务端会安全过期未完成的直传对象。
+      throw uploadError
+    }
+  }
+  if (!uploadResponse.ok) {
+    await abortDirectImageUpload(init.name)
+    throw new Error(`HTTP ${uploadResponse.status}`)
+  }
+  try {
+    return await completeDirectImageUpload(init.name)
+  } catch (error) {
+    if (!isTransientUploadError(error)) await abortDirectImageUpload(init.name)
+    throw error
+  }
+}
+
+interface ImageUploadInitResult {
+  mode: 'proxy' | 'direct'
+  name?: string
+  upload?: {
+    url: string
+    method: string
+    fields: Record<string, string>
+    expiresAt: string
+  }
+}
+
+// uploadImageThroughServer 走服务端代理 multipart 上传（本地存储提供方）。
+async function uploadImageThroughServer(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
   const response = await fetch('/file/img-upload', {
@@ -679,6 +730,45 @@ export async function uploadImage(file: File): Promise<string> {
     throw new Error(t('api.imageUploadEmpty'))
   }
   return result.url
+}
+
+// completeDirectImageUpload 在浏览器直传对象后发布图片；瞬时错误重试一次。
+async function completeDirectImageUpload(name: string): Promise<string> {
+  const complete = async () => {
+    const response = await fetch('/file/img-upload/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    const result = await readApiResponse<{ url: string }>(response, t('api.imageUploadFailed'))
+    if (!result?.url) throw new Error(t('api.imageUploadEmpty'))
+    return result.url
+  }
+  try {
+    return await complete()
+  } catch (error) {
+    if (!isTransientUploadError(error)) throw error
+    return complete()
+  }
+}
+
+function isTransientUploadError(error: unknown) {
+  // 网络错误（TypeError）与 HTTP 5xx（readApiResponse 抛出的裸 Error）视为瞬时错误；
+  // 业务失败（ApiResponseError，HTTP 200 + code 1）不重试。
+  return error instanceof TypeError || (error instanceof Error && /^HTTP 5\d\d/.test(error.message))
+}
+
+// abortDirectImageUpload 取消未完成的直传对象；失败可忽略（服务端清理任务兜底）。
+async function abortDirectImageUpload(name: string) {
+  try {
+    await fetch('/file/img-upload/abort', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+  } catch {
+    // 过期的待发布对象也会被服务端清理任务移除。
+  }
 }
 
 export interface ChatMessagePayload {

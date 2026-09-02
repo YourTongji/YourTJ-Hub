@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：278
-- /api JSON 路由：222，已入契约：220（99%），已知未覆盖：0
+- 快照路由总数：281
+- /api JSON 路由：222，已入契约：223（100%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（220）
+## 已覆盖（223）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -230,6 +230,9 @@
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |
 | POST | `/api/wiki/webhook` | `wikiWebhook` |
+| POST | `/file/img-upload/abort` | `abortDirectImageUpload` |
+| POST | `/file/img-upload/complete` | `completeDirectImageUpload` |
+| POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
