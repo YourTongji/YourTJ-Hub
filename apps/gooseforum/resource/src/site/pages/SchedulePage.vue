@@ -25,6 +25,8 @@ import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { codesToCsvRows, codesToXlsRows, downloadCsv, downloadXls, jsonToCsv, xlsRowsToXml } from '@/site/utils/pkExport'
+import { fetchPage } from '@/runtime/router'
+import { createSectionTimesRefresher } from '@/site/utils/sectionTimesRefresh'
 import type { LayoutPayload, SchedulePageProps } from '@gooseforum/client'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkCourseDetail, PkCourseOnTable } from '@/site/types/pk'
@@ -246,6 +248,25 @@ function exportXls() {
   downloadXls('yourtj-schedule.xls', xlsRowsToXml(rows))
 }
 
+/** 作息表静默刷新器：管理端保存新节次作息后，回到本页（bfcache/切前台）自动同步。 */
+const sectionTimesRefresher = createSectionTimesRefresher(
+  {
+    fetchPayload: () => fetchPage(new URL(window.location.href)),
+    apply: (times) => store.setSectionTimeOverrides(times),
+  },
+  { initial: pageProps.props.sectionTimes ?? [] },
+)
+
+/** bfcache 恢复（pageshow.persisted）→ 静默刷新作息表。 */
+function handlePageShow(event: PageTransitionEvent) {
+  if (event.persisted) void sectionTimesRefresher.refresh()
+}
+
+/** 切回前台（visibilitychange visible）→ 静默刷新作息表。 */
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') void sectionTimesRefresher.refresh()
+}
+
 onMounted(() => {
   store.loadSolidify()
   // 后台作息覆盖（SSR props 注入；未配置为 undefined → 空数组走默认表）。
@@ -258,12 +279,17 @@ onMounted(() => {
   query.addEventListener('change', apply)
   document.addEventListener('pointerdown', handleExportOutsidePointerDown)
   document.addEventListener('keydown', handleExportKeydown)
+  window.addEventListener('pageshow', handlePageShow)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   void checkDataOutdated()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleExportOutsidePointerDown)
   document.removeEventListener('keydown', handleExportKeydown)
+  window.removeEventListener('pageshow', handlePageShow)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  sectionTimesRefresher.dispose()
 })
 </script>
 
