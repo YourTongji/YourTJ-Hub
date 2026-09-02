@@ -1949,6 +1949,16 @@ function lastEditedLabel(post: PostPayload) {
               {{ lastEditedLabel(group.root) }}
             </div>
             <div v-if="isFirstPost(group.root) && topicActions" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+              <!-- Prominent reply/answer button for Questions -->
+              <button
+                v-if="isQuestionTopic && canPost && !isTopicRemoved()"
+                type="button"
+                class="gf-button gf-button-sm gf-button-primary px-3"
+                @click="focusPostComposer"
+              >
+                <CornerDownLeft class="h-4 w-4" />
+                {{ t('topic.writeAnswer') }}
+              </button>
               <button
                 type="button"
                 class="gf-button gf-button-sm px-2.5"

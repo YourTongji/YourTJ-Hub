@@ -998,6 +998,7 @@ export default {
     allRepliesShown: 'All replies shown',
     answers: 'Answers',
     answer: 'Answer',
+    writeAnswer: 'Write Answer',
     earliestContent: 'Earliest content',
     latestReply: 'Latest reply',
     replyPosition: 'Reply position',

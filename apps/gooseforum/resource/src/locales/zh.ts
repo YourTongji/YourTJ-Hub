@@ -1000,6 +1000,7 @@ export default {
     allRepliesShown: '已显示全部回复',
     answers: '回答',
     answer: '回答',
+    writeAnswer: '写回答',
     earliestContent: '最早内容',
     latestReply: '最新回复',
     replyPosition: '回复位置',
