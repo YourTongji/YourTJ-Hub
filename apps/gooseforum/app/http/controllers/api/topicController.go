@@ -415,6 +415,20 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 	return createPost(req, false)
 }
 
+// isInQuestionTopic checks if the topic's first post is a question type
+func isInQuestionTopic(topicEntity *topics.Entity) bool {
+	if topicEntity.FirstPostId == 0 {
+		return false
+	}
+	firstPost := posts.Get(topicEntity.FirstPostId)
+	return firstPost.ContentType == posts.ContentTypeQuestion
+}
+
+// isAnswerPost checks if a reply is an answer (reply to the question itself on a question topic)
+func isAnswerPost(replyToPostId uint64, topicEntity *topics.Entity) bool {
+	return replyToPostId == 1 && isInQuestionTopic(topicEntity)
+}
+
 // createPost is the shared post write core. The agent flag skips browser-only
 // guards (honeypot, captcha, new-user cooldown); every other rule and side
 // effect behaves identically for human and Agent writers.
@@ -555,10 +569,14 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	// 保证待审内容也计入"新用户连续发帖"验证码门槛，避免滥用防护被绕过。
 	recordSuccessfulWrite(req.UserId, "post.create")
 
+	// Determine if this is an answer (for question topics)
+	isAnswer := isAnswerPost(req.Params.ReplyToPostId, &topicEntity)
+
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
 		"postNo":          postEntity.PostNo,
 		"renderedContent": postEntity.RenderedHTML,
+		"isAnswer":         isAnswer,
 	})
 }
 

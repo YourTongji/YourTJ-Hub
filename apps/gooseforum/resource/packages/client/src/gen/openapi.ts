@@ -5916,6 +5916,8 @@ export interface components {
             postNo: number;
             /** @description Rendered HTML of the stored content. */
             renderedContent: string;
+            /** @description True when this post is an answer to a question (ReplyToPostId=1 on a question-type topic) */
+            isAnswer?: boolean;
         };
         CreatePostSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CreatePostResult"] | true;

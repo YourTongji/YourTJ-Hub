@@ -2397,6 +2397,9 @@ CreatePostResult:
     renderedContent:
       type: string
       description: Rendered HTML of the stored content.
+    isAnswer:
+      type: boolean
+      description: True when this post is an answer to a question (ReplyToPostId=1 on a question-type topic)
   additionalProperties: false
 
 CreatePostSuccess:
