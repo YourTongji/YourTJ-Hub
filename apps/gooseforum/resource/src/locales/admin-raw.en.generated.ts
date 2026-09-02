@@ -862,4 +862,5 @@ export default {
   "k00u8": "Failed to save class period times",
   "k00u9": "Period {section} has an invalid time: start must be earlier than end (HH:MM)",
   "k00ua": "Period {section}",
+  "k00ub": "Maximum new topics per user per day (0 = unlimited)",
 } as const

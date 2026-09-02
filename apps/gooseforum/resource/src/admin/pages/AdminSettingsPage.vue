@@ -234,6 +234,7 @@ const postingForm = reactive<PostingSettings>({
     minTitleLength: 5,
     maxTitleLength: 100,
     newUserPostCooldownMinutes: 0,
+    maxDailyTopicsPerUser: 10,
   },
   uploadControl: {
     allowAttachments: true,
@@ -483,6 +484,7 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       minTitleLength: Number(settings.textControl?.minTitleLength ?? 5),
       maxTitleLength: Number(settings.textControl?.maxTitleLength ?? 100),
       newUserPostCooldownMinutes: Number(settings.textControl?.newUserPostCooldownMinutes ?? 0),
+      maxDailyTopicsPerUser: Number(settings.textControl?.maxDailyTopicsPerUser ?? 10),
     },
     uploadControl: {
       allowAttachments: toBool(settings.uploadControl?.allowAttachments, true),
@@ -1400,6 +1402,7 @@ onUnmounted(stopSyncPolling)
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k0099') }}<Input v-model.number="postingForm.textControl.minPostLength" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k009a') }}<Input v-model.number="postingForm.textControl.maxPostLength" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k009b') }}<Input v-model.number="postingForm.textControl.newUserPostCooldownMinutes" type="number" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k00ub') }}<Input v-model.number="postingForm.textControl.maxDailyTopicsPerUser" min="0" step="1" type="number" /></label>
           </div>
         </section>
         <section class="space-y-6">
