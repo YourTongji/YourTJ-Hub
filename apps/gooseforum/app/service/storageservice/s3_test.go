@@ -144,8 +144,8 @@ func TestValidateObjectWrite(t *testing.T) {
 }
 
 // newDualTestProvider 构造双 endpoint provider：public 作为公网 presign 端点，
-// internal 作为服务端数据面端点。两个 handler 各自计数收到的请求。
-func newDualTestProvider(t *testing.T, publicH, internalH http.Handler) (*S3Provider, *httptest.Server, *httptest.Server) {
+// internal 作为服务端数据面端点，二者由两个独立 httptest server 提供并自动清理。
+func newDualTestProvider(t *testing.T, publicH, internalH http.Handler) *S3Provider {
 	t.Helper()
 	publicServer := httptest.NewServer(publicH)
 	internalServer := httptest.NewServer(internalH)
@@ -168,7 +168,7 @@ func newDualTestProvider(t *testing.T, publicH, internalH http.Handler) (*S3Prov
 	if p.client == p.presignClient {
 		t.Fatal("dual provider should build two distinct clients")
 	}
-	return p, publicServer, internalServer
+	return p
 }
 
 // headOKHandler 模拟 S3 HEAD 对象成功（StatObject/VerifyUpload 用）。
@@ -222,11 +222,10 @@ func s3EmulationHandler(reqLog *[]string) http.HandlerFunc {
 }
 
 func TestS3ProviderDualEndpointPresignUsesPublic(t *testing.T) {
-	p, _, _ := newDualTestProvider(t,
+	p := newDualTestProvider(t,
 		http.HandlerFunc(headOKHandler),
 		http.HandlerFunc(headOKHandler),
 	)
-	p.now = func() time.Time { return time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC) }
 
 	upload, err := p.PresignUpload(context.Background(), DirectUploadRequest{
 		Name: "2026/09/01/a.png", ContentType: "image/png", Size: 1024,
@@ -246,7 +245,7 @@ func TestS3ProviderDualEndpointPresignUsesPublic(t *testing.T) {
 
 func TestS3ProviderDualEndpointVerifyAndGetHitInternal(t *testing.T) {
 	var publicLog, internalLog []string
-	p, _, _ := newDualTestProvider(t,
+	p := newDualTestProvider(t,
 		s3EmulationHandler(&publicLog),
 		s3EmulationHandler(&internalLog),
 	)
