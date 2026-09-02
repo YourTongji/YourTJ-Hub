@@ -61,6 +61,61 @@ func TestNormalizeContentOptionsKeepsCaseAndWidthFolding(t *testing.T) {
 	}
 }
 
+func TestNormalizeStripsDirectionalIsolates(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "content directional isolate", in: "赌\u2066博", want: "赌博"},
+		{name: "name directional isolates", in: "\u2066a\u2067d\u2068m\u2069in", want: "admin"},
+		{name: "all isolate codepoints stripped", in: "\u2066\u2067\u2068\u2069x", want: "x"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Normalize(tt.in, ContentOptions); got != tt.want {
+				t.Fatalf("Normalize(%q, ContentOptions) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMatcherFindAllClassicOutputLinks(t *testing.T) {
+	// 经典 AC 输出链：ushers 在位置 3 同时命中 she 与 he（he 经 she 的失败/输出链），
+	// 位置 5 命中 hers。逐失败链遍历无法报告 he，output link 才能同时报告。
+	m := Compile([]string{"he", "she", "his", "hers"}, ContentOptions)
+	hits := m.FindAll("ushers")
+	want := []string{"he", "she", "hers"} // 编译顺序 + 去重
+	if len(hits) != len(want) {
+		t.Fatalf("FindAll(ushers) = %v, want %v", hits, want)
+	}
+	for i := range want {
+		if hits[i] != want[i] {
+			t.Fatalf("FindAll(ushers) = %v, want %v", hits, want)
+		}
+	}
+}
+
+func TestMatcherFindDeepSharedPrefixChain(t *testing.T) {
+	// 深共享前缀词表（a^i b）：output link 使报告只访问携带词的节点，
+	// 无命中长输入不会沿整条失败链逐节点空转（线性界回归护栏）。
+	words := make([]string, 0, 1000)
+	for i := 1; i <= 1000; i++ {
+		words = append(words, strings.Repeat("a", i)+"b")
+	}
+	m := Compile(words, ContentOptions)
+	if _, ok := m.Find(strings.Repeat("a", 1000) + "b"); !ok {
+		t.Fatal("deep word a^1000 b not found")
+	}
+	word, ok := m.Find("aab")
+	if !ok || word != "ab" { // 编译顺序首个命中：ab 也是 aab 的子串
+		t.Fatalf("Find(aab) = %q, %v; want ab, true", word, ok)
+	}
+	if _, ok := m.Find(strings.Repeat("a", 100_000)); ok {
+		t.Fatal("all-a haystack must not match a...b words")
+	}
+}
+
 func TestCompileSkipsEmptyAndDuplicate(t *testing.T) {
 	m := Compile([]string{"", "  ", "Admin", "admin", "ＡＤＭＩＮ", "\u200b", "root"}, NameOptions)
 	if m.Len() != 2 {

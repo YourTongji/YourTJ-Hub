@@ -32,7 +32,7 @@ import (
 type Options struct {
 	CaseFold       bool // Unicode simple case folding (strings.ToLower)
 	NFKC           bool // NFKC: full-width → half-width + compatibility forms
-	StripZeroWidth bool // remove U+200B..U+200F, U+FEFF, U+2060..U+2064
+	StripZeroWidth bool // remove U+200B..U+200F, U+FEFF, U+2060..U+2069
 	LeetFold       bool // ASCII digit→letter folding: 1→i 0→o 3→e 4→a 5→s 7→t
 }
 
@@ -73,8 +73,9 @@ func Normalize(s string, o Options) string {
 	return s
 }
 
-// stripZeroWidth removes zero-width formatting characters that are commonly
-// inserted to defeat substring filters.
+// stripZeroWidth removes zero-width and invisible formatting characters that
+// are commonly inserted to defeat substring filters (word joiners, bidi
+// controls, word/line/segment separators and directional isolates).
 func stripZeroWidth(s string) string {
 	if !strings.ContainsFunc(s, isZeroWidth) {
 		return s
@@ -90,11 +91,12 @@ func stripZeroWidth(s string) string {
 	return b.String()
 }
 
-// isZeroWidth reports whether r is a zero-width format character.
+// isZeroWidth reports whether r is a zero-width or invisible format character.
 func isZeroWidth(r rune) bool {
 	switch r {
 	case '\u200b', '\u200c', '\u200d', '\u200e', '\u200f', '\ufeff',
-		'\u2060', '\u2061', '\u2062', '\u2063', '\u2064':
+		'\u2060', '\u2061', '\u2062', '\u2063', '\u2064',
+		'\u2066', '\u2067', '\u2068', '\u2069': // directional isolates (NFKC preserves them)
 		return true
 	}
 	return false
@@ -185,12 +187,15 @@ type Matcher struct {
 	root *node
 }
 
-// node is one trie node of the Aho-Corasick automaton. A word match is
-// reported by walking the failure chain at each position; node.original is
-// set for trie-terminal words to short-circuit that walk.
+// node is one trie node of the Aho-Corasick automaton. Matches ending at a
+// position are reported through output links: node.out points at the nearest
+// trie-terminal node on the failure chain (or nil), so the report walk only
+// visits nodes that actually carry a word instead of the whole failure chain
+// (keeps scanning linear even for deep non-matching suffix chains).
 type node struct {
 	children map[rune]*node
 	fail     *node
+	out      *node  // nearest terminal node on the failure chain, or nil
 	original string // configured word ending exactly at this node, or ""
 }
 
@@ -221,9 +226,8 @@ func (m *Matcher) insert(w Word) {
 	}
 }
 
-// buildFails computes failure links breadth-first. Words that share a suffix
-// surface through the failure chain at scan time, so no output-link
-// propagation is needed here.
+// buildFails computes failure links breadth-first and derives each node's
+// output link (nearest trie-terminal node on its failure chain).
 func (m *Matcher) buildFails() {
 	if m.root == nil {
 		return
@@ -231,6 +235,7 @@ func (m *Matcher) buildFails() {
 	queue := make([]*node, 0, len(m.words)*4)
 	for _, child := range m.root.children {
 		child.fail = m.root
+		child.out = nil // root carries no word
 		queue = append(queue, child)
 	}
 	for len(queue) > 0 {
@@ -248,6 +253,11 @@ func (m *Matcher) buildFails() {
 			}
 			if fail == nil {
 				child.fail = m.root
+			}
+			if child.fail.original != "" {
+				child.out = child.fail
+			} else {
+				child.out = child.fail.out
 			}
 		}
 	}
@@ -283,7 +293,9 @@ func (m *Matcher) Equal(s string) (string, bool) {
 
 // scan walks the normalized haystack once, recording every matched word's
 // original spelling into found (deduplicated). Overlapping words that end at
-// the same position are all reported via the failure chain.
+// the same position are reported through output links, which only visit
+// trie-terminal nodes — the report cost is proportional to the matches at
+// each position, never to the failure-chain depth.
 func (m *Matcher) scan(n string, found map[string]struct{}) {
 	if m.root == nil || n == "" {
 		return
@@ -296,10 +308,11 @@ func (m *Matcher) scan(n string, found map[string]struct{}) {
 		if next := cur.children[r]; next != nil {
 			cur = next
 		}
-		for t := cur; t != m.root; t = t.fail {
-			if t.original != "" {
-				found[t.original] = struct{}{}
-			}
+		if cur.original != "" {
+			found[cur.original] = struct{}{}
+		}
+		for out := cur.out; out != nil; out = out.out {
+			found[out.original] = struct{}{}
 		}
 	}
 }
