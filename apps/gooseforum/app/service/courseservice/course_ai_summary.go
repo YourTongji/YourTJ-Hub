@@ -487,15 +487,12 @@ func listRecentVisibleReviews(courseId uint64) ([]reviewInput, error) {
 }
 
 // aiSummaryReviewsSufficient 判断课程当前可见有正文评价数是否达到生成阈值。
-// 与生成路径同口径（listRecentVisibleReviews：仅可见 offering + 可见评价 +
-// 未软删 + 有正文），供 insufficient 标记自愈校验——评价增加但写路径漏失效
-// （catalog 导入改派 offering 等）或阈值下调时，不再永久返回 insufficient_data。
+// DB 端 LIMIT 提前终止（HasVisibleReviewsWithContent），不拉全量——
+// preflight 高频路径（每次课程页挂载的 ?check=true）不得全量扫描评价表
+// （bot review P2：空正文多的课程 Go 侧分页拉全量会反复扫描）。
+// 口径与生成路径一致：仅可见 offering + 可见评价 + 未软删 + 正文非空。
 func aiSummaryReviewsSufficient(courseId uint64) (bool, error) {
-	reviews, err := listRecentVisibleReviews(courseId)
-	if err != nil {
-		return false, err
-	}
-	return len(reviews) >= AiSummaryMinReviews, nil
+	return course.HasVisibleReviewsWithContent(courseId, AiSummaryMinReviews)
 }
 
 // truncateRunes 按 rune 截断（与 ReviewContentMaxLength 的 rune 计数口径一致）。
