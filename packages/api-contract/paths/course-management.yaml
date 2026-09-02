@@ -275,3 +275,244 @@ adminCourseStatsRebuild:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+adminCourseRelationList:
+  post:
+    tags: [Forum]
+    summary: List course lineage candidates for review (CourseManager/Admin)
+    operationId: adminCourseRelationList
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped list of course_relations candidates (pending/approved/ignored/merged)
+      with the rule evidence snapshot. Permission failures are a legacy HTTP 200 business
+      failure (`permission.denied`).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationListRequest
+    responses:
+      '200':
+        description: One page of lineage candidates, or a permission business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseRelationListResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseRelationApprove:
+  post:
+    tags: [Forum]
+    summary: Approve a non-merge lineage candidate (CourseManager/Admin)
+    operationId: adminCourseRelationApprove
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Marks a SPLIT_FROM/MERGED_FROM/RELATED candidate approved
+      (pending → approved). EQUIVALENT/RENAMED_FROM candidates must go through the merge
+      operation (`adminCourseMerge`); passing one here is a 409 `course.relation.notMerge`
+      business failure. Writes an audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationActionRequest
+    responses:
+      '200':
+        description: The updated lineage candidate, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseRelationItemResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Candidate does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Candidate type is not approvable (EQUIVALENT/RENAMED_FROM must merge).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseRelationIgnore:
+  post:
+    tags: [Forum]
+    summary: Ignore a lineage candidate (CourseManager/Admin)
+    operationId: adminCourseRelationIgnore
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Marks a candidate ignored (pending → ignored). Writes an
+      audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationActionRequest
+    responses:
+      '200':
+        description: The updated lineage candidate, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseRelationItemResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Candidate does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseRelationCreate:
+  post:
+    tags: [Forum]
+    summary: Manually create a lineage candidate (CourseManager/Admin)
+    operationId: adminCourseRelationCreate
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Creates a manual (source=manual) pending candidate. Idempotent:
+      an existing (fromCourseId, toCourseId, relationType) row is returned as-is. Writes an
+      audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationCreateRequest
+    responses:
+      '200':
+        description: The created (or already-existing) lineage candidate, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseRelationItemResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: From or to course does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseMerge:
+  post:
+    tags: [Forum]
+    summary: Confirm equivalence and physically merge a course into another (CourseManager/Admin)
+    operationId: adminCourseMerge
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Human-confirmed physical merge of an EQUIVALENT/RENAMED_FROM
+      candidate: offerings (with their reviews and instructor links) move from the from-course to
+      the to-course, aliases migrate with conflict skipping, the from-course is hidden, the
+      candidate becomes merged with a merge snapshot, and search/stat rebuilds are enqueued.
+      Reversible via `adminCourseMergeUndo`. Writes an audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationActionRequest
+    responses:
+      '200':
+        description: Merge counts (offerings moved, aliases migrated/skipped), or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseMergeResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Candidate or a referenced course does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Candidate not mergeable, already merged, blocked by another pending merge, or target hidden.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseMergeUndo:
+  post:
+    tags: [Forum]
+    summary: Undo a confirmed course merge (CourseManager/Admin)
+    operationId: adminCourseMergeUndo
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Reverses a merged candidate from its merge snapshot: offerings
+      move back to the from-course, aliases move back, the from-course becomes visible again, and
+      the candidate returns to approved. Writes an audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationActionRequest
+    responses:
+      '200':
+        description: Undo counts (offerings moved back), or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseMergeResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Candidate does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Candidate was never merged.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure

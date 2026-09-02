@@ -298,6 +298,7 @@ export function getPkCourseReviewBrief(input: PkCourseReviewBriefInput): Promise
   const query = new URLSearchParams({ courseCode: input.courseCode })
   if (input.teacherName) query.set('teacherName', input.teacherName)
   if (input.calendarId) query.set('calendarId', String(input.calendarId))
+  if (input.teachingClassId) query.set('teachingClassId', String(input.teachingClassId))
   return getPk<PkCourseReviewBrief>(
     `/api/pk/course-review-brief?${query.toString()}`,
     t('api.pkCourseReviewBriefFailed'),

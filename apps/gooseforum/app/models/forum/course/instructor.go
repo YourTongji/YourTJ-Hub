@@ -11,6 +11,7 @@ const instructorTableName = "course_instructor"
 // Entity 教师：按 (name, department) 作为 importer 的自然键，支持团队授课。
 type InstructorEntity struct {
 	Id             uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
+	TeacherCode    string         `gorm:"column:teacher_code;type:varchar(64);not null;default:'';index:idx_course_instructor_teacher_code;" json:"teacherCode"`
 	Name           string         `gorm:"column:name;type:varchar(64);not null;default:'';" json:"name"`
 	NormalizedName string         `gorm:"column:normalized_name;type:varchar(64);not null;default:'';index:idx_course_instructor_normalized;" json:"normalizedName"`
 	NamePinyin     string         `gorm:"column:name_pinyin;type:varchar(255);not null;default:'';" json:"namePinyin"`

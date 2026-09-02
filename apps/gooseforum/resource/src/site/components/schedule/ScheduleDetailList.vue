@@ -82,10 +82,14 @@ async function loadBrief(courseCode: string) {
   briefError.value = ''
   briefLoading.value = true
   try {
+    // 课程级摘要：单教学班课程直接用该班 teachingClassId 精准定位，多班课程回退课程级匹配。
+    const details = currentCourse.value?.courseDetail ?? []
+    const teachingClassId = details.length === 1 ? details[0].teachingClassId : undefined
     const result = await getPkCourseReviewBrief({
       courseCode,
       teacherName: '',
       calendarId: store.state.majorSelected.calendarId ?? 0,
+      teachingClassId,
     })
     if (seq !== briefRequestSeq) return
     brief.value = result

@@ -33,6 +33,8 @@ export interface PkCourseDetail {
   campus: string
   /** 教学班课号（含班号后缀，如 "122004.01"） */
   code: string
+  /** 教学班 id（pk_course_detail.id）：P13 课评摘要 by-offering 精准定位直查键。 */
+  teachingClassId?: number
   /** 排他标志：仅专业课/必修为 true（P5 courses-by-major 语义） */
   isExclusive?: boolean
   /** 0 未选 / 1 备选 / 2 已选 */
@@ -226,6 +228,8 @@ export interface PkCourseReviewBriefInput {
   teacherName: string
   /** 可选：限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
   calendarId?: number
+  /** 可选：教学班直查键（course_offering.teaching_class_id）；提供时按班精准定位，缺省回退 courseCode+teacherName 匹配。 */
+  teachingClassId?: number
 }
 
 /** P13 /api/pk/course-review-brief 响应（复用课评 API 语义）。 */

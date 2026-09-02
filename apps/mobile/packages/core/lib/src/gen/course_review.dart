@@ -158,10 +158,29 @@ abstract class RelatedCourseItem with _$RelatedCourseItem {
 }
 
 @freezed
+abstract class RelationItem with _$RelationItem {
+  const factory RelationItem({
+    required int relationId,
+    required int fromCourseId,
+    required String fromName,
+    required int toCourseId,
+    required String toName,
+    required String relationType,
+    required String status,
+    required String direction,
+  }) = _RelationItem;
+
+  factory RelationItem.fromJson(Map<String, dynamic> json) =>
+      _$RelationItemFromJson(json);
+}
+
+@freezed
 abstract class CourseRelatedResult with _$CourseRelatedResult {
   const factory CourseRelatedResult({
     required List<RelatedCourseItem> teacherOtherCourses,
     required List<RelatedCourseItem> sameCourseOtherTeachers,
+    // 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+    List<RelationItem>? lineage,
   }) = _CourseRelatedResult;
 
   factory CourseRelatedResult.fromJson(Map<String, dynamic> json) =>

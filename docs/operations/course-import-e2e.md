@@ -4,6 +4,15 @@
 
 ## 数据包格式（上游导出器输出）
 
+> **offering 双源说明（2026 课程沿革）**：本手册描述的 `course-import`（历史数据包
+> 导入）与一系统排课物化（`course-pk-sync --materialize`，见
+> `docs/operations/deployment.md`「一系统排课同步」）共享同一批 `offering` 行：
+> 两源均以教学班为粒度写入，`offering.teaching_class_id` 与 `term` 构成唯一索引，
+> 先物化后导入时导入器复用已有行（不重复建卡）。**排课物化是 offering 的权威写入源**
+> （管理端「一系统同步」按学期自动物化）；历史数据包导入保持兼容且从属，不写
+> `offering.status`（不会复活管理端隐藏的教学班）。导入器生成的 offering 行同样携带
+> `teaching_class_id`（数据包提供 `class_code`/`class_name` 时按班号匹配）。
+
 `jcourse_to_manifest.py`（`import-data/`，上游 jcourse SQLite 快照 → manifest 包）输出**单包 4 文件 + 2 manifest**（同一目录）：
 
 - `courses.jsonl` / `instructors.jsonl` / `offerings.jsonl` / `reviews.jsonl`

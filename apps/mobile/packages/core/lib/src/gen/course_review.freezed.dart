@@ -2816,6 +2816,325 @@ abstract class _RelatedCourseItem implements RelatedCourseItem {
       throw _privateConstructorUsedError;
 }
 
+RelationItem _$RelationItemFromJson(Map<String, dynamic> json) {
+  return _RelationItem.fromJson(json);
+}
+
+/// @nodoc
+mixin _$RelationItem {
+  int get relationId => throw _privateConstructorUsedError;
+  int get fromCourseId => throw _privateConstructorUsedError;
+  String get fromName => throw _privateConstructorUsedError;
+  int get toCourseId => throw _privateConstructorUsedError;
+  String get toName => throw _privateConstructorUsedError;
+  String get relationType => throw _privateConstructorUsedError;
+  String get status => throw _privateConstructorUsedError;
+  String get direction => throw _privateConstructorUsedError;
+
+  /// Serializes this RelationItem to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of RelationItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $RelationItemCopyWith<RelationItem> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $RelationItemCopyWith<$Res> {
+  factory $RelationItemCopyWith(
+    RelationItem value,
+    $Res Function(RelationItem) then,
+  ) = _$RelationItemCopyWithImpl<$Res, RelationItem>;
+  @useResult
+  $Res call({
+    int relationId,
+    int fromCourseId,
+    String fromName,
+    int toCourseId,
+    String toName,
+    String relationType,
+    String status,
+    String direction,
+  });
+}
+
+/// @nodoc
+class _$RelationItemCopyWithImpl<$Res, $Val extends RelationItem>
+    implements $RelationItemCopyWith<$Res> {
+  _$RelationItemCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of RelationItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? relationId = null,
+    Object? fromCourseId = null,
+    Object? fromName = null,
+    Object? toCourseId = null,
+    Object? toName = null,
+    Object? relationType = null,
+    Object? status = null,
+    Object? direction = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            relationId: null == relationId
+                ? _value.relationId
+                : relationId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            fromCourseId: null == fromCourseId
+                ? _value.fromCourseId
+                : fromCourseId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            fromName: null == fromName
+                ? _value.fromName
+                : fromName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            toCourseId: null == toCourseId
+                ? _value.toCourseId
+                : toCourseId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            toName: null == toName
+                ? _value.toName
+                : toName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            relationType: null == relationType
+                ? _value.relationType
+                : relationType // ignore: cast_nullable_to_non_nullable
+                      as String,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as String,
+            direction: null == direction
+                ? _value.direction
+                : direction // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$RelationItemImplCopyWith<$Res>
+    implements $RelationItemCopyWith<$Res> {
+  factory _$$RelationItemImplCopyWith(
+    _$RelationItemImpl value,
+    $Res Function(_$RelationItemImpl) then,
+  ) = __$$RelationItemImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int relationId,
+    int fromCourseId,
+    String fromName,
+    int toCourseId,
+    String toName,
+    String relationType,
+    String status,
+    String direction,
+  });
+}
+
+/// @nodoc
+class __$$RelationItemImplCopyWithImpl<$Res>
+    extends _$RelationItemCopyWithImpl<$Res, _$RelationItemImpl>
+    implements _$$RelationItemImplCopyWith<$Res> {
+  __$$RelationItemImplCopyWithImpl(
+    _$RelationItemImpl _value,
+    $Res Function(_$RelationItemImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of RelationItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? relationId = null,
+    Object? fromCourseId = null,
+    Object? fromName = null,
+    Object? toCourseId = null,
+    Object? toName = null,
+    Object? relationType = null,
+    Object? status = null,
+    Object? direction = null,
+  }) {
+    return _then(
+      _$RelationItemImpl(
+        relationId: null == relationId
+            ? _value.relationId
+            : relationId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        fromCourseId: null == fromCourseId
+            ? _value.fromCourseId
+            : fromCourseId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        fromName: null == fromName
+            ? _value.fromName
+            : fromName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        toCourseId: null == toCourseId
+            ? _value.toCourseId
+            : toCourseId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        toName: null == toName
+            ? _value.toName
+            : toName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        relationType: null == relationType
+            ? _value.relationType
+            : relationType // ignore: cast_nullable_to_non_nullable
+                  as String,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as String,
+        direction: null == direction
+            ? _value.direction
+            : direction // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$RelationItemImpl implements _RelationItem {
+  const _$RelationItemImpl({
+    required this.relationId,
+    required this.fromCourseId,
+    required this.fromName,
+    required this.toCourseId,
+    required this.toName,
+    required this.relationType,
+    required this.status,
+    required this.direction,
+  });
+
+  factory _$RelationItemImpl.fromJson(Map<String, dynamic> json) =>
+      _$$RelationItemImplFromJson(json);
+
+  @override
+  final int relationId;
+  @override
+  final int fromCourseId;
+  @override
+  final String fromName;
+  @override
+  final int toCourseId;
+  @override
+  final String toName;
+  @override
+  final String relationType;
+  @override
+  final String status;
+  @override
+  final String direction;
+
+  @override
+  String toString() {
+    return 'RelationItem(relationId: $relationId, fromCourseId: $fromCourseId, fromName: $fromName, toCourseId: $toCourseId, toName: $toName, relationType: $relationType, status: $status, direction: $direction)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$RelationItemImpl &&
+            (identical(other.relationId, relationId) ||
+                other.relationId == relationId) &&
+            (identical(other.fromCourseId, fromCourseId) ||
+                other.fromCourseId == fromCourseId) &&
+            (identical(other.fromName, fromName) ||
+                other.fromName == fromName) &&
+            (identical(other.toCourseId, toCourseId) ||
+                other.toCourseId == toCourseId) &&
+            (identical(other.toName, toName) || other.toName == toName) &&
+            (identical(other.relationType, relationType) ||
+                other.relationType == relationType) &&
+            (identical(other.status, status) || other.status == status) &&
+            (identical(other.direction, direction) ||
+                other.direction == direction));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    relationId,
+    fromCourseId,
+    fromName,
+    toCourseId,
+    toName,
+    relationType,
+    status,
+    direction,
+  );
+
+  /// Create a copy of RelationItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$RelationItemImplCopyWith<_$RelationItemImpl> get copyWith =>
+      __$$RelationItemImplCopyWithImpl<_$RelationItemImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$RelationItemImplToJson(this);
+  }
+}
+
+abstract class _RelationItem implements RelationItem {
+  const factory _RelationItem({
+    required final int relationId,
+    required final int fromCourseId,
+    required final String fromName,
+    required final int toCourseId,
+    required final String toName,
+    required final String relationType,
+    required final String status,
+    required final String direction,
+  }) = _$RelationItemImpl;
+
+  factory _RelationItem.fromJson(Map<String, dynamic> json) =
+      _$RelationItemImpl.fromJson;
+
+  @override
+  int get relationId;
+  @override
+  int get fromCourseId;
+  @override
+  String get fromName;
+  @override
+  int get toCourseId;
+  @override
+  String get toName;
+  @override
+  String get relationType;
+  @override
+  String get status;
+  @override
+  String get direction;
+
+  /// Create a copy of RelationItem
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$RelationItemImplCopyWith<_$RelationItemImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 CourseRelatedResult _$CourseRelatedResultFromJson(Map<String, dynamic> json) {
   return _CourseRelatedResult.fromJson(json);
 }
@@ -2825,7 +3144,8 @@ mixin _$CourseRelatedResult {
   List<RelatedCourseItem> get teacherOtherCourses =>
       throw _privateConstructorUsedError;
   List<RelatedCourseItem> get sameCourseOtherTeachers =>
-      throw _privateConstructorUsedError;
+      throw _privateConstructorUsedError; // 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+  List<RelationItem>? get lineage => throw _privateConstructorUsedError;
 
   /// Serializes this CourseRelatedResult to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -2847,6 +3167,7 @@ abstract class $CourseRelatedResultCopyWith<$Res> {
   $Res call({
     List<RelatedCourseItem> teacherOtherCourses,
     List<RelatedCourseItem> sameCourseOtherTeachers,
+    List<RelationItem>? lineage,
   });
 }
 
@@ -2867,6 +3188,7 @@ class _$CourseRelatedResultCopyWithImpl<$Res, $Val extends CourseRelatedResult>
   $Res call({
     Object? teacherOtherCourses = null,
     Object? sameCourseOtherTeachers = null,
+    Object? lineage = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -2878,6 +3200,10 @@ class _$CourseRelatedResultCopyWithImpl<$Res, $Val extends CourseRelatedResult>
                 ? _value.sameCourseOtherTeachers
                 : sameCourseOtherTeachers // ignore: cast_nullable_to_non_nullable
                       as List<RelatedCourseItem>,
+            lineage: freezed == lineage
+                ? _value.lineage
+                : lineage // ignore: cast_nullable_to_non_nullable
+                      as List<RelationItem>?,
           )
           as $Val,
     );
@@ -2896,6 +3222,7 @@ abstract class _$$CourseRelatedResultImplCopyWith<$Res>
   $Res call({
     List<RelatedCourseItem> teacherOtherCourses,
     List<RelatedCourseItem> sameCourseOtherTeachers,
+    List<RelationItem>? lineage,
   });
 }
 
@@ -2915,6 +3242,7 @@ class __$$CourseRelatedResultImplCopyWithImpl<$Res>
   $Res call({
     Object? teacherOtherCourses = null,
     Object? sameCourseOtherTeachers = null,
+    Object? lineage = freezed,
   }) {
     return _then(
       _$CourseRelatedResultImpl(
@@ -2926,6 +3254,10 @@ class __$$CourseRelatedResultImplCopyWithImpl<$Res>
             ? _value._sameCourseOtherTeachers
             : sameCourseOtherTeachers // ignore: cast_nullable_to_non_nullable
                   as List<RelatedCourseItem>,
+        lineage: freezed == lineage
+            ? _value._lineage
+            : lineage // ignore: cast_nullable_to_non_nullable
+                  as List<RelationItem>?,
       ),
     );
   }
@@ -2937,8 +3269,10 @@ class _$CourseRelatedResultImpl implements _CourseRelatedResult {
   const _$CourseRelatedResultImpl({
     required final List<RelatedCourseItem> teacherOtherCourses,
     required final List<RelatedCourseItem> sameCourseOtherTeachers,
+    final List<RelationItem>? lineage,
   }) : _teacherOtherCourses = teacherOtherCourses,
-       _sameCourseOtherTeachers = sameCourseOtherTeachers;
+       _sameCourseOtherTeachers = sameCourseOtherTeachers,
+       _lineage = lineage;
 
   factory _$CourseRelatedResultImpl.fromJson(Map<String, dynamic> json) =>
       _$$CourseRelatedResultImplFromJson(json);
@@ -2961,9 +3295,21 @@ class _$CourseRelatedResultImpl implements _CourseRelatedResult {
     return EqualUnmodifiableListView(_sameCourseOtherTeachers);
   }
 
+  // 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+  final List<RelationItem>? _lineage;
+  // 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+  @override
+  List<RelationItem>? get lineage {
+    final value = _lineage;
+    if (value == null) return null;
+    if (_lineage is EqualUnmodifiableListView) return _lineage;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   String toString() {
-    return 'CourseRelatedResult(teacherOtherCourses: $teacherOtherCourses, sameCourseOtherTeachers: $sameCourseOtherTeachers)';
+    return 'CourseRelatedResult(teacherOtherCourses: $teacherOtherCourses, sameCourseOtherTeachers: $sameCourseOtherTeachers, lineage: $lineage)';
   }
 
   @override
@@ -2978,7 +3324,8 @@ class _$CourseRelatedResultImpl implements _CourseRelatedResult {
             const DeepCollectionEquality().equals(
               other._sameCourseOtherTeachers,
               _sameCourseOtherTeachers,
-            ));
+            ) &&
+            const DeepCollectionEquality().equals(other._lineage, _lineage));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2987,6 +3334,7 @@ class _$CourseRelatedResultImpl implements _CourseRelatedResult {
     runtimeType,
     const DeepCollectionEquality().hash(_teacherOtherCourses),
     const DeepCollectionEquality().hash(_sameCourseOtherTeachers),
+    const DeepCollectionEquality().hash(_lineage),
   );
 
   /// Create a copy of CourseRelatedResult
@@ -3010,6 +3358,7 @@ abstract class _CourseRelatedResult implements CourseRelatedResult {
   const factory _CourseRelatedResult({
     required final List<RelatedCourseItem> teacherOtherCourses,
     required final List<RelatedCourseItem> sameCourseOtherTeachers,
+    final List<RelationItem>? lineage,
   }) = _$CourseRelatedResultImpl;
 
   factory _CourseRelatedResult.fromJson(Map<String, dynamic> json) =
@@ -3018,7 +3367,9 @@ abstract class _CourseRelatedResult implements CourseRelatedResult {
   @override
   List<RelatedCourseItem> get teacherOtherCourses;
   @override
-  List<RelatedCourseItem> get sameCourseOtherTeachers;
+  List<RelatedCourseItem> get sameCourseOtherTeachers; // 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+  @override
+  List<RelationItem>? get lineage;
 
   /// Create a copy of CourseRelatedResult
   /// with the given fields replaced by the non-null parameter values.

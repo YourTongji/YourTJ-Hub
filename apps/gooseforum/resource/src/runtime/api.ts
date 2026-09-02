@@ -1343,9 +1343,22 @@ export interface RelatedCourseItem {
   reviewCount: number
 }
 
+// 课程沿革条目（GET /courses/:id/related 的 lineage）：已确认关系（approved/merged），
+// direction=to（本卡为当前卡，from 为历史旧卡）/ from（本卡为历史卡，to 为新卡）。
+export interface CourseLineageItem {
+  relationId: number
+  fromCourseId: number
+  fromName: string
+  toCourseId: number
+  toName: string
+  relationType: 'EQUIVALENT' | 'RENAMED_FROM' | 'SPLIT_FROM' | 'MERGED_FROM' | 'RELATED'
+  status: 'approved' | 'merged'
+  direction: 'to' | 'from'
+}
 export interface CourseRelatedResult {
   teacherOtherCourses: RelatedCourseItem[]
   sameCourseOtherTeachers: RelatedCourseItem[]
+  lineage?: CourseLineageItem[]
 }
 
 export async function getCourseRelated(courseId: number): Promise<CourseRelatedResult> {
@@ -1552,6 +1565,8 @@ export interface AdminCourseUpdateInput {
   name?: string
   department?: string
   creditX10?: number
+  reviewScope?: string
+  teamKey?: string
   aliases?: string[]
   instructors?: string[]
 }
@@ -1650,6 +1665,121 @@ export async function rebuildCourseStats(): Promise<boolean> {
     headers: { 'Content-Type': 'application/json' },
   })
   return readApiResponse<boolean>(response, t('api.adminCourseStatsRebuildFailed'))
+}
+
+// ---- 课程沿革审核（CourseManager） ----
+
+export interface CourseRelationItem {
+  id: number
+  fromCourseId: number
+  toCourseId: number
+  relationType: 'EQUIVALENT' | 'RENAMED_FROM' | 'SPLIT_FROM' | 'MERGED_FROM' | 'RELATED'
+  source: 'rule' | 'manual'
+  confidence: number
+  evidenceJson: string
+  manual: boolean
+  status: 'pending' | 'approved' | 'ignored' | 'merged'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CourseRelationListResult {
+  list: CourseRelationItem[]
+  page: number
+  size: number
+  total: number
+  hasNext: boolean
+}
+
+export interface CourseRelationCreateInput {
+  fromCourseId: number
+  toCourseId: number
+  relationType: string
+  evidence?: string
+  confidence?: number
+}
+
+export interface CourseMergeResult {
+  relationId: number
+  fromCourseId: number
+  toCourseId: number
+  fromName: string
+  toName: string
+  movedOfferings: number
+  migratedAliases: number
+  skippedAliases: number
+}
+
+export interface AdminCourseDetailItem {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  reviewScope?: string
+  teamKey?: string
+}
+
+export async function fetchCourseRelations(status = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+  const response = await fetch('/api/forum/moderation/course-relation-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, page, pageSize }),
+  })
+  return readApiResponse<CourseRelationListResult>(response, t('api.adminCourseRelationListFailed'))
+}
+
+export async function approveCourseRelation(relationId: number): Promise<CourseRelationItem> {
+  const response = await fetch('/api/forum/moderation/course-relation-approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseRelationItem>(response, t('api.adminCourseRelationOpFailed'))
+}
+
+export async function ignoreCourseRelation(relationId: number): Promise<CourseRelationItem> {
+  const response = await fetch('/api/forum/moderation/course-relation-ignore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseRelationItem>(response, t('api.adminCourseRelationOpFailed'))
+}
+
+export async function createCourseRelation(input: CourseRelationCreateInput): Promise<CourseRelationItem> {
+  const response = await fetch('/api/forum/moderation/course-relation-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<CourseRelationItem>(response, t('api.adminCourseRelationCreateFailed'))
+}
+
+export async function mergeCourseRelation(relationId: number): Promise<CourseMergeResult> {
+  const response = await fetch('/api/forum/moderation/course-merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseMergeResult>(response, t('api.courseMergeFailed'))
+}
+
+export async function undoMergeCourseRelation(relationId: number): Promise<CourseMergeResult> {
+  const response = await fetch('/api/forum/moderation/course-merge-undo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseMergeResult>(response, t('api.courseMergeUndoFailed'))
+}
+
+// 管理端编辑弹窗预填 reviewScope/teamKey 用；隐藏课程详情不可读时由调用方降级。
+export async function getCourseDetail(courseId: number): Promise<AdminCourseDetailItem> {
+  const response = await fetch(`/api/forum/courses/${courseId}`, {
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<AdminCourseDetailItem>(response, t('api.courseDetailLoadFailed'))
 }
 
 // ---- B7: AI 课程总结（issue #181） ----

@@ -813,6 +813,30 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/moderation/course-merge"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-merge-undo"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-create"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-ignore"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-list"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/moderation/course-review-delete"
   },
   {

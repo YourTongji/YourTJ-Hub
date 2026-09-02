@@ -585,6 +585,16 @@ getCourseReviewBrief:
         schema:
           type: integer
           format: uint64
+      - name: teachingClassId
+        in: query
+        required: false
+        description: |
+          教学班直查键（course_offering.teaching_class_id）：有则精准定位该班所属课程卡与
+          offering（course-scope 特判课程卡），不再走 courseCode+teacherName 猜测；未命中
+          （缺失/隐藏）时回退旧路径。与 calendarId 同时传入时以直查结果为准。
+        schema:
+          type: integer
+          format: uint64
     responses:
       '200':
         description: Course review summary matched by courseCode (falls back to newCourseCode / primary_code).

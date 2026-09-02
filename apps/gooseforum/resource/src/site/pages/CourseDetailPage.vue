@@ -12,6 +12,7 @@ import {
   setReviewHelpful,
   updateCourseReview,
   uploadImage,
+  type CourseLineageItem,
   type CourseRelatedResult,
   type ReviewPayload,
 } from '@/runtime/api'
@@ -43,9 +44,19 @@ import { shortTerm } from '@/site/utils/term'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseDetailPageProps, LayoutPayload } from '@gooseforum/client'
 
+// SSR 透传的新字段（后端 CourseDetail 扩展，仅显示层读取）：
+// reviewScope 课评范围三档（teacher/team/course，缺省按 teacher 处理）、teamKey 团队键、
+// teamInstructors 团队教师名单、legacyNames 原名标注。
+type CourseDetailScopeFields = {
+  reviewScope?: 'teacher' | 'team' | 'course'
+  teamKey?: string
+  teamInstructors?: string[]
+  legacyNames?: string[]
+}
+
 const page = defineProps<{
   layout: LayoutPayload
-  props: CourseDetailPageProps
+  props: CourseDetailPageProps & { course: CourseDetailPageProps['course'] & CourseDetailScopeFields }
 }>()
 const { t } = useI18n()
 const { push: pushFlash } = useFlashMessages()
@@ -100,6 +111,40 @@ async function loadRelated() {
   } finally {
     relatedLoading.value = false
   }
+}
+// ---- 课评范围（teacher/team/course）与原名标注（SSR 透传，显示层）----
+// team 档教师名单：「教学团队 · 张三、李四等 N 位教师」；无名单回退单卡教师名。
+const teamInstructorsLabel = computed(() => {
+  const names = page.props.course.teamInstructors ?? []
+  if (!names.length) return ''
+  const joined = names.join('、')
+  if (names.length <= 1) return `${t('courseDetailPage.teamInstructorsPrefix')}${joined}`
+  return `${t('courseDetailPage.teamInstructorsPrefix')}${joined}${t('courseDetailPage.teamInstructorsCountSuffix', { count: names.length })}`
+})
+
+// ---- 课程沿革（related.lineage）----
+const RELATION_LABEL_KEYS: Record<string, string> = {
+  EQUIVALENT: 'courseDetailPage.relationEquivalent',
+  RENAMED_FROM: 'courseDetailPage.relationRenamed',
+  SPLIT_FROM: 'courseDetailPage.relationSplit',
+  MERGED_FROM: 'courseDetailPage.relationMerged',
+  RELATED: 'courseDetailPage.relationRelated',
+}
+
+function relationLabel(relationType: string): string {
+  const key = RELATION_LABEL_KEYS[relationType]
+  return key ? t(key) : relationType
+}
+
+// 沿革条目只链向「非本卡」一侧的目标卡；merged 后旧卡已隐藏，不可跳转。
+function lineageFromHref(item: CourseLineageItem): string | undefined {
+  if (item.direction !== 'to' || item.status === 'merged') return undefined
+  return `/courses/${item.fromCourseId}`
+}
+
+function lineageToHref(item: CourseLineageItem): string | undefined {
+  if (item.direction !== 'from' || item.status === 'merged') return undefined
+  return `/courses/${item.toCourseId}`
 }
 
 // authorLabel 作者展示名：member 用服务端回填的用户名；anonymous/legacy 走本地 i18n，
@@ -791,7 +836,16 @@ onBeforeUnmount(() => {
 
     <PageHeader :title="props.course.name">
       <template #badge>
+        <span v-if="props.course.legacyNames?.length" class="text-[12px] text-base-content/45">
+          {{ t('courseDetailPage.legacyNamesLabel') }}{{ (props.course.legacyNames ?? []).join('、') }}
+        </span>
         <span class="gf-badge gf-badge-muted">{{ props.course.primaryCode }}</span>
+        <span v-if="props.course.reviewScope === 'team'" class="gf-badge gf-badge-info">
+          {{ t('courseDetailPage.reviewScopeTeam') }}
+        </span>
+        <span v-else-if="props.course.reviewScope === 'course'" class="gf-badge gf-badge-info">
+          {{ t('courseDetailPage.reviewScopeCourse') }}
+        </span>
       </template>
       <template #meta>
         <!-- 信息栏：紧凑语义徽标条（院系 / 教师 / 学分），带形状+微色彩的"面板感"、
@@ -808,7 +862,12 @@ onBeforeUnmount(() => {
           >
             <UsersRound class="h-3.5 w-3.5 text-primary/65" />
             <span class="font-medium text-base-content/80">
-              {{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+              <template v-if="props.course.reviewScope === 'team' && teamInstructorsLabel">
+                {{ teamInstructorsLabel }}
+              </template>
+              <template v-else>
+                {{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+              </template>
             </span>
           </span>
           <span
@@ -1290,6 +1349,41 @@ onBeforeUnmount(() => {
                     </span>
                   </span>
                 </a>
+              </li>
+            </ul>
+          </div>
+          <div v-if="related?.lineage?.length" class="pt-3">
+            <h3 class="mb-3 text-sm font-semibold text-base-content">
+              {{ t('courseDetailPage.lineageTitle') }}
+            </h3>
+            <ul class="space-y-2">
+              <li
+                v-for="item in related?.lineage ?? []"
+                :key="item.relationId"
+                class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2"
+              >
+                <span class="min-w-0">
+                  <span class="block truncate text-sm">
+                    <a
+                      v-if="lineageFromHref(item)"
+                      :href="lineageFromHref(item)"
+                      class="font-medium text-base-content transition hover:text-primary"
+                    >
+                      {{ item.fromName }}
+                    </a>
+                    <span v-else class="font-medium text-base-content/60">{{ item.fromName }}</span>
+                    <span class="mx-1 text-base-content/35">→</span>
+                    <a
+                      v-if="lineageToHref(item)"
+                      :href="lineageToHref(item)"
+                      class="font-medium text-base-content transition hover:text-primary"
+                    >
+                      {{ item.toName }}
+                    </a>
+                    <span v-else class="font-medium text-base-content">{{ item.toName }}</span>
+                  </span>
+                </span>
+                <span class="gf-badge gf-badge-ghost shrink-0 text-[11px]">{{ relationLabel(item.relationType) }}</span>
               </li>
             </ul>
           </div>

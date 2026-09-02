@@ -25,10 +25,25 @@ type RelatedCourseItem struct {
 	ReviewCount int      `json:"reviewCount"`
 }
 
+// RelationItem 沿革区块条目：本卡相关的已确认沿革关系（原名标注 + 关系类型）。
+// Direction 表示方向：to（旧卡 → 本卡，本卡为当前卡）/ from（本卡 → 新卡，本卡为历史卡）。
+type RelationItem struct {
+	RelationId   uint64 `json:"relationId"`
+	FromCourseId uint64 `json:"fromCourseId"`
+	FromName     string `json:"fromName"`
+	ToCourseId   uint64 `json:"toCourseId"`
+	ToName       string `json:"toName"`
+	RelationType string `json:"relationType"`
+	Status       string `json:"status"`
+	Direction    string `json:"direction"`
+}
+
 // CourseRelated 课程详情页相关课程区块数据。
+// Lineage 为本卡已确认的沿革关系（approve/merged；原名标注与跳转旧卡）。
 type CourseRelated struct {
 	TeacherOtherCourses     []RelatedCourseItem `json:"teacherOtherCourses"`
 	SameCourseOtherTeachers []RelatedCourseItem `json:"sameCourseOtherTeachers"`
+	Lineage                 []RelationItem      `json:"lineage"`
 }
 
 // GetCourseRelated 返回课程的"同教师其他课"与"同课程其他教师"（各前 RelatedListLimit 条）。
@@ -41,7 +56,10 @@ func GetCourseRelated(courseId uint64) (CourseRelated, error) {
 	result := CourseRelated{
 		TeacherOtherCourses:     []RelatedCourseItem{},
 		SameCourseOtherTeachers: []RelatedCourseItem{},
+		Lineage:                 []RelationItem{},
 	}
+	// 沿革区块：本卡相关的已确认关系（approved/merged），含方向与原名。
+	result.Lineage = buildLineageItems(entity)
 	instructorIds, err := course.ListInstructorIDsByCourse(courseId)
 	if err != nil {
 		return CourseRelated{}, err
@@ -71,6 +89,68 @@ func GetCourseRelated(courseId uint64) (CourseRelated, error) {
 		return CourseRelated{}, err
 	}
 	return result, nil
+}
+
+// buildLineageItems 返回本卡已确认的沿革关系条目（原名标注 + 方向）：
+//   - direction=to：关系指向本卡（本卡为当前卡，from 为历史旧卡）；
+//   - direction=from：本卡指向新卡（本卡为历史卡，合并后隐藏但仍可被沿革区块引用）。
+//
+// 状态仅 approved/merged（pending/ignored 不展示）；原名标注用 relations 快照 + from 卡当前名。
+func buildLineageItems(entity course.Entity) []RelationItem {
+	items := []RelationItem{}
+	// 指向本卡（当前卡视角）。
+	if rels, err := course.ListRelationsByToCourse(entity.Id, []string{
+		string(course.RelationStatusApproved),
+		string(course.RelationStatusMerged),
+	}); err == nil {
+		var fromIds []uint64
+		for _, r := range rels {
+			fromIds = append(fromIds, r.FromCourseId)
+		}
+		nameByID := make(map[uint64]string)
+		for _, c := range course.GetMapByIds(fromIds) {
+			nameByID[c.Id] = c.Name
+		}
+		for _, r := range rels {
+			items = append(items, RelationItem{
+				RelationId:   r.Id,
+				FromCourseId: r.FromCourseId,
+				FromName:     nameByID[r.FromCourseId],
+				ToCourseId:   r.ToCourseId,
+				ToName:       entity.Name,
+				RelationType: r.RelationType,
+				Status:       r.Status,
+				Direction:    "to",
+			})
+		}
+	}
+	// 本卡出发（历史卡视角）。
+	if rels, err := course.ListRelationsByFromCourse(entity.Id); err == nil {
+		var toIds []uint64
+		for _, r := range rels {
+			toIds = append(toIds, r.ToCourseId)
+		}
+		nameByID := make(map[uint64]string)
+		for _, c := range course.GetMapByIds(toIds) {
+			nameByID[c.Id] = c.Name
+		}
+		for _, r := range rels {
+			if r.Status != string(course.RelationStatusApproved) && r.Status != string(course.RelationStatusMerged) {
+				continue
+			}
+			items = append(items, RelationItem{
+				RelationId:   r.Id,
+				FromCourseId: r.FromCourseId,
+				FromName:     entity.Name,
+				ToCourseId:   r.ToCourseId,
+				ToName:       nameByID[r.ToCourseId],
+				RelationType: r.RelationType,
+				Status:       r.Status,
+				Direction:    "from",
+			})
+		}
+	}
+	return items
 }
 
 // ratingAvgFromStats 由 rating_sum/rating_count 计算平均分（无评分时为 0）。

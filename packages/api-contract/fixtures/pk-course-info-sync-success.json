@@ -5,6 +5,7 @@
     "TJCS101": [
       {
         "code": "TJCS10101",
+        "teachingClassId": 900001,
         "teachers": [
           {
             "teacherCode": "T001",
@@ -75,6 +76,7 @@
       },
       {
         "code": "TJCS10102",
+        "teachingClassId": 900002,
         "teachers": [
           {
             "teacherCode": "T006",
@@ -119,6 +121,7 @@
     "TJCS201": [
       {
         "code": "TJCS20101",
+        "teachingClassId": 900003,
         "teachers": [
           {
             "teacherCode": "T001",

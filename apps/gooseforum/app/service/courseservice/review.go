@@ -457,6 +457,9 @@ func DecodeCursor(raw string) (ReviewCursor, error) {
 // ListReviewsPage 按 cursor 分页返回课程（或指定 offering）的可见评价。
 // pageSize 默认 20、上限 50；结果多取一条判断 hasNext（无重复无遗漏）。
 // total 为当前筛选下的可见评价总数（offering 过滤时同口径）。
+// team 语义：课程 review_scope=team 且 team_key 非空时，评价列表与 total
+// 覆盖团队全部可见卡（ListVisibleCoursesByTeamKey），与详情页读时聚合口径一致
+// （bot review：详情页统计已聚合但列表仍只查当前卡）。
 // 边界语义（PR #201 spec O3）：pageSize<=0 静默回落默认值（契约 minimum=1，
 // 宽松容忍无害，控制器仅拦 >50）；cursor 非法格式由控制器 DecodeCursor 拦 400。
 func ListReviewsPage(courseId, offeringId, viewerId uint64, cursor ReviewCursor, pageSize int) (ReviewPageResult, error) {
@@ -472,6 +475,22 @@ func ListReviewsPage(courseId, offeringId, viewerId uint64, cursor ReviewCursor,
 		CursorOfferingId: cursor.OfferingId,
 		CursorReviewId:   cursor.ReviewId,
 		Limit:            pageSize + 1,
+	}
+	// team 档：先取团队全部可见卡 id，列表与 total 都按多卡口径。
+	var teamIds []uint64
+	if offeringId == 0 {
+		if entity := course.GetCourse(courseId); entity.ReviewScope == ReviewScopeTeam && entity.TeamKey != "" {
+			teammates, err := course.ListVisibleCoursesByTeamKey(entity.TeamKey, courseId)
+			if err != nil {
+				return ReviewPageResult{}, err
+			}
+			teamIds = make([]uint64, 0, len(teammates)+1)
+			teamIds = append(teamIds, courseId)
+			for _, t := range teammates {
+				teamIds = append(teamIds, t.Id)
+			}
+			query.CourseIds = teamIds
+		}
 	}
 	entities, err := course.ListReviewsPage(query)
 	if err != nil {
@@ -497,6 +516,8 @@ func ListReviewsPage(courseId, offeringId, viewerId uint64, cursor ReviewCursor,
 	}
 	if offeringId > 0 {
 		result.Total, err = course.CountVisibleReviewsByOffering(offeringId)
+	} else if len(teamIds) > 0 {
+		result.Total, err = course.CountVisibleReviewsByCourseIds(teamIds)
 	} else {
 		result.Total, err = course.CountVisibleReviewsByCourse(courseId)
 	}

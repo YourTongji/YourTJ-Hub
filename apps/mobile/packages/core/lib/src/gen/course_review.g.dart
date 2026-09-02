@@ -228,6 +228,30 @@ Map<String, dynamic> _$$RelatedCourseItemImplToJson(
   'reviewCount': instance.reviewCount,
 };
 
+_$RelationItemImpl _$$RelationItemImplFromJson(Map<String, dynamic> json) =>
+    _$RelationItemImpl(
+      relationId: (json['relationId'] as num).toInt(),
+      fromCourseId: (json['fromCourseId'] as num).toInt(),
+      fromName: json['fromName'] as String,
+      toCourseId: (json['toCourseId'] as num).toInt(),
+      toName: json['toName'] as String,
+      relationType: json['relationType'] as String,
+      status: json['status'] as String,
+      direction: json['direction'] as String,
+    );
+
+Map<String, dynamic> _$$RelationItemImplToJson(_$RelationItemImpl instance) =>
+    <String, dynamic>{
+      'relationId': instance.relationId,
+      'fromCourseId': instance.fromCourseId,
+      'fromName': instance.fromName,
+      'toCourseId': instance.toCourseId,
+      'toName': instance.toName,
+      'relationType': instance.relationType,
+      'status': instance.status,
+      'direction': instance.direction,
+    };
+
 _$CourseRelatedResultImpl _$$CourseRelatedResultImplFromJson(
   Map<String, dynamic> json,
 ) => _$CourseRelatedResultImpl(
@@ -237,6 +261,9 @@ _$CourseRelatedResultImpl _$$CourseRelatedResultImplFromJson(
   sameCourseOtherTeachers: (json['sameCourseOtherTeachers'] as List<dynamic>)
       .map((e) => RelatedCourseItem.fromJson(e as Map<String, dynamic>))
       .toList(),
+  lineage: (json['lineage'] as List<dynamic>?)
+      ?.map((e) => RelationItem.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$$CourseRelatedResultImplToJson(
@@ -244,4 +271,5 @@ Map<String, dynamic> _$$CourseRelatedResultImplToJson(
 ) => <String, dynamic>{
   'teacherOtherCourses': instance.teacherOtherCourses,
   'sameCourseOtherTeachers': instance.sameCourseOtherTeachers,
+  'lineage': instance.lineage,
 };

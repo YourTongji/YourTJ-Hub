@@ -71,10 +71,16 @@ async function loadBrief() {
   briefError.value = ''
   briefLoading.value = true
   try {
+    const baseCode = getCourseBaseCode(course.code)
+    // 卡片只渲染课表块对应的一个教学班：有 teachingClassId 时按班精准定位课评摘要。
+    const detail = store.state.commonLists.stagedCourses
+      .find((item) => item.courseCode === baseCode)
+      ?.courseDetail.find((item) => item.code === course.code)
     const result = await getPkCourseReviewBrief({
-      courseCode: getCourseBaseCode(course.code),
+      courseCode: baseCode,
       teacherName: '',
       calendarId: store.state.majorSelected.calendarId ?? 0,
+      teachingClassId: detail?.teachingClassId,
     })
     if (seq !== briefRequestSeq) return // 过期响应丢弃
     brief.value = result

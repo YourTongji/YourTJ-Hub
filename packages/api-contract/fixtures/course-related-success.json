@@ -23,6 +23,18 @@
         "ratingCount": 1,
         "reviewCount": 1
       }
+    ],
+    "lineage": [
+      {
+        "relationId": 11,
+        "fromCourseId": 41,
+        "fromName": "高等数学(A)上",
+        "toCourseId": 42,
+        "toName": "高等数学(A)上",
+        "relationType": "EQUIVALENT",
+        "status": "merged",
+        "direction": "to"
+      }
     ]
   },
   "code": 0
