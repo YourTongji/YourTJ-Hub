@@ -118,10 +118,12 @@ const bulkImportOpen = ref(false)
 const bulkImportTarget = ref<BulkImportTarget>('reservedUsernames')
 const bulkImportText = ref('')
 // 解析结果由输入驱动实时计算：文本为空时返回 null（此时确认导入会提示 k00uj）。
+// 敏感词列表用短语模式（保留条目内部空格，多词短语逐条导入），名单类用默认模式。
 const bulkImportPreview = computed<BulkImportPreview | null>(() => {
   const text = bulkImportText.value.trim()
   if (!text) return null
-  return parseImportText(text, securityForm[bulkImportTarget.value])
+  const target = bulkImportTarget.value
+  return parseImportText(text, securityForm[target], target === 'sensitiveWords' ? { preserveSpaces: true } : undefined)
 })
 const bulkImportEmptyHint = ref(false)
 
@@ -1881,7 +1883,7 @@ onUnmounted(stopSyncPolling)
         <DialogContent class="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{{ adminText('k00ug') }}：{{ adminText(bulkImportTitleKey) }}</DialogTitle>
-            <DialogDescription>{{ adminText('k00uf') }}</DialogDescription>
+            <DialogDescription>{{ bulkImportTarget === 'sensitiveWords' ? adminText('k00un') : adminText('k00uf') }}</DialogDescription>
           </DialogHeader>
           <div class="space-y-3">
             <Textarea v-model="bulkImportText" class="min-h-32 text-sm" />

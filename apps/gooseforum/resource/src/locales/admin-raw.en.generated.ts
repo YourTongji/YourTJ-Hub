@@ -874,4 +874,5 @@ export default {
   "k00uk": "At most {limit} entries per import; the rest are ignored",
   "k00ul": "Warning: newly banned usernames freeze existing accounts with the same name. Proceed with caution.",
   "k00um": "The preview shows the first {limit} entries; the rest appear in the list above after confirming.",
+  "k00un": "Sensitive words may be multi-word phrases: entries are split only by newlines, commas or semicolons, and spaces inside an entry are preserved (e.g. credit card cash out imports as one phrase).",
 } as const

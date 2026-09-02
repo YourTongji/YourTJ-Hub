@@ -116,6 +116,37 @@ describe('parseImportText 批量粘贴解析', () => {
     expect(result.truncated).toBe(false)
   })
 
+  test('敏感词短语模式：preserveSpaces 保留条目内部空格，仅按换行/逗号/分号拆分', () => {
+    const result = parseImportText(
+      'credit card cash out\n彩票代购,办证刻章；小额贷款、赌博',
+      [],
+      { preserveSpaces: true },
+    )
+    expect(result).toEqual({
+      added: ['credit card cash out', '彩票代购', '办证刻章', '小额贷款', '赌博'],
+      skipped: 0,
+      truncated: false,
+    })
+  })
+
+  test('敏感词短语模式：既有含空格短语去重按整串比较', () => {
+    const existing = ['credit card cash out']
+    const result = parseImportText(
+      'credit card cash out\nCredit Card CASH OUT\n代开发票',
+      existing,
+      { preserveSpaces: true },
+    )
+    expect(result.added).toEqual(['代开发票'])
+    expect(result.skipped).toBe(2)
+  })
+
+  test('默认（名单）模式仍按空格拆分，不受 preserveSpaces 影响', () => {
+    const tokenized = parseImportText('a b\nc d', [])
+    expect(tokenized.added).toEqual(['a', 'b', 'c', 'd'])
+    const phrase = parseImportText('a b\nc d', [], { preserveSpaces: true })
+    expect(phrase.added).toEqual(['a b', 'c d'])
+  })
+
   test('重复出现在截断丢弃段不影响结果', () => {
     const text = Array.from({ length: BULK_IMPORT_LIMIT + 5 }, (_, i) => `dup${i}`).join('\n')
     const result = parseImportText(text, [])
