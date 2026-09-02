@@ -175,9 +175,11 @@ func R4(from, to CourseSummary) *LineageCandidate {
 		RelationType: RelationSplitFrom,
 		Source:       "R4",
 		Evidence: marshalEvidence(evidence{
-			FamilyKey:   fromFamily,
-			VariantFrom: fromVariant,
-			VariantTo:   toVariant,
+			FamilyKey:          fromFamily,
+			VariantFrom:        fromVariant,
+			VariantTo:          toVariant,
+			TeacherCodeOverlap: sameTeacher(from, to),
+			Semesters:          from.Semester + "→" + to.Semester,
 		}),
 		Confidence: 0.5,
 	}
@@ -231,8 +233,9 @@ func R5(from, to CourseSummary) *LineageCandidate {
 
 // Evaluate 对一对课程运行 R1-R5，返回候选列表。
 // 顺序约定：先跑 R1/R2/R3/R4 产出正候选，再跑 R5 硬分隔复核——
-// R5 命中时把 EQUIVALENT 降级为 RELATED（永不产出 EQUIVALENT），
-// RENAMED_FROM/SPLIT_FROM 保持（它们本身不是等价断言）。
+// R5 命中（硬分隔成立）时移除已收集的 EQUIVALENT 候选（等价断言被硬分隔推翻，
+// 保留会误导人工审核），并追加 R5 的 RELATED 弱关联；RENAMED_FROM/SPLIT_FROM
+// 保持（它们本身不是等价断言）。
 func Evaluate(from, to CourseSummary) []LineageCandidate {
 	var candidates []LineageCandidate
 	appendIf := func(c *LineageCandidate) {
@@ -245,9 +248,15 @@ func Evaluate(from, to CourseSummary) []LineageCandidate {
 	appendIf(R3(from, to))
 	appendIf(R4(from, to))
 	if r5 := R5(from, to); r5 != nil {
-		if r5.RelationType == RelationEquivalent {
-			r5.RelationType = RelationRelated
+		// R5 永不产出 EQUIVALENT（仅 RELATED 或忽略），命中即硬分隔成立：
+		// 把 R1/R2 已收集的 EQUIVALENT 移除，再追加 RELATED。
+		filtered := candidates[:0]
+		for _, c := range candidates {
+			if c.RelationType != RelationEquivalent {
+				filtered = append(filtered, c)
+			}
 		}
+		candidates = filtered
 		appendIf(r5)
 	}
 	return candidates

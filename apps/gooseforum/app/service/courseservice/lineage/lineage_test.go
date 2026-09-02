@@ -256,7 +256,7 @@ func TestR4(t *testing.T) {
 }
 
 // R5 硬分隔：A1≠A2≠B 等变体语义冲突下，即使名称/教师/学分都看似一致也绝不
-// 产出 EQUIVALENT——Evaluate 必须把 R1/R2 的 EQUIVALENT 降级为 RELATED。
+// 产出 EQUIVALENT——Evaluate 必须在 R5 命中时移除 R1/R2 已收集的 EQUIVALENT。
 func TestR5HardSeparations(t *testing.T) {
 	// A1 → A2：同教师同码同学分，R1 命中但被 R5 硬分隔降级。
 	from := CourseSummary{
@@ -302,7 +302,8 @@ func TestR5HardSeparations(t *testing.T) {
 	}
 
 	// 基础 → 进阶：R4 产出 SPLIT_FROM；R5 变体语义冲突（基础≠进阶）额外给 RELATED，
-	// 但绝不产出 EQUIVALENT。
+	// 但绝不产出 EQUIVALENT。R5 命中时只移除等价断言（EQUIVALENT），
+	// R4 的 SPLIT_FROM 不是等价断言，保留。
 	basic := CourseSummary{ID: 1, Name: "高级语言程序设计基础", Semester: "2024-2025-1"}
 	advanced := CourseSummary{ID: 2, Name: "高级语言程序设计进阶", Semester: "2025-2026-1"}
 	got := Evaluate(basic, advanced)
@@ -317,6 +318,28 @@ func TestR5HardSeparations(t *testing.T) {
 	}
 	if !foundSplit {
 		t.Fatalf("Evaluate(基础→进阶) = %+v, want SPLIT_FROM", got)
+	}
+
+	// 回归（bot review）：R1 已产出 EQUIVALENT 后 R5 课时巨变硬分隔命中，
+	// Evaluate 必须移除 EQUIVALENT，最终只有 R5 的 RELATED。
+	heavyFrom := CourseSummary{
+		ID: 1, CourseCode: "MATH101", TeacherCode: "T1001",
+		Name: "高等数学", Credit: 5, HourX10: 480, Semester: "2024-2025-1",
+	}
+	heavyTo := CourseSummary{
+		ID: 2, CourseCode: "MATH101", TeacherCode: "T1001",
+		Name: "高等数学", Credit: 5, HourX10: 960, Semester: "2024-2025-2",
+	}
+	// 前置条件：R1 等价命中 + R5 课时巨变硬分隔命中。
+	if c := R1(heavyFrom, heavyTo); c == nil || c.RelationType != RelationEquivalent {
+		t.Fatal("R1(课时巨变) = nil/非 EQUIVALENT，测试前置条件不成立")
+	}
+	if c := R5(heavyFrom, heavyTo); c == nil || c.RelationType != RelationRelated {
+		t.Fatal("R5(课时巨变) = nil/非 RELATED，测试前置条件不成立")
+	}
+	heavyGot := Evaluate(heavyFrom, heavyTo)
+	if len(heavyGot) != 1 || heavyGot[0].RelationType != RelationRelated {
+		t.Fatalf("Evaluate(课时巨变) = %+v, want 仅一条 RELATED（EQUIVALENT 已被移除）", heavyGot)
 	}
 }
 
@@ -411,5 +434,35 @@ func TestSemesterAdjacency(t *testing.T) {
 		if got := semestersAdjacent(c.a, c.b); got != c.want {
 			t.Errorf("semestersAdjacent(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
 		}
+	}
+}
+
+// EvaluateAll 方向归一：输入顺序倒序（新→旧）时配对仍按学期解析为 旧 → 新，
+// 不依赖 CLI calendarId 顺序（review P2）。
+func TestEvaluateAllOrdersBySemester(t *testing.T) {
+	// 输入故意倒序：index 0 = 新学期卡、index 1 = 旧学期卡。
+	newCard := CourseSummary{
+		ID: 1, CourseCode: "MATH101", TeacherCode: "T1001",
+		Name: "高等数学A(I)", Credit: 5, Semester: "2025-2026-1",
+	}
+	oldCard := CourseSummary{
+		ID: 2, CourseCode: "MATH101", TeacherCode: "T1001",
+		Name: "高等数学A(I)", Credit: 5, Semester: "2024-2025-2",
+	}
+	// 前置：R1(旧→新) 命中；反向 R1(新→旧) 同样命中但方向错误——正是扫描要修正的点。
+	if R1(oldCard, newCard) == nil {
+		t.Fatal("R1(旧→新) = nil，测试前置不成立")
+	}
+	candidates := EvaluateAll([]CourseSummary{newCard, oldCard})
+	if len(candidates) != 1 {
+		t.Fatalf("EvaluateAll = %d candidates, want 1（同教师同码配对只评估一次）", len(candidates))
+	}
+	got := candidates[0]
+	if got.RelationType != RelationEquivalent {
+		t.Fatalf("candidate type = %s, want EQUIVALENT", got.RelationType)
+	}
+	if got.FromCourseID != oldCard.ID || got.ToCourseID != newCard.ID {
+		t.Errorf("candidate direction = from %d → to %d, want from %d → to %d（按学期归一为旧→新）",
+			got.FromCourseID, got.ToCourseID, oldCard.ID, newCard.ID)
 	}
 }

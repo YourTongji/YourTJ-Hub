@@ -18,22 +18,22 @@ import (
 var variantTokens = []string{
 	"课程设计", "实习",
 	"实验", "实践",
+	"上", "下",
 	"基础", "进阶",
 	"荣", "卓", "英",
 	"A1", "A2", "B", "C", "D", "A",
 	"I", "II", "III", "IV", "V",
-	"上", "下",
 }
 
 // tailVariantTokens 是仅出现在名称尾部（含括号）的硬语义 token；剥离后即课程家族名。
 var tailVariantTokens = []string{
 	"课程设计", "实习",
 	"实验", "实践",
+	"上", "下",
 	"基础", "进阶",
 	"荣", "卓", "英",
 	"A1", "A2", "B", "C", "D", "A",
 	"I", "II", "III", "IV", "V",
-	"上", "下",
 }
 
 // NormalizeCourseName 对课程名做沿革匹配归一化：

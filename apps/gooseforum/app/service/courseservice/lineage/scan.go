@@ -3,7 +3,8 @@ package lineage
 // EvaluateAll 对一批课程（跨学期）两两配对并运行 R1-R5，返回全部候选。
 // 配对剪枝：R1/R2/R3 需要同 teacherCode，R4/R5 需要同 familyKey（或同教师同码），
 // 因此只对「同 teacherCode」或「同 familyKey」的课程对跑规则；同一对 (from, to)
-// 只评估一次，且限定 from 的学期不晚于 to（无法解析学期时不限制，以输入顺序兜底）。
+// 只评估一次，学期可解析时按学期排序保证候选方向为 旧 → 新（输入顺序不受约束，
+// CLI 的 calendarId 顺序未定义）；无法解析学期时保持输入顺序兜底。
 // 纯内存计算，不读写数据库。
 func EvaluateAll(courses []CourseSummary) []LineageCandidate {
 	teacherGroups := map[string][]int{}
@@ -18,21 +19,15 @@ func EvaluateAll(courses []CourseSummary) []LineageCandidate {
 	}
 
 	var candidates []LineageCandidate
-	seen := map[int]map[int]bool{}
-	markSeen := func(i, j int) bool {
-		if seen[i] == nil {
-			seen[i] = map[int]bool{}
-		}
-		if seen[i][j] {
-			return false
-		}
-		seen[i][j] = true
-		return true
-	}
 	evaluatePair := func(i, j int) {
 		from, to := courses[i], courses[j]
-		if !orderedBySemester(from, to) || !markSeen(i, j) {
-			return
+		// 方向归一：学期可解析且 from 晚于 to 时交换（候选恒为旧 → 新），
+		// 不依赖调用方/输入顺序（review P2：CLI calendarId 顺序不受约束，
+		// 倒序输入不得丢弃合法配对）。
+		if fromIdx, ok := semesterIndex(from.Semester); ok {
+			if toIdx, ok2 := semesterIndex(to.Semester); ok2 && fromIdx > toIdx {
+				from, to = to, from
+			}
 		}
 		candidates = append(candidates, Evaluate(from, to)...)
 	}
@@ -63,15 +58,4 @@ func EvaluateAll(courses []CourseSummary) []LineageCandidate {
 		visitGroup(group)
 	}
 	return candidates
-}
-
-// orderedBySemester from 的学期不晚于 to：双方都能解析时比较绝对学期序号，
-// 任一侧无法解析时按输入顺序放行（调用方保证 i < j）。
-func orderedBySemester(from, to CourseSummary) bool {
-	fromIdx, fromOK := semesterIndex(from.Semester)
-	toIdx, toOK := semesterIndex(to.Semester)
-	if !fromOK || !toOK {
-		return true
-	}
-	return fromIdx <= toIdx
 }
