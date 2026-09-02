@@ -1153,6 +1153,7 @@ export default {
     uploadImageTitle: '上传图片，支持多选、粘贴和拖拽',
     bodyPlaceholder: '输入正文，支持 Markdown；可粘贴或拖拽图片',
     visualPlaceholder: '直接输入并设置正文格式',
+    thoughtPlaceholder: '分享你的想法...',
     dropToUpload: '松开后上传并插入图片',
     emptyPreview: '还没有可预览的内容。',
     selectedCategories: '已选分类',

@@ -1151,6 +1151,7 @@ export default {
     uploadImageTitle: 'Upload images; multi-select, paste, and drag-and-drop supported',
     bodyPlaceholder: 'Enter body text, Markdown supported; paste or drag images here',
     visualPlaceholder: 'Write and format the body directly',
+    thoughtPlaceholder: 'Share your thoughts...',
     dropToUpload: 'Release to upload and insert images',
     emptyPreview: 'There is no content to preview yet.',
     selectedCategories: 'Selected categories',

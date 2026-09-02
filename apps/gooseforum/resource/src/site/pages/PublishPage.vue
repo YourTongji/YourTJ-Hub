@@ -67,6 +67,8 @@ const bodyCharCount = computed(() => content.value.trim().length)
 const bodyFilled = computed(() => bodyCharCount.value > 0)
 const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
 const categoriesFull = computed(() => categoryIds.value.length >= 3)
+/** Use simple textarea for Thoughts (contentType=2) */
+const useSimpleEditor = computed(() => contentType.value === 2)
 /** 向上扩展：折叠标题/分类区，让编辑区占满 */
 const headerCollapsed = ref(false)
 const collapsedHeaderHeight = ref(0)
@@ -441,7 +443,16 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
 
             <div ref="editorHost" class="relative">
+              <!-- Simple textarea for Thoughts -->
+              <textarea
+                v-if="useSimpleEditor"
+                v-model="content"
+                class="gf-textarea min-h-[480px] w-full resize-y rounded-lg border border-line p-4 text-base outline-none focus:border-primary"
+                :placeholder="t('publish.thoughtPlaceholder')"
+              />
+              <!-- Vditor for Questions/Articles/Regular -->
               <VditorOfficial
+                v-else
                 ref="editor"
                 v-model="content"
                 :height="480"
