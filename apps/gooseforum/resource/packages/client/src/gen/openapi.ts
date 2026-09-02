@@ -7760,6 +7760,8 @@ export interface components {
             minTitleLength: number;
             maxTitleLength: number;
             newUserPostCooldownMinutes: number;
+            /** @description Per-user daily limit for newly created topics. `0` means unlimited. Only applies to topic creation; edits and replies are not counted (issue #369). Negative values are normalized to `0` on save and on read. */
+            maxDailyTopicsPerUser: number;
         };
         AdminPostingUploadControl: {
             allowAttachments: boolean;

@@ -298,10 +298,24 @@ func GetActiveWikiByUserPage(userId uint64, cursorID uint64, limit int) (entitie
 	return
 }
 
+// CantWriteNew 判断用户当日是否已达到新主题创建上限（issue #369，上游 c47cff94）。
+// 达到上限（count >= maxCount）即拒绝；maxCount <= 0 表示不限额（调用方守卫，
+// 本函数不重复判断）。
+//
+// 语义与边界（验收记录）：
+//   - "当日"按服务器本地时区（time.Now().Format("2006-01-02")）划分，非 UTC、非可
+//     配置时区；与既有上传每日限制（filedata.CountUserUploadsToday）同为本地时区口径。
+//   - 计数范围为 topics 表该用户当日全部行：含软删主题（builder() 用 Table 无模型，
+//     Count 不应用 GORM 软删 scope）、待审/封禁/草稿主题与 wiki 页面。即"创建过即
+//     计数"，删除或转审核不释放当日额度——按最保守口径设计的防滥用护栏。
+//   - 并发：count 后 insert 非原子（TOCTOU），并发请求可能同时通过检查并各自创建，
+//     实际数量可能略超上限；本限制是软性防滥用护栏，不承担强一致语义。
+//   - 成本：每次主题创建执行一次 COUNT(user_id, created_at > 当日)，
+//     命中 user_id 索引（idx_topics_user_status 前缀），对写路径开销可忽略。
 func CantWriteNew(userId uint64, maxCount int64) bool {
 	var count int64
 	builder().Where(queryopt.Eq("user_id", userId)).Where(queryopt.Gt("created_at", time.Now().Format("2006-01-02"))).Count(&count)
-	return count > maxCount
+	return count >= maxCount
 }
 
 type PageQuery struct {
