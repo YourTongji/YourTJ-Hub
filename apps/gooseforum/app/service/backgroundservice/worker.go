@@ -39,12 +39,10 @@ type TaskHandler func(ctx context.Context, task *taskQueue.Entity) error
 // RunWorker starts a polling worker for tasks whose type starts with
 // typePrefix. The worker stops when the process closer fires.
 func RunWorker(name, typePrefix string, handler TaskHandler) {
-	stopCh := make(chan struct{})
-	closer.RegisterPriority(closer.PriorityProducer, func() error {
-		close(stopCh)
-		return nil
-	})
+	workerCtx, cancel := context.WithCancel(context.Background())
+	workerDone := make(chan struct{})
 	go func() {
+		defer close(workerDone)
 		defer paniclog.Recover(name)
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
@@ -55,22 +53,31 @@ func RunWorker(name, typePrefix string, handler TaskHandler) {
 			if err := taskQueue.RecoverStaleRunning(typePrefix, taskQueue.LeaseDuration); err != nil {
 				slog.Error("background: recover stale running tasks failed", "worker", typePrefix, "err", err)
 			}
-			if !drainTasks(stopCh, typePrefix, handler) {
+			if !drainTasks(workerCtx, typePrefix, handler) {
 				return
 			}
 			select {
 			case <-ticker.C:
-			case <-stopCh:
+			case <-workerCtx.Done():
 				return
 			}
 		}
 	}()
+	closer.RegisterPriorityContext(closer.PriorityProducer, func(shutdownCtx context.Context) error {
+		cancel()
+		select {
+		case <-workerDone:
+			return nil
+		case <-shutdownCtx.Done():
+			return shutdownCtx.Err()
+		}
+	})
 }
 
-func drainTasks(stopCh <-chan struct{}, typePrefix string, handler TaskHandler) bool {
+func drainTasks(ctx context.Context, typePrefix string, handler TaskHandler) bool {
 	for {
 		select {
-		case <-stopCh:
+		case <-ctx.Done():
 			return false
 		default:
 		}
@@ -82,18 +89,18 @@ func drainTasks(stopCh <-chan struct{}, typePrefix string, handler TaskHandler) 
 		slog.Debug("background: pulled tasks", "worker", typePrefix, "count", len(tasks))
 
 		for _, task := range tasks {
-			if !processTask(stopCh, typePrefix, task, handler) {
+			if !processTask(ctx, typePrefix, task, handler) {
 				return false
 			}
 		}
 	}
 }
 
-// processTask 处理单个任务并返回 continue 布尔：false = stop（stopCh 已
+// processTask 处理单个任务并返回 continue 布尔：false = stop（ctx 已
 // 关闭，worker 应退出），true = continue。注意与 mail worker 的
 // processClaimedEmailTask 语义相反（后者 true = stop）——两处各自调用方
 // 匹配了约定，修改时勿混用。
-func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Entity, handler TaskHandler) bool {
+func processTask(workerCtx context.Context, typePrefix string, task *taskQueue.Entity, handler TaskHandler) bool {
 	// 原子领取（issue #138）：pending/retrying → running 的 CAS 更新，
 	// 并发 worker 中只有一个能成功，其余直接跳过，杜绝重复执行外部副作用。
 	running, claimed, err := taskQueue.ClaimTask(task.Id)
@@ -108,7 +115,7 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 
 	// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx，终止 handler。
 	guard := NewLeaseGuard(running.LeaseToken)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(workerCtx)
 	defer cancel()
 	heartbeatDone := StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
 
@@ -149,7 +156,7 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 			select {
 			case <-time.After(retryInterval):
 				return true
-			case <-stopCh:
+			case <-workerCtx.Done():
 				return false
 			}
 		}

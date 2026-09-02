@@ -185,7 +185,7 @@ var postingSettingsConfigCache = &localcache.Cache[pageConfig.PostingContent]{Ma
 
 func GetPostingSettingsConfigCache() pageConfig.PostingContent {
 	return postingSettingsConfigCache.GetOrLoad("", func() (pageConfig.PostingContent, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.PostingSettings, defaultconfig.GetDefaultPostingSettingsConfig()), nil
+		return pageConfig.GetPostingSettingsConfig(defaultconfig.GetDefaultPostingSettingsConfig()), nil
 	}, configFastCacheTTL)
 }
 
@@ -195,6 +195,7 @@ func GetRateLimitConfigCache() pageConfig.RateLimitConfig {
 	return rateLimitConfigCache.GetOrLoad("", func() (pageConfig.RateLimitConfig, error) {
 		cfg := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig())
 		mergeDefaultRateLimitActions(&cfg)
+		cfg.BuildActionIndex()
 		return cfg, nil
 	}, configFastCacheTTL)
 }

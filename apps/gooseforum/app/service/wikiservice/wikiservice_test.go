@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -38,6 +39,7 @@ func setupWikiTestDB(t *testing.T) {
 		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},
 		&wikiSyncRuns.Entity{},
+		&taskQueue.Entity{},
 	}
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate wiki schema: %v", err)

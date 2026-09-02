@@ -8,6 +8,8 @@
 # 环境变量:
 #   IMAGE_REPO   — 镜像仓库(默认 ghcr.io/yourtongji/yourtj-hub, 公开镜像匿名 pull)
 #   IMAGE_KEEP_N — 每个实例前缀保留的镜像 tag 数(含当前), 默认 5
+#   CONFIG_FILE  — (可选) 渲染好的 config.toml 产物绝对路径; 携带时与镜像同事务
+#                  原子替换实例 config(先备份 .prev, 健康失败一并恢复)。
 set -euo pipefail
 
 INSTANCE="${1:?usage: deploy.sh <instance> <image-tag> [health-port]}"
@@ -18,6 +20,12 @@ ROOT="${YOURTJ_ROOT:-/opt/yourtj}"
 ENV_FILE="$ROOT/.env"
 COMPOSE_FILE="$ROOT/docker-compose.yaml"
 TAG_VAR="$([ "$INSTANCE" = "main" ] && echo MAIN_TAG || echo DEV_TAG)"
+INST_DIR="$ROOT/$INSTANCE"
+CFG="$INST_DIR/config.toml"
+PREV="$CFG.prev"
+CFG_MARKER="$INST_DIR/.config.sha256"
+LOCK_DIR="$INST_DIR/.config.lock"
+CONFIG_APPLIED=""
 
 log() { echo "[deploy:$INSTANCE] $*"; }
 
@@ -59,6 +67,52 @@ prune_old_images() {
   log "prune done: removed $removed image tag(s); dangling $dangling_before -> $dangling_after"
 }
 
+# 原子获取 config 回滚槽锁（与 apply-config.sh 同一把锁）; 失败 = 并发, 直接中止。
+acquire_config_lock() {
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    log "FATAL: config 锁 $LOCK_DIR 已存在（另一 apply/deploy 正在进行），拒绝互相覆盖回滚点"
+    log "       确认无并发后: rm -rf $LOCK_DIR 再重试"
+    exit 1
+  fi
+  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+}
+
+# 失败统一回滚: compose up 失败 / 健康检查失败均走这里。
+# 恢复 1) config.prev → config.toml  2) 旧 compose  3) .env tag → 旧镜像并重建容器。
+rollback_all() {
+  log "rolling back deploy"
+
+  # 若本次替换过 config, 先恢复(与镜像同一回滚事务)
+  if [ -n "$CONFIG_APPLIED" ] && [ -f "$PREV" ]; then
+    mv -f "$PREV" "$CFG"
+    log "restored previous config.toml from config.toml.prev"
+  fi
+
+  # 若 main 部署前备份了 compose(main workflow 更新共享 compose 时), 一并恢复
+  if [ -f "$ROOT/docker-compose.yaml.prev" ]; then
+    cp -f "$ROOT/docker-compose.yaml.prev" "$ROOT/docker-compose.yaml"
+    log "restored previous compose file from docker-compose.yaml.prev"
+  fi
+
+  if [ -n "$OLD_TAG" ]; then
+    if docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
+      sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+      docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE" >/dev/null 2>&1 || true
+      log "rolled back to $OLD_TAG"
+    else
+      log "WARNING: $IMAGE:$OLD_TAG not present locally, cannot roll back container; .env still points at new tag $IMAGE_TAG"
+    fi
+  else
+    log "WARNING: no previous tag recorded, cannot roll back"
+  fi
+
+  # config 被恢复过则重建容器以重挂旧 config（单文件 bind-mount 持有旧 inode）
+  if [ -n "$CONFIG_APPLIED" ]; then
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans --force-recreate --no-deps "$INSTANCE" >/dev/null 2>&1 || true
+    log "recreated $INSTANCE to re-mount restored config"
+  fi
+}
+
 [ -f "$ENV_FILE" ] || { log "FATAL: $ENV_FILE missing (run init-server.sh first)"; exit 1; }
 [ -f "$COMPOSE_FILE" ] || { log "FATAL: $COMPOSE_FILE missing (run init-server.sh first)"; exit 1; }
 
@@ -84,42 +138,80 @@ fi
 docker pull "$IMAGE:$IMAGE_TAG"
 log "pulled image $IMAGE:$IMAGE_TAG"
 
+# 2.5 可选: 携带渲染 config 时原子替换(与镜像同一回滚事务)。
+#     单文件 bind-mount 持有旧 inode, 容器需在 config 变更时重建才重挂新文件;
+#     下方步骤 3 的 compose up 因新镜像 tag 变更会 recreate 容器, 若 tag 未变
+#     而 config 已替换, 则显式 force-recreate。
+if [ -n "${CONFIG_FILE:-}" ]; then
+  [ -f "$CONFIG_FILE" ] || { log "FATAL: CONFIG_FILE=$CONFIG_FILE 不存在"; exit 1; }
+  if grep -q '{{' "$CONFIG_FILE"; then
+    log "FATAL: CONFIG_FILE 含未替换占位符 {{, 拒绝应用"; exit 1
+  fi
+  NEW_SHA="$(sha256sum "$CONFIG_FILE" | awk '{print $1}')"
+  CUR_SHA="$(sha256sum "$CFG" 2>/dev/null | awk '{print $1}' || true)"
+  if [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$NEW_SHA" ]; then
+    # 幂等: 内容已一致 → 仅记录 marker（verify-instance 依赖它判定无漂移），不替换
+    printf '%s\n' "$NEW_SHA" > "$CFG_MARKER"
+    log "config 与现网一致(sha=$NEW_SHA), 跳过替换并记录 marker"
+  else
+    # 变更路径: 持锁后备份→原子替换, 失败走 rollback_all 恢复
+    acquire_config_lock
+    if [ -e "$PREV" ]; then
+      log "FATAL: $PREV 已存在(上次失败残留), 拒绝覆盖回滚点"
+      log "       确认无并发后: rm -f $PREV 再重试"
+      exit 1
+    fi
+    cp -f "$CFG" "$PREV" || { log "FATAL: 备份 config 失败"; exit 1; }
+    cp -f "$CONFIG_FILE" "$CFG.new" || { log "FATAL: 写入 $CFG.new 失败"; rm -f "$CFG.new"; exit 1; }
+    mv -f "$CFG.new" "$CFG"
+    CONFIG_APPLIED=1
+    log "config 已原子替换(prev 已备份); sha=$NEW_SHA"
+  fi
+fi
+
 # 3. 更新 .env tag 并启动实例。
 #    反代由 1Panel 负责(公网 TLS 终止 + 回源宿主机端口), 本 compose 不含 nginx 服务。
 sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$IMAGE_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
-log "compose up $INSTANCE with $IMAGE_TAG (--remove-orphans)"
+if [ -n "$CONFIG_APPLIED" ]; then
+  if ! docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans --force-recreate --no-deps "$INSTANCE"; then
+    log "FATAL: compose up 失败（config 已替换），进入统一回滚"
+    rollback_all
+    exit 1
+  fi
+  log "compose recreate $INSTANCE with $IMAGE_TAG (--remove-orphans --force-recreate for new config)"
+else
+  if ! docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"; then
+    log "FATAL: compose up 失败，进入统一回滚"
+    rollback_all
+    exit 1
+  fi
+  log "compose up $INSTANCE with $IMAGE_TAG (--remove-orphans)"
+fi
 
 # 4. 健康检查(覆盖启动 + AutoMigrate 大库迁移)
+health_ok=0
 for ((i = 1; i <= 60; i++)); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
-    log "health check passed"
-    prune_old_images || log "prune failed (non-fatal, deploy succeeded)"
-    exit 0
+    health_ok=1
+    break
   fi
   log "waiting for health ($i/60)..."
   sleep 3
 done
 
-# 5. 失败: 回滚到旧 tag(prev 不可用时仅改 .env, 容器保持旧镜像)
-log "FATAL: health check failed, rolling back"
-
-# 5.1 若 main 部署前备份了 compose(main workflow 更新共享 compose 时),
-#     一并恢复旧 compose, 避免新的 mounts/env/网络配置残留(PR review #4)
-if [ -f "$ROOT/docker-compose.yaml.prev" ]; then
-  cp -f "$ROOT/docker-compose.yaml.prev" "$ROOT/docker-compose.yaml"
-  log "restored previous compose file from docker-compose.yaml.prev"
-fi
-
-if [ -n "$OLD_TAG" ]; then
-  if docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
-    sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
-    log "rolled back to $OLD_TAG"
-  else
-    log "WARNING: $IMAGE:$OLD_TAG not present locally, cannot roll back container; .env still points at new tag $IMAGE_TAG"
+if [ "$health_ok" -eq 1 ]; then
+  log "health check passed"
+  # 若本次替换过 config, 成功即记录 marker 并释放 prev 单槽
+  if [ -n "$CONFIG_APPLIED" ]; then
+    printf '%s\n' "$NEW_SHA" > "$CFG_MARKER"
+    rm -f "$PREV"
+    log "config marker 已记录 $NEW_SHA; prev 已清理"
   fi
-else
-  log "WARNING: no previous tag recorded, cannot roll back"
+  prune_old_images || log "prune failed (non-fatal, deploy succeeded)"
+  exit 0
 fi
+
+# 5. 健康检查失败 → 统一回滚
+log "FATAL: health check failed, rolling back"
+rollback_all
 exit 1

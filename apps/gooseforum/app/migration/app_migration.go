@@ -1,16 +1,24 @@
 package migration
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 )
 
-func runVersionedDataMigrations() {
+func runVersionedDataMigrations() error {
+	unlock, err := acquireVersionedMigrationLock()
+	if err != nil {
+		slog.Warn("app migration lock unavailable; data migrations deferred to a later start", "err", err)
+		return fmt.Errorf("%w: %w", ErrLockUnavailable, err)
+	}
+	defer unlock()
+
 	currentVersion := pageConfig.GetMigrationVersion()
 	if currentVersion >= pageConfig.AppMigrationVersion {
-		return
+		return nil
 	}
 
 	slog.Info("app migration start", "currentVersion", currentVersion, "targetVersion", pageConfig.AppMigrationVersion)
@@ -19,8 +27,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.RebuildReplyMarkdown()
 		slog.Info("app migration rebuild reply markdown done", "processed", result.Processed, "skipped", result.Skipped, "failed", result.Failed)
 		if result.Failed > 0 {
-			slog.Error("app migration rebuild reply markdown has failures", "failed", result.Failed)
-			return
+			return dataMigrationError("rebuild reply markdown", 1, result.Failed, "")
 		}
 		pageConfig.SyncMigrationVersion(1)
 		currentVersion = 1
@@ -29,8 +36,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.BackfillReplySequence()
 		slog.Info("app migration backfill reply sequence done", "articles", result.Articles, "replies", result.Replies, "skipped", result.Skipped, "failed", result.Failed)
 		if result.Failed > 0 {
-			slog.Error("app migration backfill reply sequence has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("backfill reply sequence", 2, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(2)
 		currentVersion = 2
@@ -39,8 +45,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.BackfillArticleUserAction()
 		slog.Info("app migration backfill article user action done", "processed", result.Processed, "skipped", result.Skipped, "failed", result.Failed)
 		if result.Failed > 0 {
-			slog.Error("app migration backfill article user action has failures", "failed", result.Failed)
-			return
+			return dataMigrationError("backfill article user action", 3, result.Failed, "")
 		}
 		pageConfig.SyncMigrationVersion(3)
 		currentVersion = 3
@@ -49,8 +54,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.MigrateSiteChromeContent()
 		slog.Info("app migration site chrome content done", "migrated", result.Migrated, "failed", result.Failed)
 		if result.Failed > 0 {
-			slog.Error("app migration site chrome content has failures", "failed", result.Failed)
-			return
+			return dataMigrationError("site chrome content", 4, result.Failed, "")
 		}
 		pageConfig.SyncMigrationVersion(4)
 		currentVersion = 4
@@ -59,8 +63,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.BackfillTopicPostModel()
 		slog.Info("app migration topic post model done", "topics", result.Topics, "posts", result.Posts, "categories", result.Categories, "topicCategoryIndexes", result.TopicCategoryIndexes, "topicUserActions", result.TopicUserActions, "topicUserStats", result.TopicUserStats, "mappings", result.Mappings, "notifications", result.Notifications, "reportsChecked", result.ReportsChecked, "reportsMissing", result.ReportsMissing, "moderationLogs", result.ModerationLogs, "moderationLogsMissing", result.ModerationLogsMissing, "skipped", result.Skipped, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration topic post model has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("topic post model", 5, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(5)
 		currentVersion = 5
@@ -69,8 +72,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.BackfillModerationLogsTopicPost()
 		slog.Info("app migration moderation log topic post migration done", "moderationLogs", result.ModerationLogs, "moderationLogsMissing", result.ModerationLogsMissing, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration moderation log topic post migration has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("moderation log topic post", 6, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(6)
 		currentVersion = 6
@@ -79,8 +81,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.BackfillFileUsagesTopicPost()
 		slog.Info("app migration file usage topic post migration done", "fileUsages", result.FileUsages, "fileUsagesMissing", result.FileUsagesMissing, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration file usage topic post migration has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("file usage topic post", 7, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(7)
 		currentVersion = 7
@@ -89,8 +90,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.MigrateTopicCountNaming()
 		slog.Info("app migration topic count naming done", "userStatisticsMigrated", result.UserStatisticsMigrated, "dailyStatsMigrated", result.DailyStatsMigrated, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration topic count naming has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("topic count naming", 8, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(8)
 		currentVersion = 8
@@ -100,7 +100,7 @@ func runVersionedDataMigrations() {
 		slog.Info("app migration topic search index done", "skipped", result.Skipped, "rebuilt", result.Rebuilt, "processed", result.ProcessedCount, "failedCount", result.FailedCount, "legacyIndexDeleteTried", result.LegacyIndexDeleteTried, "legacyIndexDeleted", result.LegacyIndexDeleted, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 || result.FailedCount > 0 {
 			slog.Error("app migration topic search index has failures", "failed", result.Failed, "failedCount", result.FailedCount, "lastFailed", result.LastFailed)
-			return
+			return fmt.Errorf("app migration v9 topic search index: %d failed (lastFailed: %s)", result.Failed+result.FailedCount, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(9)
 		currentVersion = 9
@@ -109,8 +109,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.DropReportLegacyColumns()
 		slog.Info("app migration report legacy columns done", "articleIDColumnDropped", result.ArticleIDColumnDropped, "statusArticleIndexDrop", result.StatusArticleIndexDrop, "articleIndexDrop", result.ArticleIndexDrop, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration report legacy columns has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("report legacy columns", 10, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(10)
 		currentVersion = 10
@@ -119,8 +118,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.MigratePointsRecordAction()
 		slog.Info("app migration points record action done", "backfilled", result.Backfilled, "changeReasonColumnDropped", result.ChangeReasonColumnDropped, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration points record action has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("points record action", 11, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(11)
 		currentVersion = 11
@@ -129,8 +127,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.RebuildPostMarkdown()
 		slog.Info("app migration rebuild post markdown done", "processed", result.Processed, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration rebuild post markdown has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("rebuild post markdown", 12, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(12)
 		currentVersion = 12
@@ -141,11 +138,10 @@ func runVersionedDataMigrations() {
 		if result.Skipped {
 			// Meilisearch 不可用：不推进版本，下次启动重试（避免永久跳过索引构建）
 			slog.Warn("app migration aggregate search indexes skipped (meilisearch unavailable), will retry on next start")
-			return
+			return fmt.Errorf("%w: v13 aggregate search indexes (meilisearch unavailable)", ErrRetryLater)
 		}
 		if result.Failed > 0 {
-			slog.Error("app migration aggregate search indexes has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("aggregate search indexes", 13, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(13)
 		currentVersion = 13
@@ -155,8 +151,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.BackfillMissingUserPoints()
 		slog.Info("app migration user points backfill done", "backfilled", result.Backfilled, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration user points backfill has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("user points backfill", 14, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(14)
 		currentVersion = 14
@@ -167,8 +162,7 @@ func runVersionedDataMigrations() {
 		deleteResult := datamigration.BackfillDeleteLifecycle()
 		slog.Info("app migration delete lifecycle backfill done", "topics", deleteResult.TopicsBackfilled, "posts", deleteResult.PostsBackfilled, "failed", deleteResult.Failed, "lastFailed", deleteResult.LastFailed)
 		if deleteResult.Failed > 0 {
-			slog.Error("app migration delete lifecycle backfill has failures", "failed", deleteResult.Failed, "lastFailed", deleteResult.LastFailed)
-			return
+			return dataMigrationError("delete lifecycle backfill", 15, deleteResult.Failed, deleteResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(15)
 		currentVersion = 15
@@ -178,8 +172,7 @@ func runVersionedDataMigrations() {
 		result := datamigration.DropUserOAuthTokenColumns()
 		slog.Info("app migration user oauth credentials drop done", "dropped", result.Dropped, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
-			slog.Error("app migration user oauth credentials drop has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
-			return
+			return dataMigrationError("user oauth credentials drop", 16, result.Failed, result.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(16)
 		currentVersion = 16
@@ -191,8 +184,7 @@ func runVersionedDataMigrations() {
 		anchorResult := datamigration.BackfillCourseReviewDeleteAnchors()
 		slog.Info("app migration course review delete anchor backfill done", "backfilled", anchorResult.Backfilled, "failed", anchorResult.Failed, "lastFailed", anchorResult.LastFailed)
 		if anchorResult.Failed > 0 {
-			slog.Error("app migration course review delete anchor backfill has failures", "failed", anchorResult.Failed, "lastFailed", anchorResult.LastFailed)
-			return
+			return dataMigrationError("course review delete anchor backfill", 17, anchorResult.Failed, anchorResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(17)
 		currentVersion = 17
@@ -204,8 +196,7 @@ func runVersionedDataMigrations() {
 		backfillResult := datamigration.BackfillPostRevisionSeeds()
 		slog.Info("app migration post revision seed backfill done", "seeded", backfillResult.Seeded, "skipped", backfillResult.Skipped, "failed", backfillResult.Failed, "lastFailed", backfillResult.LastFailed)
 		if backfillResult.Failed > 0 {
-			slog.Error("app migration post revision seed backfill has failures", "failed", backfillResult.Failed, "lastFailed", backfillResult.LastFailed)
-			return
+			return dataMigrationError("post revision seed backfill", 18, backfillResult.Failed, backfillResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(18)
 		currentVersion = 18
@@ -225,8 +216,7 @@ func runVersionedDataMigrations() {
 			"failed", singleSourceResult.Failed,
 			"lastFailed", singleSourceResult.LastFailed)
 		if singleSourceResult.Failed > 0 {
-			slog.Error("app migration wiki single source backfill has failures", "failed", singleSourceResult.Failed, "lastFailed", singleSourceResult.LastFailed)
-			return
+			return dataMigrationError("wiki single source backfill", 19, singleSourceResult.Failed, singleSourceResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(19)
 		currentVersion = 19
@@ -246,11 +236,11 @@ func runVersionedDataMigrations() {
 			"lastFailed", topicIndexResult.LastFailed)
 		if topicIndexResult.Skipped {
 			slog.Warn("app migration topic search index topicType rebuild skipped (meilisearch unavailable), will retry on next start")
-			return
+			return fmt.Errorf("%w: v20 topic search index topicType rebuild (meilisearch unavailable)", ErrRetryLater)
 		}
 		if topicIndexResult.Failed > 0 || topicIndexResult.FailedCount > 0 {
 			slog.Error("app migration topic search index topicType rebuild has failures", "failed", topicIndexResult.Failed, "failedCount", topicIndexResult.FailedCount, "lastFailed", topicIndexResult.LastFailed)
-			return
+			return fmt.Errorf("app migration v20 topic search index topicType rebuild: %d failed (lastFailed: %s)", topicIndexResult.Failed+topicIndexResult.FailedCount, topicIndexResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(20)
 		currentVersion = 20
@@ -267,8 +257,7 @@ func runVersionedDataMigrations() {
 			"failed", gitSSOTResult.Failed,
 			"lastFailed", gitSSOTResult.LastFailed)
 		if gitSSOTResult.Failed > 0 {
-			slog.Error("app migration wiki git ssot backfill has failures", "failed", gitSSOTResult.Failed, "lastFailed", gitSSOTResult.LastFailed)
-			return
+			return dataMigrationError("wiki git ssot backfill", 21, gitSSOTResult.Failed, gitSSOTResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(21)
 		currentVersion = 21
@@ -290,8 +279,7 @@ func runVersionedDataMigrations() {
 			"failed", sourcePathResult.Failed,
 			"lastFailed", sourcePathResult.LastFailed)
 		if sourcePathResult.Failed > 0 {
-			slog.Error("app migration wiki page source_path backfill has failures", "failed", sourcePathResult.Failed, "lastFailed", sourcePathResult.LastFailed)
-			return
+			return dataMigrationError("wiki page source_path backfill", 23, sourcePathResult.Failed, sourcePathResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(23)
 		currentVersion = 23
@@ -310,8 +298,7 @@ func runVersionedDataMigrations() {
 			"failed", slugRemoval.Failed,
 			"lastFailed", slugRemoval.LastFailed)
 		if slugRemoval.Failed > 0 {
-			slog.Error("app migration wiki slug removal has failures", "failed", slugRemoval.Failed, "lastFailed", slugRemoval.LastFailed)
-			return
+			return dataMigrationError("wiki slug removal", 24, slugRemoval.Failed, slugRemoval.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(24)
 		currentVersion = 24
@@ -329,11 +316,36 @@ func runVersionedDataMigrations() {
 			"failed", secretResult.Failed,
 			"lastFailed", secretResult.LastFailed)
 		if secretResult.Failed > 0 {
-			slog.Error("app migration admin secret plaintext encryption has failures", "failed", secretResult.Failed, "lastFailed", secretResult.LastFailed)
-			return
+			return dataMigrationError("admin secret plaintext encryption", 25, secretResult.Failed, secretResult.LastFailed)
 		}
 		pageConfig.SyncMigrationVersion(25)
 		currentVersion = 25
 	}
+	if currentVersion < 26 {
+		// 发帖设置每日新主题上限 v26（issue #369，上游 c47cff94）：为存量
+		// postingSettings 配置补齐 textControl.maxDailyTopicsPerUser（默认 10，
+		// 0 = 不限额）。幂等：已存在该键的配置跳过；读取侧在迁移前兼容缺键。
+		topicLimitResult := datamigration.EnsurePostingSettingsTopicLimit()
+		slog.Info("app migration posting settings topic limit done",
+			"updated", topicLimitResult.Updated,
+			"skipped", topicLimitResult.Skipped,
+			"failed", topicLimitResult.Failed,
+			"lastFailed", topicLimitResult.LastFailed)
+		if topicLimitResult.Failed > 0 {
+			slog.Error("app migration posting settings topic limit has failures", "failed", topicLimitResult.Failed, "lastFailed", topicLimitResult.LastFailed)
+			return dataMigrationError("posting settings topic limit", 26, topicLimitResult.Failed, topicLimitResult.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(26); err != nil {
+			slog.Error("app migration sync migration version failed", "version", 26, "err", err)
+			return fmt.Errorf("app migration v26 sync migration version: %w", err)
+		}
+		currentVersion = 26
+	}
 	slog.Info("app migration end", "version", currentVersion)
+	return nil
+}
+
+func dataMigrationError(name string, version int, failed int, lastFailed any) error {
+	slog.Error("app migration "+name+" has failures", "failed", failed, "lastFailed", lastFailed)
+	return fmt.Errorf("app migration v%d %s: %d failed (lastFailed: %v)", version, name, failed, lastFailed)
 }

@@ -158,8 +158,10 @@ func FindCoursesByMajor(grade int, code string, calendarId int) ([]CourseByMajor
 }
 
 // CourseDetailBriefItem P8/P12 教学班明细输出项（isExclusive 仅 P12 的 major 课程带，指针显式区分 true/false）。
+// TeachingClassId = 一系统教学班 id（pk_course_detail.id），供课评摘要 by-offering 精准定位。
 type CourseDetailBriefItem struct {
 	Code             string            `json:"code"`
+	TeachingClassId  uint64            `json:"teachingClassId"`
 	Teachers         []TeacherRefItem  `json:"teachers"`
 	Campus           string            `json:"campus"`
 	TeachingLanguage string            `json:"teachingLanguage"`
@@ -199,6 +201,7 @@ func FindCourseDetailsByCodes(calendarId int, courseCodes []string) (map[string]
 			teachers := teachersByClass[row.Id]
 			items = append(items, CourseDetailBriefItem{
 				Code:             row.Code,
+				TeachingClassId:  row.Id,
 				Teachers:         teacherRefs(teachers),
 				Campus:           row.CampusI18n,
 				TeachingLanguage: row.TeachingLanguageI18n,
@@ -330,6 +333,7 @@ func SyncCourseInfo(p SyncCourseInfoParams) (map[string][]CourseDetailBriefItem,
 			teachers := teachersByClass[row.Id]
 			item := CourseDetailBriefItem{
 				Code:             row.Code,
+				TeachingClassId:  row.Id,
 				Teachers:         teacherRefs(teachers),
 				Campus:           row.CampusI18n,
 				TeachingLanguage: row.TeachingLanguageI18n,

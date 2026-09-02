@@ -383,9 +383,10 @@ func GetOfferingMapByIds(ids []uint64) map[uint64]OfferingEntity {
 // （位置游标——删除/隐藏行不影响后续页游标稳定性）。
 type ReviewPageQuery struct {
 	CourseId         uint64
-	OfferingId       uint64 // 0 = 课程级全部 offering
-	CursorOfferingId uint64 // cursor 中的 offering_id（offering 级时为 0）
-	CursorReviewId   uint64 // cursor 中的 review_id（无 cursor 时为 0）
+	CourseIds        []uint64 // team 档聚合：非空时按多卡可见 offering 查询（替代单卡 CourseId 子查询）
+	OfferingId       uint64   // 0 = 课程级全部 offering
+	CursorOfferingId uint64   // cursor 中的 offering_id（offering 级时为 0）
+	CursorReviewId   uint64   // cursor 中的 review_id（无 cursor 时为 0）
 	Limit            int
 }
 
@@ -404,10 +405,18 @@ func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
 	} else {
 		// course 级：仅统计可见 offering——隐藏 offering 的评价不出现，
 		// 与 ListOfferingsByCourse/详情页可见性一致（PR #201 security F1）。
-		build = build.Where(
-			"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)",
-			q.CourseId, OfferingStatusVisible,
-		)
+		if len(q.CourseIds) > 0 {
+			// team 档：offering 归属于团队任一可见课程卡。
+			build = build.Where(
+				"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id IN ? AND deleted_at IS NULL AND status = ?)",
+				q.CourseIds, OfferingStatusVisible,
+			)
+		} else {
+			build = build.Where(
+				"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)",
+				q.CourseId, OfferingStatusVisible,
+			)
+		}
 		if q.CursorOfferingId > 0 || q.CursorReviewId > 0 {
 			build = build.Where(
 				"(offering_id < ? OR (offering_id = ? AND id < ?))",
@@ -437,6 +446,21 @@ func CountVisibleReviewsByCourse(courseId uint64) (int64, error) {
 	return count, err
 }
 
+// CountVisibleReviewsByCourseIds 多课程下可见评价总数（team 档分页 total）。
+// 与 ListReviewsPage course 级多卡口径一致：仅统计可见 offering 且未软删。
+func CountVisibleReviewsByCourseIds(courseIds []uint64) (int64, error) {
+	var count int64
+	if len(courseIds) == 0 {
+		return 0, nil
+	}
+	err := reviewBuilder().
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id IN ? AND deleted_at IS NULL AND status = ?)", courseIds, OfferingStatusVisible).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
 // CountVisibleReviewsByOffering offering 下可见评价总数（分页 total）。
 // 软删条件显式写（spec S1：Count 不解析 schema，需显式过滤软删行）。
 func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
@@ -447,6 +471,33 @@ func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
 		Where("deleted_at IS NULL").
 		Count(&count).Error
 	return count, err
+}
+
+// HasVisibleReviewsWithContent 判断课程下可见且有正文的评价是否达到 min 条。
+// 与 ListReviewsPage course 级口径一致（仅可见 offering + 可见评价 + 未软删），
+// 额外要求正文非空（content <> ”，跨方言一致）。DB 端 LIMIT min 提前终止，
+// 避免 preflight 高频路径（AI 总结 insufficient 自愈判定）全量扫描评价表
+// （review P2：Go 侧分页拉全量会反复扫描空正文多的课程）。
+// 口径说明：SQL content <> ” 与 Go strings.TrimSpace 对纯空白正文（如 "   "）
+// 判定不同——纯空白行在 DB 侧算有正文，最多导致一次多余的自愈评估，不会
+// 产生错误总结（生成路径仍以 TrimSpace 为准，不足则落回 insufficient）。
+func HasVisibleReviewsWithContent(courseId uint64, min int) (bool, error) {
+	if min <= 0 {
+		return true, nil
+	}
+	var ids []uint64
+	err := reviewBuilder().
+		Select("id").
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)", courseId, OfferingStatusVisible).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Where("content <> ''").
+		Limit(min).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return false, err
+	}
+	return len(ids) >= min, nil
 }
 
 // ---- Helpful ----

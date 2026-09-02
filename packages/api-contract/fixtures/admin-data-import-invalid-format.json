@@ -3,6 +3,6 @@
   "code": 1,
   "messageCode": "admin.data.importInvalidFormat",
   "params": {
-    "error": "JSON 解析失败: invalid character 'h' looking for beginning of value"
+    "error": "导入文件格式无效"
   }
 }

@@ -1,0 +1,130 @@
+# yourtj-hub 实例配置模板（配置治理，唯一权威）
+# 本文件不直接使用：由 deploy/render_config.py 读取本模板 + deploy/instances/<env>.json
+# （实例差异、非敏感）+ GitHub Environments secrets（敏感值），渲染成实例 config.toml。
+# 占位符形如双花括号包大写下划线标识符（见下方各处）；值为字符串时输出 TOML basic
+# string，值为数组时输出 inline array。
+# 渲染后必须通过 tomllib 解析且不含未替换占位符，才会被 CI 下发到服务器。
+# 服务器 config 由 CI apply-config.sh 原子替换，禁止人工 SSH 修改（漂移守卫会告警）。
+[app]
+env = "production"
+maintenance = false
+# 由 init-server.sh 生成随机密钥替换；迁移后由 CI 从 SIGNING_KEY secret 注入，
+# 值必须与存量一致，否则现有 JWT 会话全部失效。
+signingKey = {{SIGNING_KEY}}
+cdn_url = ""
+
+[server]
+# 容器内固定; 对外端口由 compose 的 MAIN_PORT/DEV_PORT 决定
+url = {{SERVER_URL}}
+port = 5234
+accessLog = false
+gzip = true
+# 信任的反向代理网段: nginx 容器在 compose 网络(默认 172.16.0.0/12)内访问本服务,
+# 必须信任该网段才能正确解析 X-Forwarded-For(限流按真实客户端 IP 归并)
+trusted_proxies = {{TRUSTED_PROXIES}}
+
+[jwtopt]
+validTime = 604800
+
+[db]
+migration = "on"
+backupSqlite = true
+backupDir = "./storage/databasebackup/"
+keep = 7
+spec = "0 3 * * *"
+
+[db.default]
+# 主库连接类型: postgres（部署默认）/ sqlite（本地开发；文件库 [db.file] 固定 sqlite）
+connection = "postgres"
+# 实例数据库 DSN 由 CI 从 PG_DSN secret 注入（main/dev 分别指向 yourtj_main / yourtj_dev）。
+# postgres: "host=postgres user=... password=... dbname=... port=5432 sslmode=disable"
+url = {{PG_DSN}}
+path = "./storage/database/sqlite.db"
+maxIdleConnections = 3
+maxOpenConnections = 5
+maxLifeSeconds = 300
+
+[db.file]
+connection = "sqlite"
+path = "./storage/database/file.db"
+maxIdleConnections = 3
+maxOpenConnections = 5
+maxLifeSeconds = 300
+
+
+[meilisearch]
+url = "http://meilisearch:7700"
+masterkey = {{MEILI_MASTER_KEY}}
+
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+schedule = "0 3 * * *"
+webhook_secret = {{WIKI_WEBHOOK_SECRET}}
+
+[log]
+type = "file"
+path = "./storage/logs/run.log"
+rolling = true
+maxage = 10
+maxsize = 256
+maxBackUps = 30
+# 日志级别 debug/info/warn/error，默认 info
+level = "info"
+# 日志格式 json/console，默认 json
+format = "json"
+# ERROR/WARNING 独立轮转文件（便于告警采集），留空则不单独拆分
+errorPath = "./storage/logs/run.error.log"
+# 访问日志是否记录客户端 IP，默认关闭（隐私最小化）
+logIp = false
+slowSQL = true
+slowSQLThreshold = "200ms"
+
+[github]
+# GitHub OAuth 登录（goth）。production 从 GH_CLIENT_ID / GH_CLIENT_SECRET secret 注入；
+# dev 因 DB 站点设置无环境隔离（siteUrl 跟随 main 快照）保持空凭据（optional，渲染为空）。
+client_id = {{GH_CLIENT_ID}}
+client_secret = {{GH_CLIENT_SECRET}}
+
+[oidc]
+enabled = false
+# issuer 默认取 site_url + /api/oauth；显式配置可覆盖
+# issuer = "https://forum.example.com/api/oauth"
+# RS256 签名私钥：内联 PEM 或密钥文件（二者都为空时自动生成并持久化到 signing_key_file）
+# signing_key = ""
+signing_key_file = "./storage/oidc/signing_key.pem"
+access_token_ttl = 3600
+auth_request_ttl = 600
+id_token_ttl = 3600
+# 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
+# redirect_uris 精确匹配；回调带动态 query/路径段时用 redirect_uris_globs
+# 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)。
+# 示例：第三方客户端授权回调带动态 redirect query（授权后回跳应用深层页）时用 globs 兜底。
+# 注意(zitadel/oidc v3.49 实测): 匹配前会再 QueryUnescape 一次 redirect_uri,
+# 实际匹配串中内层页面 URL 的 %2F 已是字面 /; doublestar 的 * 嵌在 query
+# 值中不能跨 /, 只有 ** 作为末尾 segment 可以。因此按"钉死站点域名前缀"
+# 拆两条。\? 转义匹配字面 ?; TOML 单引号字面串保证反斜杠原样传给解析器
+# redirect_uris_globs = [
+#   'https://app.example.com/api/oauth\?redirect=https://app.example.com/**',
+#   'https://app.example.com/api/oauth\?redirect=/**',
+# ]
+[[oidc.clients]]
+id = "yourtj-mobile"
+name = "yourtj 移动端"
+redirect_uris = ["yourtj://callback"]
+# secret = ""
+
+# AI 课程总结（B7，issue #181）：OpenAI-compatible /chat/completions 端点。
+# qwen（DashScope compatible-mode）/OpenRouter/本地 Ollama 均走同一协议，
+# 切换只改 base_url/model/api_key，输出 schema 不变。
+# 开关与全局每分钟生成上限在管理面板「AI 总结」设置中（DB 存储、热生效），
+# 默认关闭；部署需在此配好端点与模型并开启开关后生效。
+# api_key 由 CI 从 AI_API_KEY secret 注入（未配置时渲染为空，属 optional）。
+[ai_summary]
+provider = "qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key = {{AI_API_KEY}}
+model = "qwen3.6-flash-2026-04-16"
+temperature = 0.3
+max_tokens = 1024

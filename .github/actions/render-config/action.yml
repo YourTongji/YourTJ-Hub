@@ -1,0 +1,55 @@
+name: render-config
+description: >-
+  把 deploy/config.toml.tmpl + deploy/instances/<env>.json + Environments secrets
+  渲染成实例 config.toml 产物（deploy/rendered/config-<env>.toml）。
+  渲染 fail-closed：残留占位符 / 必需 secret 为空 / TOML 解析失败即步骤失败，不产出。
+inputs:
+  env:
+    description: 实例环境（main|dev）
+    required: true
+  signing-key:
+    description: SIGNING_KEY（app.signingKey，与存量一致，会话不中断）
+    required: true
+  pg-dsn:
+    description: PG_DSN（db.default.url，实例库 DSN）
+    required: true
+  meili-master-key:
+    description: MEILI_MASTER_KEY（meilisearch.masterkey）
+    required: true
+  wiki-webhook-secret:
+    description: WIKI_WEBHOOK_SECRET（wiki.git.webhook_secret）
+    required: true
+  gh-client-id:
+    description: GH_CLIENT_ID（github.client_id；dev 可空）
+    required: false
+    default: ""
+  gh-client-secret:
+    description: GH_CLIENT_SECRET（github.client_secret；dev 可空）
+    required: false
+    default: ""
+  ai-api-key:
+    description: AI_API_KEY（ai_summary.api_key；可空，AI 总结默认关闭）
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Render instance config
+      shell: bash
+      env:
+        RENDER_ENV: ${{ inputs.env }}
+        SIGNING_KEY: ${{ inputs.signing-key }}
+        PG_DSN: ${{ inputs.pg-dsn }}
+        MEILI_MASTER_KEY: ${{ inputs.meili-master-key }}
+        WIKI_WEBHOOK_SECRET: ${{ inputs.wiki-webhook-secret }}
+        GH_CLIENT_ID: ${{ inputs.gh-client-id }}
+        GH_CLIENT_SECRET: ${{ inputs.gh-client-secret }}
+        AI_API_KEY: ${{ inputs.ai-api-key }}
+      run: |
+        set -euo pipefail
+        mkdir -p deploy/rendered
+        python3 deploy/render_config.py render \
+          --env "$RENDER_ENV" \
+          --out "deploy/rendered/config-$RENDER_ENV.toml"
+        echo "render-config: 产物 deploy/rendered/config-$RENDER_ENV.toml"

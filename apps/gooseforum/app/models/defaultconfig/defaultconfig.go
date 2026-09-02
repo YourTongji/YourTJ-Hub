@@ -29,73 +29,52 @@ type pageConfigDefaults struct {
 	AiSummary    pageConfig.AiSummaryConfig
 }
 
-var (
-	loadPageConfigDefaultsOnce sync.Once
-	pageConfigDefaultsValue    pageConfigDefaults
-	errPageConfigDefaults      error
-)
-
-func loadPageConfigDefaults() (pageConfigDefaults, error) {
-	loadPageConfigDefaultsOnce.Do(func() {
-		errPageConfigDefaults = loadJSON("announcement.json", &pageConfigDefaultsValue.Announcement)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("email.json", &pageConfigDefaultsValue.Email)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("friend_links.json", &pageConfigDefaultsValue.FriendLinks)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("posting.json", &pageConfigDefaultsValue.Posting)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("security.json", &pageConfigDefaultsValue.Security)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("site.json", &pageConfigDefaultsValue.Site)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("site_theme.json", &pageConfigDefaultsValue.SiteTheme)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("sponsors.json", &pageConfigDefaultsValue.Sponsors)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("terms.json", &pageConfigDefaultsValue.Terms)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("privacy.json", &pageConfigDefaultsValue.Privacy)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("storage.json", &pageConfigDefaultsValue.Storage)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("mcp.json", &pageConfigDefaultsValue.MCP)
-		if errPageConfigDefaults != nil {
-			return
-		}
-		errPageConfigDefaults = loadJSON("ai_summary.json", &pageConfigDefaultsValue.AiSummary)
-		if errPageConfigDefaults != nil {
-			return
-		}
-	})
-	return pageConfigDefaultsValue, errPageConfigDefaults
-}
+var loadPageConfigDefaults = sync.OnceValues(func() (pageConfigDefaults, error) {
+	var defaults pageConfigDefaults
+	if err := loadJSON("announcement.json", &defaults.Announcement); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("email.json", &defaults.Email); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("friend_links.json", &defaults.FriendLinks); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("posting.json", &defaults.Posting); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("security.json", &defaults.Security); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("site.json", &defaults.Site); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("site_theme.json", &defaults.SiteTheme); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("sponsors.json", &defaults.Sponsors); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("terms.json", &defaults.Terms); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("privacy.json", &defaults.Privacy); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("storage.json", &defaults.Storage); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("ratelimit.json", &defaults.RateLimit); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("mcp.json", &defaults.MCP); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("ai_summary.json", &defaults.AiSummary); err != nil {
+		return defaults, err
+	}
+	return defaults, nil
+})
 
 func mustPageConfigDefaults() pageConfigDefaults {
 	defaults, err := loadPageConfigDefaults()

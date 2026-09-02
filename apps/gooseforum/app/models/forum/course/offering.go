@@ -10,17 +10,18 @@ const offeringTableName = "course_offering"
 
 // Entity 开课实例：一个学期中的真实开课，评价必须挂在 offering 而非 course。
 type OfferingEntity struct {
-	Id        uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	CourseId  uint64         `gorm:"column:course_id;not null;default:0;index:idx_course_offering_course;" json:"courseId"`
-	TermId    uint64         `gorm:"column:term_id;not null;default:0;index:idx_course_offering_term;" json:"termId"`
-	Campus    string         `gorm:"column:campus;type:varchar(64);not null;default:'';" json:"campus"`
-	Faculty   string         `gorm:"column:faculty;type:varchar(255);not null;default:'';" json:"faculty"`
-	ClassCode string         `gorm:"column:class_code;type:varchar(64);not null;default:'';" json:"classCode"`
-	ClassName string         `gorm:"column:class_name;type:varchar(255);not null;default:'';" json:"className"`
-	Status    int8           `gorm:"column:status;not null;default:0;" json:"status"`
-	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
-	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
-	DeletedAt gorm.DeletedAt `json:"-"`
+	Id              uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
+	CourseId        uint64         `gorm:"column:course_id;not null;default:0;index:idx_course_offering_course;" json:"courseId"`
+	TermId          uint64         `gorm:"column:term_id;not null;default:0;index:idx_course_offering_term;" json:"termId"`
+	TeachingClassId uint64         `gorm:"column:teaching_class_id;not null;default:0;uniqueIndex:uniq_course_offering_teaching_class,where:teaching_class_id > 0;" json:"teachingClassId"`
+	Campus          string         `gorm:"column:campus;type:varchar(64);not null;default:'';" json:"campus"`
+	Faculty         string         `gorm:"column:faculty;type:varchar(255);not null;default:'';" json:"faculty"`
+	ClassCode       string         `gorm:"column:class_code;type:varchar(64);not null;default:'';" json:"classCode"`
+	ClassName       string         `gorm:"column:class_name;type:varchar(255);not null;default:'';" json:"className"`
+	Status          int8           `gorm:"column:status;not null;default:0;" json:"status"`
+	CreatedAt       time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
+	UpdatedAt       time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+	DeletedAt       gorm.DeletedAt `json:"-"`
 }
 
 // 开课状态

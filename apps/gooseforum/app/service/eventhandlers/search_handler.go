@@ -2,15 +2,20 @@ package eventhandlers
 
 import (
 	"context"
-	"errors"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"gorm.io/gorm"
 )
+
+func enqueueSearchProjection(ctx context.Context, enqueue func(*gorm.DB) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return dbconnect.Connect().WithContext(ctx).Transaction(enqueue)
+}
 
 // TopicPublishedEvent 主题发布事件
 type TopicPublishedEvent struct {
@@ -30,14 +35,12 @@ func (event *TopicPublishedEvent) Subject() (uint64, uint64, string) {
 
 // handleTopicPublished 更新已发布主题搜索索引
 func handleTopicPublished(ctx context.Context, event *TopicPublishedEvent) error {
-	if event == nil {
+	if event == nil || event.Topic == nil {
 		return nil
 	}
-	if event.Topic != nil {
-		_, err := searchservice.BuildSingleTopicSearchDocument(event.Topic, event.FirstPost)
-		return err
-	}
-	return nil
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueTopicSearchTask(tx, event.Topic.Id)
+	})
 }
 
 // TopicUpdatedEvent 主题更新事件
@@ -48,14 +51,12 @@ type TopicUpdatedEvent struct {
 
 // handleTopicUpdated 更新主题搜索索引
 func handleTopicUpdated(ctx context.Context, event *TopicUpdatedEvent) error {
-	if event == nil {
+	if event == nil || event.Topic == nil {
 		return nil
 	}
-	if event.Topic != nil {
-		_, err := searchservice.BuildSingleTopicSearchDocument(event.Topic, event.FirstPost)
-		return err
-	}
-	return nil
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueTopicSearchTask(tx, event.Topic.Id)
+	})
 }
 
 // TopicDeletedEvent 主题删除事件
@@ -78,8 +79,9 @@ func handleTopicDeleted(ctx context.Context, event *TopicDeletedEvent) error {
 	if event == nil || event.Topic == nil {
 		return nil
 	}
-	_, err := searchservice.BuildSingleTopicSearchDocument(event.Topic, nil)
-	return err
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueTopicSearchTask(tx, event.Topic.Id)
+	})
 }
 
 // UserSearchIndexUpdatedEvent 用户可搜字段变更（昵称/简介/用户名）后更新搜索索引
@@ -99,18 +101,9 @@ func handleUserSearchIndexUpdated(ctx context.Context, event *UserSearchIndexUpd
 	if event == nil || event.UserId == 0 {
 		return nil
 	}
-	user, err := users.Get(event.UserId)
-	if err != nil {
-		// 仅当用户确实不存在（软删/删除）时移除索引文档；
-		// 瞬态 DB 错误不删除，避免误删有效用户的搜索结果。
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			_, delErr := searchservice.DeleteUserSearchDocument(event.UserId)
-			return delErr
-		}
-		return err
-	}
-	_, err = searchservice.BuildSingleUserSearchDocument(&user)
-	return err
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueUserSearchTask(tx, event.UserId)
+	})
 }
 
 // handleUserSignUpSearchIndex 注册事件后把新用户加入搜索索引
@@ -119,15 +112,9 @@ func handleUserSignUpSearchIndex(ctx context.Context, event *UserSignUpEvent) er
 	if event == nil || event.UserId == 0 {
 		return nil
 	}
-	user, err := users.Get(event.UserId)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-	_, err = searchservice.BuildSingleUserSearchDocument(&user)
-	return err
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueUserSearchTask(tx, event.UserId)
+	})
 }
 
 // CategorySearchIndexUpdatedEvent 分类新增/更新后同步搜索索引
@@ -147,12 +134,9 @@ func handleCategorySearchIndexUpdated(ctx context.Context, event *CategorySearch
 	if event == nil || event.CategoryId == 0 {
 		return nil
 	}
-	entity := category.Get(event.CategoryId)
-	if entity.Id == 0 {
-		return nil
-	}
-	_, err := searchservice.BuildSingleCategorySearchDocument(&entity)
-	return err
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueCategorySearchTask(tx, event.CategoryId)
+	})
 }
 
 // CategorySearchIndexDeletedEvent 分类删除后移除搜索索引
@@ -172,6 +156,7 @@ func handleCategorySearchIndexDeleted(ctx context.Context, event *CategorySearch
 	if event == nil || event.CategoryId == 0 {
 		return nil
 	}
-	_, err := searchservice.DeleteCategorySearchDocument(event.CategoryId)
-	return err
+	return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+		return searchservice.EnqueueCategorySearchTask(tx, event.CategoryId)
+	})
 }

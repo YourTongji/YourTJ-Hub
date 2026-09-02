@@ -824,6 +824,7 @@ mixin _$NotificationInnerPayload {
   String? get actorName => throw _privateConstructorUsedError;
   int? get topicId => throw _privateConstructorUsedError;
   int? get postId => throw _privateConstructorUsedError;
+  int? get postNo => throw _privateConstructorUsedError;
   String? get topicTitle => throw _privateConstructorUsedError;
   NotificationMetadata? get metadata => throw _privateConstructorUsedError;
 
@@ -853,6 +854,7 @@ abstract class $NotificationInnerPayloadCopyWith<$Res> {
     String? actorName,
     int? topicId,
     int? postId,
+    int? postNo,
     String? topicTitle,
     NotificationMetadata? metadata,
   });
@@ -887,6 +889,7 @@ class _$NotificationInnerPayloadCopyWithImpl<
     Object? actorName = freezed,
     Object? topicId = freezed,
     Object? postId = freezed,
+    Object? postNo = freezed,
     Object? topicTitle = freezed,
     Object? metadata = freezed,
   }) {
@@ -923,6 +926,10 @@ class _$NotificationInnerPayloadCopyWithImpl<
             postId: freezed == postId
                 ? _value.postId
                 : postId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            postNo: freezed == postNo
+                ? _value.postNo
+                : postNo // ignore: cast_nullable_to_non_nullable
                       as int?,
             topicTitle: freezed == topicTitle
                 ? _value.topicTitle
@@ -986,6 +993,7 @@ abstract class _$$NotificationInnerPayloadImplCopyWith<$Res>
     String? actorName,
     int? topicId,
     int? postId,
+    int? postNo,
     String? topicTitle,
     NotificationMetadata? metadata,
   });
@@ -1022,6 +1030,7 @@ class __$$NotificationInnerPayloadImplCopyWithImpl<$Res>
     Object? actorName = freezed,
     Object? topicId = freezed,
     Object? postId = freezed,
+    Object? postNo = freezed,
     Object? topicTitle = freezed,
     Object? metadata = freezed,
   }) {
@@ -1059,6 +1068,10 @@ class __$$NotificationInnerPayloadImplCopyWithImpl<$Res>
             ? _value.postId
             : postId // ignore: cast_nullable_to_non_nullable
                   as int?,
+        postNo: freezed == postNo
+            ? _value.postNo
+            : postNo // ignore: cast_nullable_to_non_nullable
+                  as int?,
         topicTitle: freezed == topicTitle
             ? _value.topicTitle
             : topicTitle // ignore: cast_nullable_to_non_nullable
@@ -1084,6 +1097,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
     this.actorName,
     this.topicId,
     this.postId,
+    this.postNo,
     this.topicTitle,
     this.metadata,
   });
@@ -1108,13 +1122,15 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
   @override
   final int? postId;
   @override
+  final int? postNo;
+  @override
   final String? topicTitle;
   @override
   final NotificationMetadata? metadata;
 
   @override
   String toString() {
-    return 'NotificationInnerPayload(title: $title, content: $content, templateKey: $templateKey, templateParams: $templateParams, actorId: $actorId, actorName: $actorName, topicId: $topicId, postId: $postId, topicTitle: $topicTitle, metadata: $metadata)';
+    return 'NotificationInnerPayload(title: $title, content: $content, templateKey: $templateKey, templateParams: $templateParams, actorId: $actorId, actorName: $actorName, topicId: $topicId, postId: $postId, postNo: $postNo, topicTitle: $topicTitle, metadata: $metadata)';
   }
 
   @override
@@ -1133,6 +1149,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
                 other.actorName == actorName) &&
             (identical(other.topicId, topicId) || other.topicId == topicId) &&
             (identical(other.postId, postId) || other.postId == postId) &&
+            (identical(other.postNo, postNo) || other.postNo == postNo) &&
             (identical(other.topicTitle, topicTitle) ||
                 other.topicTitle == topicTitle) &&
             (identical(other.metadata, metadata) ||
@@ -1151,6 +1168,7 @@ class _$NotificationInnerPayloadImpl implements _NotificationInnerPayload {
     actorName,
     topicId,
     postId,
+    postNo,
     topicTitle,
     metadata,
   );
@@ -1182,6 +1200,7 @@ abstract class _NotificationInnerPayload implements NotificationInnerPayload {
     final String? actorName,
     final int? topicId,
     final int? postId,
+    final int? postNo,
     final String? topicTitle,
     final NotificationMetadata? metadata,
   }) = _$NotificationInnerPayloadImpl;
@@ -1205,6 +1224,8 @@ abstract class _NotificationInnerPayload implements NotificationInnerPayload {
   int? get topicId;
   @override
   int? get postId;
+  @override
+  int? get postNo;
   @override
   String? get topicTitle;
   @override

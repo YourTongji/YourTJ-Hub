@@ -1182,6 +1182,23 @@ CourseDetail:
         Omitted when the course has no visible reviews.
       items:
         type: integer
+    reviewScope:
+      type: string
+      enum: [teacher, team, course]
+      description: 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）；缺省为 teacher。
+    teamKey:
+      type: string
+      description: 教学团队键；非空且 reviewScope=team 时评分聚合为团队读时聚合值。
+    teamInstructors:
+      type: array
+      description: team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+      items:
+        type: string
+    legacyNames:
+      type: array
+      description: 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+      items:
+        type: string
   additionalProperties: false
 
 CourseDetailResponse:
@@ -1313,9 +1330,39 @@ RelatedCourseItem:
       description: Number of visible reviews for this course.
   additionalProperties: false
 
+RelationItem:
+  type: object
+  description: 沿革区块条目：本卡相关的已确认沿革关系（原名标注 + 关系类型 + 方向）。
+  required: [relationId, fromCourseId, fromName, toCourseId, toName, relationType, status, direction]
+  properties:
+    relationId:
+      type: integer
+      format: uint64
+    fromCourseId:
+      type: integer
+      format: uint64
+    fromName:
+      type: string
+    toCourseId:
+      type: integer
+      format: uint64
+    toName:
+      type: string
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+    status:
+      type: string
+      enum: [pending, approved, ignored, merged]
+    direction:
+      type: string
+      enum: [to, from]
+      description: to=旧卡并入本卡（本卡为当前卡）；from=本卡并入新卡（本卡为历史卡）。
+  additionalProperties: false
+
 CourseRelatedResult:
   type: object
-  required: [teacherOtherCourses, sameCourseOtherTeachers]
+  required: [teacherOtherCourses, sameCourseOtherTeachers, lineage]
   properties:
     teacherOtherCourses:
       type: array
@@ -1327,6 +1374,11 @@ CourseRelatedResult:
       description: Other course cards with the same primary_code (different teacher identity), top 5 by review count.
       items:
         $ref: '#/RelatedCourseItem'
+    lineage:
+      type: array
+      description: 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。
+      items:
+        $ref: '#/RelationItem'
   additionalProperties: false
 
 CourseRelatedResponse:
@@ -1837,7 +1889,189 @@ AdminCourseUpdateRequest:
       type: array
       items:
         type: string
+    reviewScope:
+      type: string
+      enum: [teacher, team, course]
+      description: 课评范围三档；字段缺省保留原值，显式空串重置为 teacher。
+    teamKey:
+      type: string
+      description: 教学团队键；与 reviewScope=team 配合使用，缺省保留原值，显式空串清除。
   additionalProperties: false
+
+AdminCourseRelationListRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [pending, approved, ignored, merged]
+      description: 沿革候选状态过滤；空 = 全部。
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+  additionalProperties: false
+
+AdminCourseRelationItem:
+  type: object
+  description: 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。
+  required: [id, fromCourseId, toCourseId, relationType, source, confidence, evidenceJson, manual, status, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    fromCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    toCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+    source:
+      type: string
+      enum: [rule, manual]
+    confidence:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+    evidenceJson:
+      type: string
+      description: 规则证据快照（JSON 文本）；合并后含合并快照。
+    manual:
+      type: boolean
+    status:
+      type: string
+      enum: [pending, approved, ignored, merged]
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AdminCourseRelationListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminCourseRelationItem'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminCourseRelationListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseRelationListResult'
+    - $ref: '#/ApiFailure'
+
+AdminCourseRelationActionRequest:
+  type: object
+  required: [relationId]
+  properties:
+    relationId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+AdminCourseRelationItemResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseRelationItem'
+    - $ref: '#/ApiFailure'
+
+AdminCourseRelationCreateRequest:
+  type: object
+  required: [fromCourseId, toCourseId, relationType]
+  properties:
+    fromCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    toCourseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+    evidence:
+      type: string
+      description: 人工证据说明。
+    confidence:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+  additionalProperties: false
+
+AdminCourseMergeResult:
+  type: object
+  required: [relationId, fromCourseId, toCourseId, fromName, toName, movedOfferings, migratedAliases, skippedAliases]
+  properties:
+    relationId:
+      type: integer
+      format: uint64
+    fromCourseId:
+      type: integer
+      format: uint64
+    toCourseId:
+      type: integer
+      format: uint64
+    fromName:
+      type: string
+    toName:
+      type: string
+    movedOfferings:
+      type: integer
+      description: 迁移到新卡的开课实例数。
+    migratedAliases:
+      type: integer
+      description: 成功迁移的旧卡别名数。
+    skippedAliases:
+      type: integer
+      description: 因目标卡已占用而跳过的别名数。
+  additionalProperties: false
+
+AdminCourseMergeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseMergeResult'
+    - $ref: '#/ApiFailure'
 
 AdminCourseDeleteRequest:
   type: object
@@ -2672,6 +2906,10 @@ PkCourseDetailBrief:
       type: array
       items:
         $ref: '#/PkArrangementInfo'
+    teachingClassId:
+      type: integer
+      format: uint64
+      description: 一系统教学班 id（pk_course_detail.id），排课器传 course-review-brief 直查用。
     isExclusive:
       type: boolean
       description: 仅 course-info-sync 的 major 课程带该字段。
@@ -2749,6 +2987,12 @@ PkReviewBrief:
       type: [number, 'null']
     reviewCount:
       type: integer
+    ratingDistribution:
+      type: array
+      description: 1-5 星各档可见评价计数（index 0 = 1 星）；排课器选班弹窗右侧课评面板复用课程详情页评分仪表卡用。无统计行时省略。
+      items:
+        type: integer
+        minimum: 0
     classes:
       type: array
       description: 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。
@@ -6546,7 +6790,7 @@ AdminSaveSecuritySettingsRequest:
 
 AdminPostingTextControl:
   type: object
-  required: [minPostLength, maxPostLength, minTitleLength, maxTitleLength, newUserPostCooldownMinutes]
+  required: [minPostLength, maxPostLength, minTitleLength, maxTitleLength, newUserPostCooldownMinutes, maxDailyTopicsPerUser]
   properties:
     minPostLength:
       type: integer
@@ -6558,6 +6802,13 @@ AdminPostingTextControl:
       type: integer
     newUserPostCooldownMinutes:
       type: integer
+    maxDailyTopicsPerUser:
+      type: integer
+      minimum: 0
+      description: >-
+        Per-user daily limit for newly created topics. `0` means unlimited.
+        Only applies to topic creation; edits and replies are not counted
+        (issue #369). Negative values are normalized to `0` on save and on read.
   additionalProperties: false
 
 AdminPostingUploadControl:
@@ -7210,13 +7461,13 @@ AdminTaskQueueItem:
       format: uint64
     type:
       type: string
-      description: Task type prefix (`export` for data exports, `file-migrate` for storage migrations).
+      description: Task type prefix (`export`, `import`, `file-migrate`, or a search projection prefix).
     status:
       type: integer
       description: "0=pending, 1=running, 2=success, 3=failed, 4=retrying."
     taskJson:
       type: string
-      description: Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate).
+      description: Serialized task payload (JSON text; import payloads carry only fileName/format/sha256; export payloads carry tables/format/fileName/progress/errorCount; migrate payloads carry lastId/total/processed/failed/clearAfterMigrate).
     retryCount:
       type: integer
     lastError:
@@ -7777,7 +8028,52 @@ AdminImportDataResponse:
           required: [result]
           properties:
             result:
-              $ref: '#/AdminImportReport'
+              $ref: '#/AdminImportTaskAcceptedResult'
+    - $ref: '#/ApiFailure'
+
+AdminImportTaskAcceptedResult:
+  type: object
+  required: [taskId, status, errors, importedTables]
+  properties:
+    taskId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Enqueued import task id.
+    status:
+      type: string
+      enum: [pending, running, retrying, failed, success]
+    errors:
+      type: array
+      items:
+        $ref: '#/AdminImportReportError'
+    importedTables:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminImportTaskListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminTaskQueueItem'
+          description: Up to 20 most recent import tasks, newest id first.
+
+AdminImportTaskReplayResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminTaskQueueItem'
     - $ref: '#/ApiFailure'
 
 # --- User content lifecycle (issue #94) and forum read ops (issue #277) ---
@@ -8257,4 +8553,145 @@ WikiAssetCDNSaveResponse:
           properties:
             result:
               $ref: '#/WikiAssetCDNSaveResult'
+    - $ref: '#/ApiFailure'
+
+DirectImageUploadInitRequest:
+  type: object
+  required: [filename, contentType, size]
+  properties:
+    filename:
+      type: string
+      minLength: 1
+      description: Original file name; drives the extension allowlist check.
+    contentType:
+      type: string
+      description: Browser MIME type of the file.
+    size:
+      type: integer
+      format: int64
+      minimum: 1
+      description: File size in bytes; checked against the posting-settings size cap.
+  additionalProperties: false
+
+DirectUploadInfo:
+  type: object
+  required: [url, method, fields, expiresAt]
+  properties:
+    url:
+      type: string
+      format: uri
+      description: Bucket POST endpoint the browser uploads the file to.
+    method:
+      type: string
+      const: POST
+      description: Always POST (presigned POST policy).
+    fields:
+      type: object
+      additionalProperties:
+        type: string
+      description: Form fields (policy, signature, key, ...) to append before the `file` part.
+    expiresAt:
+      type: string
+      format: date-time
+      description: RFC3339 expiry of the presigned policy; the upload must finish before this.
+  additionalProperties: false
+
+DirectImageUploadInitResult:
+  type: object
+  required: [mode]
+  properties:
+    mode:
+      type: string
+      enum: [proxy, direct]
+      description: |
+        `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+        `direct` — upload to `upload.url` with `upload.fields` + the file, then call
+        `/file/img-upload/complete` with `name`.
+    name:
+      type: string
+      description: Pending object name; present when mode is `direct`.
+    upload:
+      $ref: '#/DirectUploadInfo'
+      description: Presigned POST policy; present when mode is `direct`.
+  additionalProperties: false
+
+DirectImageUploadInitSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/DirectImageUploadInitResult'
+
+DirectImageUploadInitResponse:
+  oneOf:
+    - $ref: '#/DirectImageUploadInitSuccess'
+    - $ref: '#/ApiFailure'
+
+DirectImageUploadCompleteRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      description: Pending object name returned by `/file/img-upload/init`.
+  additionalProperties: false
+
+DirectImageUploadCompleteResult:
+  type: object
+  required: [url, filename, size]
+  properties:
+    url:
+      type: string
+      description: Final public URL of the published image.
+    filename:
+      type: string
+      description: Stored object name (the pending `name` returned by `/file/img-upload/init`), not the caller's original file name.
+    size:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Stored byte size.
+  additionalProperties: false
+
+DirectImageUploadCompleteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/DirectImageUploadCompleteResult'
+
+DirectImageUploadCompleteResponse:
+  oneOf:
+    - $ref: '#/DirectImageUploadCompleteSuccess'
+    - $ref: '#/ApiFailure'
+
+DirectImageUploadAbortRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      description: Pending object name returned by `/file/img-upload/init`.
+  additionalProperties: false
+
+DirectImageUploadAbortSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+          description: True when the pending upload was aborted.
+
+DirectImageUploadAbortResponse:
+  oneOf:
+    - $ref: '#/DirectImageUploadAbortSuccess'
     - $ref: '#/ApiFailure'

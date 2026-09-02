@@ -2,6 +2,9 @@ package pkservice
 
 import (
 	"errors"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
@@ -9,17 +12,59 @@ import (
 	"gorm.io/gorm"
 )
 
+// termLabelPattern 匹配一系统的学期标记并提取学年与学期序数：
+// "2025-2026-2" / "2025-2026学年第2学期" / "2025-2026 第二学期"。
+// 组 1 = 学年（YYYY-YYYY），组 2 = 学期序数（阿拉伯或中文数字）。
+var termLabelPattern = regexp.MustCompile(`(\d{4}-\d{4})[^0-9一二三四五六七八九十]*([0-9一二三四五六七八九十]+)[^0-9一二三四五六七八九十]*$`)
+
+// termCodeCandidates 返回学期标记可匹配 course_term.code 的候选码：
+// 标记本身 + 规范化后的 "YYYY-YYYY-N"。一系统侧可能写入中文学期名
+// （如 "2025-2026学年第2学期"），而课程域 course_term.code 是标准码
+// （"2025-2026-2"）；只做精确匹配会让 fail-closed 路径返回空 classes，
+// 排课器教学班评分/跳转随之消失（回归，见 TestPkCourseReviewBriefChineseTermLabelHTTPContract）。
+func termCodeCandidates(label string) []string {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return nil
+	}
+	candidates := []string{label}
+	if m := termLabelPattern.FindStringSubmatch(label); len(m) == 3 {
+		if normalized := m[1] + "-" + cnNumeralToArabic(m[2]); normalized != label {
+			candidates = append(candidates, normalized)
+		}
+	}
+	return candidates
+}
+
+// cnNumeralToArabic 把中文数字学期序数转阿拉伯数字（"二"→"2"）；已是阿拉伯数字原样返回。
+func cnNumeralToArabic(s string) string {
+	if s == "" {
+		return s
+	}
+	if s[0] >= '0' && s[0] <= '9' {
+		return s
+	}
+	if n, ok := map[rune]int{'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}[[]rune(s)[0]]; ok {
+		return strconv.Itoa(n)
+	}
+	return s
+}
+
 // ReviewBrief P13 course-review-brief 输出项：排课器弹窗展示的课程评价摘要。
 // CourseId 为 Hub 课程目录主键（/courses/:courseId 详情页跳转用）；未匹配课评目录时为 0。
 // Classes 为该课程各教学班的 offering 级课评摘要（class_code 匹配，无评价记录时为空数组）。
 type ReviewBrief struct {
-	CourseId    uint64             `json:"courseId"`
-	CourseCode  string             `json:"courseCode"`
-	CourseName  string             `json:"courseName"`
-	TeacherName string             `json:"teacherName"`
-	RatingAvg   *float64           `json:"ratingAvg"`
-	ReviewCount int                `json:"reviewCount"`
-	Classes     []ReviewBriefClass `json:"classes"`
+	CourseId    uint64   `json:"courseId"`
+	CourseCode  string   `json:"courseCode"`
+	CourseName  string   `json:"courseName"`
+	TeacherName string   `json:"teacherName"`
+	RatingAvg   *float64 `json:"ratingAvg"`
+	ReviewCount int      `json:"reviewCount"`
+	// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星），
+	// 排课器选班弹窗右侧课评面板复用课评详情页 RatingSummaryCard 用；
+	// 无统计行时为 nil（前端降级为空数组）。
+	RatingDistribution *course.RatingDistribution `json:"ratingDistribution,omitempty"`
+	Classes            []ReviewBriefClass         `json:"classes"`
 }
 
 // ReviewBriefClass P13 教学班级课评摘要项：按 Hub offering（class_code 匹配）聚合。
@@ -32,11 +77,23 @@ type ReviewBriefClass struct {
 	ReviewCount int      `json:"reviewCount"`
 }
 
-func FindCourseReviewBrief(courseCode, teacherName string, calendarId uint64) (ReviewBrief, error) {
+func FindCourseReviewBrief(courseCode, teacherName string, calendarId, teachingClassId uint64) (ReviewBrief, error) {
 	brief := ReviewBrief{
 		CourseCode:  normalizeText(courseCode),
 		TeacherName: normalizeText(teacherName),
 		Classes:     []ReviewBriefClass{},
+	}
+
+	// by-offering 精准定位：teachingClassId 直查 course_offering.teaching_class_id。
+	// 命中则按该 offering 所属课程卡自身统计（无 course-scope 特判分支），
+	// 不再走 courseCode+teacherName 猜测。
+	if teachingClassId > 0 {
+		if resolved, err := resolveByTeachingClass(&brief, teachingClassId); err != nil {
+			return brief, err
+		} else if resolved {
+			return brief, nil
+		}
+		// 未命中回退旧路径（teaching_class_id 缺失/offering 隐藏）。
 	}
 
 	row, err := pk.FindCourseDetailByCodeAnyCalendar(brief.CourseCode)
@@ -79,6 +136,12 @@ func FindCourseReviewBrief(courseCode, teacherName string, calendarId uint64) (R
 		brief.CourseId = chosen.CourseId
 		brief.RatingAvg = chosen.RatingAvg
 		brief.ReviewCount = chosen.ReviewCount
+		// 1-5 星分布供排课器选班弹窗右侧课评面板复用 RatingSummaryCard；
+		// 无统计行（无评价）时保持 nil，前端降级为空数组。
+		if dist := course.GetRatingDistributionsByCourseIds([]uint64{chosen.CourseId})[chosen.CourseId]; dist != (course.RatingDistribution{}) {
+			d := dist
+			brief.RatingDistribution = &d
+		}
 		break
 	}
 
@@ -86,6 +149,68 @@ func FindCourseReviewBrief(courseCode, teacherName string, calendarId uint64) (R
 		return brief, err
 	}
 	return brief, nil
+}
+
+// resolveByTeachingClass 按 teaching_class_id 精准定位 offering/课程卡。
+// 命中返回 true；offering 不存在/已隐藏/无 teaching_class_id 时返回 false（调用方回退旧路径）。
+func resolveByTeachingClass(brief *ReviewBrief, teachingClassId uint64) (bool, error) {
+	offering, err := course.GetOfferingByTeachingClassId(teachingClassId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if offering.Status != course.OfferingStatusVisible {
+		return false, nil
+	}
+	entity := course.GetCourse(offering.CourseId)
+	if entity.Id == 0 || entity.Status != course.StatusVisible {
+		return false, nil
+	}
+	brief.CourseId = entity.Id
+	brief.CourseCode = entity.PrimaryCode
+	brief.CourseName = entity.Name
+	if entity.TeacherId != 0 {
+		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
+			return false, err
+		} else if len(teachers) > 0 {
+			brief.TeacherName = teachers[0].Name
+		}
+	}
+	if stats, err := course.GetCourseStatsMap([]uint64{entity.Id}); err != nil {
+		return false, err
+	} else if s, ok := stats[entity.Id]; ok {
+		brief.ReviewCount = s.ReviewCount
+		if s.RatingCount > 0 {
+			avg := float64(s.RatingSum) / float64(s.RatingCount)
+			brief.RatingAvg = &avg
+		}
+	}
+	brief.Classes = []ReviewBriefClass{
+		{
+			ClassCode:  offering.ClassCode,
+			OfferingId: offering.Id,
+			// 无教师关联时序列化为空数组而非 null（与 fillClassBriefs 一致，
+			// 契约要求 teachers: array）。
+			Teachers: []string{},
+		},
+	}
+	if s, ok := course.ListOfferingStatsByIDs([]uint64{offering.Id})[offering.Id]; ok {
+		brief.Classes[0].ReviewCount = s.ReviewCount
+		if s.RatingCount > 0 {
+			avg := float64(s.RatingSum) / float64(s.RatingCount)
+			brief.Classes[0].RatingAvg = &avg
+		}
+	}
+	teachers, err := classTeacherNames([]uint64{offering.Id})
+	if err != nil {
+		return false, err
+	}
+	if names := teachers[offering.Id]; names != nil {
+		brief.Classes[0].Teachers = names
+	}
+	return true, nil
 }
 
 // fillClassBriefs 填充教学班级课评摘要：PK 教学班课号 → offering.class_code 匹配，
@@ -145,6 +270,9 @@ func fillClassBriefs(brief *ReviewBrief, calendarId uint64) error {
 // calendarId <= 0 时直接返回 (0, true)（不限定学期）；calendarId > 0 时要求
 // calendar 存在、calendar_id_i18n 非空且能在 course_term 中找到对应学期，
 // 任一环节缺失返回 (0, false)——调用方须保持空 classes，不得退化为全学期查询。
+// 一系统侧可能写入中文学期名（"2025-2026学年第2学期"），课程域 course_term.code
+// 是标准码（"2025-2026-2"）：精确匹配失败后按规范化候选重试，避免 fail-closed
+// 返回空 classes 导致排课器教学班评分/跳转消失。
 func resolveTermIdForCalendar(calendarId uint64) (uint64, bool) {
 	if calendarId == 0 {
 		return 0, true
@@ -153,11 +281,12 @@ func resolveTermIdForCalendar(calendarId uint64) (uint64, bool) {
 	if err != nil || cal.CalendarIdI18n == "" {
 		return 0, false
 	}
-	term, err := course.GetTermByCode(cal.CalendarIdI18n)
-	if err != nil {
-		return 0, false
+	for _, candidate := range termCodeCandidates(cal.CalendarIdI18n) {
+		if term, err := course.GetTermByCode(candidate); err == nil {
+			return term.Id, true
+		}
 	}
-	return term.Id, true
+	return 0, false
 }
 
 // classTeacherNames 批量返回 offering → 教师姓名列表（按关联顺序）。

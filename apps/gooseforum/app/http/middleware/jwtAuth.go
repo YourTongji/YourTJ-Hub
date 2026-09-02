@@ -1,18 +1,17 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	jwt "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/gin-gonic/gin"
 )
 
 const SkipUpdateUserActivity = "SkipUpdateUserActivity"
@@ -27,7 +26,7 @@ func JWTAuthCheck(c *gin.Context) {
 	c.Set("userId", userId)
 	c.Next()
 	if !c.GetBool(SkipUpdateUserActivity) {
-		eventbus.Publish(context.Background(), &eventhandlers.UserLastActiveUpdatedEvent{
+		eventbus.Publish(eventbus.DetachedContext(c.Request.Context()), &eventhandlers.UserLastActiveUpdatedEvent{
 			UserId:     userId,
 			ActiveTime: time.Now(),
 		})
@@ -41,7 +40,7 @@ func JWTAuth(c *gin.Context) {
 	}
 	c.Next()
 	if userId != 0 && !c.GetBool(SkipUpdateUserActivity) {
-		eventbus.Publish(context.Background(), &eventhandlers.UserLastActiveUpdatedEvent{
+		eventbus.Publish(eventbus.DetachedContext(c.Request.Context()), &eventhandlers.UserLastActiveUpdatedEvent{
 			UserId:     userId,
 			ActiveTime: time.Now(),
 		})

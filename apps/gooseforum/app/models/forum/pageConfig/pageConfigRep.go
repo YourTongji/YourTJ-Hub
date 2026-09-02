@@ -1,6 +1,7 @@
 package pageConfig
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
@@ -41,18 +42,47 @@ func GetConfigByPageType[T any](pageType string, defaultValue T) T {
 	return defaultValue
 }
 
-const AppMigrationVersion uint32 = 25
+// GetPostingSettingsConfig 读取发布内容设置（issue #369，上游 c47cff94）。
+// 与 GetConfigByPageType 的区别：升级前的存量配置缺少
+// textControl.maxDailyTopicsPerUser 时用默认值补齐（避免旧配置在升级后被
+// 当作 0=不限额）；非法负值归一为 0（不限额），与保存端归一化一致。
+func GetPostingSettingsConfig(defaultValue PostingContent) PostingContent {
+	entity := GetByPageType(PostingSettings)
+	if entity.Id == 0 {
+		return defaultValue
+	}
+
+	config := jsonopt.Decode[PostingContent](entity.Config)
+	var raw struct {
+		TextControl map[string]json.RawMessage `json:"textControl"`
+	}
+	if err := json.Unmarshal([]byte(entity.Config), &raw); err == nil {
+		if _, exists := raw.TextControl["maxDailyTopicsPerUser"]; !exists {
+			config.TextControl.MaxDailyTopicsPerUser = defaultValue.TextControl.MaxDailyTopicsPerUser
+		}
+	}
+	if config.TextControl.MaxDailyTopicsPerUser < 0 {
+		config.TextControl.MaxDailyTopicsPerUser = 0
+	}
+	return config
+}
+
+const AppMigrationVersion uint32 = 26
 
 func GetMigrationVersion() uint32 {
 	configEntity := GetByPageType(Migration)
 	return cast.ToUint32(configEntity.Config)
 }
 
-func SyncMigrationVersion(version uint32) {
+func SyncMigrationVersion(version uint32) error {
 	configEntity := GetByPageType(Migration)
 	configEntity.PageType = Migration
 	configEntity.Config = cast.ToString(version)
-	CreateOrSave(&configEntity)
+	if configEntity.Id == 0 {
+		result := builder().Create(&configEntity)
+		return result.Error
+	}
+	return builder().Save(&configEntity).Error
 }
 
 // wikiSyncSettingsMu 序列化 WikiSyncSettings 的读改写：webhook secret 与

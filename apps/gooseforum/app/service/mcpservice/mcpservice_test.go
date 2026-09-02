@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
@@ -42,6 +43,7 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
+		&taskQueue.Entity{},
 		&pageConfig.Entity{},
 	); err != nil {
 		t.Fatalf("migrate mcp tables: %v", err)
@@ -62,6 +64,7 @@ func cleanMCPServiceTables(conn *gorm.DB) {
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 	conn.Where("1 = 1").Delete(&postRevisions.Entity{})
 	conn.Where("1 = 1").Delete(&topics.Entity{})
+	conn.Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Where("1 = 1").Delete(&category.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})

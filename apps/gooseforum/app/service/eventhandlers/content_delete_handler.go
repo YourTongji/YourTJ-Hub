@@ -2,12 +2,10 @@ package eventhandlers
 
 import (
 	"context"
-	"log/slog"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"gorm.io/gorm"
 )
 
 // ContentDeletedEvent 内容删除事件（Issue #94）：话题/回复删除后广播，
@@ -30,14 +28,9 @@ func handleContentDeleted(ctx context.Context, event *ContentDeletedEvent) error
 	llmsservice.ClearCache()
 
 	if event.ContentType == "topic" {
-		topic := topics.UnscopedGet(event.TopicId)
-		if topic.Id == 0 {
-			return nil
-		}
-		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, nil); err != nil {
-			slog.Error("failed to sync search document on content deleted", "topicId", topic.Id, "err", err)
-			return err
-		}
+		return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+			return searchservice.EnqueueTopicSearchTask(tx, event.TopicId)
+		})
 	}
 	return nil
 }
@@ -57,15 +50,9 @@ func handleContentRestored(ctx context.Context, event *ContentRestoredEvent) err
 	llmsservice.ClearCache()
 
 	if event.ContentType == "topic" {
-		topic := topics.Get(event.TopicId)
-		if topic.Id == 0 {
-			return nil
-		}
-		firstPost := posts.Get(topic.FirstPostId)
-		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-			slog.Error("failed to rebuild search document on content restore", "topicId", topic.Id, "err", err)
-			return err
-		}
+		return enqueueSearchProjection(ctx, func(tx *gorm.DB) error {
+			return searchservice.EnqueueTopicSearchTask(tx, event.TopicId)
+		})
 	}
 	return nil
 }

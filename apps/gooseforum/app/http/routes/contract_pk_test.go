@@ -59,6 +59,7 @@ func setupPkContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.InstructorEntity{},
 		&course.OfferingInstructorEntity{},
 		&course.OfferingStatsEntity{},
+		&course.ReviewEntity{},
 	)...); err != nil {
 		t.Fatalf("migrate pk contract tables: %v", err)
 	}
@@ -107,6 +108,7 @@ func cleanupPkTables(t *testing.T, conn *gorm.DB) {
 		&course.InstructorEntity{},
 		&course.OfferingEntity{},
 		&course.TermEntity{},
+		&course.ReviewEntity{},
 	} {
 		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
 			t.Fatalf("clean course offering table: %v", err)
@@ -150,6 +152,7 @@ func seedPkContractData(t *testing.T, conn *gorm.DB) {
 		&course.InstructorEntity{Id: 2, Name: "李娜", NormalizedName: "李娜"},
 		&course.OfferingInstructorEntity{OfferingId: 1, InstructorId: 1},
 		&course.OfferingInstructorEntity{OfferingId: 2, InstructorId: 2},
+		&course.ReviewEntity{Id: 1, OfferingId: 1, Rating: intPtr(4), Content: "测试评价", Status: course.ReviewStatusVisible},
 		&course.OfferingStatsEntity{OfferingId: 1, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 	}
 	for _, m := range models {
@@ -536,6 +539,170 @@ func TestPkCourseReviewBriefTermScopingHTTPContract(t *testing.T) {
 	}
 	if len(brief.Classes) != 0 {
 		t.Fatalf("missing-term classes = %d entries, want 0 (no cross-term fallback)", len(brief.Classes))
+	}
+}
+
+// pkReviewBriefData P13 course-review-brief 响应解码结构（teachingClassId 直查路径断言用）。
+type pkReviewBriefData struct {
+	CourseId    uint64   `json:"courseId"`
+	CourseCode  string   `json:"courseCode"`
+	CourseName  string   `json:"courseName"`
+	TeacherName string   `json:"teacherName"`
+	RatingAvg   *float64 `json:"ratingAvg"`
+	ReviewCount int      `json:"reviewCount"`
+	Classes     []struct {
+		ClassCode   string   `json:"classCode"`
+		OfferingId  uint64   `json:"offeringId"`
+		Teachers    []string `json:"teachers"`
+		RatingAvg   *float64 `json:"ratingAvg"`
+		ReviewCount int      `json:"reviewCount"`
+	} `json:"classes"`
+}
+
+func decodePkBrief(t *testing.T, rec *httptest.ResponseRecorder) pkReviewBriefData {
+	t.Helper()
+	var brief pkReviewBriefData
+	if err := json.Unmarshal(decodePkEnvelope(t, rec).Data, &brief); err != nil {
+		t.Fatalf("decode course-review-brief %q: %v", rec.Body.String(), err)
+	}
+	return brief
+}
+
+// TestPkCourseReviewBriefTeachingClassHTTPContract P13 by-offering 精准定位（review CHANGES_REQUESTED）：
+// - teachingClassId 直查命中：返回该 offering 所属课程卡（唯一 offering/卡），不再走 courseCode+teacher 猜测
+// - course-scope 特判：course.review_scope=course 时主评 = 课程卡本身
+// - teachingClassId 未命中（不存在/offering 隐藏）：回退旧路径 courseCode+teacherName
+func TestPkCourseReviewBriefTeachingClassHTTPContract(t *testing.T) {
+	conn, router := setupPkContractTest(t)
+	seed := []any{
+		// PK 教学班（teachingClassId = pk_course_detail.id）。
+		&pk.CourseDetailEntity{Id: 900001, Code: "TJCS10101", CourseCode: "TJCS101", CourseName: "计算机程序设计", CalendarId: 99999, NewCourseCode: "CS101", NewCode: "CS10101"},
+		&pk.CourseDetailEntity{Id: 900002, Code: "TJCS10102", CourseCode: "TJCS101", CourseName: "计算机程序设计", CalendarId: 99999, NewCourseCode: "CS101", NewCode: "CS10102"},
+		// teacher-scope 卡：身份教师 张伟（instructor id 60）。
+		&course.Entity{Id: 60, PrimaryCode: "CS101", Name: "计算机程序设计", NormalizedName: "计算机程序设计", TeacherId: 60, ReviewScope: "teacher", Status: course.StatusVisible},
+		// course-scope 特判卡：课程级评价目标（专业导论类），无身份教师。
+		&course.Entity{Id: 61, PrimaryCode: "CS200", Name: "专业导论", NormalizedName: "专业导论", ReviewScope: "course", Status: course.StatusVisible},
+		&course.TermEntity{Id: 60, Code: "2025-2026-2", Name: "t2", Status: 0},
+		&course.OfferingEntity{Id: 60, CourseId: 60, TermId: 60, TeachingClassId: 900001, ClassCode: "TJCS10101", Status: course.OfferingStatusVisible},
+		&course.OfferingEntity{Id: 61, CourseId: 61, TermId: 60, TeachingClassId: 900002, ClassCode: "TJCS10102", Status: course.OfferingStatusVisible},
+		// 隐藏 offering：teaching_class_id 命中但不可见 → 回退旧路径。
+		&course.OfferingEntity{Id: 62, CourseId: 60, TermId: 60, TeachingClassId: 900003, ClassCode: "TJCS10103", Status: course.OfferingStatusHidden},
+		&course.CourseStatsEntity{CourseId: 60, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
+		&course.CourseStatsEntity{CourseId: 61, RatingCount: 2, RatingSum: 8, ReviewCount: 2},
+		&course.InstructorEntity{Id: 60, Name: "张伟", NormalizedName: "张伟"},
+		&course.OfferingInstructorEntity{OfferingId: 60, InstructorId: 60},
+		&course.OfferingStatsEntity{OfferingId: 60, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
+	}
+	for _, m := range seed {
+		if err := conn.Create(m).Error; err != nil {
+			t.Fatalf("create teaching-class seed %T: %v", m, err)
+		}
+	}
+
+	// 1) 直查命中：只传 teachingClassId（无需 courseCode），返回唯一 offering/卡。
+	rec := servePkGET(router, "/api/pk/course-review-brief?teachingClassId=900001")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("teaching-class direct status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	brief := decodePkBrief(t, rec)
+	if brief.CourseId != 60 || brief.CourseCode != "CS101" || brief.CourseName != "计算机程序设计" || brief.TeacherName != "张伟" {
+		t.Fatalf("direct brief = %+v, want course 60 CS101 计算机程序设计 张伟", brief)
+	}
+	if brief.ReviewCount != 1 || brief.RatingAvg == nil || *brief.RatingAvg != 4 {
+		t.Fatalf("direct brief stats = reviewCount %d ratingAvg %v, want 1 / 4", brief.ReviewCount, brief.RatingAvg)
+	}
+	if len(brief.Classes) != 1 || brief.Classes[0].OfferingId != 60 || brief.Classes[0].ClassCode != "TJCS10101" {
+		t.Fatalf("direct classes = %+v, want single offering 60 TJCS10101", brief.Classes)
+	}
+	if len(brief.Classes[0].Teachers) != 1 || brief.Classes[0].Teachers[0] != "张伟" {
+		t.Fatalf("direct class teachers = %v, want [张伟]", brief.Classes[0].Teachers)
+	}
+	if brief.Classes[0].ReviewCount != 1 || brief.Classes[0].RatingAvg == nil || *brief.Classes[0].RatingAvg != 4 {
+		t.Fatalf("direct class stats = %+v, want 1 / 4", brief.Classes[0])
+	}
+
+	// 2) course-scope 特判：主评 = 课程卡本身（reviewCount 取卡级统计 2）。
+	rec = servePkGET(router, "/api/pk/course-review-brief?teachingClassId=900002")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course-scope direct status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	brief = decodePkBrief(t, rec)
+	if brief.CourseId != 61 || brief.CourseName != "专业导论" || brief.ReviewCount != 2 {
+		t.Fatalf("course-scope brief = %+v, want course 61 专业导论 reviewCount 2", brief)
+	}
+	if len(brief.Classes) != 1 || brief.Classes[0].OfferingId != 61 {
+		t.Fatalf("course-scope classes = %+v, want single offering 61", brief.Classes)
+	}
+	// course-scope 卡 offering 61 无教师关联：teachers 必须序列化为 [] 而非 null
+	// （bot review：直查路径 Class 未初始化 Teachers 时输出 teachers: null）。
+	if !strings.Contains(rec.Body.String(), `"teachers":[]`) {
+		t.Fatalf("course-scope class teachers must serialize as [], got: %s", rec.Body.String())
+	}
+
+	// 3) 未命中（teaching_class_id 不存在）→ 回退旧路径：courseCode+teacherName 解析到卡 60，
+	//    classes 按班号匹配全部可见 offering（两个班），而非直查的单班。
+	rec = servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101&teacherName=张伟&teachingClassId=999999")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("miss-fallback status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	brief = decodePkBrief(t, rec)
+	if brief.CourseId != 60 {
+		t.Fatalf("miss-fallback courseId = %d, want 60（回退旧路径）", brief.CourseId)
+	}
+	if len(brief.Classes) != 2 {
+		t.Fatalf("miss-fallback classes = %d entries, want 2（旧路径全量班号匹配）", len(brief.Classes))
+	}
+
+	// 4) teaching_class_id 命中隐藏 offering → 回退旧路径。
+	rec = servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101&teacherName=张伟&teachingClassId=900003")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("hidden-offering fallback status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if brief := decodePkBrief(t, rec); brief.CourseId != 60 {
+		t.Fatalf("hidden-offering fallback courseId = %d, want 60（隐藏 offering 回退）", brief.CourseId)
+	}
+}
+
+// TestPkCourseReviewBriefChineseTermLabelHTTPContract P13 中文学期标记回归：
+// dev/生产实例的 pk_calendar.calendar_id_i18n 是中文格式（如 "2025-2026学年第2学期"），
+// 而 course_term.code 是标准码（"2025-2026-2"）。resolveTermIdForCalendar 精确匹配
+// 失败会 fail-closed 返回空 classes，导致排课器教学班评分/跳转全部消失。
+// 该测试锁定：中文标记也能映射到对应学期，带 calendarId 时返回该学期 offering。
+func TestPkCourseReviewBriefChineseTermLabelHTTPContract(t *testing.T) {
+	conn, router := setupPkContractTest(t)
+	t.Helper()
+	seed := []any{
+		&pk.CalendarEntity{CalendarId: 131, CalendarIdI18n: "2025-2026学年第2学期"},
+		&pk.CourseDetailEntity{Id: 801001, Code: "TJCS30101", CourseCode: "TJCS301", CourseName: "大学物理", CalendarId: 131},
+		&course.Entity{Id: 60, PrimaryCode: "PH101", Name: "大学物理", Status: course.StatusVisible},
+		&course.TermEntity{Id: 31, Code: "2025-2026-2", Name: "2025-2026 第二学期", Status: 0},
+		&course.OfferingEntity{Id: 81, CourseId: 60, TermId: 31, ClassCode: "TJCS30101", Status: course.OfferingStatusVisible},
+		&course.OfferingStatsEntity{OfferingId: 81, RatingCount: 2, RatingSum: 9, ReviewCount: 2},
+	}
+	for _, m := range seed {
+		if err := conn.Create(m).Error; err != nil {
+			t.Fatalf("create chinese-term seed %T: %v", m, err)
+		}
+	}
+	var brief struct {
+		Classes []struct {
+			OfferingId  uint64   `json:"offeringId"`
+			RatingAvg   *float64 `json:"ratingAvg"`
+			ReviewCount int      `json:"reviewCount"`
+		} `json:"classes"`
+	}
+	rec := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS301&calendarId=131")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chinese-term status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(decodePkEnvelope(t, rec).Data, &brief); err != nil {
+		t.Fatalf("decode chinese-term classes: %v", err)
+	}
+	if len(brief.Classes) != 1 || brief.Classes[0].OfferingId != 81 {
+		t.Fatalf("chinese-term classes = %+v, want single offering 81", brief.Classes)
+	}
+	if brief.Classes[0].RatingAvg == nil || *brief.Classes[0].RatingAvg != 4.5 || brief.Classes[0].ReviewCount != 2 {
+		t.Fatalf("chinese-term class stats = %+v, want ratingAvg 4.5 reviewCount 2", brief.Classes[0])
 	}
 }
 

@@ -1,6 +1,7 @@
 package topicviewservice
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"sync"
@@ -39,7 +40,9 @@ func GetViewCounter() *ViewCounter {
 			flushFn:   topics.IncrementViews,
 		}
 		counter.start()
-		closer.RegisterPriority(closer.PriorityFlush, CloseViewCounter)
+		closer.RegisterPriorityContext(closer.PriorityFlush, func(context.Context) error {
+			return CloseViewCounter()
+		})
 		slog.Info("topic view counter started", "flushInterval", viewFlushInterval.String(), "queueSize", viewQueueSize)
 	})
 	return counter

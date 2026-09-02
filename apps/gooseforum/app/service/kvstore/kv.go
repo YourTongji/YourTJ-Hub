@@ -1,15 +1,16 @@
 package kvstore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/dgraph-io/badger/v4"
 )
 
 var (
@@ -78,7 +79,7 @@ func connect() (*store, error) {
 	current = instance
 	currentMu.Unlock()
 
-	closer.RegisterPriority(closer.PriorityDatabase, func() error {
+	closer.RegisterPriorityContext(closer.PriorityDatabase, func(context.Context) error {
 		instance.close()
 		return nil
 	})

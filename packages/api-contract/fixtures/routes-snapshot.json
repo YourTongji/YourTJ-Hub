@@ -57,6 +57,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/data/import/tasks"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/friend-links"
   },
   {
@@ -541,6 +545,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/data/import/tasks/:taskId/replay"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/file-resources"
   },
   {
@@ -805,6 +813,30 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/moderation/course-merge"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-merge-undo"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-create"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-ignore"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-list"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/moderation/course-review-delete"
   },
   {
@@ -1058,6 +1090,18 @@
   {
     "method": "POST",
     "path": "/file/img-upload"
+  },
+  {
+    "method": "POST",
+    "path": "/file/img-upload/abort"
+  },
+  {
+    "method": "POST",
+    "path": "/file/img-upload/complete"
+  },
+  {
+    "method": "POST",
+    "path": "/file/img-upload/init"
   },
   {
     "method": "POST",

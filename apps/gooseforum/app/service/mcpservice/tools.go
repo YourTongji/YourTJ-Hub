@@ -9,16 +9,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -179,7 +178,7 @@ func registerCreateTopic(s *mcp.Server, svc *Service) {
 		Name:        "create_topic",
 		Description: "以当前 Agent 身份发布一个主题（创建即发布）。受 topic.write 限流约束。",
 		InputSchema: objectSchema(props, required),
-	}, recoverToolHandler("create_topic", func(_ context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+	}, recoverToolHandler("create_topic", func(ctx context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
 		agentID, err := svc.userID(req)
 		if err != nil {
 			return nil, nil, err
@@ -192,7 +191,7 @@ func registerCreateTopic(s *mcp.Server, svc *Service) {
 			Content:    asString(in["content"]),
 			CategoryId: asUintSlice(in["categoryId"]),
 		}
-		resp := api.AgentWriteTopic(component.BetterRequest[api.AgentWriteTopicReq]{Params: params, UserId: agentID})
+		resp := api.AgentWriteTopic(component.BetterRequest[api.AgentWriteTopicReq]{Params: params, UserId: agentID, Context: ctx})
 		v, err := serviceResult(resp)
 		if err != nil {
 			return nil, nil, err
@@ -258,7 +257,7 @@ func registerCreatePost(s *mcp.Server, svc *Service) {
 		Name:        "create_post",
 		Description: "以当前 Agent 身份在指定主题下发帖（回复）。受 post.create 限流约束。",
 		InputSchema: objectSchema(props, required),
-	}, recoverToolHandler("create_post", func(_ context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+	}, recoverToolHandler("create_post", func(ctx context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
 		agentID, err := svc.userID(req)
 		if err != nil {
 			return nil, nil, err
@@ -271,7 +270,7 @@ func registerCreatePost(s *mcp.Server, svc *Service) {
 			Content:       asString(in["content"]),
 			ReplyToPostId: asUint(in["replyToPostId"]),
 		}
-		resp := api.AgentCreatePost(component.BetterRequest[api.AgentCreatePostReq]{Params: params, UserId: agentID})
+		resp := api.AgentCreatePost(component.BetterRequest[api.AgentCreatePostReq]{Params: params, UserId: agentID, Context: ctx})
 		v, err := serviceResult(resp)
 		if err != nil {
 			return nil, nil, err
@@ -323,8 +322,8 @@ func (s *Service) checkWriteRateLimit(action string, req *mcp.CallToolRequest, u
 	if !cfg.Enabled {
 		return nil
 	}
-	rule := findRateLimitRule(cfg.Actions, action)
-	if rule == nil || (rule.LimitPerIp <= 0 && rule.LimitPerUser <= 0) {
+	rule, ok := cfg.RuleForAction(action)
+	if !ok || (rule.LimitPerIp <= 0 && rule.LimitPerUser <= 0) {
 		return nil
 	}
 
@@ -393,17 +392,6 @@ func (s *Service) checkWriteRateLimit(action string, req *mcp.CallToolRequest, u
 			"window", rule.WindowSeconds,
 		)
 		return fmt.Errorf("rate limited (%s): retry after %ds", action, seconds)
-	}
-	return nil
-}
-
-// findRateLimitRule returns the quota for an action, or nil if none is
-// configured. Mirrors the lookup in middleware/rateLimit.go.
-func findRateLimitRule(rules []pageConfig.RateLimitRule, action string) *pageConfig.RateLimitRule {
-	for i := range rules {
-		if rules[i].Action == action {
-			return &rules[i]
-		}
 	}
 	return nil
 }

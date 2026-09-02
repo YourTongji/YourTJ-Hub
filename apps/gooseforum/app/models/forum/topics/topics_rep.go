@@ -1,8 +1,10 @@
 package topics
 
 import (
+	"context"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -74,6 +76,15 @@ func UpdateTopicEditableTx(tx *gorm.DB, entity *Entity) error {
 		}).Error
 }
 
+// UpdateCategoryIDsTx changes only the topic category payload inside a
+// caller-owned transaction.
+func UpdateCategoryIDsTx(tx *gorm.DB, id uint64, categoryIDs []uint64) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"category_id": jsonopt.Encode(categoryIDs),
+		"updated_at":  time.Now(),
+	}).Error
+}
+
 // UpdateWikiSyncedMetaTx 事务内只更新由 wiki 修订派生的话题字段
 // （标题/摘要/首图/水印/更新时间）。不触碰并发回复/点赞/浏览维护的统计与
 // 指针字段——整行 Save 会把 post_count/post_seq/posters/last_post_id/
@@ -101,6 +112,12 @@ func Get(id uint64) (entity Entity) {
 // GetWithError 返回实体与查询错误，供需要区分“记录不存在”与“查询失败”的调用方使用。
 func GetWithError(id uint64) (entity Entity, err error) {
 	err = builder().First(&entity, id).Error
+	return
+}
+
+// GetWithContext is the cancellable worker/request variant of GetWithError.
+func GetWithContext(ctx context.Context, id uint64) (entity Entity, err error) {
+	err = dbconnect.ConnectContext(ctx).Table(tableName).First(&entity, id).Error
 	return
 }
 
@@ -281,10 +298,24 @@ func GetActiveWikiByUserPage(userId uint64, cursorID uint64, limit int) (entitie
 	return
 }
 
+// CantWriteNew 判断用户当日是否已达到新主题创建上限（issue #369，上游 c47cff94）。
+// 达到上限（count >= maxCount）即拒绝；maxCount <= 0 表示不限额（调用方守卫，
+// 本函数不重复判断）。
+//
+// 语义与边界（验收记录）：
+//   - "当日"按服务器本地时区（time.Now().Format("2006-01-02")）划分，非 UTC、非可
+//     配置时区；与既有上传每日限制（filedata.CountUserUploadsToday）同为本地时区口径。
+//   - 计数范围为 topics 表该用户当日全部行：含软删主题（builder() 用 Table 无模型，
+//     Count 不应用 GORM 软删 scope）、待审/封禁/草稿主题与 wiki 页面。即"创建过即
+//     计数"，删除或转审核不释放当日额度——按最保守口径设计的防滥用护栏。
+//   - 并发：count 后 insert 非原子（TOCTOU），并发请求可能同时通过检查并各自创建，
+//     实际数量可能略超上限；本限制是软性防滥用护栏，不承担强一致语义。
+//   - 成本：每次主题创建执行一次 COUNT(user_id, created_at > 当日)，
+//     命中 user_id 索引（idx_topics_user_status 前缀），对写路径开销可忽略。
 func CantWriteNew(userId uint64, maxCount int64) bool {
 	var count int64
 	builder().Where(queryopt.Eq("user_id", userId)).Where(queryopt.Gt("created_at", time.Now().Format("2006-01-02"))).Count(&count)
-	return count > maxCount
+	return count >= maxCount
 }
 
 type PageQuery struct {
@@ -469,6 +500,17 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
 }
 
+// UpdateProcessStatusTx updates moderation state and lets callers enqueue an
+// outbox task in the same transaction.
+func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
+}
+
+// UpdateStatusTx updates publish status inside a caller-owned transaction.
+func UpdateStatusTx(tx *gorm.DB, id uint64, status int8) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("status", status).Error
+}
+
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
 // 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
 // 语义叠加导致审核队列出现幽灵项。
@@ -478,6 +520,13 @@ func ResetPendingReview(id uint64) error {
 
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"pin_weight": pinWeight,
+	}).Error
+}
+
+// UpdatePinWeightTx updates pin weight inside a caller-owned transaction.
+func UpdatePinWeightTx(tx *gorm.DB, id uint64, pinWeight int) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
 	}).Error
 }

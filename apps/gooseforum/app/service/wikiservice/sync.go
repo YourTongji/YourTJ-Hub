@@ -668,12 +668,31 @@ type SyncAccepted struct {
 // Sync 执行一次 GitHub → 论坛投影同步（webhook / 定时 / 手动共用）。
 // 幂等：内容 hash 不变则跳过（重复同步零变更）。
 func Sync(trigger string) (*SyncResult, error) {
-	return SyncWithConfig(LoadGitConfig(), trigger)
+	return SyncContext(context.Background(), trigger)
+}
+
+// SyncContext runs a sync with an explicit lifecycle context. The context is
+// checked before acquiring the process/database lock so detached jobs can be
+// abandoned without starting new work after their owner has gone away.
+func SyncContext(ctx context.Context, trigger string) (*SyncResult, error) {
+	return SyncWithConfigContext(ctx, LoadGitConfig(), trigger)
 }
 
 // SyncWithConfig 使用显式配置执行一次同步（测试注入本地仓库用；
 // 生产路径 Sync 内部读取 [wiki.git] 配置）。
 func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
+	return SyncWithConfigContext(context.Background(), cfg, trigger)
+}
+
+// SyncWithConfigContext is the cancellable form used by request-launched jobs
+// and tests that inject a local repository configuration.
+func SyncWithConfigContext(ctx context.Context, cfg GitConfig, trigger string) (*SyncResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !cfg.Enabled() {
 		return nil, fmt.Errorf("wiki git sync not configured ([wiki.git].repo empty)")
 	}
@@ -1344,16 +1363,16 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 			ContentHash:         sha256Hex(wp.body),
 			PublishedRevisionNo: 1,
 		}
-		return wikiPages.CreateTx(tx, &page)
+		if err := wikiPages.CreateTx(tx, &page); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	})
 	if err != nil {
 		return err
 	}
 	// 提交后副作用：文件引用 + 搜索索引（话题索引 + wiki 段落索引） + 发布事件 + git 溯源快照。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
-	}
 	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
 		slog.Warn("wiki sync: wiki page index failed", "pageId", page.Id, "error", err)
 	}
@@ -1417,16 +1436,16 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 		firstPost.RenderedHTML = rendered
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ProcessStatus = posts.ProcessStatusNormal
-		return posts.UpdateWikiSyncedContentTx(tx, &firstPost)
+		if err := posts.UpdateWikiSyncedContentTx(tx, &firstPost); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	})
 	if err != nil {
 		return err
 	}
 	// 提交后副作用：文件引用 + 搜索（话题索引 + wiki 段落索引） + git 溯源快照 + watcher 通知。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
-	}
 	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
 		slog.Warn("wiki sync: wiki page index failed", "pageId", page.Id, "error", err)
 	}

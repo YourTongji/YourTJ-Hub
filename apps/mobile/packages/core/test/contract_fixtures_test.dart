@@ -268,6 +268,7 @@ void main() {
             'actorName': 'bob',
             'topicId': 1,
             'postId': 100,
+            'postNo': 7,
             'topicTitle': '测试话题',
           },
         },
@@ -288,6 +289,8 @@ void main() {
       expect(item.payload.actorId, 11);
       expect(item.payload.templateKey, 'notifications.templates.comment');
       expect(item.payload.templateParams?.preview, '回复内容预览');
+      expect(item.payload.postId, 100);
+      expect(item.payload.postNo, 7);
       expect(response.nextCursor, 20);
       expect(response.hasNext, isTrue);
       expect(response.unreadCount, 3);

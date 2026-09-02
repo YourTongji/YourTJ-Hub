@@ -1958,7 +1958,8 @@ export interface paths {
          * Get the AI-generated summary of a course (B7, issue
          * @description Public read endpoint. Returns the cached AI summary when available (status `cached`),
          *     generates and persists a fresh one on first request (status `generated`), or reports
-         *     `insufficient_data` when the course has fewer than 10 visible reviews with content.
+         *     `insufficient_data` when the course has no visible reviews with content (a single
+         *     visible review is enough to generate).
          *     When the feature is disabled the endpoint returns status `disabled` (HTTP 200).
          *     `?refresh=true` forces regeneration, subject to per-course and global generation rate
          *     limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
@@ -4651,11 +4652,11 @@ export interface paths {
          *     at 50MB); only JSON is accepted — either an object keyed by table name
          *     (`users`/`topics`/`posts`/`postRevisions`/`topicCategoryIndex`/
          *     `topicUserStat`) or an array of row objects with an optional `table`
-         *     field (defaulting to `users`). Import is idempotent (existing rows are
-         *     skipped and counted), runs in users → topics → posts → postRevisions →
-         *     derived-tables order, and rebuilds topic invariants afterwards. The
-         *     response report counts total/success/skipped/failed rows with per-row
-         *     error details. Failure responses use real HTTP statuses: missing
+         *     field (defaulting to `users`). The request only stages a deduplicated
+         *     `import` task and returns its id/status; the worker performs the
+         *     idempotent import in users → topics → posts → postRevisions →
+         *     derived-tables order and rebuilds topic invariants in one transaction.
+         *     Failure responses use real HTTP statuses: missing
          *     `file` field → HTTP 400 `admin.data.importFailed` (params.error
          *     `未获取到上传文件`); unparsable content, an empty file, a payload
          *     without known tables, or an unknown table name → HTTP 400
@@ -4664,6 +4665,53 @@ export interface paths {
          *     inside `result.failed`/`result.errors`.
          */
         post: operations["adminImportData"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/import/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent data-import tasks
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Returns up to 20 most recent `import` task_queue rows, newest id first.
+         *     The task payload contains only the staged filename, format, and SHA-256;
+         *     the imported body is never returned by this endpoint.
+         */
+        get: operations["adminListImportTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/import/tasks/{taskId}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay a failed data-import task
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Only a failed `import` task with an intact checksum-addressed staging
+         *     file can be replayed. The source file is not replaced and the task is
+         *     reset to `pending`; active or successful tasks are rejected as a
+         *     business failure using the standard HTTP 200 failure envelope.
+         */
+        post: operations["adminReplayImportTask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5270,6 +5318,225 @@ export interface paths {
          *     stats projections from the review fact table (deduplicated against pending tasks).
          */
         post: operations["adminCourseStatsRebuild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List course lineage candidates for review (CourseManager/Admin)
+         * @description CourseManager-scoped list of course_relations candidates (pending/approved/ignored/merged)
+         *     with the rule evidence snapshot. Permission failures are a legacy HTTP 200 business
+         *     failure (`permission.denied`).
+         */
+        post: operations["adminCourseRelationList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a non-merge lineage candidate (CourseManager/Admin)
+         * @description CourseManager-scoped write. Marks a SPLIT_FROM/MERGED_FROM/RELATED candidate approved
+         *     (pending → approved). EQUIVALENT/RENAMED_FROM candidates must go through the merge
+         *     operation (`adminCourseMerge`); passing one here is a 409 `course.relation.notMerge`
+         *     business failure. Writes an audit log entry.
+         */
+        post: operations["adminCourseRelationApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-ignore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ignore a lineage candidate (CourseManager/Admin)
+         * @description CourseManager-scoped write. Marks a candidate ignored (pending → ignored). Writes an
+         *     audit log entry.
+         */
+        post: operations["adminCourseRelationIgnore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Manually create a lineage candidate (CourseManager/Admin)
+         * @description CourseManager-scoped write. Creates a manual (source=manual) pending candidate. Idempotent:
+         *     an existing (fromCourseId, toCourseId, relationType) row is returned as-is. Writes an
+         *     audit log entry.
+         */
+        post: operations["adminCourseRelationCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm equivalence and physically merge a course into another (CourseManager/Admin)
+         * @description CourseManager-scoped write. Human-confirmed physical merge of an EQUIVALENT/RENAMED_FROM
+         *     candidate: offerings (with their reviews and instructor links) move from the from-course to
+         *     the to-course, aliases migrate with conflict skipping, the from-course is hidden, the
+         *     candidate becomes merged with a merge snapshot, and search/stat rebuilds are enqueued.
+         *     Reversible via `adminCourseMergeUndo`. Writes an audit log entry.
+         */
+        post: operations["adminCourseMerge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-merge-undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a confirmed course merge (CourseManager/Admin)
+         * @description CourseManager-scoped write. Reverses a merged candidate from its merge snapshot: offerings
+         *     move back to the from-course, aliases move back, the from-course becomes visible again, and
+         *     the candidate returns to approved. Writes an audit log entry.
+         */
+        post: operations["adminCourseMergeUndo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file/img-upload/init": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Initialize a post-image upload (server proxy or presigned direct)
+         * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
+         *     byte size; the server validates them against the posting-settings allowlist and size cap
+         *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
+         *     the caller must continue with the existing multipart `POST /file/img-upload`. With an
+         *     S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+         *     POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
+         *     uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
+         *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
+         *     upload cooldown, params minutes/availableAt), `upload.dailyLimit` (params count),
+         *     `upload.file.tooLarge` (params maxSizeKb), `upload.extension.unsupported` (params extensions),
+         *     `upload.image.unsupported`, `upload.image.invalidContent`, `upload.filename.required`,
+         *     `upload.saveFailed` (params error). Frozen accounts are rejected by the route-level
+         *     CheckWritableAccount middleware with the standard params action=写入 / actionCode=write.
+         *     The init call is additionally bounded by the `upload` rate limit (429 + Retry-After).
+         */
+        post: operations["initDirectImageUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file/img-upload/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a direct-uploaded post image after the browser uploaded it to the bucket
+         * @description Called after the browser uploaded the file to the bucket using the presigned POST policy from
+         *     `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
+         *     re-checks ownership, object size, MIME type and the decoded image header before publishing;
+         *     a forged or invalid object fails with `upload.image.invalidContent` (HTTP 200). On success the file
+         *     becomes visible and the response carries the final public `url`, the stored object `name` (the
+         *     pending `name` returned by init) and the stored byte `size`. An unknown or foreign `name` fails
+         *     with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
+         *     are rejected by the route-level CheckWritableAccount middleware.
+         */
+        post: operations["completeDirectImageUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file/img-upload/abort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Abort a pending direct post-image upload
+         * @description Cancels a pending direct upload started by `/file/img-upload/init` and removes the pending
+         *     object so it is never published. The `name` must belong to the caller; an unknown or foreign
+         *     `name` fails with `page.notFound` (HTTP 200). The operation is best-effort: expired
+         *     pending uploads are also removed by the server cleanup job, so a failed abort can be ignored
+         *     by the client. Frozen accounts are rejected by the route-level CheckWritableAccount
+         *     middleware.
+         */
+        post: operations["abortDirectImageUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6395,6 +6662,17 @@ export interface components {
              *     Omitted when the course has no visible reviews.
              */
             ratingDistribution?: number[];
+            /**
+             * @description 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）；缺省为 teacher。
+             * @enum {string}
+             */
+            reviewScope?: "teacher" | "team" | "course";
+            /** @description 教学团队键；非空且 reviewScope=team 时评分聚合为团队读时聚合值。 */
+            teamKey?: string;
+            /** @description team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。 */
+            teamInstructors?: string[];
+            /** @description 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。 */
+            legacyNames?: string[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
@@ -6897,6 +7175,13 @@ export interface components {
             creditX10?: number;
             aliases?: string[];
             instructors?: string[];
+            /**
+             * @description 课评范围三档；字段缺省保留原值，显式空串重置为 teacher。
+             * @enum {string}
+             */
+            reviewScope?: "teacher" | "team" | "course";
+            /** @description 教学团队键；与 reviewScope=team 配合使用，缺省保留原值，显式空串清除。 */
+            teamKey?: string;
         };
         AdminCourseDeleteRequest: {
             /** Format: uint64 */
@@ -6949,6 +7234,108 @@ export interface components {
         AdminReviewDeleteRequest: {
             /** Format: uint64 */
             reviewId: number;
+        };
+        AdminCourseRelationListRequest: {
+            /**
+             * @description 沿革候选状态过滤；空 = 全部。
+             * @enum {string}
+             */
+            status?: "pending" | "approved" | "ignored" | "merged";
+            page?: number;
+            pageSize?: number;
+        };
+        /** @description 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。 */
+        AdminCourseRelationItem: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            fromCourseId: number;
+            /** Format: uint64 */
+            toCourseId: number;
+            /** @enum {string} */
+            relationType: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
+            /** @enum {string} */
+            source: "rule" | "manual";
+            /** Format: double */
+            confidence: number;
+            /** @description 规则证据快照（JSON 文本）；合并后含合并快照。 */
+            evidenceJson: string;
+            manual: boolean;
+            /** @enum {string} */
+            status: "pending" | "approved" | "ignored" | "merged";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdminCourseRelationListResult: {
+            list: components["schemas"]["AdminCourseRelationItem"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+            hasNext: boolean;
+        };
+        AdminCourseRelationListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseRelationListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseRelationActionRequest: {
+            /** Format: uint64 */
+            relationId: number;
+        };
+        AdminCourseRelationItemResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseRelationItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseRelationCreateRequest: {
+            /** Format: uint64 */
+            fromCourseId: number;
+            /** Format: uint64 */
+            toCourseId: number;
+            /** @enum {string} */
+            relationType: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
+            /** @description 人工证据说明。 */
+            evidence?: string;
+            /** Format: double */
+            confidence?: number;
+        };
+        AdminCourseMergeResult: {
+            /** Format: uint64 */
+            relationId: number;
+            /** Format: uint64 */
+            fromCourseId: number;
+            /** Format: uint64 */
+            toCourseId: number;
+            fromName: string;
+            toName: string;
+            /** @description 迁移到新卡的开课实例数。 */
+            movedOfferings: number;
+            /** @description 成功迁移的旧卡别名数。 */
+            migratedAliases: number;
+            /** @description 因目标卡已占用而跳过的别名数。 */
+            skippedAliases: number;
+        };
+        AdminCourseMergeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseMergeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description 沿革区块条目：本卡相关的已确认沿革关系（原名标注 + 关系类型 + 方向）。 */
+        RelationItem: {
+            /** Format: uint64 */
+            relationId: number;
+            /** Format: uint64 */
+            fromCourseId: number;
+            fromName: string;
+            /** Format: uint64 */
+            toCourseId: number;
+            toName: string;
+            /** @enum {string} */
+            relationType: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
+            /** @enum {string} */
+            status: "pending" | "approved" | "ignored" | "merged";
+            /**
+             * @description to=旧卡并入本卡（本卡为当前卡）；from=本卡并入新卡（本卡为历史卡）。
+             * @enum {string}
+             */
+            direction: "to" | "from";
         };
         AdminTopicsListRequest: {
             /** @description 1-based page; values below 1 are treated as page 1. */
@@ -7713,6 +8100,8 @@ export interface components {
             minTitleLength: number;
             maxTitleLength: number;
             newUserPostCooldownMinutes: number;
+            /** @description Per-user daily limit for newly created topics. `0` means unlimited. Only applies to topic creation; edits and replies are not counted (issue #369). Negative values are normalized to `0` on save and on read. */
+            maxDailyTopicsPerUser: number;
         };
         AdminPostingUploadControl: {
             allowAttachments: boolean;
@@ -7944,11 +8333,11 @@ export interface components {
         AdminTaskQueueItem: {
             /** Format: uint64 */
             id: number;
-            /** @description Task type prefix (`export` for data exports, `file-migrate` for storage migrations). */
+            /** @description Task type prefix (`export`, `import`, `file-migrate`, or a search projection prefix). */
             type: string;
             /** @description 0=pending, 1=running, 2=success, 3=failed, 4=retrying. */
             status: number;
-            /** @description Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate). */
+            /** @description Serialized task payload (JSON text; import payloads carry only fileName/format/sha256; export payloads carry tables/format/fileName/progress/errorCount; migrate payloads carry lastId/total/processed/failed/clearAfterMigrate). */
             taskJson: string;
             retryCount: number;
             lastError: string;
@@ -8185,7 +8574,7 @@ export interface components {
             importedTables: string[];
         };
         AdminImportDataResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["AdminImportReport"];
+            result: components["schemas"]["AdminImportTaskAcceptedResult"];
         }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
             /** Format: uint64 */
@@ -8602,6 +8991,11 @@ export interface components {
             campus: string;
             teachingLanguage: string;
             arrangementInfo: components["schemas"]["PkArrangementInfo"][];
+            /**
+             * Format: uint64
+             * @description 一系统教学班 id（pk_course_detail.id），排课器传 course-review-brief 直查用。
+             */
+            teachingClassId?: number;
             /** @description 仅 course-info-sync 的 major 课程带该字段。 */
             isExclusive?: boolean;
         };
@@ -8636,6 +9030,8 @@ export interface components {
             teacherName: string;
             ratingAvg?: number | null;
             reviewCount: number;
+            /** @description 1-5 星各档可见评价计数（index 0 = 1 星）；排课器选班弹窗右侧课评面板复用课程详情页评分仪表卡用。无统计行时省略。 */
+            ratingDistribution?: number[];
             /** @description 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。 */
             classes: components["schemas"]["PkReviewBriefClass"][];
         };
@@ -9103,6 +9499,8 @@ export interface components {
             teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
             /** @description Other course cards with the same primary_code (different teacher identity), top 5 by review count. */
             sameCourseOtherTeachers: components["schemas"]["RelatedCourseItem"][];
+            /** @description 本卡已确认的沿革关系（approved/merged；原名标注与旧卡跳转）。 */
+            lineage: components["schemas"]["RelationItem"][];
         };
         CourseSearchPayload: {
             /** Format: uint64 */
@@ -9298,6 +9696,86 @@ export interface components {
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
         }) | components["schemas"]["ApiFailure"];
+        DirectImageUploadInitRequest: {
+            /** @description Original file name; drives the extension allowlist check. */
+            filename: string;
+            /** @description Browser MIME type of the file. */
+            contentType: string;
+            /**
+             * Format: int64
+             * @description File size in bytes; checked against the posting-settings size cap.
+             */
+            size: number;
+        };
+        DirectImageUploadInitResult: {
+            /**
+             * @description `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+             *     `direct` — upload to `upload.url` with `upload.fields` + the file, then call
+             *     `/file/img-upload/complete` with `name`.
+             * @enum {string}
+             */
+            mode: "proxy" | "direct";
+            /** @description Pending object name; present when mode is `direct`. */
+            name?: string;
+            /** @description Presigned POST policy; present when mode is `direct`. */
+            upload?: components["schemas"]["DirectUploadInfo"];
+        };
+        DirectUploadInfo: {
+            /**
+             * Format: uri
+             * @description Bucket POST endpoint the browser uploads the file to.
+             */
+            url: string;
+            /**
+             * @description Always POST (presigned POST policy).
+             * @constant
+             */
+            method: "POST";
+            /** @description Form fields (policy, signature, key, ...) to append before the `file` part. */
+            fields: {
+                [key: string]: string;
+            };
+            /**
+             * Format: date-time
+             * @description RFC3339 expiry of the presigned policy; the upload must finish before this.
+             */
+            expiresAt: string;
+        };
+        DirectImageUploadInitSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["DirectImageUploadInitResult"];
+        };
+        DirectImageUploadInitResponse: components["schemas"]["DirectImageUploadInitSuccess"] | components["schemas"]["ApiFailure"];
+        DirectImageUploadCompleteRequest: {
+            /** @description Pending object name returned by `/file/img-upload/init`. */
+            name: string;
+        };
+        DirectImageUploadCompleteResult: {
+            /** @description Final public URL of the published image. */
+            url: string;
+            /** @description Stored object name (the pending `name` returned by `/file/img-upload/init`), not the caller's original file name. */
+            filename: string;
+            /**
+             * Format: int64
+             * @description Stored byte size.
+             */
+            size: number;
+        };
+        DirectImageUploadCompleteSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["DirectImageUploadCompleteResult"];
+        };
+        DirectImageUploadCompleteResponse: components["schemas"]["DirectImageUploadCompleteSuccess"] | components["schemas"]["ApiFailure"];
+        DirectImageUploadAbortRequest: {
+            /** @description Pending object name returned by `/file/img-upload/init`. */
+            name: string;
+        };
+        DirectImageUploadAbortSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description True when the pending upload was aborted.
+             * @constant
+             */
+            result: true;
+        };
+        DirectImageUploadAbortResponse: components["schemas"]["DirectImageUploadAbortSuccess"] | components["schemas"]["ApiFailure"];
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -9391,6 +9869,24 @@ export interface components {
             secretKeyConfigured: boolean;
             publicUrlPrefix: string;
         };
+        AdminImportTaskAcceptedResult: {
+            /**
+             * Format: uint64
+             * @description Enqueued import task id.
+             */
+            taskId: number;
+            /** @enum {string} */
+            status: "pending" | "running" | "retrying" | "failed" | "success";
+            errors: components["schemas"]["AdminImportReportError"][];
+            importedTables: string[];
+        };
+        AdminImportTaskListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Up to 20 most recent import tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        AdminImportTaskReplayResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTaskQueueItem"];
+        }) | components["schemas"]["ApiFailure"];
         /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
         WikiSearchItem: {
             /** @description Display name of the namespace (fallback: URL key). */
@@ -17046,7 +17542,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Import finished; `result` is the per-table report (may still contain per-row failures). */
+            /** @description Import task accepted; poll adminListImportTasks for worker status. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17056,6 +17552,93 @@ export interface operations {
                 };
             };
             /** @description Missing file or unimportable payload. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListImportTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent data-import tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportTaskListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReplayImportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requeued task, or a business failure when it is not replayable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportTaskReplayResponse"];
+                };
+            };
+            /** @description Missing or malformed task id path parameter. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -18196,6 +18779,12 @@ export interface operations {
                 teacherName?: string;
                 /** @description 限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
                 calendarId?: number;
+                /**
+                 * @description 教学班直查键（course_offering.teaching_class_id）：有则精准定位该班所属课程卡与
+                 *     offering（course-scope 特判课程卡），不再走 courseCode+teacherName 猜测；未命中
+                 *     （缺失/隐藏）时回退旧路径。与 calendarId 同时传入时以直查结果为准。
+                 */
+                teachingClassId?: number;
             };
             header?: never;
             path?: never;
@@ -18542,6 +19131,432 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of lineage candidates, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate type is not approvable (EQUIVALENT/RENAMED_FROM must merge). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationIgnore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created (or already-existing) lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description From or to course does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseMerge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Merge counts (offerings moved, aliases migrated/skipped), or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseMergeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate or a referenced course does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate not mergeable, already merged, blocked by another pending merge, or target hidden. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseMergeUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Undo counts (offerings moved back), or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseMergeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate was never merged. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    initDirectImageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectImageUploadInitRequest"];
+            };
+        };
+        responses: {
+            /** @description Upload mode decided, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectImageUploadInitResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    completeDirectImageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectImageUploadCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Image published, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectImageUploadCompleteResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    abortDirectImageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectImageUploadAbortRequest"];
+            };
+        };
+        responses: {
+            /** @description Pending upload aborted, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectImageUploadAbortResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

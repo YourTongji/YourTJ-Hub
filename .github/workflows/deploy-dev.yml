@@ -43,9 +43,23 @@ jobs:
   deploy:
     needs: [build, build-image]
     runs-on: ubuntu-latest
+    environment: dev
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # 渲染实例 config（dev 环境 secrets; dev GitHub 凭据留空 → 渲染 allow-empty）
+      - name: Render dev config
+        uses: ./.github/actions/render-config
+        with:
+          env: dev
+          signing-key: ${{ secrets.SIGNING_KEY }}
+          pg-dsn: ${{ secrets.PG_DSN }}
+          meili-master-key: ${{ secrets.MEILI_MASTER_KEY }}
+          wiki-webhook-secret: ${{ secrets.WIKI_WEBHOOK_SECRET }}
+          # dev 有意不设 GitHub 凭据(DB siteUrl 无环境隔离); gh inputs 留空
+          gh-client-id: ""
+          gh-client-secret: ""
+          ai-api-key: ""
       # 上传到 run-specific 路径, 避免与 deploy-main 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to dev host
@@ -55,7 +69,17 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
+          strip_components: 2
+      - name: Upload rendered dev config to dev host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/rendered/config-dev.toml"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       # compose 由 init-server.sh 一次性安装到服务器, dev 部署不更新它,
@@ -70,14 +94,20 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
+            RUN_DIR=/tmp/yourtj-deploy-${{ github.run_id }}
             # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
             #    sync-db-from-main.sh source pgdsn.sh, 必须一并下发, 否则
             #    set -e 下 source 失败阻断部署(review W2)。
-            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/deploy.sh /opt/yourtj/scripts/deploy.sh
-            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
-            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
+            install -m 0755 "$RUN_DIR/deploy.sh" /opt/yourtj/scripts/deploy.sh
+            install -m 0755 "$RUN_DIR/sync-db-from-main.sh" /opt/yourtj/scripts/sync-db-from-main.sh
+            install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
+            install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
             #    dev 部署频繁, 镜像只保留最近 3 个(含当前) + prev
-            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev dev-${{ github.sha }} 5235
+            #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
+            IMAGE_KEEP_N=3 CONFIG_FILE="$RUN_DIR/config-dev.toml" \
+              /opt/yourtj/scripts/deploy.sh dev dev-${{ github.sha }} 5235
+            # 3. 部署成功/失败后清理本 run 上传的临时文件(含明文渲染 config)
+            rm -rf "$RUN_DIR"

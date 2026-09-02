@@ -33,6 +33,15 @@ func GetCalendarByID(id uint64) (CalendarEntity, error) {
 	return entity, err
 }
 
+// GetCalendarByIDTx 事务内按 calendarId 返回学期实体（P13 学期 → course_term 映射用）。
+// 物化链在事务中解析 term 时必须使用本函数：全局句柄在 SQLite 单连接池下会与事务
+// 互相等待（死锁）。
+func GetCalendarByIDTx(tx *gorm.DB, id uint64) (CalendarEntity, error) {
+	var entity CalendarEntity
+	err := tx.Table(calendarTableName).Where(queryopt.Eq("calendar_id", id)).First(&entity).Error
+	return entity, err
+}
+
 // LatestFetchLogByCalendar 返回某学期最近一次同步日志（按 id 倒序取最新）。
 func LatestFetchLogByCalendar(calendarId uint64) (FetchLogEntity, bool) {
 	var entity FetchLogEntity

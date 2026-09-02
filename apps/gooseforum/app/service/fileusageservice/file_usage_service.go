@@ -43,6 +43,22 @@ func AddAdminUpload(userId uint64, fileName string) {
 	}
 }
 
+// AddUploadOwner records that userId owns the uploaded file. The row is
+// idempotent: a duplicate complete request must not create a second usage row.
+func AddUploadOwner(userID uint64, fileName string) error {
+	name := fileNameFromURL(fileName)
+	if name == "" {
+		return nil
+	}
+	return fileUsage.CreateIfAbsent(&fileUsage.Entity{
+		FileName:   name,
+		TargetType: fileUsage.TargetUploadOwner,
+		TargetId:   userID,
+		UsageType:  fileUsage.UsageUploadOwner,
+		UserId:     userID,
+	})
+}
+
 func namesToUsages(values []string, usageType string) []Usage {
 	usages := make([]Usage, 0, len(values))
 	seen := map[string]bool{}

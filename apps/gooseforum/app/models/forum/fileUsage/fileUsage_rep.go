@@ -4,10 +4,17 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm/clause"
 )
 
 func Create(entity *Entity) error {
 	return builder().Create(entity).Error
+}
+
+// CreateIfAbsent inserts the usage row unless an identical row already exists
+// (unique index on target_type/target_id/usage_type/file_name).
+func CreateIfAbsent(entity *Entity) error {
+	return builder().Clauses(clause.OnConflict{DoNothing: true}).Create(entity).Error
 }
 
 func ReplaceTargetUsages(targetType string, targetId uint64, usageTypes []string, usages []Entity) error {
@@ -74,10 +81,14 @@ func ListByTarget(targetType string, targetId uint64) (entities []Entity, err er
 
 // HasAnyReferences reports whether the file has at least one usage row.
 // This lets public file serving distinguish legacy untracked uploads from a
-// tracked file whose content references have all been revoked.
+// tracked file whose content references have all been revoked. upload_owner
+// rows are ownership-audit records (not content references) and are excluded.
 func HasAnyReferences(fileName string) bool {
 	var count int64
-	builder().Where(queryopt.Eq("file_name", fileName)).Count(&count)
+	builder().
+		Where(queryopt.Eq("file_name", fileName)).
+		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
+		Count(&count)
 	return count > 0
 }
 
@@ -92,23 +103,29 @@ func ListExpiredRecovering(before time.Time, limit int) (entities []Entity) {
 }
 
 // HasLiveReferences 判断文件是否仍被 ACTIVE/RECOVERING 的引用使用。
+// upload_owner 行是归属审计记录而非内容引用，不参与该判定（否则会使
+// 已删除内容的文件永不进入物理清理）。
 func HasLiveReferences(fileName string) bool {
 	var count int64
 	builder().
 		Where(queryopt.Eq("file_name", fileName)).
 		Where(queryopt.In("status", []string{UsageStatusActive, UsageStatusRecovering})).
+		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0
 }
 
 // HasActiveReferences reports whether a file is referenced by content that is
 // currently public. Recovering references stay live for purge coordination but
-// must not authorize public downloads.
+// must not authorize public downloads. upload_owner rows are ownership-audit
+// records (not content references) and are excluded, so deleting a file's
+// content actually revokes public access.
 func HasActiveReferences(fileName string) bool {
 	var count int64
 	builder().
 		Where(queryopt.Eq("file_name", fileName)).
 		Where(queryopt.Eq("status", UsageStatusActive)).
+		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0
 }

@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/samber/lo"
@@ -35,6 +37,12 @@ var ErrInvalidCredentials = errors.New("invalid username or password")
 
 func Get(id any) (entity EntityComplete, err error) {
 	err = builder().Where(pid, id).First(&entity).Error
+	return
+}
+
+// GetWithContext is the cancellable worker/request variant of Get.
+func GetWithContext(ctx context.Context, id any) (entity EntityComplete, err error) {
+	err = dbconnect.ConnectContext(ctx).Table(tableName).Where(pid, id).First(&entity).Error
 	return
 }
 

@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：270
-- /api JSON 路由：214，已入契约：212（99%），已知未覆盖：0
+- 快照路由总数：281
+- /api JSON 路由：222，已入契约：223（100%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（212）
+## 已覆盖（223）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -20,6 +20,7 @@
 | GET | `/api/admin/badges` | `adminListBadges` |
 | GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
 | GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
+| GET | `/api/admin/data/import/tasks` | `adminListImportTasks` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
 | GET | `/api/admin/http-notify-settings` | `adminGetHttpNotifySettings` |
@@ -93,6 +94,7 @@
 | POST | `/api/admin/category-save` | `adminCategorySave` |
 | POST | `/api/admin/data/export` | `adminCreateExportTask` |
 | POST | `/api/admin/data/import` | `adminImportData` |
+| POST | `/api/admin/data/import/tasks/:taskId/replay` | `adminReplayImportTask` |
 | POST | `/api/admin/file-resources` | `adminListFileResources` |
 | POST | `/api/admin/get-permission-list` | `adminGetPermissionList` |
 | POST | `/api/admin/global-moderator-add` | `adminGlobalModeratorAdd` |
@@ -159,6 +161,12 @@
 | POST | `/api/forum/moderation/course-create` | `adminCourseCreate` |
 | POST | `/api/forum/moderation/course-delete` | `adminCourseDelete` |
 | POST | `/api/forum/moderation/course-list` | `adminCourseList` |
+| POST | `/api/forum/moderation/course-merge` | `adminCourseMerge` |
+| POST | `/api/forum/moderation/course-merge-undo` | `adminCourseMergeUndo` |
+| POST | `/api/forum/moderation/course-relation-approve` | `adminCourseRelationApprove` |
+| POST | `/api/forum/moderation/course-relation-create` | `adminCourseRelationCreate` |
+| POST | `/api/forum/moderation/course-relation-ignore` | `adminCourseRelationIgnore` |
+| POST | `/api/forum/moderation/course-relation-list` | `adminCourseRelationList` |
 | POST | `/api/forum/moderation/course-review-delete` | `adminReviewDelete` |
 | POST | `/api/forum/moderation/course-review-edit` | `adminReviewUpdate` |
 | POST | `/api/forum/moderation/course-review-list` | `adminReviewList` |
@@ -222,6 +230,9 @@
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |
 | POST | `/api/wiki/webhook` | `wikiWebhook` |
+| POST | `/file/img-upload/abort` | `abortDirectImageUpload` |
+| POST | `/file/img-upload/complete` | `completeDirectImageUpload` |
+| POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 

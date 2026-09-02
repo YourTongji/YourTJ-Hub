@@ -1,7 +1,8 @@
 {
   "result": {
     "teacherOtherCourses": [],
-    "sameCourseOtherTeachers": []
+    "sameCourseOtherTeachers": [],
+    "lineage": []
   },
   "code": 0
 }

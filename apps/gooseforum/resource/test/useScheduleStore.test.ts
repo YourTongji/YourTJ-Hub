@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { useScheduleStore } from '../src/site/composables/useScheduleStore'
+import { i18n } from '../src/runtime/i18n'
+import { MAX_PLANS, useScheduleStore } from '../src/site/composables/useScheduleStore'
 import {
   CUSTOM_EVENT_CODE_PREFIX,
   conflictBaseOf,
@@ -9,11 +10,16 @@ import {
   getCourseBaseCode,
 } from '../src/site/utils/pkConflict'
 import { currentWeekForDate, formatWeeksText } from '../src/site/utils/pkArrange'
-import type { PkArrangement, PkCourseDetail, PkStagedCourse } from '../src/site/types/pk'
+import type { PkArrangement, PkCourseDetail, PkPlan, PkStagedCourse } from '../src/site/types/pk'
 
 /** 展开的周次区间（如 range(1, 8) = [1..8]），对齐「1-8周」语义。 */
 function range(from: number, to: number): number[] {
   return Array.from({ length: to - from + 1 }, (_, i) => from + i)
+}
+
+/** 与 store 同源的默认方案名（如「方案 {n}」），断言名称不依赖测试环境 locale。 */
+function planName(n: number): string {
+  return i18n.global.t('schedule.planDefaultName', { n })
 }
 
 function makeDetail(code: string, day: number, time: number[], weeks: number[]): PkCourseDetail {
@@ -80,7 +86,10 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     const store = useScheduleStore()
     store.clearStagedAndSelectedCourses()
     store.setMajorInfo({ calendarId: undefined, grade: undefined, major: undefined })
-    // 重置为单方案初始态。
+    // 重置为单方案初始态（清掉上一用例遗留的多方案，再删最后一个触发自动补建）。
+    while (store.state.plans.length > 1) {
+      store.deletePlan(store.state.plans[0].id)
+    }
     store.deletePlan(store.state.plans[0].id)
     store.setWeekView({ week: null, useCurrent: false })
   })
@@ -244,7 +253,7 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     expect(store.state.commonLists.stagedCourses).toHaveLength(1)
 
     // 新建方案二并切换：镜像清空。
-    const second = store.createPlan()
+    const second = store.createPlan()!
     store.switchPlan(second.id)
     expect(store.state.activePlanId).toBe(second.id)
     expect(store.state.commonLists.stagedCourses).toHaveLength(0)
@@ -279,6 +288,65 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     expect(store.state.plans).toHaveLength(1)
     expect(store.state.plans[0].id).not.toBe(only.id)
     expect(store.state.activePlanId).toBe(store.state.plans[0].id)
+  })
+
+  test('删除唯一方案后自动补建回到「方案 1」（序号不再自增）', () => {
+    const store = useScheduleStore()
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.state.plans[0].name).toBe(planName(1))
+
+    // 删除唯一的「方案 1」→ 自动补建仍为「方案 1」，而非「方案 2」。
+    store.deletePlan(store.state.plans[0].id)
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.state.plans[0].name).toBe(planName(1))
+
+    // 再次删除 → 序号继续回落，不再循环自增。
+    store.deletePlan(store.state.plans[0].id)
+    expect(store.state.plans[0].name).toBe(planName(1))
+  })
+
+  test('新增方案序号取现存最大值 +1：删除中间方案后不与现存方案重名', () => {
+    const store = useScheduleStore()
+    const first = store.state.plans[0]
+    expect(first.name).toBe(planName(1))
+
+    const second = store.createPlan()
+    expect(second).not.toBeNull()
+    expect(second!.name).toBe(planName(2))
+
+    const third = store.createPlan()
+    expect(third).not.toBeNull()
+    expect(third!.name).toBe(planName(3))
+
+    // 已有 方案1/2/3，删除中间的「方案 2」→ 剩余 方案1/3 → 再新增应为「方案 4」。
+    store.deletePlan(second!.id)
+    const fourth = store.createPlan()
+    expect(fourth).not.toBeNull()
+    expect(fourth!.name).toBe(planName(4))
+    // 新方案不与现存方案重名。
+    expect(store.state.plans.map((plan) => plan.name).filter((name) => name === fourth!.name)).toHaveLength(1)
+  })
+
+  test('方案数量达到上限后 createPlan 返回 null（不再创建）', () => {
+    const store = useScheduleStore()
+    const created: PkPlan[] = []
+    // 预置到 MAX_PLANS 个方案（含初始 1 个）。
+    for (let i = 1; i < MAX_PLANS; i++) {
+      const plan = store.createPlan()
+      expect(plan).not.toBeNull()
+      created.push(plan!)
+    }
+    expect(store.state.plans).toHaveLength(MAX_PLANS)
+
+    // 到达上限：拒绝新增且不改变状态。
+    expect(store.createPlan()).toBeNull()
+    expect(store.state.plans).toHaveLength(MAX_PLANS)
+
+    // 删除一个后可继续新增。
+    store.deletePlan(created[0].id)
+    expect(store.state.plans).toHaveLength(MAX_PLANS - 1)
+    expect(store.createPlan()).not.toBeNull()
+    expect(store.state.plans).toHaveLength(MAX_PLANS)
   })
 
   test('学期/年级/专业变更清空所有方案（防跨学期污染）', () => {
@@ -410,7 +478,7 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3], [1, 8])]))
     store.stageCourse(makeDetail('122004.01', 1, [3], [1, 8])) // status=1
 
-    const second = store.createPlan()
+    const second = store.createPlan()!
     store.switchPlan(second.id)
     store.setClickedCourseInfo({ courseCode: '122004', courseName: '高数' })
     store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3], [1, 8])]))
@@ -447,7 +515,7 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     expect(details[1].status).toBe(1)
 
     // 切走再切回（触发纯重建）：只有新班在表。
-    const other = store.createPlan()
+    const other = store.createPlan()!
     store.switchPlan(other.id)
     store.switchPlan(store.state.plans.find((plan) => plan.stagedCourses.length > 0)!.id)
     expect(store.state.timeTableData.map((row) => row.code)).toEqual(['122004.02'])

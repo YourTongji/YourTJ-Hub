@@ -364,10 +364,8 @@ export interface ReviewQueueItem {
 }
 
 export interface ImportReport {
-  total: number
-  success: number
-  skipped: number
-  failed: number
+  taskId: number
+  status: 'pending' | 'running' | 'retrying' | 'success' | 'failed'
   errors: Array<{ line: number; table: string; reason: string }>
   importedTables: string[]
 }
@@ -379,6 +377,8 @@ export interface PostingSettings {
     minTitleLength: number
     maxTitleLength: number
     newUserPostCooldownMinutes: number
+    /** 每用户每日新主题上限（0 = 不限额，负值由服务端归一为 0；仅约束新建主题）。 */
+    maxDailyTopicsPerUser: number
   }
   uploadControl: {
     allowAttachments: boolean

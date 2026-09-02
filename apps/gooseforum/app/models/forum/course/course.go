@@ -21,6 +21,8 @@ type Entity struct {
 	NormalizedName string         `gorm:"column:normalized_name;type:varchar(255);not null;default:'';index:idx_course_normalized_name;" json:"normalizedName"`
 	NamePinyin     string         `gorm:"column:name_pinyin;type:varchar(255);not null;default:'';index:idx_course_name_pinyin;" json:"namePinyin"`
 	NameInitials   string         `gorm:"column:name_initials;type:varchar(64);not null;default:'';index:idx_course_name_initials;" json:"nameInitials"`
+	ReviewScope    string         `gorm:"column:review_scope;type:varchar(16);not null;default:'teacher';index:idx_course_review_scope;" json:"reviewScope"`
+	TeamKey        string         `gorm:"column:team_key;type:varchar(64);not null;default:'';index:idx_course_team_key;" json:"teamKey"`
 	Status         int8           `gorm:"column:status;not null;default:0;index:idx_course_status;" json:"status"`
 	SearchVersion  uint64         `gorm:"column:search_version;not null;default:0;" json:"searchVersion"`
 	CreatedAt      time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`

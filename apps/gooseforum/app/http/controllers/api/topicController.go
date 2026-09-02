@@ -30,8 +30,31 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+func requestContext(c *gin.Context) context.Context {
+	if c == nil || c.Request == nil {
+		return context.Background()
+	}
+	return c.Request.Context()
+}
+
+func betterRequestContext[T any](req component.BetterRequest[T]) context.Context {
+	if req.Context != nil {
+		return req.Context
+	}
+	return requestContext(req.GinContext)
+}
+
+func detachedRequestContext(c *gin.Context) context.Context {
+	return eventbus.DetachedContext(requestContext(c))
+}
+
+func detachedJobContext(c *gin.Context) (context.Context, context.CancelFunc) {
+	return context.WithCancel(detachedRequestContext(c))
+}
 
 // checkContentPolicy 检查内容是否命中敏感词。
 // 返回 (pendingReview, word, err)：
@@ -172,9 +195,6 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 	}
 
-	if topics.CantWriteNew(req.UserId, 10) {
-		return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
-	}
 	// 敏感词检查（标题+内容）
 	pendingReview, _, policyErr := checkContentPolicy(req.UserId, req.Params.Title+"\n"+req.Params.Content, "topic", req.Params.TopicId)
 	if policyErr != nil {
@@ -182,6 +202,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 	var topic topics.Entity
 	var firstPost posts.Entity
+	var oldCategoryIds []uint64
 	if req.Params.TopicId != 0 {
 		topic = topics.Get(req.Params.TopicId)
 		// wiki 分站页面由 wiki 修订审核流程管理，禁止经论坛编辑端点直接改写
@@ -196,7 +217,13 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		if firstPost.Id == 0 {
 			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 		}
+		oldCategoryIds = append([]uint64(nil), topic.CategoryIds...)
 	} else {
+		// 每日新主题上限只约束「新建主题」：编辑/回复不受影响（issue #369）。
+		// 0（含归一后的负值）= 不限额。
+		if postingConfig.TextControl.MaxDailyTopicsPerUser > 0 && topics.CantWriteNew(req.UserId, int64(postingConfig.TextControl.MaxDailyTopicsPerUser)) {
+			return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
+		}
 		topic.UserId = req.UserId
 	}
 	topic.CategoryIds = req.Params.CategoryId
@@ -229,7 +256,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	isEdit := topic.Id > 0
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
-	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if isEdit {
 			// 锁序与 UpdatePost 首楼分支保持一致（posts → topics）：先写
 			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
@@ -285,7 +312,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				return err
 			}
 		}
-		return topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId)
+		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	})
 	if err != nil {
 		slog.Error("topic write transaction failed", "topicId", topic.Id, "isEdit", isEdit, "err", err)
@@ -294,20 +324,18 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 	// ---- 事务已提交：此后才允许缓存失效、统计与事件发布 ----
 	fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
-	hotdataserve.ClearTopicListCache()
+	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
+	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	if isEdit {
 		// 编辑分支：无条件重建搜索索引——下架（TopicStatus=0）或转入待审
 		// （ProcessStatus=Pending）时 BuildSingleTopicSearchDocument 会把文档
 		// 从索引删除，避免非公开内容残留在公共搜索（issue #132）。
 		// LLMS 投影缓存同步失效，避免下架内容在 10s 窗口内继续导出。
 		llmsservice.ClearCache()
-		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-			slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-		}
 		// 待审（pendingReview）内容未上线，跳过业务事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
 		if topic.Status == 1 && !pendingReview {
-			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 	} else {
 		if topic.Status == 1 && !pendingReview {
@@ -315,7 +343,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
 		if topic.Status == 1 && !pendingReview {
-			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicunseenservice.MarkVisited(req.UserId, topic.Id, firstPost.Id, time.Now()); err != nil {
 			slog.Warn("mark created topic visited failed", "userId", req.UserId, "topicId", topic.Id, "error", err)
@@ -350,21 +378,23 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.SuccessResponse(true)
 	}
 	topic.Status = nextStatus
-	if err := topics.Save(&topic); err != nil {
+	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if err := topics.UpdateStatusTx(tx, topic.Id, nextStatus); err != nil {
+			return err
+		}
+		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+	}); err != nil {
 		return component.FailResponseCode(component.MessageTopicSaveFailed, nil)
 	}
 	firstPost := posts.Get(topic.FirstPostId)
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 无条件重建搜索索引（issue #132）：1→0（取消发布）时
 	// BuildSingleTopicSearchDocument 会把文档从索引删除，避免已下架话题
 	// 残留在公共搜索；0→1（重新发布）时 upsert 恢复，幂等无害。
 	// 不发布 TopicUpdatedEvent：下架属用户隐私操作，不触发 webhook 通知。
 	llmsservice.ClearCache()
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
-	}
 	if topic.Status == 1 {
-		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+		eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
 	return component.SuccessResponse(true)
 }
@@ -496,7 +526,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		userStatistics.WriteComment(req.UserId)
 	}
 	userservice.InvalidateUserPublicProfileCache(req.UserId)
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 
 	// 获取父 post 作者 ID
 	var parentPostAuthorID uint64
@@ -507,9 +537,10 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
 	// 批准后由 ReviewAction 补发对应事件，避免敏感内容在审核前外泄。
 	if !pendingReview {
-		eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{
+		eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
 			TopicId:             topicEntity.Id,
 			PostId:              postEntity.Id,
+			PostNo:              postEntity.PostNo,
 			UserId:              req.UserId,
 			Content:             req.Params.Content,
 			TopicAuthorId:       topicEntity.UserId,
@@ -616,7 +647,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	}
 
 	now := time.Now()
-	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
 		if err := posts.SaveTx(tx, &postEntity); err != nil {
 			return err
 		}
@@ -632,6 +663,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			if err := topics.UpdateFirstPostDerivedTx(tx, &topicEntity); err != nil {
 				return err
 			}
+			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
 		}
 		return nil
 	}); err != nil {
@@ -648,13 +680,10 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
 		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
 		fileusageservice.ReplaceTopic(topicEntity.Id, req.UserId, postEntity.Content)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
-		if _, err := searchservice.BuildSingleTopicSearchDocument(&topicEntity, &postEntity); err != nil {
-			slog.Error("failed to rebuild topic search document", "topicId", topicEntity.Id, "err", err)
-		}
 		if topicEntity.Status == 1 && !pendingReview {
-			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topicEntity, FirstPost: &postEntity})
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topicEntity, FirstPost: &postEntity})
 		}
 	} else {
 		// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
@@ -729,10 +758,10 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 			userStatistics.GivenLike(req.UserId)
 			userservice.InvalidateUserPublicProfileCache(topicEntity.UserId)
 			userservice.InvalidateUserPublicProfileCache(req.UserId)
-			hotdataserve.ClearTopicListCache()
+			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 
 			// 发送点赞事件
-			eventbus.Publish(context.Background(), &eventhandlers.TopicLikedEvent{
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicLikedEvent{
 				UserId:  topicEntity.UserId,
 				TopicId: topicEntity.Id,
 				Title:   topicEntity.Title,
@@ -744,7 +773,7 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 			userStatistics.CancelGivenLike(req.UserId)
 			userservice.InvalidateUserPublicProfileCache(topicEntity.UserId)
 			userservice.InvalidateUserPublicProfileCache(req.UserId)
-			hotdataserve.ClearTopicListCache()
+			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		}
 	}
 	return component.SuccessResponse(true)
@@ -852,9 +881,10 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 			userStatistics.GivenLike(req.UserId)
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
 			userStatistics.LikeTopic(postEntity.UserId)
-			eventbus.Publish(context.Background(), &eventhandlers.PostLikedEvent{
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
+				PostNo:     postEntity.PostNo,
 				TopicId:    postEntity.TopicId,
 				TopicTitle: topicEntity.Title,
 				LikerId:    req.UserId,
@@ -940,7 +970,7 @@ func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
 
 			// 发送关注通知
 			followerUser, _ := req.GetUser()
-			eventbus.Publish(context.Background(), &eventhandlers.UserFollowedEvent{
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.UserFollowedEvent{
 				UserId:       req.Params.Id,
 				FollowerId:   req.UserId,
 				FollowerName: followerUser.Username,

@@ -32,6 +32,18 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+      # 渲染实例 config（production 环境 secrets; GitHub 凭据生产必填）
+      - name: Render main config
+        uses: ./.github/actions/render-config
+        with:
+          env: main
+          signing-key: ${{ secrets.SIGNING_KEY }}
+          pg-dsn: ${{ secrets.PG_DSN }}
+          meili-master-key: ${{ secrets.MEILI_MASTER_KEY }}
+          wiki-webhook-secret: ${{ secrets.WIKI_WEBHOOK_SECRET }}
+          gh-client-id: ${{ secrets.GH_CLIENT_ID }}
+          gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          ai-api-key: ${{ secrets.AI_API_KEY }}
       # 上传到 run-specific 路径, 避免与 deploy-dev 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to prod host
@@ -41,7 +53,17 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
+          strip_components: 2
+      - name: Upload rendered main config to prod host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/rendered/config-main.toml"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
@@ -72,6 +94,7 @@ jobs:
             install -m 0755 "$RUN_DIR/deploy.sh" /opt/yourtj/scripts/deploy.sh
             install -m 0755 "$RUN_DIR/backup-db.sh" /opt/yourtj/scripts/backup-db.sh
             install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
+            install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
             # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
             #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
             if [ -f /opt/yourtj/docker-compose.yaml ]; then
@@ -83,6 +106,10 @@ jobs:
             /opt/yourtj/scripts/backup-db.sh main
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
             #    生产保留更多回滚候选, 镜像保留最近 5 个(含当前) + prev
-            IMAGE_KEEP_N=5 /opt/yourtj/scripts/deploy.sh main main-${{ github.sha }} 5234
+            #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
+            IMAGE_KEEP_N=5 CONFIG_FILE="$RUN_DIR/config-main.toml" \
+              /opt/yourtj/scripts/deploy.sh main main-${{ github.sha }} 5234
             # 3. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
             rm -f /opt/yourtj/docker-compose.yaml.prev
+            # 4. 清理本 run 上传的临时文件(含明文渲染 config)
+            rm -rf "$RUN_DIR"

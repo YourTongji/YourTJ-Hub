@@ -481,6 +481,9 @@ type PostingContent struct {
 		MinTitleLength             int `json:"minTitleLength"`
 		MaxTitleLength             int `json:"maxTitleLength"`
 		NewUserPostCooldownMinutes int `json:"newUserPostCooldownMinutes"`
+		// MaxDailyTopicsPerUser 每用户每日新主题上限（0 = 不限额；负值在读写路径归一为 0）。
+		// 仅约束「新建主题」，编辑/回复不受影响（writeTopic 创建分支使用，issue #369）。
+		MaxDailyTopicsPerUser int `json:"maxDailyTopicsPerUser"`
 	} `json:"textControl"`
 	UploadControl struct {
 		AllowAttachments             bool     `json:"allowAttachments"`
@@ -514,6 +517,26 @@ type RateLimitConfig struct {
 	NewUserCaptchaAfterPosts int             `json:"newUserCaptchaAfterPosts"` // 新用户窗口内连发 N 帖后要求验证码，0 关闭
 	NewUserCaptchaDays       int             `json:"newUserCaptchaDays"`       // 新用户判定窗口（注册 N 天内），0 表示所有用户
 	MinSubmitSeconds         int             `json:"minSubmitSeconds"`         // 验证码提交耗时下限（秒），低于判定为机器
+	actionIndex              map[string]RateLimitRule
+}
+
+// BuildActionIndex prepares the immutable first-match action lookup used by
+// request paths. Duplicate actions keep the existing first-rule-wins behavior.
+func (c *RateLimitConfig) BuildActionIndex() {
+	index := make(map[string]RateLimitRule, len(c.Actions))
+	for _, rule := range c.Actions {
+		if _, exists := index[rule.Action]; !exists {
+			index[rule.Action] = rule
+		}
+	}
+	c.actionIndex = index
+}
+
+// RuleForAction returns a configured action without scanning the rule slice.
+// The index is built at the hot-reload boundary before the config is published.
+func (c RateLimitConfig) RuleForAction(action string) (RateLimitRule, bool) {
+	rule, ok := c.actionIndex[action]
+	return rule, ok
 }
 
 type HttpNotifyConfig struct {

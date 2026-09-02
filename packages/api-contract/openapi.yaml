@@ -46,6 +46,8 @@ tags:
     description: Wiki administration operations restricted to PageManager or Admin accounts.
   - name: PK
     description: 排课模拟器（PK）公开只读端点，统一 {code,msg,data} 信封。
+  - name: Files
+    description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
@@ -422,6 +424,10 @@ paths:
     $ref: ./paths/admin-data.yaml#/adminDownloadExportTask
   /api/admin/data/import:
     $ref: ./paths/admin-data.yaml#/adminImportData
+  /api/admin/data/import/tasks:
+    $ref: ./paths/admin-data.yaml#/adminListImportTasks
+  /api/admin/data/import/tasks/{taskId}/replay:
+    $ref: ./paths/admin-data.yaml#/adminReplayImportTask
   /api/wiki/search:
     get:
       $ref: ./paths/wiki.yaml#/searchWikiSearch/get
@@ -523,6 +529,33 @@ paths:
   /api/forum/moderation/course-stats-rebuild:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseStatsRebuild/post
+  /api/forum/moderation/course-relation-list:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseRelationList/post
+  /api/forum/moderation/course-relation-approve:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseRelationApprove/post
+  /api/forum/moderation/course-relation-ignore:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseRelationIgnore/post
+  /api/forum/moderation/course-relation-create:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseRelationCreate/post
+  /api/forum/moderation/course-merge:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseMerge/post
+  /api/forum/moderation/course-merge-undo:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseMergeUndo/post
+  /file/img-upload/init:
+    post:
+      $ref: ./paths/direct-image-upload.yaml#/initDirectImageUpload/post
+  /file/img-upload/complete:
+    post:
+      $ref: ./paths/direct-image-upload.yaml#/completeDirectImageUpload/post
+  /file/img-upload/abort:
+    post:
+      $ref: ./paths/direct-image-upload.yaml#/abortDirectImageUpload/post
 components:
   securitySchemes:
     bearerAuth:
@@ -957,6 +990,26 @@ components:
       $ref: ./components/schemas.yaml#/AdminReviewUpdateRequest
     AdminReviewDeleteRequest:
       $ref: ./components/schemas.yaml#/AdminReviewDeleteRequest
+    AdminCourseRelationListRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationListRequest
+    AdminCourseRelationItem:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationItem
+    AdminCourseRelationListResult:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationListResult
+    AdminCourseRelationListResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationListResponse
+    AdminCourseRelationActionRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationActionRequest
+    AdminCourseRelationItemResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationItemResponse
+    AdminCourseRelationCreateRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseRelationCreateRequest
+    AdminCourseMergeResult:
+      $ref: ./components/schemas.yaml#/AdminCourseMergeResult
+    AdminCourseMergeResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseMergeResponse
+    RelationItem:
+      $ref: ./components/schemas.yaml#/RelationItem
     AdminTopicsListRequest:
       $ref: ./components/schemas.yaml#/AdminTopicsListRequest
     AdminTopicBase:
@@ -1563,3 +1616,27 @@ components:
       $ref: ./components/schemas.yaml#/WikiAssetCDNStatus
     WikiAssetCDNResponse:
       $ref: ./components/schemas.yaml#/WikiAssetCDNResponse
+    DirectImageUploadInitRequest:
+      $ref: ./components/schemas.yaml#/DirectImageUploadInitRequest
+    DirectImageUploadInitResult:
+      $ref: ./components/schemas.yaml#/DirectImageUploadInitResult
+    DirectUploadInfo:
+      $ref: ./components/schemas.yaml#/DirectUploadInfo
+    DirectImageUploadInitSuccess:
+      $ref: ./components/schemas.yaml#/DirectImageUploadInitSuccess
+    DirectImageUploadInitResponse:
+      $ref: ./components/schemas.yaml#/DirectImageUploadInitResponse
+    DirectImageUploadCompleteRequest:
+      $ref: ./components/schemas.yaml#/DirectImageUploadCompleteRequest
+    DirectImageUploadCompleteResult:
+      $ref: ./components/schemas.yaml#/DirectImageUploadCompleteResult
+    DirectImageUploadCompleteSuccess:
+      $ref: ./components/schemas.yaml#/DirectImageUploadCompleteSuccess
+    DirectImageUploadCompleteResponse:
+      $ref: ./components/schemas.yaml#/DirectImageUploadCompleteResponse
+    DirectImageUploadAbortRequest:
+      $ref: ./components/schemas.yaml#/DirectImageUploadAbortRequest
+    DirectImageUploadAbortSuccess:
+      $ref: ./components/schemas.yaml#/DirectImageUploadAbortSuccess
+    DirectImageUploadAbortResponse:
+      $ref: ./components/schemas.yaml#/DirectImageUploadAbortResponse

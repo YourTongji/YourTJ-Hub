@@ -223,6 +223,14 @@ abstract class CourseDetailPayload with _$CourseDetailPayload {
     double? ratingAvg,
     int? reviewCount,
     List<int>? ratingDistribution,
+    // 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）。
+    String? reviewScope,
+    // 教学团队键；reviewScope=team 时评分聚合为团队读时聚合值。
+    String? teamKey,
+    // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+    List<String>? teamInstructors,
+    // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+    List<String>? legacyNames,
   }) = _CourseDetailPayload;
 
   factory CourseDetailPayload.fromJson(Map<String, dynamic> json) =>

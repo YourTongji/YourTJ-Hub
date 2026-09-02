@@ -20,7 +20,7 @@
   (`ghcr.io/yourtongji/yourtj-hub:<instance>-<sha>`; repo is public, so servers pull anonymously —
   no registry credentials on the server).
 - **Reverse proxy**: public TLS is terminated by the **1Panel reverse proxy** on the host
-  (port 80/443), which proxies `forum.yourtj.de` → `127.0.0.1:5234` (main) and
+  (port 80/443), which proxies `f.yourtj.de` → `127.0.0.1:5234` (main) and
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). There is no nginx container in the compose file;
   backend containers bind `127.0.0.1` only, and only 1Panel/SSH is exposed publicly.
 - **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
@@ -89,7 +89,7 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   不要求 `index.md`；`index.md` 存在时仍是该目录下可直接访问的页面。同步完成后会重算页面
   到最近祖先索引页的 `parent_id`，所以目录新增、移动、删除或恢复不会保留已删除的父引用。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
-  - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Payload URL：`https://f.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致
     （优先管理端 `/admin/wiki` → 同步面板「Webhook 验签密钥」保存，securestore 加密
     落库；也可用旧 `[wiki.git].webhook_secret` 明文配置）
@@ -119,21 +119,21 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 
 ## Server layout (Docker Compose)
 
-```
 /opt/yourtj/
   .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/IMAGE_REPO + POSTGRES_*/MEILI_MASTER_KEY (created by init-server.sh)
   docker-compose.yaml     # main + dev + postgres + meilisearch services (created by init-server.sh)
-  config.toml.example     # template with REPLACE_* placeholders
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, pgdsn.sh
+  config.toml.example     # 人类参考副本（权威模板 = 仓库 deploy/config.toml.tmpl）
+  scripts/                # deploy.sh, apply-config.sh, verify-instance.sh, backup-db.sh, sync-db-from-main.sh, pgdsn.sh …
   main/
-    config.toml           # production config (signingKey, db path) — never in git
+    config.toml           # production config — CI 渲染产物原子下发，禁止人工 SSH 改（漂移守卫告警）
+    .config.sha256        # 最近一次成功下发的 config SHA-256（apply-config/deploy 写入，verify 比对）
     storage/              # file.db + logs (uid 1000); PG 部署时 sqlite.db 不产生
   dev/
-    config.toml           # dev config
+    config.toml           # dev config（同上，CI 下发）
+    .config.sha256
     storage/
   snapshots/
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
-```
 
 ## Branch model & CI/CD
 
@@ -160,7 +160,13 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   workflow → choose bump type.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
-- Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- Config is rendered in CI from `deploy/config.toml.tmpl` + `deploy/instances/<env>.json`
+  + GitHub Environments secrets, and applied to the server as an artifact (`CONFIG_FILE`
+  on image deploys, or the standalone `Apply / instance config` workflow / `config-drift-check`
+  for config-only changes). Config changes therefore ship through PRs (template/instances)
+  and Environments secret updates — never ad-hoc SSH edits on the server. The server records
+  each successful apply's SHA-256 in `<instance>/.config.sha256`; `verify-instance.sh` (drift
+  guard) flags manual edits or out-of-band writes.
 - `sync-db-from-main.sh` hard-fails when `main`/`dev` primary DB modes differ (e.g. main already
   migrated to PG while dev is still SQLite): the sync cannot proceed, and the script refuses to
   stop the dev container in that state (parse-before-stop guarantee, issue #134). During the PG
@@ -172,28 +178,43 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
 
-## GitHub Actions secrets
+## GitHub Actions Environments secrets
 
-| Secret | Value |
-|---|---|
-| `VM_HOST` | server public IP or hostname (`43.108.84.213`) |
-| `VM_USER` | SSH user (`root`) |
-| `VM_SSH_KEY` | PEM private key for that user (full PEM, including `-----BEGIN ...` lines; e.g. `YourTJ_Korean.pem`) |
-| `VM_SSH_PORT` | SSH port (default 22) |
+部署与 config 渲染 secrets 按 GitHub **Environments** 分存：`production`（生产）与 `dev`（测试）。
+Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得该环境 secret 与部署审计时间线。
 
-Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
+| Secret | Environments | 用途 |
+|---|---|---|
+| `VM_HOST` / `VM_USER` / `VM_SSH_KEY` / `VM_SSH_PORT` | both | SSH 到部署机（当前同一台 43.108.84.213） |
+| `PG_DSN` | both | `[db.default].url`（key=value 或 URL DSN；main=your**tj_main**，dev=your**tj_dev**；含库密码，勿外泄） |
+| `SIGNING_KEY` | both | `[app].signingKey`（**必须与现网一致**；轮换即全线登出 + TOTP/重置链接失效） |
+| `MEILI_MASTER_KEY` | both | `[meilisearch].masterkey` |
+| `WIKI_WEBHOOK_SECRET` | both | `[wiki.git].webhook_secret` |
+| `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
+| `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
+| `RELEASE_TOKEN` | repo-level | release-to-main 合并 dev→main 用 PAT |
+
+> 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
+
+设置：`gh secret set <KEY> --env production`（值经管道从服务器读取，勿回显终端/日志）。
+仓库级 VM_* 已迁移到 environments；旧 repo-level 同名 secret 不再被 workflows 引用。
 
 ## First-time server setup
 
 ```bash
 # on the server, as root (or sudo):
 sudo bash /opt/yourtj/scripts/init-server.sh \
-  https://forum.yourtj.de https://dev.yourtj.de
+  https://f.yourtj.de https://dev.yourtj.de
 ```
 
 This creates `/opt/yourtj/{.env,docker-compose.yaml,main,dev}` with randomized signing keys,
 PG/Meili passwords, starts `postgres` + `meilisearch`, and creates the `yourtj_main`/`yourtj_dev`
 databases. The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
+
+**之后**（首次 CI 部署前）：把服务器生成/现网的值回填为 Environments secrets
+（见上表；`init-server.sh` 结尾会打印需回填清单）。config 本身由 CI 渲染下发，服务器
+不再人工生成/维护 `config.toml`；若需在装机阶段本地生成一次，仍可手工跑
+`python3 deploy/render_config.py render --env <env>`（仅本机演练，产物不入库）。
 
 ## Build (local)
 
@@ -209,13 +230,27 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 
 ## DB migration execution and rollback
 
-- Migrations run at startup (`[db] migration = "on"`); append-only upstream style.
-- **Migration failures now abort startup** (since the issue #8 PG fix): if `AutoMigrate` errors,
-  `serve` exits non-zero instead of continuing with a partial schema. This makes deploy.sh's
-  health-check rollback and container restart policies catch schema problems immediately instead of
-  surfacing as runtime API failures (the original issue #8 login/register outage). It also means a
-  deploy with an incompatible schema change will roll back — rehearse on dev (which syncs main's db)
-  before main.
+- Migrations run at service startup behind a **startup gate** (`[db] migration = "on"`, the default):
+  the HTTP listener binds immediately but every request — including `GET /health` — receives
+  `503 Service Unavailable` with `Retry-After: 5` and the loading page until the schema migration
+  (`app/migration` AutoMigrate) and versioned data migrations complete. Only after success does
+  `serve` boot the business services (workers, cron, OAuth/OIDC init, wiki sync) and open the gate.
+- **Migration failures abort startup** (since the issue #8 PG fix, extended by #370): if `AutoMigrate`
+  or any versioned data migration errors, `serve` reports the error, never opens the gate, shuts down
+  gracefully and **exits non-zero**. exit semantics: a hard failure is fatal (non-zero exit, gate never
+  opened); a deferred data migration (e.g. Meilisearch unavailable, or the cross-instance migration
+  lock held by another instance) is non-fatal — the gate opens and the instance serves with degraded
+  state, retrying deferred migrations on the next start. This makes deploy.sh's health-check rollback
+  and container restart policies catch schema problems immediately instead of surfacing as runtime API
+  failures (the original issue #8 login/register outage). It also means a deploy with an incompatible
+  schema change will roll back — rehearse on dev (which syncs main's db) before main.
+- **Standalone `migrate` command**: `./yourtj-hub migrate` runs schema + versioned data migrations
+  explicitly, so a release step can apply them before traffic-bearing instances start. It exits with
+  a non-zero code on a hard migration failure (with an actionable `lastFailed` message), and exits 0
+  with a "deferred / will retry on next run" message for deferred or lock-held states.
+- **`[db] migration = "off"`**: the operator owns schema. `serve` opens the startup gate immediately
+  (readiness is not gated on migration) and the `migrate` command reports migrations are disabled and
+  exits 0.
 - Rollback: `deploy.sh` tags the previous image `ghcr.io/yourtongji/yourtj-hub:prev` and re-points
   the instance on health-check failure; forward-compatible migrations mean an older binary can still start.
 
@@ -400,13 +435,23 @@ instance:
   progress; or run `./bin/yourtj-hub migrate-files --endpoint ... --bucket ... [--clear-after-migrate]`
   on the server. Migration is cursor-driven and resumable; the BLOB column is kept unless
   `--clear-after-migrate` is set, so reads stay correct during/after migration.
+- **帖子图片直传**：配置 S3 提供方后，帖子图片改为浏览器直传——浏览器向
+  `POST /file/img-upload/init` 请求短时效预签名 POST 策略，直接上传到 bucket，再
+  `POST /file/img-upload/complete` 由服务端校验（归属/大小/MIME/解码图片头）后发布；
+  本地提供方保持服务端代理 multipart 上传。bucket 需配置 CORS（精确论坛源 + POST），
+  未完成对象 2 小时后由清理任务移除。详见 [Object storage](object-storage.md)。
 
 ## Data export/import
 
 - Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
   topic_user_stat when selected) as JSON or CSV via a background task, then download;
-  import JSON with a per-row validation report and idempotent skip; topic invariants
-  (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
+  upload JSON (maximum 50 MiB) into a staged background task. The task is checksum-addressed and
+  idempotent; identical uploads reuse the same task. The worker applies all rows and topic
+  invariants (post_seq, first/last post pointers, counts, posters) in one database transaction,
+  so validation failures roll back the batch rather than leaving partial data. Staged files use
+  mode `0600`, are deleted after success, and are retained for an explicit replay after failure.
+  Administrators can inspect `GET /api/admin/data/import/tasks` and replay a failed task with
+  `POST /api/admin/data/import/tasks/:taskId/replay`.
 - Export files are written to `data/export/` inside the storage dir with mode 0600
   (owner-only) and cleaned up after 7 days (daily cron). Export contains user emails —
   treat downloads as sensitive. Export creation and download are recorded in the
@@ -447,9 +492,17 @@ CLI 同步（运维 cron 等自动化场景）：
 # 连同步前 3 个学期（选课季加频/补历史）
 ./bin/yourtj-hub course-pk-sync 121 --depth 3
 
-# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor + 课程搜索 outbox）
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor/offering + 课程搜索 outbox）
 ./bin/yourtj-hub course-pk-sync 121 --materialize
 ```
+
+**物化写源（offering 权威写入源，2026 课程沿革）**：`--materialize` 以排课教学班为粒度
+写入课程目录 offering 行（幂等 upsert，按 `teaching_class_id` 定位），并落库
+`course_instructor.teacher_code`；学期自动创建（`term` 按 calendar_id_i18n 幂等 upsert）。
+物化/导入链路**均不写 `offering.status`**（管理端隐藏的教学班不会被物化复活）。
+历史课评数据包导入（见 `docs/operations/course-import-e2e.md`）保持兼容且从属：
+导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 (term, teaching_class_id)
+唯一索引——先物化后导入时导入器复用已有行（不重复建卡）。
 
 凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
 （设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
@@ -459,6 +512,10 @@ CLI 同步（运维 cron 等自动化场景）：
   # 每日 02:30 同步当前学期
   30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
   ```
+
+应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，
+可在 `config.toml` 设置 `[cron].enabled = false`；该开关只停止应用内 scheduler，
+不会停用 task queue worker 或手动 CLI。
 
 - 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
   续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
@@ -506,7 +563,7 @@ end = "2026-01-18"
 ssh -i ~/Documents/YourTJ_Korean.pem root@43.108.84.213
 mkdir -p /opt/yourtj && cd /opt/yourtj
 # 从仓库拷贝 deploy/ 目录后:
-sudo bash deploy/scripts/init-server.sh https://forum.yourtj.de https://dev.yourtj.de
+sudo bash deploy/scripts/init-server.sh https://f.yourtj.de https://dev.yourtj.de
 ```
 
 这会生成 `/opt/yourtj/{.env,docker-compose.yaml,main/config.toml,dev/config.toml}`，
@@ -572,7 +629,7 @@ scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /
 #   - [db.default] url: host 改为 postgres(compose 服务名), 不要沿用旧机 127.0.0.1
 #   - [server] trusted_proxies: 1Panel 本机回源 → ["127.0.0.1", "::1"]
 #   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
-#   - [server] url: 保持 https://forum.yourtj.de / https://dev.yourtj.de
+#   - [server] url: 保持 https://f.yourtj.de / https://dev.yourtj.de
 install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
 install -m 0644 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
 ```
@@ -587,7 +644,7 @@ IMAGE_KEEP_N=3 bash scripts/deploy.sh dev dev-<latest-sha> 5235
 # 验证
 curl -fsS http://127.0.0.1:5234/health && echo MAIN_OK
 curl -fsS http://127.0.0.1:5235/health && echo DEV_OK
-curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反代
+curl -fsS -H "Host: f.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反代
 ```
 
 ### 5. Cloudflare SSL 模式 + DNS 切换
@@ -597,9 +654,9 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 
 1. **Cloudflare SSL/TLS 模式**：新旧机均由 1Panel 反代终止 TLS（保持与旧机一致的
    模式，如 Full (strict)：Cloudflare → origin 走 HTTPS:443）。论坛容器只监听
    127.0.0.1 回源端口，不直接暴露 80/443。
-2. **DNS**：`forum.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
+2. **DNS**：`f.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
    改为新机 IP（43.108.84.213）。
-3. 等 TTL 过后从外网验证 `https://forum.yourtj.de` 与 `https://dev.yourtj.de` 可达、
+3. 等 TTL 过后从外网验证 `https://f.yourtj.de` 与 `https://dev.yourtj.de` 可达、
    登录/发帖/附件/搜索 spot-check。
 4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
 5. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
@@ -617,6 +674,10 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 
   4. 再切 DNS 回旧机。
   - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
 - Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（ADR-003：索引是可重建投影）。
+- 搜索投影任务采用有界重试；Meilisearch 短时不可用时，`topic-search.*`、
+  `user-search.*` 或 `category-search.*` 任务可能进入 `failed`，不会自动无限重试。
+  Meilisearch 恢复后检查 `task_queue`，并运行 `rebuild-search-index` 做一次全量对账；
+  该命令是运维恢复动作，不依赖旧任务仍处于 pending。
 
 ## Runbooks to write
 

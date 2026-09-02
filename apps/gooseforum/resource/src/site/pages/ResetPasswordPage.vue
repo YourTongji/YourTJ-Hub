@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Check, LoaderCircle, LockKeyhole } from '@lucide/vue'
+import { Check, LoaderCircle } from '@lucide/vue'
 import { resetPassword } from '@/runtime/api'
+import PasswordInput from '@/site/components/PasswordInput.vue'
 import type { LayoutPayload, ResetPasswordPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -77,17 +78,11 @@ async function submit() {
           <form class="space-y-3.5" @submit.prevent="submit">
             <label class="block">
               <span class="sr-only">{{ t('auth.newPassword') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="form.password" type="password" class="gf-input pl-10" :placeholder="t('auth.newPassword')" autocomplete="new-password" />
-              </span>
+              <PasswordInput v-model="form.password" :placeholder="t('auth.newPassword')" autocomplete="new-password" :label="t('auth.newPassword')" />
             </label>
             <label class="block">
               <span class="sr-only">{{ t('auth.confirmPassword') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="form.confirmPassword" type="password" class="gf-input pl-10" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" />
-              </span>
+              <PasswordInput v-model="form.confirmPassword" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" :label="t('auth.confirmPassword')" />
             </label>
             <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="!canSubmit">
               <LoaderCircle v-if="loading" class="h-4 w-4 animate-spin" />

@@ -1,8 +1,9 @@
 package job
 
 import (
-	"errors"
+	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
@@ -17,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/robfig/cron/v3"
@@ -25,10 +27,36 @@ import (
 var scheduler = cron.New(
 	cron.WithLogger(cron.VerbosePrintfLogger(logging.CronLogging{})),
 )
-var running = false
+var (
+	runMu      sync.Mutex
+	running    bool
+	registered bool
+)
 
 func Run() {
-	closer.RegisterPriority(closer.PriorityProducer, Stop)
+	if !preferences.GetBool("cron.enabled", true) {
+		slog.Info("cron disabled", "compensation", "durable workers and explicit operator jobs remain available")
+		return
+	}
+
+	runMu.Lock()
+	defer runMu.Unlock()
+	if running {
+		slog.Debug("cron already running")
+		return
+	}
+	if !registered {
+		closer.RegisterPriorityContext(closer.PriorityProducer, func(ctx context.Context) error {
+			return Stop(ctx)
+		})
+		registerJobs()
+		registered = true
+	}
+	running = true
+	scheduler.Start()
+}
+
+func registerJobs() {
 	slog.Info("start cron")
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
 	entryID, err := scheduler.AddFunc(backupSpec, upCmd(func() {
@@ -98,6 +126,15 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "10 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("17 * * * *", upCmd(func() {
+		// 清理超过 2 小时未完成的直接上传（S3 presigned，issue #366）：
+		// 删除对象与 pending 元数据行，避免中断/过期上传遗留孤儿对象。
+		removed, cleanupErr := storageservice.CleanupPending(context.Background(), time.Now().Add(-2*time.Hour), 500)
+		if cleanupErr != nil || removed > 0 {
+			slog.Info("cleanup pending uploads", "removed", removed, "err", cleanupErr)
+		}
+	}))
+	slog.Info("reg pending upload cleanup", "entryID", entryID, "err", err)
 	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
 	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
 	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")
@@ -107,22 +144,29 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
-	running = true
-	scheduler.Start()
 }
 
-func Stop() error {
+func Stop(parentContexts ...context.Context) error {
+	shutdownCtx := context.Background()
+	if len(parentContexts) > 0 && parentContexts[0] != nil {
+		shutdownCtx = parentContexts[0]
+	}
+
+	runMu.Lock()
 	if !running {
+		runMu.Unlock()
 		return nil
 	}
-	ctx := scheduler.Stop()
+	running = false
+	stopCtx := scheduler.Stop()
+	runMu.Unlock()
+
 	select {
-	case <-ctx.Done():
-		running = false
+	case <-stopCtx.Done():
 		return nil
-	case <-time.After(10 * time.Second):
-		slog.Error("timed out waiting for job to stop")
-		return errors.New("timed out waiting for job to stop")
+	case <-shutdownCtx.Done():
+		slog.Error("timed out waiting for job to stop", "err", shutdownCtx.Err())
+		return shutdownCtx.Err()
 	}
 }
 

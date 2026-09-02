@@ -3067,19 +3067,19 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
             : keyword // ignore: cast_nullable_to_non_nullable
                   as String?,
         department: freezed == department
-            ? _value.department
+            ? _value._department
             : department // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
         term: freezed == term
-            ? _value.term
+            ? _value._term
             : term // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
         campus: freezed == campus
-            ? _value.campus
+            ? _value._campus
             : campus // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
         instructor: freezed == instructor
-            ? _value.instructor
+            ? _value._instructor
             : instructor // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
         onlyWithReviews: freezed == onlyWithReviews
@@ -3857,7 +3857,15 @@ mixin _$CourseDetailPayload {
       throw _privateConstructorUsedError;
   double? get ratingAvg => throw _privateConstructorUsedError;
   int? get reviewCount => throw _privateConstructorUsedError;
-  List<int>? get ratingDistribution => throw _privateConstructorUsedError;
+  List<int>? get ratingDistribution =>
+      throw _privateConstructorUsedError; // 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）。
+  String? get reviewScope =>
+      throw _privateConstructorUsedError; // 教学团队键；reviewScope=team 时评分聚合为团队读时聚合值。
+  String? get teamKey =>
+      throw _privateConstructorUsedError; // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+  List<String>? get teamInstructors =>
+      throw _privateConstructorUsedError; // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+  List<String>? get legacyNames => throw _privateConstructorUsedError;
 
   /// Serializes this CourseDetailPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -3889,6 +3897,10 @@ abstract class $CourseDetailPayloadCopyWith<$Res> {
     double? ratingAvg,
     int? reviewCount,
     List<int>? ratingDistribution,
+    String? reviewScope,
+    String? teamKey,
+    List<String>? teamInstructors,
+    List<String>? legacyNames,
   });
 }
 
@@ -3919,6 +3931,10 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
     Object? ratingAvg = freezed,
     Object? reviewCount = freezed,
     Object? ratingDistribution = freezed,
+    Object? reviewScope = freezed,
+    Object? teamKey = freezed,
+    Object? teamInstructors = freezed,
+    Object? legacyNames = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -3970,6 +3986,22 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
                 ? _value.ratingDistribution
                 : ratingDistribution // ignore: cast_nullable_to_non_nullable
                       as List<int>?,
+            reviewScope: freezed == reviewScope
+                ? _value.reviewScope
+                : reviewScope // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            teamKey: freezed == teamKey
+                ? _value.teamKey
+                : teamKey // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            teamInstructors: freezed == teamInstructors
+                ? _value.teamInstructors
+                : teamInstructors // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            legacyNames: freezed == legacyNames
+                ? _value.legacyNames
+                : legacyNames // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
           )
           as $Val,
     );
@@ -3998,6 +4030,10 @@ abstract class _$$CourseDetailPayloadImplCopyWith<$Res>
     double? ratingAvg,
     int? reviewCount,
     List<int>? ratingDistribution,
+    String? reviewScope,
+    String? teamKey,
+    List<String>? teamInstructors,
+    List<String>? legacyNames,
   });
 }
 
@@ -4027,6 +4063,10 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
     Object? ratingAvg = freezed,
     Object? reviewCount = freezed,
     Object? ratingDistribution = freezed,
+    Object? reviewScope = freezed,
+    Object? teamKey = freezed,
+    Object? teamInstructors = freezed,
+    Object? legacyNames = freezed,
   }) {
     return _then(
       _$CourseDetailPayloadImpl(
@@ -4078,6 +4118,22 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
             ? _value._ratingDistribution
             : ratingDistribution // ignore: cast_nullable_to_non_nullable
                   as List<int>?,
+        reviewScope: freezed == reviewScope
+            ? _value.reviewScope
+            : reviewScope // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        teamKey: freezed == teamKey
+            ? _value.teamKey
+            : teamKey // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        teamInstructors: freezed == teamInstructors
+            ? _value._teamInstructors
+            : teamInstructors // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        legacyNames: freezed == legacyNames
+            ? _value._legacyNames
+            : legacyNames // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
       ),
     );
   }
@@ -4099,9 +4155,15 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     this.ratingAvg,
     this.reviewCount,
     final List<int>? ratingDistribution,
+    this.reviewScope,
+    this.teamKey,
+    final List<String>? teamInstructors,
+    final List<String>? legacyNames,
   }) : _aliases = aliases,
        _offerings = offerings,
-       _ratingDistribution = ratingDistribution;
+       _ratingDistribution = ratingDistribution,
+       _teamInstructors = teamInstructors,
+       _legacyNames = legacyNames;
 
   factory _$CourseDetailPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$CourseDetailPayloadImplFromJson(json);
@@ -4156,9 +4218,39 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     return EqualUnmodifiableListView(value);
   }
 
+  // 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）。
+  @override
+  final String? reviewScope;
+  // 教学团队键；reviewScope=team 时评分聚合为团队读时聚合值。
+  @override
+  final String? teamKey;
+  // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+  final List<String>? _teamInstructors;
+  // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+  @override
+  List<String>? get teamInstructors {
+    final value = _teamInstructors;
+    if (value == null) return null;
+    if (_teamInstructors is EqualUnmodifiableListView) return _teamInstructors;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+  final List<String>? _legacyNames;
+  // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+  @override
+  List<String>? get legacyNames {
+    final value = _legacyNames;
+    if (value == null) return null;
+    if (_legacyNames is EqualUnmodifiableListView) return _legacyNames;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   String toString() {
-    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution)';
+    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution, reviewScope: $reviewScope, teamKey: $teamKey, teamInstructors: $teamInstructors, legacyNames: $legacyNames)';
   }
 
   @override
@@ -4190,6 +4282,17 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
             const DeepCollectionEquality().equals(
               other._ratingDistribution,
               _ratingDistribution,
+            ) &&
+            (identical(other.reviewScope, reviewScope) ||
+                other.reviewScope == reviewScope) &&
+            (identical(other.teamKey, teamKey) || other.teamKey == teamKey) &&
+            const DeepCollectionEquality().equals(
+              other._teamInstructors,
+              _teamInstructors,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._legacyNames,
+              _legacyNames,
             ));
   }
 
@@ -4209,6 +4312,10 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     ratingAvg,
     reviewCount,
     const DeepCollectionEquality().hash(_ratingDistribution),
+    reviewScope,
+    teamKey,
+    const DeepCollectionEquality().hash(_teamInstructors),
+    const DeepCollectionEquality().hash(_legacyNames),
   );
 
   /// Create a copy of CourseDetailPayload
@@ -4242,6 +4349,10 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
     final double? ratingAvg,
     final int? reviewCount,
     final List<int>? ratingDistribution,
+    final String? reviewScope,
+    final String? teamKey,
+    final List<String>? teamInstructors,
+    final List<String>? legacyNames,
   }) = _$CourseDetailPayloadImpl;
 
   factory _CourseDetailPayload.fromJson(Map<String, dynamic> json) =
@@ -4270,7 +4381,15 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
   @override
   int? get reviewCount;
   @override
-  List<int>? get ratingDistribution;
+  List<int>? get ratingDistribution; // 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）。
+  @override
+  String? get reviewScope; // 教学团队键；reviewScope=team 时评分聚合为团队读时聚合值。
+  @override
+  String? get teamKey; // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+  @override
+  List<String>? get teamInstructors; // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+  @override
+  List<String>? get legacyNames;
 
   /// Create a copy of CourseDetailPayload
   /// with the given fields replaced by the non-null parameter values.

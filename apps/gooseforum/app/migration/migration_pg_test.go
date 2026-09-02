@@ -87,6 +87,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
+	assertCourseAggregationSchema(t, db)
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：
@@ -259,6 +260,55 @@ func assertCourseTeacherIdentitySchema(t *testing.T, db *gorm.DB) {
 	}
 	if err := db.Create(&course.Entity{PrimaryCode: "326-pg-no", TeacherId: 3, Name: "PG 无教师旁"}).Error; err != nil {
 		t.Fatalf("insert teacher course alongside no-teacher row: %v", err)
+	}
+}
+
+// assertCourseAggregationSchema 校验课评聚合新增 schema（Blueprint 课评聚合 Phase 1）：
+// course.review_scope/team_key、course_offering.teaching_class_id（partial unique）、
+// course_instructor.teacher_code、course_relations 表；并做行为断言——同 teaching_class_id
+// 重复插入被拦截、0 可多行、relations 唯一约束生效。
+func assertCourseAggregationSchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasColumn(&course.Entity{}, "review_scope") {
+		t.Error("course.review_scope column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&course.Entity{}, "team_key") {
+		t.Error("course.team_key column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&course.OfferingEntity{}, "teaching_class_id") {
+		t.Error("course_offering.teaching_class_id column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&course.InstructorEntity{}, "teacher_code") {
+		t.Error("course_instructor.teacher_code column missing after postgres migration")
+	}
+	if !db.Migrator().HasTable(&course.RelationEntity{}) {
+		t.Error("course_relations table missing after postgres migration")
+	}
+	// 行为断言：同 teaching_class_id 重复插入被拦；0 可多行。
+	if err := db.Create(&course.OfferingEntity{CourseId: 9001, TermId: 1, TeachingClassId: 777001, Status: 0}).Error; err != nil {
+		t.Fatalf("insert offering with teaching_class_id: %v", err)
+	}
+	if err := db.Create(&course.OfferingEntity{CourseId: 9001, TermId: 1, TeachingClassId: 777001, Status: 0}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("duplicate teaching_class_id error = %v, want gorm.ErrDuplicatedKey", err)
+	}
+	if err := db.Create(&course.OfferingEntity{CourseId: 9001, TermId: 1, Status: 0}).Error; err != nil {
+		t.Fatalf("insert first zero teaching_class_id offering: %v", err)
+	}
+	if err := db.Create(&course.OfferingEntity{CourseId: 9001, TermId: 1, Status: 0}).Error; err != nil {
+		t.Fatalf("insert second zero teaching_class_id offering: %v", err)
+	}
+	// 行为断言：relations 唯一约束 (from,to,type)。
+	if err := db.Create(&course.RelationEntity{
+		FromCourseId: 9001, ToCourseId: 9002, RelationType: string(course.RelationEquivalent),
+		Source: course.RelationSourceRule, Status: string(course.RelationStatusPending),
+	}).Error; err != nil {
+		t.Fatalf("insert relation: %v", err)
+	}
+	if err := db.Create(&course.RelationEntity{
+		FromCourseId: 9001, ToCourseId: 9002, RelationType: string(course.RelationEquivalent),
+		Source: course.RelationSourceRule, Status: string(course.RelationStatusPending),
+	}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("duplicate relation error = %v, want gorm.ErrDuplicatedKey", err)
 	}
 }
 func assertPointsSourceKeySchema(t *testing.T, db *gorm.DB) {

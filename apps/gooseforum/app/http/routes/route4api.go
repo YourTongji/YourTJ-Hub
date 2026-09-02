@@ -294,6 +294,12 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/course-review-edit", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewUpdate))
 	forumLoginApi.POST("moderation/course-review-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewDelete))
 	forumLoginApi.POST("moderation/course-stats-rebuild", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseStatsRebuild))
+	forumLoginApi.POST("moderation/course-relation-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminCourseRelationList))
+	forumLoginApi.POST("moderation/course-relation-approve", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationApprove))
+	forumLoginApi.POST("moderation/course-relation-ignore", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationIgnore))
+	forumLoginApi.POST("moderation/course-relation-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationCreate))
+	forumLoginApi.POST("moderation/course-merge", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMerge))
+	forumLoginApi.POST("moderation/course-merge-undo", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMergeUndo))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))
@@ -426,6 +432,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("data/export/tasks", UpButterReq(api.ListExportTasks)).
 		GET("data/export/download/:taskId", api.DownloadExportTask).
 		POST("data/import", api.ImportData).
+		GET("data/import/tasks", UpButterReq(api.ListImportTasks)).
+		POST("data/import/tasks/:taskId/replay", UpUriReq(api.ReplayImportTask)).
 		POST("review-queue", UpButterReq(api.ReviewQueue)).
 		POST("review-action", UpButterReq(api.ReviewAction))
 
@@ -434,5 +442,8 @@ func apiRoute(ginApp *gin.Engine) {
 func fileServer(ginApp *gin.Engine) {
 	r := ginApp.Group("file")
 	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.SaveImgByGinContext)
+	r.POST("/img-upload/init", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.InitDirectImageUpload)
+	r.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)
+	r.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.AbortDirectImageUpload)
 	r.GET("/img/*filename", api.GetFileByFileName)
 }

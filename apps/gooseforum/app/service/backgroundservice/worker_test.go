@@ -102,7 +102,7 @@ func TestProcessTaskRetryThenFail(t *testing.T) {
 	}
 
 	// 第一次：失败 → 进入重试
-	if !processTask(make(chan struct{}), "export", task, handler) {
+	if !processTask(context.Background(), "export", task, handler) {
 		t.Fatal("processTask returned stop=true on first attempt, want continue")
 	}
 	updated := mustGetTask(t, task.Id)
@@ -114,7 +114,7 @@ func TestProcessTaskRetryThenFail(t *testing.T) {
 	}
 
 	// 第二次：成功 → 标记成功
-	if !processTask(make(chan struct{}), "export", task, handler) {
+	if !processTask(context.Background(), "export", task, handler) {
 		t.Fatal("processTask returned stop=true on success, want continue")
 	}
 	updated = mustGetTask(t, task.Id)
@@ -142,7 +142,6 @@ func TestClaimTaskAtomicity(t *testing.T) {
 	if err := taskQueue.Create(task); err != nil {
 		t.Fatalf("create task: %v", err)
 	}
-
 
 	const workers = 8
 	var claimed atomic.Int32
@@ -195,7 +194,7 @@ func TestProcessTaskConcurrentSingleExecution(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			processTask(make(chan struct{}), "export", task, handler)
+			processTask(context.Background(), "export", task, handler)
 		}()
 	}
 	wg.Wait()
@@ -243,7 +242,7 @@ func TestProcessTaskWritesExportProgressThroughRealChain(t *testing.T) {
 	}
 
 	// 真实 worker 链路：processTask 内部 ClaimTask → handler(&running)
-	if !processTask(make(chan struct{}), dataservice.TaskTypeExport, task, dataservice.RunExportTask) {
+	if !processTask(context.Background(), dataservice.TaskTypeExport, task, dataservice.RunExportTask) {
 		t.Fatal("processTask returned stop=true, want continue")
 	}
 
@@ -575,7 +574,7 @@ func TestProcessTaskStatusFailedAfterMaxRetries(t *testing.T) {
 	}
 
 	start := time.Now()
-	if !processTask(make(chan struct{}), "export", task, handler) {
+	if !processTask(context.Background(), "export", task, handler) {
 		t.Fatal("processTask returned stop=true, want continue")
 	}
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
@@ -664,10 +663,9 @@ func TestProcessTaskCleanupRetryThenFail(t *testing.T) {
 		t.Fatalf("create task: %v", err)
 	}
 
-
 	for i := 1; i <= maxRetries; i++ {
 		reload := mustGetTask(t, task.Id)
-		if !processTask(make(chan struct{}), "course-review-cleanup", &reload, courseservice.RunCleanupTask) {
+		if !processTask(context.Background(), "course-review-cleanup", &reload, courseservice.RunCleanupTask) {
 			t.Fatalf("processTask attempt %d returned stop=true, want continue", i)
 		}
 		updated := mustGetTask(t, task.Id)
@@ -684,7 +682,7 @@ func TestProcessTaskCleanupRetryThenFail(t *testing.T) {
 
 	// 第 4 次（超过 maxRetries）：failed + LastError
 	reload := mustGetTask(t, task.Id)
-	processTask(make(chan struct{}), "course-review-cleanup", &reload, courseservice.RunCleanupTask)
+	processTask(context.Background(), "course-review-cleanup", &reload, courseservice.RunCleanupTask)
 	updated := mustGetTask(t, task.Id)
 	if updated.Status != taskQueue.StatusFailed {
 		t.Fatalf("final status = %d, want %d (failed)", updated.Status, taskQueue.StatusFailed)

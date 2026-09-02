@@ -167,7 +167,7 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 	}
 
 	// 删除立即生效：全渠道清除 + 通知预览置空 + 附件转入受限恢复态。
-	clearTopicCaches(topic.Id)
+	clearTopicCaches(topic.Id, topic.CategoryIds...)
 	notificationservice.NullifyContentPreviews(topic.Id, 0)
 	fileusageservice.HardenTargetFiles(topicsTarget(topic.Id), time.Now().Add(RecoveryWindow))
 	eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{
@@ -209,8 +209,8 @@ func markTopicDeleted(topicID uint64, visibility string, operatorID uint64, reas
 	}
 }
 
-func clearTopicCaches(topicID uint64) {
-	hotdataserve.ClearTopicListCache()
+func clearTopicCaches(topicID uint64, categoryIDs ...uint64) {
+	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	llmsservice.ClearCache()
 	slog.Debug("topic delete caches cleared", "topicId", topicID)
 }
@@ -275,7 +275,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, post, true)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
@@ -339,7 +339,7 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, post, true)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
 	notificationservice.NullifyContentPreviews(post.TopicId, postID)
@@ -371,9 +371,8 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		}
 		restoreTopicPosts(topic.Id, userID)
 		restoreWikiTopicPages(topic)
-		rebuildTopicSearchIndex(contentID)
 		fileusageservice.RecoverTargetFiles(topicsTarget(contentID))
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		llmsservice.ClearCache()
 		eventbus.Publish(context.Background(), &eventhandlers.ContentRestoredEvent{
 			ContentType: string(ContentTypeTopic),
@@ -413,7 +412,7 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 			if err := posts.ListByTopicID(topicEntity.Id, &activePosts); err == nil {
 				_ = postservice.RebuildTopicPostStats(topicEntity, activePosts)
 			}
-			hotdataserve.ClearTopicListCache()
+			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 			llmsservice.ClearCache()
 		}
 		fileusageservice.RecoverTargetFiles(postsTarget(post.Id))
@@ -523,9 +522,8 @@ func RestoreTopicAsModerator(moderatorID uint64, topicID uint64) error {
 	}
 	restoreModeratorRemovedTopicPosts(topic, moderatorID)
 	restoreWikiTopicPages(topic)
-	rebuildTopicSearchIndex(topicID)
 	fileusageservice.RecoverTargetFiles(topicsTarget(topicID))
-	hotdataserve.ClearTopicListCache()
+	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	llmsservice.ClearCache()
 	eventbus.Publish(context.Background(), &eventhandlers.ContentRestoredEvent{
 		ContentType: string(ContentTypeTopic),
@@ -565,17 +563,6 @@ func restoreModeratorRemovedTopicPosts(topic topics.Entity, moderatorID uint64) 
 
 func topicDeleteCascadeReason(topicID uint64) string {
 	return "topic_delete:" + fmt.Sprint(topicID)
-}
-
-func rebuildTopicSearchIndex(topicID uint64) {
-	topic := topics.Get(topicID)
-	if topic.Id == 0 {
-		return
-	}
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to rebuild topic search document after restore", "topicId", topicID, "err", err)
-	}
 }
 
 // PurgeContent 永久删除（R4）：置 PURGED、清理附件引用、通知预览置空。
@@ -633,7 +620,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
-			hotdataserve.ClearTopicListCache()
+			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 			llmsservice.ClearCache()
 		}
 		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{
@@ -806,7 +793,7 @@ func ExpireRecoverableBatch(limit int) error {
 		purgeTopicPosts(topic.Id, topic.UserId)
 		fileusageservice.PurgeTargetFiles(topicsTarget(topic.Id))
 		notificationservice.NullifyContentPreviews(topic.Id, 0)
-		hotdataserve.ClearTopicListCache()
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		llmsservice.ClearCache()
 		slog.Info("retention: topic purged after recovery window", "topicId", topic.Id)
 	}

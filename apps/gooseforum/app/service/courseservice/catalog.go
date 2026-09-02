@@ -45,6 +45,9 @@ type OfferingSummary struct {
 }
 
 // CourseDetail 课程详情页数据（B1：携带评分聚合与分布）。
+// ReviewScope 三档课评范围（teacher 默认 / team 团队聚合 / course 课程级）；
+// TeamKey 非空且 scope=team 时 RatingAvg/ReviewCount/RatingDistribution 为团队读时聚合值，
+// TeamInstructors 为团队全部卡的教师名单。LegacyNames 为合并/确认沿革的旧名（原名标注）。
 type CourseDetail struct {
 	Id          uint64            `json:"id"`
 	PrimaryCode string            `json:"primaryCode"`
@@ -60,6 +63,13 @@ type CourseDetail struct {
 	// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星）；
 	// 无评价时省略（security F4：定长数组 omitempty 无效，改用指针）。
 	RatingDistribution *course.RatingDistribution `json:"ratingDistribution,omitempty"`
+	// ReviewScope/TeamKey 课评范围三档（teacher/team/course）；team 档读时聚合。
+	ReviewScope string `json:"reviewScope,omitempty"`
+	TeamKey     string `json:"teamKey,omitempty"`
+	// TeamInstructors team 档：团队全部卡的去重教师名单（"教学团队 · 张三、李四等 N 位教师"）。
+	TeamInstructors []string `json:"teamInstructors,omitempty"`
+	// LegacyNames 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的 from 卡名称。
+	LegacyNames []string `json:"legacyNames,omitempty"`
 }
 
 // ratingAvgPtrFromStats 由统计投影计算均分：无评分（ratingCount==0）时返回 nil。
@@ -234,6 +244,8 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 		d := dist
 		detail.RatingDistribution = &d
 	}
+	// review_scope 三档 + 原名标注 + team 读时聚合（在单卡统计之后填充，team 档覆盖单卡值）。
+	enrichCourseDetailScope(&detail, entity)
 	if len(offerings) == 0 {
 		return detail, nil
 	}
@@ -406,4 +418,106 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 		summaries = append(summaries, s)
 	}
 	return summaries, nil
+}
+
+// enrichCourseDetailScope 填充详情页课评范围三档与原名标注：
+//   - review_scope/team_key 透传；
+//   - legacyNames：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的 from 卡名称（原名标注，
+//     依赖 relations 而非 alias——alias 迁移失败时原名标注仍可靠）；
+//   - team 档：按 team_key 读时聚合团队全部可见卡的统计（review_count/均分/分布）与教师名单，
+//     覆盖单卡统计（团队目标是评价主体）。
+//
+// team 聚合失败不阻断详情页：统计保持单卡值（读时聚合是可回退的增强，非硬依赖）。
+func enrichCourseDetailScope(detail *CourseDetail, entity course.Entity) {
+	detail.ReviewScope = entity.ReviewScope
+	detail.TeamKey = entity.TeamKey
+
+	// 原名标注：指向本卡、类型 EQUIVALENT/RENAMED_FROM、状态 approved/merged 的 from 卡名称。
+	relations, err := course.ListRelationsByToCourse(entity.Id, []string{
+		string(course.RelationStatusApproved),
+		string(course.RelationStatusMerged),
+	})
+	if err == nil && len(relations) > 0 {
+		var fromIds []uint64
+		for _, r := range relations {
+			if r.RelationType == string(course.RelationEquivalent) || r.RelationType == string(course.RelationRenamed) {
+				fromIds = append(fromIds, r.FromCourseId)
+			}
+		}
+		if len(fromIds) > 0 {
+			for _, c := range course.GetMapByIds(fromIds) {
+				if c.Name != "" {
+					detail.LegacyNames = append(detail.LegacyNames, c.Name)
+				}
+			}
+		}
+	}
+
+	// team 档读时聚合（仅 scope=team 且 team_key 非空）。
+	if entity.ReviewScope != ReviewScopeTeam || entity.TeamKey == "" {
+		return
+	}
+	teammates, err := course.ListVisibleCoursesByTeamKey(entity.TeamKey, entity.Id)
+	if err != nil || len(teammates) == 0 {
+		return
+	}
+	ids := make([]uint64, 0, len(teammates)+1)
+	ids = append(ids, entity.Id)
+	for _, t := range teammates {
+		ids = append(ids, t.Id)
+	}
+	statsMap := course.ListCourseStatsByIDs(ids)
+	var reviewCount int
+	var ratingCount, ratingSum int
+	for _, id := range ids {
+		if s, ok := statsMap[id]; ok {
+			reviewCount += s.ReviewCount
+			ratingCount += s.RatingCount
+			ratingSum += s.RatingSum
+		}
+	}
+	// 团队分布 = 各卡 1-5 星分布求和（一次批量查询）。
+	var dist course.RatingDistribution
+	for _, id := range ids {
+		if d, ok := course.GetRatingDistributionsByCourseIds([]uint64{id})[id]; ok {
+			for i := 0; i < 5; i++ {
+				dist[i] += d[i]
+			}
+		}
+	}
+	detail.ReviewCount = reviewCount
+	detail.RatingAvg = ratingAvgPtrFromStats(ratingCount, ratingSum)
+	if dist != (course.RatingDistribution{}) {
+		d := dist
+		detail.RatingDistribution = &d
+	}
+	// 团队教师名单：全部卡的身份教师 + offering 教师（去重）。
+	seen := map[string]struct{}{}
+	var names []string
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	var teacherIds []uint64
+	for _, t := range append([]course.Entity{entity}, teammates...) {
+		if t.TeacherId != 0 {
+			teacherIds = append(teacherIds, t.TeacherId)
+		}
+	}
+	if len(teacherIds) > 0 {
+		if teachers, err := course.ListInstructorsByIDs(teacherIds); err == nil {
+			for _, t := range teachers {
+				add(t.Name)
+			}
+		}
+	}
+	if len(names) > 0 {
+		detail.TeamInstructors = names
+	}
 }

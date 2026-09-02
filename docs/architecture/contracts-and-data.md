@@ -156,6 +156,21 @@ complete operation coverage and the precondition for such a gate is met.
   rendered Wiki Markdown, and the `wiki_pages` Meilisearch index is rebuilt from the database or
   incrementally replaced per page. Public search applies the page visibility boundary both in the
   index filter and in the service aggregation defense check.
+- Course aggregation & lineage (2026 课程沿革): `course.review_scope`（teacher/team/course 三档）
+  与 `course.team_key`（教学团队键）驱动课评聚合口径——team 档在详情读取时按团队全部卡
+  实时聚合评分/分布/教师名单（无独立投影表）；`offering.teaching_class_id` 与 `term` 构成
+  唯一索引，是排课物化与历史数据包导入共享的 offering 定位键（物化为权威写入源，导入
+  从属复用；两源均不写 `offering.status`）；`instructor.teacher_code` 落库工号供规则引擎
+  跨学期匹配。`course_relations` 沿革表（from_course_id → to_course_id，relation_type
+  EQUIVALENT/RENAMED_FROM/SPLIT_FROM/MERGED_FROM/RELATED，source rule/manual，status
+  pending/approved/ignored/merged，evidence_json 证据快照；同 (from,to,type) 唯一）只表达
+  语义、不参与课程身份。人工确认等价（EQUIVALENT/RENAMED_FROM）后 `MergeCourses` 物理
+  合并：offering（评价/教师关联随行零丢失）与别名（冲突跳过并记录）迁移到 to 卡、from 卡
+  隐藏、evidence_json 写入合并快照（`UndoMergeCourse` 按快照反向迁移恢复）；合并/撤销/审核
+  均写 `opt_record` 审计。候选由确定性规则引擎 `courseservice/lineage`（R1-R5，
+  `course-lineage-scan` CLI dry-run 输出）或管理端手动创建，审核面板
+  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）批准/
+  忽略/合并/撤销。
 
 ## Task queue & background workers
 
@@ -163,7 +178,9 @@ complete operation coverage and the precondition for such a gate is met.
   across handlers:
   - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
   - `export` (data export)
+  - `import` (staged, checksum-addressed JSON import)
   - `file-migrate` (BLOB → object storage migration)
+  - `topic-search.*`, `user-search.*`, `category-search.*`, and `course-search.*` (search projections)
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
   the same task simultaneously from the queue's perspective. Each claim generates a fresh,
@@ -181,6 +198,16 @@ complete operation coverage and the precondition for such a gate is met.
   only prevents the stale worker from writing terminal state over the new owner.
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
+- Import requests are bounded at 50 MiB and staged with mode `0600`; the task payload stores only the
+  filename, format, and SHA-256. The worker rechecks the digest, runs row validation and invariant
+  rebuilding in one transaction, and keeps the source file on failure. `POST
+  /api/admin/data/import/tasks/{taskId}/replay` resets a failed task after the operator has fixed the
+  cause. Identical uploads reuse the same task instead of overwriting a failed task's source.
+- Search projection rows are transaction-bound for the main topic/category/wiki write paths. User
+  profile, likes/follows, and content delete/restore event paths enqueue after the business commit;
+  they therefore have a short crash window but remain idempotent, retryable, and rebuildable. A
+  worker re-reads current database state before upserting or deleting the external document, so an
+  unavailable Meilisearch instance only delays a rebuildable projection.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
 
 ## Config-driven features (pageConfig)
