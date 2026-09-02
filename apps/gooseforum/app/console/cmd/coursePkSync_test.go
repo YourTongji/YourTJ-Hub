@@ -69,3 +69,19 @@ func TestCoursePkSyncCommandRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestCourseMaterializeCommandRegistered(t *testing.T) {
+	var cmd *cobra.Command
+	for _, c := range GetCommands() {
+		if strings.HasPrefix(c.Use, "course-materialize") {
+			cmd = c
+			break
+		}
+	}
+	if cmd == nil {
+		t.Fatal("course-materialize command not registered")
+	}
+	if !strings.Contains(cmd.Short+cmd.Long, "无需一系统 cookie") {
+		t.Errorf("course-materialize 说明应注明纯本地物化语义（不依赖 cookie）")
+	}
+}

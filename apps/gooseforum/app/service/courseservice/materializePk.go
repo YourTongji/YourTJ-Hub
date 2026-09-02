@@ -475,10 +475,16 @@ func resolveOfferingTermIdTx(tx *gorm.DB, calendarId uint64, termCache map[uint6
 	}
 	termId := uint64(0)
 	// calendar 存在但无学期码（i18n 为空）：合法"无学期码"情形，保持 term_id=0。
+	// 学期码先规范化（"2026-2027学年第1学期" → "2026-2027-1"）：course_term.code
+	// 是标准码，直接拿一系统中文学期名创建会生成垃圾学期行并改写存量 offering 的 term_id。
 	if i18n := strings.TrimSpace(cal.CalendarIdI18n); i18n != "" {
-		term, err := getOrCreateTermTx(tx, i18n)
+		code := course.NormalizeTermLabel(i18n)
+		if code == "" {
+			code = i18n
+		}
+		term, err := getOrCreateTermTx(tx, code)
 		if err != nil {
-			return 0, fmt.Errorf("materialize: resolve term %q: %w", i18n, err)
+			return 0, fmt.Errorf("materialize: resolve term %q: %w", code, err)
 		}
 		termId = term.Id
 	}

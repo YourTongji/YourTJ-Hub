@@ -675,3 +675,53 @@ func TestImportReusesMaterializedOffering(t *testing.T) {
 		t.Errorf("source_ref local_id = %d, want %d", ref.LocalId, materializedOffering.Id)
 	}
 }
+
+// TestMaterializeFromPkNormalizesChineseTermLabel 生产场景回归：一系统 calendar 的
+// calendar_id_i18n 是中文标记（"2026-2027学年第1学期"），而 course_term.code 是标准码
+// （"2026-2027-1"）。物化必须规范化后按标准码查找/创建学期——修复前直接拿中文标记
+// 创建 course_term 垃圾行，并把存量 offering 的 term_id 改写过去（目录学期筛选断裂）。
+func TestMaterializeFromPkNormalizesChineseTermLabel(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+	// 标准学期行已存在（目录 8/21 导入基线）；calendar 用一系统真实中文标记。
+	term := course.TermEntity{Code: "2026-2027-1", Name: "2026-2027 第一学期", Status: 0}
+	if err := conn.Create(&term).Error; err != nil {
+		t.Fatalf("seed standard term: %v", err)
+	}
+	if err := conn.Model(&pk.CalendarEntity{}).Where("calendar_id = ?", 1).
+		Update("calendar_id_i18n", "2026-2027学年第1学期").Error; err != nil {
+		t.Fatalf("set calendar i18n: %v", err)
+	}
+
+	report, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	if report.OfferingsInserted != 1 {
+		t.Fatalf("offeringsInserted = %d, want 1", report.OfferingsInserted)
+	}
+	// offering 挂到标准学期行，而不是新建的中文标记垃圾学期。
+	var offering course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&offering).Error; err != nil {
+		t.Fatalf("find offering: %v", err)
+	}
+	if offering.TermId != term.Id {
+		t.Errorf("offering term_id = %d, want %d（标准学期 2026-2027-1）", offering.TermId, term.Id)
+	}
+	// course_term 不得出现中文标记垃圾行（唯一约束下也不会出现第二行标准码）。
+	var totalTerms int64
+	if err := conn.Model(&course.TermEntity{}).Count(&totalTerms).Error; err != nil {
+		t.Fatalf("count terms: %v", err)
+	}
+	if totalTerms != 1 {
+		t.Errorf("terms = %d, want 1（不得创建中文标记垃圾学期行）", totalTerms)
+	}
+	var junk int64
+	if err := conn.Model(&course.TermEntity{}).Where("code LIKE ?", "%学年第%").Count(&junk).Error; err != nil {
+		t.Fatalf("count junk terms: %v", err)
+	}
+	if junk != 0 {
+		t.Errorf("junk chinese-label terms = %d, want 0", junk)
+	}
+}
