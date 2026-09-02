@@ -15,6 +15,23 @@ describe('parseImportText 批量粘贴解析', () => {
     })
   })
 
+  test('顿号分隔：、与换行/逗号/分号/全角符号混排均可拆分', () => {
+    const result = parseImportText('甲、乙\n丙,丁；戊、己，庚', [])
+    expect(result).toEqual({
+      added: ['甲', '乙', '丙', '丁', '戊', '己', '庚'],
+      skipped: 0,
+      truncated: false,
+    })
+  })
+
+  test('顿号分隔：去空与大小写不敏感去重行为一致，保留首个形态', () => {
+    const existing = ['Admin']
+    const result = parseImportText('Alice、admin、alice、 Bob 、、c', existing)
+    expect(result.added).toEqual(['Alice', 'Bob', 'c'])
+    expect(result.skipped).toBe(2)
+    expect(result.truncated).toBe(false)
+  })
+
   test('去空：连续分隔符、纯空白行不产生条目', () => {
     const result = parseImportText('\n  , ; ，；\t\nAlice,,Bob;;\n\nCharlie   \n', [])
     expect(result.added).toEqual(['Alice', 'Bob', 'Charlie'])
@@ -89,6 +106,14 @@ describe('parseImportText 批量粘贴解析', () => {
     const result = parseImportText('  Alice  \n  bob ', [])
     expect(result.added).toEqual(['Alice', 'bob'])
     expect(result.added[0]).toBe('Alice')
+  })
+
+  test('顿号与全角逗号分隔：与既有大小写变体去重，trim 生效', () => {
+    const existing = ['alice', 'root']
+    const result = parseImportText(' Bob 、ALICE、bob、root、  Carol  、carol', existing)
+    expect(result.added).toEqual(['Bob', 'Carol'])
+    expect(result.skipped).toBe(4)
+    expect(result.truncated).toBe(false)
   })
 
   test('重复出现在截断丢弃段不影响结果', () => {

@@ -8,8 +8,8 @@ export const BULK_IMPORT_LIMIT = 10_000
 /** 弹层预览区最多渲染的新增 chips 数，超出部分只显示计数提示。 */
 export const BULK_IMPORT_PREVIEW_LIMIT = 200
 
-/** 条目分隔符：换行与空白、半角/全角逗号、分号。 */
-const IMPORT_SEPARATOR_RE = /[\s,;，；]+/
+/** 条目分隔符：换行与空白、半角/全角逗号、顿号、分号。 */
+const IMPORT_SEPARATOR_RE = /[\s,;，；、]+/
 
 export interface BulkImportPreview {
   /** 按输入顺序去重后的新增条目：trim 后的原串，保留首个大小写形态（与现有 chips 显示一致）。 */
@@ -22,7 +22,7 @@ export interface BulkImportPreview {
 
 /**
  * 解析批量粘贴文本。
- * @param text 粘贴的原始文本，条目可用换行/空白/逗号/分号分隔。
+ * @param text 粘贴的原始文本，条目可用换行/空白/逗号/顿号/分号分隔。
  * @param existing 当前列表，视为已 trim 的字符串集合；去重对大小写不敏感（用户名场景）。
  */
 export function parseImportText(text: string, existing: string[]): BulkImportPreview {
