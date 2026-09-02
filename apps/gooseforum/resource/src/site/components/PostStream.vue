@@ -1910,7 +1910,7 @@ function lastEditedLabel(post: PostPayload) {
             <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
               {{ t('topic.hiddenReplyPlaceholder') }}
             </div>
-            <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
+            <div v-else v-code-copy v-code-highlight v-math-render v-content-enhancements class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
             <div v-if="group.root.isHidden && !isPostRemoved(group.root) && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
               {{ t('topic.hiddenReplyBadge') }}
             </div>
@@ -2033,7 +2033,7 @@ function lastEditedLabel(post: PostPayload) {
                 <div v-else-if="reply.isHidden && !reply.canModerate" class="mt-2 rounded border border-line bg-base-100 px-3 py-2 text-sm text-base-content/45">
                   {{ t('topic.hiddenReplyPlaceholder') }}
                 </div>
-                <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2" v-html="reply.renderedContent" />
+                <div v-else v-code-copy v-code-highlight v-math-render v-content-enhancements class="gf-prose gf-prose-post mt-2" v-html="reply.renderedContent" />
                 <div v-if="reply.isHidden && !isPostRemoved(reply) && reply.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                   {{ t('topic.hiddenReplyBadge') }}
                 </div>
@@ -2664,7 +2664,7 @@ function lastEditedLabel(post: PostPayload) {
                       {{ t('topic.historyPending') }}
                     </span>
                   </div>
-                  <div v-if="version.content" v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2 border-t border-line/70 pt-2" v-html="version.renderedHTML" />
+                  <div v-if="version.content" v-code-copy v-code-highlight v-math-render v-content-enhancements class="gf-prose gf-prose-post mt-2 border-t border-line/70 pt-2" v-html="version.renderedHTML" />
                   <p v-else class="mt-2 border-t border-line/70 pt-2 text-xs text-base-content/45">
                     {{ version.processStatus !== 0 ? t('topic.historyPendingPlaceholder') : t('topic.historyContentEmpty') }}
                   </p>

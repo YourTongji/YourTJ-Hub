@@ -88,6 +88,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
           v-code-copy
           v-code-highlight
           v-math-render
+          v-content-enhancements
           v-html="target.renderedContent"
         />
       </div>

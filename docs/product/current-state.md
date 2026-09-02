@@ -10,7 +10,8 @@
 
 ## What works
 
-- **Feature coverage**: Markdown topics/replies, categories, notifications, direct messages, drafts,
+- **Feature coverage**: Markdown topics/replies with client-side Mermaid diagram
+  rendering, categories, notifications, direct messages, drafts,
   RBAC moderation, admin panel, theme workbench, i18n (en/zh/ja/it), GitHub OAuth + built-in
   OIDC Provider (PKCE), TOTP 2FA + recovery codes, session management (jti + user_sessions, per-session revoke),
   scheduled SQLite backup, slow-SQL logging, aggregate search (topics/users/categories with scope
