@@ -791,6 +791,8 @@ const postGroups = computed<NestedPostGroup[]>(() => {
 
 // For Q&A topics, separate answers from comments
 const isQuestionTopic = computed(() => props.contentType === 1)
+// Blog-like content types (Articles and Thoughts) - no replies, different layout
+const isBlogLikeTopic = computed(() => props.contentType === 2 || props.contentType === 3)
 
 const answerGroups = computed<NestedPostGroup[]>(() => {
   if (!isQuestionTopic.value) return []
@@ -1936,7 +1938,7 @@ function lastEditedLabel(post: PostPayload) {
             <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
               {{ t('topic.hiddenReplyPlaceholder') }}
             </div>
-            <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
+            <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" :class="{ 'gf-prose-article': isBlogLikeTopic && isFirstPost(group.root), 'gf-prose-thought': props.contentType === 2 && isFirstPost(group.root) }" v-html="group.root.renderedContent" />
             <div v-if="group.root.isHidden && !isPostRemoved(group.root) && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
               {{ t('topic.hiddenReplyBadge') }}
             </div>
@@ -2257,7 +2259,7 @@ function lastEditedLabel(post: PostPayload) {
               <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
                 {{ t('topic.hiddenReplyPlaceholder') }}
               </div>
-              <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
+              <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" :class="{ 'gf-prose-article': isBlogLikeTopic && isFirstPost(group.root), 'gf-prose-thought': props.contentType === 2 && isFirstPost(group.root) }" v-html="group.root.renderedContent" />
               <div v-if="!group.root.lastEditedAt && group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
                 {{ t('topic.editedAt', { time: formatDateTime(group.root.updatedAt) }) }}
               </div>
@@ -2268,7 +2270,7 @@ function lastEditedLabel(post: PostPayload) {
           </div>
         </div>
 
-        <div v-if="postHasAfter || loadingPostDirection === 'after' || postWindowError || (!postHasAfter && posts.length)" ref="postLoadMoreEl" class="relative border-t border-line px-4 py-3 text-center xl:border-t-transparent">
+        <div v-if="(postHasAfter || loadingPostDirection === 'after' || postWindowError || (!postHasAfter && posts.length)) && !isBlogLikeTopic" ref="postLoadMoreEl" class="relative border-t border-line px-4 py-3 text-center xl:border-t-transparent">
           <div class="pointer-events-none absolute left-5 right-5 top-0 hidden border-t border-line xl:block" aria-hidden="true" />
           <button
             v-if="postHasAfter && postWindowError"
@@ -2299,7 +2301,7 @@ function lastEditedLabel(post: PostPayload) {
         <span class="block h-px scroll-mb-28" aria-hidden="true" />
       </div>
 
-      <aside v-if="hasAside" class="hidden min-w-0 xl:block">
+      <aside v-if="hasAside && !isBlogLikeTopic" class="hidden min-w-0 xl:block">
         <slot name="aside">
           <div v-if="topicActions" class="sticky top-19">
             <div class="px-4 py-4">
@@ -2365,6 +2367,7 @@ function lastEditedLabel(post: PostPayload) {
   </section>
 
   <TopicFloatingControls
+    v-if="topicActions && !isBlogLikeTopic"
     v-model:mobile-rail-open="mobilePostRailOpen"
     :open="composerOpen"
     :actions="floatingTopicActions"
@@ -2386,8 +2389,9 @@ function lastEditedLabel(post: PostPayload) {
     @select-rail="selectPostFromRail"
   />
 
+  <!-- Reply composer - hidden for Articles and Thoughts -->
   <PostComposer
-    v-if="composerMounted"
+    v-if="composerMounted && !isBlogLikeTopic"
     v-model="postContent"
     v-model:captcha-code="captchaCode"
     :open="composerOpen"
@@ -2832,3 +2836,70 @@ function lastEditedLabel(post: PostPayload) {
     </Transition>
   </Teleport>
 </template>
+
+<style scoped>
+/* Article styling: enhanced typography for long-form content */
+.gf-prose-article {
+  max-width: 100%;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+}
+
+.gf-prose-article h1 {
+  font-size: 2rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.gf-prose-article h2 {
+  font-size: 1.75rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.gf-prose-article h3 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.gf-prose-article p {
+  margin-bottom: 1.5rem;
+}
+
+.gf-prose-article img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 2rem auto;
+}
+
+.gf-prose-article pre {
+  font-size: 0.9375rem;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+}
+
+.gf-prose-article blockquote {
+  font-size: 1.125rem;
+  padding-left: 1.5rem;
+  border-left-width: 4px;
+  font-style: italic;
+}
+
+/* Thought styling: compact and lightweight */
+.gf-prose-thought {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.gf-prose-thought p {
+  margin-bottom: 1rem;
+}
+
+.gf-prose-thought img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+}
+</style>

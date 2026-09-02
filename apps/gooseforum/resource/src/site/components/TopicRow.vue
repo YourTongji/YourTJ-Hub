@@ -160,18 +160,18 @@ onBeforeUnmount(() => {
       </div>
       <p class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">{{ topicDescription(topic) }}</p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
-        <AvatarStack :users="topic.participants" size="sm" />
+        <AvatarStack v-if="topic.contentType !== 2" :users="topic.participants" size="sm" />
         <span>{{ timeAgo(topic.lastUpdateTime) }}</span>
-        <span class="inline-flex items-center gap-1">
+        <span v-if="topic.contentType !== 2" class="inline-flex items-center gap-1">
           <MessageSquare class="h-3.5 w-3.5" /> {{ formatNumber(topic.replyCount) }}
         </span>
         <slot name="mobile-action" :topic="topic" />
       </div>
     </div>
-    <div class="hidden justify-center lg:flex">
+    <div v-if="topic.contentType !== 2" class="hidden justify-center lg:flex">
       <AvatarStack :users="topic.participants" />
     </div>
-    <div class="hidden text-center text-sm font-semibold tabular-nums text-base-content/75 lg:block">{{ formatNumber(topic.replyCount) }}</div>
+    <div v-if="topic.contentType !== 2" class="hidden text-center text-sm font-semibold tabular-nums text-base-content/75 lg:block">{{ formatNumber(topic.replyCount) }}</div>
     <div class="hidden text-center text-sm tabular-nums text-base-content/55 lg:block">{{ formatNumber(topic.viewCount) }}</div>
     <div class="hidden text-right text-[13px] font-medium tabular-nums text-base-content/55 lg:block">
       <slot name="activity" :topic="topic">
@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <Transition name="preview-pop">
         <div
-          v-if="expanded"
+          v-if="expanded && topic.contentType !== 2"
           class="fixed z-50 overflow-hidden rounded-xl border border-line bg-base-100 shadow-xl shadow-black/10"
           :style="popoverStyle"
           @mouseenter="onRowEnter"
