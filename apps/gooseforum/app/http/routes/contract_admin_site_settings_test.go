@@ -397,10 +397,10 @@ func TestAdminGetSecuritySettingsHTTPContract(t *testing.T) {
 			EnableSignup:            true,
 			EnableEmailVerification: false,
 			AllowedDomains:          []string{"tongji.edu.cn"},
-			ReservedUsernames:       []string{"admin"},
-			BannedUsernames:         []string{"banned-contract"},
-			SensitiveWords:          []string{"违禁词"},
-			SensitiveAction:         "review",
+			ReservedUsernames:       []string{"admin", "administrator", "root", "system", "moderator", "developer", "api", "oauth", "settings", "misskey"},
+			BannedUsernames:         []string{},
+			SensitiveWords:          []string{"代开发票", "办证刻章", "枪支弹药", "六合彩", "冰毒", "海洛因"},
+			SensitiveAction:         "block",
 			CaptchaRequired:         false,
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-security-settings-success.json")

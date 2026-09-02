@@ -865,4 +865,13 @@ export default {
   "k00ub": "Numero massimo di nuovi temi per utente al giorno (0 = illimitato)",
   "k00uc": "Endpoint interno (opzionale)",
   "k00ud": "Opzionale: le letture/scritture lato server (letture proxy, verifica upload diretto, migrazione) usano questo endpoint interno; gli upload diretti dal browser usano ancora l'endpoint pubblico sopra. Per Alibaba OSS usa oss-<region>-internal.aliyuncs.com; lascia vuoto altrimenti.",
+  "k00ue": "Importazione di massa",
+  "k00uf": "Supporta a capo, virgole, punti e virgola o spazi come separatori. Le voci vuote vengono rimosse e i duplicati eliminati senza distinzione tra maiuscole e minuscole; il risultato viene unito all'elenco sottostante dopo la conferma.",
+  "k00ug": "Importazione di massa",
+  "k00uh": "Importa",
+  "k00ui": "{added} nuove / {skipped} duplicate saltate",
+  "k00uj": "Incolla prima il contenuto da importare",
+  "k00uk": "Massimo {limit} voci per importazione; il resto viene ignorato",
+  "k00ul": "Attenzione: i nuovi nomi utente vietati bloccano gli account esistenti con lo stesso nome. Procedi con cautela.",
+  "k00um": "L'anteprima mostra le prime {limit} voci; le altre sono visibili nell'elenco sopra dopo la conferma.",
 } as const

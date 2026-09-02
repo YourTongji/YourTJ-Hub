@@ -8076,10 +8076,11 @@ export interface components {
             enableEmailVerification: boolean;
             /** @description Email domains allowed at registration; empty disables the restriction. */
             allowedDomains: string[];
-            /** @description Usernames rejected at registration/rename. */
+            /** @description Usernames rejected at registration/rename. Also enforced for nicknames (EditUserInfo) and OAuth/Agent account creation. Matching is whole-string equality after normalization (case folding, NFKC/full-width, zero-width stripping, ASCII leetspeak folding), so `Admin`, `ａｄｍｉｎ`, and `adm1n` all hit `admin` while `myadmin` does not. Reserved entries never freeze existing accounts. The built-in default list ships in `defaultconfig/pageconfig/security.json` and is backfilled to stored configs whose arrays are empty by data migration v27. */
             reservedUsernames: string[];
-            /** @description Usernames rejected at registration/rename; saving a newly added entry also freezes matching existing accounts (idempotent). */
+            /** @description Usernames rejected at registration/rename (same whole-string normalized equality as `reservedUsernames`); saving a newly added entry also freezes matching existing accounts (idempotent). The built-in default list is deliberately empty so upgrades never freeze existing accounts. */
             bannedUsernames: string[];
+            /** @description Words scanned against content (topics/posts/chat/reviews/profile free text) with a normalized substring scan (case folding, NFKC/full-width, zero-width stripping; no leetspeak folding). The default list holds conservative multi-character legal-bottom-line terms from the Apache-2.0 fwwdn/sensitive-stop-words bank and is backfilled by data migration v27 for stored configs whose array is empty. */
             sensitiveWords: string[];
             /** @description `block` rejects matching content, `review` routes it to the moderation queue. */
             sensitiveAction: string;

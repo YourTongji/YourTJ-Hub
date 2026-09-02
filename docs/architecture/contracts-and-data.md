@@ -219,7 +219,7 @@ New page config types added with this admin backlog work (all persisted in `page
 |---|---|---|
 | `storageSettings` | `pageConfig.StorageSettings` | provider local/s3, endpoint/bucket/region, bucket lookup (auto/dns/path), credentials, optional public URL prefix, optional `internalEndpoint` (S3 mode: routes server-side data-plane operations; empty or same host as `endpoint` → single client) |
 | `termsOfService` | `pageConfig.TermsOfServiceConfig` | markdown ToS rendered at `/terms` |
-| `securitySettings` (extended) | `pageConfig.SecurityAndRegistration` | + reservedUsernames / bannedUsernames / sensitiveWords / sensitiveAction (block\|review) |
+| `securitySettings` (extended) | `pageConfig.SecurityAndRegistration` | + reservedUsernames / bannedUsernames / sensitiveWords / sensitiveAction (block\|review)。reserved 同时约束 username 与 nickname（归一化全等）；banned 含新增词冻结存量；sensitiveWords 经归一化子串扫描覆盖话题/回复/私信/课评/个人资料自由文本。内置默认词库见 `defaultconfig/pageconfig/security.json`（来源 fwwdn/sensitive-stop-words，Apache-2.0），存量空数组由 v27 数据迁移补齐，banned 默认恒为空（防误冻结） |
 | `postingSettings` (extended) | `pageConfig.PostingContent` | `llms.enabled`, `llms.fullText`, and `llms.files` gate the public AI-readable projections |
 
 Object storage addressing notes: Alibaba OSS and Tencent COS (buckets created after 2024-01-01)
