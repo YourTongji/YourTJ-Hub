@@ -6,6 +6,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ---- 课程沿革关系（course_relations）----
@@ -54,6 +55,23 @@ func ListPendingMergeByFromCourseTx(tx *gorm.DB, fromCourseId uint64) ([]Relatio
 	return entities, err
 }
 
+// GetMergedTargetByFromCourseTx 事务内返回从某课程出发、已确认合并（status=merged 且
+// 类型 EQUIVALENT/RENAMED_FROM）的合并目标课程 id；无则返回 ErrRecordNotFound。
+// 物化链重定向用：from 卡被合并隐藏后，offering 写入应指向合并目标卡而非旧卡。
+func GetMergedTargetByFromCourseTx(tx *gorm.DB, fromCourseId uint64) (uint64, error) {
+	var entity RelationEntity
+	err := tx.Table(relationsTableName).
+		Where("from_course_id = ?", fromCourseId).
+		Where("status = ?", RelationStatusMerged).
+		Where("relation_type IN ?", []string{string(RelationEquivalent), string(RelationRenamed)}).
+		Order("id ASC").
+		First(&entity).Error
+	if err != nil {
+		return 0, err
+	}
+	return entity.ToCourseId, nil
+}
+
 // GetRelationByFromToTypeTx 事务内按 (from_course_id, to_course_id, relation_type) 精确查找
 // （幂等/冲突检测：同一对课程同一类型只允许一行，唯一索引保证）。
 func GetRelationByFromToTypeTx(tx *gorm.DB, fromCourseId, toCourseId uint64, relationType string) (entity RelationEntity, err error) {
@@ -65,17 +83,23 @@ func GetRelationByFromToTypeTx(tx *gorm.DB, fromCourseId, toCourseId uint64, rel
 	return
 }
 
-// CreateRelationTx 事务内创建沿革候选（冲突时静默跳过并返回已存在行）。
+// CreateRelationTx 事务内创建沿革候选（幂等：同 (from,to,type) 已存在则返回已存在行）。
+// 并发安全：INSERT 走 ON CONFLICT DO NOTHING 兜底唯一索引——纯 SELECT-then-INSERT
+// 在并发下会撞 uniq_course_relations_from_to_type 报错终止调用方，与幂等语义不符
+// （review Should）。
 func CreateRelationTx(tx *gorm.DB, entity *RelationEntity) (RelationEntity, error) {
-	existing, err := GetRelationByFromToTypeTx(tx, entity.FromCourseId, entity.ToCourseId, entity.RelationType)
-	if err == nil {
+	// 快速路径：已存在（含软删过滤）直接返回。
+	if existing, err := GetRelationByFromToTypeTx(tx, entity.FromCourseId, entity.ToCourseId, entity.RelationType); err == nil {
 		return existing, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return RelationEntity{}, err
 	}
-	if err := tx.Model(&RelationEntity{}).Create(entity).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(entity).Error; err != nil {
 		return RelationEntity{}, err
+	}
+	if entity.Id == 0 {
+		// 并发下唯一索引兜底命中：重查并返回已存在行（幂等契约）。
+		return GetRelationByFromToTypeTx(tx, entity.FromCourseId, entity.ToCourseId, entity.RelationType)
 	}
 	return *entity, nil
 }

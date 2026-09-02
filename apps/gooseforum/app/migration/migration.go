@@ -315,29 +315,33 @@ func backfillOfferingTeachingClass(db *gorm.DB) error {
 		LocalId    uint64
 	}
 	var rows []refRow
+	backfilled := 0
+	// 分批处理（review nit：整表全量读入内存后逐行 UPDATE → FindInBatches 分批，
+	// 课程域量级上涨时不占峰值内存）。
 	if err := db.Table("course_source_ref").
 		Select("external_id, local_id").
 		Where("entity_type = ?", course.EntityTypeOffering).
 		Where("external_id <> ''").
 		Order("id ASC").
-		Scan(&rows).Error; err != nil {
+		FindInBatches(&rows, 500, func(tx *gorm.DB, batch int) error {
+			for _, r := range rows {
+				classID, ok := parseTeachingClassID(r.ExternalId)
+				if !ok {
+					continue
+				}
+				res := tx.Table("course_offering").
+					Where("id = ? AND teaching_class_id = 0", r.LocalId).
+					Update("teaching_class_id", classID)
+				if res.Error != nil {
+					return res.Error
+				}
+				if res.RowsAffected > 0 {
+					backfilled++
+				}
+			}
+			return nil
+		}).Error; err != nil {
 		return err
-	}
-	backfilled := 0
-	for _, r := range rows {
-		classID, ok := parseTeachingClassID(r.ExternalId)
-		if !ok {
-			continue
-		}
-		res := db.Table("course_offering").
-			Where("id = ? AND teaching_class_id = 0", r.LocalId).
-			Update("teaching_class_id", classID)
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected > 0 {
-			backfilled++
-		}
 	}
 	if backfilled > 0 {
 		slog.Info("dbconnect course_offering.teaching_class_id backfilled from source_ref", "offerings", backfilled)
@@ -367,29 +371,31 @@ func backfillInstructorTeacherCode(db *gorm.DB) error {
 		LocalId    uint64
 	}
 	var rows []refRow
+	backfilled := 0
 	if err := db.Table("course_source_ref").
 		Select("external_id, local_id").
 		Where("entity_type = ?", course.EntityTypeInstructor).
 		Where("external_id <> ''").
 		Order("id ASC").
-		Scan(&rows).Error; err != nil {
+		FindInBatches(&rows, 500, func(tx *gorm.DB, batch int) error {
+			for _, r := range rows {
+				code := strings.TrimSpace(r.ExternalId)
+				if code == "" {
+					continue
+				}
+				res := tx.Table("course_instructor").
+					Where("id = ? AND teacher_code = ''", r.LocalId).
+					Update("teacher_code", code)
+				if res.Error != nil {
+					return res.Error
+				}
+				if res.RowsAffected > 0 {
+					backfilled++
+				}
+			}
+			return nil
+		}).Error; err != nil {
 		return err
-	}
-	backfilled := 0
-	for _, r := range rows {
-		code := strings.TrimSpace(r.ExternalId)
-		if code == "" {
-			continue
-		}
-		res := db.Table("course_instructor").
-			Where("id = ? AND teacher_code = ''", r.LocalId).
-			Update("teacher_code", code)
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected > 0 {
-			backfilled++
-		}
 	}
 	if backfilled > 0 {
 		slog.Info("dbconnect course_instructor.teacher_code backfilled from source_ref", "instructors", backfilled)

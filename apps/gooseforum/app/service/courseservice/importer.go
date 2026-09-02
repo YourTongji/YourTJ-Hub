@@ -785,49 +785,23 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", existingRef.LocalId).First(&offering).Error; err != nil {
 			return fmt.Errorf("load existing offering %d: %w", existingRef.LocalId, err)
 		}
-		// 课程修正也一并更新，防止 offering 挂在旧课程上。
-		// 注意：更新路径不写 status——管理员隐藏的 offering 不能被重导静默复活。
-		updates := map[string]any{
-			"course_id":  courseLocalID,
-			"term_id":    termEntity.Id,
-			"campus":     row.Campus,
-			"faculty":    row.Faculty,
-			"class_code": row.ClassCode,
-			"class_name": row.ClassName,
-		}
-		if teachingClassID > 0 {
-			updates["teaching_class_id"] = teachingClassID
-		}
-		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(updates).Error; err != nil {
-			return fmt.Errorf("update offering %d: %w", offering.Id, err)
-		}
-		if err := replaceOfferingInstructorsTx(tx, offering.Id, instructorLocalIDs); err != nil {
-			return err
-		}
-		// offering 的 term/campus/教师/所属课程变化会改变课程搜索文档的
-		// terms/campus/instructors 字段：新旧课程都入队重建。
-		if offering.CourseId != courseLocalID {
-			if err := searchservice.EnqueueCourseSearchTask(tx, offering.CourseId); err != nil {
-				return fmt.Errorf("enqueue old course search task %d: %w", offering.CourseId, err)
-			}
-			// offering 改派到新课程：新旧课程的可见评价集合都变化，
-			// 必须失效 AI 总结缓存（含 insufficient 标记），否则改派前
-			// 判"评价不足"的课程会永久返回 insufficient_data（review 补漏）。
-			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
-				return fmt.Errorf("invalidate ai summary for old course %d: %w", offering.CourseId, err)
-			}
-			if err := course.DeleteCourseAiSummaryTx(tx, courseLocalID); err != nil {
-				return fmt.Errorf("invalidate ai summary for new course %d: %w", courseLocalID, err)
-			}
-		}
-		if err := searchservice.EnqueueCourseSearchTask(tx, courseLocalID); err != nil {
-			return fmt.Errorf("enqueue course search task %d: %w", courseLocalID, err)
-		}
-		report.Updated++
-		return touchSourceRef(tx, runID, source, row.ID, offering.Id, course.EntityTypeOffering, checksum)
+		return updateOfferingFromImportRow(tx, runID, source, row, checksum, courseLocalID, termEntity.Id,
+			teachingClassID, instructorLocalIDs, offering, report)
 	}
 	if !errors.Is(refErr, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("lookup offering source ref: %w", refErr)
+	}
+
+	// 无 source_ref：teaching_class_id > 0 时兼容物化链已先写入的 offering（物化链是
+	// offering 权威写入源，teaching_class_id 是幂等键）。命中物化行则认领复用该行，
+	// 不插入第二行——否则撞 uniq_course_offering_teaching_class 唯一索引。
+	if teachingClassID > 0 {
+		if existing, err := course.GetOfferingByTeachingClassIdTx(tx, teachingClassID); err == nil {
+			return updateOfferingFromImportRow(tx, runID, source, row, checksum, courseLocalID, termEntity.Id,
+				teachingClassID, instructorLocalIDs, existing, report)
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("lookup offering by teaching_class_id %d: %w", teachingClassID, err)
+		}
 	}
 
 	offeringEntity := course.OfferingEntity{
@@ -848,6 +822,53 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 	}
 	report.Inserted++
 	return touchSourceRef(tx, runID, source, row.ID, offeringEntity.Id, course.EntityTypeOffering, checksum)
+}
+
+// updateOfferingFromImportRow 把导入行内容应用到已存在的 offering 行：更新非 status
+// 字段（course_id/term_id/teaching_class_id/campus/faculty/class_code/class_name，
+// 不写 status——管理员隐藏的 offering 不能被重导静默复活）、全量替换教师、offering
+// 改派到新课程时入队新旧课程搜索重建并失效 AI 总结缓存（含 insufficient 标记），
+// 最后写 source_ref（断点续跑更新与物化 offering 认领复用共用本路径）。
+func updateOfferingFromImportRow(tx *gorm.DB, runID uint64, source string, row importOfferingRow, checksum string, courseLocalID, termId, teachingClassID uint64, instructorLocalIDs []uint64, offering course.OfferingEntity, report *CatalogImportReport) error {
+	// 课程修正也一并更新，防止 offering 挂在旧课程上。
+	updates := map[string]any{
+		"course_id":  courseLocalID,
+		"term_id":    termId,
+		"campus":     row.Campus,
+		"faculty":    row.Faculty,
+		"class_code": row.ClassCode,
+		"class_name": row.ClassName,
+	}
+	if teachingClassID > 0 {
+		updates["teaching_class_id"] = teachingClassID
+	}
+	if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(updates).Error; err != nil {
+		return fmt.Errorf("update offering %d: %w", offering.Id, err)
+	}
+	if err := replaceOfferingInstructorsTx(tx, offering.Id, instructorLocalIDs); err != nil {
+		return err
+	}
+	// offering 的 term/campus/教师/所属课程变化会改变课程搜索文档的
+	// terms/campus/instructors 字段：新旧课程都入队重建。
+	if offering.CourseId != courseLocalID {
+		if err := searchservice.EnqueueCourseSearchTask(tx, offering.CourseId); err != nil {
+			return fmt.Errorf("enqueue old course search task %d: %w", offering.CourseId, err)
+		}
+		// offering 改派到新课程：新旧课程的可见评价集合都变化，
+		// 必须失效 AI 总结缓存（含 insufficient 标记），否则改派前
+		// 判"评价不足"的课程会永久返回 insufficient_data（review 补漏）。
+		if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+			return fmt.Errorf("invalidate ai summary for old course %d: %w", offering.CourseId, err)
+		}
+		if err := course.DeleteCourseAiSummaryTx(tx, courseLocalID); err != nil {
+			return fmt.Errorf("invalidate ai summary for new course %d: %w", courseLocalID, err)
+		}
+	}
+	if err := searchservice.EnqueueCourseSearchTask(tx, courseLocalID); err != nil {
+		return fmt.Errorf("enqueue course search task %d: %w", courseLocalID, err)
+	}
+	report.Updated++
+	return touchSourceRef(tx, runID, source, row.ID, offering.Id, course.EntityTypeOffering, checksum)
 }
 
 // parseTeachingClassIDString 解析 manifest offering 行的教学班 id 字符串；空/非法为 0。

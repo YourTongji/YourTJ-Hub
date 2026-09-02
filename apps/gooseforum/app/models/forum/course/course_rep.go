@@ -455,6 +455,17 @@ func FindInstructorByNameDeptTx(tx *gorm.DB, name, department string) (entity In
 	return
 }
 
+// FindInstructorByCodeTx 事务内按 teacher_code（身份主锚）查找教师（过滤软删）。
+// teacher_code 非唯一索引：多条重复时取 id 最小的一行保证确定性。
+func FindInstructorByCodeTx(tx *gorm.DB, code string) (entity InstructorEntity, err error) {
+	err = tx.
+		Where(queryopt.Eq("teacher_code", code)).
+		Where(queryopt.IsNull("deleted_at")).
+		Order("id ASC").
+		First(&entity).Error
+	return
+}
+
 // ListInstructorsByOfferings 批量返回多个开课实例的教师（详情/列表页避免 N+1）。
 func ListInstructorsByOfferings(offeringIds []uint64) (entities []InstructorEntity, err error) {
 	if len(offeringIds) == 0 {

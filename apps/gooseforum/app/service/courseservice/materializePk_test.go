@@ -3,6 +3,7 @@ package courseservice
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -20,6 +21,9 @@ func migrateMaterializeTables(t *testing.T) {
 		&course.OfferingEntity{},
 		&course.OfferingInstructorEntity{},
 		&course.TermEntity{},
+		&course.RelationEntity{},
+		&course.SourceRefEntity{},
+		&course.ImportRunEntity{},
 		&taskQueue.Entity{},
 		&pk.CourseDetailEntity{},
 		&pk.TeacherEntity{},
@@ -58,6 +62,9 @@ func seedPkForMaterialize(t *testing.T) {
 	}
 	if err := conn.Create(&pk.TeacherEntity{Id: 100, TeachingClassId: 1, TeacherCode: "T001", TeacherName: "张三"}).Error; err != nil {
 		t.Fatalf("seed teacher: %v", err)
+	}
+	if err := conn.Create(&pk.CalendarEntity{CalendarId: 1}).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
 	}
 	if err := conn.Create(&pk.FacultyEntity{Faculty: "数学科学学院", FacultyI18n: "数学科学学院"}).Error; err != nil {
 		t.Fatalf("seed faculty: %v", err)
@@ -166,6 +173,9 @@ func TestMaterializeFromPkInstructorNormalizedNameIdempotent(t *testing.T) {
 	if err := conn.Create(&pk.FacultyEntity{Faculty: "数学科学学院", FacultyI18n: "数学科学学院"}).Error; err != nil {
 		t.Fatalf("seed faculty: %v", err)
 	}
+	if err := conn.Create(&pk.CalendarEntity{CalendarId: 1}).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
 
 	first, err := MaterializeFromPk(context.Background(), []uint64{1})
 	if err != nil {
@@ -220,6 +230,9 @@ func TestMaterializeFromPkSplitsByIdentityTeacher(t *testing.T) {
 	if err := conn.Create(&pk.FacultyEntity{Faculty: "数学科学学院", FacultyI18n: "数学科学学院"}).Error; err != nil {
 		t.Fatalf("seed faculty: %v", err)
 	}
+	if err := conn.Create(&pk.CalendarEntity{CalendarId: 1}).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
 
 	report, err := MaterializeFromPk(context.Background(), []uint64{1})
 	if err != nil {
@@ -261,8 +274,10 @@ func TestMaterializeFromPkCreatesOfferingAtClassGranularity(t *testing.T) {
 	seedPkForMaterialize(t)
 	conn := db.Connect()
 	// 学期映射：calendarId=1 → calendar_id_i18n "2025-2026-1" → course_term（缺则自动创建）。
-	if err := conn.Create(&pk.CalendarEntity{CalendarId: 1, CalendarIdI18n: "2025-2026-1"}).Error; err != nil {
-		t.Fatalf("seed calendar: %v", err)
+	// seedPkForMaterialize 已建 calendarId=1（i18n 空），此处补学期码。
+	if err := conn.Model(&pk.CalendarEntity{}).Where("calendar_id = ?", 1).
+		Update("calendar_id_i18n", "2025-2026-1").Error; err != nil {
+		t.Fatalf("set calendar i18n: %v", err)
 	}
 
 	report, err := MaterializeFromPk(context.Background(), []uint64{1})
@@ -403,5 +418,260 @@ func TestMaterializeFromPkBackfillsTeacherCode(t *testing.T) {
 	}
 	if updated.TeacherCode != "T001" {
 		t.Errorf("teacher_code = %q, want T001（身份主锚回填）", updated.TeacherCode)
+	}
+}
+
+// TestMaterializeFromPkRedirectsOfferingToMergedTarget 回归 review：课程卡已被确认合并
+// （hidden + status=merged EQUIVALENT/RENAMED_FROM 指向可见卡）时，offering 物化写入
+// 必须重定向到合并目标卡，不得把 offering 写回 hidden 旧卡逆转已确认的合并。
+func TestMaterializeFromPkRedirectsOfferingToMergedTarget(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+
+	if _, err := MaterializeFromPk(context.Background(), []uint64{1}); err != nil {
+		t.Fatalf("first materialize: %v", err)
+	}
+	var oldCard course.Entity
+	if err := conn.Where("primary_code = ?", "A001").First(&oldCard).Error; err != nil {
+		t.Fatalf("find old card: %v", err)
+	}
+	var offering course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&offering).Error; err != nil {
+		t.Fatalf("find offering: %v", err)
+	}
+	// 构造一次已确认的合并：目标卡（另一教师身份）可见；from 卡隐藏；offering 迁往目标。
+	ins := course.InstructorEntity{Name: "李四", NormalizedName: "lisi", Department: "数学科学学院", TeacherCode: "T002"}
+	if err := conn.Create(&ins).Error; err != nil {
+		t.Fatalf("create target instructor: %v", err)
+	}
+	targetCard := course.Entity{PrimaryCode: "A001", TeacherId: ins.Id, Name: "高等数学(A)上", Department: "数学科学学院", Status: course.StatusVisible}
+	if err := conn.Create(&targetCard).Error; err != nil {
+		t.Fatalf("create target card: %v", err)
+	}
+	if err := conn.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).
+		Update("course_id", targetCard.Id).Error; err != nil {
+		t.Fatalf("move offering to target: %v", err)
+	}
+	if err := conn.Model(&course.Entity{}).Where("id = ?", oldCard.Id).
+		Update("status", course.StatusHidden).Error; err != nil {
+		t.Fatalf("hide old card: %v", err)
+	}
+	relation := course.RelationEntity{
+		FromCourseId: oldCard.Id, ToCourseId: targetCard.Id,
+		RelationType: string(course.RelationEquivalent), Status: string(course.RelationStatusMerged),
+	}
+	if err := conn.Create(&relation).Error; err != nil {
+		t.Fatalf("create merged relation: %v", err)
+	}
+
+	// 再次物化：offering 必须重定向到可见的目标卡，不写回 hidden 旧卡。
+	if _, err := MaterializeFromPk(context.Background(), []uint64{1}); err != nil {
+		t.Fatalf("second materialize: %v", err)
+	}
+	var after course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&after).Error; err != nil {
+		t.Fatalf("find offering after: %v", err)
+	}
+	if after.CourseId != targetCard.Id {
+		t.Errorf("offering course_id = %d, want %d（merged 目标卡）；物化把 offering 写回了 hidden 旧卡", after.CourseId, targetCard.Id)
+	}
+	var oldAfter course.Entity
+	if err := conn.First(&oldAfter, oldCard.Id).Error; err != nil {
+		t.Fatalf("load old card: %v", err)
+	}
+	if oldAfter.Status != course.StatusHidden {
+		t.Errorf("old card status = %d, want hidden（物化不得复活已合并旧卡）", oldAfter.Status)
+	}
+}
+
+// TestMaterializeFromPkTeacherCodeKeyedDedupe 回归 review：教师按 teacher_code（身份主锚）
+// 键控去重。同一工号跨课程只物化一个教师行，二次运行零新建。
+func TestMaterializeFromPkTeacherCodeKeyedDedupe(t *testing.T) {
+	migrateMaterializeTables(t)
+	conn := db.Connect()
+	credit := 3.0
+	for i, code := range []string{"A001", "B002"} {
+		if err := conn.Create(&pk.CourseDetailEntity{
+			Id: uint64(1 + i), CalendarId: 1, CourseCode: code,
+			CourseName: "课程" + code, Code: code + "01",
+			NewCourseCode: code + "N", NewCode: code + "N01",
+			Credit: &credit, Faculty: "数学科学学院",
+		}).Error; err != nil {
+			t.Fatalf("seed course detail %s: %v", code, err)
+		}
+		if err := conn.Create(&pk.TeacherEntity{
+			Id: uint64(100 + i), TeachingClassId: uint64(1 + i),
+			TeacherCode: "T001", TeacherName: "张三",
+		}).Error; err != nil {
+			t.Fatalf("seed teacher: %v", err)
+		}
+	}
+	if err := conn.Create(&pk.CalendarEntity{CalendarId: 1}).Error; err != nil {
+		t.Fatalf("seed calendar: %v", err)
+	}
+	if err := conn.Create(&pk.FacultyEntity{Faculty: "数学科学学院", FacultyI18n: "数学科学学院"}).Error; err != nil {
+		t.Fatalf("seed faculty: %v", err)
+	}
+
+	first, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("first materialize: %v", err)
+	}
+	if first.InstructorsInserted != 1 {
+		t.Fatalf("instructorsInserted = %d, want 1（同 teacher_code 只建一个教师行）", first.InstructorsInserted)
+	}
+	if first.CoursesInserted != 2 {
+		t.Fatalf("coursesInserted = %d, want 2", first.CoursesInserted)
+	}
+	var instructors []course.InstructorEntity
+	if err := conn.Find(&instructors).Error; err != nil {
+		t.Fatalf("find instructors: %v", err)
+	}
+	if len(instructors) != 1 || instructors[0].TeacherCode != "T001" {
+		t.Fatalf("instructors = %+v, want single row with teacher_code T001", instructors)
+	}
+	var courses []course.Entity
+	if err := conn.Where("primary_code IN ?", []string{"A001", "B002"}).Find(&courses).Error; err != nil {
+		t.Fatalf("find courses: %v", err)
+	}
+	for _, c := range courses {
+		if c.TeacherId != instructors[0].Id {
+			t.Fatalf("course %s teacher_id = %d, want %d", c.PrimaryCode, c.TeacherId, instructors[0].Id)
+		}
+	}
+	second, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("second materialize: %v", err)
+	}
+	if second.InstructorsInserted != 0 {
+		t.Errorf("second instructorsInserted = %d, want 0（code 键命中缓存/查询）", second.InstructorsInserted)
+	}
+}
+
+// TestMaterializeFromPkMissingCalendarReturnsError 回归 review：term 解析错误不再静默吞掉。
+// calendarId > 0 但 pk_calendar 无该行时整个物化事务必须失败回滚（此前静默写 term_id=0）。
+func TestMaterializeFromPkMissingCalendarReturnsError(t *testing.T) {
+	migrateMaterializeTables(t)
+	conn := db.Connect()
+	credit := 3.0
+	if err := conn.Create(&pk.CourseDetailEntity{
+		Id: 1, CalendarId: 99, CourseCode: "C101", CourseName: "缺失学期课程", Code: "C10101",
+		NewCourseCode: "C101N", NewCode: "C101N01", Credit: &credit, Faculty: "数学科学学院",
+	}).Error; err != nil {
+		t.Fatalf("seed course detail: %v", err)
+	}
+	if err := conn.Create(&pk.TeacherEntity{Id: 100, TeachingClassId: 1, TeacherCode: "T001", TeacherName: "张三"}).Error; err != nil {
+		t.Fatalf("seed teacher: %v", err)
+	}
+	_, err := MaterializeFromPk(context.Background(), []uint64{99})
+	if err == nil {
+		t.Fatal("expected error for missing calendar row")
+	}
+	if !strings.Contains(err.Error(), "lookup calendar") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// 整个物化事务回滚：课程卡与 offering 都不落库。
+	var courseCount int64
+	if err := conn.Model(&course.Entity{}).Count(&courseCount).Error; err != nil {
+		t.Fatalf("count courses: %v", err)
+	}
+	if courseCount != 0 {
+		t.Errorf("courses = %d, want 0（事务应整体回滚）", courseCount)
+	}
+	var offeringCount int64
+	if err := conn.Model(&course.OfferingEntity{}).Count(&offeringCount).Error; err != nil {
+		t.Fatalf("count offerings: %v", err)
+	}
+	if offeringCount != 0 {
+		t.Errorf("offerings = %d, want 0", offeringCount)
+	}
+}
+
+// TestMaterializeFromPkEmptyCalendarI18nKeepsZeroTerm calendar 存在但无学期码（i18n 空）是
+// 合法"无学期码"情形：物化成功且 term_id=0，不报错也不创建 course_term。
+func TestMaterializeFromPkEmptyCalendarI18nKeepsZeroTerm(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+	report, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	if report.OfferingsInserted != 1 {
+		t.Fatalf("offeringsInserted = %d, want 1", report.OfferingsInserted)
+	}
+	var offering course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&offering).Error; err != nil {
+		t.Fatalf("find offering: %v", err)
+	}
+	if offering.TermId != 0 {
+		t.Errorf("term_id = %d, want 0（calendar 无学期码）", offering.TermId)
+	}
+	var termCount int64
+	if err := conn.Model(&course.TermEntity{}).Count(&termCount).Error; err != nil {
+		t.Fatalf("count terms: %v", err)
+	}
+	if termCount != 0 {
+		t.Errorf("terms = %d, want 0", termCount)
+	}
+}
+
+// TestImportReusesMaterializedOffering 回归 review：导入包无 offering source_ref 但
+// teaching_class_id 已由物化链先行写入时，导入必须认领复用物化行（更新非 status 字段 +
+// 写 source_ref），不得插入第二行撞 uniq_course_offering_teaching_class 唯一索引。
+func TestImportReusesMaterializedOffering(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+	if _, err := MaterializeFromPk(context.Background(), []uint64{1}); err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	var materializedOffering course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&materializedOffering).Error; err != nil {
+		t.Fatalf("find materialized offering: %v", err)
+	}
+
+	manifestPath := writeManifestFixture(t, map[string]string{
+		"courses.jsonl":     `{"id":"c1","code":"A001","name":"高等数学(A)上","department":"数学科学学院","credit":5,"teacher_code":"i1"}` + "\n",
+		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院"}` + "\n",
+		"offerings.jsonl":   `{"id":"o1","course_id":"c1","term":"2025-2026-1","campus":"四平路校区","faculty":"数学科学学院","teaching_class_id":"1","class_code":"A00101","class_name":"01班","instructor_ids":["i1"]}` + "\n",
+	})
+	report, err := ImportCatalog(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("import catalog: %v", err)
+	}
+	if report.Updated != 3 {
+		t.Fatalf("updated = %d, want 3（instructor+course+offering 认领复用）", report.Updated)
+	}
+	if report.Inserted != 0 {
+		t.Fatalf("inserted = %d, want 0（复用物化行，不插入新行）", report.Inserted)
+	}
+	// 只有物化链那一行 offering（唯一索引未被撞）。
+	var offerings []course.OfferingEntity
+	if err := conn.Find(&offerings).Error; err != nil {
+		t.Fatalf("find offerings: %v", err)
+	}
+	if len(offerings) != 1 {
+		t.Fatalf("offerings = %d, want 1（导入不得创建同 teaching_class_id 的第二行）", len(offerings))
+	}
+	if offerings[0].Id != materializedOffering.Id {
+		t.Fatalf("offering id = %d, want %d（应复用物化行）", offerings[0].Id, materializedOffering.Id)
+	}
+	// 非 status 字段被导入行刷新；status 未被导入触碰（物化行可见）。
+	if offerings[0].Campus != "四平路校区" || offerings[0].ClassCode != "A00101" || offerings[0].ClassName != "01班" {
+		t.Errorf("offering 字段未按导入行更新: %+v", offerings[0])
+	}
+	if offerings[0].Status != course.OfferingStatusVisible {
+		t.Errorf("status = %d, want visible", offerings[0].Status)
+	}
+	// source_ref 认领指向物化行。
+	var ref course.SourceRefEntity
+	if err := conn.Where("source = ? AND entity_type = ? AND external_id = ?", "test-fixture", course.EntityTypeOffering, "o1").
+		First(&ref).Error; err != nil {
+		t.Fatalf("find offering source ref: %v", err)
+	}
+	if ref.LocalId != materializedOffering.Id {
+		t.Errorf("source_ref local_id = %d, want %d", ref.LocalId, materializedOffering.Id)
 	}
 }
