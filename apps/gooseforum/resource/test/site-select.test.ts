@@ -274,3 +274,24 @@ describe('SiteSelect 可搜索模式', () => {
     wrapper.unmount()
   })
 })
+
+// 排课器学期选择：学期名可能很长（如「2026-2027 学年第一学期」），
+// SelectValue 根 span 是 trigger(flex) 的子项，默认 min-width:auto 拒绝收缩，
+// 长文本会把 trigger 撑破溢出；内层文本 span 必须是 block，truncate 才生效。
+describe('SiteSelect 长文本溢出', () => {
+  test('长标签下 SelectValue 容器可收缩(min-w-0)且文本 span 为 block', () => {
+    const longLabel = '2026-2027 学年第一学期（同济大学一系统排课数据）'
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: '2026-1', options: [{ value: '2026-1', label: longLabel }] },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('[role="combobox"]')
+    const labelSpan = trigger.element.querySelector('span.truncate')
+    expect(labelSpan).not.toBeNull()
+    // 文本 span 的父级 = SelectValue 根 span，必须是可收缩的 flex 子项
+    expect(labelSpan!.parentElement!.classList.contains('min-w-0')).toBe(true)
+    // inline 元素上 text-overflow: ellipsis 不生效，文本 span 必须为 block
+    expect(labelSpan!.classList.contains('block')).toBe(true)
+    wrapper.unmount()
+  })
+})
