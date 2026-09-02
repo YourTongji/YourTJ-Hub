@@ -17,7 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         env: [dev, main]
-    environment: ${{ matrix.env }}
+    # GitHub Environment 与实例名解耦: main 实例的 VM_* secrets 存在 production 环境
+    # （matrix.env 是实例名 main/dev; production 环境承载生产部署与巡检 secrets）。
+    environment: ${{ matrix.env == 'main' && 'production' || 'dev' }}
     steps:
       - uses: actions/checkout@v4
 
