@@ -158,6 +158,41 @@ describe('ScheduleDetailList 课评摘要与跳转', () => {
     expect(link2.text()).toContain('0 reviews')
   })
 
+  test('右侧浮动课评面板展示课程级评分卡与班级课评列表', async () => {
+    getPkCourseReviewBrief.mockResolvedValue({
+      courseId: 42,
+      courseCode: '110001',
+      courseName: '高等数学A(上)',
+      teacherName: '',
+      ratingAvg: 4.2,
+      reviewCount: 7,
+      ratingDistribution: [0, 0, 1, 2, 4],
+      classes: [
+        {
+          classCode: '11000101',
+          offeringId: 101,
+          teachers: ['张伟'],
+          ratingAvg: 4.5,
+          reviewCount: 2,
+        },
+      ],
+    })
+
+    const wrapper = mountList()
+    await flushPromises()
+
+    // 右栏课评面板（role=complementary，与课评详情页 aside 语义一致）。
+    const aside = wrapper.find('aside[role="complementary"]')
+    expect(aside.exists()).toBe(true)
+    // 课程级评分仪表卡（RatingSummaryCard）渲染均分与条数。
+    expect(aside.text()).toContain('4.2')
+    expect(aside.text()).toContain('7 reviews')
+    // 班级课评列表：班号 + 聚焦链接 + 完整课评入口。
+    expect(aside.text()).toContain('11000101')
+    expect(aside.find('a[href="/courses/42?offeringId=101"]').exists()).toBe(true)
+    expect(aside.find('a[href="/courses/42"]').exists()).toBe(true)
+  })
+
   test('教学班无 offering 匹配时不显示行内课评链接', async () => {
     getPkCourseReviewBrief.mockResolvedValue({
       courseId: 42,

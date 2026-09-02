@@ -8683,6 +8683,8 @@ export interface components {
             teacherName: string;
             ratingAvg?: number | null;
             reviewCount: number;
+            /** @description 1-5 星各档可见评价计数（index 0 = 1 星）；排课器选班弹窗右侧课评面板复用课程详情页评分仪表卡用。无统计行时省略。 */
+            ratingDistribution?: number[];
             /** @description 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。 */
             classes: components["schemas"]["PkReviewBriefClass"][];
         };

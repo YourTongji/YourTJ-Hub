@@ -559,6 +559,7 @@ export default {
     stagedWithConflicts: 'Added — time conflict with "{course}" and {count} other courses',
     classPickerTitle: 'Choose a class',
     classPickerHint: 'Click a class to add it to the timetable; time conflicts are still added and flagged.',
+    classReviewsTitle: 'Class reviews',
   },
   courseDetailPage: {
     backToList: 'Back to course catalog',
