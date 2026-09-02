@@ -44,7 +44,7 @@ func resolveImageUploadPolicy(userId uint64) (*imageUploadPolicy, *imageUploadFa
 		if time.Now().Before(cooldownTime) {
 			return nil, uploadFailure(http.StatusBadRequest, component.MessageUploadCooldown, component.MessageParams{
 				"minutes":     postingConfig.UploadControl.NewUserUploadCooldownMinutes,
-				"availableAt": cooldownTime.Format("2006-01-02 15:04:05"),
+				"availableAt": cooldownTime.Format(time.RFC3339),
 			})
 		}
 	}

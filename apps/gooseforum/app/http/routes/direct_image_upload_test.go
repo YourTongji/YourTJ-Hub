@@ -1,9 +1,13 @@
 package routes
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,6 +50,21 @@ func (p *routeFakeS3Provider) Get(_ context.Context, name string) ([]byte, strin
 		return nil, "", storageservice.ErrNotFound
 	}
 	return obj.data, obj.contentType, nil
+}
+
+func (p *routeFakeS3Provider) GetRange(_ context.Context, name string, offset, length int64) ([]byte, string, error) {
+	obj, ok := p.objects[name]
+	if !ok {
+		return nil, "", storageservice.ErrNotFound
+	}
+	if offset >= int64(len(obj.data)) {
+		return []byte{}, obj.contentType, nil
+	}
+	end := offset + length
+	if end > int64(len(obj.data)) {
+		end = int64(len(obj.data))
+	}
+	return obj.data[offset:end], obj.contentType, nil
 }
 
 func (p *routeFakeS3Provider) Delete(_ context.Context, name string) error {
@@ -91,8 +110,8 @@ func setupDirectUploadRouteTest(t *testing.T) (*gorm.DB, *gin.Engine, *routeFake
 	}
 	fileAPI := router.Group("/file")
 	fileAPI.POST("/img-upload/init", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.InitDirectImageUpload)
-	fileAPI.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, api.CompleteDirectImageUpload)
-	fileAPI.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, api.AbortDirectImageUpload)
+	fileAPI.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)
+	fileAPI.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.AbortDirectImageUpload)
 	fileAPI.GET("/img/*filename", api.GetFileByFileName)
 
 	provider := newRouteFakeS3Provider()
@@ -102,6 +121,28 @@ func setupDirectUploadRouteTest(t *testing.T) (*gorm.DB, *gin.Engine, *routeFake
 		db4fileconnect.Connect().Where("1 = 1").Delete(&filedata.Entity{})
 	})
 	return conn, router, provider
+}
+
+// contractLargeJPEG returns a valid JPEG larger than the header sniff bound
+// (and the old 1MB cap) but below the 4MB upload cap, used to prove a legal
+// large image completes. 1024x1024 noise lands ~1.1MB.
+func contractLargeJPEG(t *testing.T) []byte {
+	t.Helper()
+	const side = 1024
+	img := image.NewRGBA(image.Rect(0, 0, side, side))
+	for y := 0; y < side; y++ {
+		for x := 0; x < side; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x * y), G: uint8(x*7 + y*13), B: uint8(x*31 + y*17), A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatalf("encode large test jpeg: %v", err)
+	}
+	if buf.Len() <= storageservice.ImageHeaderSniffBytes {
+		t.Fatalf("large test jpeg is %d bytes, want > %d", buf.Len(), storageservice.ImageHeaderSniffBytes)
+	}
+	return buf.Bytes()
 }
 
 func mustMarshalJSON(t *testing.T, v any) string {
@@ -126,9 +167,14 @@ func serveDirectUploadJSON(router http.Handler, method, path, body, token string
 
 func directUploadInit(t *testing.T, router http.Handler, token, filename string, size int64) (*httptest.ResponseRecorder, string) {
 	t.Helper()
+	return directUploadInitWithType(t, router, token, filename, "image/png", size)
+}
+
+func directUploadInitWithType(t *testing.T, router http.Handler, token, filename, contentType string, size int64) (*httptest.ResponseRecorder, string) {
+	t.Helper()
 	body := mustMarshalJSON(t, map[string]any{
 		"filename":    filename,
-		"contentType": "image/png",
+		"contentType": contentType,
 		"size":        size,
 	})
 	recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/init", body, token)
@@ -176,8 +222,8 @@ func TestDirectImageUploadInitRejectsOverLimitSize(t *testing.T) {
 	user := createHTTPContractUser(t, conn, contractTestID())
 
 	recorder, _ := directUploadInit(t, router, contractSessionToken(t, user), "big.png", filedata.MaxFileSize+1)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("init status = %d, want 400: %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("init status = %d, want 200 (business failure envelope): %s", recorder.Code, recorder.Body.String())
 	}
 	var envelope struct {
 		MessageCode string `json:"messageCode"`
@@ -205,8 +251,8 @@ func TestDirectImageUploadCompleteRejectsForgedMIME(t *testing.T) {
 
 	body := mustMarshalJSON(t, map[string]string{"name": name})
 	recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete", body, token)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("complete status = %d, want 400: %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("complete status = %d, want 200 (business failure envelope): %s", recorder.Code, recorder.Body.String())
 	}
 	var envelope struct {
 		MessageCode string `json:"messageCode"`
@@ -236,8 +282,8 @@ func TestDirectImageUploadCompleteOwnerMismatch(t *testing.T) {
 
 	body := mustMarshalJSON(t, map[string]string{"name": name})
 	recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete", body, contractSessionToken(t, other))
-	if recorder.Code != http.StatusNotFound {
-		t.Fatalf("complete status = %d, want 404: %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("complete status = %d, want 200 (business failure envelope): %s", recorder.Code, recorder.Body.String())
 	}
 	var envelope struct {
 		MessageCode string `json:"messageCode"`
@@ -298,6 +344,50 @@ func TestDirectImageUploadAccessAfterAbort(t *testing.T) {
 	}
 }
 
+func TestDirectImageUploadCompleteUnknownNameNotFound(t *testing.T) {
+	// Review S1 regression: completing a name with no metadata row must be a
+	// page.notFound business failure (200 envelope), not a 500.
+	conn, router, _ := setupDirectUploadRouteTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+
+	body := mustMarshalJSON(t, map[string]string{"name": "2026/09/unknown-name.png"})
+	recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete", body, contractSessionToken(t, user))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("complete status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	var envelope struct {
+		MessageCode string `json:"messageCode"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode complete response: %v", err)
+	}
+	if envelope.MessageCode != "page.notFound" {
+		t.Fatalf("complete messageCode = %q, want page.notFound", envelope.MessageCode)
+	}
+}
+
+func TestDirectImageUploadAbortUnknownNameNotFound(t *testing.T) {
+	// Review S1 regression: aborting a name with no metadata row must be a
+	// page.notFound business failure (200 envelope), not a 500.
+	conn, router, _ := setupDirectUploadRouteTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+
+	body := mustMarshalJSON(t, map[string]string{"name": "2026/09/unknown-name.png"})
+	recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/abort", body, contractSessionToken(t, user))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("abort status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	var envelope struct {
+		MessageCode string `json:"messageCode"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode abort response: %v", err)
+	}
+	if envelope.MessageCode != "page.notFound" {
+		t.Fatalf("abort messageCode = %q, want page.notFound", envelope.MessageCode)
+	}
+}
+
 func TestDirectImageUploadCompleteSuccessRecordsOwnerUsage(t *testing.T) {
 	conn, router, provider := setupDirectUploadRouteTest(t)
 	user := createHTTPContractUser(t, conn, contractTestID())
@@ -338,6 +428,29 @@ func TestDirectImageUploadCompleteSuccessRecordsOwnerUsage(t *testing.T) {
 	}
 }
 
+func TestDirectImageUploadCompleteAcceptsLargeLegalImage(t *testing.T) {
+	// Regression for review B1: a legal image larger than the header sniff
+	// bound (and the old 1MB cap) must complete successfully. The header
+	// validator only reads a bounded prefix; size is enforced by the upload
+	// path, not by header validation.
+	conn, router, provider := setupDirectUploadRouteTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, user)
+
+	largeImage := contractLargeJPEG(t)
+	recorder, name := directUploadInitWithType(t, router, token, "large.jpg", "image/jpeg", int64(len(largeImage)))
+	if name == "" {
+		t.Fatalf("init returned empty name; response=%s", recorder.Body.String())
+	}
+	provider.objects[name] = routeFakeObject{data: largeImage, contentType: "image/jpeg"}
+
+	body := mustMarshalJSON(t, map[string]string{"name": name})
+	recorder = serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete", body, token)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("complete status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestDirectImageUploadAbortOwnerMismatch(t *testing.T) {
 	conn, router, provider := setupDirectUploadRouteTest(t)
 	owner := createHTTPContractUser(t, conn, contractTestID())
@@ -351,8 +464,17 @@ func TestDirectImageUploadAbortOwnerMismatch(t *testing.T) {
 
 	body := mustMarshalJSON(t, map[string]string{"name": name})
 	recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/abort", body, contractSessionToken(t, other))
-	if recorder.Code != http.StatusNotFound {
-		t.Fatalf("abort status = %d, want 404: %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("abort status = %d, want 200 (business failure envelope): %s", recorder.Code, recorder.Body.String())
+	}
+	var envelope struct {
+		MessageCode string `json:"messageCode"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode abort response: %v", err)
+	}
+	if envelope.MessageCode != "page.notFound" {
+		t.Fatalf("abort messageCode = %q, want page.notFound", envelope.MessageCode)
 	}
 	if _, ok := provider.objects[name]; !ok {
 		t.Fatal("object removed despite owner mismatch")

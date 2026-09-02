@@ -250,7 +250,7 @@ func FileResourcePage(page, pageSize int) FileResourcePageResult {
 	var list []FileResource
 	builder().
 		Where("id <= ?", upperId).
-		Select("id, name, assert_type AS type, LENGTH(content) AS size, user_id, created_at").
+		Select("id, name, assert_type AS type, COALESCE(file_size, 0) AS size, user_id, created_at").
 		Order("id DESC").
 		Limit(pageSize).
 		Scan(&list)

@@ -46,12 +46,13 @@ func InitDirectImageUpload(c *gin.Context) {
 	userId := c.GetUint64("userId")
 	policy, failure := resolveImageUploadPolicy(userId)
 	if failure != nil {
-		c.JSON(failure.Status, failure.Data)
+		// 业务失败走 200 信封（仓库约定：400 仅留给请求解析失败）。
+		c.JSON(http.StatusOK, failure.Data)
 		return
 	}
 	contentType, failure := policy.Validate(request.Filename, request.Size, request.ContentType)
 	if failure != nil {
-		c.JSON(failure.Status, failure.Data)
+		c.JSON(http.StatusOK, failure.Data)
 		return
 	}
 	name := storageservice.NewUploadName(request.Filename, time.Now().Format("2006/01/02"))
@@ -59,7 +60,7 @@ func InitDirectImageUpload(c *gin.Context) {
 		Name: name, ContentType: contentType, Size: request.Size, UserId: userId,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageUploadSaveFailed, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadSaveFailed, component.MessageParams{"error": err.Error()}))
 		return
 	}
 	c.JSON(http.StatusOK, component.SuccessDataCode(directImageUploadInitResult{
@@ -91,13 +92,14 @@ func CompleteDirectImageUpload(c *gin.Context) {
 		return
 	}
 	if err := fileusageservice.AddUploadOwner(userId, metadata.Name); err != nil {
+		// 失败时同时删除对象与 ready 元数据行，避免遗留无对象的孤儿行。
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 5*time.Second)
-		cleanupErr := storageservice.Current().Delete(cleanupCtx, metadata.Name)
+		cleanupErr := storageservice.DeleteDirectUpload(cleanupCtx, metadata.Name)
 		cancel()
 		if cleanupErr != nil {
 			slog.Error("delete direct upload after owner usage failure", "fileName", metadata.Name, "err", cleanupErr)
 		}
-		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageUploadSaveFailed, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadSaveFailed, component.MessageParams{"error": err.Error()}))
 		return
 	}
 	c.JSON(http.StatusOK, component.SuccessDataCode(map[string]any{
@@ -124,14 +126,19 @@ func AbortDirectImageUpload(c *gin.Context) {
 }
 
 func writeDirectUploadError(c *gin.Context, err error) {
+	// 业务失败统一走 200 信封（仓库约定）：未知/越权 name 返回 page.notFound，
+	// 伪造对象返回 upload.image.invalidContent，存储失败返回 upload.saveFailed。
+	// 400 仅保留给请求解析失败（ShouldBindJSON）。
 	switch {
+	case errors.Is(err, storageservice.ErrDirectUploadMetadataNotFound):
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessagePageNotFound, nil))
 	case errors.Is(err, storageservice.ErrDirectUploadOwnerMismatch):
-		c.JSON(http.StatusNotFound, component.FailDataCode(component.MessagePageNotFound, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessagePageNotFound, nil))
 	case errors.Is(err, storageservice.ErrDirectUploadInvalidObject):
-		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadInvalidImage, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadInvalidImage, nil))
 	case errors.Is(err, storageservice.ErrDirectUploadUnsupported):
-		c.JSON(http.StatusConflict, component.FailDataCode(component.MessageOperationFailed, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadSaveFailed, component.MessageParams{"error": err.Error()}))
 	default:
-		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageUploadSaveFailed, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadSaveFailed, component.MessageParams{"error": err.Error()}))
 	}
 }

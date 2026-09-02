@@ -108,6 +108,31 @@ func (p *S3Provider) Get(ctx context.Context, name string) ([]byte, string, erro
 	return data, info.ContentType, nil
 }
 
+// GetRange reads a bounded byte range of an object via an S3 Range request so
+// the whole body never crosses the network. The content type comes from the
+// object stat.
+func (p *S3Provider) GetRange(ctx context.Context, name string, offset, length int64) ([]byte, string, error) {
+	opts := minio.GetObjectOptions{}
+	if err := opts.SetRange(offset, offset+length-1); err != nil {
+		return nil, "", fmt.Errorf("set s3 range %d-%d: %w", offset, offset+length-1, err)
+	}
+	obj, err := p.client.GetObject(ctx, p.bucket, name, opts)
+	if err != nil {
+		return nil, "", mapStorageError(err)
+	}
+	defer func() { _ = obj.Close() }()
+
+	info, err := obj.Stat()
+	if err != nil {
+		return nil, "", mapStorageError(err)
+	}
+	data, err := io.ReadAll(obj)
+	if err != nil {
+		return nil, "", mapStorageError(err)
+	}
+	return data, info.ContentType, nil
+}
+
 // Delete removes an object. Removing a missing object is not an error.
 func (p *S3Provider) Delete(ctx context.Context, name string) error {
 	err := p.client.RemoveObject(ctx, p.bucket, name, minio.RemoveObjectOptions{})
@@ -233,3 +258,4 @@ func validateObjectWrite(name, contentType string, size int64) error {
 
 var _ Provider = (*S3Provider)(nil)
 var _ DirectUploadProvider = (*S3Provider)(nil)
+var _ ObjectRangeReader = (*S3Provider)(nil)

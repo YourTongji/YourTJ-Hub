@@ -106,10 +106,10 @@ completeDirectImageUpload:
       `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
       re-checks ownership, object size, MIME type and the decoded image header before publishing;
       a forged or invalid object fails with `upload.image.invalidContent` (HTTP 200). On success the file
-      becomes visible and the response carries the final public `url`, the original `filename` and
-      the stored byte `size`. An unknown or foreign `name` fails with `page.notFound`;
-      storage failures fail with `upload.saveFailed` (params error). Frozen accounts are rejected
-      by the route-level CheckWritableAccount middleware.
+      becomes visible and the response carries the final public `url`, the stored object `name` (the
+      pending `name` returned by init) and the stored byte `size`. An unknown or foreign `name` fails
+      with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
+      are rejected by the route-level CheckWritableAccount middleware.
     requestBody:
       required: true
       content:
@@ -150,6 +150,21 @@ completeDirectImageUpload:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Upload rate limit (action `upload`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/upload-avatar-rate-limited.json
 
 abortDirectImageUpload:
   post:
@@ -202,3 +217,18 @@ abortDirectImageUpload:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Upload rate limit (action `upload`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/upload-avatar-rate-limited.json

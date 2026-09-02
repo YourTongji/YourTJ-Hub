@@ -17,6 +17,10 @@ var (
 	ErrDirectUploadUnsupported   = errors.New("file storage does not support direct uploads")
 	ErrDirectUploadOwnerMismatch = errors.New("pending upload does not belong to user")
 	ErrDirectUploadInvalidObject = errors.New("uploaded object failed validation")
+	// ErrDirectUploadMetadataNotFound marks a complete/abort whose name has no
+	// matching metadata row (pending or ready). It maps to 404 so unknown names
+	// do not leak object existence the way a 500 would.
+	ErrDirectUploadMetadataNotFound = errors.New("direct upload metadata not found")
 )
 
 // DirectUploadRequest describes the object a browser will upload straight to
@@ -178,11 +182,16 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 		return nil, err
 	}
 	if request.Validator != nil {
-		object, contentType, err := Current().Get(ctx, request.Name)
+		// Validate only a bounded header: the object's full size and content
+		// type were already checked by VerifyUpload (StatObject), so the server
+		// never downloads the whole (up to the upload cap) object during a
+		// direct upload publish. Providers that support range reads are
+		// preferred; others fall back to a full Get.
+		headerReader, contentType, err := readObjectHeader(ctx, request.Name)
 		if err != nil {
 			return nil, err
 		}
-		validationErr := request.Validator(bytes.NewReader(object), contentType)
+		validationErr := request.Validator(headerReader, contentType)
 		if validationErr != nil {
 			if errors.Is(validationErr, ErrDirectUploadInvalidObject) {
 				return nil, rollbackDirectUpload(ctx, metadataRepo, request.Name, validationErr)
@@ -191,6 +200,33 @@ func CompleteDirectUpload(ctx context.Context, request CompleteDirectUploadReque
 		}
 	}
 	return metadataRepo.MarkFileReady(ctx, request.Name)
+}
+
+// ImageHeaderSniffBytes is the header window read for content validation of a
+// direct-uploaded object. Only enough bytes to sniff and decode an image
+// header are needed (a few hundred bytes in practice); 512KB is far more than
+// any supported format requires, and avoids downloading the whole object.
+const ImageHeaderSniffBytes = 512 * 1024
+
+// readObjectHeader returns a reader over a bounded prefix of the object. When
+// the provider implements ObjectRangeReader the server only pulls the header
+// bytes; otherwise it falls back to reading the whole object and truncating.
+func readObjectHeader(ctx context.Context, name string) (io.Reader, string, error) {
+	if rangeReader, ok := Current().(ObjectRangeReader); ok {
+		data, contentType, err := rangeReader.GetRange(ctx, name, 0, ImageHeaderSniffBytes)
+		if err != nil {
+			return nil, "", err
+		}
+		return bytes.NewReader(data), contentType, nil
+	}
+	data, contentType, err := Current().Get(ctx, name)
+	if err != nil {
+		return nil, "", err
+	}
+	if int64(len(data)) > ImageHeaderSniffBytes {
+		data = data[:ImageHeaderSniffBytes]
+	}
+	return bytes.NewReader(data), contentType, nil
 }
 
 // AbortDirectUpload verifies ownership and removes both the object and the
@@ -211,6 +247,18 @@ func AbortDirectUpload(ctx context.Context, request CompleteDirectUploadRequest)
 		return ErrDirectUploadOwnerMismatch
 	}
 	return rollbackDirectUpload(ctx, metadataRepo, request.Name, nil)
+}
+
+// DeleteDirectUpload removes both a completed upload's object and its metadata
+// row. It is used when a complete succeeded but a later step (e.g. recording
+// the upload owner) failed: deleting only the object would leave a ready
+// metadata row whose object is gone, occupying the name forever.
+func DeleteDirectUpload(ctx context.Context, name string) error {
+	metadataRepo := metadataStore()
+	if metadataRepo == nil {
+		return errors.New("direct upload metadata store is not registered")
+	}
+	return rollbackDirectUpload(ctx, metadataRepo, name, nil)
 }
 
 // CleanupPending removes pending uploads older than before, deleting their

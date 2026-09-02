@@ -529,7 +529,6 @@ paths:
   /api/forum/moderation/course-stats-rebuild:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseStatsRebuild/post
-<<<<<<< HEAD
   /api/forum/moderation/course-relation-list:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseRelationList/post

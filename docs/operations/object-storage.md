@@ -40,11 +40,13 @@ S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后�
    （bucket 端点），随后 `POST /file/img-upload/complete`（`{ name }`）请求发布。
 4. 服务端在发布前重新校验：对象归属（必须属于当前调用者）、对象大小、MIME 类型与
    **解码后的图片头**；伪造或无效对象以 `upload.invalidImage` 拒绝，绝不直接信任浏览器声明。
-5. 发布成功后返回最终公开 `url`、原始 `filename` 与字节 `size`；失败或取消时浏览器
-   `POST /file/img-upload/abort`（`{ name }`）删除待发布对象。
+5. 发布成功后返回最终公开 `url`、存储对象名 `filename`（即 init 返回的 `name`，非调用方
+   原始文件名）与字节 `size`；失败或取消时浏览器 `POST /file/img-upload/abort`（`{ name }`）
+   删除待发布对象。
 
 **未完成上传的清理**：超过 2 小时仍未 complete 的待发布对象由服务端清理任务移除
-（abort 失败可忽略，清理任务兜底）。
+（abort 失败可忽略，清理任务兜底）。`upload_owner` 归属记录是审计用途，不参与附件
+生命周期（内容删除后的可见性/物理清理以内容引用为准）。
 
 ## Bucket CORS
 
@@ -70,3 +72,15 @@ S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后�
   `s3:GetObject`、`s3:DeleteObject`、`s3:ListBucket`），不授予跨 bucket 或管理权限。
 - **任何密钥都不会下发到浏览器**：浏览器只拿到短时效、限定对象与大小的预签名 POST 策略，
   服务端凭据仅存于服务端（securestore 加密落库，管理端不回显）。
+
+## 残余风险与语义
+
+- **下行带宽**：直传只省上传链路；`complete` 发布时服务端仍做一次 `StatObject` 校验与
+  **有界 Range 读头部**（512KB）以核对图片头，不再下载整个对象。若配置了
+  `publicUrlPrefix`，后续读取走 CDN/对象存储直读，不下行应用服务器。
+- **每日上传额度按 pending 行计**：`init` 即创建 pending 行，`CountDailyUploads`
+  按 `user_id × created_at` 计数且不区分 storage_status——abort 或 2 小时清理前，该次
+  init 计入当日额度（作为反滥用上界，自限、无跨用户影响）。
+- **发布与归属记录非事务**：`complete` 的 `MarkFileReady` 与控制器里的 `AddUploadOwner`
+  是两次独立写，崩溃窗口可能产生「已 ready 但无 owner 记录」的行（对象可读但归属审计
+  缺失）；概率极低，归属记录失败时服务端会同时删除对象与元数据行作为回滚。

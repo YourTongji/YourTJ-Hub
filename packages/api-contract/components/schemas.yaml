@@ -8648,7 +8648,7 @@ DirectImageUploadCompleteResult:
       description: Final public URL of the published image.
     filename:
       type: string
-      description: Original file name.
+      description: Stored object name (the pending `name` returned by `/file/img-upload/init`), not the caller's original file name.
     size:
       type: integer
       format: int64

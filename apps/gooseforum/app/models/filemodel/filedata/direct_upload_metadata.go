@@ -2,6 +2,7 @@ package filedata
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
@@ -28,7 +29,7 @@ func (directUploadMetadataStore) CreateFileMetadata(ctx context.Context, userId 
 func (directUploadMetadataStore) GetPendingFileMetadataByName(ctx context.Context, name string) (*storageservice.FileMetadata, error) {
 	entity, err := GetPendingFileMetadataByNameContext(ctx, name)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(storageservice.ErrDirectUploadMetadataNotFound, err)
 	}
 	return toFileMetadata(entity), nil
 }
@@ -36,7 +37,7 @@ func (directUploadMetadataStore) GetPendingFileMetadataByName(ctx context.Contex
 func (directUploadMetadataStore) GetFileMetadataByName(ctx context.Context, name string) (*storageservice.FileMetadata, error) {
 	entity, err := GetFileMetadataByNameContext(ctx, name)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(storageservice.ErrDirectUploadMetadataNotFound, err)
 	}
 	return toFileMetadata(entity), nil
 }

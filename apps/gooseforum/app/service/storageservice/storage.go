@@ -28,6 +28,18 @@ type Provider interface {
 	Exists(ctx context.Context, name string) (bool, error)
 }
 
+// ObjectRangeReader is an optional Provider capability for reading a bounded
+// byte range of an object without downloading the whole body. Direct upload
+// completion uses it to validate just the image header, so the app server
+// never downloads the full (up to the upload cap) object during a direct
+// upload publish.
+type ObjectRangeReader interface {
+	// GetRange returns up to length bytes starting at offset, plus the object
+	// content type. If the object is smaller than offset+length, the available
+	// tail (possibly empty) is returned without error.
+	GetRange(ctx context.Context, name string, offset, length int64) ([]byte, string, error)
+}
+
 // Provider names used by the storage settings config.
 const (
 	ProviderLocal = "local"

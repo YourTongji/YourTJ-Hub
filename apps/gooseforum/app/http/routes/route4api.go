@@ -443,7 +443,7 @@ func fileServer(ginApp *gin.Engine) {
 	r := ginApp.Group("file")
 	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.SaveImgByGinContext)
 	r.POST("/img-upload/init", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.InitDirectImageUpload)
-	r.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, api.CompleteDirectImageUpload)
-	r.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, api.AbortDirectImageUpload)
+	r.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)
+	r.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.AbortDirectImageUpload)
 	r.GET("/img/*filename", api.GetFileByFileName)
 }

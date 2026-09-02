@@ -14,9 +14,9 @@ import (
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
-)
 
-const maximumImageHeaderSize = 1024 * 1024
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
+)
 
 var errInvalidImageContent = errors.New("invalid image content")
 
@@ -30,14 +30,17 @@ var imageFormatContentTypes = map[string]string{
 
 // validateUploadedImage decodes the image header and verifies both the sniffed
 // and the decoded format match the expected content type. It is used to reject
-// forged MIME uploads whose bytes are not actually an image.
+// forged MIME uploads whose bytes are not actually an image. Only a bounded
+// header is read: the object's full size is enforced by the upload path (the
+// presigned exact-size pin plus VerifyUpload's StatObject check), so an image
+// larger than the sniff bound is still valid as long as its header decodes.
 func validateUploadedImage(reader io.Reader, expectedContentType string) error {
-	data, err := io.ReadAll(io.LimitReader(reader, maximumImageHeaderSize+1))
+	data, err := io.ReadAll(io.LimitReader(reader, storageservice.ImageHeaderSniffBytes))
 	if err != nil {
 		return fmt.Errorf("read image header: %w", err)
 	}
-	if len(data) == 0 || len(data) > maximumImageHeaderSize {
-		return fmt.Errorf("%w: image header is empty or exceeds %d bytes", errInvalidImageContent, maximumImageHeaderSize)
+	if len(data) == 0 {
+		return fmt.Errorf("%w: image header is empty", errInvalidImageContent)
 	}
 	detected := http.DetectContentType(data)
 	if !strings.EqualFold(detected, expectedContentType) {

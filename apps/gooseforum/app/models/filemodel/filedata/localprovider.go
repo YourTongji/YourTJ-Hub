@@ -40,6 +40,21 @@ func (localProvider) Get(_ context.Context, name string) ([]byte, string, error)
 	return entity.Data, entity.Type, nil
 }
 
+func (localProvider) GetRange(_ context.Context, name string, offset, length int64) ([]byte, string, error) {
+	entity := GetByName(name)
+	if entity.Id == 0 {
+		return nil, "", storageservice.ErrNotFound
+	}
+	if offset >= int64(len(entity.Data)) {
+		return []byte{}, entity.Type, nil
+	}
+	end := offset + length
+	if end > int64(len(entity.Data)) {
+		end = int64(len(entity.Data))
+	}
+	return entity.Data[offset:end], entity.Type, nil
+}
+
 func (localProvider) Delete(_ context.Context, name string) error {
 	return DeleteByName(name)
 }

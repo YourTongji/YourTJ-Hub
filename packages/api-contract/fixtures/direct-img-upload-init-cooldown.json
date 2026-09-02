@@ -4,6 +4,6 @@
   "messageCode": "upload.cooldown",
   "params": {
     "minutes": 1440,
-    "availableAt": "2026-09-01 12:00:00"
+    "availableAt": "2026-09-01T12:00:00Z"
   }
 }

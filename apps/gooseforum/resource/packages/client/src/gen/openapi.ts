@@ -5325,7 +5325,6 @@ export interface paths {
         trace?: never;
     };
     "/api/forum/moderation/course-relation-list": {
-    "/file/img-upload/init": {
         parameters: {
             query?: never;
             header?: never;
@@ -5341,23 +5340,6 @@ export interface paths {
          *     failure (`permission.denied`).
          */
         post: operations["adminCourseRelationList"];
-         * Initialize a post-image upload (server proxy or presigned direct)
-         * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
-         *     byte size; the server validates them against the posting-settings allowlist and size cap
-         *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
-         *     the caller must continue with the existing multipart `POST /file/img-upload`. With an
-         *     S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
-         *     POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
-         *     uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
-         *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
-         *     upload cooldown, params minutes/availableAt), `upload.dailyLimit` (params count),
-         *     `upload.file.tooLarge` (params maxSizeKb), `upload.extension.unsupported` (params extensions),
-         *     `upload.image.unsupported`, `upload.image.invalidContent`, `upload.filename.required`,
-         *     `upload.saveFailed` (params error). Frozen accounts are rejected by the route-level
-         *     CheckWritableAccount middleware with the standard params action=写入 / actionCode=write.
-         *     The init call is additionally bounded by the `upload` rate limit (429 + Retry-After).
-         */
-        post: operations["initDirectImageUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5365,7 +5347,6 @@ export interface paths {
         trace?: never;
     };
     "/api/forum/moderation/course-relation-approve": {
-    "/file/img-upload/complete": {
         parameters: {
             query?: never;
             header?: never;
@@ -5382,17 +5363,6 @@ export interface paths {
          *     business failure. Writes an audit log entry.
          */
         post: operations["adminCourseRelationApprove"];
-         * Publish a direct-uploaded post image after the browser uploaded it to the bucket
-         * @description Called after the browser uploaded the file to the bucket using the presigned POST policy from
-         *     `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
-         *     re-checks ownership, object size, MIME type and the decoded image header before publishing;
-         *     a forged or invalid object fails with `upload.image.invalidContent` (HTTP 200). On success the file
-         *     becomes visible and the response carries the final public `url`, the original `filename` and
-         *     the stored byte `size`. An unknown or foreign `name` fails with `page.notFound`;
-         *     storage failures fail with `upload.saveFailed` (params error). Frozen accounts are rejected
-         *     by the route-level CheckWritableAccount middleware.
-         */
-        post: operations["completeDirectImageUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5400,7 +5370,6 @@ export interface paths {
         trace?: never;
     };
     "/api/forum/moderation/course-relation-ignore": {
-    "/file/img-upload/abort": {
         parameters: {
             query?: never;
             header?: never;
@@ -5483,6 +5452,82 @@ export interface paths {
          *     the candidate returns to approved. Writes an audit log entry.
          */
         post: operations["adminCourseMergeUndo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file/img-upload/init": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Initialize a post-image upload (server proxy or presigned direct)
+         * @description Starts a post-image upload. The caller declares the original filename, browser MIME type and
+         *     byte size; the server validates them against the posting-settings allowlist and size cap
+         *     before returning a mode. With the local storage provider the response is `mode: "proxy"` and
+         *     the caller must continue with the existing multipart `POST /file/img-upload`. With an
+         *     S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+         *     POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
+         *     uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
+         *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
+         *     upload cooldown, params minutes/availableAt), `upload.dailyLimit` (params count),
+         *     `upload.file.tooLarge` (params maxSizeKb), `upload.extension.unsupported` (params extensions),
+         *     `upload.image.unsupported`, `upload.image.invalidContent`, `upload.filename.required`,
+         *     `upload.saveFailed` (params error). Frozen accounts are rejected by the route-level
+         *     CheckWritableAccount middleware with the standard params action=写入 / actionCode=write.
+         *     The init call is additionally bounded by the `upload` rate limit (429 + Retry-After).
+         */
+        post: operations["initDirectImageUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file/img-upload/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a direct-uploaded post image after the browser uploaded it to the bucket
+         * @description Called after the browser uploaded the file to the bucket using the presigned POST policy from
+         *     `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
+         *     re-checks ownership, object size, MIME type and the decoded image header before publishing;
+         *     a forged or invalid object fails with `upload.image.invalidContent` (HTTP 200). On success the file
+         *     becomes visible and the response carries the final public `url`, the stored object `name` (the
+         *     pending `name` returned by init) and the stored byte `size`. An unknown or foreign `name` fails
+         *     with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
+         *     are rejected by the route-level CheckWritableAccount middleware.
+         */
+        post: operations["completeDirectImageUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file/img-upload/abort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
          * Abort a pending direct post-image upload
          * @description Cancels a pending direct upload started by `/file/img-upload/init` and removes the pending
          *     object so it is never published. The `name` must belong to the caller; an unknown or foreign
@@ -9707,7 +9752,7 @@ export interface components {
         DirectImageUploadCompleteResult: {
             /** @description Final public URL of the published image. */
             url: string;
-            /** @description Original file name. */
+            /** @description Stored object name (the pending `name` returned by `/file/img-upload/init`), not the caller's original file name. */
             filename: string;
             /**
              * Format: int64
@@ -19091,7 +19136,6 @@ export interface operations {
         };
     };
     adminCourseRelationList: {
-    initDirectImageUpload: {
         parameters: {
             query?: never;
             header?: never;
@@ -19105,18 +19149,12 @@ export interface operations {
         };
         responses: {
             /** @description One page of lineage candidates, or a permission business failure envelope. */
-                "application/json": components["schemas"]["DirectImageUploadInitRequest"];
-            };
-        };
-        responses: {
-            /** @description Upload mode decided, or a legacy business failure envelope. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AdminCourseRelationListResponse"];
-                    "application/json": components["schemas"]["DirectImageUploadInitResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -19131,28 +19169,6 @@ export interface operations {
         };
     };
     adminCourseRelationApprove: {
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Upload rate limit (action `upload`) exceeded. */
-            429: {
-                headers: {
-                    "Retry-After": number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimitedFailure"];
-                };
-            };
-        };
-    };
-    completeDirectImageUpload: {
         parameters: {
             query?: never;
             header?: never;
@@ -19166,18 +19182,12 @@ export interface operations {
         };
         responses: {
             /** @description The updated lineage candidate, or a business failure envelope. */
-                "application/json": components["schemas"]["DirectImageUploadCompleteRequest"];
-            };
-        };
-        responses: {
-            /** @description Image published, or a legacy business failure envelope. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
-                    "application/json": components["schemas"]["DirectImageUploadCompleteResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -19200,8 +19210,6 @@ export interface operations {
             };
             /** @description Candidate type is not approvable (EQUIVALENT/RENAMED_FROM must merge). */
             409: {
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19212,7 +19220,6 @@ export interface operations {
         };
     };
     adminCourseRelationIgnore: {
-    abortDirectImageUpload: {
         parameters: {
             query?: never;
             header?: never;
@@ -19226,18 +19233,12 @@ export interface operations {
         };
         responses: {
             /** @description The updated lineage candidate, or a business failure envelope. */
-                "application/json": components["schemas"]["DirectImageUploadAbortRequest"];
-            };
-        };
-        responses: {
-            /** @description Pending upload aborted, or a legacy business failure envelope. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
-                    "application/json": components["schemas"]["DirectImageUploadAbortResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -19395,6 +19396,46 @@ export interface operations {
             };
             /** @description Candidate was never merged. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    initDirectImageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectImageUploadInitRequest"];
+            };
+        };
+        responses: {
+            /** @description Upload mode decided, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectImageUploadInitResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Authenticated account is frozen or its account information cannot be resolved. */
             403: {
                 headers: {
@@ -19402,6 +19443,120 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    completeDirectImageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectImageUploadCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Image published, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectImageUploadCompleteResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    abortDirectImageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectImageUploadAbortRequest"];
+            };
+        };
+        responses: {
+            /** @description Pending upload aborted, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectImageUploadAbortResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
