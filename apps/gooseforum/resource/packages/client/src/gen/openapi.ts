@@ -1958,7 +1958,8 @@ export interface paths {
          * Get the AI-generated summary of a course (B7, issue
          * @description Public read endpoint. Returns the cached AI summary when available (status `cached`),
          *     generates and persists a fresh one on first request (status `generated`), or reports
-         *     `insufficient_data` when the course has fewer than 10 visible reviews with content.
+         *     `insufficient_data` when the course has no visible reviews with content (a single
+         *     visible review is enough to generate).
          *     When the feature is disabled the endpoint returns status `disabled` (HTTP 200).
          *     `?refresh=true` forces regeneration, subject to per-course and global generation rate
          *     limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never

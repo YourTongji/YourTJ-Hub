@@ -152,11 +152,11 @@ func enableAiSummaryProvider(t *testing.T, fake func() (string, error)) *int {
 
 const fakeSummaryJSON = `{"consensus":"recommend","keywords":["给分好","作业多"],"pros":["老师讲得清楚","给分宽松"],"cons":["作业量较大"],"representativeReviews":[{"excerpt":"老师讲得很好，作业虽然多但有收获。","sentiment":"positive"},{"excerpt":"内容比较难。","sentiment":"neutral"}]}`
 
-// TestAiSummaryInsufficientData 少于 10 条有效评价 → insufficient_data，不调 LLM，
+// TestAiSummaryInsufficientData 无有效评价（少于阈值 1 条）→ insufficient_data，不调 LLM，
 // 且落库 insufficient 标记（下次请求直接命中，不重复评估、不消耗限流）。
 func TestAiSummaryInsufficientData(t *testing.T) {
 	courseId := setupAiSummaryTest(t)
-	seedAiSummaryReviews(t, courseId, 5)
+	// 0 条有效评价：少于阈值 1 → insufficient_data。
 	calls := enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
 
 	result, err := GetAiSummary(courseId, false)
@@ -198,34 +198,30 @@ func TestAiSummaryInsufficientData(t *testing.T) {
 // insufficient 后立即删除标记并补足评价再生成，不应被 429 拦截。
 func TestAiSummaryInsufficientDoesNotConsumeQuota(t *testing.T) {
 	courseId := setupAiSummaryTest(t)
-	seedAiSummaryReviews(t, courseId, 5)
+	// 0 条有效评价 → 落 insufficient 标记。
 	enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
 
 	if _, err := GetAiSummary(courseId, false); err != nil {
 		t.Fatalf("first insufficient: %v", err)
 	}
-	// 补足评价（>10 条，作者用另一偏移避免撞唯一键）并删除 insufficient 标记
-	// （模拟评价变更失效路径）。
+	// 补足评价到 1 条（作者用另一偏移避免撞唯一键）。不删除 insufficient 标记——
+	// 自愈语义：GetAiSummary 以当前可见有正文评价数为准重新判定，足够则忽略
+	// 过期标记继续生成（生成成功时 Upsert 覆盖为 generated）。
 	conn := dbconnect.Connect()
 	offering := course.OfferingEntity{}
 	if err := conn.Where("course_id = ?", courseId).First(&offering).Error; err != nil {
 		t.Fatalf("find offering: %v", err)
 	}
-	for i := 0; i < 8; i++ {
-		rating := 4
-		author := uint64(20000 + i)
-		if err := conn.Create(&course.ReviewEntity{
-			OfferingId:   offering.Id,
-			AuthorUserId: &author,
-			Rating:       &rating,
-			Content:      "补充评价，内容充实有细节。",
-			Status:       course.ReviewStatusVisible,
-		}).Error; err != nil {
-			t.Fatalf("create extra review %d: %v", i, err)
-		}
-	}
-	if err := conn.Where("course_id = ?", courseId).Delete(&course.CourseAiSummaryEntity{}).Error; err != nil {
-		t.Fatalf("delete insufficient row: %v", err)
+	rating := 4
+	author := uint64(20000)
+	if err := conn.Create(&course.ReviewEntity{
+		OfferingId:   offering.Id,
+		AuthorUserId: &author,
+		Rating:       &rating,
+		Content:      "补充评价，内容充实有细节。",
+		Status:       course.ReviewStatusVisible,
+	}).Error; err != nil {
+		t.Fatalf("create extra review: %v", err)
 	}
 	// 立即生成：若 insufficient 消耗过单课名额会被 429 拦截。
 	result, err := GetAiSummary(courseId, false)
@@ -234,6 +230,60 @@ func TestAiSummaryInsufficientDoesNotConsumeQuota(t *testing.T) {
 	}
 	if result.Status != AiSummaryStatusGenerated {
 		t.Fatalf("status = %q, want generated", result.Status)
+	}
+}
+
+// TestAiSummaryInsufficientSelfHeals insufficient 标记自愈：标记落库后评价增加
+// （写路径漏失效/阈值下调），GetAiSummary 以当前可见有正文评价数为准重新判定，
+// 足够则忽略标记继续生成，不再永久返回 insufficient_data。
+func TestAiSummaryInsufficientSelfHeals(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	calls := enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
+
+	// 0 条评价 → 落 insufficient 标记。
+	if _, err := GetAiSummary(courseId, false); err != nil {
+		t.Fatalf("first insufficient: %v", err)
+	}
+	if cached := course.GetCourseAiSummary(courseId); cached.Status != course.AiSummaryRowStatusInsufficient {
+		t.Fatalf("row status = %q, want insufficient", cached.Status)
+	}
+	// 评价补充到 1 条（足够），不删除标记（模拟写路径漏失效/阈值下调）。
+	seedAiSummaryReviews(t, courseId, 1)
+	// 不 refresh：自愈判定后继续生成。
+	result, err := GetAiSummary(courseId, false)
+	if err != nil {
+		t.Fatalf("get after reviews added: %v", err)
+	}
+	if result.Status != AiSummaryStatusGenerated {
+		t.Fatalf("status = %q, want generated (self-healed)", result.Status)
+	}
+	if *calls != 1 {
+		t.Fatalf("llm calls = %d, want 1", *calls)
+	}
+	if cached := course.GetCourseAiSummary(courseId); cached.Status != course.AiSummaryRowStatusGenerated {
+		t.Fatalf("row status after self-heal = %q, want generated", cached.Status)
+	}
+}
+
+// TestCheckAiSummaryInsufficientSelfHeals check 预检自愈：insufficient 标记过期
+// （评价已足够）时返回 none（而非 insufficient_data），前端展开即可触发生成。
+func TestCheckAiSummaryInsufficientSelfHeals(t *testing.T) {
+	courseId := setupAiSummaryTest(t)
+	enableAiSummaryProvider(t, func() (string, error) { return fakeSummaryJSON, nil })
+
+	if _, err := GetAiSummary(courseId, false); err != nil {
+		t.Fatalf("first insufficient: %v", err)
+	}
+	if got, err := CheckAiSummary(courseId); err != nil || got.Status != AiSummaryStatusInsufficientData {
+		t.Fatalf("check before reviews = %q err=%v, want insufficient_data", got.Status, err)
+	}
+	seedAiSummaryReviews(t, courseId, 1)
+	got, err := CheckAiSummary(courseId)
+	if err != nil {
+		t.Fatalf("check after reviews: %v", err)
+	}
+	if got.Status != AiSummaryStatusNone {
+		t.Fatalf("check after reviews = %q, want none (self-healed)", got.Status)
 	}
 }
 
@@ -295,7 +345,7 @@ func TestAiSummaryCheckMode(t *testing.T) {
 
 	// 评价不足场景 check → insufficient_data。
 	other := setupAiSummaryTest(t) // 重新初始化（清空表与限流）
-	seedAiSummaryReviews(t, other, 5)
+	// 0 条有效评价 → insufficient_data。
 	if _, err := GetAiSummary(other, false); err != nil {
 		t.Fatalf("insufficient generate: %v", err)
 	}
