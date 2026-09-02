@@ -27,6 +27,37 @@ S3 兼容对象存储（MinIO / Tencent COS / Alibaba OSS / Cloudflare R2）后�
 | `bucketLookup` | `auto` / `dns` / `path`；OSS/COS（2024-01-01 后创建的 bucket）仅支持 `dns`（virtual-hosted），MinIO/R2 可用 `auto`/`path` |
 | `secure` | 是否使用 TLS |
 | `publicUrlPrefix` | 可选公开 URL 前缀（CDN 直读）；未配置时论坛通过 `/file/img/*` 代理读取 |
+| `internalEndpoint` | 可选内网端点，仅 `s3` 模式使用；配置后服务端数据面操作经内网端点访问，浏览器直传仍走公开 `endpoint`。为空或与 `endpoint` 同主机时行为不变，详见「内网 Endpoint（可选）」 |
+
+### 内网 Endpoint（可选）
+
+`internalEndpoint` 为可选设置，仅 S3 提供方（`provider = "s3"`）使用；本地提供方与
+`publicUrlPrefix` 相同，存储但忽略该字段。配置后服务端会建立两个 minio 客户端（公开
+端点 + 内网端点），按流量路径分流：
+
+| 流量路径 | 使用端点 |
+|---|---|
+| 服务端数据面：Save/Get/GetRange/Delete/Exists/VerifyUpload、测试连接的 bucket 检查（即 `/file/img/*` 代理读取、直传 complete 的 `StatObject` 校验与 512KB 头部 Range 读取、abort/超时清理删除、文件迁移任务） | `internalEndpoint` |
+| 浏览器直传：`init` 返回的预签名 POST URL（PresignUpload） | 始终为公开 `endpoint`（浏览器必须能直达） |
+| `internalEndpoint` 为空，或其规范化主机与 `endpoint` 相同 | 仅公开端点单客户端，行为与现状一致 |
+
+**Alibaba OSS 示例**：bucket `yourtj-media` 位于 ap-northeast-2（首尔），公开端点为
+`https://oss-ap-northeast-2.aliyuncs.com`，内网端点为
+`https://oss-ap-northeast-2-internal.aliyuncs.com`；`region` 必须与 bucket 所在地一致
+（ap-northeast-2）。
+
+**前提条件**：内网端点仅在同一阿里云账号、同一地域的 VPC 内可达——内网 DNS 只在该
+VPC 内解析（解析结果形如 `100.100.2.136` / `100.100.2.138` 等 100.100.x/100.99.x
+私网地址）。论坛容器必须与 bucket 同账号同地域部署且能连通内网端点；公网开发机等
+无法解析的环境必须保持该字段为空。
+
+**注意**：
+- 浏览器直传的预签名 POST URL 仍指向公开 `endpoint`，bucket 的 CORS 配置依旧必需
+  （见「Bucket CORS」）。
+- 值可带 scheme（如 `https://`），scheme 优先于共享的 `secure` 开关（与 `endpoint`
+  的处理方式一致）。
+- 该用法仅适用于 Alibaba OSS 等提供同地域内网端点形态的厂商；MinIO / Tencent COS /
+  Cloudflare R2 / 自建 S3 兼容存储没有对应用法，保持为空即可。
 
 ## 帖子图片直传流程
 

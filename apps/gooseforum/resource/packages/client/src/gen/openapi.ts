@@ -8289,6 +8289,8 @@ export interface components {
             provider: "local" | "s3";
             /** @description S3-compatible endpoint; required with bucket when provider is `s3`. */
             endpoint: string;
+            /** @description Optional S3 server-side endpoint (e.g. Alibaba OSS internal `-internal.aliyuncs.com`); when set and its host differs from `endpoint`, server-side reads/writes use it while browser direct uploads still presign against `endpoint`. Empty = single endpoint. */
+            internalEndpoint?: string;
             bucket: string;
             region: string;
             /** @description `auto` | `dns` | `path`. */
@@ -9859,6 +9861,7 @@ export interface components {
             /** @enum {string} */
             provider: "local" | "s3";
             endpoint: string;
+            internalEndpoint?: string;
             bucket: string;
             region: string;
             bucketLookup: string;

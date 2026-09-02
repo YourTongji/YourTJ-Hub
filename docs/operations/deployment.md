@@ -197,7 +197,16 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 > 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
 
 设置：`gh secret set <KEY> --env production`（值经管道从服务器读取，勿回显终端/日志）。
-仓库级 VM_* 已迁移到 environments；旧 repo-level 同名 secret 不再被 workflows 引用。
+
+**实例 ↔ GitHub Environment 映射**：部署/巡检 workflow 的 job 一律按此声明 `environment:`，
+从对应环境读取 `VM_*` 与渲染 secrets（不存在仓库级 fallback）：
+- `deploy-dev.yml` / `apply-config.yml(env=dev)` / `config-drift-check.yml(matrix=dev)` → `dev`
+- `deploy-main.yml` / `apply-config.yml(env=main)` / `config-drift-check.yml(matrix=main)` → `production`
+
+> 注意实例名 ≠ GitHub Environment：`main`/`dev` 是 workflow 输入里的实例名，对应 secrets 分别
+> 存在 `production`/`dev` 环境（早期错误映射 `environment: main` 曾命中一个空的 `main` 环境，
+> 本次修复已删除该空环境）。仓库级同名 `VM_*` 已一并移除（此前作为迁移兜底存在）——当前无任何
+> workflow 引用 repo-level `VM_*`；缺环境 secret 时渲染/apply/drift 会 fail-closed，不再静默 fallback。
 
 ## First-time server setup
 
@@ -550,9 +559,10 @@ end = "2026-01-18"
 
 - 新机已装 Docker Engine + Compose + 2G swap（`deploy/scripts/init-server.sh` 会在 CI 首次部署时下发，
   也可手动拷贝 `deploy/` 后在服务器执行）。
-- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先更新 GitHub Secrets（`VM_HOST` → 新机 IP、
-  `VM_USER` → `root`、`VM_SSH_KEY` → PEM 内容）再触发 dev 部署**。反代统一由 1Panel 承担
-  （自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
+- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先在 GitHub Environments secrets 更新
+  `VM_HOST`（production 与 dev 均改新机 IP）、`VM_USER` → `root`、`VM_SSH_KEY` → 新机 PEM
+  内容，再触发 dev 部署**（workflows 只读 Environments，无 repo 级 fallback）。反代统一由
+  1Panel 承担（自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
 - **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
   Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
 - 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
@@ -659,7 +669,7 @@ curl -fsS -H "Host: f.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反�
 3. 等 TTL 过后从外网验证 `https://f.yourtj.de` 与 `https://dev.yourtj.de` 可达、
    登录/发帖/附件/搜索 spot-check。
 4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
-5. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
+5. 更新 GitHub Environments secrets `VM_HOST`（production 与 dev）→ 新机 IP；旧机从 CI 摘除。
 
 ### 风险与回滚
 
