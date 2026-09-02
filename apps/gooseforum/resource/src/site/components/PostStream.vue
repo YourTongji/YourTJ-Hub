@@ -1281,6 +1281,12 @@ function canDeleteRenderedPost(post: PostPayload) {
 
 function startEditPost(post: PostPayload) {
   if (savingEditPostId.value || deletingPostId.value === post.id) return
+  // 首楼本质上是话题本体，其编辑应进入“发布话题”编辑态（可改标题/分类/正文），
+  // 而不是回复楼层那样就地编辑正文。此分支在 PR #217 中被误删，属行为回归（issue #379）。
+  if (isFirstPost(post)) {
+    window.location.href = `/publish?id=${props.topicId}`
+    return
+  }
   if (!editingPostId.value) {
     postDraftBeforeEdit.value = postContent.value
     targetPostBeforeEdit.value = targetPostId.value
