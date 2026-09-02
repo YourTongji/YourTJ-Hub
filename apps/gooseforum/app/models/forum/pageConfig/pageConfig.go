@@ -336,15 +336,16 @@ type SecurityAndRegistration struct {
 // 密文绝不随 JSON 序列化导出（管理端 GET 仅回显是否已配置）。
 // 持久化走 StorageSettingsStorage（密文带 json 标签）。
 type StorageSettings struct {
-	Provider        string `json:"provider"`        // local | s3
-	Endpoint        string `json:"endpoint"`        // S3 兼容 endpoint，如 https://cos.ap-shanghai.myqcloud.com
-	Bucket          string `json:"bucket"`          // 存储桶
-	Region          string `json:"region"`          // 区域（COS/OSS 必须，R2 可忽略）
-	BucketLookup    string `json:"bucketLookup"`    // auto | dns | path（COS 需 dns，MinIO/R2 可 auto/path）
-	Secure          bool   `json:"secure"`          // 是否使用 HTTPS
-	AccessKey       string `json:"-"`               // 运行时明文（服务内存）；密文见 StorageSettingsStorage
-	SecretKey       string `json:"-"`               // 运行时明文（服务内存）；密文见 StorageSettingsStorage
-	PublicUrlPrefix string `json:"publicUrlPrefix"` // 可选公开访问前缀（CDN），留空则走 /file/img 代理
+	Provider         string `json:"provider"`         // local | s3
+	Endpoint         string `json:"endpoint"`         // S3 兼容公网 endpoint，如 https://cos.ap-shanghai.myqcloud.com
+	InternalEndpoint string `json:"internalEndpoint"` // 可选：S3 服务端数据面端点（如 OSS 内网 -internal.aliyuncs.com），留空则单端点
+	Bucket           string `json:"bucket"`           // 存储桶
+	Region           string `json:"region"`           // 区域（COS/OSS 必须，R2 可忽略）
+	BucketLookup     string `json:"bucketLookup"`     // auto | dns | path（COS 需 dns，MinIO/R2 可 auto/path）
+	Secure           bool   `json:"secure"`           // 是否使用 HTTPS
+	AccessKey        string `json:"-"`                // 运行时明文（服务内存）；密文见 StorageSettingsStorage
+	SecretKey        string `json:"-"`                // 运行时明文（服务内存）；密文见 StorageSettingsStorage
+	PublicUrlPrefix  string `json:"publicUrlPrefix"`  // 可选公开访问前缀（CDN），留空则走 /file/img 代理
 }
 
 // StorageSettingsStorage 存储设置的落库 JSON 形状：与对外 StorageSettings 分离，
@@ -354,6 +355,7 @@ type StorageSettings struct {
 type StorageSettingsStorage struct {
 	Provider           string `json:"provider"`
 	Endpoint           string `json:"endpoint"`
+	InternalEndpoint   string `json:"internalEndpoint"`
 	Bucket             string `json:"bucket"`
 	Region             string `json:"region"`
 	BucketLookup       string `json:"bucketLookup"`
@@ -376,15 +378,16 @@ func (s StorageSettingsStorage) ToConfig() StorageSettings {
 		secretKey = s.SecretKey
 	}
 	return StorageSettings{
-		Provider:        s.Provider,
-		Endpoint:        s.Endpoint,
-		Bucket:          s.Bucket,
-		Region:          s.Region,
-		BucketLookup:    s.BucketLookup,
-		Secure:          s.Secure,
-		AccessKey:       accessKey,
-		SecretKey:       secretKey,
-		PublicUrlPrefix: s.PublicUrlPrefix,
+		Provider:         s.Provider,
+		Endpoint:         s.Endpoint,
+		InternalEndpoint: s.InternalEndpoint,
+		Bucket:           s.Bucket,
+		Region:           s.Region,
+		BucketLookup:     s.BucketLookup,
+		Secure:           s.Secure,
+		AccessKey:        accessKey,
+		SecretKey:        secretKey,
+		PublicUrlPrefix:  s.PublicUrlPrefix,
 	}
 }
 
@@ -392,6 +395,7 @@ func (s StorageSettingsStorage) ToConfig() StorageSettings {
 type StorageSettingsView struct {
 	Provider            string `json:"provider"`
 	Endpoint            string `json:"endpoint"`
+	InternalEndpoint    string `json:"internalEndpoint"`
 	Bucket              string `json:"bucket"`
 	Region              string `json:"region"`
 	BucketLookup        string `json:"bucketLookup"`
@@ -406,6 +410,7 @@ func (s StorageSettingsStorage) ToView() StorageSettingsView {
 	return StorageSettingsView{
 		Provider:            s.Provider,
 		Endpoint:            s.Endpoint,
+		InternalEndpoint:    s.InternalEndpoint,
 		Bucket:              s.Bucket,
 		Region:              s.Region,
 		BucketLookup:        s.BucketLookup,
@@ -421,6 +426,7 @@ func (c StorageSettings) ToView() StorageSettingsView {
 	return StorageSettingsView{
 		Provider:            c.Provider,
 		Endpoint:            c.Endpoint,
+		InternalEndpoint:    c.InternalEndpoint,
 		Bucket:              c.Bucket,
 		Region:              c.Region,
 		BucketLookup:        c.BucketLookup,
@@ -434,15 +440,16 @@ func (c StorageSettings) ToView() StorageSettingsView {
 // StorageSettingsInput 管理端保存/测试请求的绑定形状：accessKey/secretKey 为明文
 // 输入（仅请求瞬间存在，绝不落库）。空值 = 保持已存密文（issue #324 S3）。
 type StorageSettingsInput struct {
-	Provider        string `json:"provider"`
-	Endpoint        string `json:"endpoint"`
-	Bucket          string `json:"bucket"`
-	Region          string `json:"region"`
-	BucketLookup    string `json:"bucketLookup"`
-	Secure          bool   `json:"secure"`
-	AccessKey       string `json:"accessKey"`
-	SecretKey       string `json:"secretKey"`
-	PublicUrlPrefix string `json:"publicUrlPrefix"`
+	Provider         string `json:"provider"`
+	Endpoint         string `json:"endpoint"`
+	InternalEndpoint string `json:"internalEndpoint"`
+	Bucket           string `json:"bucket"`
+	Region           string `json:"region"`
+	BucketLookup     string `json:"bucketLookup"`
+	Secure           bool   `json:"secure"`
+	AccessKey        string `json:"accessKey"`
+	SecretKey        string `json:"secretKey"`
+	PublicUrlPrefix  string `json:"publicUrlPrefix"`
 }
 
 // ToConfig 将输入形状转为领域结构（含明文凭据，供测试连接等服务使用）。

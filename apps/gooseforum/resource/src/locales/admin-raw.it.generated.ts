@@ -863,4 +863,6 @@ export default {
   "k00u9": "Il periodo {section} ha un orario non valido: l'inizio deve essere precedente alla fine (HH:MM)",
   "k00ua": "Periodo {section}",
   "k00ub": "Numero massimo di nuovi temi per utente al giorno (0 = illimitato)",
+  "k00uc": "Endpoint interno (opzionale)",
+  "k00ud": "Opzionale: le letture/scritture lato server (letture proxy, verifica upload diretto, migrazione) usano questo endpoint interno; gli upload diretti dal browser usano ancora l'endpoint pubblico sopra. Per Alibaba OSS usa oss-<region>-internal.aliyuncs.com; lascia vuoto altrimenti.",
 } as const

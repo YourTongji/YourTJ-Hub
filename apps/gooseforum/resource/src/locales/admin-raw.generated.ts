@@ -863,4 +863,6 @@ export default {
   "k00u9": "第 {section} 节时间无效：开始需早于结束（HH:MM）",
   "k00ua": "第 {section} 节",
   "k00ub": "每个用户每日最大新主题数（0 表示不限制）",
+  "k00uc": "内网 Endpoint（可选）",
+  "k00ud": "可选：服务端读写（代理读图、直传校验、迁移）走此内网端点，浏览器直传仍走上方公网 Endpoint。阿里云 OSS 可填 oss-<region>-internal.aliyuncs.com；非阿里云环境请留空。",
 } as const

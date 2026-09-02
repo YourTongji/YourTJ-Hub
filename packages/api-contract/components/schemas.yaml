@@ -7338,6 +7338,9 @@ AdminStorageSettingsConfig:
     endpoint:
       type: string
       description: S3-compatible endpoint; required with bucket when provider is `s3`.
+    internalEndpoint:
+      type: string
+      description: "Optional S3 server-side endpoint (e.g. Alibaba OSS internal `-internal.aliyuncs.com`); when set and its host differs from `endpoint`, server-side reads/writes use it while browser direct uploads still presign against `endpoint`. Empty = single endpoint."
     bucket:
       type: string
     region:
@@ -7366,6 +7369,8 @@ AdminStorageSettingsView:
       type: string
       enum: [local, s3]
     endpoint:
+      type: string
+    internalEndpoint:
       type: string
     bucket:
       type: string
