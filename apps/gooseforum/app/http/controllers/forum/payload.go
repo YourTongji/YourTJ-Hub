@@ -1144,7 +1144,7 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
 			IsOwnTopic:       currentUserID == topic.UserId,
-			CanPost:          currentUserID > 0,
+			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion),
 			CanModerateTopic: canModerate,
 		},
 	}
