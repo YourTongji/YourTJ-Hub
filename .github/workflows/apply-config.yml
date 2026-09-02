@@ -1,0 +1,64 @@
+name: Apply / instance config
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "目标实例环境"
+        required: true
+        type: choice
+        options:
+          - dev
+          - main
+
+concurrency:
+  # 与同实例 code deploy 串行, 防 config.prev 单槽互相覆盖
+  group: apply-config-${{ github.event.inputs.env }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.env }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render ${{ github.event.inputs.env }} config
+        uses: ./.github/actions/render-config
+        with:
+          env: ${{ github.event.inputs.env }}
+          signing-key: ${{ secrets.SIGNING_KEY }}
+          pg-dsn: ${{ secrets.PG_DSN }}
+          meili-master-key: ${{ secrets.MEILI_MASTER_KEY }}
+          wiki-webhook-secret: ${{ secrets.WIKI_WEBHOOK_SECRET }}
+          # main 才配 GitHub 凭据; dev 渲染时为空（render action 内 allow-empty）
+          gh-client-id: ${{ secrets.GH_CLIENT_ID }}
+          gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          ai-api-key: ${{ secrets.AI_API_KEY }}
+
+      - name: Upload rendered config + apply script
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/rendered/config-${{ github.event.inputs.env }}.toml,deploy/scripts/apply-config.sh,deploy/scripts/pgdsn.sh"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
+          strip_components: 2
+
+      - name: Apply config on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          script: |
+            set -e
+            RUN_DIR=/tmp/yourtj-deploy-${{ github.run_id }}
+            install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
+            # apply-config.sh: 备份 → 原子替换 → force-recreate 重挂 → 健康检查 → 失败恢复
+            /opt/yourtj/scripts/apply-config.sh ${{ github.event.inputs.env }} \
+              "$RUN_DIR/config-${{ github.event.inputs.env }}.toml"
