@@ -435,6 +435,7 @@ export interface TopicPayload {
   activityText: string
   lastUpdateTime: string
   unseen?: boolean
+  contentType: 0 | 1 | 2 | 3
 }
 
 export interface ModerationPageProps {

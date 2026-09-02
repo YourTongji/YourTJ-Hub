@@ -280,6 +280,7 @@ type TopicPayload struct {
 	ActivityText   string                 `json:"activityText"`
 	LastUpdateTime string                 `json:"lastUpdateTime"`
 	Unseen         bool                   `json:"unseen,omitempty"`
+	ContentType    int8                   `json:"contentType"`
 }
 
 type TopicAuthorPayload struct {
@@ -1000,6 +1001,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			ViewCount:      topic.ViewCount,
 			ActivityText:   topic.LastUpdateTime,
 			LastUpdateTime: topic.LastUpdateTime,
+				ContentType:    topic.ContentType,
 		})
 	}
 	return res
