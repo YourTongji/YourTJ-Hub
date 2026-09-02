@@ -998,6 +998,8 @@ export default {
     loadMoreReplies: '加载更多回复',
     loadingMoreReplies: '正在加载更多回复...',
     allRepliesShown: '已显示全部回复',
+    answers: '回答',
+    answer: '回答',
     earliestContent: '最早内容',
     latestReply: '最新回复',
     replyPosition: '回复位置',

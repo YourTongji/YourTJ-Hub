@@ -179,6 +179,7 @@ function handleTopicState(nextLikeCount: number) {
       <PostStream
         :topic-id="page.props.topic.id"
         :topic-title="page.props.topic.title"
+        :content-type="page.props.topic.contentType"
         :initial-post-stream="page.props.postStream"
         :viewer="page.layout.viewer"
         :can-post="page.props.permissions.canPost"

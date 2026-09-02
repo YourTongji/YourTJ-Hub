@@ -996,6 +996,8 @@ export default {
     loadMoreReplies: 'Load more replies',
     loadingMoreReplies: 'Loading more replies...',
     allRepliesShown: 'All replies shown',
+    answers: 'Answers',
+    answer: 'Answer',
     earliestContent: 'Earliest content',
     latestReply: 'Latest reply',
     replyPosition: 'Reply position',
