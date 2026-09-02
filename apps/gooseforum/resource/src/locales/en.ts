@@ -145,6 +145,8 @@ export default {
     password: 'Password',
     newPassword: 'New password',
     confirmPassword: 'Confirm password',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
     captcha: 'Captcha',
     captchaAlt: 'Captcha',
     forgotPassword: 'Forgot password?',

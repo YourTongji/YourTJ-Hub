@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { LoaderCircle, Languages, LockKeyhole, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
+import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import PasswordInput from '@/site/components/PasswordInput.vue'
 import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
@@ -355,10 +356,7 @@ function onToggleTheme(event: MouseEvent) {
             </label>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="loginForm.password" type="password" class="gf-input pl-10" :placeholder="t('auth.password')" autocomplete="current-password" />
-              </span>
+              <PasswordInput v-model="loginForm.password" :placeholder="t('auth.password')" autocomplete="current-password" :label="t('auth.password')" />
             </label>
             <div class="flex gap-3">
               <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
@@ -393,17 +391,11 @@ function onToggleTheme(event: MouseEvent) {
             </label>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="registerForm.password" type="password" class="gf-input pl-10" :placeholder="t('auth.password')" autocomplete="new-password" />
-              </span>
+              <PasswordInput v-model="registerForm.password" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
             </label>
             <label class="block">
               <span class="sr-only">{{ t('auth.confirmPassword') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="registerForm.confirmPassword" type="password" class="gf-input pl-10" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" />
-              </span>
+              <PasswordInput v-model="registerForm.confirmPassword" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" :label="t('auth.confirmPassword')" />
             </label>
             <div class="flex gap-3">
               <span class="relative min-w-0 flex-1">
