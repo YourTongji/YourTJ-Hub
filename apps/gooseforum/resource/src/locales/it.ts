@@ -559,6 +559,7 @@ export default {
     stagedWithConflicts: 'Aggiunto — conflitto di orario con "{course}" e altri {count} corsi',
     classPickerTitle: 'Scegli una classe',
     classPickerHint: 'Clicca una classe per aggiungerla all\'orario; i conflitti vengono comunque aggiunti e segnalati.',
+    classReviewsTitle: 'Recensioni per classe',
   },
   courseDetailPage: {
     backToList: 'Torna al catalogo corsi',

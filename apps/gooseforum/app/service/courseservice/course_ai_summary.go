@@ -75,7 +75,7 @@ type AiSummaryResult struct {
 const (
 	AiSummaryMaxReviews    = 30   // 取最新 N 条可见有效评价
 	AiSummaryReviewMaxRune = 2000 // 单条正文截断（rune）
-	AiSummaryMinReviews    = 10   // 少于 N 条视为数据不足，不生成
+	AiSummaryMinReviews    = 1    // 少于 N 条可见有正文评价视为数据不足（≥1 即可生成，issue #181 需求）
 )
 
 // 限流常量（service 内第二/三层限流，先于 LLM 调用消耗）。
@@ -221,15 +221,22 @@ func GetAiSummaryContext(ctx context.Context, courseId uint64, refresh bool) (Ai
 	}
 
 	// 3. DB 缓存优先（!refresh 时）：
-	//    - insufficient 行：已评估过且评价不足，评价不变不重复尝试（写路径已保证
-	//      评价变更会删除该行，届时自然重新评估）。
+	//    - insufficient 行：已评估过且评价不足。命中时以当前可见有正文评价数为准
+	//      重新判定（自愈）：评价已增加（写路径漏失效/阈值下调/offering 改派）时
+	//      忽略过期标记继续生成，否则直接返回 insufficient_data。
 	//    - generated 行（含存量无 status 列的行，DEFAULT 'generated'）：直接命中。
 	if !refresh {
 		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 {
 			if cached.Status == course.AiSummaryRowStatusInsufficient {
-				return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
-			}
-			if cached.SummaryJson != "" {
+				enough, err := aiSummaryReviewsSufficient(courseId)
+				if err != nil {
+					return AiSummaryResult{}, err
+				}
+				if !enough {
+					return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
+				}
+				slog.Info("ai_summary_insufficient_self_healed", "courseId", courseId)
+			} else if cached.SummaryJson != "" {
 				payload, decodeErr := decodeAiSummaryPayload(cached.SummaryJson)
 				if decodeErr != nil {
 					slog.Warn("ai_summary_cache_decode_failed", "courseId", courseId, "error", decodeErr)
@@ -387,7 +394,16 @@ func CheckAiSummary(courseId uint64) (AiSummaryResult, error) {
 		return AiSummaryResult{Status: AiSummaryStatusNone}, nil
 	}
 	if cached.Status == course.AiSummaryRowStatusInsufficient {
-		return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
+		// 自愈：insufficient 标记过期（评价已增加/阈值下调）时返回 none，
+		// 前端展开即触发生成；仍不足才返回 insufficient_data。
+		enough, err := aiSummaryReviewsSufficient(courseId)
+		if err != nil {
+			return AiSummaryResult{}, err
+		}
+		if !enough {
+			return AiSummaryResult{Status: AiSummaryStatusInsufficientData}, nil
+		}
+		return AiSummaryResult{Status: AiSummaryStatusNone}, nil
 	}
 	if cached.SummaryJson != "" {
 		if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {
@@ -468,6 +484,15 @@ func listRecentVisibleReviews(courseId uint64) ([]reviewInput, error) {
 		cursorReviewId = last.Id
 	}
 	return reviews, nil
+}
+
+// aiSummaryReviewsSufficient 判断课程当前可见有正文评价数是否达到生成阈值。
+// DB 端 LIMIT 提前终止（HasVisibleReviewsWithContent），不拉全量——
+// preflight 高频路径（每次课程页挂载的 ?check=true）不得全量扫描评价表
+// （bot review P2：空正文多的课程 Go 侧分页拉全量会反复扫描）。
+// 口径与生成路径一致：仅可见 offering + 可见评价 + 未软删 + 正文非空。
+func aiSummaryReviewsSufficient(courseId uint64) (bool, error) {
+	return course.HasVisibleReviewsWithContent(courseId, AiSummaryMinReviews)
 }
 
 // truncateRunes 按 rune 截断（与 ReviewContentMaxLength 的 rune 计数口径一致）。

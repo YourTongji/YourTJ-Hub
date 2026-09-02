@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -343,6 +344,89 @@ func TestImportCatalogIsolatesSources(t *testing.T) {
 	}
 	if refA.LocalId == refB.LocalId {
 		t.Fatalf("two sources must map to distinct courses, both local_id=%d", refA.LocalId)
+	}
+}
+
+// TestImportCatalogOfferingReparentInvalidatesAiSummary offering 改派到新课程时，
+// 新旧课程的 AI 总结缓存（含 insufficient 标记）都必须失效：改派前判"评价不足"
+// 的课程在改派后必须可重新评估，否则永久返回 insufficient_data（review 补漏）。
+func TestImportCatalogOfferingReparentInvalidatesAiSummary(t *testing.T) {
+	conn := dbconnect.Connect()
+	models := []any{
+		&course.Entity{},
+		&course.AliasEntity{},
+		&course.TermEntity{},
+		&course.OfferingEntity{},
+		&course.InstructorEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.ImportRunEntity{},
+		&course.SourceRefEntity{},
+		&course.CourseAiSummaryEntity{},
+		&taskQueue.Entity{},
+	}
+	if err := conn.AutoMigrate(models...); err != nil {
+		t.Fatalf("migrate course tables: %v", err)
+	}
+	for _, model := range models {
+		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
+			t.Fatalf("clean course table: %v", err)
+		}
+	}
+
+	// 第一轮导入：课程 c1 + 教师 i1 + offering o1（挂 c1）。
+	manifestV1 := writeManifestFixture(t, map[string]string{
+		"courses.jsonl":     `{"id":"c1","code":"100001","name":"高等数学(A)上","department":"数学科学学院","credit":5}` + "\n",
+		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院"}` + "\n",
+		"offerings.jsonl":   `{"id":"o1","course_id":"c1","term":"2025-2026-1","campus":"四平路校区","instructor_ids":["i1"]}` + "\n",
+	})
+	if _, err := ImportCatalog(context.Background(), manifestV1, false); err != nil {
+		t.Fatalf("first import: %v", err)
+	}
+	// 课程 c1 落 insufficient 标记（模拟改派前已评估且评价不足）。
+	var course1 course.Entity
+	if err := conn.Where("primary_code = ?", "100001").First(&course1).Error; err != nil {
+		t.Fatalf("load course c1: %v", err)
+	}
+	if err := conn.Create(&course.CourseAiSummaryEntity{
+		CourseId:      course1.Id,
+		PromptVersion: "v1",
+		GeneratedAt:   time.Now(),
+		Status:        course.AiSummaryRowStatusInsufficient,
+	}).Error; err != nil {
+		t.Fatalf("seed insufficient marker: %v", err)
+	}
+
+	// 第二轮导入：新增课程 c2，offering o1 改派到 c2（course_id 变化）。
+	manifestV2 := writeManifestFixture(t, map[string]string{
+		"courses.jsonl": `{"id":"c1","code":"100001","name":"高等数学(A)上","department":"数学科学学院","credit":5}` + "\n" +
+			`{"id":"c2","code":"100002","name":"线性代数","department":"数学科学学院","credit":4}` + "\n",
+		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院"}` + "\n",
+		"offerings.jsonl":   `{"id":"o1","course_id":"c2","term":"2025-2026-1","campus":"四平路校区","instructor_ids":["i1"]}` + "\n",
+	})
+	if _, err := ImportCatalog(context.Background(), manifestV2, false); err != nil {
+		t.Fatalf("second import: %v", err)
+	}
+
+	// 新课程 c2 先定位（改派后 offering 挂 c2）。
+	var course2 course.Entity
+	if err := conn.Where("primary_code = ?", "100002").First(&course2).Error; err != nil {
+		t.Fatalf("load course c2: %v", err)
+	}
+	// offering 已改派到 c2。
+	var offering course.OfferingEntity
+	if err := conn.Where("course_id = ?", course2.Id).First(&offering).Error; err != nil {
+		t.Fatalf("load offering: %v", err)
+	}
+	if offering.CourseId != course2.Id {
+		t.Fatalf("offering course_id = %d, want %d (reparented to c2)", offering.CourseId, course2.Id)
+	}
+	// 旧课程 c1 的 insufficient 标记必须已失效（改派改变可见评价集合）。
+	if cached := course.GetCourseAiSummary(course1.Id); cached.CourseId != 0 {
+		t.Fatalf("old course ai summary must be invalidated after reparent, got status=%q", cached.Status)
+	}
+	// 新课程 c2 也无 summary 残留。
+	if cached := course.GetCourseAiSummary(course2.Id); cached.CourseId != 0 {
+		t.Fatalf("new course ai summary must be clean, got status=%q", cached.Status)
 	}
 }
 

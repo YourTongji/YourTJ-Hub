@@ -2987,6 +2987,12 @@ PkReviewBrief:
       type: [number, 'null']
     reviewCount:
       type: integer
+    ratingDistribution:
+      type: array
+      description: 1-5 星各档可见评价计数（index 0 = 1 星）；排课器选班弹窗右侧课评面板复用课程详情页评分仪表卡用。无统计行时省略。
+      items:
+        type: integer
+        minimum: 0
     classes:
       type: array
       description: 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。
@@ -6784,7 +6790,7 @@ AdminSaveSecuritySettingsRequest:
 
 AdminPostingTextControl:
   type: object
-  required: [minPostLength, maxPostLength, minTitleLength, maxTitleLength, newUserPostCooldownMinutes]
+  required: [minPostLength, maxPostLength, minTitleLength, maxTitleLength, newUserPostCooldownMinutes, maxDailyTopicsPerUser]
   properties:
     minPostLength:
       type: integer
@@ -6796,6 +6802,13 @@ AdminPostingTextControl:
       type: integer
     newUserPostCooldownMinutes:
       type: integer
+    maxDailyTopicsPerUser:
+      type: integer
+      minimum: 0
+      description: >-
+        Per-user daily limit for newly created topics. `0` means unlimited.
+        Only applies to topic creation; edits and replies are not counted
+        (issue #369). Negative values are normalized to `0` on save and on read.
   additionalProperties: false
 
 AdminPostingUploadControl:

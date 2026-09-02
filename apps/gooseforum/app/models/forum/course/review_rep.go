@@ -449,6 +449,33 @@ func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
 	return count, err
 }
 
+// HasVisibleReviewsWithContent 判断课程下可见且有正文的评价是否达到 min 条。
+// 与 ListReviewsPage course 级口径一致（仅可见 offering + 可见评价 + 未软删），
+// 额外要求正文非空（content <> ”，跨方言一致）。DB 端 LIMIT min 提前终止，
+// 避免 preflight 高频路径（AI 总结 insufficient 自愈判定）全量扫描评价表
+// （review P2：Go 侧分页拉全量会反复扫描空正文多的课程）。
+// 口径说明：SQL content <> ” 与 Go strings.TrimSpace 对纯空白正文（如 "   "）
+// 判定不同——纯空白行在 DB 侧算有正文，最多导致一次多余的自愈评估，不会
+// 产生错误总结（生成路径仍以 TrimSpace 为准，不足则落回 insufficient）。
+func HasVisibleReviewsWithContent(courseId uint64, min int) (bool, error) {
+	if min <= 0 {
+		return true, nil
+	}
+	var ids []uint64
+	err := reviewBuilder().
+		Select("id").
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)", courseId, OfferingStatusVisible).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Where("content <> ''").
+		Limit(min).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return false, err
+	}
+	return len(ids) >= min, nil
+}
+
 // ---- Helpful ----
 
 // CreateHelpful 标记 helpful（唯一约束 (review_id, user_id) 防重）。

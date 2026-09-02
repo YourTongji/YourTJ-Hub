@@ -59,6 +59,7 @@ func setupPkContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.InstructorEntity{},
 		&course.OfferingInstructorEntity{},
 		&course.OfferingStatsEntity{},
+		&course.ReviewEntity{},
 	)...); err != nil {
 		t.Fatalf("migrate pk contract tables: %v", err)
 	}
@@ -107,6 +108,7 @@ func cleanupPkTables(t *testing.T, conn *gorm.DB) {
 		&course.InstructorEntity{},
 		&course.OfferingEntity{},
 		&course.TermEntity{},
+		&course.ReviewEntity{},
 	} {
 		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
 			t.Fatalf("clean course offering table: %v", err)
@@ -150,6 +152,7 @@ func seedPkContractData(t *testing.T, conn *gorm.DB) {
 		&course.InstructorEntity{Id: 2, Name: "李娜", NormalizedName: "李娜"},
 		&course.OfferingInstructorEntity{OfferingId: 1, InstructorId: 1},
 		&course.OfferingInstructorEntity{OfferingId: 2, InstructorId: 2},
+		&course.ReviewEntity{Id: 1, OfferingId: 1, Rating: intPtr(4), Content: "测试评价", Status: course.ReviewStatusVisible},
 		&course.OfferingStatsEntity{OfferingId: 1, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 	}
 	for _, m := range models {
@@ -652,6 +655,49 @@ func TestPkCourseReviewBriefTeachingClassHTTPContract(t *testing.T) {
 	}
 	if brief := decodePkBrief(t, rec); brief.CourseId != 60 {
 		t.Fatalf("hidden-offering fallback courseId = %d, want 60（隐藏 offering 回退）", brief.CourseId)
+	}
+}
+
+// TestPkCourseReviewBriefChineseTermLabelHTTPContract P13 中文学期标记回归：
+// dev/生产实例的 pk_calendar.calendar_id_i18n 是中文格式（如 "2025-2026学年第2学期"），
+// 而 course_term.code 是标准码（"2025-2026-2"）。resolveTermIdForCalendar 精确匹配
+// 失败会 fail-closed 返回空 classes，导致排课器教学班评分/跳转全部消失。
+// 该测试锁定：中文标记也能映射到对应学期，带 calendarId 时返回该学期 offering。
+func TestPkCourseReviewBriefChineseTermLabelHTTPContract(t *testing.T) {
+	conn, router := setupPkContractTest(t)
+	t.Helper()
+	seed := []any{
+		&pk.CalendarEntity{CalendarId: 131, CalendarIdI18n: "2025-2026学年第2学期"},
+		&pk.CourseDetailEntity{Id: 801001, Code: "TJCS30101", CourseCode: "TJCS301", CourseName: "大学物理", CalendarId: 131},
+		&course.Entity{Id: 60, PrimaryCode: "PH101", Name: "大学物理", Status: course.StatusVisible},
+		&course.TermEntity{Id: 31, Code: "2025-2026-2", Name: "2025-2026 第二学期", Status: 0},
+		&course.OfferingEntity{Id: 81, CourseId: 60, TermId: 31, ClassCode: "TJCS30101", Status: course.OfferingStatusVisible},
+		&course.OfferingStatsEntity{OfferingId: 81, RatingCount: 2, RatingSum: 9, ReviewCount: 2},
+	}
+	for _, m := range seed {
+		if err := conn.Create(m).Error; err != nil {
+			t.Fatalf("create chinese-term seed %T: %v", m, err)
+		}
+	}
+	var brief struct {
+		Classes []struct {
+			OfferingId  uint64   `json:"offeringId"`
+			RatingAvg   *float64 `json:"ratingAvg"`
+			ReviewCount int      `json:"reviewCount"`
+		} `json:"classes"`
+	}
+	rec := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS301&calendarId=131")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chinese-term status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(decodePkEnvelope(t, rec).Data, &brief); err != nil {
+		t.Fatalf("decode chinese-term classes: %v", err)
+	}
+	if len(brief.Classes) != 1 || brief.Classes[0].OfferingId != 81 {
+		t.Fatalf("chinese-term classes = %+v, want single offering 81", brief.Classes)
+	}
+	if brief.Classes[0].RatingAvg == nil || *brief.Classes[0].RatingAvg != 4.5 || brief.Classes[0].ReviewCount != 2 {
+		t.Fatalf("chinese-term class stats = %+v, want ratingAvg 4.5 reviewCount 2", brief.Classes[0])
 	}
 }
 

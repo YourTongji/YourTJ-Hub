@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"log/slog"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -65,56 +64,56 @@ import (
 	"gorm.io/gorm"
 )
 
-func M() {
+// M runs the schema migration and versioned data migration, returning an
+// error on any failure. It does not decide process policy: callers choose
+// whether a returned error is fatal (serve via the startup gate, the standalone
+// migrate command) or tolerated (other CLI commands). Sentinels let callers
+// distinguish "deferred, retry later" (ErrRetryLater) and
+// "another instance holds the migration lock" (ErrLockUnavailable) from a hard
+// failure.
+func M() error {
 	if !setting.UseMigration() {
-		return
+		return nil
 	}
-	migrateSchema()
-	runVersionedDataMigrations()
+	if err := migrateSchema(); err != nil {
+		return err
+	}
+	return runVersionedDataMigrations()
 }
 
-func migrateSchema() {
+func migrateSchema() error {
 	var err error
 
 	db := dbconnect.Connect()
 	if err = validateUniqueUserEmails(db); err != nil {
-		slog.Error("dbconnect migration email uniqueness preflight failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect migration email uniqueness preflight failed: %w", err)
 	}
 	if err = validateUniqueUsernames(db); err != nil {
-		slog.Error("dbconnect migration preflight failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect migration preflight failed: %w", err)
 	}
 	if err = upgradeCourseReviewLegacySchema(db); err != nil {
-		slog.Error("dbconnect course_review legacy upgrade failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect course_review legacy upgrade failed: %w", err)
 	}
 	if err = dedupeWikiRevisionNumbers(db); err != nil {
-		slog.Error("dbconnect wiki revision dedupe failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect wiki revision dedupe failed: %w", err)
 	}
 	if err = upgradeImportRunCompositeIndex(db); err != nil {
-		slog.Error("dbconnect course_import_run index upgrade failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect course_import_run index upgrade failed: %w", err)
 	}
 	if err = upgradeCourseTeacherIdentity(db); err != nil {
-		slog.Error("dbconnect course teacher identity upgrade failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect course teacher identity upgrade failed: %w", err)
 	}
 	if err = upgradeCourseAggregation(db); err != nil {
-		slog.Error("dbconnect course aggregation upgrade failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect course aggregation upgrade failed: %w", err)
 	}
 	if err = upgradeCourseAiSummaryStatusIndex(db); err != nil {
-		slog.Error("dbconnect course_ai_summary status index upgrade failed", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect course_ai_summary status index upgrade failed: %w", err)
 	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
-		// 迁移失败必须立即退出（非零码），否则服务会带着残缺 schema 继续启动，
+		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
 		// 进程管理器会因此把实例标记为启动失败，触发回滚或告警。
-		slog.Error("dbconnect migration err", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("dbconnect migration err: %w", err)
 	}
 	slog.Info("dbconnect migration end")
 
@@ -122,10 +121,10 @@ func migrateSchema() {
 	if err = db4file.AutoMigrate(
 		&filedata.Entity{},
 	); err != nil {
-		slog.Error("db4fileconnect migration err", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("db4fileconnect migration err: %w", err)
 	}
 	slog.Info("db4fileconnect migration end")
+	return nil
 }
 
 type duplicateUsername struct {

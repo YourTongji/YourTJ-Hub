@@ -1958,7 +1958,8 @@ export interface paths {
          * Get the AI-generated summary of a course (B7, issue
          * @description Public read endpoint. Returns the cached AI summary when available (status `cached`),
          *     generates and persists a fresh one on first request (status `generated`), or reports
-         *     `insufficient_data` when the course has fewer than 10 visible reviews with content.
+         *     `insufficient_data` when the course has no visible reviews with content (a single
+         *     visible review is enough to generate).
          *     When the feature is disabled the endpoint returns status `disabled` (HTTP 200).
          *     `?refresh=true` forces regeneration, subject to per-course and global generation rate
          *     limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
@@ -8014,6 +8015,8 @@ export interface components {
             minTitleLength: number;
             maxTitleLength: number;
             newUserPostCooldownMinutes: number;
+            /** @description Per-user daily limit for newly created topics. `0` means unlimited. Only applies to topic creation; edits and replies are not counted (issue #369). Negative values are normalized to `0` on save and on read. */
+            maxDailyTopicsPerUser: number;
         };
         AdminPostingUploadControl: {
             allowAttachments: boolean;
@@ -8942,6 +8945,8 @@ export interface components {
             teacherName: string;
             ratingAvg?: number | null;
             reviewCount: number;
+            /** @description 1-5 星各档可见评价计数（index 0 = 1 星）；排课器选班弹窗右侧课评面板复用课程详情页评分仪表卡用。无统计行时省略。 */
+            ratingDistribution?: number[];
             /** @description 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。 */
             classes: components["schemas"]["PkReviewBriefClass"][];
         };

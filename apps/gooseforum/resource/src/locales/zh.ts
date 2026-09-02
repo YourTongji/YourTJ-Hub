@@ -561,6 +561,7 @@ export default {
     stagedWithConflicts: '已加入课表，与「{course}」等 {count} 门课程时间冲突',
     classPickerTitle: '选择教学班',
     classPickerHint: '点击班级加入课表；时间冲突仍会加入并标注。',
+    classReviewsTitle: '教学班课评',
   },
   courseDetailPage: {
     backToList: '返回课程目录',

@@ -209,13 +209,27 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 
 ## DB migration execution and rollback
 
-- Migrations run at startup (`[db] migration = "on"`); append-only upstream style.
-- **Migration failures now abort startup** (since the issue #8 PG fix): if `AutoMigrate` errors,
-  `serve` exits non-zero instead of continuing with a partial schema. This makes deploy.sh's
-  health-check rollback and container restart policies catch schema problems immediately instead of
-  surfacing as runtime API failures (the original issue #8 login/register outage). It also means a
-  deploy with an incompatible schema change will roll back — rehearse on dev (which syncs main's db)
-  before main.
+- Migrations run at service startup behind a **startup gate** (`[db] migration = "on"`, the default):
+  the HTTP listener binds immediately but every request — including `GET /health` — receives
+  `503 Service Unavailable` with `Retry-After: 5` and the loading page until the schema migration
+  (`app/migration` AutoMigrate) and versioned data migrations complete. Only after success does
+  `serve` boot the business services (workers, cron, OAuth/OIDC init, wiki sync) and open the gate.
+- **Migration failures abort startup** (since the issue #8 PG fix, extended by #370): if `AutoMigrate`
+  or any versioned data migration errors, `serve` reports the error, never opens the gate, shuts down
+  gracefully and **exits non-zero**. exit semantics: a hard failure is fatal (non-zero exit, gate never
+  opened); a deferred data migration (e.g. Meilisearch unavailable, or the cross-instance migration
+  lock held by another instance) is non-fatal — the gate opens and the instance serves with degraded
+  state, retrying deferred migrations on the next start. This makes deploy.sh's health-check rollback
+  and container restart policies catch schema problems immediately instead of surfacing as runtime API
+  failures (the original issue #8 login/register outage). It also means a deploy with an incompatible
+  schema change will roll back — rehearse on dev (which syncs main's db) before main.
+- **Standalone `migrate` command**: `./yourtj-hub migrate` runs schema + versioned data migrations
+  explicitly, so a release step can apply them before traffic-bearing instances start. It exits with
+  a non-zero code on a hard migration failure (with an actionable `lastFailed` message), and exits 0
+  with a "deferred / will retry on next run" message for deferred or lock-held states.
+- **`[db] migration = "off"`**: the operator owns schema. `serve` opens the startup gate immediately
+  (readiness is not gated on migration) and the `migrate` command reports migrations are disabled and
+  exits 0.
 - Rollback: `deploy.sh` tags the previous image `ghcr.io/yourtongji/yourtj-hub:prev` and re-points
   the instance on health-check failure; forward-compatible migrations mean an older binary can still start.
 

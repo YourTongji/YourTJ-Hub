@@ -2,11 +2,15 @@
 // 课程班级列表：展示 clickedCourseInfo 对应课程的全部教学班，点击班级加入课表。
 // 容忍式冲突：无论是否冲突都入表；有冲突时 emit('conflict') 仅用于父级 flash 提示，
 // 不再弹「强制替换/放弃」窗（多方案/周次模型下不阻断）。
-// 课程头部异步加载课评摘要（P13 course-review-brief），并给出跳转课评详情/搜索的入口。
+// 桌面端（lg+）双栏：左栏课程头部 + 教学班列表（行内课评链接聚焦该班评价）；
+// 右栏浮动课评面板（复用课程详情页 RatingSummaryCard，与课评页 aside complementary
+// 一致），含课程级评分仪表、教学班课评列表与「查看完整课评」入口。
+// 移动端保持单栏，按 DOM 顺序堆叠（班级列表 → 课评面板）。
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BookOpen, Star } from '@lucide/vue'
+import { BookOpen, ExternalLink, Star } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import RatingSummaryCard from '@/site/components/RatingSummaryCard.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
@@ -53,11 +57,20 @@ function classBrief(detailCode: string): PkReviewBriefClass | undefined {
   return brief.value?.classes?.find((item) => normalizeClassCode(item.classCode) === target)
 }
 
-/** 教学班课评跳转：有 offeringId 时聚焦该班评价，否则回退课程搜索页。 */
+/** 教学班课评跳转（左栏行内链接）：有 offeringId 时聚焦该班评价，否则回退课程搜索页。 */
 function classReviewHref(detailCode: string): string {
   const base = store.state.clickedCourseInfo.courseCode
   const item = classBrief(detailCode)
   if (brief.value?.courseId && item?.offeringId) {
+    return `/courses/${brief.value.courseId}?offeringId=${item.offeringId}`
+  }
+  return `/courses?keyword=${encodeURIComponent(base)}`
+}
+
+/** 右栏教学班课评项跳转：有 offeringId 时聚焦该班评价，否则回退课程搜索页。 */
+function classPanelHref(item: PkReviewBriefClass): string {
+  const base = store.state.clickedCourseInfo.courseCode
+  if (brief.value?.courseId && item.offeringId) {
     return `/courses/${brief.value.courseId}?offeringId=${item.offeringId}`
   }
   return `/courses?keyword=${encodeURIComponent(base)}`
@@ -129,14 +142,15 @@ function tryStage(detail: PkCourseDetail) {
 </script>
 
 <template>
-  <div class="space-y-3">
-    <EmptyState
-      v-if="!currentCourse"
-      class="gf-panel"
-      :icon="BookOpen"
-      :title="t('schedule.emptyDetailGuide')"
-      :description="t('schedule.majorHint')"
-    />
+  <div class="space-y-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start lg:gap-3 lg:space-y-0">
+    <!-- 左栏：课程信息 + 教学班列表（点击班级加入课表） -->
+    <div v-if="!currentCourse" class="gf-panel">
+      <EmptyState
+        :icon="BookOpen"
+        :title="t('schedule.emptyDetailGuide')"
+        :description="t('schedule.majorHint')"
+      />
+    </div>
 
     <div v-else class="gf-panel">
       <div class="border-b border-line/60 px-3 py-2">
@@ -153,22 +167,6 @@ function tryStage(detail: PkCourseDetail) {
           >
             {{ t('schedule.reviews') }}
           </a>
-        </div>
-
-        <div class="mt-1.5 flex min-h-[18px] items-center gap-1 text-[11px] text-base-content/55">
-          <template v-if="briefLoading">
-            <span>{{ t('schedule.loading') }}</span>
-          </template>
-          <template v-else-if="briefError">
-            <span class="text-base-content/40">{{ t('schedule.loadFailed') }}</span>
-          </template>
-          <template v-else-if="brief">
-            <Star v-if="brief.ratingAvg != null" class="h-3 w-3 fill-amber-400 text-amber-400" />
-            <span v-if="brief.ratingAvg != null" class="font-medium text-base-content/75">
-              {{ brief.ratingAvg.toFixed(1) }}
-            </span>
-            <span>{{ t('schedule.reviewCount', { count: brief.reviewCount }) }}</span>
-          </template>
         </div>
       </div>
       <ul v-if="currentCourse.courseDetail.length" class="gf-scrollbar-thin divide-y divide-line/60">
@@ -215,5 +213,67 @@ function tryStage(detail: PkCourseDetail) {
       </ul>
       <p v-else class="px-3 py-3 text-[12px] text-base-content/50">{{ t('schedule.emptyDetailNoClass') }}</p>
     </div>
+
+    <!-- 右栏：课评面板（lg+ 浮动右侧，与课评详情页 aside complementary 同款评分仪表卡；
+         移动端按 DOM 顺序堆叠在班级列表下方） -->
+    <aside
+      v-if="currentCourse"
+      class="min-w-0 space-y-3 lg:sticky lg:top-0"
+      role="complementary"
+      :aria-label="t('schedule.reviews')"
+    >
+      <template v-if="briefLoading">
+        <div class="gf-panel p-4">
+          <p class="text-[12px] text-base-content/55">{{ t('schedule.loading') }}</p>
+        </div>
+      </template>
+      <template v-else-if="briefError">
+        <div class="gf-panel p-4">
+          <p class="text-[12px] text-base-content/45">{{ t('schedule.loadFailed') }}</p>
+        </div>
+      </template>
+      <template v-else-if="brief">
+        <RatingSummaryCard
+          :rating-avg="brief.ratingAvg ?? null"
+          :review-count="brief.reviewCount"
+          :distribution="brief.ratingDistribution ?? [0, 0, 0, 0, 0]"
+        />
+
+        <section v-if="brief.classes?.length" class="gf-panel p-4" :aria-label="t('schedule.classReviewsTitle')">
+          <h4 class="mb-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-base-content">
+            <Star class="h-3.5 w-3.5 text-base-content/45" />
+            {{ t('schedule.classReviewsTitle') }}
+          </h4>
+          <ul class="divide-y divide-line/60">
+            <li v-for="item in brief.classes" :key="item.offeringId" class="py-1.5 first:pt-0 last:pb-0">
+              <a
+                :href="classPanelHref(item)"
+                class="flex items-center justify-between gap-2 rounded-md px-1 py-1 transition hover:bg-base-200/60"
+              >
+                <span class="min-w-0">
+                  <span class="block truncate text-[12px] font-medium text-base-content">{{ item.classCode }}</span>
+                  <span class="block truncate text-[11px] text-base-content/50">
+                    {{ item.teachers.join('、') || '—' }}
+                  </span>
+                </span>
+                <span class="shrink-0 text-right">
+                  <span class="block text-[12px] font-semibold tabular-nums text-warning">
+                    {{ item.ratingAvg != null ? item.ratingAvg.toFixed(1) : '—' }}
+                  </span>
+                  <span class="block text-[10px] tabular-nums text-base-content/45">
+                    {{ t('schedule.reviewCount', { count: item.reviewCount }) }}
+                  </span>
+                </span>
+              </a>
+            </li>
+          </ul>
+        </section>
+
+        <a :href="reviewHref" class="gf-button gf-button-md gf-button-primary w-full">
+          {{ t('schedule.reviews') }}
+          <ExternalLink class="h-3.5 w-3.5" />
+        </a>
+      </template>
+    </aside>
   </div>
 </template>

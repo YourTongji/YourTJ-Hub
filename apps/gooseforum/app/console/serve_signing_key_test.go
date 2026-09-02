@@ -57,6 +57,6 @@ func TestServeSigningKeyHelperProcess(t *testing.T) {
 	if os.Getenv(serveSigningKeyHelperEnv) != "1" {
 		return
 	}
-	ginServe()
+	_ = ginServe()
 	os.Exit(0) // 守卫被绕过才到达这里：弱密钥下服务不应启动
 }

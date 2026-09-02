@@ -481,6 +481,9 @@ type PostingContent struct {
 		MinTitleLength             int `json:"minTitleLength"`
 		MaxTitleLength             int `json:"maxTitleLength"`
 		NewUserPostCooldownMinutes int `json:"newUserPostCooldownMinutes"`
+		// MaxDailyTopicsPerUser 每用户每日新主题上限（0 = 不限额；负值在读写路径归一为 0）。
+		// 仅约束「新建主题」，编辑/回复不受影响（writeTopic 创建分支使用，issue #369）。
+		MaxDailyTopicsPerUser int `json:"maxDailyTopicsPerUser"`
 	} `json:"textControl"`
 	UploadControl struct {
 		AllowAttachments             bool     `json:"allowAttachments"`
