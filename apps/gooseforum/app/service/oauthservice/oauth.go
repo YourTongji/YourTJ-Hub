@@ -16,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/sessionstore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
@@ -385,11 +386,38 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 	userEntity.Nickname = username
 	userEntity.Bio = userInfo.Bio
 	userEntity.Website = userInfo.Blog
+	// 第三方资料自由文本（GitHub bio/blog）与 EditUserInfo 同规则过内容敏感词检查：
+	// 命中即清空对应字段并写审核日志（subject=user_profile）。社交登录建号不应被
+	// 第三方简介文本阻断（最小惊讶），但落库资料必须与站内资料拦截口径一致，否则
+	// GitHub 简介可绕过 /api/set-user-info 的敏感词拦截直接进入资料。
+	if hit, word := moderationservice.CheckContentAllowed(userEntity.Bio); hit {
+		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Bio))
+		slog.Warn("OAuth 导入 bio 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
+		userEntity.Bio = ""
+	}
+	if hit, word := moderationservice.CheckContentAllowed(userEntity.Website); hit {
+		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Website))
+		slog.Warn("OAuth 导入 blog 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
+		userEntity.Website = ""
+	}
 	if err := userservice.SaveUser(userEntity); err != nil {
 		return nil, err
 	}
 
 	return userEntity, nil
+}
+
+// oauthProfileExcerpt 截断 OAuth 资料字段为审核日志摘要（100 个 rune，rune 边界安全）。
+func oauthProfileExcerpt(s string) string {
+	const maxRunes = 100
+	n := 0
+	for i := range s {
+		if n >= maxRunes {
+			return s[:i]
+		}
+		n++
+	}
+	return s
 }
 
 // createOAuthRecord stores a provider account binding. Only the identity

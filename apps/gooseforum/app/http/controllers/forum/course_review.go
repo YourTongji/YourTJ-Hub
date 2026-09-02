@@ -86,10 +86,29 @@ type UpdateCourseReviewReq struct {
 	IsAnonymous *bool   `json:"isAnonymous"`
 }
 
-// UpdateCourseReview 作者更新自己的评价。
+// precheckReviewOwnedBy 编辑课评前做存在/可见/归属预检，语义与
+// courseservice.UpdateReview 完全一致。敏感词检查会在写审核日志前先调用它，
+// 防止对他人或不存在的课评 PATCH 敏感内容时伪造 course_review 审核日志。
+func precheckReviewOwnedBy(reviewId uint64, userId uint64) error {
+	entity, err := course.GetReview(reviewId)
+	if err != nil || entity.Id == 0 || entity.Status != course.ReviewStatusVisible {
+		return courseservice.ErrReviewNotFound
+	}
+	if entity.AuthorID() != userId {
+		return courseservice.ErrReviewNotOwned
+	}
+	return nil
+}
+
 func UpdateCourseReview(req component.BetterRequest[UpdateCourseReviewReq]) component.Response {
 	// 编辑正文时同样做敏感词拦截（仅当 content 显式变更）。
 	if req.Params.Content != nil {
+		// 先过存在/可见/归属预检再检查敏感词/写审核日志：防止对他人或不存在
+		// 的课评 PATCH 敏感内容时伪造 course_review 审核日志（与 service 的
+		// ErrReviewNotFound/ErrReviewNotOwned 语义一致）。
+		if err := precheckReviewOwnedBy(req.Params.ReviewId, req.UserId); err != nil {
+			return reviewErrorResponse(err)
+		}
 		if word, hit := checkCourseReviewSensitive(req.UserId, req.Params.ReviewId, *req.Params.Content); hit {
 			return component.FailResponseCode(
 				component.MessageCourseReviewSensitiveBanned,

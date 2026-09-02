@@ -1,10 +1,7 @@
 package moderationservice
 
 import (
-	"errors"
 	"strings"
-
-	"gorm.io/gorm"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/wordmatch"
@@ -69,35 +66,46 @@ func CheckContentAllowedWithConfig(content string, cfg pageConfig.SecurityAndReg
 	return hit, word
 }
 
-// FreezeUsersByBannedUsername 冻结与禁用用户名匹配（大小写不敏感）的存量账号，并写入审核日志。
+// FreezeUsersByBannedUsername 冻结与单个禁用词（归一化整串全等，与策略检查同规则）
+// 匹配的存量账号。保留该单数入口以兼容既有调用/测试，内部复用批量实现。
 func FreezeUsersByBannedUsername(username string, actorUserId uint64) error {
-	user, err := findUserByUsernameCaseInsensitive(username)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-	if user.IsFrozen == users.StatusFrozen {
+	if strings.TrimSpace(username) == "" {
 		return nil
 	}
-	user.IsFrozen = users.StatusFrozen
-	if err := userservice.SaveUser(user); err != nil {
-		return err
-	}
-	logUserFrozen(actorUserId, user.Id, user.Username)
-	return nil
+	return FreezeUsersByBannedUsernames([]string{username}, actorUserId)
 }
 
-func findUserByUsernameCaseInsensitive(username string) (*users.EntityComplete, error) {
-	var entity users.EntityComplete
-	err := dbconnect.Connect().Model(&users.EntityComplete{}).
-		Where("lower(username) = ?", strings.ToLower(username)).
-		First(&entity).Error
-	if err != nil {
-		return nil, err
+// FreezeUsersByBannedUsernames 冻结与任一禁用词（wordmatch.NameOptions 归一化整串
+// 全等：大小写/NFKC 全半角/零宽/ASCII leetspeak 折叠）匹配的存量账号，并写入审核
+// 日志。与策略层 CheckUsernameAllowed 使用同一归一化语义：管理员新增禁用词 admin
+// 时，存量 Adm1n/ａｄｍｉｎ/a\u200bdmin 等归一化变体账号同样会被冻结，避免出现
+// 「策略判定禁用但存量变体账号仍活跃」的口径分裂。冻结幂等（已冻结跳过，不重复
+// 写日志）；无匹配账号返回 nil。整表扫描仅在管理端保存禁用名单时触发（低频管理
+// 动作），单次调用编译全部新词后只扫描一遍。
+func FreezeUsersByBannedUsernames(bannedUsernames []string, actorUserId uint64) error {
+	matcher := wordmatch.Compile(bannedUsernames, wordmatch.NameOptions)
+	if matcher.Len() == 0 {
+		return nil
 	}
-	return &entity, nil
+	var list []users.EntityComplete
+	if err := dbconnect.Connect().Model(&users.EntityComplete{}).Find(&list).Error; err != nil {
+		return err
+	}
+	for i := range list {
+		user := &list[i]
+		if user.IsFrozen == users.StatusFrozen {
+			continue
+		}
+		if _, ok := matcher.Equal(user.Username); !ok {
+			continue
+		}
+		user.IsFrozen = users.StatusFrozen
+		if err := userservice.SaveUser(user); err != nil {
+			return err
+		}
+		logUserFrozen(actorUserId, user.Id, user.Username)
+	}
+	return nil
 }
 
 // logUserFrozen 记录用户被冻结的审核日志。

@@ -188,3 +188,71 @@ func TestCheckNicknameAllowedWithConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestFreezeUsersByBannedUsernamesNormalizedVariants 冻结走与策略检查相同的
+// 归一化整串全等（NameOptions：大小写/NFKC/零宽/leet）：管理员新增禁用词 admin
+// 时，存量 Adm1n/ａｄｍｉｎ/a\u200bdmin 变体账号一并冻结（review comment P1）。
+func TestFreezeUsersByBannedUsernamesNormalizedVariants(t *testing.T) {
+	setupPolicyTestDB(t)
+
+	conn := db.Connect()
+	makeUser := func(username string) *users.EntityComplete {
+		t.Helper()
+		user := users.EntityComplete{Username: username, Email: username + "@example.com"}
+		if err := users.Create(&user); err != nil {
+			t.Fatalf("create user %s: %v", username, err)
+		}
+		return &user
+	}
+	leetUser := makeUser("Adm1n")
+	wideUser := makeUser("ａｄｍｉｎ")
+	zwUser := makeUser("a\u200bdmin")
+	normalUser := makeUser("normal_user")
+	makeUser("myadmin") // 子串不应命中（整串全等语义）
+
+	if err := FreezeUsersByBannedUsernames([]string{"admin"}, 0); err != nil {
+		t.Fatalf("FreezeUsersByBannedUsernames() error = %v", err)
+	}
+
+	for _, tt := range []struct {
+		name string
+		user *users.EntityComplete
+		want int8
+	}{
+		{name: "leet variant frozen", user: leetUser, want: users.StatusFrozen},
+		{name: "full-width variant frozen", user: wideUser, want: users.StatusFrozen},
+		{name: "zero-width variant frozen", user: zwUser, want: users.StatusFrozen},
+		{name: "unrelated stays normal", user: normalUser, want: users.StatusNormal},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reloaded, err := users.Get(tt.user.Id)
+			if err != nil {
+				t.Fatalf("reload user %d: %v", tt.user.Id, err)
+			}
+			if reloaded.IsFrozen != tt.want {
+				t.Fatalf("user %q IsFrozen = %d, want %d", reloaded.Username, reloaded.IsFrozen, tt.want)
+			}
+		})
+	}
+
+	// 已冻结跳过幂等 + 日志恰好按命中账号计数（3 个变体账号命中 admin → 3 条日志；
+	// myadmin 因整串全等语义不命中）。
+	if err := FreezeUsersByBannedUsernames([]string{"admin"}, 0); err != nil {
+		t.Fatalf("second FreezeUsersByBannedUsernames() error = %v", err)
+	}
+	var count int64
+	conn.Model(&moderationLog.Entity{}).
+		Where("action = ?", moderationLog.ActionUserFrozen).
+		Count(&count)
+	if count != 3 {
+		t.Fatalf("userFrozen log count = %d, want 3", count)
+	}
+	// myadmin 明确不被冻结（子串不命中，整串全等语义护栏）。
+	myadmin, err := users.GetByUsername("myadmin")
+	if err != nil {
+		t.Fatalf("reload myadmin: %v", err)
+	}
+	if myadmin.IsFrozen != users.StatusNormal {
+		t.Fatalf("myadmin IsFrozen = %d, want %d (no substring match)", myadmin.IsFrozen, users.StatusNormal)
+	}
+}

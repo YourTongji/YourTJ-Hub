@@ -8,6 +8,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
@@ -188,5 +189,59 @@ func TestCourseReviewUpdateRejectsSensitiveWord(t *testing.T) {
 	if got := resp["messageCode"]; got != string(component.MessageCourseReviewSensitiveBanned) {
 		t.Fatalf("update sensitive messageCode = %v, want %s (body %s)",
 			got, component.MessageCourseReviewSensitiveBanned, rec.Body.String())
+	}
+}
+
+// TestCourseReviewUpdateSensitiveNotOwnedNoAuditLog 非作者 PATCH 他人课评为敏感内容：
+// 归属预检先于敏感词检查与审核日志写入执行，返回 review.notOwned，且不产生挂在
+// 他人课评上的 course_review 审核日志（codex review P2：防止伪造审核记录）。
+func TestCourseReviewUpdateSensitiveNotOwnedNoAuditLog(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 905)
+	alice := createHTTPContractUser(t, conn, contractTestID())
+	aliceToken := contractSessionToken(t, alice)
+	persistSecurityPolicyConfig(t, conn, func() pageConfig.SecurityAndRegistration {
+		cfg := emptySecurityConfig()
+		cfg.SensitiveWords = []string{"代开发票"}
+		return cfg
+	}())
+
+	// alice 先创建一条干净评价
+	rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/course-reviews",
+		`{"offeringId":905,"rating":4,"content":"好课"}`, aliceToken)
+	var created map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &created)
+	result, _ := created["result"].(map[string]any)
+	reviewID := uint64(result["id"].(float64))
+
+	// bob 对 alice 的课评 PATCH 敏感内容 → 归属预检先行，返回 review.notOwned
+	bob := createHTTPContractUser(t, conn, contractTestID())
+	bobToken := contractSessionToken(t, bob)
+	rec = serveAuthSecurityJSON(router, http.MethodPatch,
+		"/api/forum/course-reviews/"+strconv.FormatUint(reviewID, 10),
+		`{"content":"需要代开发票请联系"}`, bobToken)
+	var resp map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if got := resp["messageCode"]; got != string(component.MessageReviewNotOwned) {
+		t.Fatalf("non-owner sensitive PATCH messageCode = %v, want %s (body %s)",
+			got, component.MessageReviewNotOwned, rec.Body.String())
+	}
+
+	// 不产生挂在他人课评上的 course_review 审核日志
+	var logCount int64
+	conn.Model(&moderationLog.Entity{}).
+		Where("subject_type = ? AND subject_id = ?", moderationLog.SubjectCourseReview, reviewID).
+		Count(&logCount)
+	if logCount != 0 {
+		t.Fatalf("course_review moderation log count = %d, want 0 (no forged audit entry)", logCount)
+	}
+
+	// 正文未被篡改
+	var review course.ReviewEntity
+	if err := conn.First(&review, reviewID).Error; err != nil {
+		t.Fatalf("load review: %v", err)
+	}
+	if review.Content != "好课" {
+		t.Fatalf("review content = %q, want 好课 (must stay untouched)", review.Content)
 	}
 }

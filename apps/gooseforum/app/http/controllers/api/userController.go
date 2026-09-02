@@ -18,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -236,7 +237,7 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		req.Params.WebsiteName,
 	}, "\n")
 	if hit, word := moderationservice.CheckContentAllowed(profileText); hit {
-		moderationservice.SensitiveContentBlocked(req.UserId, "user_profile", 0, word, truncateExcerpt(profileText))
+		moderationservice.SensitiveContentBlocked(req.UserId, moderationLog.SubjectUserProfile, 0, word, truncateExcerpt(profileText))
 		return component.FailResponseCode(
 			component.MessageContentSensitiveBlocked,
 			component.MessageParams{"word": word},
