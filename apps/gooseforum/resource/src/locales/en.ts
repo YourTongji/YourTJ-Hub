@@ -1161,6 +1161,13 @@ export default {
       title: 'Title',
       category: 'Category',
       body: 'Body',
+      contentType: 'Content Type',
+    },
+    contentTypes: {
+      regular: 'Regular Post',
+      question: 'Question',
+      thought: 'Thought',
+      article: 'Article',
     },
     validation: {
       requiredFields: 'Add a title, select at least one category, and complete the body first.',

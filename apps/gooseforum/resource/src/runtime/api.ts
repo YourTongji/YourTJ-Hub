@@ -627,6 +627,7 @@ export interface SubmitTopicInput {
   website?: string
   captchaId?: string
   captchaCode?: string
+  contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {

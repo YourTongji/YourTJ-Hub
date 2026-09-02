@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { AlertTriangle, Check, FileText, ListChecks, Loader2, Send, X } from '@lucide/vue'
+import { AlertTriangle, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
@@ -31,6 +31,7 @@ const {
 const title = ref(page.props.topic.title || '')
 const content = ref(page.props.topic.content || '')
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
+const contentType = ref<0 | 1 | 2 | 3>((page.props.topic.contentType as 0 | 1 | 2 | 3) || 0)
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
 const uploading = ref(false)
@@ -49,6 +50,13 @@ const bodySection = ref<HTMLElement | null>(null)
 /** 移动端 toggle 挂载容器（正文 label 行右侧） */
 const editorToggleHost = ref<HTMLElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+
+const contentTypes = [
+  { value: 0 as const, label: t('publish.contentTypes.regular'), icon: FileText },
+  { value: 1 as const, label: t('publish.contentTypes.question'), icon: HelpCircle },
+  { value: 2 as const, label: t('publish.contentTypes.thought'), icon: Lightbulb },
+  { value: 3 as const, label: t('publish.contentTypes.article'), icon: FileText },
+]
 
 const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
@@ -243,6 +251,7 @@ async function save() {
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
+      contentType: contentType.value,
     })
     clearCaptcha()
     currentTopicId.value = id
@@ -281,6 +290,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
+      contentType: contentType.value,
     })
     clearCaptcha()
     currentTopicId.value = id
@@ -398,6 +408,26 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                   <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Content Type Selector -->
+          <div class="flex flex-col gap-2">
+            <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.contentType') }}</span>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="type in contentTypes"
+                :key="type.value"
+                type="button"
+                class="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition"
+                :class="contentType === type.value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-line text-base-content/75 hover:border-primary/50 hover:bg-base-200'"
+                @click="contentType = type.value"
+              >
+                <component :is="type.icon" class="h-4 w-4" />
+                <span>{{ type.label }}</span>
+              </button>
             </div>
           </div>
 

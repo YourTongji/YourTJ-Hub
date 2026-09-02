@@ -1163,6 +1163,13 @@ export default {
       title: '标题',
       category: '分类',
       body: '正文',
+      contentType: '内容类型',
+    },
+    contentTypes: {
+      regular: '普通帖子',
+      question: '提问',
+      thought: '想法',
+      article: '文章',
     },
     validation: {
       requiredFields: '请先填写标题、选择至少一个分类并完成正文。',

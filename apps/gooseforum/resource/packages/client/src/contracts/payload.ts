@@ -882,6 +882,7 @@ export interface PublishPageProps {
     content: string
     categoryIds: number[]
     topicStatus: number
+    contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
   }
 }
 
