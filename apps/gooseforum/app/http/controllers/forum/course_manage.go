@@ -456,6 +456,9 @@ func courseManageErrorResponse(err error) component.Response {
 	case errors.Is(err, courseservice.ErrReviewScopeInvalid):
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageCourseReviewScopeInvalid, nil))
+	case errors.Is(err, courseservice.ErrRelationConfidenceInvalid):
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageCourseRelationConfidenceInvalid, nil))
 	default:
 		slog.Error("course_manage_write_failed", "error", err)
 		return component.BuildResponse(http.StatusInternalServerError,

@@ -2104,6 +2104,7 @@ export default {
     'course.relation.merged': '该候选已合并，不可重复操作。',
     'course.relation.listFailed': '沿革候选列表读取失败，请稍后重试。',
     'course.relation.opFailed': '沿革操作失败，请稍后重试。',
+    'course.relation.confidenceInvalid': '置信度需在 0 到 1 之间。',
     'course.reviewScopeInvalid': '课评范围取值非法（仅 teacher/team/course）。',
     'course.mergeTargetHidden': '目标课程已隐藏，不可作为合并目标。',
     'auth.username.reserved': '用户名已被保留，不可使用。',

@@ -2102,6 +2102,7 @@ export default {
     'course.relation.merged': 'Questo candidato è già stato unito.',
     'course.relation.listFailed': 'Caricamento dei candidati di storia non riuscito. Riprova più tardi.',
     'course.relation.opFailed': 'Operazione di storia non riuscita. Riprova più tardi.',
+    'course.relation.confidenceInvalid': 'La confidenza deve essere compresa tra 0 e 1.',
     'course.reviewScopeInvalid': 'Ambito recensioni non valido (sono ammessi solo teacher/team/course).',
     'course.mergeTargetHidden': 'Il corso di destinazione è nascosto e non può essere un obiettivo di unione.',
     'upload.dailyLimit': 'Hai caricato {count} file oggi e hai raggiunto il limite giornaliero',

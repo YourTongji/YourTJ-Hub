@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // 课程沿革合并错误 sentinel（控制器映射语义 HTTP 状态）。
@@ -26,6 +27,8 @@ var (
 	ErrMergeTargetHidden = errors.New("course merge target hidden")
 	// ErrReviewScopeInvalid review_scope 取值非法（仅 teacher/team/course）。
 	ErrReviewScopeInvalid = errors.New("course review scope invalid")
+	// ErrRelationConfidenceInvalid 沿革候选置信度超出 [0,1]（契约 minimum/maximum 约束的服务端落地）。
+	ErrRelationConfidenceInvalid = errors.New("course relation confidence invalid")
 )
 
 // RelationReviewScope 三档课评范围。
@@ -48,7 +51,8 @@ type MergeResult struct {
 }
 
 // mergeSnapshot 合并快照（存入 relations.evidence_json，撤销合并的唯一依据）。
-// 撤销时按快照反向迁移：offering 迁回 from 卡、alias 迁回 from 卡、from 卡恢复可见。
+// 撤销时按快照反向迁移：offering 迁回 from 卡、alias 迁回 from 卡、收藏迁回、
+// from 卡恢复合并前状态（快照记录原 status，非无条件恢复可见）。
 type mergeSnapshot struct {
 	MovedOfferingIds []uint64 `json:"movedOfferingIds,omitempty"`
 	MigratedAliasIds []uint64 `json:"migratedAliasIds,omitempty"`
@@ -58,6 +62,20 @@ type mergeSnapshot struct {
 	ToName           string   `json:"toName"`
 	ToCode           string   `json:"toCode"`
 	MergedAt         string   `json:"mergedAt"`
+	// FromStatus 合并时 from 卡原状态：撤销时还原该状态，而非无条件恢复可见
+	// （from 卡可能在合并前已被其它原因隐藏，review Should）。
+	FromStatus int8 `json:"fromStatus"`
+	// CoalescedBookmarks 收藏迁移快照：from 卡每个收藏用户的去向（含合并时 to 行
+	// 收藏状态），撤销时恢复 to 原状态并重建 from 收藏行。
+	CoalescedBookmarks []bookmarkSnapshot `json:"coalescedBookmarks,omitempty"`
+}
+
+// bookmarkSnapshot 收藏合并快照项：用户 + 原收藏时间 + 合并时 to 行收藏状态
+// （ToBookmarkedAt 为 nil 表示合并时 to 卡未收藏、撤销时无需恢复 to 行）。
+type bookmarkSnapshot struct {
+	UserId         uint64     `json:"userId"`
+	BookmarkedAt   *time.Time `json:"bookmarkedAt"`
+	ToBookmarkedAt *time.Time `json:"toBookmarkedAt,omitempty"`
 }
 
 // mergeEvidencePayload 合并后 evidence_json 载荷：保留规则原始证据 + 合并快照。
@@ -69,7 +87,8 @@ type mergeEvidencePayload struct {
 // MergeCourses 人工确认等价后物理合并：from 卡（历史）并入 to 卡（当前）。
 // 事务内：offering 迁移（评价/教师关联随 offering 走，零丢失）→ alias 迁移（冲突跳过）
 // → from 卡隐藏 → relations 置 merged + manual → 入队搜索重建（from 删文档、to 重建）。
-// 提交后入队全量统计重建（事务内不可用：EnqueueCourseStatsRebuildTask 走独立连接）。
+// 全量统计重建随事务入队（EnqueueCourseStatsRebuildTaskTx：transaction-bound outbox，
+// 与业务同事务提交，避免"合并已提交而任务入队失败"导致统计永久陈旧）。
 func MergeCourses(relationId uint64) (MergeResult, error) {
 	var result MergeResult
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
@@ -95,6 +114,8 @@ func MergeCourses(relationId uint64) (MergeResult, error) {
 		if toEntity.Status != course.StatusVisible {
 			return ErrMergeTargetHidden
 		}
+		// 记录 from 卡合并前状态（撤销时还原，快照字段）。
+		fromOriginalStatus := fromEntity.Status
 		// 冲突守卫：from 卡不得有其他未处理的合并候选（避免同卡被两次并入不同目标）。
 		pending, err := course.ListPendingMergeByFromCourseTx(tx, fromEntity.Id)
 		if err != nil {
@@ -149,6 +170,35 @@ func MergeCourses(relationId uint64) (MergeResult, error) {
 			}
 			migratedAliasIds = append(migratedAliasIds, a.Id)
 		}
+		// 2.5 收藏迁移：from 卡收藏并入 to 卡（用户可见收藏不因合并丢失，review P1）。
+		//    to 卡已收藏 → 保留 to 行原时间、删除 from 行；to 卡未收藏/无行 →
+		//    以 from 的收藏时间 upsert to 行、删除 from 行。快照记录每个用户的
+		//    from 原收藏时间与 to 原状态，撤销时按快照恢复。
+		var coalescedBookmarks []bookmarkSnapshot
+		fromBookmarks, err := course.ListBookmarkedActionsByCourseTx(tx, fromEntity.Id)
+		if err != nil {
+			return err
+		}
+		for _, bm := range fromBookmarks {
+			toAction := course.GetCourseUserActionTx(tx, bm.UserId, toEntity.Id)
+			snap := bookmarkSnapshot{UserId: bm.UserId, BookmarkedAt: bm.BookmarkedAt}
+			if toAction.Id != 0 && toAction.BookmarkedAt != nil {
+				snap.ToBookmarkedAt = toAction.BookmarkedAt
+			} else if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "user_id"}, {Name: "course_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"bookmarked_at", "updated_at"}),
+			}).Create(&course.CourseUserActionEntity{
+				UserId:       bm.UserId,
+				CourseId:     toEntity.Id,
+				BookmarkedAt: bm.BookmarkedAt,
+			}).Error; err != nil {
+				return fmt.Errorf("merge: migrate bookmark user %d: %w", bm.UserId, err)
+			}
+			if err := course.DeleteCourseUserActionTx(tx, bm.UserId, fromEntity.Id); err != nil {
+				return fmt.Errorf("merge: remove from bookmark user %d: %w", bm.UserId, err)
+			}
+			coalescedBookmarks = append(coalescedBookmarks, snap)
+		}
 		// 3. from 卡隐藏（保留数据，可撤销）。
 		if err := tx.Model(&course.Entity{}).Where("id = ?", fromEntity.Id).
 			Update("status", course.StatusHidden).Error; err != nil {
@@ -156,14 +206,16 @@ func MergeCourses(relationId uint64) (MergeResult, error) {
 		}
 		// 4. relations 置 merged + manual，写入合并快照（保留原始 evidence）。
 		snapshot := mergeSnapshot{
-			MovedOfferingIds: moved,
-			MigratedAliasIds: migratedAliasIds,
-			SkippedAliases:   skippedAliases,
-			FromName:         fromEntity.Name,
-			FromCode:         fromEntity.PrimaryCode,
-			ToName:           toEntity.Name,
-			ToCode:           toEntity.PrimaryCode,
-			MergedAt:         time.Now().Format(time.RFC3339),
+			MovedOfferingIds:   moved,
+			MigratedAliasIds:   migratedAliasIds,
+			SkippedAliases:     skippedAliases,
+			CoalescedBookmarks: coalescedBookmarks,
+			FromName:           fromEntity.Name,
+			FromCode:           fromEntity.PrimaryCode,
+			ToName:             toEntity.Name,
+			ToCode:             toEntity.PrimaryCode,
+			MergedAt:           time.Now().Format(time.RFC3339),
+			FromStatus:         fromOriginalStatus,
 		}
 		payload := mergeEvidencePayload{OriginalEvidence: relation.EvidenceJson, Merge: snapshot}
 		evidenceJSON, err := json.Marshal(payload)
@@ -184,6 +236,18 @@ func MergeCourses(relationId uint64) (MergeResult, error) {
 		if err := searchservice.EnqueueCourseSearchTask(tx, toEntity.Id); err != nil {
 			return err
 		}
+		// 6. 失效 AI 总结缓存：from/to 卡评价集合均已变化（review P2）。
+		if err := course.DeleteCourseAiSummaryTx(tx, fromEntity.Id); err != nil {
+			return fmt.Errorf("merge: invalidate ai summary from course: %w", err)
+		}
+		if err := course.DeleteCourseAiSummaryTx(tx, toEntity.Id); err != nil {
+			return fmt.Errorf("merge: invalidate ai summary to course: %w", err)
+		}
+		// 7. 事务内入队全量统计重建（transaction-bound outbox：与业务同事务提交，
+		//    避免"合并已提交而任务入队失败"导致统计永久陈旧，review P2）。
+		if err := EnqueueCourseStatsRebuildTaskTx(tx); err != nil {
+			return fmt.Errorf("merge: enqueue stats rebuild: %w", err)
+		}
 		result = MergeResult{
 			RelationId:      relationId,
 			FromCourseId:    fromEntity.Id,
@@ -199,15 +263,12 @@ func MergeCourses(relationId uint64) (MergeResult, error) {
 	if err != nil {
 		return MergeResult{}, err
 	}
-	// 提交后全量重建统计投影（course_review_stats / offering_review_stats）。
-	if err := EnqueueCourseStatsRebuildTask(); err != nil {
-		return result, err
-	}
 	return result, nil
 }
 
-// UndoMergeCourse 撤销已合并的沿革关系：offering 迁回 from 卡、alias 迁回、from 卡恢复可见，
-// relations 标记回 approved（manual 保留）。入队搜索重建与全量统计重建。
+// UndoMergeCourse 撤销已合并的沿革关系：offering 迁回 from 卡、alias 迁回、
+// from 卡恢复合并前状态（review Should），relations 标记回 approved（manual 保留）。
+// 入队搜索重建与全量统计重建（事务内 outbox）。
 func UndoMergeCourse(relationId uint64) (MergeResult, error) {
 	var result MergeResult
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
@@ -246,9 +307,35 @@ func UndoMergeCourse(relationId uint64) (MergeResult, error) {
 				return fmt.Errorf("undo: move aliases back: %w", err)
 			}
 		}
-		// 3. from 卡恢复可见。
+		// 2.5 收藏迁回（按快照）：to 行恢复合并时状态、from 行按原时间重建（review P1）。
+		for _, snap := range payload.Merge.CoalescedBookmarks {
+			if snap.ToBookmarkedAt != nil {
+				if err := tx.Model(&course.CourseUserActionEntity{}).
+					Where("user_id = ? AND course_id = ?", snap.UserId, toEntity.Id).
+					Update("bookmarked_at", snap.ToBookmarkedAt).Error; err != nil {
+					return fmt.Errorf("undo: restore to bookmark user %d: %w", snap.UserId, err)
+				}
+			} else {
+				if err := course.SetCourseBookmarkedTx(tx, snap.UserId, toEntity.Id, false); err != nil {
+					return fmt.Errorf("undo: clear to bookmark user %d: %w", snap.UserId, err)
+				}
+			}
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "user_id"}, {Name: "course_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"bookmarked_at", "updated_at"}),
+			}).Create(&course.CourseUserActionEntity{
+				UserId:       snap.UserId,
+				CourseId:     fromEntity.Id,
+				BookmarkedAt: snap.BookmarkedAt,
+			}).Error; err != nil {
+				return fmt.Errorf("undo: restore from bookmark user %d: %w", snap.UserId, err)
+			}
+		}
+		// 3. from 卡恢复合并前状态（review Should：合并前已被其它原因隐藏的卡，
+		//    撤销时还原原 status，而非无条件置可见——旧快照无 fromStatus 字段时
+		//    解码为 0 = StatusVisible，保持既有行为）。
 		if err := tx.Model(&course.Entity{}).Where("id = ?", fromEntity.Id).
-			Update("status", course.StatusVisible).Error; err != nil {
+			Update("status", payload.Merge.FromStatus).Error; err != nil {
 			return err
 		}
 		// 4. relations 标记回 approved（manual 保留）。
@@ -266,6 +353,17 @@ func UndoMergeCourse(relationId uint64) (MergeResult, error) {
 		if err := searchservice.EnqueueCourseSearchTask(tx, toEntity.Id); err != nil {
 			return err
 		}
+		// 6. 失效 AI 总结缓存（from/to 评价集合恢复原状后重新生成，review P2）。
+		if err := course.DeleteCourseAiSummaryTx(tx, fromEntity.Id); err != nil {
+			return fmt.Errorf("undo: invalidate ai summary from course: %w", err)
+		}
+		if err := course.DeleteCourseAiSummaryTx(tx, toEntity.Id); err != nil {
+			return fmt.Errorf("undo: invalidate ai summary to course: %w", err)
+		}
+		// 7. 事务内入队全量统计重建。
+		if err := EnqueueCourseStatsRebuildTaskTx(tx); err != nil {
+			return fmt.Errorf("undo: enqueue stats rebuild: %w", err)
+		}
 		result = MergeResult{
 			RelationId:      relationId,
 			FromCourseId:    fromEntity.Id,
@@ -280,9 +378,6 @@ func UndoMergeCourse(relationId uint64) (MergeResult, error) {
 	})
 	if err != nil {
 		return MergeResult{}, err
-	}
-	if err := EnqueueCourseStatsRebuildTask(); err != nil {
-		return result, err
 	}
 	return result, nil
 }
@@ -310,6 +405,11 @@ func AdminRelationApprove(relationId uint64) (course.RelationEntity, error) {
 			relation.RelationType == string(course.RelationRenamed) {
 			return ErrRelationNotMergeable
 		}
+		// 仅 pending 可批准（review P1：已忽略/已合并/已批准行拒绝，契约状态机
+		// pending → approved）。
+		if relation.Status != string(course.RelationStatusPending) {
+			return ErrRelationNotMergeable
+		}
 		updated, err := course.UpdateRelationStatusTx(tx, relationId, string(course.RelationStatusApproved))
 		if err != nil {
 			return err
@@ -327,11 +427,20 @@ func AdminRelationApprove(relationId uint64) (course.RelationEntity, error) {
 func AdminRelationIgnore(relationId uint64) (course.RelationEntity, error) {
 	var result course.RelationEntity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		updated, err := course.UpdateRelationStatusTx(tx, relationId, string(course.RelationStatusIgnored))
+		relation, err := course.GetRelationByIdTx(tx, relationId)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrRelationNotFound
 			}
+			return err
+		}
+		// 仅 pending 可忽略（review P1：approved/merged 行被置 ignored 会破坏
+		// UndoMergeCourse 的撤销识别，契约状态机 pending → ignored）。
+		if relation.Status != string(course.RelationStatusPending) {
+			return ErrRelationNotMergeable
+		}
+		updated, err := course.UpdateRelationStatusTx(tx, relationId, string(course.RelationStatusIgnored))
+		if err != nil {
 			return err
 		}
 		result = updated
@@ -359,6 +468,11 @@ func AdminRelationCreate(input AdminRelationCreateInput) (course.RelationEntity,
 	}
 	if !validRelationType(input.RelationType) {
 		return course.RelationEntity{}, fmt.Errorf("invalid relation type %q", input.RelationType)
+	}
+	// 置信度必须落在 [0,1]（OpenAPI schema minimum/maximum 的服务端落地，review P2），
+	// 越界值会产出无意义的百分比与排序。
+	if input.Confidence < 0 || input.Confidence > 1 {
+		return course.RelationEntity{}, ErrRelationConfidenceInvalid
 	}
 	var result course.RelationEntity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {

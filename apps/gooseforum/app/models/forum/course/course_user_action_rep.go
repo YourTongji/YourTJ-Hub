@@ -70,6 +70,71 @@ func setCourseBookmarkAt(userId, courseId uint64, value *time.Time) bool {
 	return insert.Error == nil && insert.RowsAffected > 0
 }
 
+// GetCourseUserActionTx 事务内读取用户对某课程的收藏状态（未收藏返回零值 Id==0）。
+func GetCourseUserActionTx(tx *gorm.DB, userId, courseId uint64) (entity CourseUserActionEntity) {
+	tx.Table(courseUserActionTableName).
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("course_id", courseId)).
+		First(&entity)
+	return
+}
+
+// ListBookmarkedActionsByCourseTx 事务内返回某课程的全部收藏行（bookmarked_at 非空），
+// 按 (user_id, id) 稳定排序。合并迁移收藏用。
+func ListBookmarkedActionsByCourseTx(tx *gorm.DB, courseId uint64) ([]CourseUserActionEntity, error) {
+	var entities []CourseUserActionEntity
+	err := tx.Table(courseUserActionTableName).
+		Where(queryopt.Eq("course_id", courseId)).
+		Where("bookmarked_at IS NOT NULL").
+		Order("user_id ASC, id ASC").
+		Find(&entities).Error
+	return entities, err
+}
+
+// SetCourseBookmarkedTx 事务内设置课程收藏状态（幂等 upsert，仅覆盖 bookmarked_at）。
+// 与 SetCourseBookmarked 语义一致，但绑定调用方事务（合并/撤销收藏迁移用）。
+func SetCourseBookmarkedTx(tx *gorm.DB, userId, courseId uint64, bookmarked bool) error {
+	if userId == 0 || courseId == 0 {
+		return nil
+	}
+	value := timeForCourseBookmark(bookmarked)
+	if value == nil {
+		return tx.Table(courseUserActionTableName).
+			Where(queryopt.Eq("user_id", userId)).
+			Where(queryopt.Eq("course_id", courseId)).
+			Where("bookmarked_at IS NOT NULL").
+			Updates(map[string]any{"bookmarked_at": nil, "updated_at": time.Now()}).Error
+	}
+	result := tx.Table(courseUserActionTableName).
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("course_id", courseId)).
+		Where("bookmarked_at IS NULL").
+		Updates(map[string]any{"bookmarked_at": value, "updated_at": time.Now()})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		return nil
+	}
+	insert := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "course_id"}},
+		DoNothing: true,
+	}).Create(&CourseUserActionEntity{
+		UserId:       userId,
+		CourseId:     courseId,
+		BookmarkedAt: value,
+	})
+	return insert.Error
+}
+
+// DeleteCourseUserActionTx 事务内物理删除用户对某课程的收藏行（合并双卡收藏时用）。
+func DeleteCourseUserActionTx(tx *gorm.DB, userId, courseId uint64) error {
+	return tx.Table(courseUserActionTableName).
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("course_id", courseId)).
+		Delete(&CourseUserActionEntity{}).Error
+}
+
 // ListBookmarkedCourseIDs 返回用户已收藏的课程 id 列表（按收藏时间倒序），
 // 供目录 SSR props 判定表格收藏状态（登录用户）。
 func ListBookmarkedCourseIDs(userId uint64) ([]uint64, error) {

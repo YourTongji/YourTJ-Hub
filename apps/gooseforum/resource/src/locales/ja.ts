@@ -2102,6 +2102,7 @@ export default {
     'course.relation.merged': 'この候補はすでに統合されています。',
     'course.relation.listFailed': '沿革候補一覧の読み込みに失敗しました。しばらくしてから再試行してください。',
     'course.relation.opFailed': '沿革操作に失敗しました。しばらくしてから再試行してください。',
+    'course.relation.confidenceInvalid': '信頼度は 0 から 1 の間で指定してください。',
     'course.reviewScopeInvalid': 'レビュー範囲の値が不正です（teacher/team/course のみ）。',
     'course.mergeTargetHidden': '対象コースは非表示のため、統合先にできません。',
     'upload.dailyLimit': '本日すでに {count} 個のファイルをアップロードし、上限に達しました',

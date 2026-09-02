@@ -2102,6 +2102,7 @@ export default {
     'course.relation.merged': 'This candidate has already been merged.',
     'course.relation.listFailed': 'Failed to load lineage candidates.',
     'course.relation.opFailed': 'Lineage operation failed. Please try again later.',
+    'course.relation.confidenceInvalid': 'Confidence must be between 0 and 1.',
     'course.reviewScopeInvalid': 'Invalid review scope (only teacher/team/course are allowed).',
     'course.mergeTargetHidden': 'The target course is hidden and cannot be a merge target.',
     'auth.username.reserved': 'This username is reserved and cannot be used.',

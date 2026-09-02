@@ -3,15 +3,21 @@ package courseservice
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
 
-// setupMergeTest 迁移并清空合并服务相关表（manageTestModels + course_relations）。
+// setupMergeTest 迁移并清空合并服务相关表（manageTestModels + course_relations
+// + course_user_action + course_ai_summary——合并会迁移收藏并失效 AI 总结缓存）。
 func setupMergeTest(t *testing.T) {
 	t.Helper()
-	models := append([]any{&course.RelationEntity{}}, manageTestModels...)
+	models := append([]any{
+		&course.RelationEntity{},
+		&course.CourseUserActionEntity{},
+		&course.CourseAiSummaryEntity{},
+	}, manageTestModels...)
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate merge tables: %v", err)
@@ -419,5 +425,202 @@ func TestAdminRelationApprove(t *testing.T) {
 	}
 	if _, err := AdminRelationApprove(equiv.Id); !errors.Is(err, ErrRelationNotMergeable) {
 		t.Fatalf("approve equiv = %v, want ErrRelationNotMergeable", err)
+	}
+}
+
+// TestMergeCoursesMigratesBookmarksAndInvalidatesAiSummary 合并迁移收藏：
+// - 仅 from 收藏的用户 → to 行以 from 收藏时间写入（原 to 未收藏）
+// - 双卡均收藏的用户 → 保留 to 原时间、删除 from 行
+// - AI 总结缓存（from/to）随合并失效
+// 撤销后 from/to 收藏恢复原状、AI 缓存再次失效。
+func TestMergeCoursesMigratesBookmarksAndInvalidatesAiSummary(t *testing.T) {
+	setupMergeTest(t)
+	fromId, toId, _ := seedMergePair(t)
+	conn := dbconnect.Connect()
+
+	now := time.Now()
+	userA := uint64(1001) // 仅收藏 from
+	userB := uint64(1002) // from + to 均收藏
+	fromBookmarkA := course.CourseUserActionEntity{UserId: userA, CourseId: fromId, BookmarkedAt: &now}
+	fromBookmarkB := course.CourseUserActionEntity{UserId: userB, CourseId: fromId, BookmarkedAt: &now}
+	if err := conn.Create(&fromBookmarkA).Error; err != nil {
+		t.Fatalf("create from bookmark A: %v", err)
+	}
+	if err := conn.Create(&fromBookmarkB).Error; err != nil {
+		t.Fatalf("create from bookmark B: %v", err)
+	}
+	toTime := now.Add(-time.Hour)
+	toBookmarkB := course.CourseUserActionEntity{UserId: userB, CourseId: toId, BookmarkedAt: &toTime}
+	if err := conn.Create(&toBookmarkB).Error; err != nil {
+		t.Fatalf("create to bookmark B: %v", err)
+	}
+	// AI 总结缓存：from/to 各一行。
+	summary := func(courseId uint64) *course.CourseAiSummaryEntity {
+		return &course.CourseAiSummaryEntity{CourseId: courseId, SummaryJson: `{"summary":"x"}`, Status: course.AiSummaryRowStatusGenerated}
+	}
+	if err := conn.Create(summary(fromId)).Error; err != nil {
+		t.Fatalf("create ai summary from: %v", err)
+	}
+	if err := conn.Create(summary(toId)).Error; err != nil {
+		t.Fatalf("create ai summary to: %v", err)
+	}
+
+	relation := course.RelationEntity{
+		FromCourseId: fromId,
+		ToCourseId:   toId,
+		RelationType: string(course.RelationEquivalent),
+		Source:       course.RelationSourceRule,
+		Status:       string(course.RelationStatusPending),
+	}
+	if err := conn.Create(&relation).Error; err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+	if _, err := MergeCourses(relation.Id); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+
+	// from 卡收藏行已清空；A 的 to 行以 from 时间收藏；B 的 to 行保留原时间。
+	var fromCount int64
+	if err := conn.Model(&course.CourseUserActionEntity{}).Where("course_id = ?", fromId).Count(&fromCount).Error; err != nil {
+		t.Fatalf("count from bookmarks: %v", err)
+	}
+	if fromCount != 0 {
+		t.Errorf("from bookmarks = %d, want 0（已全部迁移）", fromCount)
+	}
+	toA := course.GetCourseUserActionTx(conn, userA, toId)
+	if toA.Id == 0 || toA.BookmarkedAt == nil {
+		t.Errorf("user A to bookmark missing/not set: %+v", toA)
+	}
+	toB := course.GetCourseUserActionTx(conn, userB, toId)
+	if toB.Id == 0 || toB.BookmarkedAt == nil || !toB.BookmarkedAt.Equal(toTime) {
+		t.Errorf("user B to bookmark = %+v, want original toTime preserved", toB)
+	}
+	// AI 总结缓存全部失效。
+	for _, id := range []uint64{fromId, toId} {
+		var cnt int64
+		if err := conn.Model(&course.CourseAiSummaryEntity{}).Where("course_id = ?", id).Count(&cnt).Error; err != nil {
+			t.Fatalf("count ai summary %d: %v", id, err)
+		}
+		if cnt != 0 {
+			t.Errorf("ai summary course %d = %d rows, want 0（失效）", id, cnt)
+		}
+	}
+
+	// 撤销：from 收藏行恢复（A/B 各一）、to 行恢复原状（A 未收藏、B 保留 toTime）。
+	if _, err := UndoMergeCourse(relation.Id); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	fromA := course.GetCourseUserActionTx(conn, userA, fromId)
+	if fromA.Id == 0 || fromA.BookmarkedAt == nil {
+		t.Errorf("user A from bookmark after undo missing: %+v", fromA)
+	}
+	fromB := course.GetCourseUserActionTx(conn, userB, fromId)
+	if fromB.Id == 0 || fromB.BookmarkedAt == nil {
+		t.Errorf("user B from bookmark after undo missing: %+v", fromB)
+	}
+	toA2 := course.GetCourseUserActionTx(conn, userA, toId)
+	if toA2.Id != 0 && toA2.BookmarkedAt != nil {
+		t.Errorf("user A to bookmark after undo = %+v, want cleared", toA2)
+	}
+	toB2 := course.GetCourseUserActionTx(conn, userB, toId)
+	if toB2.Id == 0 || toB2.BookmarkedAt == nil || !toB2.BookmarkedAt.Equal(toTime) {
+		t.Errorf("user B to bookmark after undo = %+v, want toTime restored", toB2)
+	}
+}
+
+// TestAdminRelationIgnoreRejectsNonPending 已批准/已合并的行不可忽略（review P1：
+// merged 行被置 ignored 会破坏 UndoMergeCourse 的撤销识别）。
+func TestAdminRelationIgnoreRejectsNonPending(t *testing.T) {
+	setupMergeTest(t)
+	fromId, toId, _ := seedMergePair(t)
+	conn := dbconnect.Connect()
+	approved := course.RelationEntity{FromCourseId: fromId, ToCourseId: toId, RelationType: string(course.RelationSplit), Source: course.RelationSourceRule, Status: string(course.RelationStatusApproved)}
+	if err := conn.Create(&approved).Error; err != nil {
+		t.Fatalf("create approved relation: %v", err)
+	}
+	if _, err := AdminRelationIgnore(approved.Id); !errors.Is(err, ErrRelationNotMergeable) {
+		t.Fatalf("ignore approved = %v, want ErrRelationNotMergeable", err)
+	}
+	var after course.RelationEntity
+	if err := conn.First(&after, approved.Id).Error; err != nil {
+		t.Fatalf("find approved relation: %v", err)
+	}
+	if after.Status != string(course.RelationStatusApproved) {
+		t.Errorf("approved status = %q, want unchanged approved", after.Status)
+	}
+
+	// 已合并行：同一对卡再建 pending EQUIVALENT 候选（(from,to,type) 唯一索引允许
+	// 与 SPLIT_FROM 共存）并合并，再尝试忽略 → 拒绝。
+	merged := course.RelationEntity{FromCourseId: fromId, ToCourseId: toId, RelationType: string(course.RelationEquivalent), Source: course.RelationSourceRule, Status: string(course.RelationStatusPending)}
+	if err := conn.Create(&merged).Error; err != nil {
+		t.Fatalf("create merged relation: %v", err)
+	}
+	if _, err := MergeCourses(merged.Id); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if _, err := AdminRelationIgnore(merged.Id); !errors.Is(err, ErrRelationNotMergeable) {
+		t.Fatalf("ignore merged = %v, want ErrRelationNotMergeable", err)
+	}
+	// 撤销仍可用（merged 状态未被破坏）。
+	if _, err := UndoMergeCourse(merged.Id); err != nil {
+		t.Fatalf("undo after ignore attempt: %v", err)
+	}
+}
+
+// TestAdminRelationCreateConfidenceValidation 置信度越界被服务端拒绝（review P2）。
+func TestAdminRelationCreateConfidenceValidation(t *testing.T) {
+	setupMergeTest(t)
+	fromId, toId, _ := seedMergePair(t)
+	for _, conf := range []float64{-0.1, 1.5} {
+		if _, err := AdminRelationCreate(AdminRelationCreateInput{
+			FromCourseId: fromId,
+			ToCourseId:   toId,
+			RelationType: string(course.RelationRelated),
+			Confidence:   conf,
+		}); !errors.Is(err, ErrRelationConfidenceInvalid) {
+			t.Fatalf("confidence %v = %v, want ErrRelationConfidenceInvalid", conf, err)
+		}
+	}
+}
+
+// TestUndoMergeCourseRestoresPreMergeStatus 撤销合并还原 from 卡合并前状态：
+// 合并前已被其它原因隐藏的卡，撤销后保持隐藏（review Should），而非无条件恢复可见。
+func TestUndoMergeCourseRestoresPreMergeStatus(t *testing.T) {
+	setupMergeTest(t)
+	fromId, toId, _ := seedMergePair(t)
+	conn := dbconnect.Connect()
+	if err := conn.Model(&course.Entity{}).Where("id = ?", fromId).
+		Update("status", course.StatusHidden).Error; err != nil {
+		t.Fatalf("pre-hide from course: %v", err)
+	}
+	relation := course.RelationEntity{
+		FromCourseId: fromId,
+		ToCourseId:   toId,
+		RelationType: string(course.RelationEquivalent),
+		Source:       course.RelationSourceRule,
+		Status:       string(course.RelationStatusPending),
+	}
+	if err := conn.Create(&relation).Error; err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+	if _, err := MergeCourses(relation.Id); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	var mergedFrom course.Entity
+	if err := conn.First(&mergedFrom, fromId).Error; err != nil {
+		t.Fatalf("find merged from course: %v", err)
+	}
+	if mergedFrom.Status != course.StatusHidden {
+		t.Fatalf("from status after merge = %d, want hidden", mergedFrom.Status)
+	}
+	if _, err := UndoMergeCourse(relation.Id); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	var from course.Entity
+	if err := conn.First(&from, fromId).Error; err != nil {
+		t.Fatalf("find from course: %v", err)
+	}
+	if from.Status != course.StatusHidden {
+		t.Errorf("from status after undo = %d, want hidden（还原合并前状态）", from.Status)
 	}
 }
