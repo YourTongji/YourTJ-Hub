@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -84,16 +85,34 @@ func initGitHubProvider() goth.Provider {
 	return github.New(clientID, clientSecret, callbackURL, "user:email")
 }
 
-// initGoogleProvider returns a Google provider when configured.
-func initGoogleProvider() *google.Provider {
-	clientID := preferences.GetString("google.client_id")
-	clientSecret := preferences.GetString("google.client_secret")
-	callbackURL := hotdataserve.GetSiteSettingsConfigCache().SiteUrl + "/api/auth/google/callback"
-	if clientID != "" && clientSecret != "" && callbackURL != "" {
-		// goth.UseProviders(googleProvider)
-		slog.Info("Google OAuth provider configuration found (implementation pending)")
+// IsGoogleOAuthConfigured reports whether Google OAuth has all values required
+// to construct an absolute callback URL and register the provider.
+func IsGoogleOAuthConfigured() bool {
+	clientID, clientSecret, callbackURL := googleOAuthConfig()
+	return clientID != "" && clientSecret != "" && callbackURL != ""
+}
+
+func googleOAuthConfig() (clientID, clientSecret, callbackURL string) {
+	clientID = strings.TrimSpace(preferences.GetString("google.client_id", ""))
+	clientSecret = strings.TrimSpace(preferences.GetString("google.client_secret", ""))
+	siteURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/")
+	parsedURL, err := url.Parse(siteURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return clientID, clientSecret, ""
 	}
-	return nil
+	return clientID, clientSecret, siteURL + "/api/auth/google/callback"
+}
+
+// initGoogleProvider returns a Google provider when configured.
+func initGoogleProvider() goth.Provider {
+	clientID, clientSecret, callbackURL := googleOAuthConfig()
+	if clientID == "" || clientSecret == "" || callbackURL == "" {
+		slog.Warn("Google OAuth配置缺失，跳过初始化")
+		return nil
+	}
+
+	slog.Info("Google OAuth提供商初始化完成")
+	return google.New(clientID, clientSecret, callbackURL, "openid", "email", "profile")
 }
 
 // OAuthUserInfo is the normalized user data from an OAuth provider.

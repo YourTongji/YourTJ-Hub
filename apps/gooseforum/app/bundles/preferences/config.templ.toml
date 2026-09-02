@@ -93,6 +93,11 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
+# Google OAuth配置（可选；需要在站点设置中配置绝对 Site URL）
+[google]
+client_id = ""
+client_secret = ""
+
 # 内建 OIDC Provider（可选；为选课站等第一方服务提供标准 OIDC 登录）
 [oidc]
 enabled = false

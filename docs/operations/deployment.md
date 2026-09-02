@@ -191,6 +191,7 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 | `MEILI_MASTER_KEY` | both | `[meilisearch].masterkey` |
 | `WIKI_WEBHOOK_SECRET` | both | `[wiki.git].webhook_secret` |
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | both（可选） | Google OAuth；为空时登录入口保持关闭 |
 | `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
 | `RELEASE_TOKEN` | repo-level | release-to-main 合并 dev→main 用 PAT |
 

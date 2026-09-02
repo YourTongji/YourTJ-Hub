@@ -2,7 +2,7 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
 >
 > Owner: Platform maintainers, Security reviewer
 >
@@ -13,7 +13,8 @@
 - **Identity source = the forum's own `users` table** (uint64 numeric ID). The forum built-in OIDC
   Provider issues standard OIDC tokens with `sub` = the user's numeric ID for a small set of
   first-party clients (e.g. the course-selection site and the mobile app). Password login, TOTP 2FA
-  and GitHub OAuth (goth) remain available.
+  GitHub OAuth and Google OAuth (goth) remain available when their provider credentials and absolute
+  site callback URL are configured.
 - **Numeric ID is a hard constraint**: credit's `GetID()` parses sub with `strconv.ParseUint`. A UUID
   fails to parse and falls back to 0, making all users collide. The OIDC provider enforces this
   server-side (the `sub` claim is always the numeric `users.id`).
@@ -29,7 +30,8 @@
   code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
-- GitHub OAuth (goth): unchanged; callback binds or signs in and issues a session token.
+- GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
+  requests only `openid`, `email`, and `profile` scopes.
 
 ### Built-in OIDC Provider (first-party clients)
 
