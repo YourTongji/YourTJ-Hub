@@ -66,6 +66,19 @@
 - Registration: forum self-service password registration (with email verification when enabled);
   GitHub OAuth can auto-provision accounts. The built-in OIDC provider never creates accounts — it
   authenticates existing users.
+- Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
+  registration/rename and at OAuth/Agent account creation with **normalized whole-string
+  equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
+  `Admin`, `ａｄｍｉｎ`, `adm1n` all collide with a reserved `admin` while `myadmin` does not.
+  Nicknames edited through the profile share the same lists and equality rule. Reserved entries
+  only block new/renamed accounts and never freeze existing ones; banned entries additionally
+  freeze matching existing accounts (idempotent) when first added by an admin. GitHub OAuth
+  auto-provision backs a matching login off to `<name>_<n>` and re-checks every backoff candidate
+  against both lists; Agent creation rejects reserved/banned usernames outright. Course reviews
+  and profile free text (bio/signature/website/websiteName) are scanned against `sensitiveWords`
+  (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
+  message for reviews). Built-in defaults ship with an empty banned list and a curated
+  reserved/sensitive bank (see `docs/architecture/contracts-and-data.md`).
 - Session: forum JWT valid 7 days (GooseForum scale, tunable). Every session-scoped token carries a
   `jti` that maps to a row in `user_sessions`; the auth middleware rejects tokens whose session row is
   missing or expired, so revocation is immediate.

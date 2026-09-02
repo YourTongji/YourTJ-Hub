@@ -16,9 +16,12 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/sessionstore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
@@ -308,6 +311,15 @@ func fetchGitHubVerifiedEmail(accessToken string) string {
 	return ""
 }
 
+// maxOAuthUsernameAttempts 限制 OAuth 建号用户名退避（重名/命中名单）尝试次数。
+const maxOAuthUsernameAttempts = 100
+
+// usernameReservedOrBanned 报告候选用户名是否命中保留/禁用名单（注册入口同规则）。
+func usernameReservedOrBanned(username string, cfg pageConfig.SecurityAndRegistration) bool {
+	code, _ := moderationservice.CheckUsernameAllowedWithConfig(username, cfg)
+	return code != ""
+}
+
 // createUserFromOAuth creates a local account from OAuth user data.
 // 激活策略（issue #155）：
 //   - verified 邮箱命中信任域名（allowedDomains 空 = 全信任）→ needValid=false 直接激活；
@@ -315,15 +327,21 @@ func fetchGitHubVerifiedEmail(accessToken string) string {
 //     （默认 false 保持现状免验证，不回归）；开关开启时进入 ActivationPending
 //     并补发激活邮件（与密码注册流程一致）。
 func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) {
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
 	username := userInfo.Login
 	originalUsername := username
 	counter := 1
-	for users.ExistUsername(username) {
+	// 候选名必须既不与存量用户重名，也不命中保留/禁用名单（社交登录对
+	// 保留/禁用名做退避建号而非拒绝登录，最小惊讶）。退避候选同样过名单，
+	// 上限 100 防死循环（超限属异常，报错回滚）。
+	for users.ExistUsername(username) || usernameReservedOrBanned(username, securityConfig) {
 		username = fmt.Sprintf("%s_%d", originalUsername, counter)
 		counter++
+		if counter > maxOAuthUsernameAttempts {
+			return nil, fmt.Errorf("无法为 OAuth 登录名 %q 分配可用用户名（重名或命中保留/禁用名单）", originalUsername)
+		}
 	}
 
-	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
 	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱）。
 	// 无 verified 邮箱时保持存 ""（与旧行为一致），不降级存 goth 公开邮箱——
 	// 未验证邮箱若被 OIDC userinfo 推导为 email_verified=true 会造成信任越界
@@ -368,11 +386,38 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 	userEntity.Nickname = username
 	userEntity.Bio = userInfo.Bio
 	userEntity.Website = userInfo.Blog
+	// 第三方资料自由文本（GitHub bio/blog）与 EditUserInfo 同规则过内容敏感词检查：
+	// 命中即清空对应字段并写审核日志（subject=user_profile）。社交登录建号不应被
+	// 第三方简介文本阻断（最小惊讶），但落库资料必须与站内资料拦截口径一致，否则
+	// GitHub 简介可绕过 /api/set-user-info 的敏感词拦截直接进入资料。
+	if hit, word := moderationservice.CheckContentAllowed(userEntity.Bio); hit {
+		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Bio))
+		slog.Warn("OAuth 导入 bio 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
+		userEntity.Bio = ""
+	}
+	if hit, word := moderationservice.CheckContentAllowed(userEntity.Website); hit {
+		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Website))
+		slog.Warn("OAuth 导入 blog 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
+		userEntity.Website = ""
+	}
 	if err := userservice.SaveUser(userEntity); err != nil {
 		return nil, err
 	}
 
 	return userEntity, nil
+}
+
+// oauthProfileExcerpt 截断 OAuth 资料字段为审核日志摘要（100 个 rune，rune 边界安全）。
+func oauthProfileExcerpt(s string) string {
+	const maxRunes = 100
+	n := 0
+	for i := range s {
+		if n >= maxRunes {
+			return s[:i]
+		}
+		n++
+	}
+	return s
 }
 
 // createOAuthRecord stores a provider account binding. Only the identity

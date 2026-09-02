@@ -75,8 +75,12 @@ setUserInfo:
       externalInformation; every field is optional in the request, and bio/signature
       accept an empty string to clear the stored value. locale is applied only when
       non-empty after trimming. JSON binding is lenient: a malformed body binds to
-      zero values and still succeeds as an all-empty overwrite. Business failures:
-      `user.fetchFailed`, `user.updateFailed`.
+      zero values and still succeeds as an all-empty overwrite. A nickname hitting
+      the reserved/banned lists fails with `auth.nickname.reserved` /
+      `auth.nickname.banned`; profile free text (bio/signature/website/websiteName)
+      hitting the sensitive-word list fails with `content.sensitive.blocked`
+      (params carries the matched word). Business failures: `user.fetchFailed`,
+      `user.updateFailed`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -88,7 +92,10 @@ setUserInfo:
             $ref: ../components/schemas.yaml#/SetUserInfoRequest
     responses:
       '200':
-        description: Profile updated, or a legacy business failure envelope.
+        description: |
+          Profile updated, or a legacy business failure envelope
+          (`auth.nickname.reserved` / `auth.nickname.banned` /
+          `content.sensitive.blocked`).
         content:
           application/json:
             schema:
@@ -96,6 +103,15 @@ setUserInfo:
             examples:
               success:
                 externalValue: ../fixtures/set-user-email-success.json
+              nicknameReserved:
+                summary: Nickname hits the reserved list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/user-info-nickname-reserved.json
+              nicknameBanned:
+                summary: Nickname hits the banned list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/user-info-nickname-banned.json
+              sensitiveBlocked:
+                summary: Profile free text hits the sensitive-word list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/user-info-sensitive-blocked.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

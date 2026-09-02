@@ -2,9 +2,9 @@
   "enableSignup": true,
   "enableEmailVerification": false,
   "allowedDomains": [],
-  "reservedUsernames": [],
+  "reservedUsernames": ["admin", "administrator", "root", "system", "support", "help", "info", "contact", "security", "moderator", "mod", "staff", "team", "official", "verify", "verified", "verification", "misskey", "misskeyhq", "misskeyio", "instance", "server", "webmaster", "api", "oauth", "auth", "login", "logout", "signup", "register", "settings", "account", "user", "users", "profile", "notification", "notifications", "timeline", "home", "explore", "search", "about", "terms", "privacy", "rules", "status", "health", "metrics", "bot", "bots", "robot", "null", "undefined", "anonymous", "guest", "test", "demo", "www", "mail", "ftp", "smtp", "imap", "pop", "cdn", "static", "assets", "owner", "operator", "manager", "maintainer", "developer", "dev", "rootuser"],
   "bannedUsernames": [],
-  "sensitiveWords": [],
+  "sensitiveWords": ["出售雷管", "火药配方", "炸弹配方", "炸药配方", "自制炸弹", "燃烧弹制作", "原子弹制作", "核弹制作", "硝酸甘油", "黑火药配方", "起爆器", "雷管出售", "炸弹制作", "自制炸药", "硝铵炸药", "枪支弹药", "仿真枪出售", "代开发票", "信用卡提现", "无抵押贷款", "私人侦探", "私家侦探", "出售答案", "考中答案", "隐形耳机", "改卷内幕", "代孕妈妈", "代生孩子", "售肾", "套牌车", "六合彩", "足球投注", "地下钱庄", "办证刻章", "冰毒", "海洛因", "制毒配方"],
   "sensitiveAction": "block",
   "captchaRequired": true
 }
