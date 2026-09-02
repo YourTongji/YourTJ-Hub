@@ -48,7 +48,7 @@
 
 | Layer | Responsibility |
 |---|---|
-| `app/console` | cobra CLI (serve / mock / rebuild-search-index / migrate-files ...) |
+| `app/console` | cobra CLI (serve / migrate / mock / rebuild-search-index / migrate-files ...) |
 | `app/bundles` | Utilities (connect/eventbus/jwtopt/i18n/captcha/logging/cache ...) |
 | `app/models` | GORM models + migrations (app/migration) |
 | `app/service` | Business logic (users/topics/mail/oauth/theme/wikiservice ...) |

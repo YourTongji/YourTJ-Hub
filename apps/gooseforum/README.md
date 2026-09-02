@@ -76,6 +76,7 @@ See [configuration documentation](docs/user/configuration.md) for PostgreSQL, SQ
 ### Admin Commands
 
 ```bash
+./yourtj-hub migrate
 ./yourtj-hub set-user-admin <userId>
 ./yourtj-hub set-user-email <userId> <email>
 ./yourtj-hub set-user-password <userId> <password>

@@ -76,6 +76,7 @@ PostgreSQL、SQLite、邮件、备份、安全和站点配置见 [配置文档](
 ### 管理命令
 
 ```bash
+./yourtj-hub migrate
 ./yourtj-hub set-user-admin <用户ID>
 ./yourtj-hub set-user-email <用户ID> <邮箱>
 ./yourtj-hub set-user-password <用户ID> <密码>
