@@ -19,7 +19,9 @@ concurrency:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.env }}
+    # GitHub Environment 与实例名解耦: main 实例的 secrets 存在 production 环境。
+    # 直接写 environment: main 会命中空环境, 渲染必失败(fail-closed)。
+    environment: ${{ github.event.inputs.env == 'main' && 'production' || 'dev' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
