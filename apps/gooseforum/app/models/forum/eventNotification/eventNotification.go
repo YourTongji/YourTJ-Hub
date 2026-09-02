@@ -63,6 +63,7 @@ type NotificationPayload struct {
 	TopicId    uint64 `json:"topicId,omitempty"`
 	TopicTitle string `json:"topicTitle,omitempty"`
 	PostId     uint64 `json:"postId,omitempty"`
+	PostNo     uint64 `json:"postNo,omitempty"` // 楼层号：通知链接优先用它稳定定位，缺失时回退 postId 锚点
 	// 其他元数据
 	Extra Extra `json:"metadata"`
 }

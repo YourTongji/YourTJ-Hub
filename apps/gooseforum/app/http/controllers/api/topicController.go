@@ -540,6 +540,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
 			TopicId:             topicEntity.Id,
 			PostId:              postEntity.Id,
+			PostNo:              postEntity.PostNo,
 			UserId:              req.UserId,
 			Content:             req.Params.Content,
 			TopicAuthorId:       topicEntity.UserId,
@@ -883,6 +884,7 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
+				PostNo:     postEntity.PostNo,
 				TopicId:    postEntity.TopicId,
 				TopicTitle: topicEntity.Title,
 				LikerId:    req.UserId,

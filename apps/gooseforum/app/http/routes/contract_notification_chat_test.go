@@ -133,6 +133,7 @@ func TestNotificationListHTTPContract(t *testing.T) {
 				TopicId:    512,
 				TopicTitle: "期中复习资料汇总",
 				PostId:     4096,
+				PostNo:     8,
 			},
 			time.Date(2026, 8, 15, 10, 20, 30, 0, time.UTC))
 		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications", "", contractSessionToken(t, user))

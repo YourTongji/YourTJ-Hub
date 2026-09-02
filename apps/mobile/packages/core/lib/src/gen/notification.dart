@@ -59,6 +59,7 @@ abstract class NotificationInnerPayload with _$NotificationInnerPayload {
     String? actorName,
     int? topicId,
     int? postId,
+    int? postNo,
     String? topicTitle,
     NotificationMetadata? metadata,
   }) = _NotificationInnerPayload;
