@@ -56,6 +56,7 @@ cd resource && npx vitest run
 ### CLI 命令
 ```bash
 ./gooseforum serve                 # 启动服务
+./gooseforum migrate               # 显式执行数据库迁移（部署前运行）
 ./gooseforum set-user-admin <userId>  # 设置管理员
 ./gooseforum set-user-email <userId> <email>  # 设置用户邮箱
 ./gooseforum set-user-password <userId> <password>  # 重置用户密码

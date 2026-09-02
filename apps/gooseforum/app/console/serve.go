@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
@@ -21,7 +23,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/signalwatch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/job"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
@@ -42,11 +46,11 @@ import (
 var CmdServe = &cobra.Command{
 	Use:   "serve",
 	Short: "Start web server",
-	Run:   runWeb,
+	RunE:  runWeb,
 	Args:  cobra.NoArgs,
 }
 
-func runWeb(_ *cobra.Command, _ []string) {
+func runWeb(_ *cobra.Command, _ []string) error {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	slog.Info("GooseForum:start")
@@ -54,7 +58,7 @@ func runWeb(_ *cobra.Command, _ []string) {
 
 	warnInsecureServerURL()
 	startDebugServices()
-	ginServe()
+	return ginServe()
 }
 
 // warnInsecureServerURL logs a startup warning when a non-local deployment is
@@ -133,7 +137,7 @@ func pprofMux() *http.ServeMux {
 	return mux
 }
 
-func ginServe() {
+func ginServe() error {
 	// fail-closed：拒绝在不安全的 JWT 签名密钥下启动。空值、内置公开默认值
 	// 与部署模板占位符都可使攻击者伪造密码重置令牌（见 issue #106），因此
 	// 配置错误必须以非零退出码终止——否则 systemd/docker 会把"配置错误"
@@ -143,7 +147,119 @@ func ginServe() {
 			"hint", "请配置一个随机密钥（例如 openssl rand -base64 32）后重试")
 		os.Exit(1)
 	}
+	// prepareServeRuntime 只配置与数据库无关的启动态，可在迁移门闸开启前安全执行。
+	prepareServeRuntime()
+	port := preferences.GetString("server.port", 8080)
+	serverRuntime, err := newServeRuntime(port)
+	if err != nil {
+		return fmt.Errorf("create serve runtime: %w", err)
+	}
+	serverRuntime.start()
+
+	slog.Info("GooseForum:listen " + port)
+	slog.Info("use port:" + port)
+	slog.Info("start use:" + cast.ToString(setting.GetUnitTime()))
+	fmt.Println("if in local you can http://localhost:" + port)
+
+	return serverRuntime.wait()
+}
+
+// prepareServeRuntime 只配置与数据库无关的启动态，可在迁移门闸开启前安全执行。
+func prepareServeRuntime() {
 	preferences.OpenConfigChangeEvent()
+}
+
+type serveRuntime struct {
+	server        *http.Server
+	startupGate   *middleware.StartupGate
+	listener      net.Listener
+	quit          chan os.Signal
+	shutdownOnce  sync.Once
+	fatalMu       sync.Mutex
+	fatalErr      error
+	migrate       func() error
+	startBusiness func()
+}
+
+func newServeRuntime(port string) (*serveRuntime, error) {
+	engine := newGinEngine()
+	// 启动门闸必须是第一个中间件，且在 RegisterByGin 之前注册：gin 在路由
+	// 注册时快照处理器链，gate 注册晚了会静默失效；gate 前置保证迁移期间
+	// 没有任何 DB 依赖的中间件/控制器被执行。
+	startupGate := middleware.NewStartupGate()
+	engine.Use(startupGate.Handler)
+	routes.RegisterByGin(engine)
+	host := preferences.GetString("server.host", "")
+	if host == "" && setting.IsLocal() {
+		host = `127.0.0.1`
+	}
+	address := fmt.Sprintf("%v:%v", host, port)
+	srv := newHTTPServer(address, engine)
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", address, err)
+	}
+	return &serveRuntime{
+		server:        srv,
+		startupGate:   startupGate,
+		listener:      listener,
+		quit:          make(chan os.Signal, 1),
+		migrate:       migration.M,
+		startBusiness: startBusinessServices,
+	}, nil
+}
+
+func (r *serveRuntime) start() {
+	signalwatch.ListenSignal(r.quit)
+	go func() {
+		defer paniclog.Recover("http_server")
+		if err := r.server.Serve(r.listener); !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("http serve ", "err", err)
+			fmt.Println("http serve ", "err", err)
+			r.requestShutdown()
+		}
+	}()
+	// 迁移完成前监听器已就绪并只返回 503（StartupGate），完成后才启动
+	// 业务服务并放行流量；worker/cron 全部在成功路径内启动，避免半迁移
+	// 实例处理业务请求。
+	go func() {
+		if err := r.runStartup(); err != nil {
+			r.setFatal(err)
+			r.requestShutdown()
+		}
+	}()
+}
+
+// runStartup applies migrations and, on success, boots the business services
+// and opens the startup gate. A hard migration error or a panic in the
+// migration path (e.g. dbconnect.Connect panics on an unreachable database)
+// returns an error so the instance exits non-zero instead of staying on the
+// 503 loading page forever.
+func (r *serveRuntime) runStartup() (fatalErr error) {
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			paniclog.LogPanic("startup_migration", panicValue)
+			fatalErr = fmt.Errorf("startup migration panicked: %v", panicValue)
+		}
+	}()
+	err := r.migrate()
+	if err != nil {
+		if migration.Deferred(err) {
+			slog.Warn("startup migration deferred, serving with degraded state", "err", err)
+		} else {
+			slog.Error("startup migration failed", "err", err)
+			return err
+		}
+	}
+	r.startBusiness()
+	r.startupGate.Complete()
+	return nil
+}
+
+// startBusinessServices boots every business-facing component that reads or
+// writes the database (or depends on a migrated schema). It runs only after
+// migration succeeds or defers via a non-fatal sentinel.
+func startBusinessServices() {
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
 	oidcservice.InitOIDC()
@@ -205,43 +321,47 @@ func ginServe() {
 			}
 		}()
 	}
+}
 
-	port := preferences.GetString("server.port", 8080)
-	engine := newGinEngine()
-	routes.RegisterByGin(engine)
-	// local 模式默认只绑定回环地址（安全），配置 server.host 可覆盖为 0.0.0.0 以允许局域网访问
-	host := preferences.GetString("server.host", "")
-	if host == "" && setting.IsLocal() {
-		host = `127.0.0.1`
-	}
-	address := fmt.Sprintf("%v:%v", host, port)
-	srv := newHTTPServer(address, engine)
+// setFatal records a startup failure that must be surfaced as a non-zero exit
+// code; wait reads it after the graceful shutdown completes. The mutex keeps
+// this race-free when an external signal (not requestShutdown) wakes wait.
+func (r *serveRuntime) setFatal(err error) {
+	r.fatalMu.Lock()
+	defer r.fatalMu.Unlock()
+	r.fatalErr = err
+}
 
-	quit := make(chan os.Signal, 1)
-	signalwatch.ListenSignal(quit)
-	go func() {
-		defer paniclog.Recover("http_server")
-		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("http serve ", "err", err)
-			fmt.Println("http serve ", "err", err)
-			quit <- os.Interrupt
+// fatal returns the recorded startup failure, or nil on a normal run.
+func (r *serveRuntime) fatal() error {
+	r.fatalMu.Lock()
+	defer r.fatalMu.Unlock()
+	return r.fatalErr
+}
+
+// requestShutdown asks the event loop to stop, idempotently and without
+// blocking: an external signal may already be queued, and signal.Notify
+// panics on a closed channel so the channel is never closed.
+func (r *serveRuntime) requestShutdown() {
+	r.shutdownOnce.Do(func() {
+		select {
+		case r.quit <- os.Interrupt:
+		default:
 		}
-	}()
+	})
+}
 
-	slog.Info("GooseForum:listen " + port)
-	slog.Info("use port:" + port)
-	slog.Info("start use:" + cast.ToString(setting.GetUnitTime()))
-	fmt.Println("if in local you can http://localhost:" + port)
-
-	data := <-quit
-	slog.Info("Shutdown Server ...", "signal", data)
+func (r *serveRuntime) wait() error {
+	signal := <-r.quit
+	slog.Info("Shutdown Server ...", "signal", signal)
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	if err := r.server.Shutdown(shutdownCtx); err != nil {
 		slog.Info("Server Shutdown", "err", err)
 	}
 
 	slog.Info("Server exiting")
+	return r.fatal()
 }
 
 func newHTTPServer(address string, handler http.Handler) *http.Server {
