@@ -253,6 +253,7 @@ const postingForm = reactive<PostingSettings>({
 const storageForm = reactive<StorageSettings>({
   provider: 'local',
   endpoint: '',
+  internalEndpoint: '',
   bucket: '',
   region: '',
   bucketLookup: 'auto',
@@ -664,6 +665,7 @@ function normalizeStorage(settings: Partial<StorageSettings> = {}) {
   return {
     provider: settings.provider === 's3' ? 's3' : 'local',
     endpoint: settings.endpoint ?? '',
+    internalEndpoint: settings.internalEndpoint ?? '',
     bucket: settings.bucket ?? '',
     region: settings.region ?? '',
     bucketLookup: settings.bucketLookup === 'dns' || settings.bucketLookup === 'path' ? settings.bucketLookup : 'auto',
@@ -1572,6 +1574,10 @@ onUnmounted(stopSyncPolling)
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fu') }}<Input v-model="storageForm.region" :disabled="storageForm.provider !== 's3'" /></label>
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g5') }}<Input v-model="storageForm.publicUrlPrefix" :disabled="storageForm.provider !== 's3'" placeholder="https://cdn.example.com" /></label>
         </div>
+        <label class="grid gap-2 text-sm font-medium">{{ adminText('k00uc') }}
+          <Input v-model="storageForm.internalEndpoint" :disabled="storageForm.provider !== 's3'" placeholder="https://oss-<region>-internal.aliyuncs.com" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00ud') }}</span>
+        </label>
         <div class="grid gap-6 md:grid-cols-2">
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}
             <div class="flex items-center gap-2">

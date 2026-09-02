@@ -26,9 +26,49 @@ const (
 // S3Provider stores files in an S3-compatible object store
 // (MinIO, Tencent COS, Alibaba OSS, Cloudflare R2, ...).
 type S3Provider struct {
-	client *minio.Client
-	bucket string
-	now    func() time.Time
+	client        *minio.Client // 数据面（服务端读写/校验/删除）：配置了 internalEndpoint 时用它，否则与 presignClient 相同
+	presignClient *minio.Client // presign（浏览器直传）恒用公网 endpoint，保证浏览器可达
+	bucket        string
+	now           func() time.Time
+}
+
+// buildS3Client 从归一化 endpoint 构建 minio client。
+// scheme 剥离/Secure 推导逻辑与历史 NewS3Provider 完全一致。
+func buildS3Client(endpoint string, cfg pageConfig.StorageSettings) (*minio.Client, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return nil, fmt.Errorf("s3 provider requires endpoint")
+	}
+	lookup := minio.BucketLookupAuto
+	switch strings.ToLower(cfg.BucketLookup) {
+	case "dns":
+		lookup = minio.BucketLookupDNS
+	case "path":
+		lookup = minio.BucketLookupPath
+	}
+	// minio-go 的 New() 期望 endpoint 不含 scheme（Secure 选项控制协议）。
+	// 用户配置可能带 scheme（如 https://cos.ap-shanghai.myqcloud.com），
+	// 这里剥离 scheme 并据此确定 Secure。
+	secure := cfg.Secure
+	if strings.Contains(endpoint, "://") {
+		parsed, err := url.Parse(endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("parse s3 endpoint: %w", err)
+		}
+		endpoint = parsed.Host
+		switch parsed.Scheme {
+		case "http":
+			secure = false
+		case "https":
+			secure = true
+		}
+	}
+	return minio.New(endpoint, &minio.Options{
+		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure:       secure,
+		Region:       cfg.Region,
+		BucketLookup: lookup,
+	})
 }
 
 // NewS3Provider builds a minio-go client from storage settings.
@@ -44,41 +84,37 @@ func NewS3Provider(cfg pageConfig.StorageSettings) (*S3Provider, error) {
 	if cfg.Bucket == "" || cfg.Endpoint == "" {
 		return nil, fmt.Errorf("s3 provider requires endpoint and bucket")
 	}
-	lookup := minio.BucketLookupAuto
-	switch strings.ToLower(cfg.BucketLookup) {
-	case "dns":
-		lookup = minio.BucketLookupDNS
-	case "path":
-		lookup = minio.BucketLookupPath
-	}
-	// minio-go 的 New() 期望 endpoint 不含 scheme（Secure 选项控制协议）。
-	// 用户配置可能带 scheme（如 https://cos.ap-shanghai.myqcloud.com），
-	// 这里剥离 scheme 并据此确定 Secure。
-	endpoint := cfg.Endpoint
-	secure := cfg.Secure
-	if strings.Contains(endpoint, "://") {
-		parsed, err := url.Parse(endpoint)
-		if err != nil {
-			return nil, fmt.Errorf("parse s3 endpoint: %w", err)
-		}
-		endpoint = parsed.Host
-		switch parsed.Scheme {
-		case "http":
-			secure = false
-		case "https":
-			secure = true
-		}
-	}
-	client, err := minio.New(endpoint, &minio.Options{
-		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure:       secure,
-		Region:       cfg.Region,
-		BucketLookup: lookup,
-	})
+	presignClient, err := buildS3Client(cfg.Endpoint, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("create s3 client: %w", err)
+		return nil, fmt.Errorf("create s3 presign client: %w", err)
 	}
-	return &S3Provider{client: client, bucket: cfg.Bucket, now: time.Now}, nil
+	dataClient := presignClient
+	// internalEndpoint 非空且与公网 endpoint 主机不同 → 数据面单独走内网 client；
+	// 相同/为空 → 单 client，与历史行为逐字节一致。
+	internal := strings.TrimSpace(cfg.InternalEndpoint)
+	if internal != "" && !sameS3EndpointHost(internal, cfg.Endpoint) {
+		dataClient, err = buildS3Client(internal, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("create s3 internal client: %w", err)
+		}
+	}
+	return &S3Provider{client: dataClient, presignClient: presignClient, bucket: cfg.Bucket, now: time.Now}, nil
+}
+
+// sameS3EndpointHost 归一化（去 scheme/尾斜杠/大小写）后比较两个 endpoint 的主机是否相同，
+// 用于决定 internalEndpoint 是否构成一个真正独立的数据面 client。
+func sameS3EndpointHost(a, b string) bool {
+	return normalizeS3EndpointHost(a) == normalizeS3EndpointHost(b)
+}
+
+func normalizeS3EndpointHost(endpoint string) string {
+	e := strings.TrimSpace(endpoint)
+	e = strings.TrimRight(e, "/")
+	if i := strings.Index(e, "://"); i >= 0 {
+		e = e[i+3:]
+	}
+	e = strings.ToLower(e)
+	return e
 }
 
 // Save uploads a single object. Files below 16MiB use one atomic PUT.
@@ -172,12 +208,24 @@ func TestConnection(ctx context.Context, cfg pageConfig.StorageSettings) error {
 	if err != nil {
 		return err
 	}
-	ok, err := p.client.BucketExists(ctx, p.bucket)
+	// 双端探测：数据面 client（可能为 internal）与 presign client（公网）都要能
+	// 访问 bucket，任一失败立即报错并指明失败端点，避免"internal 通但公网
+	// presign 端点挂 → 保存成功但浏览器直传全挂"。
+	if p.client != p.presignClient {
+		if err := probeBucketExists(ctx, p.client, p.bucket); err != nil {
+			return fmt.Errorf("internal endpoint bucket check failed: %w", err)
+		}
+	}
+	return probeBucketExists(ctx, p.presignClient, p.bucket)
+}
+
+func probeBucketExists(ctx context.Context, client *minio.Client, bucket string) error {
+	ok, err := client.BucketExists(ctx, bucket)
 	if err != nil {
 		return fmt.Errorf("bucket check failed: %w", err)
 	}
 	if !ok {
-		return fmt.Errorf("bucket %q does not exist", p.bucket)
+		return fmt.Errorf("bucket %q does not exist", bucket)
 	}
 	return nil
 }
@@ -211,7 +259,7 @@ func (p *S3Provider) PresignUpload(ctx context.Context, request DirectUploadRequ
 			return nil, err
 		}
 	}
-	uploadURL, fields, err := p.client.PresignedPostPolicy(ctx, policy)
+	uploadURL, fields, err := p.presignClient.PresignedPostPolicy(ctx, policy)
 	if err != nil {
 		return nil, err
 	}

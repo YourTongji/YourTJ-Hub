@@ -281,10 +281,10 @@ func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearStorageSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":""}}`,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","internalEndpoint":"https://s3-internal.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":""}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{})
-		if stored.Provider != "s3" || stored.Endpoint != "https://s3.new.example.test" || stored.Bucket != "new-bucket" {
+		if stored.Provider != "s3" || stored.Endpoint != "https://s3.new.example.test" || stored.InternalEndpoint != "https://s3-internal.new.example.test" || stored.Bucket != "new-bucket" {
 			t.Fatalf("stored storage settings = %#v, want submitted values", stored)
 		}
 		if plain, err := securestore.DecryptPurpose(stored.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose); err != nil || plain != "new-ak" {

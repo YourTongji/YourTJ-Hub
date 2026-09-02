@@ -1779,6 +1779,7 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 	storage := jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config)
 	storage.Provider = provider
 	storage.Endpoint = input.Endpoint
+	storage.InternalEndpoint = input.InternalEndpoint
 	storage.Bucket = input.Bucket
 	storage.Region = input.Region
 	storage.BucketLookup = input.BucketLookup

@@ -863,4 +863,6 @@ export default {
   "k00u9": "Period {section} has an invalid time: start must be earlier than end (HH:MM)",
   "k00ua": "Period {section}",
   "k00ub": "Maximum new topics per user per day (0 = unlimited)",
+  "k00uc": "Internal endpoint (optional)",
+  "k00ud": "Optional: server-side reads/writes (proxy reads, direct-upload verification, migration) use this internal endpoint; browser direct uploads still use the public Endpoint above. For Alibaba OSS use oss-<region>-internal.aliyuncs.com; leave empty otherwise.",
 } as const
