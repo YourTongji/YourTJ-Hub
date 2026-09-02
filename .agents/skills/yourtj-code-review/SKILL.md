@@ -1,6 +1,6 @@
 ---
 name: yourtj-code-review
-description: Use when reviewing a yourtj-hub code change (own or others') before merge — checking contract impact, database migration safety, security boundaries, performance, and maintainability against the repository's hard constraints. Not for running toolchain checks (use $yourtj-pre-push-checks) or implementing changes (use $yourtj-development).
+description: Use when reviewing a yourtj-hub code change (own or others') before merge — checking contract impact, database migration safety, security boundaries, performance, test coverage, and maintainability against the repository's hard constraints. Not for running toolchain checks (use $yourtj-pre-push-checks) or implementing changes (use $yourtj-development).
 ---
 
 # Reviewing YourTJ Hub Changes
@@ -40,6 +40,15 @@ description: Use when reviewing a yourtj-hub code change (own or others') before
 - 分层边界：bundles → models → service → http/controllers；跨域访问走 owner 公共 API，无外域 SQL。
 - 命名/重复/死代码/投机抽象；TODO 三档（`FIXME` 阻塞发布 / `TODO` 近期 / `XXX` 远期）。
 - 与周围模式一致；新抽象是否降低净复杂度。
+
+## Test coverage
+
+- 每个功能必须有测试，且测试要覆盖**代码实际存在的分支**：条件/错误返回/回退路径都要有断言，
+  不能只覆盖快乐路径——"这段代码不会走到"不是理由，能走到就要测。
+- 边界与量级敏感点必须显式测：分页/批处理跨越批大小边界、游标/断点续跑、空输入、首尾元素、部分成功后的重跑（幂等重入）、并发冲突。
+- 失败路径可观测：错误有断言（不只看日志），迁移/批量任务失败后的重试与自愈有测试。
+- 数据量要贴近真实：真实可达数万行的表，CI/本地只用小样本会漏掉只在量级触发的缺陷；至少补一次大样本回归（`sqlite :memory:` 即可，不必依赖 PG）。
+- 方言差异：SQLite 宽松 ≠ PostgreSQL 严格——写跨方言查询（表达式排序、`SELECT DISTINCT`、分页、类型转换）时确认两侧语义一致，不能靠 SQLite 放行掩盖 PostgreSQL 会拒绝的写法。
 
 ## Output
 
