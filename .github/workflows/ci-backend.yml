@@ -14,6 +14,11 @@ on:
       - "apps/gooseforum/testdata/markdown-compat/**"
       - "packages/api-contract/**"
       - "deploy/scripts/**"
+      - "deploy/*.py"
+      - "deploy/instances/**"
+      - "deploy/config.toml.tmpl"
+      - "deploy/config.toml.example"
+      - ".github/actions/render-config/**"
       - ".github/workflows/ci-backend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
   pull_request:
@@ -63,7 +68,12 @@ jobs:
               - '.github/workflows/ci-backend.yml'
             deploy_scripts:
               - 'deploy/scripts/**'
+              - 'deploy/*.py'
+              - 'deploy/instances/**'
+              - 'deploy/config.toml.tmpl'
+              - 'deploy/config.toml.example'
               - '.github/workflows/ci-backend.yml'
+              - '.github/actions/render-config/**'
 
       - uses: actions/setup-go@v5
         if: steps.filter.outputs.backend == 'true'
@@ -83,15 +93,17 @@ jobs:
         run: go build .
 
       # deploy 运维脚本测试(issue #134): DSN 解析支持 URL/key=value 两种格式,
-      # 非法 DSN 在调用侧于任何 DB 操作前报错; 仅脚本变更时运行。
-      - name: Deploy scripts (bash syntax + DSN parser tests)
+      # 非法 DSN 在调用侧于任何 DB 操作前报错; 渲染器 fail-closed(配置治理);
+      # 仅 deploy 脚本/模板/渲染器变更时运行。
+      - name: Deploy scripts (bash syntax + DSN parser + render config tests)
         if: steps.filter.outputs.deploy_scripts == 'true'
         run: |
           # bash -n 只语法检查第一个文件参数, 多文件写法会静默跳过其余文件, 必须逐个检查
-          for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh deploy/scripts/deploy.sh; do
+          for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh deploy/scripts/deploy.sh deploy/scripts/apply-config.sh deploy/scripts/verify-instance.sh; do
             bash -n "$f"
           done
           bash deploy/scripts/pgdsn_test.sh
+          python3 deploy/render_config_test.py
 
   # wiki 同步锁并发测试（#285 回归）必须通过竞态检测。PR #297 描述引用过
   # "ci-backend-race"，但此前该 job 不存在；此处落地为真实 job，与

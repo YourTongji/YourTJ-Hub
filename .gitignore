@@ -32,6 +32,10 @@ apps/mobile/.packages
 .env
 deploy/.env
 
+# 配置治理渲染产物（CI 下发用, 不入库）
+deploy/rendered/
+deploy/__pycache__/
+
 # OS
 .DS_Store
 

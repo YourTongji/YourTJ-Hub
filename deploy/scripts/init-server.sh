@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # init-server.sh — 服务器一次性初始化(在目标服务器上以 root 运行)。
 # 用法: sudo bash init-server.sh [main-domain] [dev-domain]
-#   例: sudo bash init-server.sh https://forum.yourtj.de https://dev.yourtj.de
+#   例: sudo bash init-server.sh https://f.yourtj.de https://dev.yourtj.de
 set -euo pipefail
 
-MAIN_DOMAIN="${1:-https://forum.yourtj.de}"
+MAIN_DOMAIN="${1:-https://f.yourtj.de}"
 DEV_DOMAIN="${2:-https://dev.yourtj.de}"
 
 ROOT=/opt/yourtj
@@ -130,4 +130,16 @@ echo ""
 echo "=== INIT DONE ==="
 echo "  main: $ROOT/main   (port $(grep '^MAIN_PORT=' "$ROOT/.env" | cut -d= -f2), domain $MAIN_DOMAIN)"
 echo "  dev:  $ROOT/dev    (port $(grep '^DEV_PORT=' "$ROOT/.env" | cut -d= -f2), domain $DEV_DOMAIN)"
-echo "  下一步: 推送 dev 分支触发 CI 部署(需已配置 GitHub Secrets VM_HOST/VM_USER/VM_SSH_KEY)"
+echo ""
+echo "=== 配置治理: 需回填到 GitHub Environments secrets 的值（CI 渲染 config 用） ==="
+echo "  production 环境: PG_DSN / SIGNING_KEY / MEILI_MASTER_KEY / WIKI_WEBHOOK_SECRET"
+echo "                   VM_HOST / VM_USER / VM_SSH_KEY / VM_SSH_PORT"
+echo "                   GH_CLIENT_ID / GH_CLIENT_SECRET（GitHub OAuth, 生产启用）"
+echo "  dev 环境:       同 PG_DSN / SIGNING_KEY / MEILI_MASTER_KEY / WIKI_WEBHOOK_SECRET + VM_*;"
+echo "                   GitHub 凭据不填（DB siteUrl 无环境隔离, dev 保持空）"
+echo "  AI_API_KEY(可选): 两环境都可留空（AI 总结默认关闭）"
+echo "  命令示例（在本地持 GH token 处执行, 值从服务器读取, 勿回显）:"
+echo "    ssh root@<host> \"awk '/^\\\\[db.default\\\\]/{f=1} f&&/^url =/{print;exit}' /opt/yourtj/main/config.toml\" \\"
+echo "      | gh secret set PG_DSN --env production"
+echo ""
+echo "  下一步: 推送 dev 分支触发 CI 部署（渲染 config 随镜像下发; apply-config.sh 做健康回滚）"
