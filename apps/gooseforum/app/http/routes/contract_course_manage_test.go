@@ -34,6 +34,7 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.OfferingInstructorEntity{},
 		&course.SourceRefEntity{},
 		&course.CourseAiSummaryEntity{},
+		&course.CourseUserActionEntity{},
 		&course.RelationEntity{},
 		&rolePermissionRs.Entity{},
 		&optRecord.Entity{},
@@ -48,13 +49,11 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.InstructorEntity{},
 		&course.OfferingEntity{},
 		&course.TermEntity{},
-		&course.AliasEntity{},
-		&course.SourceRefEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		&course.CourseUserActionEntity{},
 		&course.RelationEntity{},
 		&course.Entity{},
-		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},
 	} {
 		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {

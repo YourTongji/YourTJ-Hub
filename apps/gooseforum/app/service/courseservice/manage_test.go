@@ -15,6 +15,7 @@ var manageTestModels = []any{
 	&course.OfferingEntity{},
 	&course.ReviewEntity{},
 	&course.HelpfulEntity{},
+	&course.DislikeEntity{},
 	&course.CourseStatsEntity{},
 	&course.OfferingStatsEntity{},
 	&course.AliasEntity{},
@@ -110,10 +111,14 @@ func TestUpdateCourseNameSyncsSearch(t *testing.T) {
 	}
 }
 
-// TestDeleteCourseCascades 级联删除课程 + offering + 评价 + helpful + 统计 + 别名 + 来源映射。
+// TestDeleteCourseCascades 级联删除课程 + offering + 评价 + helpful + 统计 + 别名 + 来源映射 + 沿革 relations。
 func TestDeleteCourseCascades(t *testing.T) {
 	setupManageTest(t)
 	conn := dbconnect.Connect()
+	// 沿革 relations 表：manageTestModels 未覆盖，测试内补迁移。
+	if err := conn.AutoMigrate(&course.RelationEntity{}); err != nil {
+		t.Fatalf("migrate course relations: %v", err)
+	}
 
 	// 课程 + offering + 教师关联
 	c := course.Entity{PrimaryCode: "CS101", Name: "数据结构", Status: course.StatusVisible}
@@ -161,6 +166,17 @@ func TestDeleteCourseCascades(t *testing.T) {
 	if err := conn.Create(&course.SourceRefEntity{Source: "s", EntityType: course.EntityTypeReview, ExternalId: "r1", LocalId: review.Id}).Error; err != nil {
 		t.Fatalf("create review source ref: %v", err)
 	}
+	// 沿革 relations：from 与 to 各一条指向本卡（双向都要清）。
+	other := course.Entity{PrimaryCode: "CS102", Name: "数据结构（下）", Status: course.StatusVisible}
+	if err := conn.Create(&other).Error; err != nil {
+		t.Fatalf("create other course: %v", err)
+	}
+	if err := conn.Create(&course.RelationEntity{FromCourseId: other.Id, ToCourseId: c.Id, RelationType: string(course.RelationEquivalent), Source: course.RelationSourceRule, Status: string(course.RelationStatusPending)}).Error; err != nil {
+		t.Fatalf("create relation to course: %v", err)
+	}
+	if err := conn.Create(&course.RelationEntity{FromCourseId: c.Id, ToCourseId: other.Id, RelationType: string(course.RelationSplit), Source: course.RelationSourceRule, Status: string(course.RelationStatusPending)}).Error; err != nil {
+		t.Fatalf("create relation from course: %v", err)
+	}
 
 	info, err := DeleteCourse(c.Id)
 	if err != nil {
@@ -169,11 +185,11 @@ func TestDeleteCourseCascades(t *testing.T) {
 	if info.ReviewCount != 1 || info.OfferingCount != 1 {
 		t.Fatalf("unexpected delete info: %+v", info)
 	}
-	// 课程、offering、评价、helpful、统计、别名、来源映射均被物理移除
+	// 课程、offering、评价、helpful、统计、别名、来源映射、relations 均被物理移除
 	if got := course.GetCourseByIdTx(conn, c.Id); got.Id != 0 {
 		t.Fatalf("course still present: %+v", got)
 	}
-	var offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, reviewSourceRefCount, courseStatsCount, offeringStatsCount int64
+	var offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, reviewSourceRefCount, courseStatsCount, offeringStatsCount, relationCount int64
 	conn.Unscoped().Table("course_offering").Where("id = ?", offering.Id).Count(&offeringCount)
 	conn.Unscoped().Table("course_review").Where("id = ?", review.Id).Count(&reviewCount)
 	conn.Unscoped().Table("course_review_helpful").Where("review_id = ?", review.Id).Count(&helpfulCount)
@@ -182,9 +198,10 @@ func TestDeleteCourseCascades(t *testing.T) {
 	conn.Unscoped().Table("course_source_ref").Where("entity_type = ? AND local_id = ?", course.EntityTypeReview, review.Id).Count(&reviewSourceRefCount)
 	conn.Unscoped().Table("course_review_stats").Where("course_id = ?", c.Id).Count(&courseStatsCount)
 	conn.Unscoped().Table("offering_review_stats").Where("offering_id = ?", offering.Id).Count(&offeringStatsCount)
-	if offeringCount+reviewCount+helpfulCount+aliasCount+sourceRefCount+reviewSourceRefCount+courseStatsCount+offeringStatsCount != 0 {
-		t.Fatalf("cascade delete left rows: offering=%d review=%d helpful=%d alias=%d sourceRef=%d reviewSourceRef=%d courseStats=%d offeringStats=%d",
-			offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, reviewSourceRefCount, courseStatsCount, offeringStatsCount)
+	conn.Unscoped().Table((&course.RelationEntity{}).TableName()).Where("from_course_id = ? OR to_course_id = ?", c.Id, c.Id).Count(&relationCount)
+	if offeringCount+reviewCount+helpfulCount+aliasCount+sourceRefCount+reviewSourceRefCount+courseStatsCount+offeringStatsCount+relationCount != 0 {
+		t.Fatalf("cascade delete left rows: offering=%d review=%d helpful=%d alias=%d sourceRef=%d reviewSourceRef=%d courseStats=%d offeringStats=%d relation=%d",
+			offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, reviewSourceRefCount, courseStatsCount, offeringStatsCount, relationCount)
 	}
 	if countTasksByType(t, "course-search.") == 0 {
 		t.Fatal("expected search delete task enqueued")

@@ -573,3 +573,91 @@ func TestListHelpfulReviewIDsByUserBatch(t *testing.T) {
 		t.Fatalf("expected no marked reviews after unhelpful, got %+v", marked)
 	}
 }
+
+// TestListReviewsPageTeamScopeAggregation team 档评价列表聚合（bot review）：
+// review_scope=team 且 team_key 非空时，ListReviewsPage 覆盖团队全部可见卡的
+// offering，total 同口径；单卡路径（teacher/course scope）不受影响。
+func TestListReviewsPageTeamScopeAggregation(t *testing.T) {
+	_, _ = setupReviewTest(t)
+	conn := dbconnect.Connect()
+	// 团队两张卡：同 team_key、scope=team；各自一个可见 offering。
+	// 主课号避开 setupReviewTest 已建课程（uniq_course_code_teacher 唯一索引）。
+	teamA := course.Entity{PrimaryCode: "300001", Name: "高等数学", Department: "数学科学学院",
+		ReviewScope: "team", TeamKey: "team-math", Status: course.StatusVisible}
+	if err := conn.Create(&teamA).Error; err != nil {
+		t.Fatalf("create team course A: %v", err)
+	}
+	teamB := course.Entity{PrimaryCode: "300002", Name: "数学分析", Department: "数学科学学院",
+		ReviewScope: "team", TeamKey: "team-math", Status: course.StatusVisible}
+	if err := conn.Create(&teamB).Error; err != nil {
+		t.Fatalf("create team course B: %v", err)
+	}
+	// 单卡对照组：teacher scope、不同 team_key（同库共存，验证不被误聚合）。
+	solo := course.Entity{PrimaryCode: "300003", Name: "线性代数", Department: "数学科学学院",
+		ReviewScope: "teacher", Status: course.StatusVisible}
+	if err := conn.Create(&solo).Error; err != nil {
+		t.Fatalf("create solo course: %v", err)
+	}
+	var term course.TermEntity
+	if err := conn.Where("code = ?", "2025-2026-1").First(&term).Error; err != nil {
+		t.Fatalf("load setup term: %v", err)
+	}
+	makeOffering := func(courseId uint64) uint64 {
+		t.Helper()
+		o := course.OfferingEntity{CourseId: courseId, TermId: term.Id, Status: course.OfferingStatusVisible}
+		if err := conn.Create(&o).Error; err != nil {
+			t.Fatalf("create offering: %v", err)
+		}
+		return o.Id
+	}
+	aOffering := makeOffering(teamA.Id)
+	bOffering := makeOffering(teamB.Id)
+	soloOffering := makeOffering(solo.Id)
+	createReview := func(userId, offeringId uint64, rating int, content string) {
+		t.Helper()
+		_, err := CreateReview(userId, CreateReviewInput{OfferingId: offeringId, Rating: rating, Content: content, IsAnonymous: true})
+		if err != nil {
+			t.Fatalf("create review on offering %d: %v", offeringId, err)
+		}
+	}
+	createReview(1001, aOffering, 5, "A 卡评价")
+	createReview(1002, bOffering, 4, "B 卡评价")
+	createReview(1003, soloOffering, 3, "单卡评价")
+
+	// team 档：从 A 卡视角列出，应跨卡返回 2 条（A+B），不含单卡评价。
+	page, err := ListReviewsPage(teamA.Id, 0, 0, ReviewCursor{}, DefaultReviewPageSize)
+	if err != nil {
+		t.Fatalf("list team reviews: %v", err)
+	}
+	if page.Total != 2 {
+		t.Fatalf("team total = %d, want 2（跨卡聚合）", page.Total)
+	}
+	if len(page.List) != 2 {
+		t.Fatalf("team list = %d items, want 2", len(page.List))
+	}
+	offeringSeen := map[uint64]bool{}
+	for _, p := range page.List {
+		offeringSeen[p.OfferingId] = true
+	}
+	if !offeringSeen[aOffering] || !offeringSeen[bOffering] {
+		t.Fatalf("team list offerings = %+v, want both %d and %d", offeringSeen, aOffering, bOffering)
+	}
+
+	// 单卡路径（teacher scope）：只返回该卡自己的评价。
+	soloPage, err := ListReviewsPage(solo.Id, 0, 0, ReviewCursor{}, DefaultReviewPageSize)
+	if err != nil {
+		t.Fatalf("list solo reviews: %v", err)
+	}
+	if soloPage.Total != 1 || len(soloPage.List) != 1 || soloPage.List[0].OfferingId != soloOffering {
+		t.Fatalf("solo page = total %d list %d, want 1/1 on offering %d", soloPage.Total, len(soloPage.List), soloOffering)
+	}
+
+	// offering 过滤不受 team 聚合影响：仍只看指定 offering。
+	filtered, err := ListReviewsPage(teamA.Id, aOffering, 0, ReviewCursor{}, DefaultReviewPageSize)
+	if err != nil {
+		t.Fatalf("list team offering-filtered reviews: %v", err)
+	}
+	if filtered.Total != 1 || len(filtered.List) != 1 || filtered.List[0].OfferingId != aOffering {
+		t.Fatalf("offering-filtered = total %d list %d, want 1/1 on offering %d", filtered.Total, len(filtered.List), aOffering)
+	}
+}

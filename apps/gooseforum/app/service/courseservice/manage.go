@@ -450,6 +450,13 @@ func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 			Delete(&course.SourceRefEntity{}).Error; err != nil {
 			return err
 		}
+		// 沿革 relations 清理：from 或 to 指向该卡的行均物理删除
+		// （软删行残留会让沿革候选审核队列悬挂已删除课程的候选）。
+		if err := tx.Unscoped().Table((&course.RelationEntity{}).TableName()).
+			Where("from_course_id = ? OR to_course_id = ?", courseId, courseId).
+			Delete(&course.RelationEntity{}).Error; err != nil {
+			return err
+		}
 		// 课程物理删除。
 		if err := tx.Unscoped().Table((&course.Entity{}).TableName()).
 			Where("id = ?", courseId).

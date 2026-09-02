@@ -633,6 +633,11 @@ func TestPkCourseReviewBriefTeachingClassHTTPContract(t *testing.T) {
 	if len(brief.Classes) != 1 || brief.Classes[0].OfferingId != 61 {
 		t.Fatalf("course-scope classes = %+v, want single offering 61", brief.Classes)
 	}
+	// course-scope 卡 offering 61 无教师关联：teachers 必须序列化为 [] 而非 null
+	// （bot review：直查路径 Class 未初始化 Teachers 时输出 teachers: null）。
+	if !strings.Contains(rec.Body.String(), `"teachers":[]`) {
+		t.Fatalf("course-scope class teachers must serialize as [], got: %s", rec.Body.String())
+	}
 
 	// 3) 未命中（teaching_class_id 不存在）→ 回退旧路径：courseCode+teacherName 解析到卡 60，
 	//    classes 按班号匹配全部可见 offering（两个班），而非直查的单班。

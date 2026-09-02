@@ -85,8 +85,8 @@ func FindCourseReviewBrief(courseCode, teacherName string, calendarId, teachingC
 	}
 
 	// by-offering 精准定位：teachingClassId 直查 course_offering.teaching_class_id。
-	// 命中则直接取该 offering 所属课程卡（course-scope 特判：course.review_scope=course
-	// 时主评 = 课程卡本身），不再走 courseCode+teacherName 猜测。
+	// 命中则按该 offering 所属课程卡自身统计（无 course-scope 特判分支），
+	// 不再走 courseCode+teacherName 猜测。
 	if teachingClassId > 0 {
 		if resolved, err := resolveByTeachingClass(&brief, teachingClassId); err != nil {
 			return brief, err
@@ -191,6 +191,9 @@ func resolveByTeachingClass(brief *ReviewBrief, teachingClassId uint64) (bool, e
 		{
 			ClassCode:  offering.ClassCode,
 			OfferingId: offering.Id,
+			// 无教师关联时序列化为空数组而非 null（与 fillClassBriefs 一致，
+			// 契约要求 teachers: array）。
+			Teachers: []string{},
 		},
 	}
 	if s, ok := course.ListOfferingStatsByIDs([]uint64{offering.Id})[offering.Id]; ok {
