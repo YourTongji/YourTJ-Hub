@@ -1093,6 +1093,18 @@
   },
   {
     "method": "POST",
+    "path": "/file/img-upload/abort"
+  },
+  {
+    "method": "POST",
+    "path": "/file/img-upload/complete"
+  },
+  {
+    "method": "POST",
+    "path": "/file/img-upload/init"
+  },
+  {
+    "method": "POST",
     "path": "/mcp"
   },
   {

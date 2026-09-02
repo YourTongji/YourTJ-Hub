@@ -230,6 +230,9 @@
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |
 | POST | `/api/wiki/webhook` | `wikiWebhook` |
+| POST | `/file/img-upload/abort` | `abortDirectImageUpload` |
+| POST | `/file/img-upload/complete` | `completeDirectImageUpload` |
+| POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 

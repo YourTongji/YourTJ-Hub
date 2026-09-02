@@ -1,0 +1,204 @@
+initDirectImageUpload:
+  post:
+    tags: [Files]
+    summary: Initialize a post-image upload (server proxy or presigned direct)
+    operationId: initDirectImageUpload
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Starts a post-image upload. The caller declares the original filename, browser MIME type and
+      byte size; the server validates them against the posting-settings allowlist and size cap
+      before returning a mode. With the local storage provider the response is `mode: "proxy"` and
+      the caller must continue with the existing multipart `POST /file/img-upload`. With an
+      S3-compatible provider the response is `mode: "direct"` and carries a short-lived presigned
+      POST policy (`upload.url` + `upload.fields`) plus the pending object `name`: the browser
+      uploads the file straight to the bucket, then calls `/file/img-upload/complete` to publish.
+      Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
+      upload cooldown, params minutes/availableAt), `upload.dailyLimit` (params count),
+      `upload.file.tooLarge` (params maxSizeKb), `upload.extension.unsupported` (params extensions),
+      `upload.image.unsupported`, `upload.image.invalidContent`, `upload.filename.required`,
+      `upload.saveFailed` (params error). Frozen accounts are rejected by the route-level
+      CheckWritableAccount middleware with the standard params action=写入 / actionCode=write.
+      The init call is additionally bounded by the `upload` rate limit (429 + Retry-After).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DirectImageUploadInitRequest
+    responses:
+      '200':
+        description: Upload mode decided, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DirectImageUploadInitResponse
+            examples:
+              proxy:
+                summary: Local provider — continue with the multipart proxy upload.
+                externalValue: ../fixtures/direct-img-upload-init-proxy.json
+              direct:
+                summary: S3 provider — upload to the bucket, then complete.
+                externalValue: ../fixtures/direct-img-upload-init-direct.json
+              attachmentDisabled:
+                externalValue: ../fixtures/direct-img-upload-init-attachment-disabled.json
+              cooldown:
+                externalValue: ../fixtures/direct-img-upload-init-cooldown.json
+              dailyLimit:
+                externalValue: ../fixtures/direct-img-upload-init-daily-limit.json
+              fileTooLarge:
+                externalValue: ../fixtures/direct-img-upload-init-file-too-large.json
+              unsupportedExt:
+                externalValue: ../fixtures/direct-img-upload-init-unsupported-ext.json
+              unsupportedImage:
+                externalValue: ../fixtures/direct-img-upload-init-unsupported-image.json
+              invalidImage:
+                externalValue: ../fixtures/direct-img-upload-init-invalid-image.json
+              filenameRequired:
+                externalValue: ../fixtures/direct-img-upload-init-filename-required.json
+              saveFailed:
+                externalValue: ../fixtures/direct-img-upload-init-save-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Upload rate limit (action `upload`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/upload-avatar-rate-limited.json
+
+completeDirectImageUpload:
+  post:
+    tags: [Files]
+    summary: Publish a direct-uploaded post image after the browser uploaded it to the bucket
+    operationId: completeDirectImageUpload
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Called after the browser uploaded the file to the bucket using the presigned POST policy from
+      `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
+      re-checks ownership, object size, MIME type and the decoded image header before publishing;
+      a forged or invalid object fails with `upload.image.invalidContent` (HTTP 200). On success the file
+      becomes visible and the response carries the final public `url`, the original `filename` and
+      the stored byte `size`. An unknown or foreign `name` fails with `page.notFound`;
+      storage failures fail with `upload.saveFailed` (params error). Frozen accounts are rejected
+      by the route-level CheckWritableAccount middleware.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DirectImageUploadCompleteRequest
+    responses:
+      '200':
+        description: Image published, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DirectImageUploadCompleteResponse
+            examples:
+              success:
+                externalValue: ../fixtures/direct-img-upload-complete-success.json
+              invalidImage:
+                externalValue: ../fixtures/direct-img-upload-complete-invalid-image.json
+              notFound:
+                externalValue: ../fixtures/direct-img-upload-complete-not-found.json
+              saveFailed:
+                externalValue: ../fixtures/direct-img-upload-complete-save-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+abortDirectImageUpload:
+  post:
+    tags: [Files]
+    summary: Abort a pending direct post-image upload
+    operationId: abortDirectImageUpload
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Cancels a pending direct upload started by `/file/img-upload/init` and removes the pending
+      object so it is never published. The `name` must belong to the caller; an unknown or foreign
+      `name` fails with `page.notFound` (HTTP 200). The operation is best-effort: expired
+      pending uploads are also removed by the server cleanup job, so a failed abort can be ignored
+      by the client. Frozen accounts are rejected by the route-level CheckWritableAccount
+      middleware.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DirectImageUploadAbortRequest
+    responses:
+      '200':
+        description: Pending upload aborted, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DirectImageUploadAbortResponse
+            examples:
+              success:
+                externalValue: ../fixtures/direct-img-upload-abort-success.json
+              notFound:
+                externalValue: ../fixtures/direct-img-upload-abort-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json

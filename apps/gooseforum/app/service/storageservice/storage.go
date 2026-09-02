@@ -42,6 +42,7 @@ var (
 	current       Provider
 	currentFinger any
 	localFactory  func() Provider
+	testOverride  Provider
 )
 
 // RegisterLocalFactory installs the factory that builds the local provider.
@@ -50,6 +51,16 @@ func RegisterLocalFactory(f func() Provider) {
 	mu.Lock()
 	defer mu.Unlock()
 	localFactory = f
+}
+
+// SetCurrentForTest overrides the active provider for tests. Pass nil to
+// restore the config-driven provider. Not safe for concurrent use with
+// production request handling.
+func SetCurrentForTest(p Provider) {
+	mu.Lock()
+	defer mu.Unlock()
+	testOverride = p
+	current = nil
 }
 
 // IsLocalProvider reports whether the configured provider is the local one.
@@ -68,6 +79,9 @@ func Current() Provider {
 	cfg := hotdataserve.GetStorageSettingsConfigCache()
 	mu.Lock()
 	defer mu.Unlock()
+	if testOverride != nil {
+		return testOverride
+	}
 	if current != nil && reflect.DeepEqual(currentFinger, cfg) {
 		return current
 	}

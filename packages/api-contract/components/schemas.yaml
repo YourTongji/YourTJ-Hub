@@ -8554,3 +8554,144 @@ WikiAssetCDNSaveResponse:
             result:
               $ref: '#/WikiAssetCDNSaveResult'
     - $ref: '#/ApiFailure'
+
+DirectImageUploadInitRequest:
+  type: object
+  required: [filename, contentType, size]
+  properties:
+    filename:
+      type: string
+      minLength: 1
+      description: Original file name; drives the extension allowlist check.
+    contentType:
+      type: string
+      description: Browser MIME type of the file.
+    size:
+      type: integer
+      format: int64
+      minimum: 1
+      description: File size in bytes; checked against the posting-settings size cap.
+  additionalProperties: false
+
+DirectUploadInfo:
+  type: object
+  required: [url, method, fields, expiresAt]
+  properties:
+    url:
+      type: string
+      format: uri
+      description: Bucket POST endpoint the browser uploads the file to.
+    method:
+      type: string
+      const: POST
+      description: Always POST (presigned POST policy).
+    fields:
+      type: object
+      additionalProperties:
+        type: string
+      description: Form fields (policy, signature, key, ...) to append before the `file` part.
+    expiresAt:
+      type: string
+      format: date-time
+      description: RFC3339 expiry of the presigned policy; the upload must finish before this.
+  additionalProperties: false
+
+DirectImageUploadInitResult:
+  type: object
+  required: [mode]
+  properties:
+    mode:
+      type: string
+      enum: [proxy, direct]
+      description: |
+        `proxy` — continue with the multipart `POST /file/img-upload` (local provider).
+        `direct` — upload to `upload.url` with `upload.fields` + the file, then call
+        `/file/img-upload/complete` with `name`.
+    name:
+      type: string
+      description: Pending object name; present when mode is `direct`.
+    upload:
+      $ref: '#/DirectUploadInfo'
+      description: Presigned POST policy; present when mode is `direct`.
+  additionalProperties: false
+
+DirectImageUploadInitSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/DirectImageUploadInitResult'
+
+DirectImageUploadInitResponse:
+  oneOf:
+    - $ref: '#/DirectImageUploadInitSuccess'
+    - $ref: '#/ApiFailure'
+
+DirectImageUploadCompleteRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      description: Pending object name returned by `/file/img-upload/init`.
+  additionalProperties: false
+
+DirectImageUploadCompleteResult:
+  type: object
+  required: [url, filename, size]
+  properties:
+    url:
+      type: string
+      description: Final public URL of the published image.
+    filename:
+      type: string
+      description: Original file name.
+    size:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Stored byte size.
+  additionalProperties: false
+
+DirectImageUploadCompleteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/DirectImageUploadCompleteResult'
+
+DirectImageUploadCompleteResponse:
+  oneOf:
+    - $ref: '#/DirectImageUploadCompleteSuccess'
+    - $ref: '#/ApiFailure'
+
+DirectImageUploadAbortRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      description: Pending object name returned by `/file/img-upload/init`.
+  additionalProperties: false
+
+DirectImageUploadAbortSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+          description: True when the pending upload was aborted.
+
+DirectImageUploadAbortResponse:
+  oneOf:
+    - $ref: '#/DirectImageUploadAbortSuccess'
+    - $ref: '#/ApiFailure'
