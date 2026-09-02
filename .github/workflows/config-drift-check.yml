@@ -1,0 +1,59 @@
+name: Config / drift check
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 每日 04:00 UTC（12:00 北京时间）巡检漂移
+    - cron: "0 4 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, main]
+    environment: ${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 期望值在 runner 上从仓库 instances JSON 读取（服务器不需要 python）
+      - name: Read expected values from instances JSON
+        id: expected
+        shell: bash
+        run: |
+          echo "exp_server_url=$(python3 -c "import json;print(json.load(open('deploy/instances/${{ matrix.env }}.json'))['server_url'])")" >> "$GITHUB_OUTPUT"
+          echo "exp_dbname=$(python3 -c "import json;print(json.load(open('deploy/instances/${{ matrix.env }}.json'))['pg_dbname'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verify scripts to host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/scripts/verify-instance.sh,deploy/scripts/pgdsn.sh"
+          target: "/tmp/yourtj-drift-${{ github.run_id }}"
+          strip_components: 2
+
+      - name: Verify ${{ matrix.env }} instance config drift
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          script: |
+            set -e
+            RUN_DIR=/tmp/yourtj-drift-${{ github.run_id }}
+            install -m 0755 "$RUN_DIR/verify-instance.sh" /opt/yourtj/scripts/verify-instance.sh
+            install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
+            EXPECT_SERVER_URL="${{ steps.expected.outputs.exp_server_url }}" \
+            EXPECT_DBNAME="${{ steps.expected.outputs.exp_dbname }}" \
+              /opt/yourtj/scripts/verify-instance.sh ${{ matrix.env }}
+            # 清理本 run 上传的临时脚本
+            rm -rf "$RUN_DIR"

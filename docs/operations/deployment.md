@@ -20,7 +20,7 @@
   (`ghcr.io/yourtongji/yourtj-hub:<instance>-<sha>`; repo is public, so servers pull anonymously —
   no registry credentials on the server).
 - **Reverse proxy**: public TLS is terminated by the **1Panel reverse proxy** on the host
-  (port 80/443), which proxies `forum.yourtj.de` → `127.0.0.1:5234` (main) and
+  (port 80/443), which proxies `f.yourtj.de` → `127.0.0.1:5234` (main) and
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). There is no nginx container in the compose file;
   backend containers bind `127.0.0.1` only, and only 1Panel/SSH is exposed publicly.
 - **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
@@ -89,7 +89,7 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   不要求 `index.md`；`index.md` 存在时仍是该目录下可直接访问的页面。同步完成后会重算页面
   到最近祖先索引页的 `parent_id`，所以目录新增、移动、删除或恢复不会保留已删除的父引用。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
-  - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Payload URL：`https://f.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致
     （优先管理端 `/admin/wiki` → 同步面板「Webhook 验签密钥」保存，securestore 加密
     落库；也可用旧 `[wiki.git].webhook_secret` 明文配置）
@@ -119,21 +119,21 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 
 ## Server layout (Docker Compose)
 
-```
 /opt/yourtj/
   .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/IMAGE_REPO + POSTGRES_*/MEILI_MASTER_KEY (created by init-server.sh)
   docker-compose.yaml     # main + dev + postgres + meilisearch services (created by init-server.sh)
-  config.toml.example     # template with REPLACE_* placeholders
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, pgdsn.sh
+  config.toml.example     # 人类参考副本（权威模板 = 仓库 deploy/config.toml.tmpl）
+  scripts/                # deploy.sh, apply-config.sh, verify-instance.sh, backup-db.sh, sync-db-from-main.sh, pgdsn.sh …
   main/
-    config.toml           # production config (signingKey, db path) — never in git
+    config.toml           # production config — CI 渲染产物原子下发，禁止人工 SSH 改（漂移守卫告警）
+    .config.sha256        # 最近一次成功下发的 config SHA-256（apply-config/deploy 写入，verify 比对）
     storage/              # file.db + logs (uid 1000); PG 部署时 sqlite.db 不产生
   dev/
-    config.toml           # dev config
+    config.toml           # dev config（同上，CI 下发）
+    .config.sha256
     storage/
   snapshots/
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
-```
 
 ## Branch model & CI/CD
 
@@ -160,7 +160,13 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   workflow → choose bump type.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
-- Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- Config is rendered in CI from `deploy/config.toml.tmpl` + `deploy/instances/<env>.json`
+  + GitHub Environments secrets, and applied to the server as an artifact (`CONFIG_FILE`
+  on image deploys, or the standalone `Apply / instance config` workflow / `config-drift-check`
+  for config-only changes). Config changes therefore ship through PRs (template/instances)
+  and Environments secret updates — never ad-hoc SSH edits on the server. The server records
+  each successful apply's SHA-256 in `<instance>/.config.sha256`; `verify-instance.sh` (drift
+  guard) flags manual edits or out-of-band writes.
 - `sync-db-from-main.sh` hard-fails when `main`/`dev` primary DB modes differ (e.g. main already
   migrated to PG while dev is still SQLite): the sync cannot proceed, and the script refuses to
   stop the dev container in that state (parse-before-stop guarantee, issue #134). During the PG
@@ -172,28 +178,43 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
 
-## GitHub Actions secrets
+## GitHub Actions Environments secrets
 
-| Secret | Value |
-|---|---|
-| `VM_HOST` | server public IP or hostname (`43.108.84.213`) |
-| `VM_USER` | SSH user (`root`) |
-| `VM_SSH_KEY` | PEM private key for that user (full PEM, including `-----BEGIN ...` lines; e.g. `YourTJ_Korean.pem`) |
-| `VM_SSH_PORT` | SSH port (default 22) |
+部署与 config 渲染 secrets 按 GitHub **Environments** 分存：`production`（生产）与 `dev`（测试）。
+Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得该环境 secret 与部署审计时间线。
 
-Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
+| Secret | Environments | 用途 |
+|---|---|---|
+| `VM_HOST` / `VM_USER` / `VM_SSH_KEY` / `VM_SSH_PORT` | both | SSH 到部署机（当前同一台 43.108.84.213） |
+| `PG_DSN` | both | `[db.default].url`（key=value 或 URL DSN；main=your**tj_main**，dev=your**tj_dev**；含库密码，勿外泄） |
+| `SIGNING_KEY` | both | `[app].signingKey`（**必须与现网一致**；轮换即全线登出 + TOTP/重置链接失效） |
+| `MEILI_MASTER_KEY` | both | `[meilisearch].masterkey` |
+| `WIKI_WEBHOOK_SECRET` | both | `[wiki.git].webhook_secret` |
+| `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
+| `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
+| `RELEASE_TOKEN` | repo-level | release-to-main 合并 dev→main 用 PAT |
+
+> 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
+
+设置：`gh secret set <KEY> --env production`（值经管道从服务器读取，勿回显终端/日志）。
+仓库级 VM_* 已迁移到 environments；旧 repo-level 同名 secret 不再被 workflows 引用。
 
 ## First-time server setup
 
 ```bash
 # on the server, as root (or sudo):
 sudo bash /opt/yourtj/scripts/init-server.sh \
-  https://forum.yourtj.de https://dev.yourtj.de
+  https://f.yourtj.de https://dev.yourtj.de
 ```
 
 This creates `/opt/yourtj/{.env,docker-compose.yaml,main,dev}` with randomized signing keys,
 PG/Meili passwords, starts `postgres` + `meilisearch`, and creates the `yourtj_main`/`yourtj_dev`
 databases. The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
+
+**之后**（首次 CI 部署前）：把服务器生成/现网的值回填为 Environments secrets
+（见上表；`init-server.sh` 结尾会打印需回填清单）。config 本身由 CI 渲染下发，服务器
+不再人工生成/维护 `config.toml`；若需在装机阶段本地生成一次，仍可手工跑
+`python3 deploy/render_config.py render --env <env>`（仅本机演练，产物不入库）。
 
 ## Build (local)
 
@@ -542,7 +563,7 @@ end = "2026-01-18"
 ssh -i ~/Documents/YourTJ_Korean.pem root@43.108.84.213
 mkdir -p /opt/yourtj && cd /opt/yourtj
 # 从仓库拷贝 deploy/ 目录后:
-sudo bash deploy/scripts/init-server.sh https://forum.yourtj.de https://dev.yourtj.de
+sudo bash deploy/scripts/init-server.sh https://f.yourtj.de https://dev.yourtj.de
 ```
 
 这会生成 `/opt/yourtj/{.env,docker-compose.yaml,main/config.toml,dev/config.toml}`，
@@ -608,7 +629,7 @@ scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /
 #   - [db.default] url: host 改为 postgres(compose 服务名), 不要沿用旧机 127.0.0.1
 #   - [server] trusted_proxies: 1Panel 本机回源 → ["127.0.0.1", "::1"]
 #   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
-#   - [server] url: 保持 https://forum.yourtj.de / https://dev.yourtj.de
+#   - [server] url: 保持 https://f.yourtj.de / https://dev.yourtj.de
 install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
 install -m 0644 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
 ```
@@ -623,7 +644,7 @@ IMAGE_KEEP_N=3 bash scripts/deploy.sh dev dev-<latest-sha> 5235
 # 验证
 curl -fsS http://127.0.0.1:5234/health && echo MAIN_OK
 curl -fsS http://127.0.0.1:5235/health && echo DEV_OK
-curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反代
+curl -fsS -H "Host: f.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反代
 ```
 
 ### 5. Cloudflare SSL 模式 + DNS 切换
@@ -633,9 +654,9 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 
 1. **Cloudflare SSL/TLS 模式**：新旧机均由 1Panel 反代终止 TLS（保持与旧机一致的
    模式，如 Full (strict)：Cloudflare → origin 走 HTTPS:443）。论坛容器只监听
    127.0.0.1 回源端口，不直接暴露 80/443。
-2. **DNS**：`forum.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
+2. **DNS**：`f.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
    改为新机 IP（43.108.84.213）。
-3. 等 TTL 过后从外网验证 `https://forum.yourtj.de` 与 `https://dev.yourtj.de` 可达、
+3. 等 TTL 过后从外网验证 `https://f.yourtj.de` 与 `https://dev.yourtj.de` 可达、
    登录/发帖/附件/搜索 spot-check。
 4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
 5. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
