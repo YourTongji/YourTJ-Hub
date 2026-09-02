@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
@@ -15,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"gorm.io/gorm"
 )
 
@@ -377,4 +381,94 @@ func TestReviewActionPostGuardNarrowsWikiToFirstPost(t *testing.T) {
 	if forum.Data.MessageCode == component.MessageAdminReviewTargetInvalid {
 		t.Fatalf("review forum first post was wrongly blocked: %#v", forum)
 	}
+}
+
+// review #373-1：管理端审核批准待审回复后补发的 CommentCreatedEvent 必须携带 PostNo
+// （楼层号）。若缺失，该路径的通知会退回 #post-{id} 锚点，与「楼层号稳定跳转」目标不一致。
+func TestReviewActionApprovedPendingPostEventCarriesPostNo(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	now := time.Date(2026, 7, 7, 15, 0, 0, 0, time.UTC)
+	const (
+		topicID       = uint64(926401)
+		firstPostID   = uint64(926410)
+		pendingPostID = uint64(926411)
+		userID        = uint64(926420)
+		categoryID    = uint64(926430)
+	)
+	topic := topics.Entity{
+		Id:            topicID,
+		Title:         "pending reply topic",
+		CategoryIds:   []uint64{categoryID},
+		UserId:        userID,
+		Status:        1,
+		ProcessStatus: 0,
+		PostCount:     1,
+		PostSeq:       5,
+		FirstPostId:   firstPostID,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+	for _, post := range []posts.Entity{
+		{Id: firstPostID, TopicId: topicID, PostNo: 1, UserId: userID, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: pendingPostID, TopicId: topicID, PostNo: 5, UserId: userID, Content: "pending reply", ProcessStatus: posts.ProcessStatusPending, CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := conn.Create(&post).Error; err != nil {
+			t.Fatalf("create post %d: %v", post.Id, err)
+		}
+	}
+
+	captured := make(chan *eventhandlers.CommentCreatedEvent, 4)
+	handler := cqrs.NewEventHandler("TestReviewActionCommentCapture", func(_ context.Context, event *eventhandlers.CommentCreatedEvent) error {
+		// 非阻塞投递：路由器是进程级单例，测试结束后仍会收到其他测试发布的事件，直接丢弃。
+		select {
+		case captured <- event:
+		default:
+		}
+		return nil
+	})
+	startReviewActionEventBus(t, handler, captured)
+
+	res := ReviewAction(component.BetterRequest[ReviewActionReq]{
+		Params: ReviewActionReq{Kind: "post", Id: pendingPostID, Approve: true},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("ReviewAction approve = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+
+	select {
+	case event := <-captured:
+		if event.PostNo != 5 {
+			t.Fatalf("CommentCreatedEvent.PostNo = %d, want 5", event.PostNo)
+		}
+		if event.PostId != pendingPostID || event.TopicId != topicID {
+			t.Fatalf("CommentCreatedEvent = %#v, want PostId=%d TopicId=%d", event, pendingPostID, topicID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for CommentCreatedEvent published by ReviewAction approval")
+	}
+}
+
+// startReviewActionEventBus 启动事件总线路由器并注册捕获 handler，然后通过哨兵事件
+// 回环确认路由器已订阅 CommentCreatedEvent 主题（发布早于订阅的事件会被丢弃）。
+func startReviewActionEventBus(t *testing.T, handler cqrs.EventHandler, captured chan *eventhandlers.CommentCreatedEvent) {
+	t.Helper()
+	eventbus.Start(handler)
+	const sentinel = uint64(0xDEADBEEF)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{PostNo: sentinel})
+		select {
+		case event := <-captured:
+			if event.PostNo != sentinel {
+				t.Fatalf("unexpected event during readiness probe: %#v", event)
+			}
+			return
+		case <-time.After(300 * time.Millisecond):
+			// 路由器尚未就绪，重试探针。
+		}
+	}
+	t.Fatal("event bus router did not become ready")
 }

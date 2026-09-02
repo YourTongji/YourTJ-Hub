@@ -2195,6 +2195,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
 				TopicId:             post.TopicId,
 				PostId:              post.Id,
+				PostNo:              post.PostNo,
 				UserId:              post.UserId,
 				Content:             post.Content,
 				TopicAuthorId:       topicEntity.UserId,

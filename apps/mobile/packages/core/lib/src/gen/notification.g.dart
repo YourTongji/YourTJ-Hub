@@ -89,6 +89,7 @@ _$NotificationInnerPayloadImpl _$$NotificationInnerPayloadImplFromJson(
   actorName: json['actorName'] as String?,
   topicId: (json['topicId'] as num?)?.toInt(),
   postId: (json['postId'] as num?)?.toInt(),
+  postNo: (json['postNo'] as num?)?.toInt(),
   topicTitle: json['topicTitle'] as String?,
   metadata: json['metadata'] == null
       ? null
@@ -106,6 +107,7 @@ Map<String, dynamic> _$$NotificationInnerPayloadImplToJson(
   'actorName': instance.actorName,
   'topicId': instance.topicId,
   'postId': instance.postId,
+  'postNo': instance.postNo,
   'topicTitle': instance.topicTitle,
   'metadata': instance.metadata,
 };

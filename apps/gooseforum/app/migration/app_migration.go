@@ -333,11 +333,11 @@ func runVersionedDataMigrations() error {
 			"lastFailed", topicLimitResult.LastFailed)
 		if topicLimitResult.Failed > 0 {
 			slog.Error("app migration posting settings topic limit has failures", "failed", topicLimitResult.Failed, "lastFailed", topicLimitResult.LastFailed)
-			return
+			return dataMigrationError("posting settings topic limit", 26, topicLimitResult.Failed, topicLimitResult.LastFailed)
 		}
 		if err := pageConfig.SyncMigrationVersion(26); err != nil {
 			slog.Error("app migration sync migration version failed", "version", 26, "err", err)
-			return
+			return fmt.Errorf("app migration v26 sync migration version: %w", err)
 		}
 		currentVersion = 26
 	}
