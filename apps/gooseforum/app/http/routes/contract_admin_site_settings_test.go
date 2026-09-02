@@ -440,6 +440,7 @@ func TestAdminGetPostingSettingsHTTPContract(t *testing.T) {
 		posting.TextControl.MinTitleLength = 4
 		posting.TextControl.MaxTitleLength = 120
 		posting.TextControl.NewUserPostCooldownMinutes = 10
+		posting.TextControl.MaxDailyTopicsPerUser = 20
 		posting.UploadControl.AllowAttachments = true
 		posting.UploadControl.AuthorizedExtensions = []string{"png", "jpg"}
 		posting.UploadControl.MaxAttachmentSizeKb = 2048
@@ -450,7 +451,63 @@ func TestAdminGetPostingSettingsHTTPContract(t *testing.T) {
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-posting-settings-success.json")
 	})
 
+	// 旧配置升级（issue #369）：存量 postingSettings 行缺 maxDailyTopicsPerUser 时，
+	// 读取路径按默认值补齐，避免升级后被当作 0=不限额。
+	t.Run("legacy stored config without the topic limit returns the default", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		persistContractPageConfig(t, conn, pageConfig.PostingSettings, map[string]any{
+			"textControl": map[string]any{
+				"minPostLength": 5, "maxPostLength": 20000,
+				"minTitleLength": 4, "maxTitleLength": 120,
+				"newUserPostCooldownMinutes": 10,
+			},
+			"uploadControl": map[string]any{
+				"allowAttachments": true, "authorizedExtensions": []string{"png", "jpg"},
+				"maxAttachmentSizeKb": 2048, "maxDailyUploadsPerUser": 20, "newUserUploadCooldownMinutes": 30,
+			},
+			"llms": map[string]any{"enabled": false, "fullText": false, "files": false},
+		})
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodGet, path, "")
+		textControl := postingTextControl(t, recorder)
+		if got := int(textControl["maxDailyTopicsPerUser"].(float64)); got != 10 {
+			t.Fatalf("maxDailyTopicsPerUser = %d, want default 10", got)
+		}
+	})
+
+	// 非法值归一化（issue #369）：存量负值在读取路径归一为 0（不限额）。
+	t.Run("stored negative topic limit is normalized to zero", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		persistContractPageConfig(t, conn, pageConfig.PostingSettings, map[string]any{
+			"textControl": map[string]any{
+				"minPostLength": 5, "maxPostLength": 20000,
+				"minTitleLength": 4, "maxTitleLength": 120,
+				"newUserPostCooldownMinutes": 10, "maxDailyTopicsPerUser": -5,
+			},
+			"uploadControl": map[string]any{
+				"allowAttachments": true, "authorizedExtensions": []string{"png", "jpg"},
+				"maxAttachmentSizeKb": 2048, "maxDailyUploadsPerUser": 20, "newUserUploadCooldownMinutes": 30,
+			},
+			"llms": map[string]any{"enabled": false, "fullText": false, "files": false},
+		})
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodGet, path, "")
+		textControl := postingTextControl(t, recorder)
+		if got := int(textControl["maxDailyTopicsPerUser"].(float64)); got != 0 {
+			t.Fatalf("maxDailyTopicsPerUser = %d, want normalized 0", got)
+		}
+	})
+
 	adminSiteGuardScenarios(t, http.MethodGet, path, "admin-posting-settings")
+}
+
+// postingTextControl 从 posting-settings GET 响应中取出 textControl 对象。
+func postingTextControl(t *testing.T, recorder *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	result := decodeSiteResult(t, recorder)
+	textControl, ok := result["textControl"].(map[string]any)
+	if !ok {
+		t.Fatalf("textControl missing in response: %#v", result)
+	}
+	return textControl
 }
 
 func TestAdminSavePostingSettingsHTTPContract(t *testing.T) {
@@ -459,11 +516,23 @@ func TestAdminSavePostingSettingsHTTPContract(t *testing.T) {
 	t.Run("success replaces the stored posting settings", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"textControl":{"minPostLength":1,"maxPostLength":1000,"minTitleLength":2,"maxTitleLength":50,"newUserPostCooldownMinutes":0},"uploadControl":{"allowAttachments":false,"authorizedExtensions":["webp"],"maxAttachmentSizeKb":512,"maxDailyUploadsPerUser":5,"newUserUploadCooldownMinutes":0},"llms":{"enabled":false,"fullText":true,"files":false}}}`,
+			`{"settings":{"textControl":{"minPostLength":1,"maxPostLength":1000,"minTitleLength":2,"maxTitleLength":50,"newUserPostCooldownMinutes":0,"maxDailyTopicsPerUser":7},"uploadControl":{"allowAttachments":false,"authorizedExtensions":["webp"],"maxAttachmentSizeKb":512,"maxDailyUploadsPerUser":5,"newUserUploadCooldownMinutes":0},"llms":{"enabled":false,"fullText":true,"files":false}}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.PostingSettings, pageConfig.PostingContent{})
-		if stored.TextControl.MaxPostLength != 1000 || stored.UploadControl.MaxAttachmentSizeKb != 512 || !stored.LLMS.FullText {
+		if stored.TextControl.MaxPostLength != 1000 || stored.UploadControl.MaxAttachmentSizeKb != 512 || !stored.LLMS.FullText || stored.TextControl.MaxDailyTopicsPerUser != 7 {
 			t.Fatalf("stored posting settings = %#v, want submitted values", stored)
+		}
+	})
+
+	// 非法值归一化（issue #369）：提交负值在保存路径归一为 0（不限额）并落库。
+	t.Run("negative submitted topic limit is normalized to zero", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"textControl":{"minPostLength":1,"maxPostLength":1000,"minTitleLength":2,"maxTitleLength":50,"newUserPostCooldownMinutes":0,"maxDailyTopicsPerUser":-1},"uploadControl":{"allowAttachments":false,"authorizedExtensions":["webp"],"maxAttachmentSizeKb":512,"maxDailyUploadsPerUser":5,"newUserUploadCooldownMinutes":0},"llms":{"enabled":false,"fullText":true,"files":false}}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.PostingSettings, pageConfig.PostingContent{})
+		if stored.TextControl.MaxDailyTopicsPerUser != 0 {
+			t.Fatalf("maxDailyTopicsPerUser = %d, want normalized 0", stored.TextControl.MaxDailyTopicsPerUser)
 		}
 	})
 

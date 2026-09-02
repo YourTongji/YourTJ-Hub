@@ -195,9 +195,6 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 	}
 
-	if topics.CantWriteNew(req.UserId, 10) {
-		return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
-	}
 	// 敏感词检查（标题+内容）
 	pendingReview, _, policyErr := checkContentPolicy(req.UserId, req.Params.Title+"\n"+req.Params.Content, "topic", req.Params.TopicId)
 	if policyErr != nil {
@@ -222,6 +219,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 		oldCategoryIds = append([]uint64(nil), topic.CategoryIds...)
 	} else {
+		// 每日新主题上限只约束「新建主题」：编辑/回复不受影响（issue #369）。
+		// 0（含归一后的负值）= 不限额。
+		if postingConfig.TextControl.MaxDailyTopicsPerUser > 0 && topics.CantWriteNew(req.UserId, int64(postingConfig.TextControl.MaxDailyTopicsPerUser)) {
+			return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
+		}
 		topic.UserId = req.UserId
 	}
 	topic.CategoryIds = req.Params.CategoryId

@@ -1451,7 +1451,7 @@ func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) 
 // GetPostingSettings 获取发布内容设置
 func GetPostingSettings(req component.BetterRequest[component.Null]) component.Response {
 	defaultSettings := defaultconfig.GetDefaultPostingSettingsConfig()
-	res := pageConfig.GetConfigByPageType(pageConfig.PostingSettings, defaultSettings)
+	res := pageConfig.GetPostingSettingsConfig(defaultSettings)
 	return component.SuccessResponse(res)
 }
 
@@ -1459,9 +1459,15 @@ type SavePostingSettingsReq struct {
 	Settings pageConfig.PostingContent `json:"settings" validate:"required"`
 }
 
-// SavePostingSettings 保存发布内容设置
+// SavePostingSettings 保存发布内容设置。
+// maxDailyTopicsPerUser 非法负值归一为 0（不限额，issue #369），与读取路径
+// GetPostingSettingsConfig 的归一化保持一致，避免管理端回显与生效语义分裂。
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, func() {
+	settings := req.Params.Settings
+	if settings.TextControl.MaxDailyTopicsPerUser < 0 {
+		settings.TextControl.MaxDailyTopicsPerUser = 0
+	}
+	return savePageConfig(pageConfig.PostingSettings, settings, func() {
 		hotdataserve.ClearPostingSettingsConfigCache()
 		llmsservice.ClearCache()
 	})

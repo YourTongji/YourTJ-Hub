@@ -862,4 +862,5 @@ export default {
   "k00u8": "保存节次作息设置失败",
   "k00u9": "第 {section} 节时间无效：开始需早于结束（HH:MM）",
   "k00ua": "第 {section} 节",
+  "k00ub": "每个用户每日最大新主题数（0 表示不限制）",
 } as const

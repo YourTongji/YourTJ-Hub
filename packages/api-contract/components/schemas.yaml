@@ -6552,7 +6552,7 @@ AdminSaveSecuritySettingsRequest:
 
 AdminPostingTextControl:
   type: object
-  required: [minPostLength, maxPostLength, minTitleLength, maxTitleLength, newUserPostCooldownMinutes]
+  required: [minPostLength, maxPostLength, minTitleLength, maxTitleLength, newUserPostCooldownMinutes, maxDailyTopicsPerUser]
   properties:
     minPostLength:
       type: integer
@@ -6564,6 +6564,13 @@ AdminPostingTextControl:
       type: integer
     newUserPostCooldownMinutes:
       type: integer
+    maxDailyTopicsPerUser:
+      type: integer
+      minimum: 0
+      description: >-
+        Per-user daily limit for newly created topics. `0` means unlimited.
+        Only applies to topic creation; edits and replies are not counted
+        (issue #369). Negative values are normalized to `0` on save and on read.
   additionalProperties: false
 
 AdminPostingUploadControl:

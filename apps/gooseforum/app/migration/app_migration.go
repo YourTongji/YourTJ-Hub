@@ -321,6 +321,26 @@ func runVersionedDataMigrations() error {
 		pageConfig.SyncMigrationVersion(25)
 		currentVersion = 25
 	}
+	if currentVersion < 26 {
+		// 发帖设置每日新主题上限 v26（issue #369，上游 c47cff94）：为存量
+		// postingSettings 配置补齐 textControl.maxDailyTopicsPerUser（默认 10，
+		// 0 = 不限额）。幂等：已存在该键的配置跳过；读取侧在迁移前兼容缺键。
+		topicLimitResult := datamigration.EnsurePostingSettingsTopicLimit()
+		slog.Info("app migration posting settings topic limit done",
+			"updated", topicLimitResult.Updated,
+			"skipped", topicLimitResult.Skipped,
+			"failed", topicLimitResult.Failed,
+			"lastFailed", topicLimitResult.LastFailed)
+		if topicLimitResult.Failed > 0 {
+			slog.Error("app migration posting settings topic limit has failures", "failed", topicLimitResult.Failed, "lastFailed", topicLimitResult.LastFailed)
+			return
+		}
+		if err := pageConfig.SyncMigrationVersion(26); err != nil {
+			slog.Error("app migration sync migration version failed", "version", 26, "err", err)
+			return
+		}
+		currentVersion = 26
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }

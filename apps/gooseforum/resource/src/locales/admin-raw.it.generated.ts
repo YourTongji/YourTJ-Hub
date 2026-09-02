@@ -862,4 +862,5 @@ export default {
   "k00u8": "Salvataggio degli orari delle lezioni non riuscito",
   "k00u9": "Il periodo {section} ha un orario non valido: l'inizio deve essere precedente alla fine (HH:MM)",
   "k00ua": "Periodo {section}",
+  "k00ub": "Numero massimo di nuovi temi per utente al giorno (0 = illimitato)",
 } as const
