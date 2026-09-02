@@ -2547,7 +2547,11 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
 		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
 			topicURL = payload.Extra.ProfileURL
+		} else if payload.PostNo > 0 {
+			// 楼层号链接：删除/重建索引后仍稳定落到正确楼层，不依赖 post ID。
+			topicURL = fmt.Sprintf("%s/%d", topicURL, payload.PostNo)
 		} else if payload.PostId > 0 {
+			// 历史通知缺楼层号时保留 post ID 锚点 fallback。
 			topicURL = fmt.Sprintf("%s#post-%d", topicURL, payload.PostId)
 		}
 		item.Topic = &NotificationTopicPayload{

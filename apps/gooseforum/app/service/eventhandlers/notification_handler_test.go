@@ -23,10 +23,17 @@ func TestCommentNotificationExcludeUserIds(t *testing.T) {
 	}
 }
 
-func TestCommentCreatedEventCarriesTopicPostIDs(t *testing.T) {
-	event := &CommentCreatedEvent{TopicId: 30, PostId: 40}
-	if event.TopicId != 30 || event.PostId != 40 {
-		t.Fatalf("event ids = %#v", event)
+func TestCommentCreatedEventCarriesTopicPostPosition(t *testing.T) {
+	event := &CommentCreatedEvent{TopicId: 30, PostId: 40, PostNo: 5}
+	if event.TopicId != 30 || event.PostId != 40 || event.PostNo != 5 {
+		t.Fatalf("event position = %#v", event)
+	}
+}
+
+func TestPostLikedEventCarriesTopicPostPosition(t *testing.T) {
+	event := &PostLikedEvent{UserId: 1, PostId: 40, PostNo: 5, TopicId: 30, LikerId: 2}
+	if event.PostId != 40 || event.PostNo != 5 {
+		t.Fatalf("event position = %#v", event)
 	}
 }
 

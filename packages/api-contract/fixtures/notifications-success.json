@@ -16,7 +16,7 @@
         "topic": {
           "id": 512,
           "title": "期中复习资料汇总",
-          "url": "/p/post/512#post-4096"
+          "url": "/p/post/512/8"
         },
         "payload": {
           "title": "你的回复收到了新回复",
@@ -27,6 +27,7 @@
           "topicId": 512,
           "topicTitle": "期中复习资料汇总",
           "postId": 4096,
+          "postNo": 8,
           "metadata": { "followerName": "" }
         }
       }
