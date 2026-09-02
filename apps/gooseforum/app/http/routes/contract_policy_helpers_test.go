@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -20,7 +21,7 @@ func persistSecurityPolicyConfig(t *testing.T, conn *gorm.DB, cfg pageConfig.Sec
 	case result.Error == nil:
 		copy := entity
 		previous = &copy
-	case result.Error == gorm.ErrRecordNotFound:
+	case errors.Is(result.Error, gorm.ErrRecordNotFound):
 		// 无既有行，cleanup 删除测试行即可
 	default:
 		t.Fatalf("read existing security config: %v", result.Error)
