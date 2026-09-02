@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { MoreHorizontal, Plus, Trash2 } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import SiteSelect from '@/site/components/SiteSelect.vue'
-import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { MAX_PLANS, useScheduleStore } from '@/site/composables/useScheduleStore'
 
 const { t } = useI18n()
 const store = useScheduleStore()
@@ -14,6 +14,9 @@ const store = useScheduleStore()
 const planOptions = computed(() =>
   store.state.plans.map((plan) => ({ value: plan.id, label: plan.name })),
 )
+
+/** 达到方案数量上限：禁用「新增方案」并给出提示。 */
+const planLimitReached = computed(() => store.state.plans.length >= MAX_PLANS)
 
 const planValue = computed({
   get: () => store.state.activePlanId,
@@ -29,6 +32,7 @@ const confirmClear = ref(false)
 
 function handleAdd() {
   const plan = store.createPlan()
+  if (!plan) return
   store.switchPlan(plan.id)
 }
 </script>
@@ -46,9 +50,10 @@ function handleAdd() {
     </div>
     <button
       type="button"
-      class="gf-icon-button shrink-0"
-      :aria-label="t('schedule.planAdd')"
-      :title="t('schedule.planAdd')"
+      class="gf-icon-button shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
+      :disabled="planLimitReached"
+      :aria-label="planLimitReached ? t('schedule.planLimitReached', { n: MAX_PLANS }) : t('schedule.planAdd')"
+      :title="planLimitReached ? t('schedule.planLimitReached', { n: MAX_PLANS }) : t('schedule.planAdd')"
       @click="handleAdd"
     >
       <Plus class="h-4 w-4" />
