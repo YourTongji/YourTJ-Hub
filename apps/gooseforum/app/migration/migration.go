@@ -311,15 +311,18 @@ func backfillOfferingTeachingClass(db *gorm.DB) error {
 		return nil
 	}
 	type refRow struct {
+		Id         uint64 `gorm:"primaryKey"`
 		ExternalId string
 		LocalId    uint64
 	}
 	var rows []refRow
 	backfilled := 0
 	// 分批处理（review nit：整表全量读入内存后逐行 UPDATE → FindInBatches 分批，
-	// 课程域量级上涨时不占峰值内存）。
+	// 课程域量级上涨时不占峰值内存）。refRow 必须声明主键: GORM FindInBatches
+	// 在批次打满后按主键 keyset 分页, 无主键结构体报 ErrPrimaryKeyRequired
+	// （真实库 course_source_ref 行数 > 批大小 500 时触发, dev 部署事故根因）。
 	if err := db.Table("course_source_ref").
-		Select("external_id, local_id").
+		Select("id, external_id, local_id").
 		Where("entity_type = ?", course.EntityTypeOffering).
 		Where("external_id <> ''").
 		Order("id ASC").
@@ -367,13 +370,15 @@ func backfillInstructorTeacherCode(db *gorm.DB) error {
 		return nil
 	}
 	type refRow struct {
+		Id         uint64 `gorm:"primaryKey"`
 		ExternalId string
 		LocalId    uint64
 	}
 	var rows []refRow
 	backfilled := 0
+	// 同 backfillOfferingTeachingClass: FindInBatches keyset 分页要求 dest 声明主键。
 	if err := db.Table("course_source_ref").
-		Select("external_id, local_id").
+		Select("id, external_id, local_id").
 		Where("entity_type = ?", course.EntityTypeInstructor).
 		Where("external_id <> ''").
 		Order("id ASC").

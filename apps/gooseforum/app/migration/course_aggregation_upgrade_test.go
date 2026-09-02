@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -239,4 +240,98 @@ func TestCourseAggregationUpgradeFromLegacySchemaOnPostgreSQL(t *testing.T) {
 		}
 	}
 	exerciseCourseAggregationUpgrade(t, db)
+}
+
+// TestCourseAggregationUpgradeLargeBatch 回归: 真实库 course_source_ref 超过
+// FindInBatches 批大小(500)时, 无主键裸结构体分页报 "primary key required"
+// (dev 部署事故根因: offering 21941 / instructor 4318 行, 均 > 500)。
+// 修复后升级必须完整成功且回填正确(offering.teaching_class_id / instructor.teacher_code)。
+func TestCourseAggregationUpgradeLargeBatch(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	const n = 1100 // > 500, 强制走 keyset 分页分支
+	if err := db.AutoMigrate(
+		&legacyAggregationCourseEntity{},
+		&legacyAggregationOfferingEntity{},
+		&legacyAggregationInstructorEntity{},
+		&course.SourceRefEntity{},
+	); err != nil {
+		t.Fatalf("migrate legacy schema: %v", err)
+	}
+	courseRow := legacyAggregationCourseEntity{PrimaryCode: "12200402", Name: "高等数学(B)上", Status: 0}
+	if err := db.Create(&courseRow).Error; err != nil {
+		t.Fatalf("seed legacy course: %v", err)
+	}
+	offerings := make([]legacyAggregationOfferingEntity, n)
+	for i := range offerings {
+		offerings[i] = legacyAggregationOfferingEntity{CourseId: courseRow.Id, TermId: 1, Status: 0}
+	}
+	if err := db.Create(&offerings).Error; err != nil {
+		t.Fatalf("seed legacy offerings: %v", err)
+	}
+	offeringRefs := make([]course.SourceRefEntity, n)
+	for i := range offeringRefs {
+		offeringRefs[i] = course.SourceRefEntity{
+			Source: "jcourse-snapshot-20260814", EntityType: course.EntityTypeOffering,
+			ExternalId: fmt.Sprintf("%d-42", 100000+i), LocalId: offerings[i].Id,
+			Checksum: fmt.Sprintf("offering-%d", i),
+		}
+	}
+	if err := db.Create(&offeringRefs).Error; err != nil {
+		t.Fatalf("seed offering source_refs: %v", err)
+	}
+	instructors := make([]legacyAggregationInstructorEntity, n)
+	for i := range instructors {
+		instructors[i] = legacyAggregationInstructorEntity{
+			Name: fmt.Sprintf("教师%04d", i), NormalizedName: fmt.Sprintf("教师%04d", i),
+			Department: "数学科学学院",
+		}
+	}
+	if err := db.Create(&instructors).Error; err != nil {
+		t.Fatalf("seed legacy instructors: %v", err)
+	}
+	instructorRefs := make([]course.SourceRefEntity, n)
+	for i := range instructorRefs {
+		instructorRefs[i] = course.SourceRefEntity{
+			Source: "jcourse-snapshot-20260814", EntityType: course.EntityTypeInstructor,
+			ExternalId: fmt.Sprintf("T%05d", 10000+i), LocalId: instructors[i].Id,
+			Checksum: fmt.Sprintf("instructor-%d", i),
+		}
+	}
+	if err := db.Create(&instructorRefs).Error; err != nil {
+		t.Fatalf("seed instructor source_refs: %v", err)
+	}
+
+	if err := upgradeCourseAggregation(db); err != nil {
+		t.Fatalf("upgrade aggregation on >500-row backfill: %v", err)
+	}
+	// 与 migrateSchema 一致: upgrade* 后统一 AutoMigrate 新模型。
+	if err := db.AutoMigrate(
+		&course.Entity{},
+		&course.OfferingEntity{},
+		&course.InstructorEntity{},
+		&course.RelationEntity{},
+	); err != nil {
+		t.Fatalf("migrate new course models: %v", err)
+	}
+
+	// 抽样断言: 跨批次边界(499/500/501)与尾部行回填正确。
+	for _, i := range []int{0, 499, 500, 777, 1099} {
+		var got course.OfferingEntity
+		if err := db.First(&got, "id = ?", offerings[i].Id).Error; err != nil {
+			t.Fatalf("load offering %d: %v", i, err)
+		}
+		if want := uint64(100000 + i); got.TeachingClassId != want {
+			t.Fatalf("offering %d teaching_class_id = %d, want %d", i, got.TeachingClassId, want)
+		}
+		var ins course.InstructorEntity
+		if err := db.First(&ins, "id = ?", instructors[i].Id).Error; err != nil {
+			t.Fatalf("load instructor %d: %v", i, err)
+		}
+		if want := fmt.Sprintf("T%05d", 10000+i); ins.TeacherCode != want {
+			t.Fatalf("instructor %d teacher_code = %q, want %q", i, ins.TeacherCode, want)
+		}
+	}
 }
