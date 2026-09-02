@@ -145,6 +145,8 @@ export default {
     password: '密码',
     newPassword: '新密码',
     confirmPassword: '确认密码',
+    showPassword: '显示密码',
+    hidePassword: '隐藏密码',
     captcha: '验证码',
     captchaAlt: '验证码',
     forgotPassword: '忘记密码？',

@@ -145,6 +145,8 @@ export default {
     password: 'パスワード',
     newPassword: '新しいパスワード',
     confirmPassword: 'パスワード確認',
+    showPassword: 'パスワードを表示',
+    hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
     captchaAlt: '認証コード',
     forgotPassword: 'パスワードを忘れましたか？',
