@@ -223,7 +223,7 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 	path := "/api/admin/img-upload"
 	t.Run("svg extension is rejected before content check", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
-		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "file", "evil.svg", contractTinyPNG)
+		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "evil.svg", contractTinyPNG)
 		envelope := decodeContractEnvelope(t, recorder)
 		if envelope.Code == 0 || envelope.MessageCode != "upload.extension.unsupported" {
 			t.Fatalf("svg upload envelope = %#v, want upload.extension.unsupported", envelope)
@@ -231,7 +231,7 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 	})
 	t.Run("png-named text bytes are rejected as invalid content", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
-		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "file", "fake.png", []byte("this is definitely not an image"))
+		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "fake.png", []byte("this is definitely not an image"))
 		envelope := decodeContractEnvelope(t, recorder)
 		if envelope.Code == 0 || envelope.MessageCode != "upload.image.invalidContent" {
 			t.Fatalf("forged upload envelope = %#v, want upload.image.invalidContent", envelope)
@@ -239,7 +239,7 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 	})
 	t.Run("jpg-named png bytes are rejected as invalid content", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
-		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "file", "mismatch.jpg", contractTinyPNG)
+		recorder := serveAdminDataMultipartNamed(t, conn, router, path, "mismatch.jpg", contractTinyPNG)
 		envelope := decodeContractEnvelope(t, recorder)
 		if envelope.Code == 0 || envelope.MessageCode != "upload.image.invalidContent" {
 			t.Fatalf("mismatched upload envelope = %#v, want upload.image.invalidContent", envelope)
@@ -258,7 +258,7 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 		} {
 			t.Run(tc.ext, func(t *testing.T) {
 				conn, router := setupAdminDataContractTest(t)
-				recorder := serveAdminDataMultipartNamed(t, conn, router, path, "file", "legal."+tc.ext, tc.data)
+				recorder := serveAdminDataMultipartNamed(t, conn, router, path, "legal."+tc.ext, tc.data)
 				envelope := decodeContractEnvelope(t, recorder)
 				if envelope.Code != 0 || envelope.MessageCode != "upload.success" {
 					t.Fatalf("legal .%s upload envelope = %#v, want success", tc.ext, envelope)
@@ -269,10 +269,10 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 }
 
 // serveAdminDataMultipartNamed 以 SiteManager 身份提交带显式文件名的 multipart 表单。
-func serveAdminDataMultipartNamed(t *testing.T, conn *gorm.DB, router *gin.Engine, path, field, filename string, data []byte) *httptest.ResponseRecorder {
+func serveAdminDataMultipartNamed(t *testing.T, conn *gorm.DB, router *gin.Engine, path, filename string, data []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	manager := createContractSiteManager(t, conn)
-	return serveMultipartNamed(router, path, map[string]routeNamedFile{field: {name: filename, data: data}}, contractSessionToken(t, manager))
+	return serveMultipartNamed(router, path, map[string]routeNamedFile{"file": {name: filename, data: data}}, contractSessionToken(t, manager))
 }
 
 // TestDirectUploadInitExtensionGate 验证直传 init 与 multipart 同策略
