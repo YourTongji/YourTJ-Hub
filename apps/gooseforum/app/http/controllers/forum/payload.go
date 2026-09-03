@@ -282,6 +282,7 @@ type TopicPayload struct {
 	ActivityText   string                 `json:"activityText"`
 	LastUpdateTime string                 `json:"lastUpdateTime"`
 	Unseen         bool                   `json:"unseen,omitempty"`
+	ContentType    int8                   `json:"contentType"`
 }
 
 type TopicAuthorPayload struct {
@@ -328,6 +329,7 @@ type TopicDetailPayload struct {
 	IsWatched        bool                   `json:"isWatched"`
 	CreatedAt        string                 `json:"createdAt"`
 	UpdatedAt        string                 `json:"updatedAt"`
+	ContentType      int8                   `json:"contentType"`
 }
 
 type PostPayload struct {
@@ -354,6 +356,7 @@ type PostPayload struct {
 	LikeCount          uint64              `json:"likeCount"`
 	IsLiked            bool                `json:"isLiked"`
 	IsBookmarked       bool                `json:"isBookmarked"`
+	IsAnswer           bool                `json:"isAnswer"`
 }
 
 type ReplyTargetPayload struct {
@@ -599,6 +602,7 @@ type PublishTopicPayload struct {
 	Content     string   `json:"content"`
 	CategoryIDs []uint64 `json:"categoryIds"`
 	TopicStatus int8     `json:"topicStatus"`
+	ContentType int8     `json:"contentType"`
 }
 
 type SearchPageProps struct {
@@ -1002,6 +1006,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			ViewCount:      topic.ViewCount,
 			ActivityText:   topic.LastUpdateTime,
 			LastUpdateTime: topic.LastUpdateTime,
+				ContentType:    topic.ContentType,
 		})
 	}
 	return res
@@ -1139,11 +1144,12 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 			int64(topic.PostSeq),
 			topic.PostSeq,
 			0,
+			firstPost,
 		),
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
 			IsOwnTopic:       currentUserID == topic.UserId,
-			CanPost:          currentUserID > 0,
+			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion),
 			CanModerateTopic: canModerate,
 		},
 	}
@@ -1163,7 +1169,7 @@ func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Enti
 	return items, true, hasAfter
 }
 
-func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64) PostWindowPayload {
+func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64, firstPost *posts.Entity) PostWindowPayload {
 	// 对非版主过滤待审（ProcessStatus=2）帖子：待审内容不应出现在普通用户流中，
 	// 避免渲染为空占位；封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
 	if !canModerate {
@@ -1176,7 +1182,7 @@ func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap ma
 		}
 		postEntities = filtered
 	}
-	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate)
+	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate, firstPost)
 	var beforePostNo uint64
 	var afterPostNo uint64
 	if len(postEntities) > 0 {
@@ -1196,7 +1202,7 @@ func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap ma
 	}
 }
 
-func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool) ([]PostPayload, []ReplyTargetPayload) {
+func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, firstPost *posts.Entity) ([]PostPayload, []ReplyTargetPayload) {
 	postMap := make(map[uint64]*posts.Entity, len(postEntities))
 	for _, item := range postEntities {
 		if item != nil {
@@ -1251,6 +1257,9 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		return userPayloadWithWornBadge(userID, userMap, wornBadges[userID])
 	}
 
+	// Determine if this is a question topic
+	isQuestionTopic := firstPost != nil && firstPost.ContentType == posts.ContentTypeQuestion
+
 	res := make([]PostPayload, 0, len(postEntities))
 	replyTargets := make([]ReplyTargetPayload, 0, len(seenMissingParentIDs))
 	seenReplyTargets := make(map[uint64]struct{}, len(seenMissingParentIDs))
@@ -1294,6 +1303,10 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 				lastEditedAt = item.LastEditedAt.Format(time.RFC3339)
 			}
 		}
+
+		// Determine if this post is an answer
+		isAnswer := isQuestionTopic && item.PostNo > 1 && item.ReplyToPostId == firstPost.Id
+
 		res = append(res, PostPayload{
 			ID:                 item.Id,
 			TopicID:            item.TopicId,
@@ -1314,6 +1327,7 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			UpdatedAt:          item.UpdatedAt.Format(time.RFC3339),
 			LastEditor:         lastEditor,
 			LastEditedAt:       lastEditedAt,
+			IsAnswer:           isAnswer,
 		})
 	}
 
@@ -1438,6 +1452,7 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		IsWatched:        isWatched,
 		CreatedAt:        createdAt.Format(time.RFC3339),
 		UpdatedAt:        updatedAt.Format(time.RFC3339),
+		ContentType:      firstPost.ContentType,
 	}
 }
 
@@ -2653,6 +2668,7 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 		Content:     firstPost.Content,
 		CategoryIDs: topic.CategoryIds,
 		TopicStatus: topic.Status,
+		ContentType: firstPost.ContentType,
 	}
 	return props, nil
 }

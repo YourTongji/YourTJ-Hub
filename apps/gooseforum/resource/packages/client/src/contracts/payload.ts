@@ -343,6 +343,7 @@ export interface TopicDetailPayload {
   isWatched: boolean
   createdAt: string
   updatedAt: string
+  contentType: 0 | 1 | 2 | 3
 }
 
 export interface PostPayload {
@@ -381,6 +382,7 @@ export interface PostPayload {
   likeCount: number
   isLiked: boolean
   isBookmarked: boolean
+  isAnswer: boolean
 }
 
 export interface ReplyTargetPayload {
@@ -434,6 +436,7 @@ export interface TopicPayload {
   activityText: string
   lastUpdateTime: string
   unseen?: boolean
+  contentType: 0 | 1 | 2 | 3
 }
 
 export interface ModerationPageProps {
@@ -883,6 +886,7 @@ export interface PublishPageProps {
     content: string
     categoryIds: number[]
     topicStatus: number
+    contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
   }
 }
 

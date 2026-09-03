@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Clock, Eye, Heart, MessageSquare } from '@lucide/vue'
+import { Clock, Eye, Heart, MessageSquare, HelpCircle, Lightbulb, FileText } from '@lucide/vue'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useShellState } from '@/runtime/shell-state'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -138,7 +138,9 @@ function handleTopicState(nextLikeCount: number) {
   <div class="min-w-0">
     <div class="min-w-0">
       <header ref="topicHeaderEl" class="relative z-10 border-b border-line/70 px-4 py-4 sm:mb-4 sm:px-0 sm:pb-4 sm:pt-0 xl:w-[calc(100%+292px)]">
-        <h1 ref="titleEl" class="break-words text-2xl font-bold leading-tight text-base-content [overflow-wrap:anywhere] sm:text-3xl">{{ page.props.topic.title }}</h1>
+        <h1 ref="titleEl" class="break-words text-2xl font-bold leading-tight text-base-content [overflow-wrap:anywhere] sm:text-3xl">
+          {{ page.props.topic.title }}
+        </h1>
         <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-base-content/55">
           <a
             :href="`/u/${page.props.topic.author.id}`"
@@ -148,6 +150,19 @@ function handleTopicState(nextLikeCount: number) {
             <UserAvatar :src="page.props.topic.author.avatarUrl" :alt="page.props.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
             {{ authorDisplayName(page.props.topic.author) }}
           </a>
+          <!-- Content type badge -->
+          <span v-if="page.props.topic.contentType === 1" class="inline-flex items-center gap-1.5 rounded-full bg-success/20 px-2 py-0.5 text-[12px] font-semibold text-success">
+            <HelpCircle class="h-3.5 w-3.5" />
+            {{ t('publish.contentTypes.question') }}
+          </span>
+          <span v-else-if="page.props.topic.contentType === 2" class="inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-2 py-0.5 text-[12px] font-semibold text-warning">
+            <Lightbulb class="h-3.5 w-3.5" />
+            {{ t('publish.contentTypes.thought') }}
+          </span>
+          <span v-else-if="page.props.topic.contentType === 3" class="inline-flex items-center gap-1.5 rounded-full bg-info/20 px-2 py-0.5 text-[12px] font-semibold text-info">
+            <FileText class="h-3.5 w-3.5" />
+            {{ t('publish.contentTypes.article') }}
+          </span>
           <span class="inline-flex items-center gap-1.5">
             <Clock class="h-3.5 w-3.5" />
             {{ formatDateTime(page.props.topic.createdAt) }}
@@ -179,6 +194,7 @@ function handleTopicState(nextLikeCount: number) {
       <PostStream
         :topic-id="page.props.topic.id"
         :topic-title="page.props.topic.title"
+        :content-type="page.props.topic.contentType"
         :initial-post-stream="page.props.postStream"
         :viewer="page.layout.viewer"
         :can-post="page.props.permissions.canPost"

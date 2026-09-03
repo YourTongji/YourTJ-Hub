@@ -5822,6 +5822,16 @@ export interface components {
             captchaId?: string;
             /** @description Required only when server-side posting risk controls request a captcha. */
             captchaCode?: string;
+            /**
+             * @description 内容类型（默认 0）：
+             *     * 0 - 默认帖子
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 想法（短内容）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         WriteTopicSuccess: components["schemas"]["ApiSuccess"] & {
             result: number | true;
@@ -5912,6 +5922,8 @@ export interface components {
             postNo: number;
             /** @description Rendered HTML of the stored content. */
             renderedContent: string;
+            /** @description True when this post is an answer to a question (ReplyToPostId=1 on a question-type topic) */
+            isAnswer?: boolean;
         };
         CreatePostSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CreatePostResult"] | true;
@@ -6543,6 +6555,16 @@ export interface components {
             title: string;
             content: string;
             categoryId: number[];
+            /**
+             * @description 内容类型（默认 0）：
+             *     * 0 - 默认帖子
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 想法（短内容）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         /** @description Mirrors the forum PostWindow payload shape. */
         AgentPostListResponse: components["schemas"]["ApiSuccess"] & {
@@ -8642,6 +8664,8 @@ export interface components {
             likeCount: number;
             isLiked: boolean;
             isBookmarked: boolean;
+            /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
+            isAnswer: boolean;
         };
         ReplyTargetPayload: {
             /** Format: uint64 */

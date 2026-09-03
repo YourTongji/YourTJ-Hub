@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { MessageSquare, Pin, Sparkles } from '@lucide/vue'
+import { MessageSquare, Pin, Sparkles, HelpCircle, Lightbulb, FileText } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
 import { topicDescription } from '@/runtime/topic-description'
@@ -131,6 +131,19 @@ onBeforeUnmount(() => {
             class="h-2 w-2 shrink-0 rounded-full bg-primary"
             aria-hidden="true"
           />
+          <!-- Content type badge -->
+          <span v-if="topic.contentType === 1" class="inline-flex h-5 items-center gap-1 rounded-full bg-success/20 px-1.5 text-[11px] font-semibold text-success">
+            <HelpCircle class="h-3 w-3" />
+            <span class="hidden sm:inline">{{ t('publish.contentTypes.question') }}</span>
+          </span>
+          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 items-center gap-1 rounded-full bg-warning/20 px-1.5 text-[11px] font-semibold text-warning">
+            <Lightbulb class="h-3 w-3" />
+            <span class="hidden sm:inline">{{ t('publish.contentTypes.thought') }}</span>
+          </span>
+          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 items-center gap-1 rounded-full bg-info/20 px-1.5 text-[11px] font-semibold text-info">
+            <FileText class="h-3 w-3" />
+            <span class="hidden sm:inline">{{ t('publish.contentTypes.article') }}</span>
+          </span>
         </span>
         <a
           v-for="category in showCategories ? topic.categories : []"
@@ -147,18 +160,18 @@ onBeforeUnmount(() => {
       </div>
       <p class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">{{ topicDescription(topic) }}</p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
-        <AvatarStack :users="topic.participants" size="sm" />
+        <AvatarStack v-if="topic.contentType !== 2" :users="topic.participants" size="sm" />
         <span>{{ timeAgo(topic.lastUpdateTime) }}</span>
-        <span class="inline-flex items-center gap-1">
+        <span v-if="topic.contentType !== 2" class="inline-flex items-center gap-1">
           <MessageSquare class="h-3.5 w-3.5" /> {{ formatNumber(topic.replyCount) }}
         </span>
         <slot name="mobile-action" :topic="topic" />
       </div>
     </div>
-    <div class="hidden justify-center lg:flex">
+    <div v-if="topic.contentType !== 2" class="hidden justify-center lg:flex">
       <AvatarStack :users="topic.participants" />
     </div>
-    <div class="hidden text-center text-sm font-semibold tabular-nums text-base-content/75 lg:block">{{ formatNumber(topic.replyCount) }}</div>
+    <div v-if="topic.contentType !== 2" class="hidden text-center text-sm font-semibold tabular-nums text-base-content/75 lg:block">{{ formatNumber(topic.replyCount) }}</div>
     <div class="hidden text-center text-sm tabular-nums text-base-content/55 lg:block">{{ formatNumber(topic.viewCount) }}</div>
     <div class="hidden text-right text-[13px] font-medium tabular-nums text-base-content/55 lg:block">
       <slot name="activity" :topic="topic">
@@ -169,7 +182,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <Transition name="preview-pop">
         <div
-          v-if="expanded"
+          v-if="expanded && topic.contentType !== 2"
           class="fixed z-50 overflow-hidden rounded-xl border border-line bg-base-100 shadow-xl shadow-black/10"
           :style="popoverStyle"
           @mouseenter="onRowEnter"

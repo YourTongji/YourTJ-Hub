@@ -23,7 +23,8 @@
         "revisionCount": 0,
         "likeCount": 0,
         "isLiked": false,
-        "isBookmarked": false
+        "isBookmarked": false,
+        "isAnswer": false
       }
     ],
     "replyTargets": [],

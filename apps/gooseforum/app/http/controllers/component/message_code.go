@@ -134,6 +134,8 @@ const (
 	MessageCommentPostCooldown      MessageCode = "comment.post.cooldown"     // 新用户评论冷却中，params.minutes/availableAt。
 	MessageCommentParentPostMissing MessageCode = "comment.parentPostMissing" // 父 post 不存在。
 	MessageCommentCreateFailed      MessageCode = "comment.createFailed"      // 评论创建失败，params.error 可带原始错误。
+	MessageTopicRepliesNotAllowed       MessageCode = "topic.repliesNotAllowed"       // 该话题不允许回复（想法/文章类型）。
+	MessageTopicContentTypeChangeNotAllowed MessageCode = "topic.contentTypeChangeNotAllowed" // 不能更改已有回复的话题的内容类型。
 	MessagePostNotFound             MessageCode = "post.notFound"             // post 不存在。
 	MessagePostUpdateFailed         MessageCode = "post.updateFailed"         // post 更新失败，params.error 可带原始错误。
 	MessageReportNotFound           MessageCode = "report.notFound"           // 举报不存在。

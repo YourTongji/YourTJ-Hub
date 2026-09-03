@@ -25,6 +25,7 @@ type TopicsSimpleVo struct {
 	Posters        []PosterVo `json:"posters,omitempty"`
 	LastPostId     uint64     `json:"-"`
 	LastPostedAt   time.Time  `json:"-"`
+	ContentType    int8       `json:"contentType"`
 }
 
 // PosterVo is a lightweight user summary attached to compact topic responses.
