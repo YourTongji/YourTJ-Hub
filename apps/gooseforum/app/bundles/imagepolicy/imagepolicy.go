@@ -81,8 +81,10 @@ func IsAllowedExt(ext string, allowed []string) bool {
 
 // CanonicalizeList 拆分配置列表：能映射到受支持图片类型的条目以规范化（小写带点、
 // 首个出现顺序、去重）形式返回；集合外条目（危险扩展、双扩展、空串等）原样收集到
-// dropped。它是保存端拒绝与读取端过滤共用的判据。
+// dropped。它是保存端拒绝与读取端过滤共用的判据。合法输入为空时 valid 返回非 nil
+// 空切片（而非 nil），保证落库/回显层序列化为 [] 而不是 null。
 func CanonicalizeList(entries []string) (valid, dropped []string) {
+	valid = make([]string, 0, len(entries))
 	seen := make(map[string]bool, len(entries))
 	for _, raw := range entries {
 		canonical := CanonicalizeToken(raw)

@@ -182,6 +182,50 @@ func TestAdminSavePostingSettingsCanonicalizesLegalList(t *testing.T) {
 	}
 }
 
+// TestAdminSavePostingSettingsEmptyListRoundTrips 验证空白名单的精确往返（#419 review）：
+// 管理员移除全部扩展时 authorizedExtensions 提交 []，落库 JSON 与 GET 回显都必须是
+// [] 而非 null——null 违反 OpenAPI 数组 schema，且管理 UI 会把它当作"未配置"而回退
+// 显示默认扩展，导致配置无法准确往返。
+func TestAdminSavePostingSettingsEmptyListRoundTrips(t *testing.T) {
+	conn, router := setupAdminSiteContractTest(t)
+	body := `{"settings":{"textControl":{"minPostLength":5,"maxPostLength":1000,"minTitleLength":2,"maxTitleLength":50,"newUserPostCooldownMinutes":0,"maxDailyTopicsPerUser":7},"uploadControl":{"allowAttachments":true,"authorizedExtensions":[],"maxAttachmentSizeKb":512,"maxDailyUploadsPerUser":5,"newUserUploadCooldownMinutes":0},"llms":{"enabled":false,"fullText":false,"files":false}}}`
+	recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/save-posting-settings", body)
+	envelope := decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("empty list rejected: %#v", envelope)
+	}
+	// 落库的原始 JSON 必须是 []（compact 编码无空白），而不是 null。
+	var stored pageConfig.Entity
+	if err := conn.Where("page_type = ?", pageConfig.PostingSettings).First(&stored).Error; err != nil {
+		t.Fatalf("read stored posting settings: %v", err)
+	}
+	if !strings.Contains(stored.Config, `"authorizedExtensions":[]`) {
+		t.Fatalf("stored config authorizedExtensions = %s, want [] persisted", stored.Config)
+	}
+	if strings.Contains(stored.Config, `"authorizedExtensions":null`) {
+		t.Fatalf("stored config serialized authorizedExtensions as null: %s", stored.Config)
+	}
+	// GET 回显同样必须是 []：断言原始响应 JSON 不含 null，且反序列化为非 nil 空数组。
+	getRecorder := serveAdminSiteRaw(t, conn, router, http.MethodGet, "/api/admin/posting-settings", "")
+	if strings.Contains(getRecorder.Body.String(), `"authorizedExtensions":null`) {
+		t.Fatalf("GET response contains authorizedExtensions null: %s", getRecorder.Body.String())
+	}
+	var result struct {
+		UploadControl struct {
+			AuthorizedExtensions []string `json:"authorizedExtensions"`
+		} `json:"uploadControl"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, getRecorder).Result, &result); err != nil {
+		t.Fatalf("decode posting settings result: %v", err)
+	}
+	if result.UploadControl.AuthorizedExtensions == nil {
+		t.Fatal("GET authorizedExtensions decoded as nil, want non-nil empty array")
+	}
+	if len(result.UploadControl.AuthorizedExtensions) != 0 {
+		t.Fatalf("GET authorizedExtensions = %#v, want empty", result.UploadControl.AuthorizedExtensions)
+	}
+}
+
 // TestAdminPostingSettingsGETFiltersLegacyDangerousExtensions 验证读取路径
 // 归一化（issue #408）：历史配置混入危险/双扩展条目时，GET 回显只保留合法条目。
 func TestAdminPostingSettingsGETFiltersLegacyDangerousExtensions(t *testing.T) {

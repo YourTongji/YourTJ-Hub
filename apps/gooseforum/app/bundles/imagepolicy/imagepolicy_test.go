@@ -72,6 +72,23 @@ func TestCanonicalizeList(t *testing.T) {
 	if len(dropped) != 3 {
 		t.Errorf("CanonicalizeList dropped = %#v, want all three dangerous tokens", dropped)
 	}
+
+	// 空输入合法（无 dropped 条目）：valid 必须是非 nil 空切片，JSON 编码为 [] 而非
+	// null——否则管理员移除全部扩展后落库/回显得到 authorizedExtensions: null（#419 review）。
+	valid, dropped = CanonicalizeList(nil)
+	if valid == nil || len(valid) != 0 {
+		t.Errorf("CanonicalizeList(nil) valid = %#v, want non-nil empty slice", valid)
+	}
+	if len(dropped) != 0 {
+		t.Errorf("CanonicalizeList(nil) dropped = %#v, want empty", dropped)
+	}
+	valid, dropped = CanonicalizeList([]string{})
+	if valid == nil || len(valid) != 0 {
+		t.Errorf("CanonicalizeList([]) valid = %#v, want non-nil empty slice", valid)
+	}
+	if len(dropped) != 0 {
+		t.Errorf("CanonicalizeList([]) dropped = %#v, want empty", dropped)
+	}
 }
 
 func TestCanonicalizeListDeduplicates(t *testing.T) {
