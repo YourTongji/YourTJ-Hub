@@ -2159,6 +2159,7 @@ export default {
     'admin.review.notFound': 'Destinatario della revisione non trovato.',
     'admin.review.processed': 'Il destinatario della revisione è già stato elaborato.',
     'admin.review.failed': 'Azione di revisione non riuscita: {error}',
+    'admin.upload.extNotAllowed': 'L’elenco delle estensioni consentite contiene estensioni non supportate: {extensions}. Sono consentiti solo JPG, JPEG, PNG, GIF, WebP e BMP',
     'wiki.namespace.nameInvalid': 'Nome namespace non valido (solo lettere minuscole, cifre e trattini).',
     'wiki.path.invalid': 'Percorso wiki non valido.',
     'wiki.page.notFound': 'Pagina wiki non trovata.',
