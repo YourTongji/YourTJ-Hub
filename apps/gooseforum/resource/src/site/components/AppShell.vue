@@ -672,10 +672,22 @@ async function loadUserCard() {
                         <span class="min-w-0 flex-1">{{ t('shell.nav.messages') }}</span>
                         <span v-show="hasUnreadMessage" class="h-2 w-2 rounded-full bg-error" />
                       </a>
-                      <button class="gf-menu-item w-full text-left sm:hidden" type="button" @click="onToggleTheme">
-                        <component :is="isDark ? Sun : Moon" class="h-4 w-4 text-icon-muted" />
-                        <span>{{ isDark ? t('auth.switchToLight') : t('auth.switchToDark') }}</span>
-                      </button>
+                      <div class="sm:hidden">
+                        <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
+                          {{ t('shell.switchTheme') }}
+                        </div>
+                        <button
+                          v-for="option in themeOptions"
+                          :key="option.value"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                          :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                          type="button"
+                          @click="selectTheme(option.value)"
+                        >
+                          <component :is="option.icon" class="h-4 w-4" />
+                          <span>{{ option.label }}</span>
+                        </button>
+                      </div>
                       <div class="sm:hidden">
                         <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
                           {{ t('shell.switchLanguage') }}
