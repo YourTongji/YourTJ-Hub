@@ -1764,6 +1764,8 @@ export default {
       notFound: 'トピックが見つかりません',
       ownerMismatch: '他の人の投稿は編集できません',
       operationDenied: '操作できません',
+      repliesNotAllowed: 'このトピックは返信を許可していません（アイデア/記事タイプ）',
+      contentTypeChangeNotAllowed: '返信のあるトピックのコンテンツタイプは変更できません',
       saveFailed: '保存に失敗しました',
       dailyLimit: '本日の投稿数が多いため、明日もう一度投稿してください',
       title: {

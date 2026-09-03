@@ -1764,6 +1764,8 @@ export default {
       notFound: 'Topic non trovato',
       ownerMismatch: 'Non puoi modificare il post di qualcun altro',
       operationDenied: 'Operazione non consentita',
+      repliesNotAllowed: 'Questo topic non consente risposte (tipo Pensiero/Articolo)',
+      contentTypeChangeNotAllowed: 'Impossibile cambiare il tipo di contenuto di un topic con risposte',
       saveFailed: 'Salvataggio non riuscito',
       dailyLimit: 'Hai pubblicato molto oggi. Pubblica di nuovo domani',
       title: {
