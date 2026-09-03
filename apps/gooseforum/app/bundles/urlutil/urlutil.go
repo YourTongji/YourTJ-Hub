@@ -10,8 +10,10 @@
 //  3. Lower-case scheme comparison against the policy whitelist.
 //
 // Protocol-relative URLs ("//host/path") are rejected for every kind, and
-// http(s) URLs must carry a host. Empty values are always valid (optional
-// admin fields). Values are stored trimmed but otherwise verbatim.
+// http(s) URLs must carry a hostname — port-only forms such as "https://:443"
+// (Host is ":443" but Hostname is empty) are rejected. Empty values are
+// always valid (optional admin fields). Values are stored trimmed but
+// otherwise verbatim.
 package urlutil
 
 import (
@@ -100,9 +102,12 @@ func containsControl(value string) bool {
 	return false
 }
 
-// splitURL returns the lower-cased scheme, host, opaque part and whether the
-// value is a protocol-relative URL. Relative values yield an empty scheme.
-func splitURL(value string) (scheme, host, opaque string, protocolRelative bool) {
+// splitURL returns the lower-cased scheme, the parsed hostname, the opaque
+// part and whether the value is a protocol-relative URL. Relative values
+// yield an empty scheme. Hostname (not Host) is returned so that port-only
+// forms such as "https://:443" — Host is ":443" but Hostname is "" — fail
+// the absolute-http(s) check instead of passing it.
+func splitURL(value string) (scheme, hostname, opaque string, protocolRelative bool) {
 	if strings.HasPrefix(value, "//") {
 		return "", "", "", true
 	}
@@ -110,9 +115,9 @@ func splitURL(value string) (scheme, host, opaque string, protocolRelative bool)
 	if err != nil {
 		return "", "", "", false
 	}
-	return strings.ToLower(parsed.Scheme), parsed.Host, parsed.Opaque, false
+	return strings.ToLower(parsed.Scheme), parsed.Hostname(), parsed.Opaque, false
 }
 
-func isAbsoluteHTTP(scheme, host string) bool {
-	return (scheme == "http" || scheme == "https") && host != ""
+func isAbsoluteHTTP(scheme, hostname string) bool {
+	return (scheme == "http" || scheme == "https") && hostname != ""
 }

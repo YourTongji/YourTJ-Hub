@@ -10,7 +10,10 @@ func TestCanonicalizeSiteLink(t *testing.T) {
 		"/wiki/a?b=c#frag",
 		"https://example.com/path?q=1",
 		"http://example.com",
+		"http://example.com:8080",
 		"https://example.com/站内?x=中文",
+		"https://[::1]:443/",
+		"http://[::1]:8080/x",
 	}
 	for _, raw := range valid {
 		if got, ok := Canonicalize(SiteLink, raw); !ok {
@@ -31,6 +34,8 @@ func TestCanonicalizeSiteLink(t *testing.T) {
 		"file:///etc/passwd",
 		"//evil.example.com/path",
 		"///evil.example.com/path",
+		"https://:443",
+		"http://:8080/path",
 		"java\nscript:alert(1)",
 		"java\tscript:alert(1)",
 		"java\rscript:alert(1)",
@@ -65,6 +70,9 @@ func TestCanonicalizeExternal(t *testing.T) {
 		"",
 		"https://example.com",
 		"http://example.com/path",
+		"http://example.com:8080",
+		"https://[::1]:443/",
+		"http://[::1]:8080/x",
 	}
 	for _, raw := range valid {
 		if _, ok := Canonicalize(External, raw); !ok {
@@ -80,6 +88,8 @@ func TestCanonicalizeExternal(t *testing.T) {
 		"data:image/png;base64,x",
 		"https://",
 		"http://",
+		"https://:443",
+		"http://:8080/path",
 		"ftp://example.com",
 	}
 	for _, raw := range invalid {

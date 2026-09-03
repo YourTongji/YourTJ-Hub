@@ -84,3 +84,30 @@ describe('safeUrl length guard', () => {
     expect(safeUrl(long, 'external')).toBe('')
   })
 })
+
+describe('safeUrl numeric entity code point guard', () => {
+  test('out-of-range code points degrade the whole value to empty', () => {
+    expect(safeUrl('https://example.com/&#1114112;', 'site-link')).toBe('')
+    expect(safeUrl('&#x110000;', 'site-link')).toBe('')
+    expect(safeUrl('https://example.com/&#1114112;', 'external')).toBe('')
+  })
+
+  test('surrogate code points degrade the whole value to empty', () => {
+    expect(safeUrl('https://example.com/&#xD800;', 'site-link')).toBe('')
+    expect(safeUrl('https://example.com/&#xDFFF;', 'site-link')).toBe('')
+    expect(safeUrl('&#xD800;', 'site-link')).toBe('')
+  })
+
+  test('null and overlong numeric entities degrade to empty without throwing', () => {
+    expect(safeUrl('&#0;', 'site-link')).toBe('')
+    expect(safeUrl('https://example.com/&#0;', 'site-link')).toBe('')
+    expect(() => safeUrl('&#99999999999999999999;', 'site-link')).not.toThrow()
+    expect(safeUrl('&#99999999999999999999;', 'site-link')).toBe('')
+  })
+
+  test('legal numeric and hex entities still pass through', () => {
+    expect(safeUrl('https://example.com/&#x61;bc', 'external')).toBe('https://example.com/&#x61;bc')
+    expect(safeUrl('https://example.com/&#97;', 'external')).toBe('https://example.com/&#97;')
+    expect(safeUrl('https://example.com/a?q=1&amp;b=2', 'external')).toBe('https://example.com/a?q=1&amp;b=2')
+  })
+})
