@@ -20,7 +20,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/feeds v1.2.0
 	github.com/gorilla/sessions v1.4.0
-	github.com/jellydator/ttlcache/v3 v3.4.0
+	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jkboxomine/goldmark-headingid v0.0.0-20200109122657-8b6c16c18388
 	github.com/markbates/goth v1.82.0
 	github.com/meilisearch/meilisearch-go v0.36.3
