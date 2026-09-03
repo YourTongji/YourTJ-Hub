@@ -85,16 +85,32 @@ func runCourseLineageSeed(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 		// 人类可读汇总进 stderr：stdout 保持纯 JSON。
-		fmt.Fprintln(errOut, seedSummary(mode(write, writeFamily), report))
+		if err := writeLine(errOut, seedSummary(mode(write, writeFamily), report)); err != nil {
+			return err
+		}
 		if !write && !writeFamily {
-			fmt.Fprintln(errOut, "dry-run 未写库：确认候选规模后加 --write（EQUIVALENT）或 --write-family（SPLIT/RELATED 标注）落 pending")
+			if err := writeLine(errOut, "dry-run 未写库：确认候选规模后加 --write（EQUIVALENT）或 --write-family（SPLIT/RELATED 标注）落 pending"); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 
-	fmt.Fprintln(out, seedSummary(mode(write, writeFamily), report))
+	if err := writeLine(out, seedSummary(mode(write, writeFamily), report)); err != nil {
+		return err
+	}
 	if !write && !writeFamily {
-		fmt.Fprintln(out, "dry-run 未写库：确认候选规模后加 --write（EQUIVALENT）或 --write-family（SPLIT/RELATED 标注）落 pending")
+		if err := writeLine(out, "dry-run 未写库：确认候选规模后加 --write（EQUIVALENT）或 --write-family（SPLIT/RELATED 标注）落 pending"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeLine 向 w 写一行并传播错误（errcheck 要求检查 Fprintln 返回值）。
+func writeLine(w io.Writer, s string) error {
+	if _, err := fmt.Fprintln(w, s); err != nil {
+		return fmt.Errorf("course-lineage-seed: 写输出: %w", err)
 	}
 	return nil
 }
