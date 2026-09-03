@@ -31,7 +31,9 @@
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
-  requests only `openid`, `email`, and `profile` scopes.
+  requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
+  binding only when the Google userinfo response contains `email_verified=true`. Provider credentials
+  and callback URL changes require a process restart to take effect.
 
 ### Built-in OIDC Provider (first-party clients)
 

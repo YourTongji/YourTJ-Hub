@@ -15,7 +15,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/markbates/goth"
-	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
 
@@ -35,9 +34,11 @@ func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
 	hotdataserve.ClearSiteSettingsConfigCache()
 	preferences.Set("google.client_id", "test-google-client-id")
 	preferences.Set("google.client_secret", "test-google-client-secret")
+	googleProvider.Store(nil)
 	t.Cleanup(func() {
 		preferences.Set("google.client_id", "")
 		preferences.Set("google.client_secret", "")
+		googleProvider.Store(nil)
 		conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
 		hotdataserve.ClearSiteSettingsConfigCache()
 	})
@@ -49,9 +50,13 @@ func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
 	if !IsGoogleOAuthConfigured() {
 		t.Fatal("IsGoogleOAuthConfigured() = false, want true")
 	}
-	provider, ok := initGoogleProvider().(*google.Provider)
-	if !ok {
-		t.Fatal("initGoogleProvider() did not return a Google provider")
+	InitOAuth()
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after InitOAuth(), want true")
+	}
+	provider := initGoogleProvider()
+	if provider == nil {
+		t.Fatal("initGoogleProvider() returned nil with valid configuration")
 	}
 	if provider.ClientKey != "test-google-client-id" || provider.Secret != "test-google-client-secret" {
 		t.Fatalf("provider credentials = %q/%q, want test credentials", provider.ClientKey, provider.Secret)
@@ -74,6 +79,43 @@ func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
 	}
 	if got := parsed.Query().Get("scope"); got != "openid email profile" {
 		t.Fatalf("Google OAuth scope = %q, want %q", got, "openid email profile")
+	}
+}
+
+func TestGoogleOAuthReadyRequiresMatchingStartupRegistration(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test")
+
+	if IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = true before InitOAuth(), want false")
+	}
+	InitOAuth()
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after InitOAuth(), want true")
+	}
+
+	preferences.Set("google.client_secret", "changed-after-startup")
+	if IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = true after changing live credentials, want false")
+	}
+}
+
+func TestParseGoogleVerifiedEmail(t *testing.T) {
+	verified := parseOAuthUserInfo(goth.User{
+		Provider: ProviderGoogle,
+		Email:    " Alice@Example.Test ",
+		RawData:  map[string]any{"email_verified": true},
+	})
+	if verified.VerifiedEmail != "alice@example.test" || !verified.EmailVerified {
+		t.Fatalf("verified Google email = %q, emailVerified = %v; want normalized trusted email", verified.VerifiedEmail, verified.EmailVerified)
+	}
+
+	unverified := parseOAuthUserInfo(goth.User{
+		Provider: ProviderGoogle,
+		Email:    "unverified@example.test",
+		RawData:  map[string]any{"email_verified": false},
+	})
+	if unverified.VerifiedEmail != "" || unverified.EmailVerified {
+		t.Fatalf("unverified Google email = %q, emailVerified = %v; want no trusted email", unverified.VerifiedEmail, unverified.EmailVerified)
 	}
 }
 

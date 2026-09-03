@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
@@ -47,9 +48,15 @@ const (
 // controller 依据该 sentinel error 渲染 403 冻结错误页（与 OIDC exchange 的冻结语义一致）。
 var ErrAccountFrozen = errors.New("账号已冻结，禁止 OAuth 登录")
 
+// googleProvider 保存启动时注册的 Google provider。
+// Google OAuth 配置是 live 读取的，但 goth provider 只在启动时注册；保存实例可让
+// 登录页区分“配置完整”和“当前进程已经注册且使用同一份配置”。
+var googleProvider atomic.Pointer[google.Provider]
+
 // InitOAuth configures available OAuth providers.
 func InitOAuth() {
 	gothic.Store = sessionstore.GetSession()
+	googleProvider.Store(nil)
 
 	var providers []goth.Provider
 
@@ -59,6 +66,7 @@ func InitOAuth() {
 
 	if provider := initGoogleProvider(); provider != nil {
 		providers = append(providers, provider)
+		googleProvider.Store(provider)
 	}
 
 	if len(providers) > 0 {
@@ -86,10 +94,26 @@ func initGitHubProvider() goth.Provider {
 }
 
 // IsGoogleOAuthConfigured reports whether Google OAuth has all values required
-// to construct an absolute callback URL and register the provider.
+// to construct an absolute callback URL. It does not imply provider registration.
 func IsGoogleOAuthConfigured() bool {
 	clientID, clientSecret, callbackURL := googleOAuthConfig()
 	return clientID != "" && clientSecret != "" && callbackURL != ""
+}
+
+// IsGoogleOAuthReady reports whether Google OAuth is configured and the running
+// process has registered a provider with the same credentials and callback URL.
+// Changing Google OAuth credentials or siteUrl therefore requires a restart.
+func IsGoogleOAuthReady() bool {
+	clientID, clientSecret, callbackURL := googleOAuthConfig()
+	if clientID == "" || clientSecret == "" || callbackURL == "" {
+		return false
+	}
+
+	provider := googleProvider.Load()
+	return provider != nil &&
+		provider.ClientKey == clientID &&
+		provider.Secret == clientSecret &&
+		provider.CallbackURL == callbackURL
 }
 
 func googleOAuthConfig() (clientID, clientSecret, callbackURL string) {
@@ -104,7 +128,7 @@ func googleOAuthConfig() (clientID, clientSecret, callbackURL string) {
 }
 
 // initGoogleProvider returns a Google provider when configured.
-func initGoogleProvider() goth.Provider {
+func initGoogleProvider() *google.Provider {
 	clientID, clientSecret, callbackURL := googleOAuthConfig()
 	if clientID == "" || clientSecret == "" || callbackURL == "" {
 		slog.Warn("Google OAuth配置缺失，跳过初始化")
@@ -127,8 +151,9 @@ type OAuthUserInfo struct {
 	Location  string `json:"location"`
 	Provider  string `json:"provider"`
 
-	// VerifiedEmail 是 provider 已确认真实的邮箱（GitHub verified 邮箱）。
-	// EmailVerified 标记该邮箱来自可信来源（GitHub /user/emails 的 verified=true）。
+	// VerifiedEmail 是 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
+	// email_verified=true 的邮箱）。
+	// EmailVerified 标记该邮箱来自可信来源（GitHub /user/emails 或 Google OIDC）。
 	// issue #155：只信 verified 邮箱作为绑定/激活依据，goth 的 Email 字段
 	// 可能是未验证的公开邮箱，不可直接用于信任决策。
 	VerifiedEmail string `json:"verifiedEmail,omitempty"`
@@ -237,7 +262,8 @@ func emailInTrustedDomains(email string) bool {
 }
 
 // parseOAuthUserInfo normalizes provider-specific user data.
-// 对 GitHub 额外获取 verified primary 邮箱（issue #155）。
+// 对 GitHub 额外获取 verified primary 邮箱（issue #155），Google 则只信任
+// userinfo 中 email_verified=true 的邮箱。
 func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 	userInfo := OAuthUserInfo{
 		ID:        gothUser.UserID,
@@ -269,6 +295,17 @@ func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 		if verified := fetchGitHubVerifiedEmail(gothUser.AccessToken); verified != "" {
 			userInfo.VerifiedEmail = verified
 			userInfo.EmailVerified = true
+		}
+	}
+
+	// Google OIDC userinfo 的 email_verified 是 provider 直接返回的布尔断言；
+	// 只有断言为 true 且邮箱非空时，才进入可信邮箱绑定/激活路径。
+	if userInfo.Provider == ProviderGoogle {
+		if emailVerified, ok := gothUser.RawData["email_verified"].(bool); ok && emailVerified {
+			if verified := strings.ToLower(strings.TrimSpace(userInfo.Email)); verified != "" {
+				userInfo.VerifiedEmail = verified
+				userInfo.EmailVerified = true
+			}
 		}
 	}
 

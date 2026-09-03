@@ -935,7 +935,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		RedirectURL: redirectURL,
 		GitHubURL:   githubURL,
 		GoogleURL:   googleURL,
-		GoogleReady: oauthservice.IsGoogleOAuthConfigured(),
+		GoogleReady: oauthservice.IsGoogleOAuthReady(),
 	}
 }
 
