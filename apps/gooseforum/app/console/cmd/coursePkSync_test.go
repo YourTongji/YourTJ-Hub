@@ -84,4 +84,7 @@ func TestCourseMaterializeCommandRegistered(t *testing.T) {
 	if !strings.Contains(cmd.Short+cmd.Long, "无需一系统 cookie") {
 		t.Errorf("course-materialize 说明应注明纯本地物化语义（不依赖 cookie）")
 	}
+	if cmd.Flags().Lookup("dry-run") == nil {
+		t.Errorf("course-materialize missing --dry-run flag（预检模式，review）")
+	}
 }

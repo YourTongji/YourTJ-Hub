@@ -2,53 +2,12 @@ package pkservice
 
 import (
 	"errors"
-	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"gorm.io/gorm"
 )
-
-// termLabelPattern 匹配一系统的学期标记并提取学年与学期序数：
-// "2025-2026-2" / "2025-2026学年第2学期" / "2025-2026 第二学期"。
-// 组 1 = 学年（YYYY-YYYY），组 2 = 学期序数（阿拉伯或中文数字）。
-var termLabelPattern = regexp.MustCompile(`(\d{4}-\d{4})[^0-9一二三四五六七八九十]*([0-9一二三四五六七八九十]+)[^0-9一二三四五六七八九十]*$`)
-
-// termCodeCandidates 返回学期标记可匹配 course_term.code 的候选码：
-// 标记本身 + 规范化后的 "YYYY-YYYY-N"。一系统侧可能写入中文学期名
-// （如 "2025-2026学年第2学期"），而课程域 course_term.code 是标准码
-// （"2025-2026-2"）；只做精确匹配会让 fail-closed 路径返回空 classes，
-// 排课器教学班评分/跳转随之消失（回归，见 TestPkCourseReviewBriefChineseTermLabelHTTPContract）。
-func termCodeCandidates(label string) []string {
-	label = strings.TrimSpace(label)
-	if label == "" {
-		return nil
-	}
-	candidates := []string{label}
-	if m := termLabelPattern.FindStringSubmatch(label); len(m) == 3 {
-		if normalized := m[1] + "-" + cnNumeralToArabic(m[2]); normalized != label {
-			candidates = append(candidates, normalized)
-		}
-	}
-	return candidates
-}
-
-// cnNumeralToArabic 把中文数字学期序数转阿拉伯数字（"二"→"2"）；已是阿拉伯数字原样返回。
-func cnNumeralToArabic(s string) string {
-	if s == "" {
-		return s
-	}
-	if s[0] >= '0' && s[0] <= '9' {
-		return s
-	}
-	if n, ok := map[rune]int{'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}[[]rune(s)[0]]; ok {
-		return strconv.Itoa(n)
-	}
-	return s
-}
 
 // ReviewBrief P13 course-review-brief 输出项：排课器弹窗展示的课程评价摘要。
 // CourseId 为 Hub 课程目录主键（/courses/:courseId 详情页跳转用）；未匹配课评目录时为 0。
@@ -271,8 +230,9 @@ func fillClassBriefs(brief *ReviewBrief, calendarId uint64) error {
 // calendar 存在、calendar_id_i18n 非空且能在 course_term 中找到对应学期，
 // 任一环节缺失返回 (0, false)——调用方须保持空 classes，不得退化为全学期查询。
 // 一系统侧可能写入中文学期名（"2025-2026学年第2学期"），课程域 course_term.code
-// 是标准码（"2025-2026-2"）：精确匹配失败后按规范化候选重试，避免 fail-closed
-// 返回空 classes 导致排课器教学班评分/跳转消失。
+// 是标准码（"2025-2026-2"）。候选码解析委托 course.TermLabelCandidates（单一权威，
+// 与物化链 NormalizeTermLabel 同源；双份实现会让两条链路后续分歧，review Should）：
+// 先精确后规范化重试，避免 fail-closed 返回空 classes 导致排课器教学班评分/跳转消失。
 func resolveTermIdForCalendar(calendarId uint64) (uint64, bool) {
 	if calendarId == 0 {
 		return 0, true
@@ -281,7 +241,7 @@ func resolveTermIdForCalendar(calendarId uint64) (uint64, bool) {
 	if err != nil || cal.CalendarIdI18n == "" {
 		return 0, false
 	}
-	for _, candidate := range termCodeCandidates(cal.CalendarIdI18n) {
+	for _, candidate := range course.TermLabelCandidates(cal.CalendarIdI18n) {
 		if term, err := course.GetTermByCode(candidate); err == nil {
 			return term.Id, true
 		}

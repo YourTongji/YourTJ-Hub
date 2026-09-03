@@ -513,6 +513,26 @@ CLI 同步（运维 cron 等自动化场景）：
 导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 (term, teaching_class_id)
 唯一索引——先物化后导入时导入器复用已有行（不重复建卡）。
 
+**纯本地物化补跑（course-materialize，不依赖一系统 cookie）**：学期已同步到 PK 域但
+物化失败/遗漏时（如 `--materialize` 当时 cookie 失效、网络不可用），无需重新抓一系统，
+直接消费本地 PK 域数据补物化到课程目录：
+
+```bash
+# 物化指定学期：数字 calendarId、标准学期码、一系统中文学期名均可
+# （学期名经 calendar_id_i18n 归一化反查，中文学期名 "2026-2027学年第1学期" 亦支持）
+./bin/yourtj-hub course-materialize 122
+./bin/yourtj-hub course-materialize 2026-2027-1
+./bin/yourtj-hub course-materialize "2026-2027学年第1学期"
+
+# 预检模式（不写库）：校验学期已同步 + 打印教学班统计
+./bin/yourtj-hub course-materialize 122 --dry-run
+```
+
+行为保证：写入前全量解析校验（未同步/错拼的学期 ID 显式报错，不空成功）；重复参数
+自动去重；物化幂等（同 `teaching_class_id` upsert，不写 `status`、不复活隐藏行）。
+学期码规范化：中文学期标记 → 标准码 `YYYY-YYYY-N` 才建 `course_term` 行，无法识别的
+标记（如短学期）保持 `term_id=0` 不建垃圾行。
+
 凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
 （设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
 - 运维 cron（每日，选课季加频；应用内不自造调度器）：

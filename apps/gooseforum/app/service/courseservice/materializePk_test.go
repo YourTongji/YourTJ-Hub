@@ -725,3 +725,38 @@ func TestMaterializeFromPkNormalizesChineseTermLabel(t *testing.T) {
 		t.Errorf("junk chinese-label terms = %d, want 0", junk)
 	}
 }
+
+// TestMaterializeFromPkNonCanonicalLabelKeepsZeroTerm 回归 review LOW：calendar i18n
+// 是无法规范化的标记（如 "2024-2025学年短学期"）时不得创建垃圾 course_term 行——
+// 仅标准码形（YYYY-YYYY-N）允许建行，其余保持 term_id=0（与"无学期码"同语义）。
+func TestMaterializeFromPkNonCanonicalLabelKeepsZeroTerm(t *testing.T) {
+	migrateMaterializeTables(t)
+	seedPkForMaterialize(t)
+	conn := db.Connect()
+	if err := conn.Model(&pk.CalendarEntity{}).Where("calendar_id = ?", 1).
+		Update("calendar_id_i18n", "2024-2025学年短学期").Error; err != nil {
+		t.Fatalf("set calendar i18n: %v", err)
+	}
+
+	report, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+	if report.OfferingsInserted != 1 {
+		t.Fatalf("offeringsInserted = %d, want 1", report.OfferingsInserted)
+	}
+	var offering course.OfferingEntity
+	if err := conn.Where("teaching_class_id = ?", 1).First(&offering).Error; err != nil {
+		t.Fatalf("find offering: %v", err)
+	}
+	if offering.TermId != 0 {
+		t.Errorf("offering term_id = %d, want 0（无法规范化的标记不建学期行）", offering.TermId)
+	}
+	var totalTerms int64
+	if err := conn.Model(&course.TermEntity{}).Count(&totalTerms).Error; err != nil {
+		t.Fatalf("count terms: %v", err)
+	}
+	if totalTerms != 0 {
+		t.Errorf("terms = %d, want 0（不得为短学期标记创建垃圾 course_term 行）", totalTerms)
+	}
+}
