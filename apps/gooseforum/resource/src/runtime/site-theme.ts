@@ -231,7 +231,17 @@ function applyThemeWithTransition(theme: SiteTheme) {
 }
 
 function resolveInitialTheme(): SiteTheme {
-  // First check if there's an explicit theme cookie/storage
+  // First check if there's an explicit manual preference (light/dark)
+  // This takes precedence over SSR/legacy values
+  if (currentPreference.value === 'dark') return 'gf-dark'
+  if (currentPreference.value === 'light') return 'gf-light'
+
+  // For auto preference, use system theme
+  if (currentPreference.value === 'auto') {
+    return systemIsDark.value ? 'gf-dark' : 'gf-light'
+  }
+
+  // Fallback: check if there's an explicit theme cookie/storage (legacy compatibility)
   const documentTheme = document.documentElement.dataset.theme || null
   if (isSiteTheme(documentTheme)) return documentTheme
 
@@ -249,18 +259,10 @@ function resolveInitialTheme(): SiteTheme {
       return stored
     }
   } catch {
-    // Fall through to check preference.
+    // Fall through to default.
   }
 
-  // If preference is auto, use system theme
-  // currentPreference is already initialized at this point
-  if (currentPreference.value === 'auto') {
-    return systemIsDark.value ? 'gf-dark' : 'gf-light'
-  }
-
-  // If preference is light or dark, use that
-  if (currentPreference.value === 'dark') return 'gf-dark'
-
+  // Default to light theme
   return 'gf-light'
 }
 

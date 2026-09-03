@@ -553,7 +553,7 @@ async function loadUserCard() {
           </a>
 
 <div
-            class="relative"
+            class="relative hidden sm:block"
             @mouseenter="setHoverMenu('theme', true)"
             @mouseleave="closeHoverMenuSoon('theme')"
             @focusin="setHoverMenu('theme', true)"
