@@ -11,7 +11,7 @@
 ## What works
 
 - **Feature coverage**: Markdown topics/replies, categories, notifications, direct messages, drafts,
-  RBAC moderation, admin panel, theme workbench, i18n (en/zh/ja/it), GitHub OAuth + optional Google OAuth + built-in
+  RBAC moderation, admin panel, theme workbench, i18n (en/zh/ja/de), GitHub OAuth + optional Google OAuth + built-in
   OIDC Provider (PKCE), TOTP 2FA + recovery codes, session management (jti + user_sessions, per-session revoke),
   scheduled SQLite backup, slow-SQL logging, aggregate search (topics/users/categories with scope
   tabs, pinyin/initials), sensitive-word moderation with review queue, terms-of-service page, data
