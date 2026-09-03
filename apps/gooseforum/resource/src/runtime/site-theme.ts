@@ -17,14 +17,20 @@ const themeColors: Record<SiteTheme, string> = {
   'gf-dark': '#101010',
 }
 
-// Current applied theme
-const currentTheme = ref<SiteTheme>(resolveInitialTheme())
+// Detect system theme preference immediately on module load
+function detectSystemIsDark(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
 
-// User's preference (auto/light/dark)
+// System preference tracking - initialize immediately
+const systemIsDark = ref(detectSystemIsDark())
+
+// User's preference (auto/light/dark) - must be resolved before theme
 const currentPreference = ref<ThemePreference>(resolveInitialPreference())
 
-// System preference tracking
-const systemIsDark = ref(false)
+// Current applied theme - resolve after preference so we can consider auto mode
+const currentTheme = ref<SiteTheme>(resolveInitialTheme())
 
 export function useSiteTheme() {
   const isDark = computed(() => currentTheme.value === 'gf-dark')
@@ -48,9 +54,19 @@ export function initSystemThemeListener() {
   if (typeof window === 'undefined' || !window.matchMedia) return
 
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+  // Update system theme state
   systemIsDark.value = mediaQuery.matches
 
-  // Listen for changes
+  // If in auto mode, immediately apply the detected system theme
+  if (currentPreference.value === 'auto') {
+    const effectiveTheme = getEffectiveTheme()
+    if (effectiveTheme !== currentTheme.value) {
+      setTheme(effectiveTheme)
+    }
+  }
+
+  // Listen for future changes
   mediaQuery.addEventListener('change', (e) => {
     systemIsDark.value = e.matches
     // If in auto mode, apply the new system theme
@@ -205,6 +221,7 @@ function applyThemeWithTransition(theme: SiteTheme) {
 }
 
 function resolveInitialTheme(): SiteTheme {
+  // First check if there's an explicit theme cookie/storage
   const documentTheme = document.documentElement.dataset.theme || null
   if (isSiteTheme(documentTheme)) return documentTheme
 
@@ -222,8 +239,17 @@ function resolveInitialTheme(): SiteTheme {
       return stored
     }
   } catch {
-    // Fall through to light theme.
+    // Fall through to check preference.
   }
+
+  // If preference is auto, use system theme
+  // currentPreference is already initialized at this point
+  if (currentPreference.value === 'auto') {
+    return systemIsDark.value ? 'gf-dark' : 'gf-light'
+  }
+
+  // If preference is light or dark, use that
+  if (currentPreference.value === 'dark') return 'gf-dark'
 
   return 'gf-light'
 }
