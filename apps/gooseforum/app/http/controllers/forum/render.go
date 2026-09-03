@@ -146,10 +146,13 @@ func renderPageWithStatus(c *gin.Context, status int, templateName string, paylo
 	c.Header("Cache-Control", "no-store")
 	if currentRegistry == nil {
 		if errCurrentRegistry != nil {
-			c.String(http.StatusInternalServerError, errCurrentRegistry.Error())
-			return
+			// 500 详情只落服务端日志，不回显内部错误（review 备注：避免向客户端泄漏
+			// 内部路径/实现细节）。
+			slog.Error("render template registry unavailable", "err", errCurrentRegistry)
+		} else {
+			slog.Error("render template registry is not initialized")
 		}
-		c.String(http.StatusInternalServerError, "resource template registry is not initialized")
+		c.String(http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if err := currentRegistry.render(c.Writer, filepath.Base(templateName), templateData{
@@ -157,7 +160,7 @@ func renderPageWithStatus(c *gin.Context, status int, templateName string, paylo
 		Lang:    requestLang(c),
 	}); err != nil {
 		slog.Error("render resource template failed", "template", templateName, "err", err)
-		c.String(http.StatusInternalServerError, err.Error())
+		c.String(http.StatusInternalServerError, "internal server error")
 	}
 }
 

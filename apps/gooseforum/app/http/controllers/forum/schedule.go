@@ -16,10 +16,9 @@ func Schedule(c *gin.Context) {
 		Component: PageComponentSchedule,
 		Props: ScheduleProps{
 			// 节次作息直读 DB（与 admin GET /schedule-settings 同一口径）：
-			// 该值由管理员低频热改，单行 page_config 查询开销可忽略，5s localcache
-			// 反而引入「保存后最多 5s 不生效」的陈旧窗口（且多进程部署下清缓存只对
-			// 处理保存的进程生效）。管理员保存即调用 ClearScheduleSettingsConfigCache，
-			// 保留该缓存清空调用以兼容其它读方。
+			// 该值由管理员低频热改，单行 page_config 查询开销可忽略，原 5s localcache
+			// 引入「保存后最多 5s 不生效」的陈旧窗口且已无读方（scheduleSettingsConfigCache
+			// 已删除，review），保存路径不再需要清缓存回调。
 			SectionTimes: pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig()).SectionTimes,
 		},
 		Meta:    buildScheduleMeta(c),

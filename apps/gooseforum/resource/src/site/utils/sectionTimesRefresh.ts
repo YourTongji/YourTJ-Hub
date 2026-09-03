@@ -69,17 +69,21 @@ export function createSectionTimesRefresher(deps: SectionTimesRefresherDeps, opt
     const nowAt = now()
     if (nowAt - lastRefreshedAt < minIntervalMs) return false
     lastRefreshedAt = nowAt
+    let payload: unknown
     try {
-      const payload = await deps.fetchPayload()
-      const times = extract(payload)
-      if (times === undefined || sectionTimesEqual(times, lastApplied)) return false
-      lastApplied = times
-      deps.apply(times)
-      return true
+      payload = await deps.fetchPayload()
     } catch {
       // 拉取失败静默：不打断排课器使用，下个恢复事件重试。
       return false
     }
+    // dispose() 之后才返回的过期响应必须丢弃：页面已卸载（可能已重新挂载并应用了
+    // 更新的作息），用旧响应覆盖会重新引入「不同步」（review P2 stale 竞态）。
+    if (disposed) return false
+    const times = extract(payload)
+    if (times === undefined || sectionTimesEqual(times, lastApplied)) return false
+    lastApplied = times
+    deps.apply(times)
+    return true
   }
 
   return {

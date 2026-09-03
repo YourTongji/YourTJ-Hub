@@ -1526,7 +1526,9 @@ func SaveScheduleSettings(req component.BetterRequest[SaveScheduleSettingsReq]) 
 	if !ok {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, hotdataserve.ClearScheduleSettingsConfigCache)
+	// 排课器作息已无缓存读方（SSR 直读 DB，scheduleSettingsConfigCache 已删除），
+	// 保存无需清缓存回调（review：GetScheduleSettingsConfigCache 全仓无调用方）。
+	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, nil)
 }
 
 // isValidScheduleClockTime 校验严格 HH:MM（两位小时/分钟 + 冒号）且时钟值合法

@@ -2,6 +2,7 @@ package pageConfig
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
@@ -35,11 +36,19 @@ func GetByPageType(pageType string) (entity Entity) {
 func GetConfigByPageType[T any](pageType string, defaultValue T) T {
 	var entity Entity
 	builder().Where(queryopt.Eq(filedPageType, pageType)).First(&entity)
-	if entity.Id > 0 {
-		return jsonopt.Decode[T](entity.Config)
+	if entity.Id == 0 {
+		return defaultValue
 	}
-
-	return defaultValue
+	decoded, err := jsonopt.DecodeE[T](entity.Config)
+	if err != nil {
+		// 配置 JSON 损坏时回退默认值（review LOW）：损坏行不应让读方拿到空配置
+		// （如节次作息整表消失、默认 12 节退化为 0 节），回退默认值保证页面可用；
+		// 同时告警便于运维发现并修复该行。
+		slog.Warn("pageConfig: stored config JSON corrupted, falling back to default",
+			"page_type", pageType, "err", err)
+		return defaultValue
+	}
+	return decoded
 }
 
 // GetPostingSettingsConfig 读取发布内容设置（issue #369，上游 c47cff94）。

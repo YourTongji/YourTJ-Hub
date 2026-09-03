@@ -132,4 +132,25 @@ describe('createSectionTimesRefresher', () => {
     expect(refresher.extract({ props: {} })).toBeUndefined()
     expect(refresher.extract(null)).toBeUndefined()
   })
+
+  test('dispose 后在途响应返回时丢弃，不回调 apply（stale 竞态回归）', async () => {
+    let resolveFetch: (v: unknown) => void = () => {}
+    const { deps, applySpy } = makeDeps({
+      fetchPayload: vi.fn(
+        () =>
+          new Promise<unknown>((resolve) => {
+            resolveFetch = resolve
+          }),
+      ),
+    })
+    const refresher = createSectionTimesRefresher(deps, { minIntervalMs: 0, now: () => 6000, initial: T1 })
+
+    // 拉取仍在途时页面卸载（dispose）；随后旧响应才返回——不得 apply 覆盖新页面。
+    const pending = refresher.refresh()
+    refresher.dispose()
+    resolveFetch({ props: { sectionTimes: T2 } })
+
+    await expect(pending).resolves.toBe(false)
+    expect(applySpy).not.toHaveBeenCalled()
+  })
 })
