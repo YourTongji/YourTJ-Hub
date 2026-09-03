@@ -251,6 +251,9 @@ const relationLoaded = ref(false)
 const relationBusyIds = ref<number[]>([])
 const relationLoadMoreError = ref('')
 const relationMessage = ref('')
+// 请求代际：筛选切换（reset）时递增，使在途旧请求的结果失效——旧筛选的响应
+// 不得覆盖新筛选列表（review P2：stale response 会把错误筛选的行写入刚清空的列表）。
+let relationRequestSeq = 0
 
 const relationTypeFilterOptions = [
   { key: '', label: 'courseManagement.relationType.all' },
@@ -318,23 +321,26 @@ function formatConfidence(value: number): string {
 }
 
 async function loadRelations(reset = false) {
-  if (relationLoading.value) return
+  if (!reset && relationLoading.value) return
+  const seq = ++relationRequestSeq
   relationLoading.value = true
   if (reset) pageError.value = ''
   else relationLoadMoreError.value = ''
   try {
     const payload = await fetchCourseRelations(relationStatus.value, relationType.value, reset ? 1 : relationPage.value, 20)
+    if (seq !== relationRequestSeq) return // 已有更新的请求在途：丢弃本次结果
     relationItems.value = reset ? payload.list : [...relationItems.value, ...payload.list]
     relationPage.value = payload.page + 1
     relationHasNext.value = payload.hasNext
     relationLoaded.value = true
     relationLoadMoreError.value = ''
   } catch (error) {
+    if (seq !== relationRequestSeq) return
     const message = error instanceof Error ? error.message : t('api.adminCourseRelationListFailed')
     if (reset) pageError.value = message
     else relationLoadMoreError.value = message
   } finally {
-    relationLoading.value = false
+    if (seq === relationRequestSeq) relationLoading.value = false
   }
 }
 

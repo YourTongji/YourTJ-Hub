@@ -19389,6 +19389,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Frozen account, or caller lacks the CourseManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Candidate does not exist. */
             404: {
                 headers: {

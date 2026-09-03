@@ -1825,10 +1825,15 @@ export interface AdminCourseDetailItem {
 }
 
 export async function fetchCourseRelations(status = '', relationType = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+  // 「全部」时 status/relationType 为空串——契约 enum 只允许非空值，空过滤字段不进请求体
+  // （review P2：schema 校验客户端会拒绝 "" 枚举值）。
+  const payload: Record<string, unknown> = { page, pageSize }
+  if (status) payload.status = status
+  if (relationType) payload.relationType = relationType
   const response = await fetch('/api/forum/moderation/course-relation-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, relationType, page, pageSize }),
+    body: JSON.stringify(payload),
   })
   return readApiResponse<CourseRelationListResult>(response, t('api.adminCourseRelationListFailed'))
 }

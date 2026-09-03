@@ -449,7 +449,16 @@ func AdminRelationList(q course.RelationQuery) (AdminRelationPage, error) {
 	for id := range courseIds {
 		ids = append(ids, id)
 	}
-	courses := course.GetMapByIds(ids) // 含隐藏卡；软删除（已彻底删除）卡不在内 → 摘要缺省
+	// 含隐藏卡（不过滤 status）；软删除（已彻底删除）卡不在结果内 → 摘要缺省。
+	// 失败可见性（review P2）：DB 故障时整体报错，而不是 200 + 全部 #id 降级。
+	list, err := course.ListCoursesByIDs(ids)
+	if err != nil {
+		return AdminRelationPage{}, fmt.Errorf("admin relation list: 读取课程: %w", err)
+	}
+	courses := make(map[uint64]*course.Entity, len(list))
+	for i := range list {
+		courses[list[i].Id] = &list[i]
+	}
 
 	teacherIds := make([]uint64, 0, len(courses))
 	seen := map[uint64]bool{}
@@ -576,6 +585,9 @@ func AdminRelationIgnore(relationId uint64) (course.RelationEntity, error) {
 
 // AdminRelationReset 撤回人工处理决定：approved/ignored → pending（候选回到待审核队列）。
 // 仅处理决定可撤回；merged 行已物理迁移 offering/alias，一律拒绝并提示走撤销合并。
+// 状态检查与更新之间采用条件更新（仅命中 approved/ignored），杜绝与并发合并事务
+// 的竞态（review P1）：即使读取后 MergeCourses 抢先提交 merged，也不会把已合并行
+// 覆盖回 pending 导致撤销合并失去识别依据。
 func AdminRelationReset(relationId uint64) (course.RelationEntity, error) {
 	var result course.RelationEntity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
@@ -590,9 +602,13 @@ func AdminRelationReset(relationId uint64) (course.RelationEntity, error) {
 			relation.Status != string(course.RelationStatusIgnored) {
 			return ErrRelationStateNotResettable
 		}
-		updated, err := course.UpdateRelationStatusTx(tx, relationId, string(course.RelationStatusPending))
+		updated, err := course.ResetRelationStatusTx(tx, relationId)
 		if err != nil {
 			return err
+		}
+		if updated.Id == 0 {
+			// 并发合并已抢先置 merged：条件更新命中 0 行，按不可撤回处理。
+			return ErrRelationStateNotResettable
 		}
 		result = updated
 		return nil
