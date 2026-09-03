@@ -8657,6 +8657,8 @@ export interface components {
             likeCount: number;
             isLiked: boolean;
             isBookmarked: boolean;
+            /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
+            isAnswer: boolean;
         };
         ReplyTargetPayload: {
             /** Format: uint64 */

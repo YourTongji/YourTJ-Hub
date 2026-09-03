@@ -699,7 +699,7 @@ SearchResultPayload:
 # record.
 PostPayload:
   type: object
-  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked]
+  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked, isAnswer]
   properties:
     id:
       type: integer
@@ -770,6 +770,9 @@ PostPayload:
       type: boolean
     isBookmarked:
       type: boolean
+    isAnswer:
+      type: boolean
+      description: True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself.
   additionalProperties: false
 
 ReplyTargetPayload:
