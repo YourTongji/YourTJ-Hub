@@ -48,9 +48,12 @@ const (
 // controller 依据该 sentinel error 渲染 403 冻结错误页（与 OIDC exchange 的冻结语义一致）。
 var ErrAccountFrozen = errors.New("账号已冻结，禁止 OAuth 登录")
 
-// googleProvider 保存启动时注册的 Google provider。
-// Google OAuth 配置是 live 读取的，但 goth provider 只在启动时注册；保存实例可让
-// 登录页区分“配置完整”和“当前进程已经注册且使用同一份配置”。
+// ErrOAuthEmailUnverified 表示 OAuth provider 未提供可用于站点验证的邮箱。
+var ErrOAuthEmailUnverified = errors.New("OAuth 邮箱未验证或不可用")
+
+// googleProvider 保存当前已注册的 Google provider。
+// Google OAuth 配置是 live 读取的；保存实例可让登录页区分“配置完整”和
+// “当前进程已经注册且使用同一份配置”。
 var googleProvider atomic.Pointer[google.Provider]
 
 // InitOAuth configures available OAuth providers.
@@ -59,6 +62,7 @@ func InitOAuth() {
 	googleProvider.Store(nil)
 
 	var providers []goth.Provider
+	var configuredGoogleProvider *google.Provider
 
 	if provider := initGitHubProvider(); provider != nil {
 		providers = append(providers, provider)
@@ -66,11 +70,14 @@ func InitOAuth() {
 
 	if provider := initGoogleProvider(); provider != nil {
 		providers = append(providers, provider)
-		googleProvider.Store(provider)
+		configuredGoogleProvider = provider
 	}
 
+	// SiteUrl 可在管理后台修改；重建 provider 前先移除旧实例，避免继续使用过期回调地址。
+	goth.ClearProviders()
 	if len(providers) > 0 {
 		goth.UseProviders(providers...)
+		googleProvider.Store(configuredGoogleProvider)
 		slog.Info("OAuth提供商初始化完成", "count", len(providers))
 	} else {
 		slog.Warn("未配置任何OAuth提供商")
@@ -102,7 +109,7 @@ func IsGoogleOAuthConfigured() bool {
 
 // IsGoogleOAuthReady reports whether Google OAuth is configured and the running
 // process has registered a provider with the same credentials and callback URL.
-// Changing Google OAuth credentials or siteUrl therefore requires a restart.
+// InitOAuth must be called after a runtime siteUrl change to refresh the provider.
 func IsGoogleOAuthReady() bool {
 	clientID, clientSecret, callbackURL := googleOAuthConfig()
 	if clientID == "" || clientSecret == "" || callbackURL == "" {
@@ -299,9 +306,10 @@ func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 	}
 
 	// Google OIDC userinfo 的 email_verified 是 provider 直接返回的布尔断言；
-	// 只有断言为 true 且邮箱非空时，才进入可信邮箱绑定/激活路径。
+	// 兼容部分代理或 mock 返回的字符串/数字形式。只有断言为 true 且邮箱非空时，
+	// 才进入可信邮箱绑定/激活路径。
 	if userInfo.Provider == ProviderGoogle {
-		if emailVerified, ok := gothUser.RawData["email_verified"].(bool); ok && emailVerified {
+		if oauthFlagIsTrue(gothUser.RawData["email_verified"]) {
 			if verified := strings.ToLower(strings.TrimSpace(userInfo.Email)); verified != "" {
 				userInfo.VerifiedEmail = verified
 				userInfo.EmailVerified = true
@@ -310,6 +318,34 @@ func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 	}
 
 	return userInfo
+}
+
+// oauthFlagIsTrue accepts the boolean representation emitted by standard JSON
+// decoding and the string/number variants used by some OIDC proxies and mocks.
+func oauthFlagIsTrue(value any) bool {
+	switch value := value.(type) {
+	case bool:
+		return value
+	case string:
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		return normalized == "true" || normalized == "1"
+	case json.Number:
+		return value == "1" || value == "1.0"
+	case float64:
+		return value == 1
+	case float32:
+		return value == 1
+	case int:
+		return value == 1
+	case int64:
+		return value == 1
+	case uint:
+		return value == 1
+	case uint64:
+		return value == 1
+	default:
+		return false
+	}
 }
 
 // gitHubEmailAPIURL 为 GitHub 邮箱列表 API（var 便于测试覆盖）。
@@ -379,11 +415,20 @@ func usernameReservedOrBanned(username string, cfg pageConfig.SecurityAndRegistr
 // createUserFromOAuth creates a local account from OAuth user data.
 // 激活策略（issue #155）：
 //   - verified 邮箱命中信任域名（allowedDomains 空 = 全信任）→ needValid=false 直接激活；
-//   - 未命中或未获取到 verified 邮箱 → needValid = EnableEmailVerification 开关
-//     （默认 false 保持现状免验证，不回归）；开关开启时进入 ActivationPending
-//     并补发激活邮件（与密码注册流程一致）。
+//   - verified 邮箱未命中信任域名 → EnableEmailVerification 开启时进入
+//     ActivationPending 并补发激活邮件；
+//   - 未获取到可用 verified 邮箱 → EnableEmailVerification 开启时拒绝 OAuth 建号，
+//     关闭时保持免验证兼容行为。
 func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) {
 	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	email := strings.ToLower(strings.TrimSpace(userInfo.VerifiedEmail))
+	hasVerifiedEmail := userInfo.EmailVerified && email != ""
+	if securityConfig.EnableEmailVerification && !hasVerifiedEmail {
+		// 没有可发激活邮件的可信地址时直接拒绝，不能将未验证的 OAuth 身份
+		// 当作已激活账号放行，也不能创建无法恢复的 pending 账号。
+		return nil, ErrOAuthEmailUnverified
+	}
+
 	username := userInfo.Login
 	originalUsername := username
 	counter := 1
@@ -398,19 +443,15 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 		}
 	}
 
-	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱）。
+	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
+	// email_verified=true 的邮箱）。
 	// 无 verified 邮箱时保持存 ""（与旧行为一致），不降级存 goth 公开邮箱——
 	// 未验证邮箱若被 OIDC userinfo 推导为 email_verified=true 会造成信任越界
 	// （PR #167 review, medium）。
-	email := strings.ToLower(strings.TrimSpace(userInfo.VerifiedEmail))
 
 	// 信任判定：仅 verified 邮箱命中信任域名才免验证。
-	trusted := userInfo.EmailVerified && email != "" && emailInTrustedDomains(email)
-	// 无 verified 邮箱时保持旧行为免验证（needValid=false）：
-	// 该场景没有可用的激活邮箱，若进入 ActivationPending 将形成无恢复路径的
-	// 永久死账号（PR #167 review, blocking）。开关开启且未命中信任域名时，
-	// 仅当存在 verified 邮箱才要求邮箱激活。
-	needValid := !trusted && securityConfig.EnableEmailVerification && userInfo.EmailVerified
+	trusted := hasVerifiedEmail && emailInTrustedDomains(email)
+	needValid := !trusted && securityConfig.EnableEmailVerification
 
 	userEntity, err := userservice.CreateUser(username, randopt.RandomString(32), email, needValid)
 	if err != nil {

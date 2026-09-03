@@ -143,7 +143,8 @@ Cloud Console 中登记的重定向 URI 同源的绝对 URL，回调地址为：
 `<siteUrl>/api/auth/google/callback`。本地开发可登记
 `http://localhost:5234/api/auth/google/callback`。
 Google 仅在 userinfo 返回 `email_verified=true` 时将邮箱视为可信，并进入已有账号绑定或激活流程；
-修改 Google 凭据或 `siteUrl` 后需要重启服务，provider 才会使用新配置。
+启用全站邮箱验证时，未提供可用已验证邮箱的 OAuth 注册会被拒绝。修改 Google 凭据后需要重启服务；
+通过管理后台修改 `siteUrl` 会即时刷新 OAuth provider。
 
 ## 🔄 配置文件热重载
 

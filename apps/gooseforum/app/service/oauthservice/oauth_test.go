@@ -1,6 +1,7 @@
 package oauthservice
 
 import (
+	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
 
@@ -39,6 +41,7 @@ func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
 		preferences.Set("google.client_id", "")
 		preferences.Set("google.client_secret", "")
 		googleProvider.Store(nil)
+		goth.ClearProviders()
 		conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
 		hotdataserve.ClearSiteSettingsConfigCache()
 	})
@@ -99,23 +102,62 @@ func TestGoogleOAuthReadyRequiresMatchingStartupRegistration(t *testing.T) {
 	}
 }
 
+func TestInitOAuthRefreshesGoogleProviderAfterSiteURLChange(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://old.example.test")
+	InitOAuth()
+
+	entity := pageConfig.GetByPageType(pageConfig.SiteSettings)
+	entity.Config = jsonopt.Encode(pageConfig.SiteSettingsConfig{SiteUrl: "https://new.example.test"})
+	pageConfig.CreateOrSave(&entity)
+	hotdataserve.ClearSiteSettingsConfigCache()
+	InitOAuth()
+
+	provider, err := goth.GetProvider(ProviderGoogle)
+	if err != nil {
+		t.Fatalf("goth.GetProvider(%q) error = %v", ProviderGoogle, err)
+	}
+	googleProvider, ok := provider.(*google.Provider)
+	if !ok {
+		t.Fatalf("Google provider type = %T, want *google.Provider", provider)
+	}
+	if googleProvider.CallbackURL != "https://new.example.test/api/auth/google/callback" {
+		t.Fatalf("Google provider callback URL = %q, want refreshed site URL", googleProvider.CallbackURL)
+	}
+}
+
 func TestParseGoogleVerifiedEmail(t *testing.T) {
-	verified := parseOAuthUserInfo(goth.User{
-		Provider: ProviderGoogle,
-		Email:    " Alice@Example.Test ",
-		RawData:  map[string]any{"email_verified": true},
-	})
-	if verified.VerifiedEmail != "alice@example.test" || !verified.EmailVerified {
-		t.Fatalf("verified Google email = %q, emailVerified = %v; want normalized trusted email", verified.VerifiedEmail, verified.EmailVerified)
+	tests := []struct {
+		name     string
+		flag     any
+		verified bool
+	}{
+		{name: "boolean", flag: true, verified: true},
+		{name: "string true", flag: " true ", verified: true},
+		{name: "string one", flag: "1", verified: true},
+		{name: "number one", flag: float64(1), verified: true},
+		{name: "json number one", flag: json.Number("1.0"), verified: true},
+		{name: "boolean false", flag: false, verified: false},
+		{name: "string false", flag: "false", verified: false},
+		{name: "number zero", flag: float64(0), verified: false},
 	}
 
-	unverified := parseOAuthUserInfo(goth.User{
-		Provider: ProviderGoogle,
-		Email:    "unverified@example.test",
-		RawData:  map[string]any{"email_verified": false},
-	})
-	if unverified.VerifiedEmail != "" || unverified.EmailVerified {
-		t.Fatalf("unverified Google email = %q, emailVerified = %v; want no trusted email", unverified.VerifiedEmail, unverified.EmailVerified)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := parseOAuthUserInfo(goth.User{
+				Provider: ProviderGoogle,
+				Email:    " Alice@Example.Test ",
+				RawData:  map[string]any{"email_verified": tt.flag},
+			})
+			if user.EmailVerified != tt.verified {
+				t.Fatalf("emailVerified = %v, want %v", user.EmailVerified, tt.verified)
+			}
+			if tt.verified && user.VerifiedEmail != "alice@example.test" {
+				t.Fatalf("verified email = %q, want normalized email", user.VerifiedEmail)
+			}
+			if !tt.verified && user.VerifiedEmail != "" {
+				t.Fatalf("unverified email = %q, want empty", user.VerifiedEmail)
+			}
+		})
 	}
 }
 

@@ -69,6 +69,11 @@ func ProviderCallback(c *gin.Context) {
 				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOAuthAccountFrozen)
 				return
 			}
+			if errors.Is(err, oauthservice.ErrOAuthEmailUnverified) {
+				slog.Warn("OAuth callback rejected unverified email", "provider", gothUser.Provider)
+				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageAuthEmailUnverified)
+				return
+			}
 			slog.Error("Process OAuth callback failed", "error", err)
 			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
 			return
