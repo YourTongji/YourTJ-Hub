@@ -245,6 +245,9 @@ func TestHeadContractStaticAssetsMatchGet(t *testing.T) {
 	if got := headGzip.Header.Get("Content-Type"); got != "image/svg+xml" {
 		t.Errorf("HEAD %s with Accept-Encoding: gzip Content-Type = %q, want image/svg+xml", staticBadgeAsset, got)
 	}
+	if got := headGzip.Header.Get("Content-Length"); got != "" {
+		t.Errorf("HEAD %s with Accept-Encoding: gzip Content-Length = %q, want unset (no body written, the gzip middleware cannot size it)", staticBadgeAsset, got)
+	}
 }
 
 // viteManifestEntryFile reads static/dist/.vite/manifest.json (the Vite

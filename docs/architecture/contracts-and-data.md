@@ -79,13 +79,19 @@ contract for what `HEAD` means on the forum's own listener
 
 Gin registers and routes methods **exactly** as declared: a `HEAD` request
 only matches a route explicitly registered for `HEAD`. In this codebase the
-complete explicit HEAD surface is produced by two calls and one helper:
+complete explicit HEAD surface on the **production** listener is produced by
+two calls and one helper:
 
 - `StaticFS("assets", ...)` and `StaticFS("static", ...)` register
   `GET` **and** `HEAD` for `/assets/*filepath` and `/static/*filepath`
   (`route4api.go` `assertRouter`);
 - `Any("/mcp")` registers `HEAD` alongside every other method
   (`mcpRoute.go`).
+
+In dev mode (`app.env != production`) `assertRouter` additionally
+registers a Vite reverse proxy via `Any("assets/*path")` (`route4api.go`),
+which answers HEAD for `/assets/*` as well. The contract tests and the
+tables below exercise the production listener.
 
 Everything else — SSR pages (`/`, `/p/post/:id`, ...), `/health`,
 `/robots.txt` / `/sitemap.xml` / `/rss.xml`, JSON APIs (`/api/...`), and the
@@ -158,9 +164,10 @@ Consequences for operators and integrators:
   quota and make legitimate MCP calls answer 429. Health probes must use
   `GET /health`, which is outside the MCP rate limits. If a future change
   needs HEAD on a dynamic route, register it explicitly and run the
-  routes-snapshot gate (`TestRoutesSnapshot`) — the snapshot does not carry
-  HEAD today, and `TestHeadRouteRegistrationContract` pins the current
-  HEAD-only surface.
+  routes-snapshot gate (`TestRoutesSnapshot`) — the snapshot carries HEAD
+  only for the two static mounts (`/assets/*filepath`, `/static/*filepath`)
+  and `/mcp` today, and `TestHeadRouteRegistrationContract` pins that exact
+  surface.
 - **CDN origin checks**: if a CDN is configured to validate origin
   availability with HEAD against a page or API URL, point it at a `/static`
   asset (supported; only this mount carries the cache header) or at
