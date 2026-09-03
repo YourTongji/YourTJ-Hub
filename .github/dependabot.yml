@@ -4,7 +4,7 @@
 # 升级 PR 会触发 ci-backend 全量测试与 govulncheck, 两者通过才可合并。
 version: 2
 updates:
-  - package-ecosystem: "go_modules"
+  - package-ecosystem: "gomod"
     directory: "/apps/gooseforum"
     schedule:
       interval: "weekly"
