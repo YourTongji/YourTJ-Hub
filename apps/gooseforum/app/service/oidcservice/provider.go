@@ -232,7 +232,7 @@ func Router() (http.Handler, error) {
 	mux.Handle(issuerPath+"/keys", withIssuer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		op.Keys(w, r, provider.Storage())
 	})))
-	return mux, nil
+	return withDefaultContentType(mux), nil
 }
 
 // withBrowserBinding ensures a browser-binding cookie exists before the
