@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, FolderOpen, Search, UsersRound } from '@lucide/vue'
@@ -14,6 +15,7 @@ const page = defineProps<{
   pageUrl: string
 }>()
 const { t } = useI18n()
+const router = useRouter()
 
 const query = ref(page.props.query)
 const scope = computed(() => page.props.scope || 'all')
@@ -75,6 +77,26 @@ function courseUrl(course: { id: number }) {
   return `/courses/${course.id}`
 }
 
+// 搜索提交走客户端路由跳转：页面 body 为空壳、内容由 Vue 客户端渲染，
+// 原生 GET 提交会先卸载整页再渲染（期间白屏），故拦截 submit 复用
+// router.push 的 X-Goose-Page JSON 拉取路径（顶部 loading bar，旧页保持）。
+// action/method 保留作无 JS 环境的原生回退。
+async function submitSearch(event: SubmitEvent) {
+  event.preventDefault()
+  const form = event.currentTarget as HTMLFormElement
+  const rawQuery = new FormData(form).get('q')
+  const q = typeof rawQuery === 'string' ? rawQuery.trim() : ''
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (scope.value !== 'all') params.set('scope', scope.value)
+  const qs = params.toString()
+  try {
+    await router.push(qs ? `/search?${qs}` : '/search')
+  } catch {
+    form.submit()
+  }
+}
+
 watch(
   () => page.props.query,
   () => {
@@ -90,7 +112,7 @@ watch(
         <span class="gf-badge gf-badge-muted h-5 text-[11px] uppercase">{{ t('searchPage.label') }}</span>
       </template>
       <template #actions>
-        <form action="/search" method="GET" class="w-full sm:w-80 lg:w-96">
+        <form action="/search" method="GET" class="w-full sm:w-80 lg:w-96" @submit="submitSearch">
           <input v-if="scope !== 'all'" type="hidden" name="scope" :value="scope" />
           <label class="flex h-10 items-center gap-2 rounded-field border border-line bg-base-100 px-3 text-sm text-base-content/55 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
             <Search class="h-4 w-4 shrink-0" />
