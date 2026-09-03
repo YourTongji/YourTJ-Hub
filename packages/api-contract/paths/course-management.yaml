@@ -389,6 +389,51 @@ adminCourseRelationIgnore:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
 
+adminCourseRelationReset:
+  post:
+    tags: [Forum]
+    summary: Revert a processed lineage candidate to pending (CourseManager/Admin)
+    operationId: adminCourseRelationReset
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Reverts an annotation decision back to the review queue
+      (approved/ignored → pending). Candidates that were physically merged are NOT resettable —
+      they must be rolled back through `adminCourseMergeUndo`; calling reset on them is a 409
+      `course.relation.notResettable` business failure. Writes an audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationActionRequest
+    responses:
+      '200':
+        description: The updated lineage candidate, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseRelationItemResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Candidate does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Candidate is not in a resettable state (pending, or merged).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
 adminCourseRelationCreate:
   post:
     tags: [Forum]

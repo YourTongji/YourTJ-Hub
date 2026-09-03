@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from '@lucide/vue'
 import {
@@ -15,6 +15,7 @@ import {
   ignoreCourseRelation,
   mergeCourseRelation,
   moderationCourseReviewStatus,
+  resetCourseRelation,
   rebuildCourseStats,
   undoMergeCourseRelation,
   updateAdminCourse,
@@ -241,6 +242,7 @@ async function confirmDeleteCourse() {
 
 // ---- 课程沿革审核 ----
 const relationStatus = ref('pending')
+const relationType = ref('')
 const relationPage = ref(1)
 const relationItems = ref<CourseRelationItem[]>([])
 const relationHasNext = ref(true)
@@ -249,6 +251,15 @@ const relationLoaded = ref(false)
 const relationBusyIds = ref<number[]>([])
 const relationLoadMoreError = ref('')
 const relationMessage = ref('')
+
+const relationTypeFilterOptions = [
+  { key: '', label: 'courseManagement.relationType.all' },
+  { key: 'EQUIVALENT', label: 'courseManagement.relationType.EQUIVALENT' },
+  { key: 'RENAMED_FROM', label: 'courseManagement.relationType.RENAMED_FROM' },
+  { key: 'SPLIT_FROM', label: 'courseManagement.relationType.SPLIT_FROM' },
+  { key: 'MERGED_FROM', label: 'courseManagement.relationType.MERGED_FROM' },
+  { key: 'RELATED', label: 'courseManagement.relationType.RELATED' },
+]
 
 const relationStatusOptions = [
   { key: 'pending', label: 'courseManagement.relationTabs.pending' },
@@ -260,16 +271,22 @@ const relationStatusOptions = [
 
 const relationTypeOptions = ['EQUIVALENT', 'RENAMED_FROM', 'SPLIT_FROM', 'MERGED_FROM', 'RELATED']
 
-// 旧卡/新卡名称映射：沿革 API 只返回 id，能映射到已加载课程列表则附名称，否则仅显示 id。
-const courseNameById = computed(() => {
-  const map: Record<number, string> = {}
-  for (const item of courseItems.value) map[item.id] = item.name
-  return map
-})
+// 沿革列表项自带 from/to 课程摘要（后端附带课号/课程名/教师），直接展示；
+// 课程已删除（摘要缺省）时回退 #id。
+function relationSideName(item: CourseRelationItem, side: 'fromCourse' | 'toCourse'): string {
+  const brief = item[side]
+  const id = side === 'fromCourse' ? item.fromCourseId : item.toCourseId
+  return brief?.name ? brief.name : `#${id}`
+}
 
-function relationCourseLabel(id: number): string {
-  const name = courseNameById.value[id]
-  return name ? `${name} (#${id})` : `#${id}`
+function relationSideMeta(item: CourseRelationItem, side: 'fromCourse' | 'toCourse'): string {
+  const brief = item[side]
+  if (!brief) return ''
+  const parts: string[] = []
+  if (brief.primaryCode) parts.push(brief.primaryCode)
+  if (brief.teacherName) parts.push(brief.teacherName)
+  if (brief.status === 1) parts.push(t('courseManagement.relationCourseHidden'))
+  return parts.join(' · ')
 }
 
 function relationTypeLabel(type: string): string {
@@ -306,7 +323,7 @@ async function loadRelations(reset = false) {
   if (reset) pageError.value = ''
   else relationLoadMoreError.value = ''
   try {
-    const payload = await fetchCourseRelations(relationStatus.value, reset ? 1 : relationPage.value, 20)
+    const payload = await fetchCourseRelations(relationStatus.value, relationType.value, reset ? 1 : relationPage.value, 20)
     relationItems.value = reset ? payload.list : [...relationItems.value, ...payload.list]
     relationPage.value = payload.page + 1
     relationHasNext.value = payload.hasNext
@@ -321,15 +338,43 @@ async function loadRelations(reset = false) {
   }
 }
 
-function switchRelationStatus(status: string) {
-  if (relationStatus.value === status) return
-  relationStatus.value = status
+function resetRelationList() {
   relationPage.value = 1
   relationItems.value = []
   relationHasNext.value = true
   relationLoaded.value = false
   void loadRelations(true)
 }
+
+function switchRelationStatus(status: string) {
+  if (relationStatus.value === status) return
+  relationStatus.value = status
+  resetRelationList()
+}
+
+function switchRelationType(event: Event) {
+  const type = (event.target as HTMLSelectElement).value
+  if (relationType.value === type) return
+  relationType.value = type
+  resetRelationList()
+}
+
+async function revertRelation(item: CourseRelationItem) {
+  if (relationBusy(item.id)) return
+  relationBusyIds.value = [...relationBusyIds.value, item.id]
+  relationMessage.value = ''
+  pageError.value = ''
+  try {
+    await resetCourseRelation(item.id)
+    relationMessage.value = t('courseManagement.relationReverted')
+    await loadRelations(true)
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : t('api.adminCourseRelationOpFailed')
+  } finally {
+    relationBusyIds.value = relationBusyIds.value.filter((id) => id !== item.id)
+  }
+}
+
 
 function relationBusy(id: number) {
   return relationBusyIds.value.includes(id)
@@ -907,7 +952,7 @@ watch(activeTab, (tab) => {
     <section v-else-if="activeTab === 'relations'" class="space-y-3">
       <div class="gf-card overflow-hidden">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-base-200/60 p-2">
-          <div class="flex items-center gap-1">
+          <div class="flex flex-wrap items-center gap-1">
             <button
               v-for="option in relationStatusOptions"
               :key="option.key"
@@ -918,6 +963,16 @@ watch(activeTab, (tab) => {
             >
               {{ t(option.label) }}
             </button>
+            <select
+              :value="relationType"
+              class="gf-input h-8 w-auto min-w-[7.5rem] shrink-0 px-2 text-xs font-semibold"
+              :title="t('courseManagement.relationType.all')"
+              @change="switchRelationType"
+            >
+              <option v-for="option in relationTypeFilterOptions" :key="option.key" :value="option.key">
+                {{ t(option.label) }}
+              </option>
+            </select>
           </div>
           <button type="button" class="gf-button gf-button-sm gf-button-primary shrink-0" @click="relationCreateOpen = true">
             <Plus class="h-4 w-4" />
@@ -951,8 +1006,14 @@ watch(activeTab, (tab) => {
             </thead>
             <tbody class="divide-y divide-line/60">
               <tr v-for="item in relationItems" :key="item.id" class="align-top transition hover:bg-base-200/40">
-                <td class="px-3 py-3"><span class="block truncate" :title="relationCourseLabel(item.fromCourseId)">{{ relationCourseLabel(item.fromCourseId) }}</span></td>
-                <td class="px-3 py-3"><span class="block truncate" :title="relationCourseLabel(item.toCourseId)">{{ relationCourseLabel(item.toCourseId) }}</span></td>
+                <td class="px-3 py-3">
+                  <span class="block truncate font-medium text-base-content" :title="relationSideName(item, 'fromCourse')">{{ relationSideName(item, 'fromCourse') }}</span>
+                  <span v-if="relationSideMeta(item, 'fromCourse')" class="block truncate text-xs text-base-content/55">{{ relationSideMeta(item, 'fromCourse') }}</span>
+                </td>
+                <td class="px-3 py-3">
+                  <span class="block truncate font-medium text-base-content" :title="relationSideName(item, 'toCourse')">{{ relationSideName(item, 'toCourse') }}</span>
+                  <span v-if="relationSideMeta(item, 'toCourse')" class="block truncate text-xs text-base-content/55">{{ relationSideMeta(item, 'toCourse') }}</span>
+                </td>
                 <td class="px-3 py-3"><span class="gf-badge gf-badge-ghost text-[11px]">{{ relationTypeLabel(item.relationType) }}</span></td>
                 <td class="px-3 py-3 text-base-content/60">{{ relationSourceLabel(item.source) }}</td>
                 <td class="px-3 py-3 tabular-nums text-base-content/60">{{ formatConfidence(item.confidence) }}</td>
@@ -992,6 +1053,15 @@ watch(activeTab, (tab) => {
                       @click="ignoreRelation(item)"
                     >
                       {{ t('courseManagement.relationIgnore') }}
+                    </button>
+                    <button
+                      v-if="item.status === 'approved' || item.status === 'ignored'"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-outline shrink-0"
+                      :disabled="relationBusy(item.id)"
+                      @click="revertRelation(item)"
+                    >
+                      {{ t('courseManagement.relationRevert') }}
                     </button>
                     <button
                       v-if="item.status === 'merged'"
@@ -1111,12 +1181,12 @@ watch(activeTab, (tab) => {
             {{
               relationConfirmAction === 'merge'
                 ? t('courseManagement.relationMergeConfirm', {
-                    from: relationCourseLabel(relationConfirmTarget.fromCourseId),
-                    to: relationCourseLabel(relationConfirmTarget.toCourseId),
+                    from: relationSideName(relationConfirmTarget, 'fromCourse'),
+                    to: relationSideName(relationConfirmTarget, 'toCourse'),
                   })
                 : t('courseManagement.relationMergeUndoConfirm', {
-                    from: relationCourseLabel(relationConfirmTarget.fromCourseId),
-                    to: relationCourseLabel(relationConfirmTarget.toCourseId),
+                    from: relationSideName(relationConfirmTarget, 'fromCourse'),
+                    to: relationSideName(relationConfirmTarget, 'toCourse'),
                   })
             }}
           </p>

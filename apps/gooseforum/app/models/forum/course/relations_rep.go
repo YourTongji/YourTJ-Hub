@@ -13,9 +13,10 @@ import (
 
 // RelationQuery 管理端沿革候选检索条件。
 type RelationQuery struct {
-	Status string // 空 = 全部；pending/approved/ignored/merged
-	Page   int
-	Size   int
+	Status       string // 空 = 全部；pending/approved/ignored/merged
+	RelationType string // 空 = 全部；EQUIVALENT/RENAMED_FROM/SPLIT_FROM/MERGED_FROM/RELATED
+	Page         int
+	Size         int
 }
 
 // RelationPage 管理端沿革候选分页结果。
@@ -153,6 +154,9 @@ func ListRelations(q RelationQuery) (RelationPage, error) {
 	b := relationBuilder().Where("deleted_at IS NULL")
 	if q.Status != "" {
 		b = b.Where(queryopt.Eq("status", q.Status))
+	}
+	if q.RelationType != "" {
+		b = b.Where(queryopt.Eq("relation_type", q.RelationType))
 	}
 	var total int64
 	if err := b.Count(&total).Error; err != nil {

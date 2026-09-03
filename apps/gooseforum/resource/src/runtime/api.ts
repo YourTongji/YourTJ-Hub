@@ -1772,6 +1772,19 @@ export interface CourseRelationItem {
   status: 'pending' | 'approved' | 'ignored' | 'merged'
   createdAt: string
   updatedAt: string
+  fromCourse?: CourseRelationCourseBrief
+  toCourse?: CourseRelationCourseBrief
+}
+
+export interface CourseRelationCourseBrief {
+  id: number
+  primaryCode: string
+  name: string
+  department?: string
+  teacherName?: string
+  teacherCode?: string
+  creditX10: number
+  status: number // 0 可见 / 1 隐藏（合并后旧卡隐藏）
 }
 
 export interface CourseRelationListResult {
@@ -1811,11 +1824,11 @@ export interface AdminCourseDetailItem {
   teamKey?: string
 }
 
-export async function fetchCourseRelations(status = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+export async function fetchCourseRelations(status = '', relationType = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
   const response = await fetch('/api/forum/moderation/course-relation-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, page, pageSize }),
+    body: JSON.stringify({ status, relationType, page, pageSize }),
   })
   return readApiResponse<CourseRelationListResult>(response, t('api.adminCourseRelationListFailed'))
 }
@@ -1831,6 +1844,15 @@ export async function approveCourseRelation(relationId: number): Promise<CourseR
 
 export async function ignoreCourseRelation(relationId: number): Promise<CourseRelationItem> {
   const response = await fetch('/api/forum/moderation/course-relation-ignore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseRelationItem>(response, t('api.adminCourseRelationOpFailed'))
+}
+
+export async function resetCourseRelation(relationId: number): Promise<CourseRelationItem> {
+  const response = await fetch('/api/forum/moderation/course-relation-reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),

@@ -241,9 +241,10 @@ func AdminCourseStatsRebuild(req component.BetterRequest[component.Null]) compon
 
 // AdminCourseRelationListReq 沿革候选列表请求。
 type AdminCourseRelationListReq struct {
-	Status   string `json:"status"` // 空 = 全部；pending/approved/ignored/merged
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
+	Status       string `json:"status"`       // 空 = 全部；pending/approved/ignored/merged
+	RelationType string `json:"relationType"` // 空 = 全部；EQUIVALENT/RENAMED_FROM/SPLIT_FROM/MERGED_FROM/RELATED
+	Page         int    `json:"page"`
+	PageSize     int    `json:"pageSize"`
 }
 
 // AdminCourseRelationList 返回沿革候选分页（含证据快照）。
@@ -252,9 +253,10 @@ func AdminCourseRelationList(req component.BetterRequest[AdminCourseRelationList
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	pageData, err := courseservice.AdminRelationList(course.RelationQuery{
-		Status: req.Params.Status,
-		Page:   req.Params.Page,
-		Size:   req.Params.PageSize,
+		Status:       req.Params.Status,
+		RelationType: req.Params.RelationType,
+		Page:         req.Params.Page,
+		Size:         req.Params.PageSize,
 	})
 	if err != nil {
 		slog.Error("course_relation_list_failed", "error", err)
@@ -298,6 +300,24 @@ func AdminCourseRelationIgnore(req component.BetterRequest[AdminCourseRelationAp
 		return courseManageErrorResponse(err)
 	}
 	optlogger.UserOptCode(req.UserId, optlogger.UpdateCourse, entity.Id, "course.relation.ignored", optlogger.MessageParams{
+		"relationId":   entity.Id,
+		"fromCourseId": entity.FromCourseId,
+		"toCourseId":   entity.ToCourseId,
+		"relationType": entity.RelationType,
+	})
+	return component.SuccessResponse(entity)
+}
+
+// AdminCourseRelationReset 撤回人工处理决定（approved/ignored → pending），让候选回到待审核队列。
+func AdminCourseRelationReset(req component.BetterRequest[AdminCourseRelationApproveReq]) component.Response {
+	if !canModerateCourseReviews(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	entity, err := courseservice.AdminRelationReset(req.Params.RelationId)
+	if err != nil {
+		return courseManageErrorResponse(err)
+	}
+	optlogger.UserOptCode(req.UserId, optlogger.UpdateCourse, entity.Id, "course.relation.resetted", optlogger.MessageParams{
 		"relationId":   entity.Id,
 		"fromCourseId": entity.FromCourseId,
 		"toCourseId":   entity.ToCourseId,
@@ -459,6 +479,9 @@ func courseManageErrorResponse(err error) component.Response {
 	case errors.Is(err, courseservice.ErrRelationConfidenceInvalid):
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageCourseRelationConfidenceInvalid, nil))
+	case errors.Is(err, courseservice.ErrRelationStateNotResettable):
+		return component.BuildResponse(http.StatusConflict,
+			component.FailDataCode(component.MessageCourseRelationNotResettable, nil))
 	default:
 		slog.Error("course_manage_write_failed", "error", err)
 		return component.BuildResponse(http.StatusInternalServerError,

@@ -172,8 +172,10 @@ complete operation coverage and the precondition for such a gate is met.
   与卡级 `course-lineage-seed` CLI（E1-E3，装配课程目录可见卡在 course.id 层面配对，
   默认 dry-run，`--write`/`--write-family` 幂等写 pending，不复活已处置关系），
   或管理端手动创建；审核面板
-  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）批准/
-  忽略/合并/撤销。
+  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）按状态
+  （pending/approved/ignored/merged）与类型（EQUIVALENT/RENAMED_FROM/SPLIT_FROM/
+  MERGED_FROM/RELATED）过滤，支持批准/忽略/撤回处理决定（approved/ignored →
+  pending；merged 只能走 `course-merge-undo`）/合并/撤销。
 
 ## Task queue & background workers
 

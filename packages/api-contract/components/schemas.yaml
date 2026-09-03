@@ -1928,6 +1928,10 @@ AdminCourseRelationListRequest:
       type: string
       enum: [pending, approved, ignored, merged]
       description: 沿革候选状态过滤；空 = 全部。
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+      description: 沿革候选类型过滤；空 = 全部。
     page:
       type: integer
       minimum: 1
@@ -1937,9 +1941,41 @@ AdminCourseRelationListRequest:
       maximum: 50
   additionalProperties: false
 
+AdminCourseRelationCourseBrief:
+  type: object
+  description: 沿革候选 from/to 课程摘要（管理端列表直接展示课程名/课号/教师；课程已删除时整体缺省）。
+  required: [id, primaryCode, name, creditX10, status]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+      description: 课号。
+    name:
+      type: string
+      description: 课程名。
+    department:
+      type: string
+      description: 开课院系。
+    teacherName:
+      type: string
+      description: 身份教师姓名。
+    teacherCode:
+      type: string
+      description: 身份教师工号。
+    creditX10:
+      type: integer
+      description: 学分 ×10。
+    status:
+      type: integer
+      description: 课程可见状态（0 可见 / 1 隐藏；合并后旧卡隐藏）。
+  additionalProperties: false
+
 AdminCourseRelationItem:
   type: object
-  description: 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。
+  description: 沿革候选（course_relations 行 + from/to 课程摘要）：from（历史/旧卡）→ to（当前/新卡）。
   required: [id, fromCourseId, toCourseId, relationType, source, confidence, evidenceJson, manual, status, createdAt, updatedAt]
   properties:
     id:
@@ -1979,6 +2015,12 @@ AdminCourseRelationItem:
     updatedAt:
       type: string
       format: date-time
+    fromCourse:
+      $ref: '#/AdminCourseRelationCourseBrief'
+      description: 旧卡课程摘要（课程已删除时缺省）。
+    toCourse:
+      $ref: '#/AdminCourseRelationCourseBrief'
+      description: 新卡课程摘要（课程已删除时缺省）。
   additionalProperties: false
 
 AdminCourseRelationListResult:

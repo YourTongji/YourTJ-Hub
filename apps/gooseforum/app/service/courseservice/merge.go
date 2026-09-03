@@ -29,6 +29,9 @@ var (
 	ErrReviewScopeInvalid = errors.New("course review scope invalid")
 	// ErrRelationConfidenceInvalid 沿革候选置信度超出 [0,1]（契约 minimum/maximum 约束的服务端落地）。
 	ErrRelationConfidenceInvalid = errors.New("course relation confidence invalid")
+	// ErrRelationStateNotResettable 候选不在可撤回状态（仅 approved/ignored 可撤回为
+	// pending；merged 行已物理合并，必须走 UndoMergeCourse 撤销，不允许状态重置）。
+	ErrRelationStateNotResettable = errors.New("course relation state not resettable")
 )
 
 // RelationReviewScope 三档课评范围。
@@ -384,9 +387,128 @@ func UndoMergeCourse(relationId uint64) (MergeResult, error) {
 
 // ---- 管理端沿革候选操作 ----
 
-// AdminRelationList 返回管理端沿革候选分页（status 过滤）。
-func AdminRelationList(q course.RelationQuery) (course.RelationPage, error) {
-	return course.ListRelations(q)
+// AdminRelationCourseBrief 管理端沿革列表 from/to 课程摘要（名称/课号/教师直接展示，
+// 免去前端按 id 反查；课程已删除时整摘要缺省，前端回退 #id）。
+type AdminRelationCourseBrief struct {
+	Id          uint64 `json:"id"`
+	PrimaryCode string `json:"primaryCode"`
+	Name        string `json:"name"`
+	Department  string `json:"department,omitempty"`
+	TeacherName string `json:"teacherName,omitempty"`
+	TeacherCode string `json:"teacherCode,omitempty"`
+	CreditX10   int    `json:"creditX10"`
+	Status      int8   `json:"status"` // 0 可见 / 1 隐藏（合并后旧卡为隐藏）
+}
+
+// AdminRelationItem 管理端沿革列表项：候选行字段 + from/to 课程摘要。
+type AdminRelationItem struct {
+	Id           uint64                    `json:"id"`
+	FromCourseId uint64                    `json:"fromCourseId"`
+	ToCourseId   uint64                    `json:"toCourseId"`
+	RelationType string                    `json:"relationType"`
+	Source       string                    `json:"source"`
+	Confidence   float64                   `json:"confidence"`
+	EvidenceJson string                    `json:"evidenceJson"`
+	Manual       bool                      `json:"manual"`
+	Status       string                    `json:"status"`
+	CreatedAt    time.Time                 `json:"createdAt"`
+	UpdatedAt    time.Time                 `json:"updatedAt"`
+	FromCourse   *AdminRelationCourseBrief `json:"fromCourse,omitempty"`
+	ToCourse     *AdminRelationCourseBrief `json:"toCourse,omitempty"`
+}
+
+// AdminRelationPage 管理端沿革候选分页（含课程摘要）。
+type AdminRelationPage struct {
+	List    []AdminRelationItem `json:"list"`
+	Page    int                 `json:"page"`
+	Size    int                 `json:"size"`
+	Total   int64               `json:"total"`
+	HasNext bool                `json:"hasNext"`
+}
+
+// AdminRelationList 返回管理端沿革候选分页：候选行附带 from/to 课程摘要
+// （课程名/课号/教师/学分/可见状态），供审核面板直接展示；单页 from+to 去重后
+// 批量读取课程与教师（页大小上限 50，至多 ~100 个 id，无需分块）。
+func AdminRelationList(q course.RelationQuery) (AdminRelationPage, error) {
+	raw, err := course.ListRelations(q)
+	if err != nil {
+		return AdminRelationPage{}, err
+	}
+	page := AdminRelationPage{Page: raw.Page, Size: raw.Size, Total: raw.Total, HasNext: raw.HasNext}
+	if len(raw.List) == 0 {
+		page.List = []AdminRelationItem{}
+		return page, nil
+	}
+
+	courseIds := map[uint64]bool{}
+	for _, r := range raw.List {
+		courseIds[r.FromCourseId] = true
+		courseIds[r.ToCourseId] = true
+	}
+	ids := make([]uint64, 0, len(courseIds))
+	for id := range courseIds {
+		ids = append(ids, id)
+	}
+	courses := course.GetMapByIds(ids) // 含隐藏卡；软删除（已彻底删除）卡不在内 → 摘要缺省
+
+	teacherIds := make([]uint64, 0, len(courses))
+	seen := map[uint64]bool{}
+	for _, c := range courses {
+		if c.TeacherId != 0 && !seen[c.TeacherId] {
+			seen[c.TeacherId] = true
+			teacherIds = append(teacherIds, c.TeacherId)
+		}
+	}
+	teacherByID := map[uint64]course.InstructorEntity{}
+	if len(teacherIds) > 0 {
+		instructors, err := course.ListInstructorsByIDs(teacherIds)
+		if err != nil {
+			return AdminRelationPage{}, fmt.Errorf("admin relation list: 读取教师: %w", err)
+		}
+		for _, ins := range instructors {
+			teacherByID[ins.Id] = ins
+		}
+	}
+	brief := func(c *course.Entity) *AdminRelationCourseBrief {
+		if c == nil {
+			return nil
+		}
+		b := &AdminRelationCourseBrief{
+			Id:          c.Id,
+			PrimaryCode: c.PrimaryCode,
+			Name:        c.Name,
+			Department:  c.Department,
+			CreditX10:   c.CreditX10,
+			Status:      c.Status,
+		}
+		if ins, ok := teacherByID[c.TeacherId]; ok {
+			b.TeacherName = ins.Name
+			b.TeacherCode = ins.TeacherCode
+		}
+		return b
+	}
+
+	items := make([]AdminRelationItem, 0, len(raw.List))
+	for _, r := range raw.List {
+		item := AdminRelationItem{
+			Id:           r.Id,
+			FromCourseId: r.FromCourseId,
+			ToCourseId:   r.ToCourseId,
+			RelationType: r.RelationType,
+			Source:       r.Source,
+			Confidence:   r.Confidence,
+			EvidenceJson: r.EvidenceJson,
+			Manual:       r.Manual,
+			Status:       r.Status,
+			CreatedAt:    r.CreatedAt,
+			UpdatedAt:    r.UpdatedAt,
+			FromCourse:   brief(courses[r.FromCourseId]),
+			ToCourse:     brief(courses[r.ToCourseId]),
+		}
+		items = append(items, item)
+	}
+	page.List = items
+	return page, nil
 }
 
 // AdminRelationApprove 人工确认非合并关系（SPLIT_FROM/MERGED_FROM/RELATED → approved）。
@@ -440,6 +562,35 @@ func AdminRelationIgnore(relationId uint64) (course.RelationEntity, error) {
 			return ErrRelationNotMergeable
 		}
 		updated, err := course.UpdateRelationStatusTx(tx, relationId, string(course.RelationStatusIgnored))
+		if err != nil {
+			return err
+		}
+		result = updated
+		return nil
+	})
+	if err != nil {
+		return course.RelationEntity{}, err
+	}
+	return result, nil
+}
+
+// AdminRelationReset 撤回人工处理决定：approved/ignored → pending（候选回到待审核队列）。
+// 仅处理决定可撤回；merged 行已物理迁移 offering/alias，一律拒绝并提示走撤销合并。
+func AdminRelationReset(relationId uint64) (course.RelationEntity, error) {
+	var result course.RelationEntity
+	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		relation, err := course.GetRelationByIdTx(tx, relationId)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRelationNotFound
+			}
+			return err
+		}
+		if relation.Status != string(course.RelationStatusApproved) &&
+			relation.Status != string(course.RelationStatusIgnored) {
+			return ErrRelationStateNotResettable
+		}
+		updated, err := course.UpdateRelationStatusTx(tx, relationId, string(course.RelationStatusPending))
 		if err != nil {
 			return err
 		}
