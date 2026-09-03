@@ -15,22 +15,37 @@ package routes
 // observe.
 //
 // The contract is therefore:
-//   - static asset paths (/assets/*filepath, /static/*filepath): HEAD == GET
-//     status and headers, empty body — safe for cache/HEAD probes.
+//   - /static/*filepath: HEAD == GET status and headers — including the
+//     Cache-Control long-public header, which BrowserCache attaches to this
+//     mount only (assertRouter registers it after the /assets StaticFS) —
+//     with an empty body.
+//   - /assets/*filepath (frontend build output): HEAD == GET status and
+//     headers except Cache-Control, with an empty body; the mount carries no
+//     cache header to promise. TestHeadContractAssetsMatchGet probes a file
+//     the Vite manifest actually emits and skips when the build output is
+//     missing.
 //   - everything else (dynamic GET routes): HEAD 404 even when GET 200 —
-//     load balancer and monitor probes must use GET, and HEAD never executes
-//     a write-side controller because no HEAD route is ever registered.
+//     load balancer and monitor probes must use GET. HEAD never executes a
+//     write-side controller because no write route registers HEAD; that
+//     "no business side effects" guarantee does not cover middleware
+//     accounting — Any("/mcp") registers HEAD, and HEAD /mcp consumes the
+//     mcp.auth per-IP rate-limit quota like any other /mcp request.
 //
 // See docs/architecture/contracts-and-data.md (HTTP method contract) for the
 // authoritative statement of this matrix.
 
 import (
+	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,13 +56,22 @@ const staticBadgeAsset = "/static/badges/commenter-50.svg"
 
 // setupHeadContractRouter assembles the production router exactly like main
 // does (RegisterByGin) with app.env pinned to production so the Vite dev
-// proxy is not registered and BrowserCache long-public headers apply.
+// proxy is not registered and BrowserCache long-public headers apply. The
+// gzip middleware is installed at router registration time (assertRouter
+// reads server.gzip once), so server.gzip is pinned on here and restored on
+// cleanup: the gzip negotiation assertions below must hold regardless of the
+// developer's local [server].gzip setting.
 func setupHeadContractRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	setupMcpRouteTestDB(t) // mcpRoute needs the page_config table migrated
 	previousEnv := preferences.Get("app.env", "production")
 	preferences.Set("app.env", "production")
-	t.Cleanup(func() { preferences.Set("app.env", previousEnv) })
+	previousGzip := preferences.GetBool("server.gzip", true)
+	preferences.Set("server.gzip", true)
+	t.Cleanup(func() {
+		preferences.Set("app.env", previousEnv)
+		preferences.Set("server.gzip", previousGzip)
+	})
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterByGin(router)
@@ -149,57 +173,49 @@ func TestHeadRouteRegistrationContract(t *testing.T) {
 	}
 }
 
-// TestHeadContractStaticAssetsMatchGet asserts the supported HEAD surface:
-// static assets served through gin StaticFS answer HEAD with the same status
-// and headers as GET (including Content-Length and browser cache headers)
-// and an empty body. The frontend build output under /assets only exists
-// after `pnpm build`, so /assets is asserted conditionally: whatever GET
-// answers (200 with dist present, 404 NoRoute without), HEAD must match.
+// TestHeadContractStaticAssetsMatchGet asserts the /static mount contract:
+// files served through gin StaticFS answer HEAD with the same status and
+// headers as GET — Content-Length, Content-Type, and the BrowserCache
+// long-public Cache-Control header that only this mount carries (assertRouter
+// attaches the middleware after the /assets registration) — plus an empty
+// body on the wire. server.gzip is pinned on by setupHeadContractRouter so
+// the gzip negotiation assertions hold under any local [server].gzip config.
 func TestHeadContractStaticAssetsMatchGet(t *testing.T) {
 	router := setupHeadContractRouter(t)
 	srv := httptest.NewServer(router)
 	defer srv.Close()
 	client := headContractClient()
 
-	probe := func(path string) {
-		t.Helper()
-		getResp := headContractRequest(t, client, http.MethodGet, srv.URL+path, "")
-		_ = getResp.Body.Close()
-		headResp := headContractRequest(t, client, http.MethodHead, srv.URL+path, "")
-		headBody, err := io.ReadAll(headResp.Body)
-		if err != nil {
-			t.Fatalf("read HEAD %s body: %v", path, err)
-		}
-		_ = headResp.Body.Close()
+	// The badge is a committed static file, so GET must answer 200 wherever
+	// the tests run (CI never builds the frontend but embeds /static).
+	getResp := headContractRequest(t, client, http.MethodGet, srv.URL+staticBadgeAsset, "")
+	_ = getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200 (committed static file)", staticBadgeAsset, getResp.StatusCode)
+	}
+	headResp := headContractRequest(t, client, http.MethodHead, srv.URL+staticBadgeAsset, "")
+	headBody, err := io.ReadAll(headResp.Body)
+	if err != nil {
+		t.Fatalf("read HEAD %s body: %v", staticBadgeAsset, err)
+	}
+	_ = headResp.Body.Close()
 
-		if headResp.StatusCode != getResp.StatusCode {
-			t.Errorf("HEAD %s status = %d, GET status = %d; want equal", path, headResp.StatusCode, getResp.StatusCode)
-		}
-		if len(headBody) != 0 {
-			t.Errorf("HEAD %s body = %d bytes, want empty (net/http strips HEAD bodies)", path, len(headBody))
-		}
-		if getResp.StatusCode != http.StatusOK {
-			// Missing frontend build output (/assets) or similar: status
-			// agreement and empty body are the whole contract.
-			return
-		}
-		if got := headResp.Header.Get("Content-Length"); got == "" || got != getResp.Header.Get("Content-Length") {
-			t.Errorf("HEAD %s Content-Length = %q, GET Content-Length = %q; want equal and non-empty", path, got, getResp.Header.Get("Content-Length"))
-		}
-		for _, header := range []string{"Content-Type", "Cache-Control"} {
-			if got := headResp.Header.Get(header); got != getResp.Header.Get(header) {
-				t.Errorf("HEAD %s %s = %q, GET %s = %q; want equal", path, header, got, header, getResp.Header.Get(header))
-			}
-		}
-		if getResp.Header.Get("Content-Type") == "" {
-			t.Errorf("GET %s Content-Type is empty; asset contract expects a media type", path)
+	if headResp.StatusCode != getResp.StatusCode {
+		t.Errorf("HEAD %s status = %d, GET status = %d; want equal", staticBadgeAsset, headResp.StatusCode, getResp.StatusCode)
+	}
+	if len(headBody) != 0 {
+		t.Errorf("HEAD %s body = %d bytes, want empty (net/http strips HEAD bodies)", staticBadgeAsset, len(headBody))
+	}
+	if got := headResp.Header.Get("Content-Length"); got == "" || got != getResp.Header.Get("Content-Length") {
+		t.Errorf("HEAD %s Content-Length = %q, GET Content-Length = %q; want equal and non-empty", staticBadgeAsset, got, getResp.Header.Get("Content-Length"))
+	}
+	for _, header := range []string{"Content-Type", "Cache-Control"} {
+		if got := headResp.Header.Get(header); got == "" {
+			t.Errorf("%s %s is empty on GET; want the /static mount to set it", staticBadgeAsset, header)
+		} else if got != getResp.Header.Get(header) {
+			t.Errorf("HEAD %s %s = %q, GET %s = %q; want equal", staticBadgeAsset, header, got, header, getResp.Header.Get(header))
 		}
 	}
-
-	// Committed static file: full assertions above.
-	probe(staticBadgeAsset)
-	// Frontend build output: conditional (GET 200 only when dist exists).
-	probe("/assets/index.js")
 
 	// gzip negotiation: GET compresses, HEAD stays body-less. The gzip
 	// middleware only decides compression after body writes, so a HEAD
@@ -229,6 +245,79 @@ func TestHeadContractStaticAssetsMatchGet(t *testing.T) {
 	if got := headGzip.Header.Get("Content-Type"); got != "image/svg+xml" {
 		t.Errorf("HEAD %s with Accept-Encoding: gzip Content-Type = %q, want image/svg+xml", staticBadgeAsset, got)
 	}
+}
+
+// viteManifestEntryFile reads static/dist/.vite/manifest.json (the Vite
+// multi-entry build output) and returns the emitted file of the named entry,
+// mirroring assets_test.go. The build output is not committed and CI never
+// builds the frontend, so the calling test is skipped when the manifest is
+// missing instead of silently passing or failing.
+func viteManifestEntryFile(t *testing.T, entry string) string {
+	t.Helper()
+	content, err := resource.GetTemplateFS().Open("static/dist/.vite/manifest.json")
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			t.Skip("vite manifest is missing; run pnpm -C resource build to enable /assets HEAD contract checks")
+		}
+		t.Fatalf("open manifest: %v", err)
+	}
+	defer func() { _ = content.Close() }()
+
+	var manifest map[string]struct {
+		File string `json:"file"`
+	}
+	if err := json.NewDecoder(content).Decode(&manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	item, ok := manifest[entry]
+	if !ok || item.File == "" {
+		t.Fatalf("manifest entry %q missing or empty", entry)
+	}
+	return item.File
+}
+
+// TestHeadContractAssetsMatchGet asserts the /assets mount against a file the
+// Vite build actually emits (the site entry from the manifest), so the
+// successful-response path is exercised whenever the build output exists.
+// /assets carries no BrowserCache Cache-Control header — the contract only
+// promises HEAD == GET status and headers excluding Cache-Control plus an
+// empty body. Without `pnpm build` the manifest is absent and the test skips
+// (dist is never committed and CI never builds the frontend); a skip is not a
+// pass — the 200 path simply stays unasserted until the frontend is built.
+func TestHeadContractAssetsMatchGet(t *testing.T) {
+	entryFile := viteManifestEntryFile(t, "src/site/main.ts")
+	router := setupHeadContractRouter(t)
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+	client := headContractClient()
+
+	assetPath := "/assets/" + strings.TrimPrefix(entryFile, "/")
+	getResp := headContractRequest(t, client, http.MethodGet, srv.URL+assetPath, "")
+	_ = getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200 (manifest entry must resolve under /assets)", assetPath, getResp.StatusCode)
+	}
+	headResp := headContractRequest(t, client, http.MethodHead, srv.URL+assetPath, "")
+	headBody, err := io.ReadAll(headResp.Body)
+	if err != nil {
+		t.Fatalf("read HEAD %s body: %v", assetPath, err)
+	}
+	_ = headResp.Body.Close()
+
+	if headResp.StatusCode != getResp.StatusCode {
+		t.Errorf("HEAD %s status = %d, GET status = %d; want equal", assetPath, headResp.StatusCode, getResp.StatusCode)
+	}
+	if len(headBody) != 0 {
+		t.Errorf("HEAD %s body = %d bytes, want empty (net/http strips HEAD bodies)", assetPath, len(headBody))
+	}
+	if got := headResp.Header.Get("Content-Length"); got == "" || got != getResp.Header.Get("Content-Length") {
+		t.Errorf("HEAD %s Content-Length = %q, GET Content-Length = %q; want equal and non-empty", assetPath, got, getResp.Header.Get("Content-Length"))
+	}
+	if got := headResp.Header.Get("Content-Type"); got == "" || got != getResp.Header.Get("Content-Type") {
+		t.Errorf("HEAD %s Content-Type = %q, GET Content-Type = %q; want equal and non-empty", assetPath, got, getResp.Header.Get("Content-Type"))
+	}
+	// Cache-Control is deliberately not compared: BrowserCache only applies
+	// to the /static mount, and /assets must not promise a cache header.
 }
 
 // TestHeadContractDynamicRoutesAreGetOnly asserts the unsupported side of
