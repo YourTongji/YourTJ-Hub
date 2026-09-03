@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -59,7 +60,9 @@ func resolveImageUploadPolicy(userId uint64) (*imageUploadPolicy, *imageUploadFa
 	if !isRoleUser && configMaxSize > 0 && configMaxSize < maxSize {
 		maxSize = configMaxSize
 	}
-	return &imageUploadPolicy{MaxSize: maxSize, AllowedExts: postingConfig.UploadControl.AuthorizedExtensions}, nil
+	// 生效 allowlist 永远只可能是内置图片扩展集合（imagepolicy）的子集：
+	// 配置里即使残留危险/非法项，也会在读取路径被过滤，空配置回退内置全集。
+	return &imageUploadPolicy{MaxSize: maxSize, AllowedExts: imagepolicy.EffectiveAllowedExtensions(postingConfig.UploadControl.AuthorizedExtensions)}, nil
 }
 
 // Validate checks filename, size, extension and reported content type, and
@@ -74,8 +77,7 @@ func (policy imageUploadPolicy) Validate(filename string, size int64, reportedCo
 	if size > policy.MaxSize {
 		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadFileTooLarge, component.MessageParams{"maxSizeKb": policy.MaxSize / 1024})
 	}
-	ext := strings.ToLower(filepath.Ext(filename))
-	if len(policy.AllowedExts) > 0 && !isAllowedExtension(ext, policy.AllowedExts) {
+	if !imagepolicy.IsAllowedExt(filepath.Ext(filename), policy.AllowedExts) {
 		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadUnsupportedExt, component.MessageParams{"extensions": strings.Join(policy.AllowedExts, ", ")})
 	}
 	contentType, err := filedata.CheckImageType(filename)

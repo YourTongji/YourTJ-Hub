@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
@@ -1468,11 +1469,23 @@ type SavePostingSettingsReq struct {
 // SavePostingSettings 保存发布内容设置。
 // maxDailyTopicsPerUser 非法负值归一为 0（不限额，issue #369），与读取路径
 // GetPostingSettingsConfig 的归一化保持一致，避免管理端回显与生效语义分裂。
+// uploadControl.authorizedExtensions 只允许内置图片扩展集合（imagepolicy）的子集
+// （issue #408）：混入危险/非法扩展（.svg/.html/.js/.xml/.pdf、双扩展、空串等）
+// 整单拒绝并回稳定错误码 admin.upload.extNotAllowed，绝不落库——配置保存的权威
+// 校验在服务端，前端交互校验只是体验层。
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if settings.TextControl.MaxDailyTopicsPerUser < 0 {
 		settings.TextControl.MaxDailyTopicsPerUser = 0
 	}
+	canonical, dropped := imagepolicy.CanonicalizeList(settings.UploadControl.AuthorizedExtensions)
+	if len(dropped) > 0 {
+		return component.FailResponseCode(component.MessageAdminUploadExtNotAllowed, component.MessageParams{
+			"extensions": strings.Join(dropped, ", "),
+		})
+	}
+	// 合法条目统一规范化为小写带点形式后落库（png → .png、.JPG → .jpg、去重）。
+	settings.UploadControl.AuthorizedExtensions = canonical
 	return savePageConfig(pageConfig.PostingSettings, settings, func() {
 		hotdataserve.ClearPostingSettingsConfigCache()
 		llmsservice.ClearCache()
