@@ -1766,6 +1766,8 @@ export default {
       notFound: '话题不存在',
       ownerMismatch: '不要更改别人发出的帖子哦',
       operationDenied: '不可操作',
+      repliesNotAllowed: '该话题不允许回复（想法/文章类型）',
+      contentTypeChangeNotAllowed: '不能更改已有回复的话题的内容类型',
       saveFailed: '保存失败',
       dailyLimit: '您当天已发布较多，为保证质量，请明天再发布新话题',
       title: {

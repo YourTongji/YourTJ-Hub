@@ -219,6 +219,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 		}
 		oldCategoryIds = append([]uint64(nil), topic.CategoryIds...)
+		// Prevent changing contentType on published topics with replies
+		if topic.Id > 0 && req.Params.ContentType != firstPost.ContentType && topic.PostCount > 1 {
+			return component.FailResponseCode(component.MessageTopicContentTypeChangeNotAllowed, nil)
+		}
 	} else {
 		// 每日新主题上限只约束「新建主题」：编辑/回复不受影响（issue #369）。
 		// 0（含归一后的负值）= 不限额。
@@ -426,7 +430,7 @@ func isInQuestionTopic(topicEntity *topics.Entity) bool {
 
 // isAnswerPost checks if a reply is an answer (reply to the question itself on a question topic)
 func isAnswerPost(replyToPostId uint64, topicEntity *topics.Entity) bool {
-	return replyToPostId == 1 && isInQuestionTopic(topicEntity)
+	return replyToPostId == topicEntity.FirstPostId && isInQuestionTopic(topicEntity)
 }
 
 // createPost is the shared post write core. The agent flag skips browser-only
@@ -499,6 +503,14 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	topicEntity := topics.GetSimple(req.Params.TopicId)
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+
+	// Check if the topic allows replies (thoughts and articles do not allow replies)
+	if topicEntity.FirstPostId > 0 {
+		firstPost := posts.Get(topicEntity.FirstPostId)
+		if firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle {
+			return component.FailResponseCode(component.MessageTopicRepliesNotAllowed, nil)
+		}
 	}
 
 	var parentPost posts.Entity

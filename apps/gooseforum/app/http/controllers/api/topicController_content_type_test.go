@@ -3,6 +3,7 @@ package api
 import (
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 )
 
@@ -53,15 +54,12 @@ func TestWriteTopicReqContentType(t *testing.T) {
 				ContentType: tt.contentType,
 			}
 
-			// Validate the ContentType field
-			if tt.contentType < 0 || tt.contentType > 3 {
-				if tt.wantValid {
-					t.Errorf("expected valid but got invalid content type %d", tt.contentType)
-				}
-			} else {
-				if !tt.wantValid {
-					t.Errorf("expected invalid but got valid content type %d", tt.contentType)
-				}
+			// Validate using the actual validator
+			err := validate.Valid(req)
+			isValid := err == nil
+
+			if isValid != tt.wantValid {
+				t.Errorf("validate.Valid() isValid = %v, want %v (contentType=%d, err=%v)", isValid, tt.wantValid, tt.contentType, err)
 			}
 
 			// Verify the ContentType is set correctly

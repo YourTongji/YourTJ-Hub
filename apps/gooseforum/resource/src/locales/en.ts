@@ -1764,6 +1764,8 @@ export default {
       notFound: 'Topic not found',
       ownerMismatch: "You cannot edit someone else's post",
       operationDenied: 'Operation not allowed',
+      repliesNotAllowed: 'This topic does not allow replies (Thought/Article type)',
+      contentTypeChangeNotAllowed: 'Cannot change content type of a topic that has replies',
       saveFailed: 'Failed to save',
       dailyLimit: 'You have posted a lot today. Please post again tomorrow',
       title: {

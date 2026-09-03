@@ -164,6 +164,7 @@ const postRailProgressCurrent = ref(0)
 const postRailProgressStart = ref(0)
 const postRailProgressEnd = ref(0)
 const postMaxRange = computed(() => Math.max(postMaxNo.value, ...posts.value.map((post) => post.postNo || 0)))
+const firstPost = computed(() => posts.value.find((post) => post.postNo === 1))
 const hasPostRail = computed(() => postMaxRange.value > 0)
 const postRailCurrentNo = computed(() => {
   const fallback = firstPostNo(posts.value) || 1
@@ -1954,7 +1955,7 @@ function lastEditedLabel(post: PostPayload) {
                 v-if="isQuestionTopic && canPost && !isTopicRemoved()"
                 type="button"
                 class="gf-button gf-button-sm gf-button-primary px-3"
-                @click="focusPostComposer"
+                @click="replyTo(firstPost!)"
               >
                 <CornerDownLeft class="h-4 w-4" />
                 {{ t('topic.writeAnswer') }}

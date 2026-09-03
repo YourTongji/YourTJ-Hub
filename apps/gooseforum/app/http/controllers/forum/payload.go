@@ -1300,7 +1300,7 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		}
 
 		// Determine if this post is an answer
-		isAnswer := isQuestionTopic && item.PostNo > 1 && item.ReplyToPostId == 1
+		isAnswer := isQuestionTopic && item.PostNo > 1 && item.ReplyToPostId == firstPost.Id
 
 		res = append(res, PostPayload{
 			ID:                 item.Id,
