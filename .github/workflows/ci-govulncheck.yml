@@ -15,7 +15,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   # Go 依赖漏洞扫描(issue #410)。govulncheck 只报告"可达"漏洞: 标准库 +

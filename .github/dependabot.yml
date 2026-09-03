@@ -1,5 +1,5 @@
 # GitHub Dependabot (issue #410): 自动升级 apps/gooseforum 的 Go 依赖(含间接依赖)。
-# 分工: govulncheck(ci-backend.yml 的 ci-backend-govulncheck)负责"可达漏洞"告警,
+# 分工: govulncheck(ci-govulncheck.yml 的 ci-backend-govulncheck job)负责"可达漏洞"告警,
 # Dependabot 负责把 go.mod/go.sum 及时升到含修复的版本, 缩小漏洞窗口。
 # 升级 PR 会触发 ci-backend 全量测试与 govulncheck, 两者通过才可合并。
 version: 2

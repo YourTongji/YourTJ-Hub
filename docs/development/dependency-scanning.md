@@ -46,6 +46,8 @@ govulncheck 需要网络拉取两样东西：govulncheck 工具本身（走 `GOP
      go run golang.org/x/vuln/cmd/govulncheck@latest ./...
    ```
 
+   > 注意：goproxy.cn 镜像的 vuln DB 有滞后，结论以官方 `vuln.go.dev` 为准；本地复核建议直接 `GOVULNDB=https://vuln.go.dev`。
+
 3. 若镜像也失败，检查代理环境变量（`HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`）与 DNS；CI 运行在 GitHub 官方网络，不经过本地代理。
 4. 复现/记录问题时贴完整原始输出（含退出码），并区分三类结论：应用可达漏洞、依赖存在但不可达提示、扫描基础设施失败。
 
@@ -59,7 +61,7 @@ govulncheck 需要网络拉取两样东西：govulncheck 工具本身（走 `GOP
 |---|---|---|
 | `bcrypt` / `blowfish` | `Masterminds/sprig/v3`（controller 层模板渲染） | 口令哈希 |
 | `scrypt` / `pbkdf2` | `Masterminds/sprig/v3` | 模板密码学函数 |
-| `chacha20poly1305` / `chacha20` | `quic-go/quic-go`（gin HTTP/3 服务路径） | QUIC 传输加密 |
+| `chacha20poly1305` / `chacha20` | `quic-go/quic-go`（gin v1.12 自带 HTTP/3 支持的传递依赖，经 gin-contrib/gzip 进入构建图；仓库自身无 quic/HTTP3 使用） | QUIC 传输加密 |
 | `argon2` / `blake2b` | `minio-go/v7`（S3 存储服务） | 对象加密 |
 | `sha3` | `go-playground/validator/v10` | 校验散列 |
 | `md4` | `wneessen/go-mail`（SMTP NTLM） | 邮件认证 |
@@ -76,6 +78,6 @@ govulncheck 实测（2026-09-03，v0.54.0，text 格式）将 4 条 x/crypto 条
 
 报告与 issue 中区分三类，不要混为一谈：
 
-1. **应用可达漏洞**（Symbol Results）：当前为 `x/image` VP8L 解码 `GO-2026-6222`（v0.44.0 → 修复于 v0.45.0，由 issue #405 升级）+ 7 个 go1.26.5 标准库漏洞（升级 Go 1.26.6 消解）。
+1. **应用可达漏洞**（Symbol Results）：当前实际基线为 **0 个**——CI run 33781751646（2026-09-03，action `check-latest` 取到 Go 1.26.8）显示 `No vulnerabilities found`。历史注记：go1.26.5 曾报告 7 个标准库漏洞（均修复于 go1.26.6，随工具链升级消解）；`x/image` VP8L `GO-2026-6222`（v0.44.0 → 修复于 v0.45.0）在本分支仅出现在 Package 层（import 但未调用、不可达，不影响退出码），随 issue #405 合入后条目整体消失。
 2. **依赖存在但不可达提示**（Package/Module Results）：含本文 x/crypto 4 条。
 3. **扫描基础设施失败**：网络/代理错误，必须让 CI 红并按下节诊断。
