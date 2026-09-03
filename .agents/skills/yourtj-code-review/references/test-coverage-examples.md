@@ -20,7 +20,7 @@ func TestBackfill(t *testing.T) {
     require.ErrorContains(t, err, "backfill failed")
     // 断言失败后数据未污染：已处理行保留、未处理行保持原值
     var done int64
-    db.Model(&row{}).Where("flag = ?", doneFlag).Count(&done)
+    require.NoError(t, db.Model(&row{}).Where("flag = ?", doneFlag).Count(&done).Error)
     assert.Equal(t, expectedDone, done)
 }
 ```
