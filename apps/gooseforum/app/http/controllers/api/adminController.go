@@ -51,6 +51,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -1270,6 +1271,7 @@ type SaveSiteSettingsReq struct {
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
 	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
+		oauthservice.RefreshOAuthProviders()
 		llmsservice.ClearCache()
 	})
 }
