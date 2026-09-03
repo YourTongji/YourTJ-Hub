@@ -1271,7 +1271,7 @@ type SaveSiteSettingsReq struct {
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
 	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
-		oauthservice.InitOAuth()
+		oauthservice.RefreshOAuthProviders()
 		llmsservice.ClearCache()
 	})
 }

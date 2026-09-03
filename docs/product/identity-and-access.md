@@ -32,7 +32,7 @@
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
-  binding only when the Google userinfo response contains `email_verified=true`. When site-wide email
+  binding only when the Google userinfo response contains `verified_email=true`. When site-wide email
   verification is enabled, OAuth registration without a usable verified email is rejected. Provider
   credential changes require a process restart; saving a new site callback URL in the admin console
   refreshes the providers immediately.

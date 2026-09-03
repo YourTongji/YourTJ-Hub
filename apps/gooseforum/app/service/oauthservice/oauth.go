@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,24 +52,56 @@ var ErrAccountFrozen = errors.New("账号已冻结，禁止 OAuth 登录")
 // ErrOAuthEmailUnverified 表示 OAuth provider 未提供可用于站点验证的邮箱。
 var ErrOAuthEmailUnverified = errors.New("OAuth 邮箱未验证或不可用")
 
-// googleProvider 保存当前已注册的 Google provider。
-// Google OAuth 配置是 live 读取的；保存实例可让登录页区分“配置完整”和
-// “当前进程已经注册且使用同一份配置”。
-var googleProvider atomic.Pointer[google.Provider]
+type oauthCredentials struct {
+	clientID     string
+	clientSecret string
+}
+
+var (
+	// oauthProviderMu 与 goth provider registry 的替换及请求查找保持同步。
+	oauthProviderMu sync.RWMutex
+	// startupOAuthCredentials 固定进程启动时读取的 OAuth 凭据；运行时只刷新回调地址。
+	startupGitHubCredentials oauthCredentials
+	startupGoogleCredentials oauthCredentials
+	// googleProvider 保存当前已注册的 Google provider。
+	googleProvider atomic.Pointer[google.Provider]
+)
 
 // InitOAuth configures available OAuth providers.
 func InitOAuth() {
+	oauthProviderMu.Lock()
+	defer oauthProviderMu.Unlock()
+
+	startupGitHubCredentials = oauthCredentials{
+		clientID:     strings.TrimSpace(preferences.GetString("github.client_id", "")),
+		clientSecret: strings.TrimSpace(preferences.GetString("github.client_secret", "")),
+	}
+	startupGoogleCredentials = oauthCredentials{
+		clientID:     strings.TrimSpace(preferences.GetString("google.client_id", "")),
+		clientSecret: strings.TrimSpace(preferences.GetString("google.client_secret", "")),
+	}
+	initOAuthProvidersLocked()
+}
+
+// RefreshOAuthProviders rebuilds providers with startup credentials and the
+// current site callback URL. It deliberately does not reread client secrets.
+func RefreshOAuthProviders() {
+	oauthProviderMu.Lock()
+	defer oauthProviderMu.Unlock()
+	initOAuthProvidersLocked()
+}
+
+func initOAuthProvidersLocked() {
 	gothic.Store = sessionstore.GetSession()
-	googleProvider.Store(nil)
 
 	var providers []goth.Provider
 	var configuredGoogleProvider *google.Provider
 
-	if provider := initGitHubProvider(); provider != nil {
+	if provider := initGitHubProviderWithCredentials(startupGitHubCredentials); provider != nil {
 		providers = append(providers, provider)
 	}
 
-	if provider := initGoogleProvider(); provider != nil {
+	if provider := initGoogleProviderWithCredentials(startupGoogleCredentials); provider != nil {
 		providers = append(providers, provider)
 		configuredGoogleProvider = provider
 	}
@@ -77,18 +110,40 @@ func InitOAuth() {
 	goth.ClearProviders()
 	if len(providers) > 0 {
 		goth.UseProviders(providers...)
-		googleProvider.Store(configuredGoogleProvider)
 		slog.Info("OAuth提供商初始化完成", "count", len(providers))
 	} else {
 		slog.Warn("未配置任何OAuth提供商")
 	}
+	googleProvider.Store(configuredGoogleProvider)
+}
+
+// BeginOAuthAuthHandler serializes provider lookup with runtime provider refresh.
+func BeginOAuthAuthHandler(w http.ResponseWriter, r *http.Request) {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+	gothic.BeginAuthHandler(w, r)
+}
+
+// CompleteOAuthUserAuth serializes provider lookup and user fetching with
+// runtime provider refresh.
+func CompleteOAuthUserAuth(w http.ResponseWriter, r *http.Request) (goth.User, error) {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+	return gothic.CompleteUserAuth(w, r)
 }
 
 // initGitHubProvider returns a GitHub provider when configured.
 func initGitHubProvider() goth.Provider {
-	clientID := preferences.GetString("github.client_id", "")
-	clientSecret := preferences.GetString("github.client_secret", "")
-	callbackURL := hotdataserve.GetSiteSettingsConfigCache().SiteUrl + "/api/auth/github/callback"
+	return initGitHubProviderWithCredentials(oauthCredentials{
+		clientID:     preferences.GetString("github.client_id", ""),
+		clientSecret: preferences.GetString("github.client_secret", ""),
+	})
+}
+
+func initGitHubProviderWithCredentials(credentials oauthCredentials) goth.Provider {
+	callbackURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/") + "/api/auth/github/callback"
+	clientID := strings.TrimSpace(credentials.clientID)
+	clientSecret := strings.TrimSpace(credentials.clientSecret)
 	if clientID == "" || clientSecret == "" {
 		slog.Warn("GitHub OAuth配置缺失，跳过初始化")
 		return nil
@@ -107,36 +162,50 @@ func IsGoogleOAuthConfigured() bool {
 	return clientID != "" && clientSecret != "" && callbackURL != ""
 }
 
-// IsGoogleOAuthReady reports whether Google OAuth is configured and the running
-// process has registered a provider with the same credentials and callback URL.
-// InitOAuth must be called after a runtime siteUrl change to refresh the provider.
+// IsGoogleOAuthReady reports whether the running process has registered Google
+// with its startup credentials and the current callback URL.
+// RefreshOAuthProviders must be called after a runtime siteUrl change.
 func IsGoogleOAuthReady() bool {
-	clientID, clientSecret, callbackURL := googleOAuthConfig()
-	if clientID == "" || clientSecret == "" || callbackURL == "" {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+
+	callbackURL := googleOAuthCallbackURL()
+	if callbackURL == "" {
 		return false
 	}
 
 	provider := googleProvider.Load()
 	return provider != nil &&
-		provider.ClientKey == clientID &&
-		provider.Secret == clientSecret &&
 		provider.CallbackURL == callbackURL
 }
 
 func googleOAuthConfig() (clientID, clientSecret, callbackURL string) {
 	clientID = strings.TrimSpace(preferences.GetString("google.client_id", ""))
 	clientSecret = strings.TrimSpace(preferences.GetString("google.client_secret", ""))
+	return clientID, clientSecret, googleOAuthCallbackURL()
+}
+
+func googleOAuthCallbackURL() string {
 	siteURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/")
 	parsedURL, err := url.Parse(siteURL)
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-		return clientID, clientSecret, ""
+		return ""
 	}
-	return clientID, clientSecret, siteURL + "/api/auth/google/callback"
+	return siteURL + "/api/auth/google/callback"
 }
 
 // initGoogleProvider returns a Google provider when configured.
 func initGoogleProvider() *google.Provider {
-	clientID, clientSecret, callbackURL := googleOAuthConfig()
+	return initGoogleProviderWithCredentials(oauthCredentials{
+		clientID:     preferences.GetString("google.client_id", ""),
+		clientSecret: preferences.GetString("google.client_secret", ""),
+	})
+}
+
+func initGoogleProviderWithCredentials(credentials oauthCredentials) *google.Provider {
+	clientID := strings.TrimSpace(credentials.clientID)
+	clientSecret := strings.TrimSpace(credentials.clientSecret)
+	callbackURL := googleOAuthCallbackURL()
 	if clientID == "" || clientSecret == "" || callbackURL == "" {
 		slog.Warn("Google OAuth配置缺失，跳过初始化")
 		return nil
@@ -159,7 +228,7 @@ type OAuthUserInfo struct {
 	Provider  string `json:"provider"`
 
 	// VerifiedEmail 是 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
-	// email_verified=true 的邮箱）。
+	// verified_email=true 的邮箱）。
 	// EmailVerified 标记该邮箱来自可信来源（GitHub /user/emails 或 Google OIDC）。
 	// issue #155：只信 verified 邮箱作为绑定/激活依据，goth 的 Email 字段
 	// 可能是未验证的公开邮箱，不可直接用于信任决策。
@@ -270,7 +339,7 @@ func emailInTrustedDomains(email string) bool {
 
 // parseOAuthUserInfo normalizes provider-specific user data.
 // 对 GitHub 额外获取 verified primary 邮箱（issue #155），Google 则只信任
-// userinfo 中 email_verified=true 的邮箱。
+// userinfo 中 verified_email=true 的邮箱。
 func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 	userInfo := OAuthUserInfo{
 		ID:        gothUser.UserID,
@@ -305,11 +374,15 @@ func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 		}
 	}
 
-	// Google OIDC userinfo 的 email_verified 是 provider 直接返回的布尔断言；
-	// 兼容部分代理或 mock 返回的字符串/数字形式。只有断言为 true 且邮箱非空时，
-	// 才进入可信邮箱绑定/激活路径。
+	// Google goth provider 的实际字段是 verified_email；同时兼容 OIDC 代理常见的
+	// email_verified 别名及字符串/数字形式。只有断言为 true 且邮箱非空时，才进入
+	// 可信邮箱绑定/激活路径。
 	if userInfo.Provider == ProviderGoogle {
-		if oauthFlagIsTrue(gothUser.RawData["email_verified"]) {
+		verifiedFlag, ok := gothUser.RawData["verified_email"]
+		if !ok {
+			verifiedFlag, ok = gothUser.RawData["email_verified"]
+		}
+		if ok && oauthFlagIsTrue(verifiedFlag) {
 			if verified := strings.ToLower(strings.TrimSpace(userInfo.Email)); verified != "" {
 				userInfo.VerifiedEmail = verified
 				userInfo.EmailVerified = true
@@ -444,9 +517,9 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 	}
 
 	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
-	// email_verified=true 的邮箱）。
+	// verified_email=true 的邮箱）。
 	// 无 verified 邮箱时保持存 ""（与旧行为一致），不降级存 goth 公开邮箱——
-	// 未验证邮箱若被 OIDC userinfo 推导为 email_verified=true 会造成信任越界
+	// 未验证邮箱若被 OIDC userinfo 推导为 verified_email=true 会造成信任越界
 	// （PR #167 review, medium）。
 
 	// 信任判定：仅 verified 邮箱命中信任域名才免验证。
