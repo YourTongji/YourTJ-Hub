@@ -2034,7 +2034,7 @@ async function toggleBinding(provider: string) {
                   </div>
                   <div>
                     <h3 class="font-semibold text-base-content">{{ provider.label }}</h3>
-                    <p class="text-sm" :class="provider.supported ? 'text-base-content/55' : 'text-base-content/55'">
+                    <p class="text-sm text-base-content/55">
                       {{ isBound(provider.key) ? t('settings.binding.connected') : provider.supported ? t('settings.binding.disconnected') : t('settings.binding.siteUnsupported') }}
                     </p>
                   </div>

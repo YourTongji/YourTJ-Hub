@@ -132,14 +132,6 @@ func CompleteOAuthUserAuth(w http.ResponseWriter, r *http.Request) (goth.User, e
 	return gothic.CompleteUserAuth(w, r)
 }
 
-// initGitHubProvider returns a GitHub provider when configured.
-func initGitHubProvider() goth.Provider {
-	return initGitHubProviderWithCredentials(oauthCredentials{
-		clientID:     preferences.GetString("github.client_id", ""),
-		clientSecret: preferences.GetString("github.client_secret", ""),
-	})
-}
-
 func initGitHubProviderWithCredentials(credentials oauthCredentials) goth.Provider {
 	callbackURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/") + "/api/auth/github/callback"
 	clientID := strings.TrimSpace(credentials.clientID)
