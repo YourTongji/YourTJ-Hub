@@ -2174,6 +2174,7 @@ export default {
     uploadAttachment: 'caricare allegati',
     post: 'pubblicare',
     comment: 'commentare',
+    write: 'scrivere',
   },
   image: {
     selectFile: 'Seleziona un file immagine',

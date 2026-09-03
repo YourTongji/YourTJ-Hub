@@ -2174,6 +2174,7 @@ export default {
     uploadAttachment: '添付ファイルをアップロード',
     post: '投稿',
     comment: 'コメント',
+    write: '書き込み',
   },
   image: {
     selectFile: '画像ファイルを選択してください',

@@ -1454,7 +1454,51 @@ func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) 
 			slog.Warn("freeze users for banned usernames failed", "bannedUsernames", addedBanned, "err", err)
 		}
 	}
+	// 邮箱验证由关闭切到开启：先把存量待激活管理员批量激活，再落库新配置。
+	// 顺序有意为之——开启后 CheckWritableAccount（issue #404）会以
+	// permission.emailRequired 拦截全部 admin 端点（含本开关所在路由），
+	// 若激活先行失败则中止保存、站点保持旧配置，管理员不会进入
+	// 「配置已开启但自身仍 pending」的锁死态；重复保存幂等（已激活跳过）。
+	// 普通存量 pending 用户不在激活范围，仍需走激活邮件流程。
+	if req.Params.Settings.EnableEmailVerification && !current.EnableEmailVerification {
+		if err := activatePendingAdminAccounts(); err != nil {
+			slog.Error("activate pending admins on enabling email verification failed", "err", err)
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+	}
 	return savePageConfig(pageConfig.SecuritySettings, req.Params.Settings, hotdataserve.ClearSecuritySettingsConfigCache)
+}
+
+// activatePendingAdminAccounts 扫描仍处于待激活状态的管理端账号并逐个激活。
+// 默认配置下邮箱验证关闭，密码注册（CreateUser needValid=true）仍会把账号存为
+// pending，首个用户经 FirstUserInit 提升为管理员——开启邮箱验证后其所有写请求
+// 都会被组级 CheckWritableAccount 拦截，必须在此刻同步激活。判定用
+// permission.CheckAnyRole（角色持有 permission.All() 任一管理/治理权限，与
+// adminApi 组各子组挂载的权限枚举一致；Admin 角色隐式覆盖其余全部），覆盖
+// 首位管理员与 UserManager/SiteManager 等管理账号。逐用户走
+// userservice.SaveUser（DB 保存 + 用户信息缓存即时刷新），避免中间件 2 分钟
+// TTL 缓存继续读到旧 pending 状态而把刚激活的管理账号再次锁死。冻结账号跳过
+// （治理冻结优先于激活状态，不由本开关解除）。
+func activatePendingAdminAccounts() error {
+	var list []users.EntityComplete
+	if err := db.Connect().Model(&users.EntityComplete{}).Find(&list).Error; err != nil {
+		return err
+	}
+	for i := range list {
+		user := &list[i]
+		if user.IsActivated == users.ActivationSuccess || user.IsFrozen == users.StatusFrozen {
+			continue
+		}
+		if user.RoleId == 0 || !permission.CheckAnyRole(user.RoleId) {
+			continue
+		}
+		user.Activate()
+		if err := userservice.SaveUser(user); err != nil {
+			return err
+		}
+		slog.Info("activated pending admin while enabling email verification", "userId", user.Id)
+	}
+	return nil
 }
 
 // GetPostingSettings 获取发布内容设置
