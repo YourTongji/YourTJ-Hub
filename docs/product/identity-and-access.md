@@ -149,6 +149,54 @@
   creation always publishes (`topicStatus=1`).
 - Mention parsing, webhook sending, OAuth/session/scopes for Agents remain `Planned`.
 
+## Credential transport & CSRF boundary
+
+Auth contract for state-changing API requests (issue #406):
+
+- **Browser pages (site + admin SPA, GoHTML SSR views)** authenticate solely with the HttpOnly
+  `access_token` cookie that login flows set (password/TOTP, GitHub/Google OAuth callbacks, OIDC
+  exchange). They issue same-origin relative `fetch()` calls and never send an `Authorization`
+  header. The cookie is `SameSite=Lax` + `Secure` (whenever `app.env != "local"`) and is
+  host-only, so it is only sent to the exact domain that set it.
+- **Non-browser clients** authenticate with an `Authorization: Bearer` header: the mobile app
+  (forum JWT from `POST /api/auth/oidc/exchange`, stored in Keychain/Keystore), Agent `agt_`
+  tokens (`/api/v1/agent/*`, MCP), and curl/scripting API clients. A browser cannot attach these
+  headers cross-site, so bearer-authenticated requests carry no CSRF risk.
+- **Exempt flows**: top-level navigation and `Set-Cookie` flows (login/register/reset, OAuth and
+  OIDC callbacks, `/api/auth/oidc/exchange`) are GET/state-creating entry points that cannot be
+  CSRF'd against an existing session (they create rather than mutate a session). The wiki GitHub
+  webhook authenticates by HMAC signature, not by cookie. `/api/auth/totp/verify` consumes a
+  short-lived challenge cookie that is only issued as the response to a successful password
+  verification, so a cross-site attacker cannot obtain it.
+
+CSRF enforcement (`middleware.CSRFProtection`, mounted per write-route group in `route4api.go`
+after the authentication middleware — never in the global chain):
+
+- Only **state-changing methods (POST/PUT/PATCH/DELETE) that carry the `access_token` cookie**
+  are checked; GET/HEAD/OPTIONS and cookie-less requests (anonymous writes, server-to-server)
+  pass.
+- A request with an `Authorization` header is always exempt (Bearer clients, even when a cookie
+  happens to ride along).
+- The remaining cookie-authenticated writes must present an `Origin` that matches the
+  site-controlled origin set: the request's own `Host`-derived origin (scheme from TLS or the
+  first `X-Forwarded-Proto` hop so TLS-terminating proxies work; default ports normalized), plus
+  any origins listed in the `csrf.allowedOrigins` config (comma separated) for deployments that
+  must accept an alternate front-end origin. The host-derived rule keeps multi-domain, LAN-IP,
+  and `localhost` dev deployments working without enumerating origins, because a browser Origin
+  is always the domain the host-only session cookie is scoped to.
+- When `Origin` is missing (legacy browsers that omit it on same-origin POSTs), the `Referer`
+  origin is checked instead; otherwise the request is rejected with HTTP 403 and message code
+  `auth.csrf.rejected`. curl/scripting clients that carry a cookie but no Origin/Referer are
+  rejected fail-closed — they should send `Authorization` instead.
+
+Rationale for Origin checking instead of a double-submit CSRF token: both web frontends run on
+modern browsers that send `Origin` on every state-changing request, and the host-only +
+`SameSite=Lax` cookie already stops the classic cross-site POST. A double-submit token would add
+a JS-readable cookie surface and frontend plumbing to every write call while contributing almost
+no additional protection for this deployment shape. SameSite alone is not relied on: the Origin
+check additionally covers same-site cross-origin (subdomain) hosts and browsers without SameSite
+support.
+
 ## Security notes
 
 - PKCE S256 required on authorize; nonce prevents replay; state prevents CSRF on the callback; the

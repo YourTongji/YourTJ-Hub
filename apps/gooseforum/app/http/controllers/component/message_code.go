@@ -80,6 +80,7 @@ const (
 	MessageAuthActivationResendCooldown  MessageCode = "auth.activation.resendCooldown"  // 验证邮件发送过于频繁，params.retryAfterSeconds。
 	MessageAuthActivationResendDaily     MessageCode = "auth.activation.resendDaily"     // 验证邮件达到当天重发上限，params.limit。
 	MessageAuthActivationResendFailed    MessageCode = "auth.activation.resendFailed"    // 验证邮件重新发送失败。
+	MessageAuthCsrfRejected              MessageCode = "auth.csrf.rejected"              // 跨站请求被拒绝（Origin/Referer 校验失败，issue #406）。
 )
 
 const (
