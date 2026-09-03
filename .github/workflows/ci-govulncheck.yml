@@ -1,0 +1,40 @@
+name: CI / govulncheck
+
+on:
+  # 独立 workflow 无路径门: push 到 dev/main 不带 paths 过滤, 每次 push 全量扫描。
+  # go.mod/go.sum 之外, Go patch 版与 vuln DB 更新同样会让扫描结论过期,
+  # 若沿用 ci-backend 的事件级路径过滤(只改前端/mobile/docs 不触发)会漏扫(issue #410)。
+  push:
+    branches: [dev, main]
+  # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Go 依赖漏洞扫描(issue #410)。govulncheck 只报告"可达"漏洞: 标准库 +
+  # 实际调用链能到达的依赖漏洞, 避免为整棵依赖树里不可达的 CVE 报警。
+  # 官方 golang/govulncheck-action 的行为(2026-09 复核其 action.yml):
+  #   - 默认 output-format=text, 直接透传 govulncheck 退出码: 发现可达漏洞
+  #     exit 3(job 红, 日志含漏洞 ID 与修复版本), 无漏洞 exit 0;
+  #   - 下载 vuln DB(vuln.go.dev)失败、go install govulncheck 失败等运行错误
+  #     以非零退出(job 红) —— 网络/代理故障天然失败, 不会静默变绿;
+  #   - 内部 setup-go 默认 check-latest=true: 每次用最新 1.26.x patch, Go 标准库
+  #     漏洞随工具链升级消解(例: go1.26.5 的 7 个 stdlib CVE 修复于 go1.26.6)。
+  # job 名保持 ci-backend-govulncheck 不变, 与迁移前一致。
+  ci-backend-govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # repo-checkout=false: 复用上方 checkout, 避免 action 内重复检出。
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: "1.26"
+          work-dir: apps/gooseforum
+          repo-checkout: "false"

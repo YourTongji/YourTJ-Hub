@@ -14,7 +14,7 @@
 
 | 场景 | 命令 / 位置 |
 |---|---|
-| CI（每次 push/PR） | `.github/workflows/ci-backend.yml` 的 `ci-backend-govulncheck` job，用官方 `golang/govulncheck-action@v1`（`work-dir: apps/gooseforum`） |
+| CI（每次 push/PR） | `.github/workflows/ci-govulncheck.yml` 的 `ci-backend-govulncheck` job（独立 workflow，push 无路径过滤），用官方 `golang/govulncheck-action@v1`（`work-dir: apps/gooseforum`） |
 | 本地 | `cd apps/gooseforum && go run golang.org/x/vuln/cmd/govulncheck@latest ./...`，或仓库根 `make govulncheck` |
 
 行为要点：
@@ -22,7 +22,7 @@
 - govulncheck 只报告**可达**漏洞：标准库 + 实际调用链能到达的依赖漏洞；`ssh`/`openpgp` 之类只存在于依赖树、代码未调用（甚至未 import）的漏洞会归入 Module/Package 桶，不影响退出码。无业务代码、无 `go.mod`/`go.sum` 版本变更也能干净复跑本扫描。
 - CI 用默认 `output-format=text`，job 直接透传 govulncheck 退出码：发现可达漏洞 exit 3（job 红，日志含漏洞 ID 与修复版本），无漏洞 exit 0。
 - vuln DB 每次运行都从 `vuln.go.dev` 拉最新；不做本地缓存快照，保证新披露漏洞在下次 CI 即被发现。
-- job **不挂 paths-filter**：除了 `go.mod`/`go.sum`，Go patch 版本与 vuln DB 更新同样会让结论过期，只按 backend 路径触发会漏扫。
+- job 位于**独立 workflow**（无路径门）：push 到 dev/main 不带 `paths` 过滤，每次 push 全量运行；除了 `go.mod`/`go.sum`，Go patch 版本与 vuln DB 更新同样会让结论过期，按 backend 路径触发会漏扫。
 
 ## vuln DB 更新策略
 
