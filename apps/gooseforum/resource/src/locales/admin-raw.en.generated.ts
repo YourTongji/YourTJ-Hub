@@ -875,4 +875,5 @@ export default {
   "k00ul": "Warning: newly banned usernames freeze existing accounts with the same name. Proceed with caution.",
   "k00um": "The preview shows the first {limit} entries; the rest appear in the list above after confirming.",
   "k00un": "Sensitive words may be multi-word phrases: entries are split only by newlines, commas or semicolons, and spaces inside an entry are preserved (e.g. credit card cash out imports as one phrase).",
+  "k00uo": "Unsupported extension: {extensions}. Only JPG, JPEG, PNG, GIF, WebP and BMP are allowed",
 } as const

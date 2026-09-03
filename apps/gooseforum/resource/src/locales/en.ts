@@ -2156,6 +2156,7 @@ export default {
     'admin.review.notFound': 'Review target not found.',
     'admin.review.processed': 'Review target has already been processed.',
     'admin.review.failed': 'Review action failed: {error}',
+    'admin.upload.extNotAllowed': 'The upload extension allowlist contains unsupported extensions: {extensions}. Only JPG, JPEG, PNG, GIF, WebP and BMP are allowed',
     'upload.dailyLimit': 'You have uploaded {count} files today and reached the daily limit',
     'upload.dailyLimit.avatar': 'You have uploaded {count} files today. Uploading an avatar needs {fileCount} slots and would exceed the daily limit',
     'wiki.namespace.nameInvalid': 'Invalid namespace name (lowercase letters, digits, and hyphens only).',

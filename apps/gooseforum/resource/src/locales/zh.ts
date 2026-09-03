@@ -2158,6 +2158,7 @@ export default {
     'admin.review.notFound': '审核对象不存在。',
     'admin.review.processed': '审核对象已处理。',
     'admin.review.failed': '审核操作失败：{error}',
+    'admin.upload.extNotAllowed': '上传扩展名白名单包含不支持的扩展名：{extensions}。仅支持 JPG、JPEG、PNG、GIF、WebP、BMP',
     'upload.dailyLimit': '您今日已上传 {count} 个文件，已达到每日限制',
     'upload.dailyLimit.avatar': '您今日已上传 {count} 个文件，上传头像需要 {fileCount} 个名额，已超过每日限制',
     'wiki.namespace.nameInvalid': '命名空间名称不合法（仅支持小写字母、数字和连字符）。',

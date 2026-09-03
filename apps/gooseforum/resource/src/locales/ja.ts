@@ -2158,6 +2158,7 @@ export default {
     'admin.review.notFound': '審査対象が見つかりません。',
     'admin.review.processed': '審査対象はすでに処理済みです。',
     'admin.review.failed': '審査操作に失敗しました: {error}',
+    'admin.upload.extNotAllowed': 'アップロード拡張子の許可リストにサポート外の拡張子が含まれています: {extensions}。利用可能なのは JPG、JPEG、PNG、GIF、WebP、BMP のみです',
     'wiki.namespace.nameInvalid': '名前空間名が不正です（小文字、数字、ハイフンのみ使用可能）。',
     'wiki.path.invalid': 'Wiki パスが不正です。',
     'wiki.page.notFound': 'Wiki ページが見つかりません。',

@@ -10,6 +10,7 @@ import MarkdownIt from 'markdown-it'
 import { Bot, CheckCircle2, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
 import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
 import type { BulkImportPreview } from '@/admin/bulkImport'
+import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -265,7 +266,7 @@ const postingForm = reactive<PostingSettings>({
   },
   uploadControl: {
     allowAttachments: true,
-    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
     maxAttachmentSizeKb: 5120,
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
@@ -518,7 +519,7 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       allowAttachments: toBool(settings.uploadControl?.allowAttachments, true),
       authorizedExtensions: Array.isArray(settings.uploadControl?.authorizedExtensions)
         ? settings.uploadControl.authorizedExtensions.map(item => String(item).trim().toLowerCase()).filter(Boolean)
-        : ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+        : ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
       maxAttachmentSizeKb: Number(settings.uploadControl?.maxAttachmentSizeKb ?? 5120),
       maxDailyUploadsPerUser: Number(settings.uploadControl?.maxDailyUploadsPerUser ?? 10),
       newUserUploadCooldownMinutes: Number(settings.uploadControl?.newUserUploadCooldownMinutes ?? 1440),
@@ -822,7 +823,7 @@ async function save() {
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
   if (props.kind === 'ai-summary' && !validateAiSummary()) return
   if (props.kind === 'schedule' && !validateSchedule()) return
-
+  if (props.kind === 'posting' && !validatePostingExtensions()) return
   saving.value = true
   try {
     if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
@@ -843,6 +844,20 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+// validatePostingExtensions 保存前拦截：列表为空允许（服务端回退内置全集），
+// 但任一非法/危险扩展整单拒绝——前端校验只是体验，权威在服务端
+// （admin.upload.extNotAllowed）。
+function validatePostingExtensions() {
+  const entries = postingForm.uploadControl.authorizedExtensions
+  if (entries.length === 0) return true
+  const invalid = entries.filter(item => !isSupportedUploadExtension(item))
+  if (invalid.length > 0) {
+    adminToast.warning(adminText('k00uo', { extensions: invalid.join(', ') }))
+    return false
+  }
+  return true
 }
 
 async function sendTestMail() {
@@ -977,10 +992,12 @@ function removeAllowedDomain(domain: string) {
 }
 
 function addExtension() {
-  const ext = newExtension.value.trim().toLowerCase()
-  if (!ext) return
-  if (!ext.startsWith('.')) {
-    adminToast.warning(adminText('k000j'))
+  const raw = newExtension.value
+  if (!raw.trim()) return
+  const ext = normalizeExtensionToken(raw)
+  if (!isSupportedUploadExtension(ext)) {
+    // 危险扩展（svg/html/xml/js 等）与非法输入（双扩展/空）即时提示，不允许入列。
+    adminToast.warning(adminText('k00uo', { extensions: ext || raw.trim() }))
     return
   }
   if (!postingForm.uploadControl.authorizedExtensions.includes(ext)) {
