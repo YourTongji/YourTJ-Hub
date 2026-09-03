@@ -2082,6 +2082,7 @@ export default {
     'common.rateLimited': '操作が多すぎます。{retryAfterSeconds} 秒後に再度お試しください。',
     'page.notFound': 'ページが存在しないか、削除されています。',
     'route.notFound': 'ルートが見つかりません。URL とリクエストメソッドを確認してください。',
+    'auth.csrf.rejected': 'リクエスト元を検証できませんでした。ページを再読み込みして、もう一度お試しください。',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

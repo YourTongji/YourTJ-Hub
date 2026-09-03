@@ -2084,6 +2084,7 @@ export default {
     'common.rateLimited': '操作过于频繁，请 {retryAfterSeconds} 秒后再试。',
     'page.notFound': '页面不存在，或已经被删除。',
     'route.notFound': '路由未定义，请确认 URL 和请求方法是否正确。',
+    'auth.csrf.rejected': '请求来源校验未通过（已拒绝跨站请求），请刷新页面后重试。',
     'admin.moderator.userRequired': '请输入版主用户。',
     'admin.moderator.userNotFound': '版主用户不存在。',
     'admin.moderator.notFound': '版主记录不存在。',

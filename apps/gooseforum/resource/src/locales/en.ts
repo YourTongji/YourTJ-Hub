@@ -2082,6 +2082,7 @@ export default {
     'common.rateLimited': 'Too many attempts. Please try again in {retryAfterSeconds} seconds.',
     'page.notFound': 'The page does not exist or has been deleted.',
     'route.notFound': 'Route not found. Please check the URL and request method.',
+    'auth.csrf.rejected': 'The request origin could not be verified. Refresh the page and try again.',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',
