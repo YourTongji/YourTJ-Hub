@@ -555,6 +555,38 @@ CLI 同步（运维 cron 等自动化场景）：
 - 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
   需到管理端重新保存。
 
+**卡级课程沿革候选（course-lineage-seed，2026 课改治理）**：`course-lineage-scan`
+（教学班级级 dry-run JSON）产出的候选是 pk_course_detail.id，无法直接落
+`course_relations`（其 from/to 为 course.id）。`course-lineage-seed` 在课程目录
+卡层面（course.id）装配并配对，产出可直接进入管理端「课程沿革」审核面板的
+候选：
+
+```bash
+# dry-run（默认，不写库）：装配全部可见课程卡并报告候选规模
+./bin/yourtj-hub course-lineage-seed
+
+# 把 E1 EQUIVALENT 候选写入 course_relations（status=pending，含证据快照）
+./bin/yourtj-hub course-lineage-seed --write
+
+# 额外写入 E2 SPLIT_FROM / E3 RELATED 家族标注候选（经管理端 approve 后详情页展示）
+./bin/yourtj-hub course-lineage-seed --write --write-family
+
+# 候选明细 JSON（含课程名/证据）输出到 stdout 供离线审核
+./bin/yourtj-hub course-lineage-seed --json
+```
+
+规则（同教师工号组内配对，跨教师同名/同码卡是合法分班不产候选）：
+
+- E1 EQUIVALENT（conf 0.9）：同师 + 归一名称一致 + 学分一致 + 共享一系统课程码
+  （course_code / new_course_code，经 `offering.teaching_class_id` → `pk_course_detail`）
+  → 冗余卡并入规范卡，可经管理端确认后合并（offering/评价/别名迁移、旧卡隐藏）。
+- E2 SPLIT_FROM（conf 0.5）：同师 + 同课程家族 + 变体不同（A1/A2/B、基础/进阶、
+  上/下、实验/理论、generic→A1 层次重组）→ 分层标注，绝不合并。
+- E3 RELATED（conf 0.2）：同师 + 同名 + 学分巨变 → 弱关联标注，供人工核查。
+
+写入幂等：同 (from,to,type) 已存在（含已 approved/ignored/merged）自动跳过，
+不复活已处置的关系；写路径单事务完成，失败整体回滚。
+
 ### 学期起止日期（可选，config 维护）
 
 一系统 manualArrange 数据不含学期起止日期。排课器「当前周次」自动定位与学期日期条
