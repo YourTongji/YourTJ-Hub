@@ -410,6 +410,7 @@ async function loadUserCard() {
             href="/"
             class="min-w-0 items-center gap-2"
             :class="hasHeaderTitle ? 'hidden md:flex' : 'flex'"
+          >
             <img
               v-if="brandType === 'image' && brandImage"
               :src="brandImage"

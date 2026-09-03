@@ -161,3 +161,46 @@ func TestAdminSaveFriendLinksAllowsAbsoluteHTTP(t *testing.T) {
 		t.Fatalf("stored = %#v, want safe friend link persisted", stored)
 	}
 }
+
+// TestAdminSaveSiteChromeReportsLocatedFieldPath 验证保存期校验失败时返回带
+// 组名/索引的可定位字段路径（issue #409 review）：header 顶层组、sidebarGroups
+// 嵌套组与 footer 列表各自返回可点击定位的路径，而非无语义的全局下标。
+func TestAdminSaveSiteChromeReportsLocatedFieldPath(t *testing.T) {
+	cases := []struct {
+		name      string
+		body      string
+		wantField string
+	}{
+		{
+			name:      "header item",
+			wantField: "settings.header[0].url",
+			body:      `{"settings":{"header":[{"id":"x","enabled":true,"type":"link","label":"X","url":"javascript:alert(1)"}],"mainMenu":[],"resources":[],"sidebarGroups":[],"footerInfo":{"primary":[],"list":[]},"brandType":"default","brandText":"","brandImage":""}}`,
+		},
+		{
+			name:      "sidebar group item",
+			wantField: "settings.sidebarGroups[0].items[0].url",
+			body:      `{"settings":{"header":[],"mainMenu":[],"resources":[],"sidebarGroups":[{"id":"g1","title":"G","items":[{"id":"x","enabled":true,"type":"link","label":"X","url":"javascript:alert(1)"}]}],"footerInfo":{"primary":[],"list":[]},"brandType":"default","brandText":"","brandImage":""}}`,
+		},
+		{
+			name:      "footer item",
+			wantField: "settings.footerInfo.list[0].url",
+			body:      `{"settings":{"header":[],"mainMenu":[],"resources":[],"sidebarGroups":[],"footerInfo":{"primary":[],"list":[{"name":"X","url":"javascript:alert(1)"}]},"brandType":"default","brandText":"","brandImage":""}}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, router := setupAdminSiteContractTest(t)
+			t.Cleanup(func() {
+				conn.Where("page_type = ?", pageConfig.SiteChrome).Delete(&pageConfig.Entity{})
+			})
+			recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/save-site-chrome", tc.body)
+			env := decodeContractEnvelope(t, recorder)
+			if env.Code != 1 || env.MessageCode != "admin.url.invalid" {
+				t.Fatalf("envelope = code %d messageCode %q, want code 1 + admin.url.invalid", env.Code, env.MessageCode)
+			}
+			if got := env.Params["field"]; got != tc.wantField {
+				t.Fatalf("params.field = %q, want %q", got, tc.wantField)
+			}
+		})
+	}
+}

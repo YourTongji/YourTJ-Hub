@@ -12,6 +12,8 @@ const numericEntityRe = /&#(?:x([0-9a-fA-F]+)|([0-9]+));/g
 const maxUrlLength = 2048
 
 /** 最小 HTML 实体解码：覆盖管理端可能保存的十进制/十六进制/命名实体混淆。
+ *  注意：并非 Go html.UnescapeString 的严格镜像（不带分号实体与命名实体全集
+ *  未覆盖）——服务端 urlutil.Clean 已先行全量解码，此处仅为渲染纵深防线。
  *  返回 hasInvalid=true 表示值里含越界/代理区/非法的数值实体（损坏配置）。 */
 function decodeEntities(value: string): { text: string; hasInvalid: boolean } {
   let hasInvalid = false
@@ -48,8 +50,9 @@ export function safeUrl(raw: string | null | undefined, policy: SafeUrlPolicy = 
   if (value === '' || value.length > maxUrlLength) return ''
   const decoded = decodeEntities(value)
   if (decoded.hasInvalid || decoded.text.length > maxUrlLength || hasControl(decoded.text)) return ''
-  if (decoded.text.startsWith('//')) return ''
-
+  // 反斜杠整体拒绝（浏览器把 "\" 视同 "/"，"\\evil.com" 会按协议相对解析、
+  // "http:\evil.com" 会跳外站），与后端 urlutil 策略一致；// 前缀亦拒绝。
+  if (decoded.text.includes('\\') || decoded.text.startsWith('//')) return ''
   const match = schemeRe.exec(decoded.text)
   const scheme = match ? match[1].toLowerCase() : ''
   if (scheme === '') {
@@ -57,10 +60,15 @@ export function safeUrl(raw: string | null | undefined, policy: SafeUrlPolicy = 
     return policy === 'external' ? '' : value
   }
   if (scheme === 'http' || scheme === 'https') {
-    // 要求是带 host 的绝对 URL；"https:" / "https://" 这类残缺值解析失败即拒绝。
+    // scheme 后必须紧跟字面 "//"（大小写无关）：WHATWG new URL 会把
+    // "http:/only-path" 归一为带 host 的绝对 URL，而 Go net/url 对单斜杠
+    // 形态解析出空 Host 并拒绝——此检查镜像后端 urlutil，保证两端一致。
+    const rest = decoded.text.slice(decoded.text.indexOf(':') + 1)
+    if (!rest.startsWith('//')) return ''
     try {
       const parsed = new URL(decoded.text)
-      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? value : ''
+      const isHttpLike = parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      return isHttpLike && parsed.hostname !== '' ? value : ''
     } catch {
       return ''
     }

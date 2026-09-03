@@ -115,7 +115,7 @@ const contactHref = computed(() => safeUrl(page.props.contact.buttonLink, 'conta
           <div class="rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100">
             <h2 class="text-sm font-semibold text-base-content">{{ props.contact.title }}</h2>
             <p class="mt-2 text-sm leading-6 text-base-content/55">{{ props.contact.description }}</p>
-            <a :href="contactHref" class="gf-button gf-button-md gf-button-primary mt-4">
+            <a :href="contactHref || '#'" class="gf-button gf-button-md gf-button-primary mt-4">
               <Mail class="h-4 w-4" />
               {{ props.contact.buttonText }}
             </a>

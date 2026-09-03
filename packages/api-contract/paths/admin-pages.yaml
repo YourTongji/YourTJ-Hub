@@ -88,6 +88,8 @@ adminSaveFriendLinks:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-url-invalid.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -203,6 +205,8 @@ adminSaveSponsors:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-url-invalid.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

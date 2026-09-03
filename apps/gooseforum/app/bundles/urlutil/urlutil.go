@@ -9,8 +9,9 @@
 //     form "java&#x09;script:..." would otherwise become a javascript: scheme).
 //  3. Lower-case scheme comparison against the policy whitelist.
 //
-// Protocol-relative URLs ("//host/path") are rejected for every kind, and
-// http(s) URLs must carry a hostname — port-only forms such as "https://:443"
+// Protocol-relative URLs ("//host/path" and the browser-equivalent
+// backslash form "\host\path") are rejected for every kind, and http(s)
+// URLs must carry a hostname — port-only forms such as "https://:443"
 // (Host is ":443" but Hostname is empty) are rejected. Empty values are
 // always valid (optional admin fields). Values are stored trimmed but
 // otherwise verbatim.
@@ -52,7 +53,10 @@ func Canonicalize(kind Kind, raw string) (string, bool) {
 		return value, false
 	}
 	decoded := html.UnescapeString(value)
-	if containsControl(decoded) || len(decoded) > maxURLLength {
+	// 反斜杠整体拒绝：浏览器在 http(s) 页内把 "\" 视同 "/"（"\\evil.com" 会按
+	// 协议相对解析、"http:\evil.com" 会跳外站），而 Go url.Parse 不认反斜杠，
+	// 两种解析语义不一致——拒绝所有含反斜杠值保证两端镜像（issue #409 review）。
+	if containsControl(decoded) || strings.Contains(decoded, "\\") || len(decoded) > maxURLLength {
 		return value, false
 	}
 	scheme, host, opaque, protocolRelative := splitURL(decoded)
@@ -106,7 +110,6 @@ func containsControl(value string) bool {
 // part and whether the value is a protocol-relative URL. Relative values
 // yield an empty scheme. Hostname (not Host) is returned so that port-only
 // forms such as "https://:443" — Host is ":443" but Hostname is "" — fail
-// the absolute-http(s) check instead of passing it.
 func splitURL(value string) (scheme, hostname, opaque string, protocolRelative bool) {
 	if strings.HasPrefix(value, "//") {
 		return "", "", "", true

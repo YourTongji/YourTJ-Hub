@@ -75,28 +75,41 @@ func validateSponsorsURLs(config *pageConfig.SponsorsConfig) string {
 }
 
 func validateSiteChromeURLs(config *pageConfig.SiteChromeConfig) string {
-	itemLists := [][]pageConfig.ChromeItem{
-		config.Header,
-		config.MainMenu,
-		config.Resources,
+	sections := []struct {
+		name  string
+		items []pageConfig.ChromeItem
+	}{
+		{name: "header", items: config.Header},
+		{name: "mainMenu", items: config.MainMenu},
+		{name: "resources", items: config.Resources},
 	}
-	for _, group := range config.SidebarGroups {
-		itemLists = append(itemLists, group.Items)
-	}
-	for listIndex, items := range itemLists {
-		for j := range items {
-			if url, ok := urlutil.Canonicalize(urlutil.SiteLink, items[j].URL); !ok {
-				return fmt.Sprintf("settings.%d[%d].url", listIndex, j)
+	for _, section := range sections {
+		for j := range section.items {
+			item := &section.items[j]
+			if url, ok := urlutil.Canonicalize(urlutil.SiteLink, item.URL); !ok {
+				return fmt.Sprintf("settings.%s[%d].url", section.name, j)
 			} else {
-				items[j].URL = url
+				item.URL = url
+			}
+		}
+	}
+	for g := range config.SidebarGroups {
+		group := &config.SidebarGroups[g]
+		for j := range group.Items {
+			item := &group.Items[j]
+			if url, ok := urlutil.Canonicalize(urlutil.SiteLink, item.URL); !ok {
+				return fmt.Sprintf("settings.sidebarGroups[%d].items[%d].url", g, j)
+			} else {
+				item.URL = url
 			}
 		}
 	}
 	for i := range config.FooterInfo.List {
-		if url, ok := urlutil.Canonicalize(urlutil.SiteLink, config.FooterInfo.List[i].Url); !ok {
+		item := &config.FooterInfo.List[i]
+		if url, ok := urlutil.Canonicalize(urlutil.SiteLink, item.Url); !ok {
 			return fmt.Sprintf("settings.footerInfo.list[%d].url", i)
 		} else {
-			config.FooterInfo.List[i].Url = url
+			item.Url = url
 		}
 	}
 	if url, ok := urlutil.Canonicalize(urlutil.Image, config.BrandImage); !ok {

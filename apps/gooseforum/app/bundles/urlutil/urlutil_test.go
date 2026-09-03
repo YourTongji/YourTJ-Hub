@@ -172,3 +172,21 @@ func TestOverlongRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestProtocolRelativeBackslashRejected(t *testing.T) {
+	// 浏览器把 http(s) 页内 href="\\evil.example.com" 按协议相对解析（反斜杠视同
+	// 斜杠），与本包 "protocol-relative 一律拒绝" 的不变量冲突（issue #409 review）。
+	invalid := []string{
+		`\\evil.example.com/path`,
+		`\\\evil.example.com/path`,
+		`http:\\evil.example.com`,
+		`javascript:alert(1)`, // 对照：普通 scheme 拒绝路径仍生效
+	}
+	for _, kind := range []Kind{SiteLink, External, Image, Contact} {
+		for _, raw := range invalid {
+			if _, ok := Canonicalize(kind, raw); ok {
+				t.Errorf("kind %d %q: want invalid, got valid", kind, raw)
+			}
+		}
+	}
+}

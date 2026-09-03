@@ -111,3 +111,23 @@ describe('safeUrl numeric entity code point guard', () => {
     expect(safeUrl('https://example.com/a?q=1&amp;b=2', 'external')).toBe('https://example.com/a?q=1&amp;b=2')
   })
 })
+
+describe('safeUrl protocol-relative backslash guard', () => {
+  test('leading backslash forms degrade to empty (browsers treat \\ like /)', () => {
+    expect(safeUrl('\\evil.example.com/path', 'site-link')).toBe('')
+    expect(safeUrl('\\\\evil.example.com/path', 'site-link')).toBe('')
+    expect(safeUrl('\\evil.example.com/path', 'external')).toBe('')
+    expect(safeUrl('http:\\evil.example.com', 'site-link')).toBe('')
+    expect(safeUrl('foo\\bar', 'site-link')).toBe('')
+  })
+
+  test('http(s) without a hostname is rejected', () => {
+    expect(safeUrl('http:/only-path', 'site-link')).toBe('')
+    expect(safeUrl('http://', 'site-link')).toBe('')
+    expect(safeUrl('https://', 'external')).toBe('')
+  })
+
+  test('entity-encoded leading backslash also degrades to empty', () => {
+    expect(safeUrl('&#92;evil.example.com/path', 'site-link')).toBe('')
+  })
+})
