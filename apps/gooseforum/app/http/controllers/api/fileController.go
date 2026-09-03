@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"io"
+	"mime"
 	"net/http"
 	"path"
 	"strings"
@@ -58,11 +59,11 @@ func GetFileByFileName(c *gin.Context) {
 	if strings.HasPrefix(contentType, "image/") {
 		c.Header("Content-Disposition", "inline")
 	} else {
-		base := strings.ReplaceAll(path.Base(filename), `"`, "")
+		base := path.Base(filename)
 		if base == "." || base == "/" {
 			base = "download"
 		}
-		c.Header("Content-Disposition", `attachment; filename="`+base+`"`)
+		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": base}))
 	}
 	httputil.SetLongPublic(c)
 	c.Data(http.StatusOK, contentType, entity.Data)

@@ -504,9 +504,6 @@ func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts
 		)
 	}
 
-	if len(allowedExts) == 0 {
-		allowedExts = imagepolicy.DefaultExtensions()
-	}
 	contentType, err := filedata.CheckImageType(file.Filename)
 	if err != nil || !imagepolicy.IsAllowedExt(filepath.Ext(file.Filename), allowedExts) {
 		extensions := strings.Join(allowedExts, ", ")

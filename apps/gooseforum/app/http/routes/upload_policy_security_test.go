@@ -417,7 +417,7 @@ func TestFileServeResponseHeaders(t *testing.T) {
 		if got := recorder.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 			t.Fatalf("X-Content-Type-Options = %q, want nosniff", got)
 		}
-		if got := recorder.Header().Get("Content-Disposition"); got != `attachment; filename="legacy.bin"` {
+		if got := recorder.Header().Get("Content-Disposition"); got != `attachment; filename=legacy.bin` {
 			t.Fatalf("Content-Disposition = %q, want attachment", got)
 		}
 	})

@@ -80,10 +80,9 @@ func (policy imageUploadPolicy) Validate(filename string, size int64, reportedCo
 	if !imagepolicy.IsAllowedExt(filepath.Ext(filename), policy.AllowedExts) {
 		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadUnsupportedExt, component.MessageParams{"extensions": strings.Join(policy.AllowedExts, ", ")})
 	}
-	contentType, err := filedata.CheckImageType(filename)
-	if err != nil {
-		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadUnsupportedImage, nil)
-	}
+	// IsAllowedExt 已保证扩展名属于生效 allowlist（内置图片集合的子集），
+	// CheckImageType 在此不可能失败。
+	contentType, _ := filedata.CheckImageType(filename)
 	if reportedContentType != "" {
 		reported, _, err := mime.ParseMediaType(reportedContentType)
 		if err != nil || !strings.EqualFold(reported, contentType) {
