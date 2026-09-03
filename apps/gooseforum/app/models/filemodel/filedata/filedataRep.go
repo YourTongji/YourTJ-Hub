@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 
@@ -32,22 +33,16 @@ type FileResourcePageResult struct {
 	MaxId    int64
 }
 
-var supportedImageTypes = map[string]string{
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".png":  "image/png",
-	".gif":  "image/gif",
-	".webp": "image/webp",
-	".bmp":  "image/bmp",
-}
-
-// CheckImageType returns the image MIME type for supported extensions.
+// CheckImageType returns the canonical image MIME type for a supported
+// filename extension. The authoritative supported set lives in imagepolicy:
+// everything else (svg/html/js/xml/pdf/double extensions) is rejected here too,
+// keeping the storage naming path consistent with the upload gate.
 func CheckImageType(filename string) (string, error) {
-	ext := strings.ToLower(path.Ext(filename))
-	if contentType, ok := supportedImageTypes[ext]; ok {
-		return contentType, nil
+	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
+	if !ok {
+		return "", fmt.Errorf("unsupported image type: %s", path.Ext(filename))
 	}
-	return "", fmt.Errorf("unsupported image type: %s", ext)
+	return contentType, nil
 }
 
 func create(entity *Entity) int64 {

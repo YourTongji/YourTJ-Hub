@@ -15,18 +15,11 @@ import (
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 var errInvalidImageContent = errors.New("invalid image content")
-
-var imageFormatContentTypes = map[string]string{
-	"jpeg": "image/jpeg",
-	"png":  "image/png",
-	"gif":  "image/gif",
-	"webp": "image/webp",
-	"bmp":  "image/bmp",
-}
 
 // validateUploadedImage decodes the image header and verifies both the sniffed
 // and the decoded format match the expected content type. It is used to reject
@@ -50,7 +43,7 @@ func validateUploadedImage(reader io.Reader, expectedContentType string) error {
 	if err != nil {
 		return fmt.Errorf("%w: decode image header: %w", errInvalidImageContent, err)
 	}
-	decodedContentType, ok := imageFormatContentTypes[format]
+	decodedContentType, ok := imagepolicy.DecodedFormatContentType(format)
 	if !ok || !strings.EqualFold(decodedContentType, expectedContentType) {
 		return fmt.Errorf("%w: decoded image format %q does not match %q", errInvalidImageContent, format, expectedContentType)
 	}

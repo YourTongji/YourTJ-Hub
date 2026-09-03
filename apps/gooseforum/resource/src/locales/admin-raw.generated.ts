@@ -875,4 +875,5 @@ export default {
   "k00ul": "注意：新增的禁用用户名会冻结同名存量账号，请谨慎操作。",
   "k00um": "预览最多显示前 {limit} 条，其余请确认后在上方列表中查看。",
   "k00un": "敏感词支持含空格的多词短语：仅按换行、逗号、顿号或分号分隔，条目内部的空格会保留（例如 credit card cash out 作为一整条短语导入）。",
+  "k00uo": "不支持的扩展名：{extensions}。仅支持 JPG、JPEG、PNG、GIF、WebP、BMP",
 } as const

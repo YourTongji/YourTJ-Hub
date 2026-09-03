@@ -1,6 +1,6 @@
 ---
 name: yourtj-code-review
-description: Use when reviewing a yourtj-hub code change (own or others') before merge — checking contract impact, database migration safety, security boundaries, performance, and maintainability against the repository's hard constraints. Not for running toolchain checks (use $yourtj-pre-push-checks) or implementing changes (use $yourtj-development).
+description: Use when reviewing a yourtj-hub code change (own or others') before merge — checking contract impact, database migration safety, security boundaries, performance, test coverage, and maintainability against the repository's hard constraints. Not for running toolchain checks (use $yourtj-pre-push-checks) or implementing changes (use $yourtj-development).
 ---
 
 # Reviewing YourTJ Hub Changes
@@ -40,6 +40,14 @@ description: Use when reviewing a yourtj-hub code change (own or others') before
 - 分层边界：bundles → models → service → http/controllers；跨域访问走 owner 公共 API，无外域 SQL。
 - 命名/重复/死代码/投机抽象；TODO 三档（`FIXME` 阻塞发布 / `TODO` 近期 / `XXX` 远期）。
 - 与周围模式一致；新抽象是否降低净复杂度。
+
+## Test coverage
+
+- 测试要覆盖代码实际存在**所有可能的分支**。
+- 边界与量级敏感点必须显式测。
+- 失败路径可观测。
+- 数据量要贴近真实。
+- 通用示例与注解见本技能 `references/test-coverage-examples.md`。评审时对照示例理解规则意图，再在改动中找等价的实际用例。
 
 ## Output
 

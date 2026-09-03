@@ -281,7 +281,7 @@ const socialItems = computed(() => socialKeys.map((key) => ({
 })))
 const providers = computed(() => [
   { key: 'github', label: 'GitHub', supported: true },
-  { key: 'google', label: 'Google', supported: false },
+  { key: 'google', label: 'Google', supported: page.props.googleOAuthReady },
 ])
 const localeOptions = computed(() => supportedLocales.map(item => ({
   value: item,
@@ -1212,14 +1212,19 @@ function isBound(provider: string) {
   return Boolean(bindings.value[provider]?.bound)
 }
 
+function canManageBinding(provider: { key: string; supported: boolean }) {
+  return provider.supported || isBound(provider.key)
+}
+
 function providerActionLabel(provider: { key: string; supported: boolean }) {
+  if (isBound(provider.key)) return t('settings.binding.disconnect')
   if (!provider.supported) return t('settings.binding.unsupported')
-  return isBound(provider.key) ? t('settings.binding.disconnect') : t('settings.binding.connect')
+  return t('settings.binding.connect')
 }
 
 async function toggleBinding(provider: string) {
   const item = providers.value.find((entry) => entry.key === provider)
-  if (!item?.supported) return
+  if (!item || !canManageBinding(item)) return
   if (!isBound(provider)) {
     window.location.href = `/api/auth/${provider}`
     return
@@ -2010,12 +2015,12 @@ async function toggleBinding(provider: string) {
                 v-for="provider in providers"
                 :key="provider.key"
                 class="flex items-center justify-between gap-4 rounded-lg border p-4"
-                :class="provider.supported ? 'border-line bg-base-100' : 'border-line bg-base-200/70'"
+                :class="canManageBinding(provider) ? 'border-line bg-base-100' : 'border-line bg-base-200/70'"
               >
                 <div class="flex min-w-0 items-center gap-3">
                   <div
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border"
-                    :class="provider.supported ? 'border-line bg-base-100 shadow-sm' : 'border-line bg-base-300 opacity-60'"
+                    :class="canManageBinding(provider) ? 'border-line bg-base-100 shadow-sm' : 'border-line bg-base-300 opacity-60'"
                   >
                     <svg v-if="provider.key === 'github'" class="h-6 w-6 text-base-content" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.04c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.49.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 5.8c1.02.01 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.82 1.1.82 2.22v3.29c0 .32.22.7.82.58A12.01 12.01 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />
@@ -2029,8 +2034,8 @@ async function toggleBinding(provider: string) {
                   </div>
                   <div>
                     <h3 class="font-semibold text-base-content">{{ provider.label }}</h3>
-                    <p class="text-sm" :class="provider.supported ? 'text-base-content/55' : 'text-base-content/55'">
-                      {{ provider.supported ? (isBound(provider.key) ? t('settings.binding.connected') : t('settings.binding.disconnected')) : t('settings.binding.siteUnsupported') }}
+                    <p class="text-sm text-base-content/55">
+                      {{ isBound(provider.key) ? t('settings.binding.connected') : provider.supported ? t('settings.binding.disconnected') : t('settings.binding.siteUnsupported') }}
                     </p>
                   </div>
                 </div>
@@ -2038,13 +2043,13 @@ async function toggleBinding(provider: string) {
                   type="button"
                   class="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold disabled:cursor-not-allowed"
                   :class="[
-                    !provider.supported
+                    !canManageBinding(provider)
                       ? 'border-line bg-base-300 text-base-content/55'
                       : isBound(provider.key)
                         ? 'border-error/30 bg-error/10 text-error hover:bg-error/10'
                         : 'border-neutral bg-neutral text-neutral-content hover:bg-neutral/90',
                   ]"
-                  :disabled="bindingAction === provider.key || !provider.supported"
+                  :disabled="bindingAction === provider.key || !canManageBinding(provider)"
                   @click="toggleBinding(provider.key)"
                 >
                   <Loader2 v-if="bindingAction === provider.key" class="h-4 w-4 animate-spin" />

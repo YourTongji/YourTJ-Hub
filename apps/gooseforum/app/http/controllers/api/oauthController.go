@@ -13,7 +13,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/markbates/goth/gothic"
 )
 
 // ProviderLogin 开始OAuth登录/绑定流程（根据登录状态自动判断）
@@ -22,7 +21,7 @@ func ProviderLogin(c *gin.Context) {
 	q.Add("provider", c.Param("provider"))
 	c.Request.URL.RawQuery = q.Encode()
 	// 开始 OAuth 流程
-	gothic.BeginAuthHandler(c.Writer, c.Request)
+	oauthservice.BeginOAuthAuthHandler(c.Writer, c.Request)
 }
 
 // ProviderCallback 处理OAuth登录/绑定回调（根据登录状态自动判断）
@@ -32,7 +31,7 @@ func ProviderCallback(c *gin.Context) {
 	c.Request.URL.RawQuery = q.Encode()
 
 	// 完成 OAuth 流程
-	gothUser, err := gothic.CompleteUserAuth(c.Writer, c.Request)
+	gothUser, err := oauthservice.CompleteOAuthUserAuth(c.Writer, c.Request)
 	if err != nil {
 		slog.Error("OAuth callback failed", "error", err)
 		forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthCallbackFailed)
@@ -67,6 +66,11 @@ func ProviderCallback(c *gin.Context) {
 			if errors.Is(err, oauthservice.ErrAccountFrozen) {
 				slog.Warn("OAuth callback rejected frozen account", "error", err)
 				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOAuthAccountFrozen)
+				return
+			}
+			if errors.Is(err, oauthservice.ErrOAuthEmailUnverified) {
+				slog.Warn("OAuth callback rejected unverified email", "provider", gothUser.Provider)
+				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageAuthEmailUnverified)
 				return
 			}
 			slog.Error("Process OAuth callback failed", "error", err)

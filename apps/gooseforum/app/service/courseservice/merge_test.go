@@ -389,6 +389,22 @@ func TestAdminRelationCreateAndList(t *testing.T) {
 	if page.Total != 1 {
 		t.Errorf("total = %d, want 1", page.Total)
 	}
+	if len(page.List) != 1 {
+		t.Fatalf("list len = %d, want 1", len(page.List))
+	}
+	item := page.List[0]
+	if item.FromCourse == nil || item.ToCourse == nil {
+		t.Fatalf("list item missing course briefs: from=%+v to=%+v", item.FromCourse, item.ToCourse)
+	}
+	if item.FromCourse.Id != fromId || item.FromCourse.Name != "高等数学(A)上" || item.FromCourse.PrimaryCode != "M101" {
+		t.Errorf("from brief = %+v, want M101 高等数学(A)上", item.FromCourse)
+	}
+	if item.ToCourse.Id != toId || item.ToCourse.Name != "高等数学(A)I" || item.ToCourse.PrimaryCode != "M102" {
+		t.Errorf("to brief = %+v, want M102 高等数学(A)I", item.ToCourse)
+	}
+	if item.FromCourse.Status != course.StatusVisible || item.ToCourse.Status != course.StatusVisible {
+		t.Errorf("brief status = from %d / to %d, want both visible", item.FromCourse.Status, item.ToCourse.Status)
+	}
 	// 忽略后分页（pending 不再出现）。
 	if _, err := AdminRelationIgnore(created.Id); err != nil {
 		t.Fatalf("ignore relation: %v", err)

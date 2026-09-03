@@ -875,4 +875,5 @@ export default {
   "k00ul": "Achtung: Neue verbotene Benutzernamen blockieren bestehende Konten mit demselben Namen. Gehe mit Vorsicht vor.",
   "k00um": "Die Vorschau zeigt die ersten {limit} Einträge; die übrigen sind nach der Bestätigung in der Liste oben sichtbar.",
   "k00un": "Sensible Begriffe können Sätze mit Leerzeichen sein: Die Einträge werden nur durch Zeilenumbrüche, Kommas oder Semikolons getrennt, und interne Leerzeichen bleiben erhalten (z. B. wird credit card cash out als eine einzige Phrase importiert).",
+  "k00uo": "Nicht unterstützte Erweiterung: {extensions}. Nur JPG, JPEG, PNG, GIF, WebP und BMP sind erlaubt",
 } as const

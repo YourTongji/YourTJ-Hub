@@ -3623,6 +3623,16 @@ export interface paths {
          *     `settings` with `validate:"required"`, but struct-level required
          *     never fails, so a missing or malformed body saves a zero-value
          *     configuration.
+         *     The `uploadControl.authorizedExtensions` allowlist is canonicalized
+         *     before persistence (issue #408): only the built-in decodable image
+         *     extensions (.jpg/.jpeg/.png/.gif/.webp/.bmp) are accepted, matching is
+         *     case-insensitive and a leading dot is optional, and legal entries are
+         *     stored lower-cased with a leading dot and deduplicated. Submitting any
+         *     unsupported token (.svg/.html/.js/.xml/.pdf, double extensions, empty
+         *     strings) fails the whole save with an HTTP 200 `code: 1` envelope,
+         *     `messageCode` `admin.upload.extNotAllowed` and `params.extensions`
+         *     listing the offending tokens; nothing is persisted. An empty list is
+         *     valid and is stored/echoed as `[]`.
          */
         post: operations["adminSavePostingSettings"];
         delete?: never;
@@ -5390,6 +5400,29 @@ export interface paths {
          *     audit log entry.
          */
         post: operations["adminCourseRelationIgnore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-relation-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revert a processed lineage candidate to pending (CourseManager/Admin)
+         * @description CourseManager-scoped write. Reverts an annotation decision back to the review queue
+         *     (approved/ignored → pending). Candidates that were physically merged are NOT resettable —
+         *     they must be rolled back through `adminCourseMergeUndo`; calling reset on them is a 409
+         *     `course.relation.notResettable` business failure. Writes an audit log entry.
+         */
+        post: operations["adminCourseRelationReset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7269,10 +7302,15 @@ export interface components {
              * @enum {string}
              */
             status?: "pending" | "approved" | "ignored" | "merged";
+            /**
+             * @description 沿革候选类型过滤；空 = 全部。
+             * @enum {string}
+             */
+            relationType?: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
             page?: number;
             pageSize?: number;
         };
-        /** @description 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。 */
+        /** @description 沿革候选（course_relations 行 + from/to 课程摘要）：from（历史/旧卡）→ to（当前/新卡）。 */
         AdminCourseRelationItem: {
             /** Format: uint64 */
             id: number;
@@ -7295,6 +7333,10 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description 旧卡课程摘要（课程已删除时缺省）。 */
+            fromCourse?: components["schemas"]["AdminCourseRelationCourseBrief"];
+            /** @description 新卡课程摘要（课程已删除时缺省）。 */
+            toCourse?: components["schemas"]["AdminCourseRelationCourseBrief"];
         };
         AdminCourseRelationListResult: {
             list: components["schemas"]["AdminCourseRelationItem"][];
@@ -8134,6 +8176,7 @@ export interface components {
         };
         AdminPostingUploadControl: {
             allowAttachments: boolean;
+            /** @description Image-extension allowlist for user uploads, canonicalized by the server (issue #408). Only the built-in decodable image extensions are accepted: .jpg/.jpeg/.png/.gif/.webp/.bmp. Matching is case-insensitive and a leading dot is optional (`png`, `.PNG` and `.png` are the same entry); legal entries are stored lower-cased with a leading dot, deduplicated in first-appearance order. Submitting any unsupported token (.svg/.html/.js/.xml/.pdf, double extensions such as `avatar.png.exe`, empty strings) rejects the whole save with `admin.upload.extNotAllowed` (HTTP 200, `params.extensions` lists the offending tokens) and persists nothing. An empty list is valid and is stored/echoed as `[]`. */
             authorizedExtensions: string[];
             maxAttachmentSizeKb: number;
             maxDailyUploadsPerUser: number;
@@ -9973,6 +10016,25 @@ export interface components {
             teachers: string[];
             ratingAvg?: number | null;
             reviewCount: number;
+        };
+        /** @description 沿革候选 from/to 课程摘要（管理端列表直接展示课程名/课号/教师；课程已删除时整体缺省）。 */
+        AdminCourseRelationCourseBrief: {
+            /** Format: uint64 */
+            id: number;
+            /** @description 课号。 */
+            primaryCode: string;
+            /** @description 课程名。 */
+            name: string;
+            /** @description 开课院系。 */
+            department?: string;
+            /** @description 身份教师姓名。 */
+            teacherName?: string;
+            /** @description 身份教师工号。 */
+            teacherCode?: string;
+            /** @description 学分 ×10。 */
+            creditX10: number;
+            /** @description 课程可见状态（0 可见 / 1 隐藏；合并后旧卡隐藏）。 */
+            status: number;
         };
     };
     responses: never;
@@ -16091,7 +16153,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Configuration saved (`result` is the string `success`). */
+            /** @description Configuration saved (`result` is the string `success`), or an HTTP 200 business failure when `authorizedExtensions` contains unsupported tokens (`admin.upload.extNotAllowed`, `params.extensions` lists them). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19298,6 +19360,66 @@ export interface operations {
             };
             /** @description Candidate does not exist. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the CourseManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate is not in a resettable state (pending, or merged). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -111,6 +111,7 @@
   "serverMessages.auth.required": "Melde dich an, um diese Seite anzuzeigen.",
   "serverMessages.permission.denied": "Du hast keine Berechtigung, diese Aktion auszuführen.",
   "serverMessages.permission.userFrozen": "Dein Konto wurde gesperrt und du kannst nicht fortfahren.",
+  "serverMessages.permission.emailRequired": "Bitte verifiziere zuerst deine E-Mail, bevor du fortfährst.",
   "serverMessages.common.operation.failed": "Vorgang fehlgeschlagen. Bitte versuche es später erneut.",
   "serverMessages.oauth.callback.failed": "OAuth-Callback fehlgeschlagen. Bitte versuche es später erneut.",
   "serverMessages.oauth.process.failed": "OAuth-Anmeldung fehlgeschlagen. Bitte versuche es später erneut.",
