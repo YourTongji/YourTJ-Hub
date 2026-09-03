@@ -1313,6 +1313,11 @@ export default {
       resetConfirm: '外観設定を既定値に戻しますか？',
       size: 'サイズ',
       cssImportFailed: 'CSSファイルの読み込みに失敗しました',
+      theme: 'テーマ',
+      themeDescription: 'お好みの配色を選択してください',
+      themeAuto: '自動',
+      themeLight: 'ライト',
+      themeDark: 'ダーク',
     },
     validation: {
       usernameRequired: 'ユーザー名を入力してください',

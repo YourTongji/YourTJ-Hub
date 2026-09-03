@@ -1288,6 +1288,11 @@ export default {
       resetConfirm: '确定要将外观设置恢复为默认值吗？',
       size: '字号',
       cssImportFailed: 'CSS 文件读取失败',
+      theme: '主题',
+      themeDescription: '选择您喜欢的配色方案',
+      themeAuto: '自动',
+      themeLight: '浅色',
+      themeDark: '深色',
     },
     validation: {
       usernameRequired: '用户名不能为空',

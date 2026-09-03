@@ -1313,6 +1313,11 @@ export default {
       resetConfirm: 'Ripristinare le impostazioni di aspetto ai valori predefiniti?',
       size: 'Dimensione',
       cssImportFailed: 'Impossibile leggere il file CSS',
+      theme: 'Tema',
+      themeDescription: 'Scegli la tua combinazione di colori preferita',
+      themeAuto: 'Automatico',
+      themeLight: 'Chiaro',
+      themeDark: 'Scuro',
     },
     validation: {
       usernameRequired: 'Il nome utente è obbligatorio',

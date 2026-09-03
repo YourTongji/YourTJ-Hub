@@ -5,7 +5,7 @@ import { readInitialPayload, updateDocumentMeta } from '@/runtime/payload'
 import { installNavigation, preparePayload } from '@/runtime/router'
 import { currentLocale, i18n } from '@/runtime/i18n'
 import { hydrateFlashMessages } from '@/runtime/flash-message'
-import { applySiteThemePayload, applyStoredTheme } from '@/runtime/site-theme'
+import { applySiteThemePayload, applyStoredTheme, initSystemThemeListener } from '@/runtime/site-theme'
 import { applyStoredAppearanceSettings } from '@/runtime/appearance-settings'
 import { installBaTouchEffect } from '@/runtime/ba-touch-effect'
 import PayloadRouteView from '@/site/components/PayloadRouteView.vue'
@@ -24,6 +24,7 @@ const isReloadNavigation = navigationEntry?.type === 'reload'
 document.documentElement.lang = currentLocale()
 applySiteThemePayload(initialPayload.layout.theme)
 applyStoredTheme()
+initSystemThemeListener()
 applyStoredAppearanceSettings()
 installBaTouchEffect()
 

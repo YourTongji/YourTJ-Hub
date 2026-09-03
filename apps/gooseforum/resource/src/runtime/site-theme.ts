@@ -1,10 +1,13 @@
 import { computed, ref } from 'vue'
 import type { ThemePayload } from '@gooseforum/client'
 
+export type ThemePreference = 'auto' | 'light' | 'dark'
 export type SiteTheme = 'gf-light' | 'gf-dark'
 
 const STORAGE_KEY = 'goose-site-theme'
 const COOKIE_KEY = 'goose-site-theme'
+const PREFERENCE_STORAGE_KEY = 'goose-site-theme-preference'
+const PREFERENCE_COOKIE_KEY = 'goose-site-theme-preference'
 const themes: SiteTheme[] = ['gf-light', 'gf-dark']
 const THEME_LINK_ID = 'goose-site-theme-link'
 const THEME_PREVIEW_STYLE_ID = 'goose-site-theme-preview'
@@ -13,15 +16,77 @@ const themeColors: Record<SiteTheme, string> = {
   'gf-light': '#fbfdff',
   'gf-dark': '#101010',
 }
+
+// Current applied theme
 const currentTheme = ref<SiteTheme>(resolveInitialTheme())
+
+// User's preference (auto/light/dark)
+const currentPreference = ref<ThemePreference>(resolveInitialPreference())
+
+// System preference tracking
+const systemIsDark = ref(false)
 
 export function useSiteTheme() {
   const isDark = computed(() => currentTheme.value === 'gf-dark')
+  const isAuto = computed(() => currentPreference.value === 'auto')
 
   return {
     theme: currentTheme,
+    preference: currentPreference,
     isDark,
+    isAuto,
     toggleTheme,
+    setPreference: setThemePreference,
+  }
+}
+
+/**
+ * Initialize system theme listener to detect and respond to system theme changes.
+ * Should be called once during app initialization.
+ */
+export function initSystemThemeListener() {
+  if (typeof window === 'undefined' || !window.matchMedia) return
+
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  systemIsDark.value = mediaQuery.matches
+
+  // Listen for changes
+  mediaQuery.addEventListener('change', (e) => {
+    systemIsDark.value = e.matches
+    // If in auto mode, apply the new system theme
+    if (currentPreference.value === 'auto') {
+      applyThemeWithTransition(getEffectiveTheme())
+    }
+  })
+}
+
+/**
+ * Get the effective theme based on current preference and system state.
+ */
+function getEffectiveTheme(): SiteTheme {
+  if (currentPreference.value === 'auto') {
+    return systemIsDark.value ? 'gf-dark' : 'gf-light'
+  }
+  return currentPreference.value === 'dark' ? 'gf-dark' : 'gf-light'
+}
+
+/**
+ * Set user's theme preference and apply the effective theme.
+ */
+export function setThemePreference(preference: ThemePreference) {
+  currentPreference.value = preference
+  const effectiveTheme = getEffectiveTheme()
+
+  // Only update if theme actually changes
+  if (effectiveTheme !== currentTheme.value) {
+    applyThemeWithTransition(effectiveTheme)
+  }
+
+  writePreferenceCookie(preference)
+  try {
+    window.localStorage.setItem(PREFERENCE_STORAGE_KEY, preference)
+  } catch {
+    // Ignore storage failures in private or restricted browsing contexts.
   }
 }
 
@@ -83,7 +148,10 @@ export function toggleTheme() {
  * 旧层垫底被圆形边缘逐步覆盖。无 startViewTransition 时直接切换。
  */
 export function toggleThemeFromElement(_trigger?: Element | null) {
-  applyThemeWithTransition(currentTheme.value === 'gf-dark' ? 'gf-light' : 'gf-dark')
+  // In auto mode, toggle switches between light and dark but keeps auto preference
+  // Otherwise, toggle between light and dark
+  const newTheme = currentTheme.value === 'gf-dark' ? 'gf-light' : 'gf-dark'
+  applyThemeWithTransition(newTheme)
 }
 
 export function setThemeFromElement(theme: SiteTheme, _trigger?: Element | null) {
@@ -160,6 +228,34 @@ function resolveInitialTheme(): SiteTheme {
   return 'gf-light'
 }
 
+function resolveInitialPreference(): ThemePreference {
+  // Check document attribute (server-side rendered)
+  const docPref = document.documentElement.dataset.themePreference ?? null
+  if (isThemePreference(docPref)) return docPref
+
+  // Check cookie
+  try {
+    const cookiePref = readPreferenceCookie() || null
+    if (isThemePreference(cookiePref)) return cookiePref
+  } catch {
+    // Fall through to local storage
+  }
+
+  // Check localStorage
+  try {
+    const stored = window.localStorage.getItem(PREFERENCE_STORAGE_KEY)
+    if (isThemePreference(stored)) {
+      writePreferenceCookie(stored)
+      return stored
+    }
+  } catch {
+    // Fall through to auto
+  }
+
+  // Default to auto
+  return 'auto'
+}
+
 function applyTheme(theme: SiteTheme) {
   document.documentElement.dataset.theme = theme
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[theme])
@@ -167,6 +263,10 @@ function applyTheme(theme: SiteTheme) {
 
 function isSiteTheme(value: string | null): value is SiteTheme {
   return themes.includes(value as SiteTheme)
+}
+
+function isThemePreference(value: string | null): value is ThemePreference {
+  return ['auto', 'light', 'dark'].includes(value as ThemePreference)
 }
 
 function readThemeCookie() {
@@ -181,6 +281,20 @@ function readThemeCookie() {
 function writeThemeCookie(theme: SiteTheme) {
   const secure = window.location.protocol === 'https:' ? '; Secure' : ''
   document.cookie = `${COOKIE_KEY}=${theme}; path=/; max-age=31536000; samesite=lax${secure}`
+}
+
+function readPreferenceCookie() {
+  return document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${PREFERENCE_COOKIE_KEY}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=') || ''
+}
+
+function writePreferenceCookie(preference: ThemePreference) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${PREFERENCE_COOKIE_KEY}=${preference}; path=/; max-age=31536000; samesite=lax${secure}`
 }
 
 function normalizeThemeColor(value?: string) {

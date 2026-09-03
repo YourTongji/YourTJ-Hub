@@ -1286,6 +1286,11 @@ export default {
       resetConfirm: 'Reset appearance settings to defaults?',
       size: 'Size',
       cssImportFailed: 'Failed to read CSS file',
+      theme: 'Theme',
+      themeDescription: 'Choose your preferred color scheme',
+      themeAuto: 'Auto',
+      themeLight: 'Light',
+      themeDark: 'Dark',
     },
     validation: {
       usernameRequired: 'Username is required',
