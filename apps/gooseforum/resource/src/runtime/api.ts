@@ -280,7 +280,7 @@ export interface MyContentListResult {
   nextCursorId: number
 }
 
-/** 我的内容列表（PRD R9）：本人仍公开的话题/回复，供批量删除。 */
+/** 我的内容列表（PRD R9）：本人仍公开的内容/回复，供批量删除。 */
 export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
   const params = new URLSearchParams({ contentType, limit: String(limit) })
   if (cursorId > 0) params.set('cursorId', String(cursorId))

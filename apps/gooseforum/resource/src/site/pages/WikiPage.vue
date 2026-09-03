@@ -284,7 +284,7 @@ function sameUrl(left: string, right: string) {
         </div>
       </section>
 
-      <!-- 评论流：复用话题评论，按 topicId（保留回复栏；话题列表首帖已由正文承接） -->
+      <!-- 评论流：复用内容评论，按 topicId（保留回复栏；内容列表首帖已由正文承接） -->
       <PostStream
         class="mt-4"
         :topic-id="page.props.page.topicId"

@@ -131,7 +131,7 @@ const deletedTopicCursor = ref(0)
 const deletedPostCursor = ref(0)
 const hasMoreDeletedTopics = ref(false)
 const hasMoreDeletedPosts = ref(false)
-// 内容管理（PRD R9）：本人公开话题/回复，勾选批量删除 + 频率二次确认
+// 内容管理（PRD R9）：本人公开内容/回复，勾选批量删除 + 频率二次确认
 const myTopics = ref<MyContentItem[]>([])
 const myPosts = ref<MyContentItem[]>([])
 const loadingMyContent = ref(false)

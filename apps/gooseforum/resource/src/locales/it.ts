@@ -96,6 +96,13 @@ export default {
     register: 'Registrati',
     resources: 'Risorse',
     categories: 'Categorie',
+    groupBrowse: 'Esplora',
+    groupFunction: 'Funzioni',
+    groupPersonal: 'Personale',
+    groupAdmin: 'Gestione',
+    railLabel: 'Categorie della community',
+    railScrollPrev: 'Scorri categorie indietro',
+    railScrollNext: 'Scorri categorie avanti',
     nav: {
       topics: 'Argomenti',
       hot: 'Di tendenza',
