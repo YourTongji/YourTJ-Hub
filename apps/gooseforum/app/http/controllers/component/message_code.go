@@ -308,4 +308,7 @@ const (
 	MessageAdminAgentNeedsRotate     MessageCode = "admin.agent.needsRotate"     // 该 Agent 的令牌已被吊销，重新启用前必须先轮换。
 	MessageAdminAgentRoleNotAllowed  MessageCode = "admin.agent.roleNotAllowed"  // 机器人账号不允许被授予角色。
 	MessageAdminAgentRotateConflict  MessageCode = "admin.agent.rotateConflict"  // 并发轮换冲突，请重试。
+
+	// 管理员可配置 URL 校验（issue #409）
+	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 )
