@@ -478,7 +478,16 @@ function onToggleTheme(event: MouseEvent) {
                   GitHub
                 </a>
 
-                <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70">
+                <a v-if="page.props.googleReady" :href="page.props.googleUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.91-4.2 2.91-7.22Z" />
+                    <path fill="#34A853" d="M12 21.72c2.64 0 4.86-.87 6.48-2.36l-3.14-2.45c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.53A9.79 9.79 0 0 0 12 21.72Z" />
+                    <path fill="#FBBC05" d="M6.49 13.77A5.88 5.88 0 0 1 6.18 12c0-.61.11-1.2.31-1.77V7.7H3.24A9.77 9.77 0 0 0 2.2 12c0 1.56.37 3.04 1.04 4.3l3.25-2.53Z" />
+                    <path fill="#EA4335" d="M12 6.17c1.44 0 2.73.5 3.75 1.49l2.81-2.81C16.86 3.28 14.64 2.28 12 2.28a9.79 9.79 0 0 0-8.76 5.42l3.25 2.53C7.27 7.9 9.44 6.17 12 6.17Z" />
+                  </svg>
+                  Google
+                </a>
+                <button v-else type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70" disabled>
                   {{ t('auth.googleUnavailable') }}
                 </button>
               </div>
@@ -497,7 +506,16 @@ function onToggleTheme(event: MouseEvent) {
             GitHub
           </a>
 
-          <button type="button" class="gf-button gf-button-md gf-button-secondary w-full cursor-not-allowed opacity-70">
+          <a v-if="page.props.googleReady" :href="page.props.googleUrl" class="gf-button gf-button-md gf-button-secondary w-full">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.91-4.2 2.91-7.22Z" />
+              <path fill="#34A853" d="M12 21.72c2.64 0 4.86-.87 6.48-2.36l-3.14-2.45c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.53A9.79 9.79 0 0 0 12 21.72Z" />
+              <path fill="#FBBC05" d="M6.49 13.77A5.88 5.88 0 0 1 6.18 12c0-.61.11-1.2.31-1.77V7.7H3.24A9.77 9.77 0 0 0 2.2 12c0 1.56.37 3.04 1.04 4.3l3.25-2.53Z" />
+              <path fill="#EA4335" d="M12 6.17c1.44 0 2.73.5 3.75 1.49l2.81-2.81C16.86 3.28 14.64 2.28 12 2.28a9.79 9.79 0 0 0-8.76 5.42l3.25 2.53C7.27 7.9 9.44 6.17 12 6.17Z" />
+            </svg>
+            Google
+          </a>
+          <button v-else type="button" class="gf-button gf-button-md gf-button-secondary w-full cursor-not-allowed opacity-70" disabled>
             {{ t('auth.googleUnavailable') }}
           </button>
         </div>

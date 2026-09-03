@@ -87,6 +87,11 @@ slowSQLThreshold = "200ms"
 client_id = {{GH_CLIENT_ID}}
 client_secret = {{GH_CLIENT_SECRET}}
 
+# Google OAuth 登录（goth，可选；未设置 secret 时保持关闭）。
+[google]
+client_id = {{GOOGLE_CLIENT_ID}}
+client_secret = {{GOOGLE_CLIENT_SECRET}}
+
 [oidc]
 enabled = false
 # issuer 默认取 site_url + /api/oauth；显式配置可覆盖

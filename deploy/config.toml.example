@@ -93,6 +93,11 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
+# Google OAuth 登录（可选；通过 GitHub Environment secrets 注入）
+[google]
+client_id = ""
+client_secret = ""
+
 # 排课器学期起止日期（可选）：一系统同步数据不含学期日期，排课器「当前周次」
 # 定位与学期日期条展示依赖此配置。键 = 学期标记（pk_calendar.calendar_id_i18n），
 # 值 = start/end 纯日期；course-pk-sync 同步时写入 pk_calendar。未配置的学期
