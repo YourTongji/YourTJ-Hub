@@ -6284,7 +6284,16 @@ AdminSaveFriendLinksRequest:
       type: array
       items:
         $ref: '#/AdminFriendLinksGroup'
-      description: Replacement group list. No validation — a missing/null value is saved as null.
+      description: |
+        Replacement group list. A missing/null value is saved as null. URL
+        fields are validated before persistence under the shared admin URL
+        policy (issue #409): each `url` must be an absolute http(s) URL with
+        a host and each `logoUrl` may be a site-relative path or an absolute
+        http(s) URL; dangerous schemes, protocol-relative `//`,
+        control-character/entity disguises and overlong values are rejected.
+        On rejection the request fails with HTTP 200 `code: 1`, messageCode
+        `admin.url.invalid` and params `field` naming the first offending
+        field; nothing is persisted.
   additionalProperties: false
 
 AdminSponsorItem:
@@ -6396,6 +6405,17 @@ AdminSaveSponsorsRequest:
     sponsorsInfo:
       $ref: '#/AdminSponsorsConfig'
   additionalProperties: false
+  description: |
+    Replacement sponsors configuration. URL fields are validated before
+    persistence under the shared admin URL policy (issue #409): each sponsor
+    tier `link` must be an absolute http(s) URL with a host, each `avatarUrl`
+    may be a site-relative path or an absolute http(s) URL, and the contact
+    `buttonLink` additionally accepts a `mailto:` address. Dangerous schemes,
+    protocol-relative `//`, control-character/entity disguises and overlong
+    values are rejected. On rejection the request fails with HTTP 200
+    `code: 1`, messageCode `admin.url.invalid` and params `field` naming the
+    first offending field; nothing is persisted. A malformed or empty body
+    binds to zero values and is saved (after default-filling) as-is.
 
 AdminAnnouncementItem:
   type: object
@@ -6534,7 +6554,17 @@ AdminSaveSiteSettingsRequest:
     settings:
       $ref: '#/AdminSiteSettingsConfig'
   additionalProperties: false
-  description: Replacement site settings. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is.
+  description: |
+    Replacement site settings. URL fields are validated before persistence
+    under the shared admin URL policy (issue #409): `siteUrl` must be an
+    absolute http(s) URL with a host, while `siteLogo` may be a site-relative
+    path or an absolute http(s) URL. Dangerous schemes, protocol-relative
+    `//`, control-character/entity disguises, pure port/no-host forms such
+    as `https://:443` and overlong values are rejected. On rejection the
+    request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
+    and params `field` naming the first offending field; nothing is
+    persisted. A missing/malformed body binds to zero values (empty URL
+    fields, hence valid) and is saved as-is.
 
 AdminSiteChromeItem:
   type: object
@@ -6651,7 +6681,19 @@ AdminSaveSiteChromeRequest:
     settings:
       $ref: '#/AdminSiteChromeConfig'
   additionalProperties: false
-  description: Replacement chrome configuration. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is.
+  description: |
+    Replacement chrome configuration. URL fields are validated before
+    persistence under the shared admin URL policy (issue #409):
+    header/main-menu/resources/sidebar/footer link `url` values accept a
+    site-relative path or an absolute http(s) URL with a host, and
+    `brandImage` accepts a site-relative path or an absolute http(s) URL.
+    Dangerous schemes, protocol-relative `//`, control-character/entity
+    disguises, pure port/no-host forms such as `https://:443` and overlong
+    values are rejected. On rejection the request fails with HTTP 200
+    `code: 1`, messageCode `admin.url.invalid` and params `field` naming the
+    first offending field; nothing is persisted. A missing/malformed body
+    binds to zero values (empty URL fields, hence valid) and is saved
+    as-is.
 
 AdminSiteThemeTokens:
   type: object
@@ -6908,6 +6950,18 @@ AdminPostingUploadControl:
       type: array
       items:
         type: string
+      description: >-
+        Image-extension allowlist for user uploads, canonicalized by the
+        server (issue #408). Only the built-in decodable image extensions
+        are accepted: .jpg/.jpeg/.png/.gif/.webp/.bmp. Matching is
+        case-insensitive and a leading dot is optional (`png`, `.PNG` and
+        `.png` are the same entry); legal entries are stored lower-cased
+        with a leading dot, deduplicated in first-appearance order.
+        Submitting any unsupported token (.svg/.html/.js/.xml/.pdf, double
+        extensions such as `avatar.png.exe`, empty strings) rejects the
+        whole save with `admin.upload.extNotAllowed` (HTTP 200,
+        `params.extensions` lists the offending tokens) and persists
+        nothing. An empty list is valid and is stored/echoed as `[]`.
     maxAttachmentSizeKb:
       type: integer
     maxDailyUploadsPerUser:

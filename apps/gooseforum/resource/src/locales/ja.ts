@@ -2091,6 +2091,7 @@ export default {
     'common.rateLimited': '操作が多すぎます。{retryAfterSeconds} 秒後に再度お試しください。',
     'page.notFound': 'ページが存在しないか、削除されています。',
     'route.notFound': 'ルートが見つかりません。URL とリクエストメソッドを確認してください。',
+    'auth.csrf.rejected': 'リクエスト元を検証できませんでした。ページを再読み込みして、もう一度お試しください。',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',
@@ -2167,6 +2168,7 @@ export default {
     'admin.review.notFound': '審査対象が見つかりません。',
     'admin.review.processed': '審査対象はすでに処理済みです。',
     'admin.review.failed': '審査操作に失敗しました: {error}',
+    'admin.upload.extNotAllowed': 'アップロード拡張子の許可リストにサポート外の拡張子が含まれています: {extensions}。利用可能なのは JPG、JPEG、PNG、GIF、WebP、BMP のみです',
     'wiki.namespace.nameInvalid': '名前空間名が不正です（小文字、数字、ハイフンのみ使用可能）。',
     'wiki.path.invalid': 'Wiki パスが不正です。',
     'wiki.page.notFound': 'Wiki ページが見つかりません。',
@@ -2176,6 +2178,7 @@ export default {
     'wiki.revision.conflict': 'ページが他のユーザーによって更新されました。最新版に基づいて再編集してください。',
     'wiki.saveFailed': 'Wiki の保存に失敗しました。後でもう一度お試しください。',
     'wiki.readFailed': 'Wiki データの読み込みに失敗しました。後でもう一度お試しください。',
+    'admin.url.invalid': '許可されていない URL です。対応するのは http(s)、サイト内相対パス、一部フィールドの mailto: のみです。',
   },
   serverActions: {
     uploadAttachment: '添付ファイルをアップロード',

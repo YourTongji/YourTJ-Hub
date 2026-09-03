@@ -2091,6 +2091,7 @@ export default {
     'common.rateLimited': 'Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.',
     'page.notFound': 'La pagina non esiste o è stata eliminata.',
     'route.notFound': 'Route non trovata. Controlla l’URL e il metodo della richiesta.',
+    'auth.csrf.rejected': 'Impossibile verificare l\'origine della richiesta. Aggiorna la pagina e riprova.',
     'admin.moderator.userRequired': 'Inserisci un utente moderatore.',
     'admin.moderator.userNotFound': 'Utente moderatore non trovato.',
     'admin.moderator.notFound': 'Record del moderatore non trovato.',
@@ -2167,6 +2168,7 @@ export default {
     'admin.review.notFound': 'Destinatario della revisione non trovato.',
     'admin.review.processed': 'Il destinatario della revisione è già stato elaborato.',
     'admin.review.failed': 'Azione di revisione non riuscita: {error}',
+    'admin.upload.extNotAllowed': 'L’elenco delle estensioni consentite contiene estensioni non supportate: {extensions}. Sono consentiti solo JPG, JPEG, PNG, GIF, WebP e BMP',
     'wiki.namespace.nameInvalid': 'Nome namespace non valido (solo lettere minuscole, cifre e trattini).',
     'wiki.path.invalid': 'Percorso wiki non valido.',
     'wiki.page.notFound': 'Pagina wiki non trovata.',
@@ -2176,6 +2178,7 @@ export default {
     'wiki.revision.conflict': 'La pagina è stata aggiornata da qualcun altro. Modifica in base alla versione più recente.',
     'wiki.saveFailed': 'Salvataggio wiki non riuscito. Riprova più tardi.',
     'wiki.readFailed': 'Lettura dei dati wiki non riuscita. Riprova più tardi.',
+    'admin.url.invalid': 'URL non consentito: sono ammessi solo http(s), percorsi relativi interni e (per alcuni campi) mailto:.',
   },
   serverActions: {
     uploadAttachment: 'caricare allegati',

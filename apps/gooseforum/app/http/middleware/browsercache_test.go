@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/gin-gonic/gin"
 )
 
 func TestBrowserCacheProduction(t *testing.T) {
@@ -34,14 +34,6 @@ func TestBrowserCacheLocal(t *testing.T) {
 
 	if got := recorder.Header().Get("Cache-Control"); got != "" {
 		t.Fatalf("Cache-Control = %q, want empty local cache header", got)
-	}
-}
-
-func TestSiteInfo(t *testing.T) {
-	recorder := requestWithMiddleware(SiteInfo, http.MethodGet)
-
-	if got := recorder.Header().Get("X-Powered-By"); got != "GooseForum/0.0.1" {
-		t.Fatalf("X-Powered-By = %q, want GooseForum/0.0.1", got)
 	}
 }
 

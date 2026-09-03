@@ -2091,6 +2091,7 @@ export default {
     'common.rateLimited': 'Too many attempts. Please try again in {retryAfterSeconds} seconds.',
     'page.notFound': 'The page does not exist or has been deleted.',
     'route.notFound': 'Route not found. Please check the URL and request method.',
+    'auth.csrf.rejected': 'The request origin could not be verified. Refresh the page and try again.',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',
@@ -2165,6 +2166,7 @@ export default {
     'admin.review.notFound': 'Review target not found.',
     'admin.review.processed': 'Review target has already been processed.',
     'admin.review.failed': 'Review action failed: {error}',
+    'admin.upload.extNotAllowed': 'The upload extension allowlist contains unsupported extensions: {extensions}. Only JPG, JPEG, PNG, GIF, WebP and BMP are allowed',
     'upload.dailyLimit': 'You have uploaded {count} files today and reached the daily limit',
     'upload.dailyLimit.avatar': 'You have uploaded {count} files today. Uploading an avatar needs {fileCount} slots and would exceed the daily limit',
     'wiki.namespace.nameInvalid': 'Invalid namespace name (lowercase letters, digits, and hyphens only).',
@@ -2176,6 +2178,7 @@ export default {
     'wiki.revision.conflict': 'The page was updated by someone else. Please re-edit based on the latest version.',
     'wiki.saveFailed': 'Failed to save wiki. Please try again later.',
     'wiki.readFailed': 'Failed to read wiki data. Please try again later.',
+    'admin.url.invalid': 'The URL is not allowed: only http(s), in-site relative paths, and (for some fields) mailto: are supported.',
   },
   serverActions: {
     uploadAttachment: 'upload attachments',

@@ -48,6 +48,7 @@ requirements and product semantics
 - [Documentation governance](documentation.md)
 - [Contracts, data & derived projections](../architecture/contracts-and-data.md)
 - [Coding conventions](coding-conventions.md)
+- [Go dependency vulnerability scanning](dependency-scanning.md)
 
 ## Definition of done
 

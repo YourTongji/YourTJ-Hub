@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
@@ -1183,9 +1184,12 @@ type SaveFriendLinksReq struct {
 	LinksInfo []pageConfig.FriendLinksGroup `json:"linksInfo"`
 }
 
-// SaveFriendLinks 保存友情链接
+// SaveFriendLinks 保存友情链接：外链与 logo URL 经字段策略校验后落库。
 func SaveFriendLinks(req component.BetterRequest[SaveFriendLinksReq]) component.Response {
 	normalizeFriendLinks(req.Params.LinksInfo)
+	if field := validateFriendLinksURLs(req.Params.LinksInfo); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
 	return savePageConfig(pageConfig.FriendShipLinks, req.Params.LinksInfo, hotdataserve.ClearFriendLinksConfigCache)
 }
 
@@ -1208,10 +1212,13 @@ type SaveSponsorsReq struct {
 	SponsorsInfo pageConfig.SponsorsConfig `json:"sponsorsInfo"`
 }
 
-// SaveSponsors 保存赞助商配置
+// SaveSponsors 保存赞助商配置：外链、头像与联系按钮 URL 经字段策略校验后落库。
 func SaveSponsors(req component.BetterRequest[SaveSponsorsReq]) component.Response {
 	config := req.Params.SponsorsInfo
 	fillSponsorsConfigDefaults(&config)
+	if field := validateSponsorsURLs(&config); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
 	return savePageConfig(pageConfig.SponsorsPage, config, hotdataserve.ClearSponsorsConfigCache)
 }
 
@@ -1267,9 +1274,13 @@ type SaveSiteSettingsReq struct {
 	Settings pageConfig.SiteSettingsConfig `json:"settings"`
 }
 
-// SaveSiteSettings 保存站点设置
+// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
+	settings := req.Params.Settings
+	if field := validateSiteSettingsURLs(&settings); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
+	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
 		oauthservice.RefreshOAuthProviders()
 		llmsservice.ClearCache()
@@ -1285,8 +1296,13 @@ type SaveSiteChromeReq struct {
 	Settings pageConfig.SiteChromeConfig `json:"settings"`
 }
 
+// SaveSiteChrome 保存站点 chrome：导航/footer 链接与品牌图 URL 经字段策略校验后落库。
 func SaveSiteChrome(req component.BetterRequest[SaveSiteChromeReq]) component.Response {
-	return savePageConfig(pageConfig.SiteChrome, req.Params.Settings, hotdataserve.ClearSiteChromeConfigCache)
+	settings := req.Params.Settings
+	if field := validateSiteChromeURLs(&settings); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
+	return savePageConfig(pageConfig.SiteChrome, settings, hotdataserve.ClearSiteChromeConfigCache)
 }
 
 func GetSiteTheme(req component.BetterRequest[component.Null]) component.Response {
@@ -1470,11 +1486,23 @@ type SavePostingSettingsReq struct {
 // SavePostingSettings 保存发布内容设置。
 // maxDailyTopicsPerUser 非法负值归一为 0（不限额，issue #369），与读取路径
 // GetPostingSettingsConfig 的归一化保持一致，避免管理端回显与生效语义分裂。
+// uploadControl.authorizedExtensions 只允许内置图片扩展集合（imagepolicy）的子集
+// （issue #408）：混入危险/非法扩展（.svg/.html/.js/.xml/.pdf、双扩展、空串等）
+// 整单拒绝并回稳定错误码 admin.upload.extNotAllowed，绝不落库——配置保存的权威
+// 校验在服务端，前端交互校验只是体验层。
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if settings.TextControl.MaxDailyTopicsPerUser < 0 {
 		settings.TextControl.MaxDailyTopicsPerUser = 0
 	}
+	canonical, dropped := imagepolicy.CanonicalizeList(settings.UploadControl.AuthorizedExtensions)
+	if len(dropped) > 0 {
+		return component.FailResponseCode(component.MessageAdminUploadExtNotAllowed, component.MessageParams{
+			"extensions": strings.Join(dropped, ", "),
+		})
+	}
+	// 合法条目统一规范化为小写带点形式后落库（png → .png、.JPG → .jpg、去重）。
+	settings.UploadControl.AuthorizedExtensions = canonical
 	return savePageConfig(pageConfig.PostingSettings, settings, func() {
 		hotdataserve.ClearPostingSettingsConfigCache()
 		llmsservice.ClearCache()

@@ -2093,6 +2093,7 @@ export default {
     'common.rateLimited': '操作过于频繁，请 {retryAfterSeconds} 秒后再试。',
     'page.notFound': '页面不存在，或已经被删除。',
     'route.notFound': '路由未定义，请确认 URL 和请求方法是否正确。',
+    'auth.csrf.rejected': '请求来源校验未通过（已拒绝跨站请求），请刷新页面后重试。',
     'admin.moderator.userRequired': '请输入版主用户。',
     'admin.moderator.userNotFound': '版主用户不存在。',
     'admin.moderator.notFound': '版主记录不存在。',
@@ -2167,6 +2168,7 @@ export default {
     'admin.review.notFound': '审核对象不存在。',
     'admin.review.processed': '审核对象已处理。',
     'admin.review.failed': '审核操作失败：{error}',
+    'admin.upload.extNotAllowed': '上传扩展名白名单包含不支持的扩展名：{extensions}。仅支持 JPG、JPEG、PNG、GIF、WebP、BMP',
     'upload.dailyLimit': '您今日已上传 {count} 个文件，已达到每日限制',
     'upload.dailyLimit.avatar': '您今日已上传 {count} 个文件，上传头像需要 {fileCount} 个名额，已超过每日限制',
     'wiki.namespace.nameInvalid': '命名空间名称不合法（仅支持小写字母、数字和连字符）。',
@@ -2178,6 +2180,7 @@ export default {
     'wiki.revision.conflict': '页面已被他人更新，请基于最新版本重新编辑。',
     'wiki.saveFailed': 'Wiki 保存失败，请稍后重试。',
     'wiki.readFailed': 'Wiki 数据读取失败，请稍后重试。',
+    'admin.url.invalid': '链接不符合允许的协议或目标（仅支持 http(s)、站内相对路径，部分字段支持 mailto）。',
   },
   serverActions: {
     uploadAttachment: '上传附件',
