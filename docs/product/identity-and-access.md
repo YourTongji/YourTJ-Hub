@@ -68,6 +68,18 @@
 - Registration: forum self-service password registration (with email verification when enabled);
   GitHub OAuth can auto-provision accounts. The built-in OIDC provider never creates accounts — it
   authenticates existing users.
+- Email verification (`enableEmailVerification`): password registration stores the account as
+  `pending` but still issues a session. While the setting is on, authenticated **write**
+  endpoints reject pending accounts before the controller runs with HTTP 403 and the
+  structured `permission.emailRequired` envelope (params actionCode=write) — the same
+  envelope is returned by every `CheckWritableAccount` write endpoint and is parsed by the
+  web client into an actionable activation message. Recovery writes (resend-activation-email,
+  set-user-email) stay allowed, as do the self-service account-close and content
+  privacy-erase lifecycle endpoints (the controllers keep their ownership, password, and
+  rate-limit checks). Enabling the setting backfills pending manage-role accounts
+  (admin/site/user/… permissions) and activates them immediately through the user-cache
+  refresh path, so the admin console cannot lock itself out; ordinary pending users are left
+  untouched and must still complete the activation email.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
   registration/rename and at OAuth/Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):

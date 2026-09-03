@@ -578,8 +578,10 @@ export interface paths {
          *     be challenged with a captcha (`common.captchaRequired`, params action=post.create;
          *     a wrong or expired code fails with `auth.captcha.invalid`) or delayed by a posting
          *     cooldown (`comment.post.cooldown`, params minutes/availableAt). When mandatory
-         *     email verification is enabled, unverified accounts fail with
-         *     `permission.emailRequired` (HTTP 200, params action=评论, actionCode=comment).
+         *     email verification is enabled, unverified accounts are rejected by the route-level
+         *     `CheckWritableAccount` middleware before the controller runs with HTTP 403
+         *     `permission.emailRequired` (params action=写入, actionCode=write; see the 403
+         *     response below).
          *     Content length violations fail with `comment.content.tooShort` /
          *     `comment.content.tooLong` (params minLength/maxLength).
          */
@@ -10932,7 +10934,14 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`), its account
+             *     information cannot be resolved, or — when mandatory email verification is
+             *     enabled — the account is still pending activation (`permission.emailRequired`,
+             *     params action=写入, actionCode=write). The write gate rejects unverified
+             *     accounts with the same structured envelope on every `CheckWritableAccount`
+             *     write endpoint.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;

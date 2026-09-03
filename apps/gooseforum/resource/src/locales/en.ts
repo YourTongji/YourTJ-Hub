@@ -2172,6 +2172,7 @@ export default {
     uploadAttachment: 'upload attachments',
     post: 'post',
     comment: 'comment',
+    write: 'write',
   },
   image: {
     selectFile: 'Please select an image file',
