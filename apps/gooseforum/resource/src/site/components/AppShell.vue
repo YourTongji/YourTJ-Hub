@@ -14,15 +14,16 @@ import {
   Languages,
   LogOut,
   Menu,
+  Monitor,
+  Moon,
   Palette,
   PenSquare,
   Scale,
+  Sun,
   TrendingUp,
   Search,
   Settings,
   Shield,
-  Moon,
-  Sun,
   GraduationCap,
   UserRound,
 } from '@lucide/vue'
@@ -30,7 +31,7 @@ import { useI18n } from 'vue-i18n'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
-import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
+import { useSiteTheme, setThemePreference, type ThemePreference } from '@/runtime/site-theme'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import type { LayoutPayload } from '@gooseforum/client'
@@ -72,16 +73,24 @@ const MobileDrawer = defineAsyncComponent(() => import('./MobileDrawer.vue'))
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
 const drawerOpen = ref(false)
 const headerElevated = ref(false)
+const themeMenuOpen = ref(false)
 const langMenuOpen = ref(false)
 const userMenuOpen = ref(false)
-const closeTimers: Record<'lang' | 'user', number | undefined> = {
+const closeTimers: Record<'theme' | 'lang' | 'user', number | undefined> = {
+  theme: undefined,
   lang: undefined,
   user: undefined,
 }
 const { navigating } = useNavigationState()
 const { t, te, locale } = useI18n()
-const { isDark } = useSiteTheme()
+const { isDark, preference } = useSiteTheme()
 const unreadStatus = useUnreadStatus()
+
+const themeOptions: { value: ThemePreference; label: string; icon: typeof Monitor }[] = [
+  { value: 'auto', label: t('shell.themeAuto'), icon: Monitor },
+  { value: 'light', label: t('shell.themeLight'), icon: Sun },
+  { value: 'dark', label: t('shell.themeDark'), icon: Moon },
+]
 const hasUnreadNotification = computed(() => unreadStatus.notifications.value)
 const hasUnreadMessage = computed(() => unreadStatus.messages.value)
 const hasModerationReports = computed(() => unreadStatus.moderationReports.value)
@@ -262,10 +271,6 @@ function serverSidebarItems(items: typeof props.layout.sidebar.main): SidebarNav
   }))
 }
 
-function onToggleTheme(event: MouseEvent) {
-  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
-}
-
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -274,17 +279,19 @@ function updateHeaderElevated() {
   headerElevated.value = window.scrollY > 8
 }
 
-function setHoverMenu(menu: 'lang' | 'user', open: boolean) {
+function setHoverMenu(menu: 'theme' | 'lang' | 'user', open: boolean) {
   window.clearTimeout(closeTimers[menu])
   closeTimers[menu] = undefined
-  if (menu === 'lang') langMenuOpen.value = open
+  if (menu === 'theme') themeMenuOpen.value = open
+  else if (menu === 'lang') langMenuOpen.value = open
   else userMenuOpen.value = open
 }
 
-function closeHoverMenuSoon(menu: 'lang' | 'user') {
+function closeHoverMenuSoon(menu: 'theme' | 'lang' | 'user') {
   window.clearTimeout(closeTimers[menu])
   closeTimers[menu] = window.setTimeout(() => {
-    if (menu === 'lang') langMenuOpen.value = false
+    if (menu === 'theme') themeMenuOpen.value = false
+    else if (menu === 'lang') langMenuOpen.value = false
     else userMenuOpen.value = false
   }, 120)
 }
@@ -447,16 +454,44 @@ async function loadUserCard() {
             <Search class="h-5 w-5" />
           </a>
 
-          <button
-            type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
-            :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-            :title="isDark ? 'Light' : 'Dark'"
-            @click="onToggleTheme"
+          <div
+            class="relative"
+            @mouseenter="setHoverMenu('theme', true)"
+            @mouseleave="closeHoverMenuSoon('theme')"
+            @focusin="setHoverMenu('theme', true)"
+            @focusout="closeHoverMenuSoon('theme')"
           >
-            <Sun v-if="isDark" class="h-5 w-5" />
-            <Moon v-else class="h-5 w-5" />
-          </button>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
+              :aria-label="t('shell.switchTheme')"
+              :title="t('shell.switchTheme')"
+              :aria-expanded="themeMenuOpen"
+              @click="themeMenuOpen = !themeMenuOpen"
+            >
+              <component :is="themeOptions.find(opt => opt.value === preference)?.icon ?? Monitor" class="h-5 w-5" />
+            </button>
+            <Transition name="gf-menu">
+              <div
+                v-if="themeMenuOpen"
+                class="absolute right-0 top-full z-[70] w-36 pt-2"
+              >
+                <div class="gf-menu-surface overflow-hidden py-1">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                    :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                    type="button"
+                    @click="setThemePreference(option.value)"
+                  >
+                    <component :is="option.icon" class="h-4 w-4" />
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
 
           <div
             class="relative"
