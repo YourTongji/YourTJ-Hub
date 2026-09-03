@@ -408,6 +408,26 @@ func ListCourseDetailsByCalendar(calendarId uint64) ([]CourseDetailEntity, error
 	return entities, nil
 }
 
+// ListCourseDetailsByIDs 按教学班 id 批量返回课程详情（分块查询避免 IN 超限；
+// 卡级沿革候选装配：course_offering.teaching_class_id → pk_course_detail 的一系统
+// course_code / new_course_code，用于判定冗余卡共享课程码）。
+func ListCourseDetailsByIDs(ids []uint64) ([]CourseDetailEntity, error) {
+	var all []CourseDetailEntity
+	const chunkSize = 80
+	for i := 0; i < len(ids); i += chunkSize {
+		end := i + chunkSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		var chunk []CourseDetailEntity
+		if err := courseDetailBuilder().Where("id IN ?", ids[i:end]).Find(&chunk).Error; err != nil {
+			return nil, fmt.Errorf("pk: list course details by ids: %w", err)
+		}
+		all = append(all, chunk...)
+	}
+	return all, nil
+}
+
 // ListTeachersByClassIds 返回一批教学班的教师（分块查询避免 IN 超限）。
 func ListTeachersByClassIds(classIds []uint64) ([]TeacherEntity, error) {
 	var all []TeacherEntity
