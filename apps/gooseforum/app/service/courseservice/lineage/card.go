@@ -46,8 +46,10 @@ type cardEvidence struct {
 	ToCode          string   `json:"toCode,omitempty"`
 	SharedPkCourse  []string `json:"sharedPkCourse,omitempty"`
 	SharedPkNewCode []string `json:"sharedPkNewCode,omitempty"`
+	SharedPkCodes   []string `json:"sharedPkCodes,omitempty"`
 	NormalizedName  string   `json:"normalizedName,omitempty"`
-	CreditX10       int      `json:"creditX10,omitempty"`
+	FromCreditX10   int      `json:"fromCreditX10,omitempty"`
+	ToCreditX10     int      `json:"toCreditX10,omitempty"`
 	FromVariant     string   `json:"fromVariant,omitempty"`
 	ToVariant       string   `json:"toVariant,omitempty"`
 	FamilyKey       string   `json:"familyKey,omitempty"`
@@ -143,7 +145,9 @@ func EvaluateCards(cards []CardSummary) []CardCandidate {
 		}
 		sort.Strings(bucketKeys)
 
-		handledByE1 := map[uint64]bool{}
+		// E1 中被合并掉的冗余卡（from）。目标卡不标记：它仍须参与 E2/E3 家族配对
+		// （重复卡并入后，generic→A1 这类沿革标注仍要产出，见 review C1）。
+		e1FromCards := map[uint64]bool{}
 		for _, bk := range bucketKeys {
 			members := buckets[bk]
 			if len(members) < 2 {
@@ -215,41 +219,47 @@ func EvaluateCards(cards []CardSummary) []CardCandidate {
 							ToCode:          to.PrimaryCode,
 							SharedPkCourse:  intersectCodes(from.PkCourseCode, to.PkCourseCode),
 							SharedPkNewCode: intersectCodes(from.PkNewCode, to.PkNewCode),
-							NormalizedName:  norm,
-							CreditX10:       to.CreditX10,
-							FromTerms:       from.Terms,
-							ToTerms:         to.Terms,
-							FromCreatedAt:   from.CreatedAt.Format(time.DateOnly),
-							ToCreatedAt:     to.CreatedAt.Format(time.DateOnly),
+							// 跨字段（course_code ∪ new_course_code）共享码：一卡 new_code
+							// = 另一卡 course_code 的匹配也在此留证据（review C6）。
+							SharedPkCodes:  intersectCodes(allCodes(from), allCodes(to)),
+							NormalizedName: norm,
+							FromCreditX10:  from.CreditX10,
+							ToCreditX10:    to.CreditX10,
+							FromTerms:      from.Terms,
+							ToTerms:        to.Terms,
+							FromCreatedAt:  from.CreatedAt.Format(time.DateOnly),
+							ToCreatedAt:    to.CreatedAt.Format(time.DateOnly),
 						})
-					handledByE1[from.ID] = true
+					e1FromCards[from.ID] = true
 				}
-				handledByE1[to.ID] = true
 			}
 		}
 
-		// ---- E2 / E3：家族内变体配对（E1 已处理的冗余卡跳过，防噪音） ----
+		// ---- E2 / E3：家族内变体配对（仅跳过 E1 中被合并掉的冗余卡 from；E1 目标
+		// 卡保持配对资格，generic→A1 等层次沿革仍须产出，见 review C1） ----
 		for a := 0; a < len(groupCards); a++ {
 			for b := a + 1; b < len(groupCards); b++ {
 				ca, cb := groupCards[a], groupCards[b]
-				if handledByE1[ca.ID] || handledByE1[cb.ID] {
+				if e1FromCards[ca.ID] || e1FromCards[cb.ID] {
 					continue
 				}
 				fa, fb := FamilyKey(ca.Name), FamilyKey(cb.Name)
 				if fa == "" || fa != fb {
 					continue
 				}
-				na, nb := NormalizeCourseName(ca.Name), NormalizeCourseName(cb.Name)
-				from, to := olderFirst(ca, cb)
-				if na == nb {
-					// 同名同师：E1 无共享码证据时，学分巨变才产 RELATED（弱关联核查）。
-					if creditChangedDramaticallyCard(from.CreditX10, to.CreditX10) {
+				va, vb := VariantKey(ca.Name), VariantKey(cb.Name)
+				if va == vb {
+					// 同变体（归一全名差异仅来自格式残留，如「课程A1」与「课程 A1」，
+					// 见 review C2）：学分巨变才产 RELATED（弱关联核查），否则无沿革信号。
+					if creditChangedDramaticallyCard(ca.CreditX10, cb.CreditX10) {
+						from, to := olderFirst(ca, cb)
 						addCandidate(from, to, RelationRelated, cardRuleRelated, 0.2, pairEvidence(from, to, fa))
 					}
 					continue
 				}
 				// 变体不同 → SPLIT_FROM 标注（含 generic→A1 层次重组与 A1/A2/B、
 				// 基础/进阶、实验/理论硬分隔；一律不合并，只做沿革互链）。
+				from, to := olderFirst(ca, cb)
 				addCandidate(from, to, RelationSplitFrom, cardRuleSplit, 0.5, pairEvidence(from, to, fa))
 			}
 		}
@@ -271,12 +281,34 @@ func EvaluateCards(cards []CardSummary) []CardCandidate {
 	return out
 }
 
-// olderFirst 返回方向化的 from/to（created 旧 → 新；同 created 取 id 小者）。
+// olderFirst 返回方向化的 from/to（旧 → 新）：优先按开课学期（terms 中最小学期序号）
+// 定向——created_at 是摄入序，历史学期补录会晚于已物化的新学期（review C3）；
+// 学期缺失或相等时回退 created_at（旧 → 新；同 created 取 id 小者）。
 func olderFirst(ca, cb CardSummary) (CardSummary, CardSummary) {
+	ai, aok := cardEarliestTerm(ca)
+	bi, bok := cardEarliestTerm(cb)
+	if aok && bok && ai != bi {
+		if ai > bi {
+			return cb, ca
+		}
+		return ca, cb
+	}
 	if ca.CreatedAt.After(cb.CreatedAt) || (ca.CreatedAt.Equal(cb.CreatedAt) && ca.ID > cb.ID) {
 		return cb, ca
 	}
 	return ca, cb
+}
+
+// cardEarliestTerm 卡最早开课学期：terms 中可解析为标准学期 "YYYY-YYYY-N" 的
+// 最小绝对序号（semesterIndex）；全部无法解析返回 (0,false)。
+func cardEarliestTerm(c CardSummary) (int, bool) {
+	best, ok := 0, false
+	for _, t := range c.Terms {
+		if idx, ok2 := semesterIndex(t); ok2 && (!ok || idx < best) {
+			best, ok = idx, true
+		}
+	}
+	return best, ok
 }
 
 // pairEvidence 组装 from→to 的家族/变体证据（方向化后取值，避免方向交换错位）。
@@ -289,7 +321,8 @@ func pairEvidence(from, to CardSummary, family string) cardEvidence {
 		FamilyKey:     family,
 		FromVariant:   VariantKey(from.Name),
 		ToVariant:     VariantKey(to.Name),
-		CreditX10:     from.CreditX10,
+		FromCreditX10: from.CreditX10,
+		ToCreditX10:   to.CreditX10,
 		FromTerms:     from.Terms,
 		ToTerms:       to.Terms,
 		FromCreatedAt: from.CreatedAt.Format(time.DateOnly),

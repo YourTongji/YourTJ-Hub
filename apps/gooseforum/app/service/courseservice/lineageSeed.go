@@ -34,7 +34,8 @@ type SeedLineageReport struct {
 	FamilySkipped     int `json:"familySkipped"`     // 已存在跳过的 SPLIT/RELATED 数
 }
 
-// courseBatch 卡级种子装配的分页/批量步长（分块查询避免 IN 超限，与搜索重建同风格）。
+// courseBatch 卡级种子装配的分页/批量步长（分块查询避免 IN 参数超限：SQLite 999 /
+// PostgreSQL 65535；offering/学期/教师查询均按该步长分块，见 review C4）。
 const courseBatch = 500
 
 // SeedLineage 装配课程目录全部可见课程卡为卡级沿革输入，运行 lineage.EvaluateCards，
@@ -75,10 +76,16 @@ func SeedLineage(_ context.Context, opt SeedLineageOptions) (*SeedLineageReport,
 //   - term_id → course_term.code 作为开课学期证据；
 //   - teacher_id → course_instructor.teacher_code/name 作为同教师配对键。
 //
+// 所有 IN 批量查询均按 courseBatch 分块（offering 按每批课程卡查询），避免数据库
+// 驱动 bind 参数上限导致 CLI 在大目录（万级课程卡）上失败。
 // 只装配可见卡（status=visible，软删由 ListAllCourses 模型过滤）：隐藏卡已被
 // 合并或下架，不应再成为候选来源或目标。
 func loadCardSummaries() ([]lineage.CardSummary, error) {
 	var entities []course.Entity
+	offerByCourse := make(map[uint64][]course.OfferingEntity)
+	var classIDs, termIDs, teacherIDs []uint64
+	seenClass, seenTerm, seenTeacher := map[uint64]bool{}, map[uint64]bool{}, map[uint64]bool{}
+
 	offset := 0
 	for {
 		batch, err := course.ListAllCourses(courseBatch, offset)
@@ -88,9 +95,34 @@ func loadCardSummaries() ([]lineage.CardSummary, error) {
 		if len(batch) == 0 {
 			break
 		}
+		// 可见卡本批收集；offering 按本批课程卡查询（IN 参数 ≤ courseBatch）。
+		var batchIDs []uint64
 		for _, e := range batch {
-			if e.Status == course.StatusVisible {
-				entities = append(entities, e)
+			if e.Status != course.StatusVisible {
+				continue
+			}
+			entities = append(entities, e)
+			batchIDs = append(batchIDs, e.Id)
+			if e.TeacherId != 0 && !seenTeacher[e.TeacherId] {
+				seenTeacher[e.TeacherId] = true
+				teacherIDs = append(teacherIDs, e.TeacherId)
+			}
+		}
+		if len(batchIDs) > 0 {
+			offerings, err := course.ListOfferingsByCourses(batchIDs)
+			if err != nil {
+				return nil, fmt.Errorf("读取开课实例: %w", err)
+			}
+			for _, o := range offerings {
+				offerByCourse[o.CourseId] = append(offerByCourse[o.CourseId], o)
+				if o.TeachingClassId > 0 && !seenClass[o.TeachingClassId] {
+					seenClass[o.TeachingClassId] = true
+					classIDs = append(classIDs, o.TeachingClassId)
+				}
+				if o.TermId > 0 && !seenTerm[o.TermId] {
+					seenTerm[o.TermId] = true
+					termIDs = append(termIDs, o.TermId)
+				}
 			}
 		}
 		if len(batch) < courseBatch {
@@ -102,35 +134,14 @@ func loadCardSummaries() ([]lineage.CardSummary, error) {
 		return nil, nil
 	}
 
-	ids := make([]uint64, 0, len(entities))
-	for _, e := range entities {
-		ids = append(ids, e.Id)
-	}
-
-	// offering（仅可见）→ 按 course 分组；收集 teaching_class_id / term_id。
-	offerings, err := course.ListOfferingsByCourses(ids)
-	if err != nil {
-		return nil, fmt.Errorf("读取开课实例: %w", err)
-	}
-	offerByCourse := make(map[uint64][]course.OfferingEntity, len(entities))
-	var classIDs, termIDs []uint64
-	seenClass, seenTerm := map[uint64]bool{}, map[uint64]bool{}
-	for _, o := range offerings {
-		offerByCourse[o.CourseId] = append(offerByCourse[o.CourseId], o)
-		if o.TeachingClassId > 0 && !seenClass[o.TeachingClassId] {
-			seenClass[o.TeachingClassId] = true
-			classIDs = append(classIDs, o.TeachingClassId)
-		}
-		if o.TermId > 0 && !seenTerm[o.TermId] {
-			seenTerm[o.TermId] = true
-			termIDs = append(termIDs, o.TermId)
-		}
-	}
-
-	// 学期码映射。
+	// 学期码映射（分块）。
 	termByID := map[uint64]string{}
-	if len(termIDs) > 0 {
-		terms, err := course.ListTermsByIDs(termIDs)
+	for i := 0; i < len(termIDs); i += courseBatch {
+		end := i + courseBatch
+		if end > len(termIDs) {
+			end = len(termIDs)
+		}
+		terms, err := course.ListTermsByIDs(termIDs[i:end])
 		if err != nil {
 			return nil, fmt.Errorf("读取学期: %w", err)
 		}
@@ -139,7 +150,7 @@ func loadCardSummaries() ([]lineage.CardSummary, error) {
 		}
 	}
 
-	// 一系统课程码映射（教学班 → course_code / new_course_code）。
+	// 一系统课程码映射（pk.ListCourseDetailsByIDs 内部 80/块）。
 	pkByID := map[uint64]pk.CourseDetailEntity{}
 	if len(classIDs) > 0 {
 		details, err := pk.ListCourseDetailsByIDs(classIDs)
@@ -151,18 +162,14 @@ func loadCardSummaries() ([]lineage.CardSummary, error) {
 		}
 	}
 
-	// 教师映射（teacher_id → teacher_code/name）。
+	// 教师映射（分块：教师可达数千，超 SQLite 999 参数上限）。
 	instructorByID := map[uint64]course.InstructorEntity{}
-	var teacherIDs []uint64
-	seenTeacher := map[uint64]bool{}
-	for _, e := range entities {
-		if e.TeacherId != 0 && !seenTeacher[e.TeacherId] {
-			seenTeacher[e.TeacherId] = true
-			teacherIDs = append(teacherIDs, e.TeacherId)
+	for i := 0; i < len(teacherIDs); i += courseBatch {
+		end := i + courseBatch
+		if end > len(teacherIDs) {
+			end = len(teacherIDs)
 		}
-	}
-	if len(teacherIDs) > 0 {
-		instructors, err := course.ListInstructorsByIDs(teacherIDs)
+		instructors, err := course.ListInstructorsByIDs(teacherIDs[i:end])
 		if err != nil {
 			return nil, fmt.Errorf("读取教师: %w", err)
 		}

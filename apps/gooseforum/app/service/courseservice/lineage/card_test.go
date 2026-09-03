@@ -1,6 +1,7 @@
 package lineage
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -182,5 +183,115 @@ func TestEvaluateCardsEmptyTeacher(t *testing.T) {
 	}
 	if cands := EvaluateCards(cards); len(cands) != 0 {
 		t.Fatalf("teacher-less candidates = %d, want 0", len(cands))
+	}
+}
+
+// ---- Review 修复回归（PR #399 Codex C1-C3/C6-C7） ----
+
+// TestReviewC1TargetKeepsFamilyPairing：E1 目标卡仍须参与 E2/E3 家族配对。
+// 两张 generic 重复卡 + 一张 A1 卡：旧 generic 冗余卡并入规范卡的同时，
+// 规范卡仍产出 generic→A1 的 SPLIT_FROM（沿革标注不因合并候选丢失）。
+func TestReviewC1TargetKeepsFamilyPairing(t *testing.T) {
+	c1 := mkCard(10, "50002440016", "高级语言程序设计", "T1817", "沈坚", 20, -300)
+	c2 := mkCard(11, "50002440016", "高级语言程序设计", "T1817", "沈坚", 20, -100)
+	c2.PkCourseCode = nil
+	c2.PkNewCode = nil
+	c3 := mkCard(12, "50007220036", "高级语言程序设计A1", "T1817", "沈坚", 30, 0)
+	// E1：c1/c2 同码（同 code 同师同名同学分）；c3 不同名（A1）不同学分，不参与 E1。
+	c1.PkCourseCode = []string{"CST1201"}
+	c2.PkCourseCode = []string{"CST1201"}
+	c3.PkNewCode = []string{"CST1216"}
+	cards := []CardSummary{c1, c2, c3}
+	cands := EvaluateCards(cards)
+	// 期望：EQUIVALENT（冗余 generic 并入其一）+ SPLIT generic→A1。
+	if eq := findBy(t, cands, 10, 11, RelationEquivalent); eq == nil {
+		t.Errorf("want EQUIVALENT 10→11 (或 11→10)")
+	}
+	hasSplitToA1 := findBy(t, cands, 10, 12, RelationSplitFrom) != nil ||
+		findBy(t, cands, 11, 12, RelationSplitFrom) != nil
+	if !hasSplitToA1 {
+		t.Errorf("want SPLIT_FROM generic卡→A1 卡（E1 目标卡须保持家族配对资格）, got %+v", cands)
+	}
+}
+
+// TestReviewC2SameVariantFormatNoSplit：同变体不同格式（「课程A1」与「课程 A1」）
+// 全名不同但 VariantKey 相同 → 不产 SPLIT_FROM。
+func TestReviewC2SameVariantFormatNoSplit(t *testing.T) {
+	c1 := mkCard(20, "X001", "程序设计A1", "T111", "师一", 30, -100)
+	c2 := mkCard(21, "X002", "程序设计 A1", "T111", "师一", 30, 0)
+	c1.PkCourseCode = nil
+	c2.PkCourseCode = nil
+	cands := EvaluateCards([]CardSummary{c1, c2})
+	if sp := findBy(t, cands, 20, 21, RelationSplitFrom); sp != nil {
+		t.Fatalf("同变体不同格式不得产 SPLIT_FROM, got %+v", cands)
+	}
+	// 学分一致 → 无任何候选。
+	if len(cands) != 0 {
+		t.Fatalf("candidates = %d, want 0", len(cands))
+	}
+}
+
+// TestReviewC3DirectionBySemester：补录学期（created_at 晚）但开课学期更早 →
+// 方向按学期（旧学期为 from），不按 created_at。
+func TestReviewC3DirectionBySemester(t *testing.T) {
+	// card A：课程 2023-2024-1 开过（旧学期），但 2026 才补录入库（created_at 新）。
+	a := mkCard(30, "A001", "专业基础", "T222", "师二", 20, 500) // created 晚
+	a.Terms = []string{"2023-2024-1"}
+	// card B：2026 才开（新学期），入库早（created_at 旧）。
+	b := mkCard(31, "A001", "专业基础", "T222", "师二", 20, -500)
+	b.Terms = []string{"2026-2027-1"}
+	// 无候选路径不在此断言；直接测 olderFirst 辅助：
+	// 旧学期卡（a）应为 from（方向按学期，不按 created_at）。
+	from, to := olderFirst(a, b)
+	if from.ID != a.ID || to.ID != b.ID {
+		t.Errorf("olderFirst = %d→%d, want %d→%d（学期优先于 created_at）", from.ID, to.ID, a.ID, b.ID)
+	}
+}
+
+// TestReviewC6CrossFieldSharedCodeEvidence：E1 因一卡 new_code = 另一卡 course_code
+// 匹配时，证据须含跨字段共享码（sharedPkCodes），不因同字段交集为空而缺失。
+func TestReviewC6CrossFieldSharedCodeEvidence(t *testing.T) {
+	c1 := mkCard(40, "OLD123", "课程甲", "T333", "师三", 20, -100)
+	c1.PkCourseCode = []string{"CST1001"}
+	c1.PkNewCode = nil
+	c2 := mkCard(41, "NEW456", "课程甲", "T333", "师三", 20, 0)
+	c2.PkCourseCode = nil
+	c2.PkNewCode = []string{"CST1001"} // 与 c1 的 course_code 同码 → 跨字段匹配
+	cands := EvaluateCards([]CardSummary{c1, c2})
+	eq := findBy(t, cands, 40, 41, RelationEquivalent)
+	if eq == nil {
+		t.Fatalf("want EQUIVALENT 40→41 (跨字段同码), got %+v", cands)
+	}
+	var ev struct {
+		SharedPkCourse  []string `json:"sharedPkCourse"`
+		SharedPkNewCode []string `json:"sharedPkNewCode"`
+		SharedPkCodes   []string `json:"sharedPkCodes"`
+	}
+	if err := json.Unmarshal([]byte(eq.Evidence), &ev); err != nil {
+		t.Fatalf("evidence unmarshal: %v", err)
+	}
+	if len(ev.SharedPkCodes) != 1 || ev.SharedPkCodes[0] != "CST1001" {
+		t.Errorf("sharedPkCodes = %v, want [CST1001]（跨字段共享码须留证据）", ev.SharedPkCodes)
+	}
+}
+
+// TestReviewC7RelatedEvidenceBothCredits：E3 RELATED 证据含 from/to 两侧学分。
+func TestReviewC7RelatedEvidenceBothCredits(t *testing.T) {
+	c1 := mkCard(50, "LAB1", "实验课", "T444", "师四", 10, -100)
+	c2 := mkCard(51, "LAB2", "实验课", "T444", "师四", 40, 0)
+	cands := EvaluateCards([]CardSummary{c1, c2})
+	rel := findBy(t, cands, 50, 51, RelationRelated)
+	if rel == nil {
+		t.Fatalf("want RELATED 50→51（学分 1.0→4.0 巨变）, got %+v", cands)
+	}
+	var ev struct {
+		FromCreditX10 int `json:"fromCreditX10"`
+		ToCreditX10   int `json:"toCreditX10"`
+	}
+	if err := json.Unmarshal([]byte(rel.Evidence), &ev); err != nil {
+		t.Fatalf("evidence unmarshal: %v", err)
+	}
+	if ev.FromCreditX10 != 10 || ev.ToCreditX10 != 40 {
+		t.Errorf("evidence credits = %d/%d, want 10/40", ev.FromCreditX10, ev.ToCreditX10)
 	}
 }
