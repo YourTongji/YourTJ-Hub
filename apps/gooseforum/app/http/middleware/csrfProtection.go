@@ -45,9 +45,12 @@ const accessTokenCookieName = "access_token"
 // origin check additionally covers the cases SameSite=Lax does not: same-site
 // cross-origin (subdomain) attacks and browsers without SameSite support.
 //
-// Mounted per write-route group (route4api.go) after the authentication
-// middleware, never globally, so anonymous 401 semantics and public POSTs are
-// untouched. Do not move this into bridge.go's global chain.
+// Mounted per write-route group (route4api.go), never globally, so anonymous
+// 401 semantics and public POSTs are untouched. Auth-first groups mount it
+// after the authentication middleware; the /file group mounts it at group
+// level before the per-route auth, so a cookie-bearing foreign-origin upload
+// is rejected by this gate (403) instead of the auth middleware (401). Do not
+// move this into bridge.go's global chain.
 func CSRFProtection(c *gin.Context) {
 	method := c.Request.Method
 	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {

@@ -7,15 +7,38 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Route-level CSRF matrix (issue #406). Unlike the middleware unit tests in
 // app/http/middleware, these exercise the production route assembly
 // (apiRoute): CSRFProtection is mounted exactly where production mounts it
 // (logout before the handler; login/forum/admin groups after JWTAuthCheck).
-// /api/logout is used because its handler never touches the database when the
-// token is not a valid session JWT, so no test DB is needed.
+// The logout matrix below needs no database (an invalid session JWT never
+// reaches one); the chain-attachment and real-session tests bootstrap the
+// minimal table set (users, user statistics, user sessions) so JWTAuthCheck
+// can validate a minted session.
+
+// csrfChainTestDB migrates the tables the auth chain needs and nothing else:
+// the requests under test are rejected at the CSRF gate before any handler
+// runs.
+func csrfChainTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(
+		&users.EntityComplete{},
+		&userStatistics.Entity{},
+		&userSessions.Entity{},
+	); err != nil {
+		t.Fatalf("migrate CSRF chain test tables: %v", err)
+	}
+	return conn
+}
 
 func csrfRouteRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -137,8 +160,11 @@ func TestCSRFProtectedForumWriteRoute(t *testing.T) {
 	}
 }
 
-// TestCSRFProtectedWriteRoutesRegistered verifies every cookie-authenticated
-// write group carries the CSRF middleware in the production assembly.
+// TestCSRFProtectedWriteRoutesRegistered pins the registered paths of the
+// cookie-authenticated write surface (a registration smoke test only:
+// router.Routes() exposes method+path+final handler, not the middleware
+// chain). TestCSRFGroupChainsRejectCrossSiteSessionWrites below is what
+// proves the middleware is attached.
 func TestCSRFProtectedWriteRoutesRegistered(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -166,5 +192,79 @@ func TestCSRFProtectedWriteRoutesRegistered(t *testing.T) {
 		if !found {
 			t.Fatalf("%s was not registered", route)
 		}
+	}
+}
+
+// TestCSRFGroupChainsRejectCrossSiteSessionWrites proves CSRFProtection is
+// actually in every production cookie-authenticated write chain. The group
+// middleware added via .Use() is invisible to router.Routes(), so this fires
+// a valid-session, foreign-Origin write at one representative route per
+// protected group and requires the 403 auth.csrf.rejected envelope; if the
+// middleware is dropped from a group the request proceeds past auth and the
+// assertion fails.
+func TestCSRFGroupChainsRejectCrossSiteSessionWrites(t *testing.T) {
+	conn := csrfChainTestDB(t)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	apiRoute(router)
+	fileServer(router)
+
+	user := createHTTPContractUser(t, conn, contractTestID())
+	sessionToken := contractSessionToken(t, user)
+
+	for _, tc := range []struct{ group, path string }{
+		{"loginApi", "/api/user/sessions/revoke"},
+		{"forumLoginApi", "/api/forum/topics/write"},
+		{"chatApi", "/api/forum/chat/send"},
+		{"adminApi", "/api/admin/traffic-overview"},
+		// The /file group mounts CSRFProtection at group level, before the
+		// per-route auth — the mount-order exception documented in
+		// middleware/csrfProtection.go. A rejection here (not a 401) pins it.
+		{"fileGroup", "/file/img-upload"},
+	} {
+		request := httptest.NewRequest(http.MethodPost, "http://forum.example.test"+tc.path, strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: sessionToken})
+		request.Header.Set("Origin", "http://evil.example.test")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("%s: status = %d, want 403 (body %s)", tc.group, recorder.Code, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), "auth.csrf.rejected") {
+			t.Fatalf("%s: body %q lacks auth.csrf.rejected", tc.group, recorder.Body.String())
+		}
+	}
+}
+
+// TestCSRFRealSessionSameOriginLogoutPasses guards against over-blocking: a
+// legitimate same-origin write carrying a real session passes the gate and
+// reaches the handler, which revokes the session row.
+func TestCSRFRealSessionSameOriginLogoutPasses(t *testing.T) {
+	conn := csrfChainTestDB(t)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	apiRoute(router)
+
+	user := createHTTPContractUser(t, conn, contractTestID())
+	sessionToken := contractSessionToken(t, user)
+
+	request := httptest.NewRequest(http.MethodPost, "http://forum.example.test/api/logout", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(&http.Cookie{Name: "access_token", Value: sessionToken})
+	request.Header.Set("Origin", "http://forum.example.test")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %s)", recorder.Code, recorder.Body.String())
+	}
+	// Revocation deletes the session row (sessionservice.RevokeByJti).
+	var remaining int64
+	if err := conn.Model(&userSessions.Entity{}).Where("user_id = ?", user.Id).Count(&remaining).Error; err != nil {
+		t.Fatalf("count session rows: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("same-origin logout must revoke the session row, %d remain", remaining)
 	}
 }

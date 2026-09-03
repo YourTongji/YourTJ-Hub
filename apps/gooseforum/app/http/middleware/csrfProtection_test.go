@@ -214,3 +214,42 @@ func TestCSRFProtectionOptionsExemptFromOriginCheck(t *testing.T) {
 		t.Fatalf("OPTIONS status = %d, want 204", recorder.Code)
 	}
 }
+
+func TestCSRFProtectionHeadExemptFromOriginCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.HEAD("/read", CSRFProtection, func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	request := httptest.NewRequest(http.MethodHead, "http://forum.example.test/read", nil)
+	request.AddCookie(&http.Cookie{Name: "access_token", Value: "session-token"})
+	request.Header.Set("Origin", "http://evil.example.test")
+	recorder := performCsrf(router, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("HEAD status = %d, want 200", recorder.Code)
+	}
+}
+
+func TestCSRFProtectionNullOriginRejected(t *testing.T) {
+	router, reached := csrfTestRouter()
+	// Sandboxed iframes and some redirect chains send the string "null"; it
+	// parses as a path without a host and must fail closed.
+	request := csrfRequest(t, "session-token", "", "null", "")
+	assertCsrfRejected(t, performCsrf(router, request), reached)
+}
+
+func TestCSRFProtectionMalformedRefererRejected(t *testing.T) {
+	router, reached := csrfTestRouter()
+	// A Referer that does not parse to an absolute URL with a host fails
+	// closed instead of falling through to allow.
+	request := csrfRequest(t, "session-token", "", "", "not-a-url")
+	assertCsrfRejected(t, performCsrf(router, request), reached)
+}
+
+func TestCSRFProtectionInvalidForwardedProtoIgnored(t *testing.T) {
+	router, reached := csrfTestRouter()
+	// X-Forwarded-Proto values other than http/https are ignored: the
+	// host-derived scheme stays http, so an https Origin must still fail.
+	request := csrfRequest(t, "session-token", "", "https://forum.example.test", "")
+	request.Header.Set("X-Forwarded-Proto", "gopher")
+	assertCsrfRejected(t, performCsrf(router, request), reached)
+}
