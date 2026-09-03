@@ -3470,8 +3470,9 @@ export interface paths {
          *     port/no-host forms such as `https://:443` and overlong values are
          *     rejected; empty values are valid. A rejected field fails the request
          *     with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
-         *     `field` naming the first offending field (e.g. `settings.0[0].url`,
-         *     `settings.footerInfo.list[0].url` or `settings.brandImage`); nothing
+         *     `field` naming the first offending field (e.g. `settings.header[0].url`,
+         *     `settings.sidebarGroups[0].items[0].url`, `settings.footerInfo.list[0].url`
+         *     or `settings.brandImage`); nothing
          *     is persisted. JSON binding stays lenient: a missing/malformed body
          *     binds to zero values (empty URL fields, hence valid) and is saved
          *     as-is.
