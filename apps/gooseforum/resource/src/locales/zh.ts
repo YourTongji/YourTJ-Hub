@@ -2171,6 +2171,7 @@ export default {
     'wiki.revision.conflict': '页面已被他人更新，请基于最新版本重新编辑。',
     'wiki.saveFailed': 'Wiki 保存失败，请稍后重试。',
     'wiki.readFailed': 'Wiki 数据读取失败，请稍后重试。',
+    'admin.url.invalid': '链接不符合允许的协议或目标（仅支持 http(s)、站内相对路径，部分字段支持 mailto）。',
   },
   serverActions: {
     uploadAttachment: '上传附件',

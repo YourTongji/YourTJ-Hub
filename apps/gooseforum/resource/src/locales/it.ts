@@ -2169,6 +2169,7 @@ export default {
     'wiki.revision.conflict': 'La pagina è stata aggiornata da qualcun altro. Modifica in base alla versione più recente.',
     'wiki.saveFailed': 'Salvataggio wiki non riuscito. Riprova più tardi.',
     'wiki.readFailed': 'Lettura dei dati wiki non riuscita. Riprova più tardi.',
+    'admin.url.invalid': 'URL non consentito: sono ammessi solo http(s), percorsi relativi interni e (per alcuni campi) mailto:.',
   },
   serverActions: {
     uploadAttachment: 'caricare allegati',

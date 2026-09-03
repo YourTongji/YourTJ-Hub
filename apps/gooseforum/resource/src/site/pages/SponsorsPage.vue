@@ -5,6 +5,7 @@ import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { LayoutPayload, SponsorPayload, SponsorSectionPayload, SponsorsPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
+import { safeUrl } from '@/runtime/safe-url'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -46,6 +47,17 @@ function sponsorAvatarClass(section: SponsorSectionPayload) {
 function showMessage(sponsor: SponsorPayload) {
   return sponsor.message || t('sponsors.defaultMessage')
 }
+
+// 渲染防线（issue #409）：历史脏配置/绕过 API 的链接降级为空，不进入 href。
+function sponsorHref(sponsor: SponsorPayload) {
+  return safeUrl(sponsor.link, 'external')
+}
+
+function sponsorAvatar(sponsor: SponsorPayload) {
+  return safeUrl(sponsor.avatarUrl, 'image') || '/static/pic/default-avatar.webp'
+}
+
+const contactHref = computed(() => safeUrl(page.props.contact.buttonLink, 'contact'))
 </script>
 
 <template>
@@ -70,15 +82,15 @@ function showMessage(sponsor: SponsorPayload) {
               <a
                 v-for="sponsor in section.sponsors"
                 :key="`${section.key}-${sponsor.name}`"
-                :href="sponsor.link || '#'"
-                :target="sponsor.link ? '_blank' : undefined"
-                :rel="sponsor.link ? 'noopener noreferrer' : undefined"
+                :href="sponsorHref(sponsor) || '#'"
+                :target="sponsorHref(sponsor) ? '_blank' : undefined"
+                :rel="sponsorHref(sponsor) ? 'noopener noreferrer' : undefined"
                 class="group relative rounded-[var(--gf-radius-box)] border border-line/70 transition hover:border-primary/25 hover:bg-info/10"
                 :class="sponsorCardClass(section)"
               >
                 <div :class="sponsorBodyClass(section)">
                   <img
-                    :src="sponsor.avatarUrl"
+                    :src="sponsorAvatar(sponsor)"
                     :alt="sponsor.name"
                     class="shrink-0 rounded-[var(--gf-radius-field)] border border-line object-cover"
                     :class="sponsorAvatarClass(section)"
@@ -87,7 +99,7 @@ function showMessage(sponsor: SponsorPayload) {
                   <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 items-center gap-1.5">
                       <h3 class="truncate text-[13px] font-semibold text-base-content group-hover:text-primary sm:text-sm">{{ sponsor.name }}</h3>
-                      <ExternalLink v-if="sponsor.link" class="h-3 w-3 shrink-0 text-base-content/35 group-hover:text-primary sm:h-3.5 sm:w-3.5" />
+                      <ExternalLink v-if="sponsorHref(sponsor)" class="h-3 w-3 shrink-0 text-base-content/35 group-hover:text-primary sm:h-3.5 sm:w-3.5" />
                     </div>
                     <p class="mt-0.5 line-clamp-2 text-[11px] leading-4 text-base-content/55 sm:mt-1 sm:text-xs sm:leading-5">{{ showMessage(sponsor) }}</p>
                   </div>
@@ -103,7 +115,7 @@ function showMessage(sponsor: SponsorPayload) {
           <div class="rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100">
             <h2 class="text-sm font-semibold text-base-content">{{ props.contact.title }}</h2>
             <p class="mt-2 text-sm leading-6 text-base-content/55">{{ props.contact.description }}</p>
-            <a :href="props.contact.buttonLink" class="gf-button gf-button-md gf-button-primary mt-4">
+            <a :href="contactHref || '#'" class="gf-button gf-button-md gf-button-primary mt-4">
               <Mail class="h-4 w-4" />
               {{ props.contact.buttonText }}
             </a>

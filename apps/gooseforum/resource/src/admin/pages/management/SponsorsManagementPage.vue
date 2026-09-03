@@ -20,6 +20,7 @@ import {
 import { getSponsors, saveSponsors, uploadAdminImage } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, ManageHomeProps, SponsorItem, SponsorsConfig } from '@/admin/types'
+import { safeUrl } from '@/runtime/safe-url'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -153,6 +154,14 @@ function submitSponsor() {
   if (!sponsorDialog.value) return
   if (!sponsorForm.name.trim()) {
     adminToast.warning(adminText('k0028'))
+    return
+  }
+  if (sponsorForm.link.trim() !== '' && !safeUrl(sponsorForm.link, 'external')) {
+    adminToast.warning(adminText('k00up'))
+    return
+  }
+  if (sponsorForm.avatarUrl.trim() !== '' && !safeUrl(sponsorForm.avatarUrl, 'image')) {
+    adminToast.warning(adminText('k00up'))
     return
   }
   const item = {

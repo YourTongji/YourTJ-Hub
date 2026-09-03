@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/urlutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
@@ -685,16 +686,23 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	for _, item := range footerInfo.Primary {
 		footerPrimary = append(footerPrimary, item.Content)
 	}
+	// 渲染防线（issue #409）：历史脏配置不进入前台 href/src，SSR 与 SPA
+	// payload 一律用净化后的副本（不 mutate 共享 chrome 缓存）。
+	footerLinks := make([]pageConfig.FooterItem, 0, len(footerInfo.List))
+	for _, item := range footerInfo.List {
+		item.Url = urlutil.Clean(urlutil.SiteLink, item.Url)
+		footerLinks = append(footerLinks, item)
+	}
 	brandType := chrome.BrandType
 	brandText := chrome.BrandText
-	brandImage := chrome.BrandImage
+	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
 	return LayoutPayload{
 		Site: SitePayload{
 			Name:          siteConfig.SiteName,
 			Description:   siteConfig.SiteDescription,
-			Logo:          siteConfig.SiteLogo,
-			Favicon:       siteConfig.SiteLogo,
+			Logo:          urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
+			Favicon:       urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			ExternalLinks: siteConfig.ExternalLinks,
 			BrandType:     brandType,
 			BrandText:     brandText,
@@ -707,7 +715,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			activeKey,
 		),
 		Footer: FooterPayload{
-			Links:   footerInfo.List,
+			Links:   footerLinks,
 			Primary: footerPrimary,
 		},
 		Unread: unread,
@@ -830,7 +838,7 @@ func buildChromeNavItems(items []pageConfig.ChromeItem) []NavItemPayload {
 		if !item.Enabled || (item.Label == "" && item.I18nLabel == "") {
 			continue
 		}
-		url := item.URL
+		url := urlutil.Clean(urlutil.SiteLink, item.URL)
 		if url == "" {
 			url = "#"
 		}
@@ -1009,7 +1017,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			ViewCount:      topic.ViewCount,
 			ActivityText:   topic.LastUpdateTime,
 			LastUpdateTime: topic.LastUpdateTime,
-				ContentType:    topic.ContentType,
+			ContentType:    topic.ContentType,
 		})
 	}
 	return res
@@ -2349,8 +2357,8 @@ func buildLinksPageProps(groups []pageConfig.FriendLinksGroup) LinksPageProps {
 			links = append(links, FriendLinkPayload{
 				Name:    link.Name,
 				Desc:    link.Desc,
-				URL:     link.Url,
-				LogoURL: link.LogoUrl,
+				URL:     urlutil.Clean(urlutil.External, link.Url),
+				LogoURL: urlutil.Clean(urlutil.Image, link.LogoUrl),
 			})
 		}
 		if len(links) == 0 {
@@ -2404,7 +2412,7 @@ func buildSponsorsPageProps(config pageConfig.SponsorsConfig) SponsorsPageProps 
 			Title:       sponsorText(config.Contact.Title, defaultConfig.Contact.Title),
 			Description: sponsorText(config.Contact.Description, defaultConfig.Contact.Description),
 			ButtonText:  sponsorText(config.Contact.ButtonText, defaultConfig.Contact.ButtonText),
-			ButtonLink:  sponsorText(config.Contact.ButtonLink, defaultConfig.Contact.ButtonLink),
+			ButtonLink:  urlutil.Clean(urlutil.Contact, sponsorText(config.Contact.ButtonLink, defaultConfig.Contact.ButtonLink)),
 		},
 		Rules: buildSponsorsRules(config.Rules),
 	}
@@ -2440,7 +2448,7 @@ func buildSponsorPayloads(items []pageConfig.SponsorItem) []SponsorPayload {
 		res = append(res, SponsorPayload{
 			Name:      item.Name,
 			Message:   item.Message,
-			Link:      item.Link,
+			Link:      urlutil.Clean(urlutil.External, item.Link),
 			AvatarURL: sponsorAvatar(item.AvatarUrl),
 		})
 	}
@@ -2448,8 +2456,8 @@ func buildSponsorPayloads(items []pageConfig.SponsorItem) []SponsorPayload {
 }
 
 func sponsorAvatar(avatar string) string {
-	if avatar != "" {
-		return avatar
+	if cleaned := urlutil.Clean(urlutil.Image, avatar); cleaned != "" {
+		return cleaned
 	}
 	return "/static/pic/default-avatar.webp"
 }

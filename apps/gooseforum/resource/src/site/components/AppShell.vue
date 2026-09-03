@@ -31,6 +31,7 @@ import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
+import { safeUrl } from '@/runtime/safe-url'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import type { LayoutPayload } from '@gooseforum/client'
@@ -173,11 +174,16 @@ const headerResourceItems = computed(() => {
       .map((key) => resourceItems.value.find((item) => item.key === key))
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
 })
-const footerLinks = computed(() => asArray(props.layout.footer.links))
+const footerLinks = computed(() => asArray(props.layout.footer.links).map((link) => ({
+  ...link,
+  url: safeUrl(link.url, 'site-link'),
+})))
 const footerPrimary = computed(() => asArray(props.layout.footer.primary))
 const hasFooter = computed(() => footerLinks.value.length > 0 || footerPrimary.value.length > 0)
+const safeFooter = computed(() => ({ links: footerLinks.value, primary: footerPrimary.value }))
 const brandType = computed(() => props.layout.site.brandType || 'default')
 const brandText = computed(() => props.layout.site.brandText || props.layout.site.name)
+const brandImage = computed(() => safeUrl(props.layout.site.brandImage, 'image'))
 const hasHeaderTitle = computed(() => Boolean(props.showHeaderTitle && props.headerTitle))
 const searchQuery = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
@@ -292,7 +298,7 @@ function serverSidebarItems(items: typeof props.layout.sidebar.main): SidebarNav
     key: item.key,
     label: displayNavLabel(item),
     i18nLabel: item.i18nLabel,
-    url: item.url,
+    url: safeUrl(item.url, 'site-link'),
     active: activeSidebarKey.value === item.key,
   }))
 }
@@ -406,8 +412,8 @@ async function loadUserCard() {
             :class="hasHeaderTitle ? 'hidden md:flex' : 'flex'"
           >
             <img
-              v-if="brandType === 'image' && layout.site.brandImage"
-              :src="layout.site.brandImage"
+              v-if="brandType === 'image' && brandImage"
+              :src="brandImage"
               :alt="layout.site.name"
               class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
             />
@@ -775,14 +781,16 @@ async function loadUserCard() {
 
           <footer v-if="hasFooter" class="mt-0 px-2 pt-0.5 text-xs leading-5 text-base-content/75">
             <div v-if="footerLinks.length" class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              <a
-                v-for="link in footerLinks"
-                :key="`${link.name}-${link.url}`"
-                :href="link.url"
-                class="inline-flex min-h-5 items-center rounded hover:text-primary"
-              >
-                {{ link.name }}
-              </a>
+              <template v-for="link in footerLinks" :key="`${link.name}-${link.url}`">
+                <a
+                  v-if="link.url"
+                  :href="link.url"
+                  class="inline-flex min-h-5 items-center rounded hover:text-primary"
+                >
+                  {{ link.name }}
+                </a>
+                <span v-else class="inline-flex min-h-5 items-center rounded">{{ link.name }}</span>
+              </template>
             </div>
             <div v-if="footerPrimary.length" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-base-content/75">
               <span
@@ -819,7 +827,7 @@ async function loadUserCard() {
       :sidebar-groups="sidebarGroups"
       :wiki-mode="isWikiMode"
       :wiki-tree="wikiTree"
-      :footer="layout.footer"
+      :footer="safeFooter"
       :has-moderation-reports="hasModerationReports"
       :close-label="t('shell.closeMenu')"
       :menu-label="t('shell.menu')"
