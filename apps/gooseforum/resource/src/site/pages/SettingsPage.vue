@@ -281,7 +281,7 @@ const socialItems = computed(() => socialKeys.map((key) => ({
 })))
 const providers = computed(() => [
   { key: 'github', label: 'GitHub', supported: true },
-  { key: 'google', label: 'Google', supported: false },
+  { key: 'google', label: 'Google', supported: page.props.googleOAuthReady },
 ])
 const localeOptions = computed(() => supportedLocales.map(item => ({
   value: item,

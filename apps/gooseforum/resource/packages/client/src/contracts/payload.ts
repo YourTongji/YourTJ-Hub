@@ -840,6 +840,7 @@ export interface ChatItemPayload {
 
 export interface SettingsPageProps {
   user: SettingsUserPayload
+  googleOAuthReady: boolean
   stats: {
     topicCount: number
     replyCount: number

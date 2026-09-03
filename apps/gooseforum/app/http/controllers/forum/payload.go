@@ -559,9 +559,10 @@ type MessagesPageProps struct {
 }
 
 type SettingsPageProps struct {
-	User  *vo.UserDetailedVo   `json:"user"`
-	Stats SettingsStatsPayload `json:"stats"`
-	Tabs  []TabPayload         `json:"tabs"`
+	User             *vo.UserDetailedVo   `json:"user"`
+	Stats            SettingsStatsPayload `json:"stats"`
+	Tabs             []TabPayload         `json:"tabs"`
+	GoogleOAuthReady bool                 `json:"googleOAuthReady"`
 }
 
 type SettingsStatsPayload struct {
@@ -2601,7 +2602,8 @@ func buildMessagesPageProps(c *gin.Context) MessagesPageProps {
 func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 	stats := userStatistics.Get(user.Id)
 	return SettingsPageProps{
-		User: transform.User2UserDetailedVo(user),
+		User:             transform.User2UserDetailedVo(user),
+		GoogleOAuthReady: oauthservice.IsGoogleOAuthReady(),
 		Stats: SettingsStatsPayload{
 			TopicCount:        stats.TopicCount,
 			ReplyCount:        stats.ReplyCount,
