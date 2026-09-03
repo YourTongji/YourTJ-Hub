@@ -8,6 +8,7 @@ import {
   fetchAdminCourses,
   fetchCourseRelations,
   ignoreCourseRelation,
+  resetCourseRelation,
   type AdminCourseItem,
   type CourseRelationItem,
 } from '../src/runtime/api'
@@ -29,6 +30,7 @@ vi.mock('../src/runtime/api', () => ({
   mergeCourseRelation: vi.fn(),
   moderationCourseReviewStatus: vi.fn(),
   rebuildCourseStats: vi.fn(),
+  resetCourseRelation: vi.fn(),
   undoMergeCourseRelation: vi.fn(),
   updateAdminCourse: vi.fn(),
   updateAdminReview: vi.fn(),
@@ -62,6 +64,8 @@ function relation(overrides: Partial<CourseRelationItem> & { id: number }): Cour
     status: 'pending',
     createdAt: '2026-01-01 00:00:00',
     updatedAt: '2026-01-01 00:00:00',
+    fromCourse: { id: 101, primaryCode: 'CS101', name: '数据结构', department: '计算机科学与技术学院', creditX10: 30, status: 0 },
+    toCourse: { id: 102, primaryCode: 'CS102', name: '算法设计', department: '计算机科学与技术学院', creditX10: 30, status: 0 },
     ...overrides,
   }
 }
@@ -121,6 +125,10 @@ describe('课程管理页「课程沿革」审核面板', () => {
       relationList = []
       return relation({ id: relationId })
     })
+    vi.mocked(resetCourseRelation).mockImplementation(async (relationId: number) => {
+      relationList = relationList.filter((r) => r.id !== relationId)
+      return relation({ id: relationId })
+    })
   })
 
   afterEach(() => {
@@ -135,11 +143,11 @@ describe('课程管理页「课程沿革」审核面板', () => {
     const wrapper = mountPage()
     await openRelationsTab(wrapper)
 
-    expect(fetchCourseRelations).toHaveBeenCalledWith('pending', 1, 20)
+    expect(fetchCourseRelations).toHaveBeenCalledWith('pending', '', 1, 20)
     const text = wrapper.text()
-    // 旧卡/新卡名称（来自已加载课程列表映射）。
-    expect(text).toContain('数据结构 (#101)')
-    expect(text).toContain('算法设计 (#102)')
+    // 旧卡/新卡名称（来自列表项附带的 from/to 课程摘要）。
+    expect(text).toContain('数据结构')
+    expect(text).toContain('算法设计')
     // 类型、来源、置信度、状态、证据入口。
     expect(text).toContain('等价')
     expect(text).toContain('拆分')
@@ -166,7 +174,7 @@ describe('课程管理页「课程沿革」审核面板', () => {
     await flushPromises()
 
     expect(approveCourseRelation).toHaveBeenCalledWith(2)
-    expect(fetchCourseRelations).toHaveBeenLastCalledWith('pending', 1, 20)
+    expect(fetchCourseRelations).toHaveBeenLastCalledWith('pending', '', 1, 20)
     expect(wrapper.text()).not.toContain('85%')
     expect(wrapper.text()).toContain('暂无沿革候选')
 
@@ -235,12 +243,41 @@ describe('课程管理页「课程沿革」审核面板', () => {
     relationList = [relation({ id: 1, relationType: 'EQUIVALENT' })]
     const wrapper = mountPage()
     await openRelationsTab(wrapper)
-    expect(fetchCourseRelations).toHaveBeenLastCalledWith('pending', 1, 20)
+    expect(fetchCourseRelations).toHaveBeenLastCalledWith('pending', '', 1, 20)
 
     await clickButton(wrapper, '已批准')
     await flushPromises()
 
-    expect(fetchCourseRelations).toHaveBeenLastCalledWith('approved', 1, 20)
+    expect(fetchCourseRelations).toHaveBeenLastCalledWith('approved', '', 1, 20)
+
+    wrapper.unmount()
+  })
+
+  test('切换类型筛选按对应类型重新拉取', async () => {
+    relationList = [relation({ id: 2, relationType: 'SPLIT_FROM' })]
+    const wrapper = mountPage()
+    await openRelationsTab(wrapper)
+    expect(fetchCourseRelations).toHaveBeenLastCalledWith('pending', '', 1, 20)
+
+    const select = wrapper.find('select')
+    await select.setValue('SPLIT_FROM')
+    await flushPromises()
+
+    expect(fetchCourseRelations).toHaveBeenLastCalledWith('pending', 'SPLIT_FROM', 1, 20)
+
+    wrapper.unmount()
+  })
+
+  test('撤回已批准候选：调用 reset API 刷新列表', async () => {
+    relationList = [relation({ id: 7, status: 'approved' })]
+    const wrapper = mountPage()
+    await openRelationsTab(wrapper)
+
+    await clickButton(wrapper, '撤回')
+    await flushPromises()
+
+    expect(resetCourseRelation).toHaveBeenCalledWith(7)
+    expect(wrapper.text()).toContain('暂无沿革候选')
 
     wrapper.unmount()
   })

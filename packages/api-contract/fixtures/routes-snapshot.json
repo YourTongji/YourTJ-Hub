@@ -837,6 +837,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/moderation/course-relation-reset"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/moderation/course-review-delete"
   },
   {

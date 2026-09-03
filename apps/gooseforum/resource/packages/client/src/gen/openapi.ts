@@ -5396,6 +5396,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/moderation/course-relation-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revert a processed lineage candidate to pending (CourseManager/Admin)
+         * @description CourseManager-scoped write. Reverts an annotation decision back to the review queue
+         *     (approved/ignored → pending). Candidates that were physically merged are NOT resettable —
+         *     they must be rolled back through `adminCourseMergeUndo`; calling reset on them is a 409
+         *     `course.relation.notResettable` business failure. Writes an audit log entry.
+         */
+        post: operations["adminCourseRelationReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/moderation/course-relation-create": {
         parameters: {
             query?: never;
@@ -5822,6 +5845,16 @@ export interface components {
             captchaId?: string;
             /** @description Required only when server-side posting risk controls request a captcha. */
             captchaCode?: string;
+            /**
+             * @description 内容类型（默认 0）：
+             *     * 0 - 默认帖子
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 想法（短内容）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         WriteTopicSuccess: components["schemas"]["ApiSuccess"] & {
             result: number | true;
@@ -5912,6 +5945,8 @@ export interface components {
             postNo: number;
             /** @description Rendered HTML of the stored content. */
             renderedContent: string;
+            /** @description True when this post is an answer to a question (ReplyToPostId=1 on a question-type topic) */
+            isAnswer?: boolean;
         };
         CreatePostSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CreatePostResult"] | true;
@@ -6543,6 +6578,16 @@ export interface components {
             title: string;
             content: string;
             categoryId: number[];
+            /**
+             * @description 内容类型（默认 0）：
+             *     * 0 - 默认帖子
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 想法（短内容）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         /** @description Mirrors the forum PostWindow payload shape. */
         AgentPostListResponse: components["schemas"]["ApiSuccess"] & {
@@ -7247,10 +7292,15 @@ export interface components {
              * @enum {string}
              */
             status?: "pending" | "approved" | "ignored" | "merged";
+            /**
+             * @description 沿革候选类型过滤；空 = 全部。
+             * @enum {string}
+             */
+            relationType?: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
             page?: number;
             pageSize?: number;
         };
-        /** @description 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。 */
+        /** @description 沿革候选（course_relations 行 + from/to 课程摘要）：from（历史/旧卡）→ to（当前/新卡）。 */
         AdminCourseRelationItem: {
             /** Format: uint64 */
             id: number;
@@ -7273,6 +7323,10 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description 旧卡课程摘要（课程已删除时缺省）。 */
+            fromCourse?: components["schemas"]["AdminCourseRelationCourseBrief"];
+            /** @description 新卡课程摘要（课程已删除时缺省）。 */
+            toCourse?: components["schemas"]["AdminCourseRelationCourseBrief"];
         };
         AdminCourseRelationListResult: {
             list: components["schemas"]["AdminCourseRelationItem"][];
@@ -8642,6 +8696,8 @@ export interface components {
             likeCount: number;
             isLiked: boolean;
             isBookmarked: boolean;
+            /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
+            isAnswer: boolean;
         };
         ReplyTargetPayload: {
             /** Format: uint64 */
@@ -9949,6 +10005,25 @@ export interface components {
             teachers: string[];
             ratingAvg?: number | null;
             reviewCount: number;
+        };
+        /** @description 沿革候选 from/to 课程摘要（管理端列表直接展示课程名/课号/教师；课程已删除时整体缺省）。 */
+        AdminCourseRelationCourseBrief: {
+            /** Format: uint64 */
+            id: number;
+            /** @description 课号。 */
+            primaryCode: string;
+            /** @description 课程名。 */
+            name: string;
+            /** @description 开课院系。 */
+            department?: string;
+            /** @description 身份教师姓名。 */
+            teacherName?: string;
+            /** @description 身份教师工号。 */
+            teacherCode?: string;
+            /** @description 学分 ×10。 */
+            creditX10: number;
+            /** @description 课程可见状态（0 可见 / 1 隐藏；合并后旧卡隐藏）。 */
+            status: number;
         };
     };
     responses: never;
@@ -19274,6 +19349,66 @@ export interface operations {
             };
             /** @description Candidate does not exist. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the CourseManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate is not in a resettable state (pending, or merged). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

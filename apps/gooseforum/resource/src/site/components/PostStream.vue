@@ -44,23 +44,24 @@ import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 const props = withDefaults(defineProps<{
   topicId: number
   topicTitle: string
+  contentType?: 0 | 1 | 2 | 3
   initialPostStream: PostWindowPayload
   viewer: ViewerPayload
   canPost: boolean
-  /** 话题级操作状态（首楼操作区 + 概览栏）。WikiPage 等场景不传则不渲染。 */
+  /** 内容级操作状态（首楼操作区 + 概览栏）。WikiPage 等场景不传则不渲染。 */
   topicActions?: PostStreamTopicActions
-  /** 互动状态独立供给（Wiki 页面正文区操作与评论流共用同一话题）。 */
+  /** 互动状态独立供给（Wiki 页面正文区操作与评论流共用同一内容）。 */
   interactions?: { likeCount: number; isLiked: boolean; isBookmarked: boolean; isWatched: boolean }
   hotTopics?: TopicPayload[]
   /** 隐藏首楼（postNo === 1）：Wiki 正文已在页面上方渲染，评论流不再重复。 */
   hideFirstPost?: boolean
-  /** 隐藏首楼时是否连其回复也隐藏：Wiki 页只保留回复栏，不展示话题楼层列表。 */
+  /** 隐藏首楼时是否连其回复也隐藏：Wiki 页只保留回复栏，不展示内容楼层列表。 */
   initialPostStreamHidden?: boolean
   /** 滚动时是否改写 /p/post/:id 路径（Wiki 页面关闭）。 */
   syncUrl?: boolean
   /** 初始流为空时自动加载第一页（Wiki 页面无 SSR 评论流）。 */
   autoLoadFirstWindow?: boolean
-  /** 宽版卡片（默认）：右栏概览 + 卡片右伸 292px（对齐话题页 rail）。嵌入 Wiki 正文区时关闭。 */
+  /** 宽版卡片（默认）：右栏概览 + 卡片右伸 292px（对齐内容页 rail）。嵌入 Wiki 正文区时关闭。 */
   wide?: boolean
 }>(), {
   wide: true,
@@ -69,7 +70,7 @@ const props = withDefaults(defineProps<{
 const slots = useSlots()
 const hasAside = computed(() => Boolean(props.topicActions) || Boolean(slots.aside))
 // Wiki 文章页（initialPostStreamHidden）只保留回复栏：首楼楼层已被 postGroups 过滤，
-// 这里同时隐藏底部「热门话题」话题列表，避免正文下方残留话题列表区块。
+// 这里同时隐藏底部「热门内容」内容列表，避免正文下方残留内容列表区块。
 const hasHotTopics = computed(() => Boolean(props.hotTopics?.length) && !props.initialPostStreamHidden)
 
 const emit = defineEmits<{
@@ -163,6 +164,7 @@ const postRailProgressCurrent = ref(0)
 const postRailProgressStart = ref(0)
 const postRailProgressEnd = ref(0)
 const postMaxRange = computed(() => Math.max(postMaxNo.value, ...posts.value.map((post) => post.postNo || 0)))
+const firstPost = computed(() => posts.value.find((post) => post.postNo === 1))
 const hasPostRail = computed(() => postMaxRange.value > 0)
 const postRailCurrentNo = computed(() => {
   const fallback = firstPostNo(posts.value) || 1
@@ -769,7 +771,7 @@ const postGroups = computed<NestedPostGroup[]>(() => {
 
   // 隐藏首楼（Wiki 正文已在页面上方渲染）：首楼本身不渲染，挂在首楼下的回复提升为独立楼层。
   // 提升后与其余 root 楼合并，按 postNo 升序重排，避免首楼回复（postNo > 1）插到更小的楼号之前。
-  // initialPostStreamHidden 时连首楼回复也一并隐藏（Wiki 页只留回复栏，不展示话题列表楼层）。
+  // initialPostStreamHidden 时连首楼回复也一并隐藏（Wiki 页只留回复栏，不展示内容列表楼层）。
   if (props.hideFirstPost) {
     const firstGroup = groups.find((group) => group.root.postNo === 1)
     if (firstGroup) {
@@ -786,6 +788,27 @@ const postGroups = computed<NestedPostGroup[]>(() => {
   }
 
   return groups
+})
+
+// For Q&A topics, separate answers from comments
+const isQuestionTopic = computed(() => props.contentType === 1)
+// Blog-like content types (Articles and Thoughts) - no replies, different layout
+const isBlogLikeTopic = computed(() => props.contentType === 2 || props.contentType === 3)
+
+const answerGroups = computed<NestedPostGroup[]>(() => {
+  if (!isQuestionTopic.value) return []
+  return postGroups.value.filter((group) => group.root.isAnswer && group.root.postNo > 1)
+})
+
+const commentGroups = computed<NestedPostGroup[]>(() => {
+  if (!isQuestionTopic.value) return postGroups.value
+  // For Q&A: show question (postNo=1) and comments (non-answer posts)
+  return postGroups.value.filter((group) => !group.root.isAnswer || group.root.postNo === 1)
+})
+
+// Choose which groups to render based on content type
+const renderGroups = computed<NestedPostGroup[]>(() => {
+  return isQuestionTopic.value ? commentGroups.value : postGroups.value
 })
 
 function visibleReplies(group: NestedPostGroup) {
@@ -1765,7 +1788,7 @@ function lastEditedLabel(post: PostPayload) {
         </div>
 
         <article
-          v-for="(group, index) in postGroups"
+          v-for="(group, index) in renderGroups"
           :id="`post-${group.root.id}`"
           :key="group.root.id"
           :data-post-no="group.root.postNo"
@@ -1916,7 +1939,7 @@ function lastEditedLabel(post: PostPayload) {
             <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
               {{ t('topic.hiddenReplyPlaceholder') }}
             </div>
-            <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
+            <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" :class="{ 'gf-prose-article': isBlogLikeTopic && isFirstPost(group.root), 'gf-prose-thought': props.contentType === 2 && isFirstPost(group.root) }" v-html="group.root.renderedContent" />
             <div v-if="group.root.isHidden && !isPostRemoved(group.root) && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
               {{ t('topic.hiddenReplyBadge') }}
             </div>
@@ -1927,6 +1950,16 @@ function lastEditedLabel(post: PostPayload) {
               {{ lastEditedLabel(group.root) }}
             </div>
             <div v-if="isFirstPost(group.root) && topicActions" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+              <!-- Prominent reply/answer button for Questions -->
+              <button
+                v-if="isQuestionTopic && canPost && !isTopicRemoved()"
+                type="button"
+                class="gf-button gf-button-sm gf-button-primary px-3"
+                @click="replyTo(firstPost!)"
+              >
+                <CornerDownLeft class="h-4 w-4" />
+                {{ t('topic.writeAnswer') }}
+              </button>
               <button
                 type="button"
                 class="gf-button gf-button-sm px-2.5"
@@ -2141,7 +2174,114 @@ function lastEditedLabel(post: PostPayload) {
           </div>
         </article>
 
-        <div v-if="postHasAfter || loadingPostDirection === 'after' || postWindowError || (!postHasAfter && posts.length)" ref="postLoadMoreEl" class="relative border-t border-line px-4 py-3 text-center xl:border-t-transparent">
+        <!-- Q&A Answers Section -->
+        <div v-if="isQuestionTopic && answerGroups.length > 0" class="border-t border-line px-4 py-5 xl:border-t-transparent">
+          <div class="mb-4 flex items-center gap-2">
+            <h3 class="text-base font-semibold text-base-content">{{ t('topic.answers') }}</h3>
+            <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{{ answerGroups.length }}</span>
+          </div>
+          <div class="space-y-4">
+            <article
+              v-for="(group, answerIndex) in answerGroups"
+              :id="`post-${group.root.id}`"
+              :key="group.root.id"
+              :data-post-no="group.root.postNo"
+              class="group relative rounded-lg border border-primary/30 bg-primary/5 p-4 transition-[background-color] hover:border-primary/50 hover:bg-primary/10"
+              :class="{ 'bg-info/10': highlightedPostId === group.root.id }"
+            >
+              <div class="mb-3 flex min-w-0 items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="flex min-w-0 flex-wrap items-center gap-2">
+                    <a :href="`/u/${group.root.author.id}`" class="min-w-0 flex items-center gap-2" @click="showUserCard(group.root.author, $event)">
+                      <UserAvatar :src="group.root.author.avatarUrl" :alt="group.root.author.username" :badge="group.root.author.wornBadge" class="h-6 w-6 rounded-full ring-1 ring-line" img-class="rounded-full" />
+                      <span class="min-w-0 truncate text-sm font-semibold text-base-content hover:text-primary">{{ authorDisplayName(group.root.author) }}</span>
+                    </a>
+                    <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(group.root.postNo) }}</span>
+                    <time class="shrink-0 text-xs text-base-content/55">{{ formatDateTime(group.root.createdAt) }}</time>
+                    <span class="shrink-0 rounded bg-success/20 px-1.5 py-0.5 text-[11px] font-semibold text-success">{{ t('topic.answer') }}</span>
+                  </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-1">
+                  <button
+                    v-if="canEditPost(group.root)"
+                    type="button"
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="savingEditPostId === group.root.id || deletingPostId === group.root.id"
+                    :title="t('common.edit')"
+                    @click="startEditPost(group.root)"
+                  >
+                    <PencilLine class="h-3.5 w-3.5" />
+                    <span class="sr-only">{{ t('common.edit') }}</span>
+                  </button>
+                  <button
+                    v-if="canDeleteRenderedPost(group.root)"
+                    type="button"
+                    class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="deletingPostId === group.root.id"
+                    :title="deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete')"
+                    @click="requestDeletePost(group.root)"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                    <span class="sr-only">{{ deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete') }}</span>
+                  </button>
+                  <button
+                    v-if="(!viewer.isAuthenticated || canPost) && !group.root.isHidden && !isPostRemoved(group.root)"
+                    type="button"
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
+                    :title="t('topic.reply')"
+                    @click="replyTo(group.root)"
+                  >
+                    <CornerDownLeft class="h-3.5 w-3.5" />
+                    <span class="sr-only">{{ t('topic.reply') }}</span>
+                  </button>
+                  <button
+                    v-if="viewer.isAuthenticated && !group.root.isHidden && !isPostRemoved(group.root)"
+                    type="button"
+                    class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
+                    :class="{ 'text-error hover:text-error': postActionState(group.root).isLiked }"
+                    :title="t('topic.like')"
+                    :disabled="postActionState(group.root).actingLike"
+                    @click="togglePostLike(group.root)"
+                  >
+                    <Heart class="h-3.5 w-3.5" :fill="postActionState(group.root).isLiked ? 'currentColor' : 'none'" />
+                    <span v-if="postActionState(group.root).likeCount" class="hidden text-xs font-semibold tabular-nums sm:inline">{{ formatNumber(postActionState(group.root).likeCount) }}</span>
+                    <span class="sr-only">{{ t('topic.like') }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    :title="t('topic.share')"
+                    @click="sharePost(group.root)"
+                  >
+                    <Share2 class="h-3.5 w-3.5" />
+                    <span class="sr-only">{{ t('topic.share') }}</span>
+                  </button>
+                </div>
+              </div>
+              <PostReplyReference v-if="group.root.replyToPostId" :target="replyTargetFor(group.root)" />
+              <div v-if="group.root.isAuthorDeleted" class="rounded border border-dashed border-line bg-base-200/60 px-3 py-3 text-sm text-base-content/55">
+                <div class="font-semibold text-base-content/70">{{ t('topic.authorDeletedTitle') }}</div>
+                <div class="mt-1 leading-6">{{ t('topic.authorDeletedPlaceholder') }}</div>
+              </div>
+              <div v-else-if="group.root.isModeratorRemoved" class="rounded border border-dashed border-line bg-base-200/60 px-3 py-3 text-sm text-base-content/55">
+                <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
+                <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
+              </div>
+              <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
+                {{ t('topic.hiddenReplyPlaceholder') }}
+              </div>
+              <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" :class="{ 'gf-prose-article': isBlogLikeTopic && isFirstPost(group.root), 'gf-prose-thought': props.contentType === 2 && isFirstPost(group.root) }" v-html="group.root.renderedContent" />
+              <div v-if="!group.root.lastEditedAt && group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                {{ t('topic.editedAt', { time: formatDateTime(group.root.updatedAt) }) }}
+              </div>
+              <div v-if="group.root.lastEditedAt && group.root.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
+                {{ lastEditedLabel(group.root) }}
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div v-if="(postHasAfter || loadingPostDirection === 'after' || postWindowError || (!postHasAfter && posts.length)) && !isBlogLikeTopic" ref="postLoadMoreEl" class="relative border-t border-line px-4 py-3 text-center xl:border-t-transparent">
           <div class="pointer-events-none absolute left-5 right-5 top-0 hidden border-t border-line xl:block" aria-hidden="true" />
           <button
             v-if="postHasAfter && postWindowError"
@@ -2172,7 +2312,7 @@ function lastEditedLabel(post: PostPayload) {
         <span class="block h-px scroll-mb-28" aria-hidden="true" />
       </div>
 
-      <aside v-if="hasAside" class="hidden min-w-0 xl:block">
+      <aside v-if="hasAside && !isBlogLikeTopic" class="hidden min-w-0 xl:block">
         <slot name="aside">
           <div v-if="topicActions" class="sticky top-19">
             <div class="px-4 py-4">
@@ -2238,6 +2378,7 @@ function lastEditedLabel(post: PostPayload) {
   </section>
 
   <TopicFloatingControls
+    v-if="topicActions && !isBlogLikeTopic"
     v-model:mobile-rail-open="mobilePostRailOpen"
     :open="composerOpen"
     :actions="floatingTopicActions"
@@ -2259,8 +2400,9 @@ function lastEditedLabel(post: PostPayload) {
     @select-rail="selectPostFromRail"
   />
 
+  <!-- Reply composer - hidden for Articles and Thoughts -->
   <PostComposer
-    v-if="composerMounted"
+    v-if="composerMounted && !isBlogLikeTopic"
     v-model="postContent"
     v-model:captcha-code="captchaCode"
     :open="composerOpen"
@@ -2705,3 +2847,70 @@ function lastEditedLabel(post: PostPayload) {
     </Transition>
   </Teleport>
 </template>
+
+<style scoped>
+/* Article styling: enhanced typography for long-form content */
+.gf-prose-article {
+  max-width: 100%;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+}
+
+.gf-prose-article h1 {
+  font-size: 2rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.gf-prose-article h2 {
+  font-size: 1.75rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.gf-prose-article h3 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.gf-prose-article p {
+  margin-bottom: 1.5rem;
+}
+
+.gf-prose-article img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 2rem auto;
+}
+
+.gf-prose-article pre {
+  font-size: 0.9375rem;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+}
+
+.gf-prose-article blockquote {
+  font-size: 1.125rem;
+  padding-left: 1.5rem;
+  border-left-width: 4px;
+  font-style: italic;
+}
+
+/* Thought styling: compact and lightweight */
+.gf-prose-thought {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.gf-prose-thought p {
+  margin-bottom: 1rem;
+}
+
+.gf-prose-thought img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+}
+</style>

@@ -298,6 +298,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/course-relation-approve", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationApprove))
 	forumLoginApi.POST("moderation/course-relation-ignore", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationIgnore))
 	forumLoginApi.POST("moderation/course-relation-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationCreate))
+	forumLoginApi.POST("moderation/course-relation-reset", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationReset))
 	forumLoginApi.POST("moderation/course-merge", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMerge))
 	forumLoginApi.POST("moderation/course-merge-undo", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMergeUndo))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))

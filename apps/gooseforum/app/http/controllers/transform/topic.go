@@ -5,6 +5,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
@@ -34,6 +35,16 @@ func Topics2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity) [
 }
 
 func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity, userMap map[uint64]*users.EntityComplete) []*vo.TopicsSimpleVo {
+	// Collect first post IDs to fetch content types
+	firstPostIDs := make([]uint64, 0, len(data))
+	for _, t := range data {
+		if t != nil && t.FirstPostId > 0 {
+			firstPostIDs = append(firstPostIDs, t.FirstPostId)
+		}
+	}
+	// Fetch first posts to get content types
+	firstPostMap := posts.GetMapByIds(firstPostIDs)
+
 	res := make([]*vo.TopicsSimpleVo, 0, len(data))
 	for _, t := range data {
 		if t == nil {
@@ -77,6 +88,12 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			})
 		}
 
+		// Get content type from first post
+		var contentType int8
+		if firstPost, ok := firstPostMap[t.FirstPostId]; ok && firstPost != nil {
+			contentType = firstPost.ContentType
+		}
+
 		res = append(res, &vo.TopicsSimpleVo{
 			Id:             t.Id,
 			Title:          t.Title,
@@ -98,6 +115,7 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			Posters:        postersVo,
 			LastPostId:     t.LastPostId,
 			LastPostedAt:   timeValue(t.LastPostedAt),
+			ContentType:    contentType,
 		})
 	}
 	return res

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { AlertTriangle, Check, FileText, ListChecks, Loader2, Send, X } from '@lucide/vue'
+import { AlertTriangle, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
@@ -31,6 +31,7 @@ const {
 const title = ref(page.props.topic.title || '')
 const content = ref(page.props.topic.content || '')
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
+const contentType = ref<0 | 1 | 2 | 3>((page.props.topic.contentType as 0 | 1 | 2 | 3) || 0)
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
 const uploading = ref(false)
@@ -50,6 +51,13 @@ const bodySection = ref<HTMLElement | null>(null)
 const editorToggleHost = ref<HTMLElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 
+const contentTypes = [
+  { value: 0 as const, label: t('publish.contentTypes.regular'), icon: FileText },
+  { value: 1 as const, label: t('publish.contentTypes.question'), icon: HelpCircle },
+  { value: 2 as const, label: t('publish.contentTypes.thought'), icon: Lightbulb },
+  { value: 3 as const, label: t('publish.contentTypes.article'), icon: FileText },
+]
+
 const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
 const validationError = computed(() => validationAttempted.value && !isValid.value ? t('publish.validation.requiredFields') : '')
@@ -59,6 +67,8 @@ const bodyCharCount = computed(() => content.value.trim().length)
 const bodyFilled = computed(() => bodyCharCount.value > 0)
 const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
 const categoriesFull = computed(() => categoryIds.value.length >= 3)
+/** Use simple textarea for Thoughts (contentType=2) */
+const useSimpleEditor = computed(() => contentType.value === 2)
 /** 向上扩展：折叠标题/分类区，让编辑区占满 */
 const headerCollapsed = ref(false)
 const collapsedHeaderHeight = ref(0)
@@ -243,6 +253,7 @@ async function save() {
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
+      contentType: contentType.value,
     })
     clearCaptcha()
     currentTopicId.value = id
@@ -281,6 +292,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
+      contentType: contentType.value,
     })
     clearCaptcha()
     currentTopicId.value = id
@@ -401,6 +413,26 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
           </div>
 
+          <!-- Content Type Selector -->
+          <div class="flex flex-col gap-2">
+            <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.contentType') }}</span>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="type in contentTypes"
+                :key="type.value"
+                type="button"
+                class="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition"
+                :class="contentType === type.value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-line text-base-content/75 hover:border-primary/50 hover:bg-base-200'"
+                @click="contentType = type.value"
+              >
+                <component :is="type.icon" class="h-4 w-4" />
+                <span>{{ type.label }}</span>
+              </button>
+            </div>
+          </div>
+
           <div ref="bodySection">
             <div class="mb-2 flex items-center gap-2">
               <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
@@ -411,7 +443,16 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
 
             <div ref="editorHost" class="relative">
+              <!-- Simple textarea for Thoughts -->
+              <textarea
+                v-if="useSimpleEditor"
+                v-model="content"
+                class="gf-textarea min-h-[480px] w-full resize-y rounded-lg border border-line p-4 text-base outline-none focus:border-primary"
+                :placeholder="t('publish.thoughtPlaceholder')"
+              />
+              <!-- Vditor for Questions/Articles/Regular -->
               <VditorOfficial
+                v-else
                 ref="editor"
                 v-model="content"
                 :height="480"

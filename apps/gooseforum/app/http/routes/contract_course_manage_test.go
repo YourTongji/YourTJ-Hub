@@ -77,6 +77,7 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.POST("moderation/course-relation-approve", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationApprove))
 	forumLoginAPI.POST("moderation/course-relation-ignore", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationIgnore))
 	forumLoginAPI.POST("moderation/course-relation-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationCreate))
+	forumLoginAPI.POST("moderation/course-relation-reset", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationReset))
 	forumLoginAPI.POST("moderation/course-merge", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMerge))
 	forumLoginAPI.POST("moderation/course-merge-undo", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMergeUndo))
 	return conn, router
@@ -296,6 +297,7 @@ func TestCourseRelationPermissionDenied(t *testing.T) {
 		"/api/forum/moderation/course-relation-list",
 		"/api/forum/moderation/course-relation-approve",
 		"/api/forum/moderation/course-relation-ignore",
+		"/api/forum/moderation/course-relation-reset",
 		"/api/forum/moderation/course-relation-create",
 		"/api/forum/moderation/course-merge",
 		"/api/forum/moderation/course-merge-undo",
@@ -420,6 +422,67 @@ func TestCourseRelationLifecycle(t *testing.T) {
 	if err := json.Unmarshal(envelope.Result, &ignored); err != nil || ignored.Status != "ignored" {
 		t.Fatalf("ignored relation = %+v, want ignored (%v)", ignored, err)
 	}
+	// 列表按状态+类型过滤：approved + SPLIT_FROM 只剩该候选（RELATED 已被忽略）。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-list",
+		`{"status":"approved","relationType":"SPLIT_FROM","page":1,"pageSize":20}`, token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("list by status+type code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var byType struct {
+		Total int64 `json:"total"`
+	}
+	if err := json.Unmarshal(envelope.Result, &byType); err != nil || byType.Total != 1 {
+		t.Fatalf("list by status+type = %+v, want total 1 (%v)", byType, err)
+	}
+
+	// 类型过滤与状态过滤叠加后无匹配 → 0。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-list",
+		`{"status":"approved","relationType":"RELATED","page":1,"pageSize":20}`, token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("list no-match code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	if err := json.Unmarshal(envelope.Result, &byType); err != nil || byType.Total != 0 {
+		t.Fatalf("list no-match = %+v, want total 0 (%v)", byType, err)
+	}
+
+	// 撤回已批准候选（approved → pending）。
+	resetBody := mustJSON(map[string]any{"relationId": created.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-reset", resetBody, token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("reset approved code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var resetted struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(envelope.Result, &resetted); err != nil || resetted.Status != "pending" {
+		t.Fatalf("reset approved relation = %+v, want pending (%v)", resetted, err)
+	}
+
+	// 撤回已忽略候选（ignored → pending）。
+	resetIgnoreBody := mustJSON(map[string]any{"relationId": related.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-reset", resetIgnoreBody, token)
+	envelope = decodeContractEnvelope(t, recorder)
+	if envelope.Code != 0 {
+		t.Fatalf("reset ignored code = %d, messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+	var resetIgnored struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(envelope.Result, &resetIgnored); err != nil || resetIgnored.Status != "pending" {
+		t.Fatalf("reset ignored relation = %+v, want pending (%v)", resetIgnored, err)
+	}
+
+	// pending 候选不可再次撤回 → 409 course.relation.notResettable。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-reset", resetBody, token)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("reset pending status = %d, want 409", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "course.relation.notResettable" {
+		t.Fatalf("reset pending messageCode = %q, want course.relation.notResettable", env.MessageCode)
+	}
 }
 
 // TestCourseMergeAndUndo 确认等价合并 → 撤销合并的完整闭环（含 409 语义）。
@@ -514,6 +577,14 @@ func TestCourseMergeAndUndo(t *testing.T) {
 		t.Fatalf("re-merge messageCode = %q, want course.relation.merged", env.MessageCode)
 	}
 
+	// merged 候选不可状态撤回 → 409 course.relation.notResettable（物理合并只能走撤销合并）。
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-relation-reset", relationBody, token)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("reset merged status = %d, want 409", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "course.relation.notResettable" {
+		t.Fatalf("reset merged messageCode = %q, want course.relation.notResettable", env.MessageCode)
+	}
 	// 撤销合并：offering 迁回、from 卡恢复可见。
 	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-merge-undo", relationBody, token)
 	envelope = decodeContractEnvelope(t, recorder)

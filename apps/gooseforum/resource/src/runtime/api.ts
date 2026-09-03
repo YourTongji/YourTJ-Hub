@@ -280,7 +280,7 @@ export interface MyContentListResult {
   nextCursorId: number
 }
 
-/** 我的内容列表（PRD R9）：本人仍公开的话题/回复，供批量删除。 */
+/** 我的内容列表（PRD R9）：本人仍公开的内容/回复，供批量删除。 */
 export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
   const params = new URLSearchParams({ contentType, limit: String(limit) })
   if (cursorId > 0) params.set('cursorId', String(cursorId))
@@ -627,6 +627,7 @@ export interface SubmitTopicInput {
   website?: string
   captchaId?: string
   captchaCode?: string
+  contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
@@ -1771,6 +1772,19 @@ export interface CourseRelationItem {
   status: 'pending' | 'approved' | 'ignored' | 'merged'
   createdAt: string
   updatedAt: string
+  fromCourse?: CourseRelationCourseBrief
+  toCourse?: CourseRelationCourseBrief
+}
+
+export interface CourseRelationCourseBrief {
+  id: number
+  primaryCode: string
+  name: string
+  department?: string
+  teacherName?: string
+  teacherCode?: string
+  creditX10: number
+  status: number // 0 可见 / 1 隐藏（合并后旧卡隐藏）
 }
 
 export interface CourseRelationListResult {
@@ -1810,11 +1824,16 @@ export interface AdminCourseDetailItem {
   teamKey?: string
 }
 
-export async function fetchCourseRelations(status = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+export async function fetchCourseRelations(status = '', relationType = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+  // 「全部」时 status/relationType 为空串——契约 enum 只允许非空值，空过滤字段不进请求体
+  // （review P2：schema 校验客户端会拒绝 "" 枚举值）。
+  const payload: Record<string, unknown> = { page, pageSize }
+  if (status) payload.status = status
+  if (relationType) payload.relationType = relationType
   const response = await fetch('/api/forum/moderation/course-relation-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, page, pageSize }),
+    body: JSON.stringify(payload),
   })
   return readApiResponse<CourseRelationListResult>(response, t('api.adminCourseRelationListFailed'))
 }
@@ -1830,6 +1849,15 @@ export async function approveCourseRelation(relationId: number): Promise<CourseR
 
 export async function ignoreCourseRelation(relationId: number): Promise<CourseRelationItem> {
   const response = await fetch('/api/forum/moderation/course-relation-ignore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseRelationItem>(response, t('api.adminCourseRelationOpFailed'))
+}
+
+export async function resetCourseRelation(relationId: number): Promise<CourseRelationItem> {
+  const response = await fetch('/api/forum/moderation/course-relation-reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),

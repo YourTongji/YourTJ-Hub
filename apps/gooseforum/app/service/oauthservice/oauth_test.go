@@ -1,6 +1,7 @@
 package oauthservice
 
 import (
+	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -35,9 +36,12 @@ func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
 	hotdataserve.ClearSiteSettingsConfigCache()
 	preferences.Set("google.client_id", "test-google-client-id")
 	preferences.Set("google.client_secret", "test-google-client-secret")
+	googleProvider.Store(nil)
 	t.Cleanup(func() {
 		preferences.Set("google.client_id", "")
 		preferences.Set("google.client_secret", "")
+		googleProvider.Store(nil)
+		goth.ClearProviders()
 		conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
 		hotdataserve.ClearSiteSettingsConfigCache()
 	})
@@ -49,9 +53,13 @@ func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
 	if !IsGoogleOAuthConfigured() {
 		t.Fatal("IsGoogleOAuthConfigured() = false, want true")
 	}
-	provider, ok := initGoogleProvider().(*google.Provider)
-	if !ok {
-		t.Fatal("initGoogleProvider() did not return a Google provider")
+	InitOAuth()
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after InitOAuth(), want true")
+	}
+	provider := initGoogleProvider()
+	if provider == nil {
+		t.Fatal("initGoogleProvider() returned nil with valid configuration")
 	}
 	if provider.ClientKey != "test-google-client-id" || provider.Secret != "test-google-client-secret" {
 		t.Fatalf("provider credentials = %q/%q, want test credentials", provider.ClientKey, provider.Secret)
@@ -74,6 +82,98 @@ func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
 	}
 	if got := parsed.Query().Get("scope"); got != "openid email profile" {
 		t.Fatalf("Google OAuth scope = %q, want %q", got, "openid email profile")
+	}
+}
+
+func TestGoogleOAuthReadyRequiresMatchingStartupRegistration(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test")
+
+	if IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = true before InitOAuth(), want false")
+	}
+	InitOAuth()
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after InitOAuth(), want true")
+	}
+
+	preferences.Set("google.client_secret", "changed-after-startup")
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after changing live credentials, want true until restart")
+	}
+
+	InitOAuth()
+	provider := googleProvider.Load()
+	if provider == nil {
+		t.Fatal("Google provider = nil after restart with changed credentials")
+	}
+	if provider.Secret != "changed-after-startup" {
+		t.Fatalf("Google provider secret = %q after restart, want changed credential", provider.Secret)
+	}
+}
+
+func TestRefreshOAuthProvidersKeepsStartupCredentials(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://old.example.test")
+	InitOAuth()
+
+	preferences.Set("google.client_id", "changed-after-startup")
+	preferences.Set("google.client_secret", "changed-after-startup")
+	entity := pageConfig.GetByPageType(pageConfig.SiteSettings)
+	entity.Config = jsonopt.Encode(pageConfig.SiteSettingsConfig{SiteUrl: "https://new.example.test"})
+	pageConfig.CreateOrSave(&entity)
+	hotdataserve.ClearSiteSettingsConfigCache()
+	RefreshOAuthProviders()
+
+	provider, err := goth.GetProvider(ProviderGoogle)
+	if err != nil {
+		t.Fatalf("goth.GetProvider(%q) error = %v", ProviderGoogle, err)
+	}
+	googleProvider, ok := provider.(*google.Provider)
+	if !ok {
+		t.Fatalf("Google provider type = %T, want *google.Provider", provider)
+	}
+	if googleProvider.CallbackURL != "https://new.example.test/api/auth/google/callback" {
+		t.Fatalf("Google provider callback URL = %q, want refreshed site URL", googleProvider.CallbackURL)
+	}
+	if googleProvider.ClientKey != "test-google-client-id" || googleProvider.Secret != "test-google-client-secret" {
+		t.Fatalf("Google provider credentials = %q/%q, want startup credentials", googleProvider.ClientKey, googleProvider.Secret)
+	}
+}
+
+func TestParseGoogleVerifiedEmail(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      string
+		flag     any
+		verified bool
+	}{
+		{name: "real boolean", key: "verified_email", flag: true, verified: true},
+		{name: "real string true", key: "verified_email", flag: " true ", verified: true},
+		{name: "real string one", key: "verified_email", flag: "1", verified: true},
+		{name: "real number one", key: "verified_email", flag: float64(1), verified: true},
+		{name: "real json number one", key: "verified_email", flag: json.Number("1.0"), verified: true},
+		{name: "legacy boolean", key: "email_verified", flag: true, verified: true},
+		{name: "boolean false", key: "verified_email", flag: false, verified: false},
+		{name: "string false", key: "verified_email", flag: "false", verified: false},
+		{name: "number zero", key: "verified_email", flag: float64(0), verified: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := parseOAuthUserInfo(goth.User{
+				Provider: ProviderGoogle,
+				Email:    " Alice@Example.Test ",
+				RawData:  map[string]any{tt.key: tt.flag},
+			})
+			if user.EmailVerified != tt.verified {
+				t.Fatalf("emailVerified = %v, want %v", user.EmailVerified, tt.verified)
+			}
+			if tt.verified && user.VerifiedEmail != "alice@example.test" {
+				t.Fatalf("verified email = %q, want normalized email", user.VerifiedEmail)
+			}
+			if !tt.verified && user.VerifiedEmail != "" {
+				t.Fatalf("unverified email = %q, want empty", user.VerifiedEmail)
+			}
+		})
 	}
 }
 

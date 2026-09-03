@@ -389,6 +389,72 @@ adminCourseRelationIgnore:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
 
+adminCourseRelationReset:
+  post:
+    tags: [Forum]
+    summary: Revert a processed lineage candidate to pending (CourseManager/Admin)
+    operationId: adminCourseRelationReset
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Reverts an annotation decision back to the review queue
+      (approved/ignored → pending). Candidates that were physically merged are NOT resettable —
+      they must be rolled back through `adminCourseMergeUndo`; calling reset on them is a 409
+      `course.relation.notResettable` business failure. Writes an audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseRelationActionRequest
+    responses:
+      '200':
+        description: The updated lineage candidate, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseRelationItemResponse
+            examples:
+              success:
+                summary: Reverted to the review queue.
+                externalValue: ../fixtures/course-relation-reset-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, or caller lacks the CourseManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                summary: The account is frozen or not writable.
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                summary: Caller lacks the CourseManager permission.
+                externalValue: ../fixtures/permission-denied.json
+      '404':
+        description: Candidate does not exist.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Candidate is not in a resettable state (pending, or merged).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notResettable:
+                summary: Candidate is merged or still pending — only approved/ignored decisions can be reverted.
+                externalValue: ../fixtures/course-relation-reset-not-resettable.json
+
 adminCourseRelationCreate:
   post:
     tags: [Forum]

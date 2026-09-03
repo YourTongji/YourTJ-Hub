@@ -212,6 +212,13 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		}
 	}
 
+	// Get first post to determine content type
+	var firstPost *posts.Entity
+	if topicEntity.FirstPostId > 0 {
+		post := posts.Get(topicEntity.FirstPostId)
+		firstPost = &post
+	}
+
 	return component.SuccessResponse(buildPostWindowPayloadFromEntities(
 		postEntities,
 		userMap,
@@ -222,6 +229,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		int64(maxPostNo),
 		maxPostNo,
 		req.Params.AnchorPostID,
+		firstPost,
 	))
 }
 

@@ -79,11 +79,11 @@ describe('WikiSidebar 导航事件', () => {
 })
 
 describe('MobileDrawer wiki 模式', () => {
-  function mountDrawer(overrides: Record<string, unknown> = {}) {
+function mountDrawer(overrides: Record<string, unknown> = {}) {
     return mount(MobileDrawer, {
       props: {
         open: true,
-        primaryItems: [{ key: 'wiki', label: 'Wiki', url: '/wiki', active: false }],
+        sections: [{ key: 'function', title: '功能', items: [{ key: 'wiki', label: 'Wiki', url: '/wiki', active: false }] }],
         resourceItems: [],
         sidebarGroups: [],
         categoryItems: [],
@@ -140,9 +140,9 @@ describe('MobileDrawer wiki 模式', () => {
   test('forum 模式渲染 nav landmark（aria-label=菜单）', () => {
     const wrapper = mountDrawer({
       wikiMode: false,
-      primaryItems: [
-        { key: 'home', label: '首页', url: '/', active: false },
-        { key: 'messages', label: '消息', url: '/messages', active: false },
+      sections: [
+        { key: 'browse', title: '浏览', items: [{ key: 'home', label: '首页', url: '/', active: false }] },
+        { key: 'personal', title: '个人', items: [{ key: 'messages', label: '消息', url: '/messages', active: false }] },
       ],
     })
     const nav = wrapper.get('nav[aria-label="菜单"]')

@@ -167,10 +167,15 @@ complete operation coverage and the precondition for such a gate is met.
   语义、不参与课程身份。人工确认等价（EQUIVALENT/RENAMED_FROM）后 `MergeCourses` 物理
   合并：offering（评价/教师关联随行零丢失）与别名（冲突跳过并记录）迁移到 to 卡、from 卡
   隐藏、evidence_json 写入合并快照（`UndoMergeCourse` 按快照反向迁移恢复）；合并/撤销/审核
-  均写 `opt_record` 审计。候选由确定性规则引擎 `courseservice/lineage`（R1-R5，
-  `course-lineage-scan` CLI dry-run 输出）或管理端手动创建，审核面板
-  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）批准/
-  忽略/合并/撤销。
+  均写 `opt_record` 审计。候选由确定性规则引擎 `courseservice/lineage` 产出：
+  教学班级级 `course-lineage-scan` CLI（R1-R5，dry-run JSON，输入 pk_course_detail.id）
+  与卡级 `course-lineage-seed` CLI（E1-E3，装配课程目录可见卡在 course.id 层面配对，
+  默认 dry-run，`--write`/`--write-family` 幂等写 pending，不复活已处置关系），
+  或管理端手动创建；审核面板
+  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）按状态
+  （pending/approved/ignored/merged）与类型（EQUIVALENT/RENAMED_FROM/SPLIT_FROM/
+  MERGED_FROM/RELATED）过滤，支持批准/忽略/撤回处理决定（approved/ignored →
+  pending；merged 只能走 `course-merge-undo`）/合并/撤销。
 
 ## Task queue & background workers
 

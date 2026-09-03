@@ -103,6 +103,7 @@ type WriteTopicReq struct {
 	Website     string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
 	CaptchaId   string   `json:"captchaId,omitempty"`
 	CaptchaCode string   `json:"captchaCode,omitempty"`
+	ContentType int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
 }
 
 // WriteTopic creates or updates a topic and its first post.
@@ -218,6 +219,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 		}
 		oldCategoryIds = append([]uint64(nil), topic.CategoryIds...)
+		// Prevent changing contentType on published topics with replies
+		if topic.Id > 0 && req.Params.ContentType != firstPost.ContentType && topic.PostCount > 1 {
+			return component.FailResponseCode(component.MessageTopicContentTypeChangeNotAllowed, nil)
+		}
 	} else {
 		// 每日新主题上限只约束「新建主题」：编辑/回复不受影响（issue #369）。
 		// 0（含归一后的负值）= 不限额。
@@ -247,6 +252,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		firstPost.Content = req.Params.Content
 		firstPost.RenderedHTML = markdown2html.PostMarkdownToHTML(req.Params.Content)
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
+		firstPost.ContentType = req.Params.ContentType
 		if pendingReview {
 			firstPost.ProcessStatus = posts.ProcessStatusPending
 		}
@@ -293,6 +299,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				RenderedHTML:    markdown2html.PostMarkdownToHTML(req.Params.Content),
 				RenderedVersion: markdown2html.GetPostVersion(),
 				ProcessStatus:   posts.ProcessStatusNormal,
+				ContentType:     req.Params.ContentType,
 			}
 			if pendingReview {
 				firstPost.ProcessStatus = posts.ProcessStatusPending
@@ -412,6 +419,20 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 	return createPost(req, false)
 }
 
+// isInQuestionTopic checks if the topic's first post is a question type
+func isInQuestionTopic(topicEntity *topics.Entity) bool {
+	if topicEntity.FirstPostId == 0 {
+		return false
+	}
+	firstPost := posts.Get(topicEntity.FirstPostId)
+	return firstPost.ContentType == posts.ContentTypeQuestion
+}
+
+// isAnswerPost checks if a reply is an answer (reply to the question itself on a question topic)
+func isAnswerPost(replyToPostId uint64, topicEntity *topics.Entity) bool {
+	return replyToPostId == topicEntity.FirstPostId && isInQuestionTopic(topicEntity)
+}
+
 // createPost is the shared post write core. The agent flag skips browser-only
 // guards (honeypot, captcha, new-user cooldown); every other rule and side
 // effect behaves identically for human and Agent writers.
@@ -484,6 +505,14 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
+	// Check if the topic allows replies (thoughts and articles do not allow replies)
+	if topicEntity.FirstPostId > 0 {
+		firstPost := posts.Get(topicEntity.FirstPostId)
+		if firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle {
+			return component.FailResponseCode(component.MessageTopicRepliesNotAllowed, nil)
+		}
+	}
+
 	var parentPost posts.Entity
 	if req.Params.ReplyToPostId > 0 {
 		parentPost = posts.Get(req.Params.ReplyToPostId)
@@ -552,10 +581,14 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	// 保证待审内容也计入"新用户连续发帖"验证码门槛，避免滥用防护被绕过。
 	recordSuccessfulWrite(req.UserId, "post.create")
 
+	// Determine if this is an answer (for question topics)
+	isAnswer := isAnswerPost(req.Params.ReplyToPostId, &topicEntity)
+
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
 		"postNo":          postEntity.PostNo,
 		"renderedContent": postEntity.RenderedHTML,
+		"isAnswer":         isAnswer,
 	})
 }
 
