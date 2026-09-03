@@ -111,6 +111,7 @@
   "serverMessages.auth.required": "Accedi per visualizzare questa pagina.",
   "serverMessages.permission.denied": "Non hai il permesso di eseguire questa operazione.",
   "serverMessages.permission.userFrozen": "Il tuo account è stato sospeso e non puoi continuare.",
+  "serverMessages.permission.emailRequired": "Verifica la tua email prima di continuare.",
   "serverMessages.common.operation.failed": "Operazione non riuscita. Riprova più tardi.",
   "serverMessages.oauth.callback.failed": "Callback OAuth non riuscito. Riprova più tardi.",
   "serverMessages.oauth.process.failed": "Accesso OAuth non riuscito. Riprova più tardi.",
