@@ -186,6 +186,7 @@ type CategoryNavPayload struct {
 	ID    uint64 `json:"id"`
 	Label string `json:"label"`
 	URL   string `json:"url"`
+	Icon  string `json:"icon,omitempty"`
 	Color string `json:"color"`
 }
 
@@ -791,6 +792,7 @@ func buildSidebarPayload(categories []*category.Entity, activeKey string) Sideba
 			ID:    category.Id,
 			Label: category.Name,
 			URL:   categoryURL(category),
+			Icon:  category.Icon,
 			Color: category.Color,
 		})
 	}

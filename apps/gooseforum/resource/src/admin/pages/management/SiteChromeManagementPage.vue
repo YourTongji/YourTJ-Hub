@@ -4,18 +4,28 @@ import { useI18n } from 'vue-i18n'
 import Draggable from 'vuedraggable'
 import {
   Bell,
+  BookOpen,
+  CalendarRange,
   Eye,
   EyeOff,
   FileText,
   Flame,
+  GraduationCap,
   Heart,
   Inbox,
+  Languages,
+  LayoutGrid,
+  Library,
   Link as LinkIcon,
+  List,
   MessageCircle,
+  Moon,
   Pencil,
+  PenSquare,
   Plus,
   Save,
   Scale,
+  Search,
   Trash2,
   TrendingUp,
   Upload,
@@ -62,15 +72,63 @@ const groupForm = reactive<SiteChromeGroup>(emptyGroup())
 const footerLinkForm = reactive({ name: '', url: '' })
 const footerPrimaryForm = reactive({ content: '' })
 const brandForm = reactive({ brandType: 'default', brandText: '', brandImage: '' })
+// 主体预览交互态：tabs 与视图切换在预览区内可点击切换（装饰预览，不改变配置）。
+const previewTab = ref<'latest' | 'hot' | 'popular'>('latest')
+const previewFeedMode = ref<'table' | 'card'>('table')
+const previewTabs = [
+  { key: 'latest' as const, labelKey: 'topicList.tabs.latest' },
+  { key: 'hot' as const, labelKey: 'topicList.tabs.hot' },
+  { key: 'popular' as const, labelKey: 'topicList.tabs.popular' },
+]
 
-const fixedMainItems = [
-  { key: 'topics', labelKey: 'shell.nav.topics', icon: MessageCircle, active: true },
-  { key: 'hot', labelKey: 'shell.nav.hot', icon: Flame },
-  { key: 'popular', labelKey: 'shell.nav.popular', icon: TrendingUp },
-  { key: 'messages', labelKey: 'shell.nav.messages', icon: Inbox },
-  { key: 'notifications', labelKey: 'shell.nav.notifications', icon: Bell },
-  { key: 'drafts', labelKey: 'shell.nav.drafts', icon: FileText },
-  { key: 'moderation', labelKey: 'shell.nav.moderation', icon: Scale },
+// 固定侧栏分区：与前台 AppShell 的 sidebarSections 保持同步的无编辑项提示。
+interface FixedSidebarItem {
+  key: string
+  labelKey: string
+  icon: typeof MessageCircle
+  active?: boolean
+}
+
+interface FixedSidebarSection {
+  key: string
+  titleKey?: string
+  items: FixedSidebarItem[]
+}
+
+const fixedSidebarSections: FixedSidebarSection[] = [
+  {
+    key: 'browse',
+    items: [
+      { key: 'topics', labelKey: 'shell.nav.topics', icon: MessageCircle, active: true },
+      { key: 'hot', labelKey: 'shell.nav.hot', icon: Flame },
+      { key: 'popular', labelKey: 'shell.nav.popular', icon: TrendingUp },
+    ],
+  },
+  {
+    key: 'function',
+    titleKey: 'shell.groupFunction',
+    items: [
+      { key: 'courses', labelKey: 'shell.nav.courses', icon: BookOpen },
+      { key: 'schedule', labelKey: 'shell.nav.schedule', icon: CalendarRange },
+      { key: 'wiki', labelKey: 'shell.nav.wiki', icon: Library },
+    ],
+  },
+  {
+    key: 'personal',
+    titleKey: 'shell.groupPersonal',
+    items: [
+      { key: 'drafts', labelKey: 'shell.nav.drafts', icon: FileText },
+    ],
+  },
+  {
+    key: 'admin',
+    titleKey: 'shell.groupAdmin',
+    items: [
+      { key: 'moderation', labelKey: 'shell.nav.moderation', icon: Scale },
+      { key: 'courseReviews', labelKey: 'shell.nav.courseReviews', icon: GraduationCap },
+      { key: 'courseManage', labelKey: 'shell.nav.courseManage', icon: BookOpen },
+    ],
+  },
 ]
 const fixedResourceItems = [
   { key: 'links', labelKey: 'shell.nav.links', icon: LinkIcon },
@@ -80,7 +138,7 @@ const categories = computed(() => props.payload.layout.sidebar.categories || [])
 const brandType = computed(() => config.value.brandType || props.payload.layout.site.brandType || 'default')
 const brandText = computed(() => config.value.brandText || props.payload.layout.site.brandText || props.payload.layout.site.name || 'YourTJHub')
 const brandImage = computed(() => config.value.brandImage || props.payload.layout.site.brandImage || props.payload.layout.site.logo || '')
-const addButtonClass = 'rounded-md border border-dashed border-line/70 bg-base-100/40 font-medium text-base-content/55 transition hover:scale-[1.01] hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-[0.99]'
+const addButtonClass = 'rounded-md border border-dashed border-border/70 bg-muted/40 font-medium text-muted-foreground transition hover:scale-[1.01] hover:border-[var(--gf-color-primary)]/40 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)] active:scale-[0.99]'
 
 function normalizeFooterInfo(footerInfo: SiteChromeConfig['footerInfo'] = { primary: [], list: [] }) {
   const normalized = footerInfo && typeof footerInfo === 'object'
@@ -351,104 +409,163 @@ onMounted(load)
     <div v-if="error" class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{{ error }}</div>
     <div v-else-if="loading && !loaded" class="rounded-md border bg-card px-3 py-8 text-center text-sm text-muted-foreground">{{ adminText('k0046') }}</div>
 
-    <section v-else class="min-h-[760px] overflow-hidden rounded-xl border bg-base-200 text-base-content shadow-sm">
-      <header class="border-b border-transparent bg-base-100/0 shadow-none backdrop-blur-none">
-        <div class="mx-auto grid h-16 w-full max-w-[1600px] grid-cols-[auto_minmax(0,1fr)] items-center gap-8 px-5">
-          <button
-            type="button"
-            class="group relative -ml-1 flex min-w-0 shrink-0 items-center gap-2 rounded-md border border-dashed border-transparent px-2 py-1 text-left transition hover:border-primary/25 hover:bg-primary/5"
-            @click="openBrandDialog"
-          >
-            <img v-if="brandType === 'image' && brandImage" :src="brandImage" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
-            <span v-else-if="brandType === 'text'" class="max-w-44 truncate text-xl font-semibold tracking-tighter text-primary sm:text-2xl md:max-w-none">{{ brandText }}</span>
-            <img v-else src="/static/pic/brand-default.webp" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
-            <span class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted opacity-0 transition hover:bg-primary/10 hover:text-primary group-hover:opacity-100">
-              <Pencil class="h-3.5 w-3.5" />
-            </span>
-          </button>
-
-          <nav class="flex min-w-0 items-center gap-1" aria-label="Header navigation preview">
-            <Draggable
-              v-model="config.header"
-              item-key="id"
-              handle=".chrome-drag-item"
-              class="flex min-w-0 items-center gap-1"
+    <section v-else class="min-h-[760px] overflow-hidden rounded-xl border bg-muted text-foreground shadow-sm">
+      <header class="border-b border-transparent bg-card/0 shadow-none backdrop-blur-none">
+        <div class="mx-auto grid h-16 w-full max-w-[1600px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-6 px-5">
+          <!-- 左列：品牌 + 顶部导航链接（与前台 navbar 左列一致） -->
+          <div class="flex min-w-0 items-center gap-4">
+            <button
+              type="button"
+              class="group relative -ml-1 flex min-w-0 shrink-0 items-center gap-2 rounded-md border border-dashed border-transparent px-2 py-1 text-left transition hover:border-[var(--gf-color-primary)]/25 hover:bg-[var(--gf-color-primary)]/5"
+              @click="openBrandDialog"
             >
-              <template #item="{ element, index }">
-                <div
-                  class="chrome-drag-item group relative inline-flex h-7 max-w-56 cursor-grab items-center rounded-md px-2 text-sm font-medium text-base-content/75 transition-colors duration-150 active:cursor-grabbing"
-                  :class="element.enabled ? 'hover:bg-base-300 hover:text-base-content' : 'opacity-40'"
-                >
-                  <span class="min-w-0 truncate">{{ displayChromeLabel(element) }}</span>
-                  <span class="pointer-events-none absolute left-1/2 top-full z-10 flex -translate-x-1/2 shrink-0 items-center gap-0.5 rounded-md bg-base-100/80 px-0.5 py-0.5 opacity-0 backdrop-blur transition-opacity duration-150 before:absolute before:inset-x-0 before:-top-2 before:h-2 group-hover:pointer-events-auto group-hover:opacity-100">
-                    <button v-if="isSystemHeaderItem(element)" type="button" class="relative inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-primary/10 hover:text-primary" :title="adminText('k00dc')" @click.stop="toggleHeaderItemVisibility(index)">
-                      <EyeOff v-if="element.enabled" class="h-3.5 w-3.5" />
-                      <Eye v-else class="h-3.5 w-3.5" />
-                    </button>
-                    <button v-if="!isSystemHeaderItem(element)" type="button" class="relative inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click.stop="openItem('header', index)">
-                      <Pencil class="h-3.5 w-3.5" />
-                    </button>
-                    <button v-if="!isSystemHeaderItem(element)" type="button" class="relative inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('header', index)">
-                      <Trash2 class="h-3.5 w-3.5" />
-                    </button>
-                  </span>
-                </div>
-              </template>
-              <template #footer>
-                <Button variant="ghost" size="sm" type="button" :class="['h-7 px-2 text-sm', addButtonClass]" @click="openItem('header', null)">
-                  <Plus class="mr-1 h-3.5 w-3.5" />{{ adminText('k00de') }}
-                </Button>
-              </template>
-            </Draggable>
-          </nav>
+              <img v-if="brandType === 'image' && brandImage" :src="brandImage" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
+              <span v-else-if="brandType === 'text'" class="max-w-44 truncate text-xl font-semibold tracking-tighter text-primary sm:text-2xl md:max-w-none">{{ brandText }}</span>
+              <img v-else src="/static/pic/brand-default.webp" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
+              <span class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)] group-hover:opacity-100">
+                <Pencil class="h-3.5 w-3.5" />
+              </span>
+            </button>
+
+            <nav class="flex min-w-0 items-center gap-1" aria-label="Header navigation preview">
+              <Draggable
+                v-model="config.header"
+                item-key="id"
+                handle=".chrome-drag-item"
+                class="flex min-w-0 items-center gap-1"
+              >
+                <template #item="{ element, index }">
+                  <div
+                    class="chrome-drag-item group relative inline-flex h-7 max-w-56 cursor-grab items-center rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors duration-150 active:cursor-grabbing"
+                    :class="element.enabled ? 'hover:bg-accent hover:text-foreground' : 'opacity-40'"
+                  >
+                    <span class="min-w-0 truncate">{{ displayChromeLabel(element) }}</span>
+                    <span class="pointer-events-none absolute left-1/2 top-full z-10 flex -translate-x-1/2 shrink-0 items-center gap-0.5 rounded-md bg-card/80 px-0.5 py-0.5 opacity-0 backdrop-blur transition-opacity duration-150 before:absolute before:inset-x-0 before:-top-2 before:h-2 group-hover:pointer-events-auto group-hover:opacity-100">
+                      <button v-if="isSystemHeaderItem(element)" type="button" class="relative inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" :title="adminText('k00dc')" @click.stop="toggleHeaderItemVisibility(index)">
+                        <EyeOff v-if="element.enabled" class="h-3.5 w-3.5" />
+                        <Eye v-else class="h-3.5 w-3.5" />
+                      </button>
+                      <button v-if="!isSystemHeaderItem(element)" type="button" class="relative inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openItem('header', index)">
+                        <Pencil class="h-3.5 w-3.5" />
+                      </button>
+                      <button v-if="!isSystemHeaderItem(element)" type="button" class="relative inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('header', index)">
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  </div>
+                </template>
+                <template #footer>
+                  <Button variant="ghost" size="sm" type="button" :class="['h-7 px-2 text-sm', addButtonClass]" @click="openItem('header', null)">
+                    <Plus class="mr-1 h-3.5 w-3.5" />{{ adminText('k00de') }}
+                  </Button>
+                </template>
+              </Draggable>
+            </nav>
+          </div>
+
+          <!-- 桌面居中搜索栏预览（navbar v3：居中胶囊） -->
+          <div class="hidden min-w-0 md:flex justify-center">
+            <div class="flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full border border-border bg-muted px-3.5">
+              <Search class="h-4 w-4 shrink-0 text-foreground/45" aria-hidden="true" />
+              <span class="min-w-0 flex-1 truncate text-sm text-foreground/50">{{ t('searchPage.inputPlaceholder') }}</span>
+            </div>
+          </div>
+
+          <!-- 右侧操作组（navbar v3 固定 UI：发布 CTA + 通知/私信/搜索/主题/语言 + 头像） -->
+          <div class="flex shrink-0 items-center gap-2">
+            <span class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-[var(--gf-color-primary)] px-4 text-sm font-semibold text-[var(--gf-color-primary-content)]">
+              <PenSquare class="h-4 w-4" />
+              {{ t('shell.publish') }}
+            </span>
+            <span class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground" :title="t('shell.nav.notifications')">
+              <Bell class="h-5 w-5" />
+            </span>
+            <span class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground" :title="t('shell.nav.messages')">
+              <Inbox class="h-5 w-5" />
+            </span>
+            <span class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground" :title="t('shell.search')">
+              <Search class="h-5 w-5" />
+            </span>
+            <span class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground" :title="t('auth.switchToDark')">
+              <Moon class="h-5 w-5" />
+            </span>
+            <span class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground" :title="t('shell.switchLanguage')">
+              <Languages class="h-5 w-5" />
+            </span>
+            <span class="ml-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 ring-border">
+              <img
+                v-if="props.payload.layout.viewer.avatarUrl"
+                :src="props.payload.layout.viewer.avatarUrl"
+                :alt="props.payload.layout.viewer.username"
+                class="h-8 w-8 rounded-full object-cover"
+              />
+              <span v-else class="h-8 w-8 rounded-full bg-muted" />
+            </span>
+          </div>
         </div>
       </header>
 
       <div class="mx-auto grid w-full max-w-[1600px] grid-cols-[224px_minmax(0,1fr)] gap-3 px-5 py-3">
         <aside class="-my-3 min-w-0 self-start">
           <nav class="py-3">
-            <div class="space-y-0.5 pb-2">
-              <div
-                v-for="item in fixedMainItems"
-                :key="item.key"
-                class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
-                :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75'"
-                :title="adminText('k00df')"
-              >
-                <component :is="item.icon" class="h-4 w-4 shrink-0" />
-                <span class="min-w-0 flex-1 truncate">{{ t(item.labelKey) }}</span>
-              </div>
-
-              <Draggable v-model="config.mainMenu" item-key="id" handle=".chrome-drag-item" class="space-y-0.5">
-                <template #item="{ element, index }">
-                  <div class="chrome-drag-item group relative flex h-8 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-base-content/75 transition-colors duration-150 hover:bg-base-300 hover:text-base-content active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
-                    <LinkIcon class="h-4 w-4 shrink-0 opacity-80" />
-                    <span class="min-w-0 flex-1 truncate">{{ element.label || adminText('k00dd') }}</span>
-                    <span class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-base-100/80 text-icon-muted backdrop-blur transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click.stop="openItem('mainMenu', index)">
-                        <Pencil class="h-4 w-4" />
-                      </button>
-                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-base-100/80 text-icon-muted backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('mainMenu', index)">
-                        <Trash2 class="h-4 w-4" />
-                      </button>
-                    </span>
+            <div class="pb-2">
+              <template v-for="section in fixedSidebarSections" :key="section.key">
+                <div
+                  v-if="section.titleKey"
+                  class="mb-1 mt-3 px-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+                >
+                  {{ t(section.titleKey) }}
+                </div>
+                <div class="space-y-0.5">
+                  <div
+                    v-for="item in section.items"
+                    :key="item.key"
+                    class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
+                    :class="item.active ? 'bg-[var(--gf-color-primary)]/10 text-[var(--gf-color-primary)]' : 'text-muted-foreground'"
+                    :title="adminText('k00df')"
+                  >
+                    <component :is="item.icon" class="h-4 w-4 shrink-0" />
+                    <span class="min-w-0 flex-1 truncate">{{ t(item.labelKey) }}</span>
                   </div>
-                </template>
-                <template #footer>
-                  <Button variant="ghost" size="sm" type="button" :class="['mt-1 h-7 px-2 text-[13px]', addButtonClass]" @click="openItem('mainMenu', null)">
-                    <Plus class="mr-1 h-4 w-4" />{{ adminText('k00dg') }}
-                  </Button>
-                </template>
-              </Draggable>
+                  <!-- 个人组内嵌可编辑项：对位前台 personalItems（草稿箱 + 个人菜单配置） -->
+                  <Draggable
+                    v-if="section.key === 'personal'"
+                    v-model="config.mainMenu"
+                    item-key="id"
+                    handle=".chrome-drag-item"
+                    class="space-y-0.5"
+                  >
+                    <template #item="{ element, index }">
+                      <div class="chrome-drag-item group relative flex h-8 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
+                        <LinkIcon class="h-4 w-4 shrink-0 opacity-80" />
+                        <span class="min-w-0 flex-1 truncate">{{ element.label || adminText('k00dd') }}</span>
+                        <span class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                          <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openItem('mainMenu', index)">
+                            <Pencil class="h-4 w-4" />
+                          </button>
+                          <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('mainMenu', index)">
+                            <Trash2 class="h-4 w-4" />
+                          </button>
+                        </span>
+                      </div>
+                    </template>
+                    <template #footer>
+                      <Button variant="ghost" size="sm" type="button" :class="['mt-1 h-7 px-2 text-[13px]', addButtonClass]" @click="openItem('mainMenu', null)">
+                        <Plus class="mr-1 h-4 w-4" />{{ adminText('k00dg') }}
+                      </Button>
+                    </template>
+                  </Draggable>
+                </div>
+              </template>
             </div>
 
             <div class="mt-2">
-              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ t('shell.resources') }}</div>
+              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{{ t('shell.resources') }}</div>
               <div class="space-y-px">
                 <div
                   v-for="item in fixedResourceItems"
                   :key="item.key"
-                  class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-base-content/75 transition-colors duration-150"
+                  class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150"
                   :title="adminText('k00dh')"
                 >
                   <component :is="item.icon" class="h-4 w-4 shrink-0" />
@@ -456,14 +573,14 @@ onMounted(load)
                 </div>
                 <Draggable v-model="config.resources" item-key="id" handle=".chrome-drag-item" class="space-y-px">
                   <template #item="{ element, index }">
-                    <div class="chrome-drag-item group relative flex h-7 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-base-content/75 transition-colors duration-150 hover:bg-base-300 hover:text-base-content active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
+                    <div class="chrome-drag-item group relative flex h-7 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
                       <LinkIcon class="h-4 w-4 shrink-0 opacity-80" />
                       <span class="min-w-0 flex-1 truncate">{{ element.label || adminText('k00dd') }}</span>
                       <span class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                        <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-base-100/80 text-icon-muted backdrop-blur transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click.stop="openItem('resources', index)">
+                        <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openItem('resources', index)">
                           <Pencil class="h-4 w-4" />
                         </button>
-                        <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-base-100/80 text-icon-muted backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('resources', index)">
+                        <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('resources', index)">
                           <Trash2 class="h-4 w-4" />
                         </button>
                       </span>
@@ -484,12 +601,12 @@ onMounted(load)
               class="group mt-2"
             >
               <div class="mb-1 flex h-5 items-center px-2">
-                <div class="min-w-0 flex-1 truncate text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ group.title }}</div>
+                <div class="min-w-0 flex-1 truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{{ group.title }}</div>
                 <div class="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                  <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click="openGroup(groupIndex)">
+                  <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click="openGroup(groupIndex)">
                     <Pencil class="h-3.5 w-3.5" />
                   </button>
-                  <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click="removeGroup(groupIndex)">
+                  <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click="removeGroup(groupIndex)">
                     <Trash2 class="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -497,14 +614,14 @@ onMounted(load)
 
               <Draggable v-model="group.items" item-key="id" handle=".chrome-drag-item" class="space-y-px">
                 <template #item="{ element, index }">
-                  <div class="chrome-drag-item group/item relative flex h-7 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-base-content/75 transition-colors duration-150 hover:bg-base-300 hover:text-base-content active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
+                  <div class="chrome-drag-item group/item relative flex h-7 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
                     <LinkIcon class="h-4 w-4 shrink-0 opacity-80" />
                     <span class="min-w-0 flex-1 truncate">{{ element.label || adminText('k00dd') }}</span>
                     <span class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100">
-                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-base-100/80 text-icon-muted backdrop-blur transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click.stop="openSidebarGroupItem(groupIndex, index)">
+                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openSidebarGroupItem(groupIndex, index)">
                         <Pencil class="h-4 w-4" />
                       </button>
-                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-base-100/80 text-icon-muted backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeSidebarGroupItem(groupIndex, index)">
+                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeSidebarGroupItem(groupIndex, index)">
                         <Trash2 class="h-4 w-4" />
                       </button>
                     </span>
@@ -522,17 +639,8 @@ onMounted(load)
               <Plus class="mr-1 h-4 w-4" />{{ adminText('k00dj') }}
             </Button>
 
-            <div class="mt-2">
-              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ t('shell.categories') }}</div>
-              <div v-for="category in categories" :key="category.id" class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-base-content/75 transition-colors duration-150" :title="adminText('k00dk')">
-                <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                <span class="truncate">{{ category.label }}</span>
-              </div>
-              <div v-if="!categories.length" class="px-2 py-1 text-[13px] text-base-content/55">{{ adminText('k00dl') }}</div>
-            </div>
-
             <footer
-              class="-mx-1 mt-0 cursor-pointer rounded-md border border-dashed border-transparent px-3 py-1 text-xs leading-5 text-base-content/75 transition hover:border-primary/25 hover:bg-primary/5"
+              class="-mx-1 mt-0 cursor-pointer rounded-md border border-dashed border-transparent px-3 py-1 text-xs leading-5 text-muted-foreground transition hover:border-[var(--gf-color-primary)]/25 hover:bg-[var(--gf-color-primary)]/5"
               @click="footerManageOpen = true"
             >
               <div v-if="ensureFooterInfo().list.length" class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -544,7 +652,7 @@ onMounted(load)
                   {{ link.name || adminText('k00dd') }}
                 </span>
               </div>
-              <div v-if="ensureFooterInfo().primary.length" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-base-content/75">
+              <div v-if="ensureFooterInfo().primary.length" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
                 <span
                   v-for="item in ensureFooterInfo().primary"
                   :key="item.content"
@@ -557,16 +665,67 @@ onMounted(load)
           </nav>
         </aside>
 
-        <main class="min-w-0 overflow-hidden rounded-lg border border-line bg-base-100">
-          <div class="flex h-14 items-center gap-2 border-b border-line px-4">
-            <span class="rounded-lg bg-base-content px-4 py-2 text-sm font-semibold text-base-100">{{ t('topicList.tabs.latest') }}</span>
-            <span class="px-3 py-2 text-sm font-medium text-base-content/60">{{ t('topicList.tabs.hot') }}</span>
-            <span class="px-3 py-2 text-sm font-medium text-base-content/60">{{ t('topicList.tabs.popular') }}</span>
+        <main class="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+          <!-- 分段指示器（最新/热门/流行）+ 视图切换：预览区内可交互，结构与前台一致 -->
+          <div class="flex h-14 items-center justify-between gap-3 border-b border-border px-4">
+            <div class="flex items-center gap-0.5 rounded-lg bg-muted p-0.5" style="box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.06)">
+              <button
+                v-for="tab in previewTabs"
+                :key="tab.key"
+                type="button"
+                class="rounded-md px-3 py-1.5 text-sm transition-colors duration-150"
+                :class="previewTab === tab.key
+                  ? 'bg-card font-semibold text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)] ring-1 ring-border'
+                  : 'font-medium text-muted-foreground hover:bg-muted/80 hover:text-foreground'"
+                @click="previewTab = tab.key"
+              >
+                {{ t(tab.labelKey) }}
+              </button>
+            </div>
+            <div class="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-0.5">
+              <button
+                type="button"
+                class="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors duration-150"
+                :class="previewFeedMode === 'table'
+                  ? 'bg-[var(--gf-color-primary)] text-[var(--gf-color-primary-content)]'
+                  : 'text-muted-foreground hover:text-foreground'"
+                :aria-pressed="previewFeedMode === 'table'"
+                @click="previewFeedMode = 'table'"
+              >
+                <List class="h-3.5 w-3.5" />{{ t('topicList.feedModeTable') }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors duration-150"
+                :class="previewFeedMode === 'card'
+                  ? 'bg-[var(--gf-color-primary)] text-[var(--gf-color-primary-content)]'
+                  : 'text-muted-foreground hover:text-foreground'"
+                :aria-pressed="previewFeedMode === 'card'"
+                @click="previewFeedMode = 'card'"
+              >
+                <LayoutGrid class="h-3.5 w-3.5" />{{ t('topicList.feedModeCard') }}
+              </button>
+            </div>
           </div>
-          <div class="space-y-0 divide-y divide-line px-4">
+
+          <!-- 社区分区快捷导航（CategoryRail 预览：真实分类链接，可横向滚动） -->
+          <div class="flex items-center gap-2 overflow-x-auto border-b border-border px-4 py-3">
+            <a
+              v-for="category in categories"
+              :key="category.id"
+              :href="category.url"
+              class="inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2 py-1 transition-colors duration-150 hover:border-[var(--gf-color-primary)]/30"
+              :style="{ background: `color-mix(in srgb, ${category.color} 6%, var(--gf-color-base-100))` }"
+            >
+              <span class="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-white" :style="{ backgroundColor: category.color }">{{ (category.icon || '').trim() || category.label.slice(0, 1) }}</span>
+              <span class="truncate text-[13px] font-semibold text-foreground/85">{{ category.label }}</span>
+            </a>
+          </div>
+
+          <div class="space-y-0 divide-y divide-border px-4">
             <div v-for="index in 7" :key="index" class="py-4">
-              <div class="h-4 w-2/3 rounded bg-base-content/90" />
-              <div class="mt-3 h-3.5 w-4/5 rounded bg-base-content/20" />
+              <div class="h-4 w-2/3 rounded bg-foreground/90" />
+              <div class="mt-3 h-3.5 w-4/5 rounded bg-foreground/20" />
             </div>
           </div>
         </main>
@@ -687,8 +846,8 @@ onMounted(load)
           <DialogDescription>{{ adminText('k00ec') }}</DialogDescription>
         </DialogHeader>
 
-        <div class="rounded-md border border-dashed border-line/70 bg-base-100 px-4 py-3">
-          <footer class="text-xs leading-5 text-base-content/75">
+        <div class="rounded-md border border-dashed border-border/70 bg-card px-4 py-3">
+          <footer class="text-xs leading-5 text-muted-foreground">
             <Draggable
               v-model="ensureFooterInfo().list"
               :item-key="footerLinkKey"
@@ -696,16 +855,16 @@ onMounted(load)
               class="flex flex-wrap items-center gap-x-3 gap-y-0.5"
             >
               <template #item="{ element, index }">
-                <span class="group inline-flex min-h-6 items-center gap-0.5 rounded-md transition-colors hover:bg-base-300/80">
-                  <span class="footer-manage-drag cursor-grab rounded px-1 text-base-content/35 opacity-0 transition group-hover:opacity-100 active:cursor-grabbing">⋮⋮</span>
-                  <button type="button" class="max-w-40 truncate rounded px-1 text-left transition hover:text-base-content" @click="openFooterLink(index)">
+                <span class="group inline-flex min-h-6 items-center gap-0.5 rounded-md transition-colors hover:bg-accent/80">
+                  <span class="footer-manage-drag cursor-grab rounded px-1 text-foreground/35 opacity-0 transition group-hover:opacity-100 active:cursor-grabbing">⋮⋮</span>
+                  <button type="button" class="max-w-40 truncate rounded px-1 text-left transition hover:text-foreground" @click="openFooterLink(index)">
                     {{ element.name || adminText('k00dd') }}
                   </button>
                   <span class="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click.stop="openFooterLink(index)">
+                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openFooterLink(index)">
                       <Pencil class="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeFooterLink(index)">
+                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeFooterLink(index)">
                       <Trash2 class="h-3.5 w-3.5" />
                     </button>
                   </span>
@@ -715,7 +874,7 @@ onMounted(load)
                 <Button variant="ghost" size="sm" type="button" :class="['h-6 px-2 text-xs', addButtonClass]" @click="openFooterLink(null)">
                   <Plus class="mr-1 h-3.5 w-3.5" />{{ adminText('k00de') }}
                 </Button>
-                <span v-if="!ensureFooterInfo().list.length" class="text-xs text-base-content/45">{{ adminText('k008i') }}</span>
+                <span v-if="!ensureFooterInfo().list.length" class="text-xs text-foreground/45">{{ adminText('k008i') }}</span>
               </template>
             </Draggable>
 
@@ -726,16 +885,16 @@ onMounted(load)
               class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5"
             >
               <template #item="{ element, index }">
-                <span class="group inline-flex min-h-6 items-center gap-0.5 rounded-md transition-colors hover:bg-base-300/80">
-                  <span class="footer-manage-drag cursor-grab rounded px-1 text-base-content/35 opacity-0 transition group-hover:opacity-100 active:cursor-grabbing">⋮⋮</span>
-                  <button type="button" class="max-w-72 truncate rounded px-1 text-left transition hover:text-base-content" @click="openFooterPrimary(index)">
+                <span class="group inline-flex min-h-6 items-center gap-0.5 rounded-md transition-colors hover:bg-accent/80">
+                  <span class="footer-manage-drag cursor-grab rounded px-1 text-foreground/35 opacity-0 transition group-hover:opacity-100 active:cursor-grabbing">⋮⋮</span>
+                  <button type="button" class="max-w-72 truncate rounded px-1 text-left transition hover:text-foreground" @click="openFooterPrimary(index)">
                     {{ element.content || adminText('k00dd') }}
                   </button>
                   <span class="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-primary/10 hover:text-primary" @click.stop="openFooterPrimary(index)">
+                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openFooterPrimary(index)">
                       <Pencil class="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeFooterPrimary(index)">
+                    <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeFooterPrimary(index)">
                       <Trash2 class="h-3.5 w-3.5" />
                     </button>
                   </span>
@@ -745,7 +904,7 @@ onMounted(load)
                 <Button variant="ghost" size="sm" type="button" :class="['h-6 px-2 text-xs', addButtonClass]" @click="openFooterPrimary(null)">
                   <Plus class="mr-1 h-3.5 w-3.5" />{{ adminText('k00dn') }}
                 </Button>
-                <span v-if="!ensureFooterInfo().primary.length" class="text-xs text-base-content/45">{{ adminText('k0062') }}</span>
+                <span v-if="!ensureFooterInfo().primary.length" class="text-xs text-foreground/45">{{ adminText('k0062') }}</span>
               </template>
             </Draggable>
           </footer>

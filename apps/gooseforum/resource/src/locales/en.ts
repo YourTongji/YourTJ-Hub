@@ -96,6 +96,13 @@ export default {
     register: 'Sign up',
     resources: 'Resources',
     categories: 'Categories',
+    groupBrowse: 'Browse',
+    groupFunction: 'Features',
+    groupPersonal: 'Personal',
+    groupAdmin: 'Manage',
+    railLabel: 'Community categories',
+    railScrollPrev: 'Scroll categories backward',
+    railScrollNext: 'Scroll categories forward',
     nav: {
       topics: 'Topics',
       hot: 'Hot',

@@ -96,6 +96,13 @@ export default {
     register: '登録',
     resources: 'リソース',
     categories: 'カテゴリ',
+    groupBrowse: '閲覧',
+    groupFunction: '機能',
+    groupPersonal: '個人',
+    groupAdmin: '管理',
+    railLabel: 'コミュニティカテゴリ',
+    railScrollPrev: 'カテゴリを前へスクロール',
+    railScrollNext: 'カテゴリを次へスクロール',
     nav: {
       topics: 'トピック',
       hot: '人気',

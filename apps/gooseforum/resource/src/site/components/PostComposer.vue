@@ -141,7 +141,7 @@ onBeforeUnmount(() => {
   clearTimeout(lockSettleTimer)
 })
 
-// 登录后回跳当前话题页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
+// 登录后回跳当前内容页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
 const loginHref = computed(() => {
   const currentPath = typeof window === 'undefined' ? '' : window.location.pathname + window.location.search + window.location.hash
   return currentPath ? `/login?redirect=${encodeURIComponent(currentPath)}` : '/login'

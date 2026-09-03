@@ -237,6 +237,8 @@ export interface CategoryNavPayload {
   id: number
   label: string
   url: string
+  /** 后台配置的分类图标（emoji/短文本），空值由前端回退为名称首字。 */
+  icon?: string
   color: string
 }
 

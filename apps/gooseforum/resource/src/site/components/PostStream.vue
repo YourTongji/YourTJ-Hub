@@ -48,20 +48,20 @@ const props = withDefaults(defineProps<{
   initialPostStream: PostWindowPayload
   viewer: ViewerPayload
   canPost: boolean
-  /** 话题级操作状态（首楼操作区 + 概览栏）。WikiPage 等场景不传则不渲染。 */
+  /** 内容级操作状态（首楼操作区 + 概览栏）。WikiPage 等场景不传则不渲染。 */
   topicActions?: PostStreamTopicActions
-  /** 互动状态独立供给（Wiki 页面正文区操作与评论流共用同一话题）。 */
+  /** 互动状态独立供给（Wiki 页面正文区操作与评论流共用同一内容）。 */
   interactions?: { likeCount: number; isLiked: boolean; isBookmarked: boolean; isWatched: boolean }
   hotTopics?: TopicPayload[]
   /** 隐藏首楼（postNo === 1）：Wiki 正文已在页面上方渲染，评论流不再重复。 */
   hideFirstPost?: boolean
-  /** 隐藏首楼时是否连其回复也隐藏：Wiki 页只保留回复栏，不展示话题楼层列表。 */
+  /** 隐藏首楼时是否连其回复也隐藏：Wiki 页只保留回复栏，不展示内容楼层列表。 */
   initialPostStreamHidden?: boolean
   /** 滚动时是否改写 /p/post/:id 路径（Wiki 页面关闭）。 */
   syncUrl?: boolean
   /** 初始流为空时自动加载第一页（Wiki 页面无 SSR 评论流）。 */
   autoLoadFirstWindow?: boolean
-  /** 宽版卡片（默认）：右栏概览 + 卡片右伸 292px（对齐话题页 rail）。嵌入 Wiki 正文区时关闭。 */
+  /** 宽版卡片（默认）：右栏概览 + 卡片右伸 292px（对齐内容页 rail）。嵌入 Wiki 正文区时关闭。 */
   wide?: boolean
 }>(), {
   wide: true,
@@ -70,7 +70,7 @@ const props = withDefaults(defineProps<{
 const slots = useSlots()
 const hasAside = computed(() => Boolean(props.topicActions) || Boolean(slots.aside))
 // Wiki 文章页（initialPostStreamHidden）只保留回复栏：首楼楼层已被 postGroups 过滤，
-// 这里同时隐藏底部「热门话题」话题列表，避免正文下方残留话题列表区块。
+// 这里同时隐藏底部「热门内容」内容列表，避免正文下方残留内容列表区块。
 const hasHotTopics = computed(() => Boolean(props.hotTopics?.length) && !props.initialPostStreamHidden)
 
 const emit = defineEmits<{
@@ -771,7 +771,7 @@ const postGroups = computed<NestedPostGroup[]>(() => {
 
   // 隐藏首楼（Wiki 正文已在页面上方渲染）：首楼本身不渲染，挂在首楼下的回复提升为独立楼层。
   // 提升后与其余 root 楼合并，按 postNo 升序重排，避免首楼回复（postNo > 1）插到更小的楼号之前。
-  // initialPostStreamHidden 时连首楼回复也一并隐藏（Wiki 页只留回复栏，不展示话题列表楼层）。
+  // initialPostStreamHidden 时连首楼回复也一并隐藏（Wiki 页只留回复栏，不展示内容列表楼层）。
   if (props.hideFirstPost) {
     const firstGroup = groups.find((group) => group.root.postNo === 1)
     if (firstGroup) {
