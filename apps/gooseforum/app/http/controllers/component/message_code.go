@@ -119,30 +119,30 @@ const (
 )
 
 const (
-	MessageTopicNotFound            MessageCode = "topic.notFound"            // 主题不存在。
-	MessageTopicOwnerMismatch       MessageCode = "topic.ownerMismatch"       // 不能修改或删除他人的主题。
-	MessageTopicOperationDenied     MessageCode = "topic.operationDenied"     // 当前主题不可操作。
-	MessageTopicSaveFailed          MessageCode = "topic.saveFailed"          // 主题保存失败。
-	MessageTopicDailyLimit          MessageCode = "topic.dailyLimit"          // 当天发布过多。
-	MessageTopicTitleTooShort       MessageCode = "topic.title.tooShort"      // 标题过短，params.minLength。
-	MessageTopicTitleTooLong        MessageCode = "topic.title.tooLong"       // 标题过长，params.maxLength。
-	MessageTopicContentTooShort     MessageCode = "topic.content.tooShort"    // 正文过短，params.minLength。
-	MessageTopicContentTooLong      MessageCode = "topic.content.tooLong"     // 正文过长，params.maxLength。
-	MessageTopicPostCooldown        MessageCode = "topic.post.cooldown"       // 新用户发帖冷却中，params.minutes/availableAt。
-	MessageCommentContentTooShort   MessageCode = "comment.content.tooShort"  // 评论过短，params.minLength。
-	MessageCommentContentTooLong    MessageCode = "comment.content.tooLong"   // 评论过长，params.maxLength。
-	MessageCommentPostCooldown      MessageCode = "comment.post.cooldown"     // 新用户评论冷却中，params.minutes/availableAt。
-	MessageCommentParentPostMissing MessageCode = "comment.parentPostMissing" // 父 post 不存在。
-	MessageCommentCreateFailed      MessageCode = "comment.createFailed"      // 评论创建失败，params.error 可带原始错误。
-	MessageTopicRepliesNotAllowed       MessageCode = "topic.repliesNotAllowed"       // 该话题不允许回复（想法/文章类型）。
+	MessageTopicNotFound                    MessageCode = "topic.notFound"                    // 主题不存在。
+	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
+	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
+	MessageTopicSaveFailed                  MessageCode = "topic.saveFailed"                  // 主题保存失败。
+	MessageTopicDailyLimit                  MessageCode = "topic.dailyLimit"                  // 当天发布过多。
+	MessageTopicTitleTooShort               MessageCode = "topic.title.tooShort"              // 标题过短，params.minLength。
+	MessageTopicTitleTooLong                MessageCode = "topic.title.tooLong"               // 标题过长，params.maxLength。
+	MessageTopicContentTooShort             MessageCode = "topic.content.tooShort"            // 正文过短，params.minLength。
+	MessageTopicContentTooLong              MessageCode = "topic.content.tooLong"             // 正文过长，params.maxLength。
+	MessageTopicPostCooldown                MessageCode = "topic.post.cooldown"               // 新用户发帖冷却中，params.minutes/availableAt。
+	MessageCommentContentTooShort           MessageCode = "comment.content.tooShort"          // 评论过短，params.minLength。
+	MessageCommentContentTooLong            MessageCode = "comment.content.tooLong"           // 评论过长，params.maxLength。
+	MessageCommentPostCooldown              MessageCode = "comment.post.cooldown"             // 新用户评论冷却中，params.minutes/availableAt。
+	MessageCommentParentPostMissing         MessageCode = "comment.parentPostMissing"         // 父 post 不存在。
+	MessageCommentCreateFailed              MessageCode = "comment.createFailed"              // 评论创建失败，params.error 可带原始错误。
+	MessageTopicRepliesNotAllowed           MessageCode = "topic.repliesNotAllowed"           // 该话题不允许回复（想法/文章类型）。
 	MessageTopicContentTypeChangeNotAllowed MessageCode = "topic.contentTypeChangeNotAllowed" // 不能更改已有回复的话题的内容类型。
-	MessagePostNotFound             MessageCode = "post.notFound"             // post 不存在。
-	MessagePostUpdateFailed         MessageCode = "post.updateFailed"         // post 更新失败，params.error 可带原始错误。
-	MessageReportNotFound           MessageCode = "report.notFound"           // 举报不存在。
-	MessageReportTargetInvalid      MessageCode = "report.targetInvalid"      // 举报对象无效。
-	MessageReportOwnContent         MessageCode = "report.ownContent"         // 不能举报自己的内容。
-	MessageReportDuplicate          MessageCode = "report.duplicate"          // 已举报，等待处理。
-	MessageReportCreateFailed       MessageCode = "report.createFailed"       // 举报提交失败。
+	MessagePostNotFound                     MessageCode = "post.notFound"                     // post 不存在。
+	MessagePostUpdateFailed                 MessageCode = "post.updateFailed"                 // post 更新失败，params.error 可带原始错误。
+	MessageReportNotFound                   MessageCode = "report.notFound"                   // 举报不存在。
+	MessageReportTargetInvalid              MessageCode = "report.targetInvalid"              // 举报对象无效。
+	MessageReportOwnContent                 MessageCode = "report.ownContent"                 // 不能举报自己的内容。
+	MessageReportDuplicate                  MessageCode = "report.duplicate"                  // 已举报，等待处理。
+	MessageReportCreateFailed               MessageCode = "report.createFailed"               // 举报提交失败。
 
 	// 课评（course review）
 	MessageReviewNotFound         MessageCode = "review.notFound"              // 评价不存在或不可见。
@@ -189,6 +189,7 @@ const (
 	MessageCourseRelationMerged            MessageCode = "course.relation.merged"            // 该候选已合并，不可重复操作。
 	MessageCourseRelationListFailed        MessageCode = "course.relation.listFailed"        // 沿革候选列表读取失败。
 	MessageCourseRelationOpFailed          MessageCode = "course.relation.opFailed"          // 沿革操作失败。
+	MessageCourseRelationNotResettable     MessageCode = "course.relation.notResettable"     // 该候选不可撤回（仅 approved/ignored 可撤回为 pending）。
 	MessageCourseReviewScopeInvalid        MessageCode = "course.reviewScopeInvalid"         // 课评范围取值非法（仅 teacher/team/course）。
 	MessageCourseMergeTargetHidden         MessageCode = "course.mergeTargetHidden"          // 目标课程已隐藏，不可作为合并目标。
 	MessageCourseRelationConfidenceInvalid MessageCode = "course.relation.confidenceInvalid" // 沿革候选置信度超出 [0,1]。

@@ -13,9 +13,10 @@ import (
 
 // RelationQuery 管理端沿革候选检索条件。
 type RelationQuery struct {
-	Status string // 空 = 全部；pending/approved/ignored/merged
-	Page   int
-	Size   int
+	Status       string // 空 = 全部；pending/approved/ignored/merged
+	RelationType string // 空 = 全部；EQUIVALENT/RENAMED_FROM/SPLIT_FROM/MERGED_FROM/RELATED
+	Page         int
+	Size         int
 }
 
 // RelationPage 管理端沿革候选分页结果。
@@ -118,6 +119,26 @@ func UpdateRelationStatusTx(tx *gorm.DB, relationId uint64, status string) (Rela
 	return entity, nil
 }
 
+// ResetRelationStatusTx 事务内把已处置候选撤回为 pending，仅允许 approved/ignored。
+// 条件更新（WHERE status IN (approved, ignored)）保证原子性：若并发合并事务先把行
+// 置 merged，本更新命中 0 行 → 返回空实体（Id=0），调用方据此映射「不可撤回」语义
+// （review P1：无条件覆盖会把 merged 打回 pending，导致撤销合并无法识别）。
+func ResetRelationStatusTx(tx *gorm.DB, relationId uint64) (RelationEntity, error) {
+	var entity RelationEntity
+	res := tx.Model(&RelationEntity{}).
+		Where("id = ? AND status IN ?", relationId,
+			[]string{string(RelationStatusApproved), string(RelationStatusIgnored)}).
+		Update("status", string(RelationStatusPending))
+	if res.Error != nil {
+		return entity, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return entity, nil
+	}
+	err := tx.Table(relationsTableName).Where("id = ?", relationId).First(&entity).Error
+	return entity, err
+}
+
 // ListRelationsByToCourse 返回指向某课程的沿革关系（详情页原名标注/沿革区块用）。
 // statuses 空 = 全部状态；非空 = 仅匹配指定状态（如 approved+merged 合并历史）。
 func ListRelationsByToCourse(toCourseId uint64, statuses []string) ([]RelationEntity, error) {
@@ -153,6 +174,9 @@ func ListRelations(q RelationQuery) (RelationPage, error) {
 	b := relationBuilder().Where("deleted_at IS NULL")
 	if q.Status != "" {
 		b = b.Where(queryopt.Eq("status", q.Status))
+	}
+	if q.RelationType != "" {
+		b = b.Where(queryopt.Eq("relation_type", q.RelationType))
 	}
 	var total int64
 	if err := b.Count(&total).Error; err != nil {
