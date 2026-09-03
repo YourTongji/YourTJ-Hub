@@ -875,4 +875,5 @@ export default {
   "k00ul": "Attenzione: i nuovi nomi utente vietati bloccano gli account esistenti con lo stesso nome. Procedi con cautela.",
   "k00um": "L'anteprima mostra le prime {limit} voci; le altre sono visibili nell'elenco sopra dopo la conferma.",
   "k00un": "Le parole sensibili possono essere frasi con spazi: le voci vengono separate solo da a capo, virgole o punti e virgola e gli spazi interni vengono conservati (es. credit card cash out viene importata come un'unica frase).",
+  "k00uo": "Sono ammessi solo URL http(s) assoluti o percorsi relativi interni (mailto: per i pulsanti di contatto). Protocolli come javascript:/data: non sono consentiti.",
 } as const

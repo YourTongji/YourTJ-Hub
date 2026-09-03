@@ -87,6 +87,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
+import { safeUrl } from '@/runtime/safe-url'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'onesystem' | 'schedule'
 
@@ -504,6 +505,18 @@ function validateAiSummary() {
   return true
 }
 
+function validateSiteInfo() {
+  if (siteForm.siteUrl.trim() !== '' && !safeUrl(siteForm.siteUrl, 'external')) {
+    adminToast.warning(adminText('k00uo'))
+    return false
+  }
+  if (siteForm.siteLogo.trim() !== '' && !safeUrl(siteForm.siteLogo, 'image')) {
+    adminToast.warning(adminText('k00uo'))
+    return false
+  }
+  return true
+}
+
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
   return {
     textControl: {
@@ -822,6 +835,7 @@ async function save() {
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
   if (props.kind === 'ai-summary' && !validateAiSummary()) return
   if (props.kind === 'schedule' && !validateSchedule()) return
+  if (props.kind === 'site-info' && !validateSiteInfo()) return
 
   saving.value = true
   try {

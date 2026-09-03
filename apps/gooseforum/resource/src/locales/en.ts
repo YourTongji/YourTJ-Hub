@@ -2167,6 +2167,7 @@ export default {
     'wiki.revision.conflict': 'The page was updated by someone else. Please re-edit based on the latest version.',
     'wiki.saveFailed': 'Failed to save wiki. Please try again later.',
     'wiki.readFailed': 'Failed to read wiki data. Please try again later.',
+    'admin.url.invalid': 'The URL is not allowed: only http(s), in-site relative paths, and (for some fields) mailto: are supported.',
   },
   serverActions: {
     uploadAttachment: 'upload attachments',

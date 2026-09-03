@@ -46,6 +46,7 @@ import { getSiteChrome, saveSiteChrome, uploadAdminImage } from '@/admin/runtime
 import { adminText } from '@/admin/runtime/i18n-text'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, ManageHomeProps, SiteChromeConfig, SiteChromeGroup, SiteChromeItem } from '@/admin/types'
+import { safeUrl } from '@/runtime/safe-url'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -271,6 +272,10 @@ function openSidebarGroupItem(groupIndex: number, index: number | null) {
 
 function saveItem() {
   if (!dialog.value) return
+  if (form.url.trim() !== '' && !safeUrl(form.url, 'site-link')) {
+    adminToast.warning(adminText('k00uo'))
+    return
+  }
   const item = normalizeItem(form)
   const list = dialog.value.group === 'sidebarGroup'
     ? config.value.sidebarGroups[dialog.value.groupIndex].items
@@ -325,6 +330,10 @@ function openBrandDialog() {
 }
 
 function saveBrandDialog() {
+  if (brandForm.brandImage.trim() !== '' && !safeUrl(brandForm.brandImage, 'image')) {
+    adminToast.warning(adminText('k00uo'))
+    return
+  }
   config.value.brandType = ['default', 'text', 'image'].includes(brandForm.brandType) ? brandForm.brandType : 'default'
   config.value.brandText = brandForm.brandText.trim()
   config.value.brandImage = brandForm.brandImage.trim()
@@ -375,6 +384,10 @@ function saveFooterEntry() {
   if (!footerDialog.value) return
   const footer = ensureFooterInfo()
   if (footerDialog.value.kind === 'link') {
+    if (footerLinkForm.url.trim() !== '' && !safeUrl(footerLinkForm.url, 'site-link')) {
+      adminToast.warning(adminText('k00uo'))
+      return
+    }
     const link = { name: footerLinkForm.name.trim(), url: footerLinkForm.url.trim() }
     if (footerDialog.value.index === null) footer.list.push(link)
     else footer.list[footerDialog.value.index] = link
