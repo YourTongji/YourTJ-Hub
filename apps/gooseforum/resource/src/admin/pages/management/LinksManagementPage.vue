@@ -125,7 +125,7 @@ async function submitLink() {
     return
   }
   if (!safeUrl(linkForm.url, 'external') || ((linkForm.logoUrl || '').trim() !== '' && !safeUrl(linkForm.logoUrl, 'image'))) {
-    adminToast.warning(adminText('k00uo'))
+    adminToast.warning(adminText('k00up'))
     return
   }
   if (!linkDialog.value) return

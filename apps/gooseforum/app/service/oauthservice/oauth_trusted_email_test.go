@@ -2,6 +2,7 @@ package oauthservice
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -163,9 +164,8 @@ func TestCreateUserFromOAuthUnmatchedDomainFollowsSwitch(t *testing.T) {
 	}
 }
 
-// TestCreateUserFromOAuthNoEmailFollowsSwitch 无 verified 邮箱保持免验证激活
-// （PR #167 review, blocking：无 verified 邮箱时无激活邮件可发，进入 pending
-// 将形成无恢复路径的死账号；保持旧行为免验证）。
+// TestCreateUserFromOAuthNoEmailFollowsSwitch 无 verified 邮箱时，关闭邮箱验证开关
+// 仍保持免验证；开启时拒绝 OAuth 快捷注册，避免未验证身份绕过全站验证策略。
 func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
 	setupOAuthTestDB(t)
 
@@ -185,7 +185,7 @@ func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
 		t.Fatalf("no email with verification off should activate: %v", user.IsActivated)
 	}
 
-	// 开关开 + 无 verified 邮箱 → 仍免验证激活（不死账号）
+	// 开关开 + 无 verified 邮箱 → 拒绝创建，避免未验证身份绕过全站验证策略
 	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
 		EnableEmailVerification: true,
 		AllowedDomains:          []string{"tongji.edu.cn"},
@@ -194,13 +194,20 @@ func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
 		ID: "2", Login: "no-email2", Provider: ProviderGitHub,
 		EmailVerified: false,
 	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
+	if !errors.Is(err, ErrOAuthEmailUnverified) {
+		t.Fatalf("createUserFromOAuth() error = %v, want ErrOAuthEmailUnverified", err)
 	}
-	if user2.IsActivated != users.ActivationSuccess {
-		t.Fatalf("no verified email with verification on should still activate (no dead account): %v", user2.IsActivated)
+	if user2 != nil {
+		t.Fatalf("createUserFromOAuth() user = %#v, want nil on unverified email", user2)
+	}
+	if users.ExistUsername("no-email2") {
+		t.Fatal("unverified OAuth user was created despite email verification being enabled")
 	}
 
+	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
+		EnableEmailVerification: false,
+		AllowedDomains:          []string{"tongji.edu.cn"},
+	})
 	// 无 verified 邮箱时不降级存 goth 公开邮箱（PR #167 review, medium：
 	// 未验证邮箱经 OIDC 会被推导为 email_verified=true，造成信任越界）。
 	user3, err := createUserFromOAuth(OAuthUserInfo{

@@ -157,11 +157,11 @@ function submitSponsor() {
     return
   }
   if (sponsorForm.link.trim() !== '' && !safeUrl(sponsorForm.link, 'external')) {
-    adminToast.warning(adminText('k00uo'))
+    adminToast.warning(adminText('k00up'))
     return
   }
   if (sponsorForm.avatarUrl.trim() !== '' && !safeUrl(sponsorForm.avatarUrl, 'image')) {
-    adminToast.warning(adminText('k00uo'))
+    adminToast.warning(adminText('k00up'))
     return
   }
   const item = {

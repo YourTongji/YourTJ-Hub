@@ -3670,6 +3670,16 @@ export interface paths {
          *     `settings` with `validate:"required"`, but struct-level required
          *     never fails, so a missing or malformed body saves a zero-value
          *     configuration.
+         *     The `uploadControl.authorizedExtensions` allowlist is canonicalized
+         *     before persistence (issue #408): only the built-in decodable image
+         *     extensions (.jpg/.jpeg/.png/.gif/.webp/.bmp) are accepted, matching is
+         *     case-insensitive and a leading dot is optional, and legal entries are
+         *     stored lower-cased with a leading dot and deduplicated. Submitting any
+         *     unsupported token (.svg/.html/.js/.xml/.pdf, double extensions, empty
+         *     strings) fails the whole save with an HTTP 200 `code: 1` envelope,
+         *     `messageCode` `admin.upload.extNotAllowed` and `params.extensions`
+         *     listing the offending tokens; nothing is persisted. An empty list is
+         *     valid and is stored/echoed as `[]`.
          */
         post: operations["adminSavePostingSettings"];
         delete?: never;
@@ -8259,6 +8269,7 @@ export interface components {
         };
         AdminPostingUploadControl: {
             allowAttachments: boolean;
+            /** @description Image-extension allowlist for user uploads, canonicalized by the server (issue #408). Only the built-in decodable image extensions are accepted: .jpg/.jpeg/.png/.gif/.webp/.bmp. Matching is case-insensitive and a leading dot is optional (`png`, `.PNG` and `.png` are the same entry); legal entries are stored lower-cased with a leading dot, deduplicated in first-appearance order. Submitting any unsupported token (.svg/.html/.js/.xml/.pdf, double extensions such as `avatar.png.exe`, empty strings) rejects the whole save with `admin.upload.extNotAllowed` (HTTP 200, `params.extensions` lists the offending tokens) and persists nothing. An empty list is valid and is stored/echoed as `[]`. */
             authorizedExtensions: string[];
             maxAttachmentSizeKb: number;
             maxDailyUploadsPerUser: number;
@@ -16235,7 +16246,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Configuration saved (`result` is the string `success`). */
+            /** @description Configuration saved (`result` is the string `success`), or an HTTP 200 business failure when `authorizedExtensions` contains unsupported tokens (`admin.upload.extNotAllowed`, `params.extensions` lists them). */
             200: {
                 headers: {
                     [name: string]: unknown;

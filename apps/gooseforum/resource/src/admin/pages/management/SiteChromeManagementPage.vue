@@ -273,7 +273,7 @@ function openSidebarGroupItem(groupIndex: number, index: number | null) {
 function saveItem() {
   if (!dialog.value) return
   if (form.url.trim() !== '' && !safeUrl(form.url, 'site-link')) {
-    adminToast.warning(adminText('k00uo'))
+    adminToast.warning(adminText('k00up'))
     return
   }
   const item = normalizeItem(form)
@@ -331,7 +331,7 @@ function openBrandDialog() {
 
 function saveBrandDialog() {
   if (brandForm.brandImage.trim() !== '' && !safeUrl(brandForm.brandImage, 'image')) {
-    adminToast.warning(adminText('k00uo'))
+    adminToast.warning(adminText('k00up'))
     return
   }
   config.value.brandType = ['default', 'text', 'image'].includes(brandForm.brandType) ? brandForm.brandType : 'default'
@@ -385,7 +385,7 @@ function saveFooterEntry() {
   const footer = ensureFooterInfo()
   if (footerDialog.value.kind === 'link') {
     if (footerLinkForm.url.trim() !== '' && !safeUrl(footerLinkForm.url, 'site-link')) {
-      adminToast.warning(adminText('k00uo'))
+      adminToast.warning(adminText('k00up'))
       return
     }
     const link = { name: footerLinkForm.name.trim(), url: footerLinkForm.url.trim() }

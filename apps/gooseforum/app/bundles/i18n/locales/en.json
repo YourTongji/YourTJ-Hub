@@ -111,6 +111,7 @@
   "serverMessages.auth.required": "Please sign in to view this page.",
   "serverMessages.permission.denied": "You do not have permission to perform this action.",
   "serverMessages.permission.userFrozen": "Your account is banned and cannot continue.",
+  "serverMessages.permission.emailRequired": "Please verify your email before continuing.",
   "serverMessages.common.operation.failed": "Operation failed. Please try again later.",
   "serverMessages.oauth.callback.failed": "OAuth callback failed. Please try again later.",
   "serverMessages.oauth.process.failed": "OAuth sign-in failed. Please try again later.",

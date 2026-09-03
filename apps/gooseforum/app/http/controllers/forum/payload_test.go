@@ -1,6 +1,9 @@
 package forum
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestIsSafeRedirect(t *testing.T) {
 	unsafe := []string{
@@ -79,5 +82,20 @@ func TestSettingsTabs(t *testing.T) {
 	}
 	if activeCount != 1 {
 		t.Errorf("settingsTabs() active tab count = %d, want exactly 1", activeCount)
+	}
+}
+
+func TestSettingsPagePropsSerializesGoogleOAuthReady(t *testing.T) {
+	encoded, err := json.Marshal(SettingsPageProps{GoogleOAuthReady: true})
+	if err != nil {
+		t.Fatalf("marshal SettingsPageProps: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal SettingsPageProps: %v", err)
+	}
+	if ready, ok := payload["googleOAuthReady"].(bool); !ok || !ready {
+		t.Fatalf("googleOAuthReady = %#v, want true", payload["googleOAuthReady"])
 	}
 }
