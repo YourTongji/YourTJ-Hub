@@ -3,7 +3,8 @@ package forum
 import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +15,11 @@ func Schedule(c *gin.Context) {
 	payload := PagePayload{
 		Component: PageComponentSchedule,
 		Props: ScheduleProps{
-			SectionTimes: hotdataserve.GetScheduleSettingsConfigCache().SectionTimes,
+			// 节次作息直读 DB（与 admin GET /schedule-settings 同一口径）：
+			// 该值由管理员低频热改，单行 page_config 查询开销可忽略，原 5s localcache
+			// 引入「保存后最多 5s 不生效」的陈旧窗口且已无读方（scheduleSettingsConfigCache
+			// 已删除，review），保存路径不再需要清缓存回调。
+			SectionTimes: pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig()).SectionTimes,
 		},
 		Meta:    buildScheduleMeta(c),
 		Layout:  buildLayout(c, "schedule"),

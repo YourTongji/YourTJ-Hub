@@ -47,6 +47,7 @@ export interface LoginPageProps {
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string
+  googleUrl: string
   googleReady: boolean
 }
 

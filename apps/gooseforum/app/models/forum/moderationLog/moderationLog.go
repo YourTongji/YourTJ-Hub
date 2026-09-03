@@ -10,6 +10,7 @@ const (
 	SubjectPost         = "post"
 	SubjectReport       = "report"
 	SubjectUser         = "user"
+	SubjectUserProfile  = "user_profile"
 	SubjectSystem       = "system"
 	SubjectCourseReview = "course_review"
 )

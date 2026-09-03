@@ -81,6 +81,7 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 | `[meilisearch]` | url, masterkey (optional search) |
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
 | `[github]` | GitHub OAuth client |
+| `[google]` | Google OAuth client；需要站点设置 `siteUrl` 为与 Google Cloud 完全匹配的绝对回调基址 |
 
 The built-in OIDC Provider is configured from the `[oidc]` section in `config.toml`
 (`enabled`, `issuer`, `signing_key_file`, `[[oidc.clients]]`, see `deploy/config.toml.example`); the

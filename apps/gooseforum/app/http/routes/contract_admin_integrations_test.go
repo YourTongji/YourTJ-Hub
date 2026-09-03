@@ -63,7 +63,7 @@ func clearAdminIntegrationCaches() {
 	hotdataserve.ClearMailSettingsConfigCache()
 	hotdataserve.ClearStorageSettingsConfigCache()
 	hotdataserve.ClearMCPSettingsConfigCache()
-	hotdataserve.ClearScheduleSettingsConfigCache()
+	// scheduleSettingsConfigCache 已删除（SSR 直读 DB，无缓存读方），无需清缓存。
 }
 
 // adminIntegrationsGuardScenarios 跑本文件 10 条路由公共的中间件守卫场景：
@@ -472,7 +472,6 @@ func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.ScheduleSettings).Delete(&pageConfig.Entity{})
-			hotdataserve.ClearScheduleSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"sectionTimes":[{"section":12,"start":"20:10","end":"20:55"},{"section":1,"start":"08:00","end":"08:45"}]}}`,
@@ -491,7 +490,6 @@ func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.ScheduleSettings).Delete(&pageConfig.Entity{})
-			hotdataserve.ClearScheduleSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"sectionTimes":[{"section":1,"start":"08:00","end":"08:45"},{"section":1,"start":"09:00","end":"09:45"}]}}`,

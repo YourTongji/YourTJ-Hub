@@ -7,7 +7,9 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Bot, CheckCircle2, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
+import type { BulkImportPreview } from '@/admin/bulkImport'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -109,6 +111,31 @@ const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
+
+// ---- 安全名单批量粘贴导入（Blueprint R5：解析纯函数见 src/admin/bulkImport.ts）----
+type BulkImportTarget = 'reservedUsernames' | 'bannedUsernames' | 'sensitiveWords'
+const bulkImportOpen = ref(false)
+const bulkImportTarget = ref<BulkImportTarget>('reservedUsernames')
+const bulkImportText = ref('')
+// 解析结果由输入驱动实时计算：文本为空时返回 null（此时确认导入会提示 k00uj）。
+// 敏感词列表用短语模式（保留条目内部空格，多词短语逐条导入），名单类用默认模式。
+const bulkImportPreview = computed<BulkImportPreview | null>(() => {
+  const text = bulkImportText.value.trim()
+  if (!text) return null
+  const target = bulkImportTarget.value
+  return parseImportText(text, securityForm[target], target === 'sensitiveWords' ? { preserveSpaces: true } : undefined)
+})
+const bulkImportEmptyHint = ref(false)
+
+// 弹层标题展示目标名单名（键 k00hr/k00ht/k00hv）。
+const bulkImportTitleKey = computed(() => {
+  const titleKeys: Record<BulkImportTarget, string> = {
+    reservedUsernames: 'k00hr',
+    bannedUsernames: 'k00ht',
+    sensitiveWords: 'k00hv',
+  }
+  return titleKeys[bulkImportTarget.value]
+})
 
 // ---- 一系统同步（issue #248 排课数据自愈入口）----
 const onesystemForm = reactive<{ cookie: string, cookieConfigured: boolean }>({
@@ -911,6 +938,31 @@ function removeSensitiveWord(word: string) {
   securityForm.sensitiveWords = securityForm.sensitiveWords.filter(item => item !== word)
 }
 
+function openBulkImport(target: BulkImportTarget) {
+  bulkImportTarget.value = target
+  bulkImportText.value = ''
+  bulkImportEmptyHint.value = false
+  bulkImportOpen.value = true
+}
+
+function closeBulkImport() {
+  bulkImportOpen.value = false
+  bulkImportEmptyHint.value = false
+}
+
+function confirmBulkImport() {
+  if (!bulkImportPreview.value) {
+    bulkImportEmptyHint.value = true
+    return
+  }
+  const target = bulkImportTarget.value
+  const added = bulkImportPreview.value.added
+  if (added.length > 0) {
+    securityForm[target] = [...securityForm[target], ...added]
+  }
+  closeBulkImport()
+}
+
 function addAllowedDomain() {
   const domain = newAllowedDomain.value.trim().toLowerCase()
   if (!domain || allowedDomains.value.includes(domain)) return
@@ -1225,7 +1277,7 @@ onUnmounted(stopSyncPolling)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('reservedUsernames')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newReservedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addReservedUsername" />
             <Button type="button" variant="secondary" @click="addReservedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -1241,7 +1293,7 @@ onUnmounted(stopSyncPolling)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('bannedUsernames')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newBannedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addBannedUsername" />
             <Button type="button" variant="secondary" @click="addBannedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -1257,7 +1309,7 @@ onUnmounted(stopSyncPolling)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('sensitiveWords')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newSensitiveWord" class="max-w-sm" @keydown.enter.prevent="addSensitiveWord" />
             <Button type="button" variant="secondary" @click="addSensitiveWord"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -1822,6 +1874,35 @@ onUnmounted(stopSyncPolling)
               <Loader2 v-if="migrating" class="size-4 animate-spin" />
               <HardDrive v-else class="size-4" />
               {{ adminText('k00gb') }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog :open="bulkImportOpen" @update:open="bulkImportOpen = $event">
+        <DialogContent class="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{{ adminText('k00ug') }}：{{ adminText(bulkImportTitleKey) }}</DialogTitle>
+            <DialogDescription>{{ bulkImportTarget === 'sensitiveWords' ? adminText('k00un') : adminText('k00uf') }}</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-3">
+            <Textarea v-model="bulkImportText" class="min-h-32 text-sm" />
+            <p v-if="bulkImportEmptyHint" class="text-sm text-destructive">{{ adminText('k00uj') }}</p>
+            <template v-if="bulkImportPreview">
+              <p class="text-sm font-medium">{{ adminText('k00ui', { added: bulkImportPreview.added.length, skipped: bulkImportPreview.skipped }) }}</p>
+              <p v-if="bulkImportPreview.truncated" class="text-xs text-muted-foreground">{{ adminText('k00uk', { limit: BULK_IMPORT_LIMIT }) }}</p>
+              <div v-if="bulkImportPreview.added.length > 0" class="flex max-h-44 flex-wrap gap-2 overflow-y-auto rounded-lg border bg-muted/10 p-3">
+                <span v-if="bulkImportPreview.added.length > BULK_IMPORT_PREVIEW_LIMIT" class="w-full text-xs text-muted-foreground">{{ adminText('k00um', { limit: BULK_IMPORT_PREVIEW_LIMIT }) }}</span>
+                <Badge v-for="item in bulkImportPreview.added.slice(0, BULK_IMPORT_PREVIEW_LIMIT)" :key="item" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">{{ item }}</Badge>
+              </div>
+              <p v-if="bulkImportTarget === 'bannedUsernames'" class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{{ adminText('k00ul') }}</p>
+            </template>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" @click="closeBulkImport">{{ adminText('k009q') }}</Button>
+            <Button type="button" @click="confirmBulkImport">
+              <ClipboardPaste class="size-4" />
+              {{ adminText('k00uh') }}
             </Button>
           </DialogFooter>
         </DialogContent>

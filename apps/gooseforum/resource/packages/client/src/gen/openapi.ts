@@ -1029,8 +1029,12 @@ export interface paths {
          *     externalInformation; every field is optional in the request, and bio/signature
          *     accept an empty string to clear the stored value. locale is applied only when
          *     non-empty after trimming. JSON binding is lenient: a malformed body binds to
-         *     zero values and still succeeds as an all-empty overwrite. Business failures:
-         *     `user.fetchFailed`, `user.updateFailed`.
+         *     zero values and still succeeds as an all-empty overwrite. A nickname hitting
+         *     the reserved/banned lists fails with `auth.nickname.reserved` /
+         *     `auth.nickname.banned`; profile free text (bio/signature/website/websiteName)
+         *     hitting the sensitive-word list fails with `content.sensitive.blocked`
+         *     (params carries the matched word). Business failures: `user.fetchFailed`,
+         *     `user.updateFailed`.
          */
         post: operations["setUserInfo"];
         delete?: never;
@@ -2509,7 +2513,9 @@ export interface paths {
          *     password, and no role. The plaintext token (`agt_` prefix) is returned
          *     exactly once — only its hash and non-secret prefix are stored. A username
          *     failing the `^[a-zA-Z0-9_-]{6,32}$` rule fails with
-         *     `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with
+         *     `admin.agent.usernameInvalid` (HTTP 200); a username hitting the
+         *     reserved/banned lists fails with `auth.username.reserved` /
+         *     `auth.username.banned` (HTTP 200); a taken username fails with
          *     `admin.agent.usernameExists` (HTTP 200); an invalid webhook endpoint
          *     fails with `admin.agent.webhookInvalid` (HTTP 200); an over-long nickname
          *     fails with `common.request.invalidParams` (HTTP 200). JSON binding is
@@ -8076,10 +8082,11 @@ export interface components {
             enableEmailVerification: boolean;
             /** @description Email domains allowed at registration; empty disables the restriction. */
             allowedDomains: string[];
-            /** @description Usernames rejected at registration/rename. */
+            /** @description Usernames rejected at registration/rename. Also enforced for nicknames (EditUserInfo) and OAuth/Agent account creation. Matching is whole-string equality after normalization (case folding, NFKC/full-width, zero-width stripping, ASCII leetspeak folding), so `Admin`, `ａｄｍｉｎ`, and `adm1n` all hit `admin` while `myadmin` does not. Reserved entries never freeze existing accounts. The built-in default list ships in `defaultconfig/pageconfig/security.json` and is backfilled to stored configs whose arrays are empty by data migration v27. */
             reservedUsernames: string[];
-            /** @description Usernames rejected at registration/rename; saving a newly added entry also freezes matching existing accounts (idempotent). */
+            /** @description Usernames rejected at registration/rename (same whole-string normalized equality as `reservedUsernames`); saving a newly added entry also freezes matching existing accounts (idempotent). The built-in default list is deliberately empty so upgrades never freeze existing accounts. */
             bannedUsernames: string[];
+            /** @description Words scanned against content (topics/posts/chat/reviews/profile free text) with a normalized substring scan (case folding, NFKC/full-width, zero-width stripping; no leetspeak folding). The default list holds conservative multi-character legal-bottom-line terms from the Apache-2.0 fwwdn/sensitive-stop-words bank and is backfilled by data migration v27 for stored configs whose array is empty. */
             sensitiveWords: string[];
             /** @description `block` rejects matching content, `review` routes it to the moderation queue. */
             sensitiveAction: string;
@@ -11550,7 +11557,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Profile updated, or a legacy business failure envelope. */
+            /**
+             * @description Profile updated, or a legacy business failure envelope
+             *     (`auth.nickname.reserved` / `auth.nickname.banned` /
+             *     `content.sensitive.blocked`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13353,9 +13364,12 @@ export interface operations {
              * @description The created review payload. Request-level validation failures (rating outside 1..5,
              *     empty content, missing fields) are returned as a legacy HTTP 200 envelope
              *     with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
-             *     route behavior). Over-long content is NOT a request-level failure: it passes the
-             *     request validator and is rejected by the service layer as 400 `review.content.tooLong`
-             *     (see below). Service-level errors use their own status codes below.
+             *     route behavior). Content hitting the sensitive-word list is blocked with
+             *     `course.review.sensitiveBlocked` in the same legacy HTTP 200 envelope (params
+             *     carries the matched word). Over-long content is NOT a request-level failure: it
+             *     passes the request validator and is rejected by the service layer as 400
+             *     `review.content.tooLong` (see below). Service-level errors use their own status
+             *     codes below.
              */
             200: {
                 headers: {
@@ -13501,7 +13515,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The updated review payload, or a legacy business failure envelope for validation failures. */
+            /**
+             * @description The updated review payload, or a legacy business failure envelope for validation
+             *     failures. Editing content that hits the sensitive-word list is blocked with
+             *     `course.review.sensitiveBlocked` in the legacy HTTP 200 envelope (params carries
+             *     the matched word).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14424,7 +14443,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`). */
+            /** @description Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `auth.username.reserved` / `auth.username.banned` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`). */
             200: {
                 headers: {
                     [name: string]: unknown;

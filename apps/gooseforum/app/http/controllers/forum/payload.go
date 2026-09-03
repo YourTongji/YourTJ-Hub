@@ -35,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -118,6 +119,7 @@ type LoginPageProps struct {
 	InitialMode string `json:"initialMode"`
 	RedirectURL string `json:"redirectUrl"`
 	GitHubURL   string `json:"githubUrl"`
+	GoogleURL   string `json:"googleUrl"`
 	GoogleReady bool   `json:"googleReady"`
 }
 
@@ -923,14 +925,17 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		redirectURL = ""
 	}
 	githubURL := "/api/auth/github"
+	googleURL := "/api/auth/google"
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
+		googleURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
 		InitialMode: mode,
 		RedirectURL: redirectURL,
 		GitHubURL:   githubURL,
-		GoogleReady: false,
+		GoogleURL:   googleURL,
+		GoogleReady: oauthservice.IsGoogleOAuthConfigured(),
 	}
 }
 

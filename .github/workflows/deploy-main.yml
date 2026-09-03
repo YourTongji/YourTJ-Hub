@@ -43,6 +43,8 @@ jobs:
           wiki-webhook-secret: ${{ secrets.WIKI_WEBHOOK_SECRET }}
           gh-client-id: ${{ secrets.GH_CLIENT_ID }}
           gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
+          google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ai-api-key: ${{ secrets.AI_API_KEY }}
       # 上传到 run-specific 路径, 避免与 deploy-dev 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)

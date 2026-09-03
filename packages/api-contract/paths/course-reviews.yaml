@@ -105,9 +105,12 @@ createCourseReview:
           The created review payload. Request-level validation failures (rating outside 1..5,
           empty content, missing fields) are returned as a legacy HTTP 200 envelope
           with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
-          route behavior). Over-long content is NOT a request-level failure: it passes the
-          request validator and is rejected by the service layer as 400 `review.content.tooLong`
-          (see below). Service-level errors use their own status codes below.
+          route behavior). Content hitting the sensitive-word list is blocked with
+          `course.review.sensitiveBlocked` in the same legacy HTTP 200 envelope (params
+          carries the matched word). Over-long content is NOT a request-level failure: it
+          passes the request validator and is rejected by the service layer as 400
+          `review.content.tooLong` (see below). Service-level errors use their own status
+          codes below.
         content:
           application/json:
             schema:
@@ -118,6 +121,9 @@ createCourseReview:
               invalidRequest:
                 summary: Request-level validation failure (legacy HTTP 200 envelope).
                 externalValue: ../fixtures/invalid-params.json
+              sensitiveBlocked:
+                summary: Content hits the sensitive-word list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/course-review-sensitive-blocked.json
       '400':
         description: |
           Malformed JSON request body (binding failure), or a service-level validation failure
@@ -205,7 +211,11 @@ updateCourseReview:
             $ref: ../components/schemas.yaml#/ReviewUpdateRequest
     responses:
       '200':
-        description: The updated review payload, or a legacy business failure envelope for validation failures.
+        description: |
+          The updated review payload, or a legacy business failure envelope for validation
+          failures. Editing content that hits the sensitive-word list is blocked with
+          `course.review.sensitiveBlocked` in the legacy HTTP 200 envelope (params carries
+          the matched word).
         content:
           application/json:
             schema:
@@ -213,6 +223,9 @@ updateCourseReview:
             examples:
               success:
                 externalValue: ../fixtures/course-review-update-success.json
+              sensitiveBlocked:
+                summary: Edited content hits the sensitive-word list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/course-review-sensitive-blocked.json
       '400':
         description: Rating outside 1..5.
         content:

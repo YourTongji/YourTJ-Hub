@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
+	"github.com/gin-gonic/gin"
 )
 
 type templateRegistry struct {
@@ -141,12 +141,18 @@ func renderPageWithStatus(c *gin.Context, status int, templateName string, paylo
 		c.JSON(status, payload)
 		return
 	}
+	// HTML 文档同样禁用缓存：goose-payload 内嵌管理端配置（如 /schedule 节次作息），
+	// 缺头时浏览器启发式缓存/bfcache 会把保存后的新配置继续以旧 DOM 呈现。
+	c.Header("Cache-Control", "no-store")
 	if currentRegistry == nil {
 		if errCurrentRegistry != nil {
-			c.String(http.StatusInternalServerError, errCurrentRegistry.Error())
-			return
+			// 500 详情只落服务端日志，不回显内部错误（review 备注：避免向客户端泄漏
+			// 内部路径/实现细节）。
+			slog.Error("render template registry unavailable", "err", errCurrentRegistry)
+		} else {
+			slog.Error("render template registry is not initialized")
 		}
-		c.String(http.StatusInternalServerError, "resource template registry is not initialized")
+		c.String(http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if err := currentRegistry.render(c.Writer, filepath.Base(templateName), templateData{
@@ -154,7 +160,7 @@ func renderPageWithStatus(c *gin.Context, status int, templateName string, paylo
 		Lang:    requestLang(c),
 	}); err != nil {
 		slog.Error("render resource template failed", "template", templateName, "err", err)
-		c.String(http.StatusInternalServerError, err.Error())
+		c.String(http.StatusInternalServerError, "internal server error")
 	}
 }
 

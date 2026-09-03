@@ -276,18 +276,6 @@ func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
 }
 
-var scheduleSettingsConfigCache = &localcache.Cache[pageConfig.ScheduleSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
-
-func GetScheduleSettingsConfigCache() pageConfig.ScheduleSettingsConfig {
-	return scheduleSettingsConfigCache.GetOrLoad("", func() (pageConfig.ScheduleSettingsConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, defaultconfig.GetDefaultScheduleSettingsConfig()), nil
-	}, configFastCacheTTL)
-}
-
-func ClearScheduleSettingsConfigCache() {
-	scheduleSettingsConfigCache.Clear()
-}
-
 var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
 // GetAiSummarySettingsConfigCache 读取 AI 课程总结配置（5s TTL 热缓存）。

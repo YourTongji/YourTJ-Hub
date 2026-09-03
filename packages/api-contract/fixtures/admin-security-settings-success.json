@@ -6,15 +6,27 @@
       "tongji.edu.cn"
     ],
     "reservedUsernames": [
-      "admin"
+      "admin",
+      "administrator",
+      "root",
+      "system",
+      "moderator",
+      "developer",
+      "api",
+      "oauth",
+      "settings",
+      "misskey"
     ],
-    "bannedUsernames": [
-      "banned-contract"
-    ],
+    "bannedUsernames": [],
     "sensitiveWords": [
-      "违禁词"
+      "代开发票",
+      "办证刻章",
+      "枪支弹药",
+      "六合彩",
+      "冰毒",
+      "海洛因"
     ],
-    "sensitiveAction": "review",
+    "sensitiveAction": "block",
     "captchaRequired": false
   },
   "code": 0

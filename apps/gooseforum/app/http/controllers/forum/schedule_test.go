@@ -75,14 +75,34 @@ func TestScheduleHTMLReturnsNoJSContent(t *testing.T) {
 
 	router.ServeHTTP(recorder, req)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
-	}
 	body := recorder.Body.String()
 	if !strings.Contains(body, `id="goose-app"`) {
 		t.Fatalf("expected app mount point in HTML: %s", body)
 	}
 	if !strings.Contains(body, `id="goose-payload"`) {
 		t.Fatalf("expected initial payload in HTML: %s", body)
+	}
+	// HTML 文档同样必须禁用缓存：goose-payload 内嵌节次作息等管理端配置，
+	// bfcache/启发式缓存会把保存后的新作息继续以旧 DOM 呈现（作息不同步根因）。
+	if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("expected HTML document to avoid browser/bfcache, got Cache-Control %q", got)
+	}
+}
+
+func TestScheduleHTMLCacheControlNoStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/schedule", Schedule)
+
+	req := httptest.NewRequest(http.MethodGet, "/schedule", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("HTML /schedule Cache-Control = %q, want no-store（内嵌配置防 bfcache 陈旧）", got)
 	}
 }

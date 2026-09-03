@@ -37,6 +37,8 @@ jobs:
           # main 才配 GitHub 凭据; dev 渲染时为空（render action 内 allow-empty）
           gh-client-id: ${{ secrets.GH_CLIENT_ID }}
           gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
+          google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ai-api-key: ${{ secrets.AI_API_KEY }}
 
       - name: Upload rendered config + apply script

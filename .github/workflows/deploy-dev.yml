@@ -59,6 +59,8 @@ jobs:
           # dev 有意不设 GitHub 凭据(DB siteUrl 无环境隔离); gh inputs 留空
           gh-client-id: ""
           gh-client-secret: ""
+          google-client-id: ""
+          google-client-secret: ""
           ai-api-key: ""
       # 上传到 run-specific 路径, 避免与 deploy-main 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)

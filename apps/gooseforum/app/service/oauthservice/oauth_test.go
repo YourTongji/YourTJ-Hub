@@ -1,17 +1,115 @@
 package oauthservice
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
+
+func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
+	t.Helper()
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate page_config: %v", err)
+	}
+	conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
+	if siteURL != "" {
+		pageConfig.CreateOrSave(&pageConfig.Entity{
+			PageType: pageConfig.SiteSettings,
+			Config:   jsonopt.Encode(pageConfig.SiteSettingsConfig{SiteUrl: siteURL}),
+		})
+	}
+	hotdataserve.ClearSiteSettingsConfigCache()
+	preferences.Set("google.client_id", "test-google-client-id")
+	preferences.Set("google.client_secret", "test-google-client-secret")
+	t.Cleanup(func() {
+		preferences.Set("google.client_id", "")
+		preferences.Set("google.client_secret", "")
+		conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearSiteSettingsConfigCache()
+	})
+}
+
+func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test/")
+
+	if !IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = false, want true")
+	}
+	provider, ok := initGoogleProvider().(*google.Provider)
+	if !ok {
+		t.Fatal("initGoogleProvider() did not return a Google provider")
+	}
+	if provider.ClientKey != "test-google-client-id" || provider.Secret != "test-google-client-secret" {
+		t.Fatalf("provider credentials = %q/%q, want test credentials", provider.ClientKey, provider.Secret)
+	}
+	if provider.CallbackURL != "https://hub.example.test/api/auth/google/callback" {
+		t.Fatalf("provider callback URL = %q, want absolute site callback", provider.CallbackURL)
+	}
+
+	session, err := provider.BeginAuth("test-state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	authURL, err := session.GetAuthURL()
+	if err != nil {
+		t.Fatalf("GetAuthURL() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	if got := parsed.Query().Get("scope"); got != "openid email profile" {
+		t.Fatalf("Google OAuth scope = %q, want %q", got, "openid email profile")
+	}
+}
+
+func TestGoogleOAuthRequiresSiteURL(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "")
+
+	if IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = true without site URL")
+	}
+	if provider := initGoogleProvider(); provider != nil {
+		t.Fatal("initGoogleProvider() returned a provider without site URL")
+	}
+}
+
+func TestGoogleOAuthRequiresAbsoluteSiteURL(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "hub.example.test")
+
+	if IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = true with relative site URL")
+	}
+	if provider := initGoogleProvider(); provider != nil {
+		t.Fatal("initGoogleProvider() returned a provider with relative site URL")
+	}
+}
+
+func TestGoogleOAuthRequiresCredentials(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test")
+
+	preferences.Set("google.client_secret", "")
+	if IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = true without client secret")
+	}
+	if provider := initGoogleProvider(); provider != nil {
+		t.Fatal("initGoogleProvider() returned a provider without client secret")
+	}
+}
 
 // legacyOAuthSchema 是 Issue #131 之前的旧 user_o_auth 表结构，含 5 个明文凭据列。
 const legacyOAuthSchema = `CREATE TABLE user_o_auth (

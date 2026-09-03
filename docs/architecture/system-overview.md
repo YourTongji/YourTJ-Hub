@@ -70,7 +70,8 @@
 
 ### Auth
 
-- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), and the
+- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), optional
+  Google OAuth (goth, config [google]), and the
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
 - Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
