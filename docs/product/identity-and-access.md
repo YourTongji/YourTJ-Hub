@@ -174,24 +174,36 @@ Auth contract for state-changing API requests (issue #406):
   verification, so a cross-site attacker cannot obtain it.
 
 CSRF enforcement (`middleware.CSRFProtection`, mounted per write-route group in `route4api.go`
-after the authentication middleware — never in the global chain):
+before the stateful authentication middleware — never in the global chain):
 
 - Only **state-changing methods (POST/PUT/PATCH/DELETE) that carry the `access_token` cookie**
   are checked; GET/HEAD/OPTIONS and cookie-less requests (anonymous writes, server-to-server)
   pass.
+- The gate runs **before `JWTAuthCheck`** on every cookie-write group (`logout`; the
+  `login`/`forum`/`chat`/`admin`/`file` groups), so a rejected cross-site write never reaches the
+  authentication middleware: it cannot refresh a near-expiry JWT, extend its `user_sessions`
+  row, or publish activity events (issue #406 follow-up). Anonymous writes carry no cookie, pass
+  the gate, and keep their usual semantics (`JWTAuthCheck` still answers 401).
 - A request with an `Authorization` header is always exempt (Bearer clients, even when a cookie
   happens to ride along).
-- The remaining cookie-authenticated writes must present an `Origin` that matches the
-  site-controlled origin set: the request's own `Host`-derived origin (scheme from TLS or the
-  first `X-Forwarded-Proto` hop so TLS-terminating proxies work; default ports normalized), plus
-  any origins listed in the `csrf.allowedOrigins` config (comma separated) for deployments that
-  must accept an alternate front-end origin. The host-derived rule keeps multi-domain, LAN-IP,
+- The remaining cookie-authenticated writes must present an `Origin` that matches the request's
+  `Host`-derived origin (scheme from TLS or the first `X-Forwarded-Proto` hop so TLS-terminating
+  proxies work; default ports normalized). The host-derived rule keeps multi-domain, LAN-IP,
   and `localhost` dev deployments working without enumerating origins, because a browser Origin
-  is always the domain the host-only session cookie is scoped to.
+  is always the domain the host-only session cookie is scoped to. (An earlier `csrf.allowedOrigins`
+  config option for alternate front-end origins was removed: the single-binary deployment has no
+  credentialed CORS, so such origins could not carry the session cookie anyway.)
 - When `Origin` is missing (legacy browsers that omit it on same-origin POSTs), the `Referer`
   origin is checked instead; otherwise the request is rejected with HTTP 403 and message code
   `auth.csrf.rejected`. curl/scripting clients that carry a cookie but no Origin/Referer are
   rejected fail-closed — they should send `Authorization` instead.
+- **Contract note**: the 403 `auth.csrf.rejected` envelope is middleware-owned and applies
+  uniformly to every cookie-authenticated state-changing request. It is not repeated on every
+  covered operation; the session-management operations in `paths/auth-sessions.yaml` (logout,
+  revoke, revoke-all) document it explicitly because their descriptions promise path-specific
+  effects (cookie cleared, session revoked) that the CSRF gate interrupts. Consumers must treat
+  any cookie-authenticated write operation as able to return this 403 and must not clear local
+  credentials or treat the session as revoked on it.
 
 Rationale for Origin checking instead of a double-submit CSRF token: both web frontends run on
 modern browsers that send `Origin` on every state-changing request, and the host-only +

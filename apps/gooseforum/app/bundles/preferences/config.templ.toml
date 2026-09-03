@@ -20,12 +20,6 @@ port = 5234
 accessLog = false
 gzip = true # 应用层 gzip 开关
 
-[csrf]
-# Cookie 认证写接口的跨站请求防护（issue #406）额外允许的来源（逗号分隔，
-# 完整 origin，如 https://forum.example.com）。默认只需请求自身的 Host 同源即可，
-# 仅当存在必须共享会话 Cookie 的独立前端域时才需要配置。
-allowedOrigins = ""
-
 [jwtopt]
 validTime = 604800
 

@@ -7,13 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/gin-gonic/gin"
 )
 
 // csrfTestRouter builds a gin engine with CSRFProtection mounted in front of a
-// POST handler, mirroring the production write-group order (auth first, CSRF
-// after). The handler records that it ran.
+// POST handler, mirroring the production write-group order (CSRF runs before
+// the authentication middleware). The handler records that it ran.
 func csrfTestRouter() (*gin.Engine, *bool) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -152,67 +151,48 @@ func TestCSRFProtectionMalformedOriginRejected(t *testing.T) {
 	assertCsrfRejected(t, performCsrf(router, request), reached)
 }
 
-func TestCSRFProtectionConfiguredExtraOriginAllowed(t *testing.T) {
-	previous := preferences.GetString("csrf.allowedOrigins", "")
-	preferences.Set("csrf.allowedOrigins", "https://front.example.test")
-	t.Cleanup(func() { preferences.Set("csrf.allowedOrigins", previous) })
-
+func TestCSRFProtectionNullOriginRejected(t *testing.T) {
 	router, reached := csrfTestRouter()
-	request := csrfRequest(t, "session-token", "", "https://front.example.test", "")
-	request.Header.Set("X-Forwarded-Proto", "https")
-	assertCsrfAllowed(t, performCsrf(router, request), reached)
-}
-
-func TestCSRFProtectionConfiguredExtraOriginDoesNotWidenHostCheck(t *testing.T) {
-	previous := preferences.GetString("csrf.allowedOrigins", "")
-	preferences.Set("csrf.allowedOrigins", "https://front.example.test")
-	t.Cleanup(func() { preferences.Set("csrf.allowedOrigins", previous) })
-
-	router, reached := csrfTestRouter()
-	// The extra origin must not make the attacker's own origin acceptable.
-	request := csrfRequest(t, "session-token", "", "http://evil.example.test", "")
+	// Sandboxed iframes (srcdoc/data/blob) and some redirect flows send
+	// `Origin: null`; it never matches a real site origin, so it must be
+	// rejected fail-closed.
+	request := csrfRequest(t, "session-token", "", "null", "")
 	assertCsrfRejected(t, performCsrf(router, request), reached)
 }
 
-func TestCSRFProtectionBearerExemptEvenWithCookieAndForeignOrigin(t *testing.T) {
+func TestCSRFProtectionMalformedRefererRejected(t *testing.T) {
 	router, reached := csrfTestRouter()
-	request := csrfRequest(t, "session-token", "Bearer api-client-token", "http://evil.example.test", "")
-	assertCsrfAllowed(t, performCsrf(router, request), reached)
-}
-
-func TestCSRFProtectionNoCookieAnonymousPostAllowed(t *testing.T) {
-	router, reached := csrfTestRouter()
-	request := csrfRequest(t, "", "", "", "")
-	assertCsrfAllowed(t, performCsrf(router, request), reached)
-}
-
-func TestCSRFProtectionGetExemptFromOriginCheck(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	router.GET("/read", CSRFProtection, func(c *gin.Context) { c.Status(http.StatusOK) })
-
-	request := httptest.NewRequest(http.MethodGet, "http://forum.example.test/read", nil)
-	request.AddCookie(&http.Cookie{Name: "access_token", Value: "session-token"})
-	request.Header.Set("Origin", "http://evil.example.test")
-	recorder := performCsrf(router, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("GET status = %d, want 200", recorder.Code)
+	// Malformed/unparseable Referer values (broken IPv6 bracket, host-less
+	// scheme) must not accidentally pass the fallback check.
+	for _, referer := range []string{"http://[::1", "http://", "not a url"} {
+		request := csrfRequest(t, "session-token", "", "", referer)
+		assertCsrfRejected(t, performCsrf(router, request), reached)
 	}
 }
 
-func TestCSRFProtectionOptionsExemptFromOriginCheck(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	router.OPTIONS("/write", CSRFProtection, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+func TestCSRFProtectionInvalidForwardedProtoIgnored(t *testing.T) {
+	// An invalid X-Forwarded-Proto value is ignored: the connection scheme is
+	// kept, so the plain-http site origin still matches and the request is
+	// not spuriously rejected.
+	router, reached := csrfTestRouter()
+	request := csrfRequest(t, "session-token", "", "http://forum.example.test", "")
+	request.Header.Set("X-Forwarded-Proto", "ftp")
+	assertCsrfAllowed(t, performCsrf(router, request), reached)
 
-	request := httptest.NewRequest(http.MethodOptions, "http://forum.example.test/write", nil)
-	request.AddCookie(&http.Cookie{Name: "access_token", Value: "session-token"})
-	request.Header.Set("Origin", "http://evil.example.test")
-	request.Header.Set("Access-Control-Request-Method", "POST")
-	recorder := performCsrf(router, request)
-	if recorder.Code != http.StatusNoContent {
-		t.Fatalf("OPTIONS status = %d, want 204", recorder.Code)
-	}
+	// ...and it must not widen the allowed set either: an https Origin against
+	// a plain-http request with a garbage forwarded-proto stays rejected.
+	*reached = false
+	request = csrfRequest(t, "session-token", "", "https://forum.example.test", "")
+	request.Header.Set("X-Forwarded-Proto", "garbage")
+	assertCsrfRejected(t, performCsrf(router, request), reached)
+}
+
+func TestCSRFProtectionForwardedProtoFirstHopWins(t *testing.T) {
+	router, reached := csrfTestRouter()
+	// Multi-hop proxies send a comma list; only the first hop is trusted.
+	request := csrfRequest(t, "session-token", "", "https://forum.example.test", "")
+	request.Header.Set("X-Forwarded-Proto", "https, http")
+	assertCsrfAllowed(t, performCsrf(router, request), reached)
 }
 
 func TestCSRFProtectionHeadExemptFromOriginCheck(t *testing.T) {
@@ -229,27 +209,43 @@ func TestCSRFProtectionHeadExemptFromOriginCheck(t *testing.T) {
 	}
 }
 
-func TestCSRFProtectionNullOriginRejected(t *testing.T) {
-	router, reached := csrfTestRouter()
-	// Sandboxed iframes and some redirect chains send the string "null"; it
-	// parses as a path without a host and must fail closed.
-	request := csrfRequest(t, "session-token", "", "null", "")
-	assertCsrfRejected(t, performCsrf(router, request), reached)
+func TestCSRFProtectionGetExemptFromOriginCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/read", CSRFProtection, func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	request := httptest.NewRequest(http.MethodGet, "http://forum.example.test/read", nil)
+	request.AddCookie(&http.Cookie{Name: "access_token", Value: "session-token"})
+	request.Header.Set("Origin", "http://evil.example.test")
+	recorder := performCsrf(router, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, want 200", recorder.Code)
+	}
 }
 
-func TestCSRFProtectionMalformedRefererRejected(t *testing.T) {
+func TestCSRFProtectionBearerExemptEvenWithCookieAndForeignOrigin(t *testing.T) {
 	router, reached := csrfTestRouter()
-	// A Referer that does not parse to an absolute URL with a host fails
-	// closed instead of falling through to allow.
-	request := csrfRequest(t, "session-token", "", "", "not-a-url")
-	assertCsrfRejected(t, performCsrf(router, request), reached)
+	request := csrfRequest(t, "session-token", "Bearer api-client-token", "http://evil.example.test", "")
+	assertCsrfAllowed(t, performCsrf(router, request), reached)
 }
 
-func TestCSRFProtectionInvalidForwardedProtoIgnored(t *testing.T) {
+func TestCSRFProtectionNoCookieAnonymousPostAllowed(t *testing.T) {
 	router, reached := csrfTestRouter()
-	// X-Forwarded-Proto values other than http/https are ignored: the
-	// host-derived scheme stays http, so an https Origin must still fail.
-	request := csrfRequest(t, "session-token", "", "https://forum.example.test", "")
-	request.Header.Set("X-Forwarded-Proto", "gopher")
-	assertCsrfRejected(t, performCsrf(router, request), reached)
+	request := csrfRequest(t, "", "", "", "")
+	assertCsrfAllowed(t, performCsrf(router, request), reached)
+}
+
+func TestCSRFProtectionOptionsExemptFromOriginCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.OPTIONS("/write", CSRFProtection, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := httptest.NewRequest(http.MethodOptions, "http://forum.example.test/write", nil)
+	request.AddCookie(&http.Cookie{Name: "access_token", Value: "session-token"})
+	request.Header.Set("Origin", "http://evil.example.test")
+	request.Header.Set("Access-Control-Request-Method", "POST")
+	recorder := performCsrf(router, request)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("OPTIONS status = %d, want 204", recorder.Code)
+	}
 }

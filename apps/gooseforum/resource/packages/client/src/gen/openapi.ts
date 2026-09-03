@@ -58,8 +58,10 @@ export interface paths {
          * @description Session is optional. When the request carries a valid session token (cookie or Bearer), the
          *     server revokes that session record, so the token immediately stops authenticating. An absent,
          *     unverifiable, or already-revoked token is treated as already logged out, which makes this
-         *     operation idempotent. The `access_token` cookie is cleared on every path, including the rare
-         *     `session.revoke.failed` business failure (HTTP 200 with `code: 1`).
+         *     operation idempotent. The `access_token` cookie is cleared whenever the logout handler runs,
+         *     including the rare `session.revoke.failed` business failure (HTTP 200 with `code: 1`). A
+         *     cross-site cookie POST (missing or mismatched Origin/Referer) is rejected by the CSRF gate
+         *     before the handler with HTTP 403 `auth.csrf.rejected` and the cookie is left untouched.
          */
         post: operations["logout"];
         delete?: never;
@@ -10209,12 +10211,21 @@ export interface operations {
             /** @description Logout completed (or the caller was already logged out), or a revocation failure. */
             200: {
                 headers: {
-                    /** @description Expires the HTTP-only `access_token` session cookie on every logout response. */
+                    /** @description Expires the HTTP-only `access_token` session cookie whenever the logout handler runs. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared on this path. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -10663,6 +10674,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     revokeAllSessions: {
@@ -10685,6 +10705,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
