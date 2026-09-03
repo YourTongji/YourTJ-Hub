@@ -561,6 +561,16 @@ adminSavePostingSettings:
       `settings` with `validate:"required"`, but struct-level required
       never fails, so a missing or malformed body saves a zero-value
       configuration.
+      The `uploadControl.authorizedExtensions` allowlist is canonicalized
+      before persistence (issue #408): only the built-in decodable image
+      extensions (.jpg/.jpeg/.png/.gif/.webp/.bmp) are accepted, matching is
+      case-insensitive and a leading dot is optional, and legal entries are
+      stored lower-cased with a leading dot and deduplicated. Submitting any
+      unsupported token (.svg/.html/.js/.xml/.pdf, double extensions, empty
+      strings) fails the whole save with an HTTP 200 `code: 1` envelope,
+      `messageCode` `admin.upload.extNotAllowed` and `params.extensions`
+      listing the offending tokens; nothing is persisted. An empty list is
+      valid and is stored/echoed as `[]`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -572,7 +582,7 @@ adminSavePostingSettings:
             $ref: ../components/schemas.yaml#/AdminSavePostingSettingsRequest
     responses:
       '200':
-        description: Configuration saved (`result` is the string `success`).
+        description: "Configuration saved (`result` is the string `success`), or an HTTP 200 business failure when `authorizedExtensions` contains unsupported tokens (`admin.upload.extNotAllowed`, `params.extensions` lists them)."
         content:
           application/json:
             schema:
@@ -580,6 +590,8 @@ adminSavePostingSettings:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              extNotAllowed:
+                externalValue: ../fixtures/admin-posting-settings-ext-not-allowed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

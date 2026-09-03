@@ -6908,6 +6908,18 @@ AdminPostingUploadControl:
       type: array
       items:
         type: string
+      description: >-
+        Image-extension allowlist for user uploads, canonicalized by the
+        server (issue #408). Only the built-in decodable image extensions
+        are accepted: .jpg/.jpeg/.png/.gif/.webp/.bmp. Matching is
+        case-insensitive and a leading dot is optional (`png`, `.PNG` and
+        `.png` are the same entry); legal entries are stored lower-cased
+        with a leading dot, deduplicated in first-appearance order.
+        Submitting any unsupported token (.svg/.html/.js/.xml/.pdf, double
+        extensions such as `avatar.png.exe`, empty strings) rejects the
+        whole save with `admin.upload.extNotAllowed` (HTTP 200,
+        `params.extensions` lists the offending tokens) and persists
+        nothing. An empty list is valid and is stored/echoed as `[]`.
     maxAttachmentSizeKb:
       type: integer
     maxDailyUploadsPerUser:
