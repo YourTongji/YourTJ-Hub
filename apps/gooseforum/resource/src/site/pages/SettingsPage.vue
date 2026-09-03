@@ -134,11 +134,11 @@ const deletedContentAction = ref('')
 const deletedTopicCursor = ref(0)
 const { preference, setPreference } = useSiteTheme()
 
-const themeOptions = [
+const themeOptions = computed(() => [
   { value: 'auto' as const, label: t('settings.general.themeAuto'), icon: Monitor },
   { value: 'light' as const, label: t('settings.general.themeLight'), icon: Sun },
   { value: 'dark' as const, label: t('settings.general.themeDark'), icon: Moon },
-]
+])
 
 function setThemePreference(value: 'auto' | 'light' | 'dark') {
   setPreference(value)

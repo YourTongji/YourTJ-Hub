@@ -86,11 +86,17 @@ const { t, te, locale } = useI18n()
 const { isDark, preference } = useSiteTheme()
 const unreadStatus = useUnreadStatus()
 
-const themeOptions: { value: ThemePreference; label: string; icon: typeof Monitor }[] = [
-  { value: 'auto', label: t('shell.themeAuto'), icon: Monitor },
-  { value: 'light', label: t('shell.themeLight'), icon: Sun },
-  { value: 'dark', label: t('shell.themeDark'), icon: Moon },
-]
+const themeOptions = computed(() => [
+  { value: 'auto' as const, label: t('shell.themeAuto'), icon: Monitor },
+  { value: 'light' as const, label: t('shell.themeLight'), icon: Sun },
+  { value: 'dark' as const, label: t('shell.themeDark'), icon: Moon },
+])
+
+function selectTheme(preference: ThemePreference) {
+  setThemePreference(preference)
+  themeMenuOpen.value = false
+}
+
 const hasUnreadNotification = computed(() => unreadStatus.notifications.value)
 const hasUnreadMessage = computed(() => unreadStatus.messages.value)
 const hasModerationReports = computed(() => unreadStatus.moderationReports.value)
@@ -483,7 +489,7 @@ async function loadUserCard() {
                     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
                     :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
                     type="button"
-                    @click="setThemePreference(option.value)"
+                    @click="selectTheme(option.value)"
                   >
                     <component :is="option.icon" class="h-4 w-4" />
                     {{ option.label }}

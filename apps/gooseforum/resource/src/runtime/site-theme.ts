@@ -185,6 +185,16 @@ export function setTheme(theme: SiteTheme) {
     // Ignore storage failures in private or restricted browsing contexts.
   }
 }
+
+/**
+ * Apply a theme temporarily without persisting to storage.
+ * Used for preview scenarios where the theme should be restored later.
+ */
+export function applyThemeTemporary(theme: SiteTheme) {
+  currentTheme.value = theme
+  applyTheme(theme)
+  // Note: does NOT write to cookie/localStorage
+}
 // 引用计数：连续快速切换时，每个进行中的 view transition 占一个引用，
 // 只有最后一个完成（或全部失败回退）才移除抑制 class。
 let themeSwitchingRefs = 0
@@ -273,6 +283,42 @@ function resolveInitialPreference(): ThemePreference {
     if (isThemePreference(stored)) {
       writePreferenceCookie(stored)
       return stored
+    }
+  } catch {
+    // Fall through to migration check
+  }
+
+  // Migration: If there's a legacy theme cookie/storage but no preference,
+  // treat it as a manual preference (not auto) to maintain consistency
+  try {
+    const legacyCookieTheme = readThemeCookie()
+    if (isSiteTheme(legacyCookieTheme)) {
+      // Migrate legacy theme to manual preference
+      const preference = legacyCookieTheme === 'gf-dark' ? 'dark' : 'light'
+      writePreferenceCookie(preference)
+      try {
+        window.localStorage.setItem(PREFERENCE_STORAGE_KEY, preference)
+      } catch {
+        // Ignore storage failures
+      }
+      return preference
+    }
+  } catch {
+    // Fall through to auto
+  }
+
+  try {
+    const storedLegacyTheme = window.localStorage.getItem(STORAGE_KEY)
+    if (isSiteTheme(storedLegacyTheme)) {
+      // Migrate legacy theme to manual preference
+      const preference = storedLegacyTheme === 'gf-dark' ? 'dark' : 'light'
+      writePreferenceCookie(preference)
+      try {
+        window.localStorage.setItem(PREFERENCE_STORAGE_KEY, preference)
+      } catch {
+        // Ignore storage failures
+      }
+      return preference
     }
   } catch {
     // Fall through to auto
