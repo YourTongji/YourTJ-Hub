@@ -29,6 +29,7 @@
 - DB 上游：Go 官方 `vuln.go.dev`（`GOVULNDB` 环境变量可覆盖，见下）。
 - govulncheck 二进制本身用 `go install ...@latest`（CI action 内部）或 `go run ...@latest`（本地），每次取最新版。
 - Go 工具链：CI 用 `go-version-input: "1.26"`，action 内部 `check-latest: true` 会取最新 1.26.x patch。标准库漏洞随工具链升级消解：例如 go1.26.5 报告的 7 个 stdlib CVE（`net/url`、`html/template`、`crypto/tls`、`net/http`、`encoding/xml`、`encoding/asn1` 等）全部修复于 go1.26.6，升级 Go patch 即可清零，无需动任何依赖。
+- 仓库工具链下限（issue #447）：`apps/gooseforum/go.mod` 声明 `go 1.26.6` 且 `toolchain go1.26.8`。本地/部署构建在旧 patch 工具链下由 `GOTOOLCHAIN=auto`（默认）自动下载合规版本，或设置 `GOTOOLCHAIN=local` 时明确失败——不再可能静默用带 stdlib 漏洞的旧工具链编译单二进制。CI `ci-backend` job 另有 `go env GOVERSION` ≥ 1.26.6 的显式断言作为门禁。
 - 依赖版本升级由 Dependabot（`.github/dependabot.yml`，`go_modules` ecosystem，每周）提出 PR；升级 PR 会触发本扫描与 `ci-backend` 全量测试。
 
 ## 代理失败诊断
@@ -78,6 +79,6 @@ govulncheck 实测（2026-09-03，v0.54.0，text 格式）将 4 条 x/crypto 条
 
 报告与 issue 中区分三类，不要混为一谈：
 
-1. **应用可达漏洞**（Symbol Results）：当前实际基线为 **0 个**——CI run 33781751646（2026-09-03，action `check-latest` 取到 Go 1.26.8）显示 `No vulnerabilities found`。历史注记：go1.26.5 曾报告 7 个标准库漏洞（均修复于 go1.26.6，随工具链升级消解）；`x/image` VP8L `GO-2026-6222`（v0.44.0 → 修复于 v0.45.0）在本分支仅出现在 Package 层（import 但未调用、不可达，不影响退出码），随 issue #405 合入后条目整体消失。
+1. **应用可达漏洞**（Symbol Results）：当前实际基线为 **0 个**——CI run 33781751646（2026-09-03，action `check-latest` 取到 Go 1.26.8）显示 `No vulnerabilities found`。历史注记：go1.26.5 曾报告 7 个标准库漏洞（均修复于 go1.26.6，随工具链升级消解），issue #447 起仓库通过 `go.mod` 声明工具链下限（`go 1.26.6` + `toolchain go1.26.8`），本地与部署构建同样不会回退到带漏洞的旧 patch；`x/image` VP8L `GO-2026-6222`（v0.44.0 → 修复于 v0.45.0）在本分支仅出现在 Package 层（import 但未调用、不可达，不影响退出码），随 issue #405 合入后条目整体消失。
 2. **依赖存在但不可达提示**（Package/Module Results）：含本文 x/crypto 4 条。
 3. **扫描基础设施失败**：网络/代理错误，必须让 CI 红并按下节诊断。
