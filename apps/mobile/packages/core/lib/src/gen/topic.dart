@@ -108,6 +108,8 @@ abstract class TopicDetailPayload with _$TopicDetailPayload {
     required int id,
     required String title,
     required String description,
+    String? firstImageUrl,
+    List<String>? images,
     required String url,
     required int topicStatus,
     required int processStatus,
