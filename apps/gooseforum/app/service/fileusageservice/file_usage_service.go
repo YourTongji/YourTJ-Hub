@@ -16,7 +16,13 @@ type Usage struct {
 }
 
 func ReplaceTopic(topicID uint64, userID uint64, content string) {
-	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(markdown2html.ExtractImageURLs(content), fileUsage.UsageInlineImage))
+	ReplaceTopicWithImages(topicID, userID, content, nil)
+}
+
+func ReplaceTopicWithImages(topicID uint64, userID uint64, content string, extraImages []string) {
+	urls := markdown2html.ExtractImageURLs(content)
+	urls = append(urls, extraImages...)
+	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(urls, fileUsage.UsageInlineImage))
 }
 
 func ReplacePost(postID uint64, userID uint64, content string) {

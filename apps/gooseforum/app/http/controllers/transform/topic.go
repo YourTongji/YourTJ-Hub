@@ -88,10 +88,12 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			})
 		}
 
-		// Get content type from first post
-		var contentType int8
+		// Get content type from first post (default to Article for legacy/regular posts)
+		contentType := posts.ContentTypeArticle
 		if firstPost, ok := firstPostMap[t.FirstPostId]; ok && firstPost != nil {
-			contentType = firstPost.ContentType
+			if firstPost.ContentType != posts.ContentTypeRegular {
+				contentType = firstPost.ContentType
+			}
 		}
 
 		res = append(res, &vo.TopicsSimpleVo{

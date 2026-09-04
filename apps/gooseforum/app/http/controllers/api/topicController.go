@@ -104,6 +104,7 @@ type WriteTopicReq struct {
 	CaptchaId   string   `json:"captchaId,omitempty"`
 	CaptchaCode string   `json:"captchaCode,omitempty"`
 	ContentType int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
+	Images      []string `json:"images,omitempty"`
 }
 
 // WriteTopic creates or updates a topic and its first post.
@@ -204,6 +205,12 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	var topic topics.Entity
 	var firstPost posts.Entity
 	var oldCategoryIds []uint64
+
+	// 未指定或默认内容类型自动规范为文章类型（ContentTypeArticle = 3）
+	if req.Params.ContentType == posts.ContentTypeRegular {
+		req.Params.ContentType = posts.ContentTypeArticle
+	}
+
 	if req.Params.TopicId != 0 {
 		topic = topics.Get(req.Params.TopicId)
 		// wiki 分站页面由 wiki 修订审核流程管理，禁止经论坛编辑端点直接改写
@@ -217,6 +224,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		firstPost = posts.Get(topic.FirstPostId)
 		if firstPost.Id == 0 {
 			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+		}
+		if firstPost.ContentType == posts.ContentTypeRegular {
+			firstPost.ContentType = posts.ContentTypeArticle
 		}
 		oldCategoryIds = append([]uint64(nil), topic.CategoryIds...)
 		// Prevent changing contentType on published topics with replies
@@ -237,6 +247,12 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
 	topic.ImageUrls = markdown2html.ExtractImageURLs(req.Params.Content)
+	if len(req.Params.Images) > 0 {
+		topic.ImageUrls = req.Params.Images
+		if topic.FirstImageURL == "" && len(topic.ImageUrls) > 0 {
+			topic.FirstImageURL = topic.ImageUrls[0]
+		}
+	}
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
 	}
@@ -329,8 +345,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	// ---- 事务已提交：此后才允许缓存失效、统计与事件发布 ----
-	fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
+	fileusageservice.ReplaceTopicWithImages(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	if isEdit {
@@ -503,14 +518,6 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	topicEntity := topics.GetSimple(req.Params.TopicId)
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
-	}
-
-	// Check if the topic allows replies (thoughts and articles do not allow replies)
-	if topicEntity.FirstPostId > 0 {
-		firstPost := posts.Get(topicEntity.FirstPostId)
-		if firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle {
-			return component.FailResponseCode(component.MessageTopicRepliesNotAllowed, nil)
-		}
 	}
 
 	var parentPost posts.Entity

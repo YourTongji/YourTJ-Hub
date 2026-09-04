@@ -314,6 +314,7 @@ type TopicDetailPayload struct {
 	Title            string                 `json:"title"`
 	Description      string                 `json:"description"`
 	FirstImageURL    string                 `json:"firstImageUrl,omitempty"`
+	Images           []string               `json:"images,omitempty"`
 	URL              string                 `json:"url"`
 	TopicStatus      int8                   `json:"topicStatus"`
 	ProcessStatus    int8                   `json:"processStatus"`
@@ -1160,7 +1161,7 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
 			IsOwnTopic:       currentUserID == topic.UserId,
-			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion),
+			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
 			CanModerateTopic: canModerate,
 		},
 	}
@@ -1446,6 +1447,7 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		Title:            topic.Title,
 		Description:      topic.Excerpt,
 		FirstImageURL:    topic.FirstImageURL,
+		Images:           topic.ImageUrls,
 		URL:              urlconfig.PostDetail(topic.Id),
 		TopicStatus:      topic.Status,
 		ProcessStatus:    topic.ProcessStatus,
@@ -1463,8 +1465,16 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		IsWatched:        isWatched,
 		CreatedAt:        createdAt.Format(time.RFC3339),
 		UpdatedAt:        updatedAt.Format(time.RFC3339),
-		ContentType:      firstPost.ContentType,
+		ContentType:      resolveTopicContentType(firstPost.ContentType),
 	}
+}
+
+// resolveTopicContentType 将未设置或存量 0（默认/常规）统一归为文章类型（ContentTypeArticle = 3）。
+func resolveTopicContentType(contentType int8) int8 {
+	if contentType == posts.ContentTypeRegular {
+		return posts.ContentTypeArticle
+	}
+	return contentType
 }
 
 // isAuthorDeletedVisibility 判断内容是否由作者删除或因账号匿名化而进入用户删除态。
@@ -2664,6 +2674,11 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 		Topic:      PublishTopicPayload{},
 	}
 	if topicID == 0 {
+		typeParam := c.Query("type")
+		if typeParam == "" {
+			typeParam = c.Query("contentType")
+		}
+		props.Topic.ContentType = parsePublishContentType(typeParam)
 		return props, nil
 	}
 
@@ -2683,6 +2698,19 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 		ContentType: firstPost.ContentType,
 	}
 	return props, nil
+}
+
+func parsePublishContentType(raw string) int8 {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "question":
+		return 1
+	case "2", "thought":
+		return 2
+	case "3", "article":
+		return 3
+	default:
+		return 0
+	}
 }
 
 func buildPublishCategories() []PublishCategoryPayload {

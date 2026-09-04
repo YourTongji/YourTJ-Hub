@@ -441,6 +441,14 @@
   },
   {
     "method": "GET",
+    "path": "/topics/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/topics/:id/:postNo"
+  },
+  {
+    "method": "GET",
     "path": "/u/:userId"
   },
   {
