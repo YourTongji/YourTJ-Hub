@@ -473,6 +473,38 @@ func TestAdminSaveSecuritySettingsEnableVerificationBackfillsPendingAdmins(t *te
 		}
 	})
 
+	t.Run("enabling verification leaves frozen pending admins frozen and pending", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		actor := createContractSiteManager(t, conn)
+		frozenPeer := createContractSiteManager(t, conn)
+		for _, user := range []*users.EntityComplete{actor, frozenPeer} {
+			if err := conn.Model(user).Update("is_activated", users.ActivationPending).Error; err != nil {
+				t.Fatalf("mark site manager %d pending: %v", user.Id, err)
+			}
+			user.IsActivated = users.ActivationPending
+		}
+		// 冻结管理员同样 pending：治理冻结优先于激活状态，backfill 不得解冻激活。
+		if err := conn.Model(frozenPeer).Update("is_frozen", users.StatusFrozen).Error; err != nil {
+			t.Fatalf("freeze site manager %d: %v", frozenPeer.Id, err)
+		}
+		frozenPeer.IsFrozen = users.StatusFrozen
+
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("save status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		// 执行者（未冻结）正常激活；冻结账号保持 pending + frozen。
+		row, err := users.Get(actor.Id)
+		if err != nil || row.IsActivated != users.ActivationSuccess {
+			t.Fatalf("actor %d is_activated = %d, want activated", actor.Id, row.IsActivated)
+		}
+		frozenRow, err := users.Get(frozenPeer.Id)
+		if err != nil || frozenRow.IsActivated != users.ActivationPending || frozenRow.IsFrozen != users.StatusFrozen {
+			t.Fatalf("frozen peer %d activated = %d, frozen = %d; want both untouched (governance freeze wins)",
+				frozenPeer.Id, frozenRow.IsActivated, frozenRow.IsFrozen)
+		}
+	})
+
 	t.Run("enabling verification leaves ordinary pending users pending", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		actor := createContractSiteManager(t, conn)

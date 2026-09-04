@@ -3571,7 +3571,15 @@ export interface paths {
          *     added to `bannedUsernames` (compared case-insensitively against the
          *     currently stored list, trimmed) trigger a freeze of matching existing
          *     accounts; the freeze is idempotent, so re-saving the same list does
-         *     not reprocess accounts. The Go struct tags `settings` with
+         *     not reprocess accounts. When `enableEmailVerification` flips from off
+         *     to on, existing pending-activation accounts holding any admin/governance
+         *     role permission are activated immediately (frozen accounts stay frozen;
+         *     ordinary pending users are untouched) before the new configuration is
+         *     persisted — if that backfill fails, the save aborts with the
+         *     `common.operation.failed` business envelope (HTTP 200, `code` 1) and
+         *     the previously stored configuration remains in effect. Re-saving the
+         *     same enabled value does not re-run the backfill (true→true is a no-op).
+         *     The Go struct tags `settings` with
          *     `validate:"required"`, but struct-level required never fails, so a
          *     missing or malformed body saves a zero-value configuration.
          */
@@ -12722,7 +12730,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
+             *     information cannot be resolved. Pending-activation accounts are
+             *     intentionally allowed on this endpoint (self-service escape hatch): the
+             *     route uses the allow-pending variant of the write gate so users who
+             *     cannot or will not verify their email can still emergency-erase their
+             *     own content. Ownership checks and the shared deletion rate window are
+             *     unchanged.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12826,7 +12842,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
+             *     information cannot be resolved. Pending-activation accounts are
+             *     intentionally allowed on this endpoint (self-service escape hatch): the
+             *     route uses the allow-pending variant of the write gate so users who
+             *     cannot or will not verify their email can still close their own account.
+             *     The controller still requires the current password as a second factor,
+             *     and closure revokes every existing session.
+             */
             403: {
                 headers: {
                     [name: string]: unknown;

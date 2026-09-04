@@ -1480,16 +1480,21 @@ func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) 
 // TTL 缓存继续读到旧 pending 状态而把刚激活的管理账号再次锁死。冻结账号跳过
 // （治理冻结优先于激活状态，不由本开关解除）。
 func activatePendingAdminAccounts() error {
+	// SQL 侧预过滤：只加载待激活且可能持有管理角色的账号，避免全表读。
+	// role_id = 0（含 bot 账号）与已激活行不进内存；冻结账号仍需加载后在
+	// 循环内跳过（治理冻结优先于激活状态，不由本开关解除）。
 	var list []users.EntityComplete
-	if err := db.Connect().Model(&users.EntityComplete{}).Find(&list).Error; err != nil {
+	if err := db.Connect().Model(&users.EntityComplete{}).
+		Where("is_activated = ? AND role_id > 0", users.ActivationPending).
+		Find(&list).Error; err != nil {
 		return err
 	}
 	for i := range list {
 		user := &list[i]
-		if user.IsActivated == users.ActivationSuccess || user.IsFrozen == users.StatusFrozen {
+		if user.IsFrozen == users.StatusFrozen {
 			continue
 		}
-		if user.RoleId == 0 || !permission.CheckAnyRole(user.RoleId) {
+		if !permission.CheckAnyRole(user.RoleId) {
 			continue
 		}
 		user.Activate()
