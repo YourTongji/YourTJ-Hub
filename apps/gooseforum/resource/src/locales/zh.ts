@@ -2186,6 +2186,7 @@ export default {
     uploadAttachment: '上传附件',
     post: '发帖',
     comment: '评论',
+    write: '写入',
   },
   image: {
     selectFile: '请选择图片文件',

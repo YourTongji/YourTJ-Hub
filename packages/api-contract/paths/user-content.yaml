@@ -430,11 +430,17 @@ privacyEraseContent:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: >-
-          Authenticated account is frozen or its account information cannot be resolved.
-          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
-          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
-          is not cleared (issue #406).
+        description: |
+          Authenticated account is frozen (`permission.userFrozen`) or its account
+          information cannot be resolved. Pending-activation accounts are
+          intentionally allowed on this endpoint (self-service escape hatch): the
+          route uses the allow-pending variant of the write gate so users who
+          cannot or will not verify their email can still emergency-erase their
+          own content. Ownership checks and the shared deletion rate window are
+          unchanged. A cross-site cookie-authenticated request (missing or
+          mismatched Origin/Referer) is rejected by the CSRF gate before the
+          handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not
+          cleared (issue #406).
         content:
           application/json:
             schema:
@@ -586,11 +592,17 @@ closeAccount:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: >-
-          Authenticated account is frozen or its account information cannot be resolved.
-          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
-          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
-          is not cleared (issue #406).
+        description: |
+          Authenticated account is frozen (`permission.userFrozen`) or its account
+          information cannot be resolved. Pending-activation accounts are
+          intentionally allowed on this endpoint (self-service escape hatch): the
+          route uses the allow-pending variant of the write gate so users who
+          cannot or will not verify their email can still close their own account.
+          The controller still requires the current password as a second factor,
+          and closure revokes every existing session. A cross-site
+          cookie-authenticated request (missing or mismatched Origin/Referer) is
+          rejected by the CSRF gate before the handler with HTTP 403
+          `auth.csrf.rejected`; the session cookie is not cleared (issue #406).
         content:
           application/json:
             schema:

@@ -580,8 +580,10 @@ export interface paths {
          *     be challenged with a captcha (`common.captchaRequired`, params action=post.create;
          *     a wrong or expired code fails with `auth.captcha.invalid`) or delayed by a posting
          *     cooldown (`comment.post.cooldown`, params minutes/availableAt). When mandatory
-         *     email verification is enabled, unverified accounts fail with
-         *     `permission.emailRequired` (HTTP 200, params action=评论, actionCode=comment).
+         *     email verification is enabled, unverified accounts are rejected by the route-level
+         *     `CheckWritableAccount` middleware before the controller runs with HTTP 403
+         *     `permission.emailRequired` (params action=写入, actionCode=write; see the 403
+         *     response below).
          *     Content length violations fail with `comment.content.tooShort` /
          *     `comment.content.tooLong` (params minLength/maxLength).
          */
@@ -3619,7 +3621,15 @@ export interface paths {
          *     added to `bannedUsernames` (compared case-insensitively against the
          *     currently stored list, trimmed) trigger a freeze of matching existing
          *     accounts; the freeze is idempotent, so re-saving the same list does
-         *     not reprocess accounts. The Go struct tags `settings` with
+         *     not reprocess accounts. When `enableEmailVerification` flips from off
+         *     to on, existing pending-activation accounts holding any admin/governance
+         *     role permission are activated immediately (frozen accounts stay frozen;
+         *     ordinary pending users are untouched) before the new configuration is
+         *     persisted — if that backfill fails, the save aborts with the
+         *     `common.operation.failed` business envelope (HTTP 200, `code` 1) and
+         *     the previously stored configuration remains in effect. Re-saving the
+         *     same enabled value does not re-run the backfill (true→true is a no-op).
+         *     The Go struct tags `settings` with
          *     `validate:"required"`, but struct-level required never fails, so a
          *     missing or malformed body saves a zero-value configuration.
          */
@@ -11093,7 +11103,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`), its account
+             *     information cannot be resolved, or — when mandatory email verification is
+             *     enabled — the account is still pending activation (`permission.emailRequired`,
+             *     params action=写入, actionCode=write). The write gate rejects unverified
+             *     accounts with the same structured envelope on every `CheckWritableAccount`
+             *     write endpoint. A cross-site cookie-authenticated request (missing or
+             *     mismatched Origin/Referer) is rejected by the CSRF gate before the handler
+             *     with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406).
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12890,7 +12909,18 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
+             *     information cannot be resolved. Pending-activation accounts are
+             *     intentionally allowed on this endpoint (self-service escape hatch): the
+             *     route uses the allow-pending variant of the write gate so users who
+             *     cannot or will not verify their email can still emergency-erase their
+             *     own content. Ownership checks and the shared deletion rate window are
+             *     unchanged. A cross-site cookie-authenticated request (missing or
+             *     mismatched Origin/Referer) is rejected by the CSRF gate before the
+             *     handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not
+             *     cleared (issue #406).
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12994,7 +13024,18 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
+             *     information cannot be resolved. Pending-activation accounts are
+             *     intentionally allowed on this endpoint (self-service escape hatch): the
+             *     route uses the allow-pending variant of the write gate so users who
+             *     cannot or will not verify their email can still close their own account.
+             *     The controller still requires the current password as a second factor,
+             *     and closure revokes every existing session. A cross-site
+             *     cookie-authenticated request (missing or mismatched Origin/Referer) is
+             *     rejected by the CSRF gate before the handler with HTTP 403
+             *     `auth.csrf.rejected`; the session cookie is not cleared (issue #406).
+             */
             403: {
                 headers: {
                     [name: string]: unknown;

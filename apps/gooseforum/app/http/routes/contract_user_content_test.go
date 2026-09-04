@@ -39,9 +39,9 @@ func setupUserContentContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/user/content-batch-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BatchDeleteContent))
 	loginAPI.POST("/user/content-restore", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RestoreContent))
 	loginAPI.POST("/user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
-	loginAPI.POST("/user/content-privacy-erase", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
+	loginAPI.POST("/user/content-privacy-erase", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
 	loginAPI.POST("/user/content-event", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.ReportContentEvent))
-	loginAPI.POST("/user/account-close", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
+	loginAPI.POST("/user/account-close", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
 	return conn, router
 }
 
@@ -319,6 +319,40 @@ func TestPrivacyEraseContentHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-privacy-erase-success.json"))
 	})
 
+	// issue #415 review P2：pending 用户（未验证邮箱）仍可对自己的内容执行
+	// 紧急隐私擦除自救——路由挂 CheckWritableAccountAllowPendingActivation，
+	// 控制器内 ownership/密码/限流校验保持不变；普通写（topics/write）仍被拦。
+	t.Run("pending user can privacy-erase own content when verification enabled", func(t *testing.T) {
+		conn, router := setupUserContentContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		createContractPublishedTopic(t, conn, 8810901, 8810902, user.Id)
+		recorder := serveJSON(router, "/api/forum/user/content-privacy-erase", `{"contentType":"topic","contentId":8810901}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending privacy-erase status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-privacy-erase-success.json"))
+		// 自救路径放行不扩大普通写权限：同一 pending 会话写 topics/write 仍被拒。
+		blocked := serveJSON(router, "/api/forum/topics/write", `{}`, contractSessionToken(t, user))
+		if blocked.Code != http.StatusForbidden {
+			t.Fatalf("pending topics/write status = %d, want 403", blocked.Code)
+		}
+	})
+
+	t.Run("privacy-erase does not touch another user's content for pending callers", func(t *testing.T) {
+		conn, router := setupUserContentContractTest(t)
+		enableContractEmailVerification(t, conn)
+		owner := createHTTPContractUser(t, conn, contractTestID())
+		createContractPublishedTopic(t, conn, 8810903, 8810904, owner.Id)
+		user := createPendingContractUser(t, conn)
+		recorder := serveJSON(router, "/api/forum/user/content-privacy-erase", `{"contentType":"topic","contentId":8810903}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("non-owner privacy-erase status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		// 非本人内容 → 业务失败（topic.notFound），不是误删他人内容。
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
 		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-privacy-erase", `{}`, "auth-required.json")
@@ -387,6 +421,37 @@ func TestAccountCloseHTTPContract(t *testing.T) {
 		if followUp.Code != http.StatusUnauthorized {
 			t.Fatalf("post-close session status = %d, want 401", followUp.Code)
 		}
+	})
+
+	// issue #415 review P2：pending 用户（不打算/无法验证邮箱）仍可注销自己的
+	// 账号自救——路由挂 CheckWritableAccountAllowPendingActivation，控制器仍要求
+	// 当前密码二次认证；注销后 token_version 自增，写权限随会话吊销一并消失。
+	t.Run("pending user can close own account when verification enabled", func(t *testing.T) {
+		conn, router := setupUserContentContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		token := contractSessionToken(t, user)
+		recorder := serveJSON(router, "/api/forum/user/account-close", `{"mode":"anonymize","password":"secret123"}`, token)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending account-close status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+		// 注销后旧会话立即失效（token_version 自增），不存在残留写权限。
+		followUp := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/user/my-content?contentType=topic", "", token)
+		if followUp.Code != http.StatusUnauthorized {
+			t.Fatalf("post-close pending session status = %d, want 401", followUp.Code)
+		}
+	})
+
+	t.Run("pending account-close still requires the current password", func(t *testing.T) {
+		conn, router := setupUserContentContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		recorder := serveJSON(router, "/api/forum/user/account-close", `{"mode":"anonymize","password":"wrongpass1"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending account-close wrong password status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-close-invalid-credentials.json"))
 	})
 
 	t.Run("wrong password returns invalid credentials", func(t *testing.T) {
