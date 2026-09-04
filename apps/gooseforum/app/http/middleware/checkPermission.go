@@ -51,10 +51,13 @@ func CheckWritableAccount(c *gin.Context) {
 	checkWritableAccount(c, false)
 }
 
-// CheckWritableAccountAllowPendingActivation 是 CheckWritableAccount 的恢复路径
-// 变体：保留登录/冻结拦截，但不因待激活状态拒绝——仅用于激活恢复所需的重发
-// 激活邮件与修改邮箱（改邮箱会把账号重新置为 pending，账号借此继续走恢复流程；
-// 其余写操作仍被 CheckWritableAccount 拦截）。
+// CheckWritableAccountAllowPendingActivation 是 CheckWritableAccount 的放行变体：
+// 保留登录/冻结拦截，但不因待激活状态拒绝。用于不产生内容写的自有状态操作与
+// 恢复路径——激活恢复（resend-activation-email、set-user-email，改邮箱会把账号
+// 重新置为 pending，账号借此继续走恢复流程）、自服务生命周期
+// （account-close、content-privacy-erase，issue #415 review P2）以及未读清理
+// （notification/chat mark-read，仅变更用户自己的读状态，issue #427）。
+// 其余写操作仍被 CheckWritableAccount 拦截。
 func CheckWritableAccountAllowPendingActivation(c *gin.Context) {
 	checkWritableAccount(c, true)
 }

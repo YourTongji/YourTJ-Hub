@@ -245,3 +245,50 @@ func TestOAuthCallbackLoginRejectsUnverifiedEmail(t *testing.T) {
 		t.Fatalf("unverified OAuth identity was bound despite rejection: %#v", binding)
 	}
 }
+
+// TestOAuthCallbackLoginPendingUserIssuesSession 待激活 OAuth 用户登录口径
+// （issue #427）：pending 账号 OAuth 登录同样签发会话（写权限在权限层由
+// CheckWritableAccount 拦截，会话本身不授予写能力），用户借此在会话过期后
+// 重新登录并继续激活恢复流程——与密码登录对 pending 用户的放行口径一致。
+func TestOAuthCallbackLoginPendingUserIssuesSession(t *testing.T) {
+	setupOAuthCallbackTestDB(t)
+
+	user := &users.EntityComplete{
+		Username:    "oauthpending",
+		Email:       "oauthpending@example.com",
+		IsActivated: users.ActivationPending,
+	}
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{
+		UserId:      user.Id,
+		Provider:    oauthservice.ProviderGitHub,
+		ProviderUid: "gh-uid-pending",
+	}); err != nil {
+		t.Fatalf("create oauth binding: %v", err)
+	}
+
+	stubGothUser(t, goth.User{
+		Provider: oauthservice.ProviderGitHub,
+		UserID:   "gh-uid-pending",
+		NickName: "oauthpending",
+		Email:    "oauthpending@example.com",
+	})
+
+	recorder, c := oauthCallbackRequest(t)
+	ProviderCallback(c)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	if loc := recorder.Header().Get("Location"); loc != "/" {
+		t.Fatalf("redirect location = %q, want /", loc)
+	}
+	if !hasAccessTokenCookie(recorder) {
+		t.Fatal("pending OAuth login must set access_token cookie")
+	}
+	if count := countSessions(t, user.Id); count != 1 {
+		t.Fatalf("pending user session rows = %d, want 1", count)
+	}
+}

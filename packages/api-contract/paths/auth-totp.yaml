@@ -8,7 +8,9 @@ status:
       - accessTokenCookie: []
     description: |
       Returns only whether TOTP is currently enabled. Recovery-code inventory is intentionally not
-      exposed by this endpoint. Frozen accounts are not rejected, allowing account recovery actions.
+      exposed by this endpoint. The route is read-only and not writable-account-gated: frozen and
+      pending (unactivated) accounts are not rejected, so 2FA status remains readable during
+      account recovery (issue #427).
     responses:
       '200':
         description: TOTP status or a legacy business failure envelope.
@@ -42,8 +44,10 @@ setup:
     description: |
       Requires the account password as re-authentication. The secret and otpauth URI are returned
       once for authenticator enrollment; setup leaves TOTP disabled until enable is called. Calling
-      setup for an already enabled account returns `totp.alreadyEnabled`. Frozen accounts are not
-      rejected by this route because it is not a writable-account operation.
+      setup for an already enabled account returns `totp.alreadyEnabled`. The route is a
+      writable-account operation (issue #427): frozen accounts are rejected with
+      `permission.userFrozen`, and pending accounts (email verification enabled) with
+      `permission.emailRequired`.
     requestBody:
       required: true
       content:
@@ -77,13 +81,19 @@ setup:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
       '403':
         description: >-
-          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
-          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+          Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen
+          accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site
+          cookie-authenticated request rejected by the CSRF gate (missing or mismatched
+          Origin/Referer, issue #406). The session cookie is not cleared.
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
+              frozen:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
       '429':
@@ -114,7 +124,9 @@ enable:
       Verifies the current six-digit code for a provisioned secret, marks TOTP enabled, and returns
       ten one-time recovery codes. Recovery codes are shown only in this success response. Calling
       enable without setup returns `totp.notEnabled`; calling it after enable returns
-      `totp.alreadyEnabled`. Frozen accounts are not rejected by this route.
+      `totp.alreadyEnabled`. The route is a writable-account operation (issue #427): frozen
+      accounts are rejected with `permission.userFrozen`, and pending accounts (email
+      verification enabled) with `permission.emailRequired`.
     requestBody:
       required: true
       content:
@@ -148,13 +160,19 @@ enable:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
       '403':
         description: >-
-          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
-          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+          Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen
+          accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site
+          cookie-authenticated request rejected by the CSRF gate (missing or mismatched
+          Origin/Referer, issue #406). The session cookie is not cleared.
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
+              frozen:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
       '429':
@@ -184,7 +202,9 @@ disable:
     description: |
       Accepts either the current TOTP code or the account password. Disabling removes all stored
       recovery codes and returns a human-readable success result. Calling disable when TOTP is not
-      enabled returns `totp.notEnabled`. Frozen accounts are not rejected by this route.
+      enabled returns `totp.notEnabled`. The route is a writable-account operation (issue #427):
+      frozen accounts are rejected with `permission.userFrozen`, and pending accounts (email
+      verification enabled) with `permission.emailRequired`.
     requestBody:
       required: true
       content:
@@ -216,13 +236,19 @@ disable:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
       '403':
         description: >-
-          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
-          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+          Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen
+          accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site
+          cookie-authenticated request rejected by the CSRF gate (missing or mismatched
+          Origin/Referer, issue #406). The session cookie is not cleared.
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
+              frozen:
+                externalValue: ../fixtures/account-frozen.json
+              pendingActivation:
+                externalValue: ../fixtures/permission-email-required.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
       '429':
