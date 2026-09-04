@@ -214,9 +214,9 @@ func Router() (http.Handler, error) {
 		}
 		op.Discover(w, cfg)
 	})))
-	mux.Handle(issuerPath+"/authorize", withIssuer(withBrowserBinding(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle(issuerPath+"/authorize", withDefaultHTMLContentType(withIssuer(withBrowserBinding(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		op.Authorize(w, r, provider)
-	}))))
+	})))))
 	mux.Handle(issuerPath+"/authorize/callback", withIssuer(authorizeCallbackBridge(provider)))
 	mux.Handle(issuerPath+"/token", withIssuer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -232,7 +232,7 @@ func Router() (http.Handler, error) {
 	mux.Handle(issuerPath+"/keys", withIssuer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		op.Keys(w, r, provider.Storage())
 	})))
-	return withDefaultContentType(mux), nil
+	return mux, nil
 }
 
 // withBrowserBinding ensures a browser-binding cookie exists before the
