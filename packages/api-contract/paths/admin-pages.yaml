@@ -55,10 +55,20 @@ adminSaveFriendLinks:
       callers without it fail with HTTP 403 and `permission.denied`. Replaces
       the whole friend-links configuration with the submitted groups and
       clears the friend-links cache. Groups with a null `links` array are
-      normalized to an empty array before persistence. There is no
-      count/URL validation, and no request validation tags: JSON binding is
-      lenient, so a malformed or empty body binds to zero values and is saved
-      as-is (a null group list).
+      normalized to an empty array before persistence. URL fields are then
+      validated under the shared admin URL policy (issue #409): values are
+      trimmed and HTML-entity-decoded; each link `url` must be an absolute
+      http(s) URL with a host and each `logoUrl` may be a site-relative path
+      or an absolute http(s) URL. Dangerous schemes
+      (javascript:/data:/vbscript:/file:), protocol-relative `//`,
+      control-character/entity disguises, pure port/no-host forms such as
+      `https://:443` and overlong values are rejected; empty values are
+      valid. A rejected field fails the request with HTTP 200 `code: 1`,
+      messageCode `admin.url.invalid` and params `field` naming the first
+      offending field (e.g. `linksInfo[0].links[0].url`); nothing is
+      persisted. There are no request validation tags: JSON binding is
+      lenient, so a malformed or empty body binds to zero values and is
+      saved as-is (a null group list).
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -78,6 +88,8 @@ adminSaveFriendLinks:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-url-invalid.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -157,9 +169,23 @@ adminSaveSponsors:
       the whole sponsors configuration with the submitted value and clears
       the sponsors cache. Null sponsor tier arrays are normalized to empty
       arrays, and blank content/contact titles or descriptions are filled
-      from the built-in defaults before persistence. There is no request
-      validation: JSON binding is lenient, so a malformed or empty body binds
-      to zero values and is saved (after default-filling) as-is.
+      from the built-in defaults before persistence. URL fields are then
+      validated under the shared admin URL policy (issue #409): values are
+      trimmed and HTML-entity-decoded; each sponsor tier `link` must be an
+      absolute http(s) URL with a host, each `avatarUrl` may be a
+      site-relative path or an absolute http(s) URL, and the contact
+      `buttonLink` additionally accepts a `mailto:` address. Dangerous
+      schemes (javascript:/data:/vbscript:/file:), protocol-relative `//`,
+      control-character/entity disguises, pure port/no-host forms such as
+      `https://:443` and overlong values are rejected; empty values are
+      valid. A rejected field fails the request with HTTP 200 `code: 1`,
+      messageCode `admin.url.invalid` and params `field` naming the first
+      offending field (e.g. `sponsorsInfo.sponsors.level0[0].link`,
+      `sponsorsInfo.sponsors.level0[0].avatarUrl` or
+      `sponsorsInfo.contact.buttonLink`); nothing is persisted. There is no
+      request validation tag: JSON binding is lenient, so a malformed or
+      empty body binds to zero values and is saved (after default-filling)
+      as-is.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -179,6 +205,8 @@ adminSaveSponsors:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-url-invalid.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

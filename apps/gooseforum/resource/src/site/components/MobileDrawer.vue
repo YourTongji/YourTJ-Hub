@@ -4,6 +4,7 @@ import { X } from '@lucide/vue'
 import { DialogContent, DialogOverlay, DialogRoot, DialogTitle } from 'reka-ui'
 import type { FooterPayload, WikiTreeNamespace } from '@gooseforum/client'
 import WikiSidebar from './WikiSidebar.vue'
+import { safeUrl } from '@/runtime/safe-url'
 
 interface SidebarNavItem {
   key: string
@@ -46,7 +47,9 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const hasFooter = computed(() => props.footer.links.length > 0 || props.footer.primary.length > 0)
+const footerLinks = computed(() => props.footer.links.map((link) => ({ ...link, url: safeUrl(link.url, 'site-link') })))
+const footerPrimary = computed(() => props.footer.primary)
+const hasFooter = computed(() => footerLinks.value.length > 0 || footerPrimary.value.length > 0)
 
 function close() {
   emit('close')
@@ -171,19 +174,21 @@ onBeforeUnmount(() => {
             </div>
           </nav>
           <footer v-if="hasFooter" class="mt-2 border-t border-line px-2 pt-2 text-xs leading-5 text-base-content/75">
-            <div v-if="footer.links.length" class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              <a
-                v-for="link in footer.links"
-                :key="`${link.name}-${link.url}`"
-                :href="link.url"
-                class="inline-flex min-h-6 items-center rounded hover:text-primary"
-              >
-                {{ link.name }}
-              </a>
+            <div v-if="footerLinks.length" class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              <template v-for="link in footerLinks" :key="`${link.name}-${link.url}`">
+                <a
+                  v-if="link.url"
+                  :href="link.url"
+                  class="inline-flex min-h-6 items-center rounded hover:text-primary"
+                >
+                  {{ link.name }}
+                </a>
+                <span v-else class="inline-flex min-h-6 items-center rounded">{{ link.name }}</span>
+              </template>
             </div>
-            <div v-if="footer.primary.length" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-base-content/75">
+            <div v-if="footerPrimary.length" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-base-content/75">
               <span
-                v-for="item in footer.primary"
+                v-for="item in footerPrimary"
                 :key="item"
                 class="inline-flex min-h-6 items-center rounded"
               >

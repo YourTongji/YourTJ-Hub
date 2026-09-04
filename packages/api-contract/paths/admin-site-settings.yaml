@@ -100,9 +100,20 @@ adminSaveSiteSettings:
       Admin console operation gated by the `SiteManager` role permission;
       callers without it fail with HTTP 403 and `permission.denied`.
       Replaces the whole site-settings configuration with the submitted
-      value and clears the site-settings and llms.txt caches. There is no
-      request validation: JSON binding is lenient, so a malformed or empty
-      body binds to zero values and is saved as-is.
+      value and clears the site-settings and llms.txt caches. URL fields
+      are validated before persistence under the shared admin URL policy
+      (issue #409): values are trimmed and HTML-entity-decoded, then
+      `siteUrl` must be an absolute http(s) URL with a host while
+      `siteLogo` may be a site-relative path or an absolute http(s) URL.
+      Dangerous schemes (javascript:/data:/vbscript:/file:),
+      protocol-relative `//`, control-character/entity disguises, pure
+      port/no-host forms such as `https://:443` and overlong values are
+      rejected; empty values are valid. A rejected field fails the request
+      with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
+      `field` naming the first offending field (`settings.siteUrl` or
+      `settings.siteLogo`); nothing is persisted. JSON binding stays
+      lenient: a missing/malformed body binds to zero values (empty URL
+      fields, hence valid) and is saved as-is.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -122,6 +133,8 @@ adminSaveSiteSettings:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-url-invalid.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -198,9 +211,22 @@ adminSaveSiteChrome:
       Admin console operation gated by the `SiteManager` role permission;
       callers without it fail with HTTP 403 and `permission.denied`.
       Replaces the whole chrome configuration with the submitted value and
-      clears the chrome cache. There is no request validation: JSON binding
-      is lenient, so a malformed or empty body binds to zero values and is
-      saved as-is.
+      clears the chrome cache. URL fields are validated before persistence
+      under the shared admin URL policy (issue #409): values are trimmed and
+      HTML-entity-decoded; header/main-menu/resources/sidebar/footer links
+      accept a site-relative path or an absolute http(s) URL with a host,
+      and `brandImage` accepts a site-relative path or an absolute http(s)
+      URL. Dangerous schemes (javascript:/data:/vbscript:/file:),
+      protocol-relative `//`, control-character/entity disguises, pure
+      port/no-host forms such as `https://:443` and overlong values are
+      rejected; empty values are valid. A rejected field fails the request
+      with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
+      `field` naming the first offending field (e.g. `settings.header[0].url`,
+      `settings.sidebarGroups[0].items[0].url`, `settings.footerInfo.list[0].url`
+      or `settings.brandImage`); nothing
+      is persisted. JSON binding stays lenient: a missing/malformed body
+      binds to zero values (empty URL fields, hence valid) and is saved
+      as-is.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -220,6 +246,8 @@ adminSaveSiteChrome:
             examples:
               success:
                 externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-url-invalid.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

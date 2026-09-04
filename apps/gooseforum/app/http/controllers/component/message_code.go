@@ -312,4 +312,7 @@ const (
 
 	// 上传扩展配置（issue #408）
 	MessageAdminUploadExtNotAllowed MessageCode = "admin.upload.extNotAllowed" // 上传扩展名白名单含不受支持的扩展，params.extensions。
+
+	// 管理员可配置 URL 校验（issue #409）
+	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 )

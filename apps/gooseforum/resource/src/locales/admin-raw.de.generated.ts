@@ -876,4 +876,5 @@ export default {
   "k00um": "Die Vorschau zeigt die ersten {limit} Einträge; die übrigen sind nach der Bestätigung in der Liste oben sichtbar.",
   "k00un": "Sensible Begriffe können Sätze mit Leerzeichen sein: Die Einträge werden nur durch Zeilenumbrüche, Kommas oder Semikolons getrennt, und interne Leerzeichen bleiben erhalten (z. B. wird credit card cash out als eine einzige Phrase importiert).",
   "k00uo": "Nicht unterstützte Erweiterung: {extensions}. Nur JPG, JPEG, PNG, GIF, WebP und BMP sind erlaubt",
+  "k00up": "Links unterstützen nur absolute http(s)-URLs oder relative Pfade innerhalb der Website (mailto: für Kontakt-Buttons). Protokolle wie javascript:/data: sind nicht erlaubt.",
 } as const

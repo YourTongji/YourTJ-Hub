@@ -21,6 +21,7 @@ import {
 import { getFriendLinks, saveFriendLinks } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, FriendLink, FriendLinkGroup, ManageHomeProps } from '@/admin/types'
+import { safeUrl } from '@/runtime/safe-url'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -121,6 +122,10 @@ function openEditLink(groupIndex: number, linkIndex: number, link: FriendLink) {
 async function submitLink() {
   if (!linkForm.name.trim() || !linkForm.url.trim()) {
     adminToast.warning(adminText('k003l'))
+    return
+  }
+  if (!safeUrl(linkForm.url, 'external') || ((linkForm.logoUrl || '').trim() !== '' && !safeUrl(linkForm.logoUrl, 'image'))) {
+    adminToast.warning(adminText('k00up'))
     return
   }
   if (!linkDialog.value) return
