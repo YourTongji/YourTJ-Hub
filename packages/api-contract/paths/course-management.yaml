@@ -28,6 +28,17 @@ adminCourseList:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminCourseCreate:
   post:
@@ -59,6 +70,17 @@ adminCourseCreate:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '409':
         description: Primary code already used by another course.
         content:
@@ -96,6 +118,17 @@ adminCourseUpdate:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Course does not exist or was deleted.
         content:
@@ -140,6 +173,17 @@ adminCourseDelete:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Course does not exist or was deleted.
         content:
@@ -177,6 +221,17 @@ adminReviewList:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminReviewUpdate:
   post:
@@ -207,6 +262,17 @@ adminReviewUpdate:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Review does not exist or is deleted.
         content:
@@ -244,6 +310,17 @@ adminReviewDelete:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Review does not exist or is deleted.
         content:
@@ -275,6 +352,17 @@ adminCourseStatsRebuild:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 adminCourseRelationList:
   post:
     tags: [Forum]
@@ -306,6 +394,17 @@ adminCourseRelationList:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminCourseRelationApprove:
   post:
@@ -339,6 +438,17 @@ adminCourseRelationApprove:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Candidate does not exist.
         content:
@@ -382,6 +492,17 @@ adminCourseRelationIgnore:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Candidate does not exist.
         content:
@@ -426,7 +547,11 @@ adminCourseRelationReset:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: Frozen account, or caller lacks the CourseManager permission.
+        description: >-
+          Frozen account, or caller lacks the CourseManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -438,6 +563,8 @@ adminCourseRelationReset:
               permissionDenied:
                 summary: Caller lacks the CourseManager permission.
                 externalValue: ../fixtures/permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Candidate does not exist.
         content:
@@ -486,6 +613,17 @@ adminCourseRelationCreate:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: From or to course does not exist.
         content:
@@ -526,6 +664,17 @@ adminCourseMerge:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Candidate or a referenced course does not exist.
         content:
@@ -570,6 +719,17 @@ adminCourseMergeUndo:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Candidate does not exist.
         content:
