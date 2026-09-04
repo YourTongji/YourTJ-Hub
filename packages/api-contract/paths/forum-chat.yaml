@@ -45,7 +45,11 @@ sendChatMessage:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -53,6 +57,8 @@ sendChatMessage:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Message-send rate limit (action `message.send`) exceeded.
         headers:
@@ -114,6 +120,17 @@ getChatMessages:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 markChatRead:
   post:
@@ -159,7 +176,11 @@ markChatRead:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -167,3 +188,5 @@ markChatRead:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

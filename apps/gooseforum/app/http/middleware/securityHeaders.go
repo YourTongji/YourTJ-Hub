@@ -32,14 +32,13 @@ const (
 //
 // 注册顺序约束（见 bridge.go）：本中间件注册在 SiteMaintenance 之后。维护模式/启动门响应
 // 自带内联样式与脚本（如维护页时钟、自动刷新），若先于它们注册，页面级 CSP（script-src 'self'）
-// 会禁掉这些脚本；因此这两个临时静态页响应不附加安全头——它们无会话、无交互状态，
-// 点击劫持面可忽略。一旦服务就绪（维护关闭、启动门放行），所有后续请求都会经过本中间件。
+// 会禁掉这些脚本；因此维护/启动门响应不附加页面级 CSP——它们无会话、无交互状态，
+// 点击劫持面可忽略。但四条通用安全头对维护响应同样生效（SiteMaintenance 经
+// setUniversalSecurityHeaders 自行补齐，不依赖本中间件的执行）。
+// 一旦服务就绪（维护关闭、启动门放行），所有后续请求都会经过本中间件。
 func SecurityHeaders(c *gin.Context) {
 	headers := c.Writer.Header()
-	headers.Set(headerXContentTypeOptions, "nosniff")
-	headers.Set(headerXFrameOptions, "DENY")
-	headers.Set(headerReferrerPolicy, "strict-origin-when-cross-origin")
-	headers.Set(headerPermissionsPolicy, "camera=(), microphone=(), geolocation=()")
+	setUniversalSecurityHeaders(headers)
 	if isHTMLPageRoute(c) {
 		// 页面控制器渲染模板前不写 Content-Type，响应提交后再补头对已发送响应无效，
 		// 因此必须在 c.Next() 之前按路由形态决策（与响应状态无关，404/500 页面同样覆盖）。
@@ -47,6 +46,18 @@ func SecurityHeaders(c *gin.Context) {
 	}
 	c.Next()
 }
+
+// setUniversalSecurityHeaders 写入作用于每一个响应的四条通用安全头。
+// 独立成助手是因为 SiteMaintenance 在 bridge.go 中注册于本中间件之前并直接
+// Abort，维护响应不会流经 SecurityHeaders，需自行补齐同一组头（但维护页
+// 仍刻意不加页面级 CSP，理由见 SiteMaintenance）。
+func setUniversalSecurityHeaders(headers http.Header) {
+	headers.Set(headerXContentTypeOptions, "nosniff")
+	headers.Set(headerXFrameOptions, "DENY")
+	headers.Set(headerReferrerPolicy, "strict-origin-when-cross-origin")
+	headers.Set(headerPermissionsPolicy, "camera=(), microphone=(), geolocation=()")
+}
+
 
 // isHTMLPageRoute 按请求路由形态判断该响应是否承载浏览器 HTML 文档。
 // 排除非页面表面（API/OIDC/文件/静态资源/健康检查）；其余引擎级 GET 属于 forum viewRoute

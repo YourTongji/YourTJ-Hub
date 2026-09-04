@@ -876,4 +876,5 @@ export default {
   "k00um": "L'anteprima mostra le prime {limit} voci; le altre sono visibili nell'elenco sopra dopo la conferma.",
   "k00un": "Le parole sensibili possono essere frasi con spazi: le voci vengono separate solo da a capo, virgole o punti e virgola e gli spazi interni vengono conservati (es. credit card cash out viene importata come un'unica frase).",
   "k00uo": "Estensione non supportata: {extensions}. Sono consentiti solo JPG, JPEG, PNG, GIF, WebP e BMP",
+  "k00up": "Sono ammessi solo URL http(s) assoluti o percorsi relativi interni (mailto: per i pulsanti di contatto). Protocolli come javascript:/data: non sono consentiti.",
 } as const

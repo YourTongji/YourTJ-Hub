@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "admin.url.invalid",
+  "params": {
+    "field": "settings.siteUrl"
+  }
+}

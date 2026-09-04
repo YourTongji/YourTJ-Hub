@@ -135,7 +135,11 @@ runWikiSync:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: The account is not a PageManager or Admin (or it is frozen).
+        description: >-
+          The account is not a PageManager or Admin (or it is frozen).
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -143,6 +147,8 @@ runWikiSync:
             examples:
               forbidden:
                 externalValue: ../fixtures/permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 listWikiSyncRuns:
   get:
@@ -277,7 +283,11 @@ saveWikiWebhookSecret:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: The account is not a PageManager or Admin (or it is frozen).
+        description: >-
+          The account is not a PageManager or Admin (or it is frozen).
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -285,6 +295,8 @@ saveWikiWebhookSecret:
             examples:
               forbidden:
                 externalValue: ../fixtures/permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 getWikiAssetCDN:
   get:
@@ -374,7 +386,11 @@ saveWikiAssetCDN:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: The account is not a PageManager or Admin (or it is frozen).
+        description: >-
+          The account is not a PageManager or Admin (or it is frozen).
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -382,3 +398,5 @@ saveWikiAssetCDN:
             examples:
               forbidden:
                 externalValue: ../fixtures/permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

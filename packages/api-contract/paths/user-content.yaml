@@ -191,7 +191,11 @@ restoreContent:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -199,6 +203,8 @@ restoreContent:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -265,7 +271,11 @@ batchDeleteContent:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -273,6 +283,8 @@ batchDeleteContent:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -342,7 +354,11 @@ purgeContent:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -350,6 +366,8 @@ purgeContent:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -419,7 +437,10 @@ privacyEraseContent:
           route uses the allow-pending variant of the write gate so users who
           cannot or will not verify their email can still emergency-erase their
           own content. Ownership checks and the shared deletion rate window are
-          unchanged.
+          unchanged. A cross-site cookie-authenticated request (missing or
+          mismatched Origin/Referer) is rejected by the CSRF gate before the
+          handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not
+          cleared (issue #406).
         content:
           application/json:
             schema:
@@ -427,6 +448,8 @@ privacyEraseContent:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -489,7 +512,11 @@ reportContentEvent:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -497,6 +524,8 @@ reportContentEvent:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -570,7 +599,10 @@ closeAccount:
           route uses the allow-pending variant of the write gate so users who
           cannot or will not verify their email can still close their own account.
           The controller still requires the current password as a second factor,
-          and closure revokes every existing session.
+          and closure revokes every existing session. A cross-site
+          cookie-authenticated request (missing or mismatched Origin/Referer) is
+          rejected by the CSRF gate before the handler with HTTP 403
+          `auth.csrf.rejected`; the session cookie is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -578,6 +610,8 @@ closeAccount:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:

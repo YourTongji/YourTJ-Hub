@@ -15,12 +15,15 @@ import {
   Loader2,
   Lock,
   Mail,
+  Monitor,
+  Moon,
   Pencil,
   Feather,
   RotateCcw,
   Settings2,
   Shield,
   Sparkles,
+  Sun,
   Trash2,
   UserRound,
   X,
@@ -63,6 +66,7 @@ import {
 import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
 import { ApiResponseError } from '@/runtime/api'
+import { useSiteTheme } from '@/runtime/site-theme'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
 import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
@@ -128,6 +132,17 @@ const loadingDeletedContent = ref(false)
 const deletedContentLoaded = ref(false)
 const deletedContentAction = ref('')
 const deletedTopicCursor = ref(0)
+const { preference, setPreference } = useSiteTheme()
+
+const themeOptions = computed(() => [
+  { value: 'auto' as const, label: t('settings.general.themeAuto'), icon: Monitor },
+  { value: 'light' as const, label: t('settings.general.themeLight'), icon: Sun },
+  { value: 'dark' as const, label: t('settings.general.themeDark'), icon: Moon },
+])
+
+function setThemePreference(value: 'auto' | 'light' | 'dark') {
+  setPreference(value)
+}
 const deletedPostCursor = ref(0)
 const hasMoreDeletedTopics = ref(false)
 const hasMoreDeletedPosts = ref(false)
@@ -2420,6 +2435,26 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'general'">
             <SectionHeader :icon="Settings2" :title="t('settings.general.title')" :description="t('settings.general.description')" />
             <div class="max-w-2xl divide-y divide-line p-4">
+              <!-- Theme Selection -->
+              <div class="py-4">
+                <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.theme') }}</span>
+                <span class="text-sm text-base-content/55">{{ t('settings.general.themeDescription') }}</span>
+
+                <div class="mt-3 flex gap-2">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    type="button"
+                    class="gf-button gf-button-md"
+                    :class="preference === option.value ? 'gf-button-primary' : 'gf-button-muted'"
+                    @click="setThemePreference(option.value)"
+                  >
+                    <component :is="option.icon" class="h-4 w-4" />
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
               <div v-for="zone in fontZones" :key="zone.key" class="py-4">
                 <div class="flex items-center justify-between gap-4">
                   <span class="min-w-0">

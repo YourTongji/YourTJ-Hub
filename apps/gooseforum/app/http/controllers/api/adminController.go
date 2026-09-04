@@ -1184,9 +1184,12 @@ type SaveFriendLinksReq struct {
 	LinksInfo []pageConfig.FriendLinksGroup `json:"linksInfo"`
 }
 
-// SaveFriendLinks 保存友情链接
+// SaveFriendLinks 保存友情链接：外链与 logo URL 经字段策略校验后落库。
 func SaveFriendLinks(req component.BetterRequest[SaveFriendLinksReq]) component.Response {
 	normalizeFriendLinks(req.Params.LinksInfo)
+	if field := validateFriendLinksURLs(req.Params.LinksInfo); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
 	return savePageConfig(pageConfig.FriendShipLinks, req.Params.LinksInfo, hotdataserve.ClearFriendLinksConfigCache)
 }
 
@@ -1209,10 +1212,13 @@ type SaveSponsorsReq struct {
 	SponsorsInfo pageConfig.SponsorsConfig `json:"sponsorsInfo"`
 }
 
-// SaveSponsors 保存赞助商配置
+// SaveSponsors 保存赞助商配置：外链、头像与联系按钮 URL 经字段策略校验后落库。
 func SaveSponsors(req component.BetterRequest[SaveSponsorsReq]) component.Response {
 	config := req.Params.SponsorsInfo
 	fillSponsorsConfigDefaults(&config)
+	if field := validateSponsorsURLs(&config); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
 	return savePageConfig(pageConfig.SponsorsPage, config, hotdataserve.ClearSponsorsConfigCache)
 }
 
@@ -1268,9 +1274,13 @@ type SaveSiteSettingsReq struct {
 	Settings pageConfig.SiteSettingsConfig `json:"settings"`
 }
 
-// SaveSiteSettings 保存站点设置
+// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
+	settings := req.Params.Settings
+	if field := validateSiteSettingsURLs(&settings); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
+	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
 		oauthservice.RefreshOAuthProviders()
 		llmsservice.ClearCache()
@@ -1286,8 +1296,13 @@ type SaveSiteChromeReq struct {
 	Settings pageConfig.SiteChromeConfig `json:"settings"`
 }
 
+// SaveSiteChrome 保存站点 chrome：导航/footer 链接与品牌图 URL 经字段策略校验后落库。
 func SaveSiteChrome(req component.BetterRequest[SaveSiteChromeReq]) component.Response {
-	return savePageConfig(pageConfig.SiteChrome, req.Params.Settings, hotdataserve.ClearSiteChromeConfigCache)
+	settings := req.Params.Settings
+	if field := validateSiteChromeURLs(&settings); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
+	return savePageConfig(pageConfig.SiteChrome, settings, hotdataserve.ClearSiteChromeConfigCache)
 }
 
 func GetSiteTheme(req component.BetterRequest[component.Null]) component.Response {

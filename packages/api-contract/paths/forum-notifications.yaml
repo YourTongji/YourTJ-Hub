@@ -138,7 +138,11 @@ markNotificationRead:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -146,6 +150,8 @@ markNotificationRead:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 markAllNotificationsRead:
   post:
@@ -179,7 +185,11 @@ markAllNotificationsRead:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -187,3 +197,5 @@ markAllNotificationsRead:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

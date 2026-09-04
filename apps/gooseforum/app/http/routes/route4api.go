@@ -168,11 +168,14 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
 	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 
-	// CSRF 防护（issue #406）：挂在认证之后的写组中间件，仅校验「Cookie 可认证 +
-	// 状态变更方法」请求（Bearer 客户端豁免），详见 middleware/csrfProtection.go
-	// 与 docs/product/identity-and-access.md「认证与 CSRF 边界」。不挂全局，避免与
-	// #407 全局安全头中间件冲突；GET/HEAD/OPTIONS 与匿名请求原样放行。
-	loginApi := ginApp.Group("api").Use(middleware.JWTAuthCheck, middleware.CSRFProtection)
+	// CSRF 防护（issue #406）：挂在认证之前的写组中间件（fileServer 组与
+	// logout 路由同样 CSRF 前置），先于 JWTAuthCheck 拦截跨站 Cookie 写请求，
+	// 避免被拒请求触发 JWT 续期 / 会话延长 / 活跃度事件（Codex review P2）。
+	// 仅校验「Cookie 可认证 + 状态变更方法」请求（Bearer 客户端豁免），详见
+	// middleware/csrfProtection.go 与 docs/product/identity-and-access.md
+	// 「认证与 CSRF 边界」。不挂全局，避免与 #407 全局安全头中间件冲突；
+	// GET/HEAD/OPTIONS 与匿名请求原样放行（匿名 POST 仍由 JWTAuthCheck 回 401）。
+	loginApi := ginApp.Group("api").Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
 	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
@@ -245,7 +248,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。
 	forumApi.GET("posts/revisions", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostRevisions))
 
-	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck, middleware.CSRFProtection)
+	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
@@ -316,7 +319,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
 
-	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck, middleware.CSRFProtection)
+	chatApi := forumApi.Group("chat", middleware.CSRFProtection, middleware.JWTAuthCheck)
 
 	// Agent public API: opaque bearer-token authentication only. Writes reuse
 	// the human topic/post rate limits keyed by IP and bot userId.
@@ -331,7 +334,7 @@ func apiRoute(ginApp *gin.Engine) {
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
 
-	adminApi := baseApi.Group("admin", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CSRFProtection)
+	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 
