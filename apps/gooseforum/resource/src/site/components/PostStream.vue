@@ -24,7 +24,8 @@ export interface PostStreamTopicActions {
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
-import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, History, Loader2, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
+import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
+import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, privacyEraseContent, type PostRevisionResult } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
@@ -35,16 +36,20 @@ import MarkdownImageViewer from '@/site/components/MarkdownImageViewer.vue'
 import PostPositionRail from '@/site/components/PostPositionRail.vue'
 import PostReplyReference from '@/site/components/PostReplyReference.vue'
 import TopicFloatingControls from '@/site/components/TopicFloatingControls.vue'
+import TopicImageGallery from '@/site/components/TopicImageGallery.vue'
 import TopicList from '@/site/components/TopicList.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import type { PostPayload, PostWindowPayload, ReplyTargetPayload, TopicPayload, ViewerPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
+import { useQuickPublish } from '@/site/composables/useQuickPublish'
 
 const props = withDefaults(defineProps<{
   topicId: number
   topicTitle: string
   contentType?: 0 | 1 | 2 | 3
+  topicImages?: string[]
+  categories?: Array<{ id: number; name?: string }>
   initialPostStream: PostWindowPayload
   viewer: ViewerPayload
   canPost: boolean
@@ -104,6 +109,7 @@ const actingLike = ref(false)
 const actingBookmark = ref(false)
 const actingWatch = ref(false)
 const actingModeration = ref(false)
+const moreActionsOpen = ref(false)
 const submitting = ref(false)
 const deletingPostId = ref(0)
 const deletingTopic = ref(false)
@@ -792,8 +798,29 @@ const postGroups = computed<NestedPostGroup[]>(() => {
 
 // For Q&A topics, separate answers from comments
 const isQuestionTopic = computed(() => props.contentType === 1)
-// Blog-like content types (Articles and Thoughts) - no replies, different layout
-const isBlogLikeTopic = computed(() => props.contentType === 2 || props.contentType === 3)
+// Blog-like content types (Articles only) - no replies, different layout
+const isBlogLikeTopic = computed(() => props.contentType === 3)
+// 一楼回复/回答主操作醒目化判定：文章(3)、瞬间(2)、问题(1)统一使用 Solid Primary 实体胶囊高亮显示
+const isProminentReply = computed(() => isQuestionTopic.value || isBlogLikeTopic.value || props.contentType === 2)
+// 短文类型判定：1=提问, 2=瞬间（仅短文采用前置图窗；长文 0/3 保持经典图文穿插）
+const isShortFormTopic = computed(() => props.contentType === 1 || props.contentType === 2)
+// 首楼是否具备短文置顶图窗（用于移动端图窗置顶与信息层级调优）
+const hasShortFormImages = computed(() => isShortFormTopic.value && Boolean(props.topicImages && props.topicImages.length > 0))
+
+// 正文渲染净化：仅当短文类型首楼图片在置顶轮播视窗呈现时，才剥离正文中重复的 <img> 标记；长文 100% 保持图文穿插
+function renderedPostContent(post: PostPayload) {
+  let html = post.renderedContent
+  if (isShortFormTopic.value && isFirstPost(post) && props.topicImages && props.topicImages.length > 0) {
+    for (const imgUrl of props.topicImages) {
+      const escaped = imgUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const pImgRegex = new RegExp(`<p>\\s*<img[^>]*src=["']${escaped}["'][^>]*>\\s*<\\/p>`, 'gi')
+      html = html.replace(pImgRegex, '')
+      const inlineImgRegex = new RegExp(`<img[^>]*src=["']${escaped}["'][^>]*>`, 'gi')
+      html = html.replace(inlineImgRegex, '')
+    }
+  }
+  return html
+}
 
 const answerGroups = computed<NestedPostGroup[]>(() => {
   if (!isQuestionTopic.value) return []
@@ -1304,9 +1331,23 @@ function canDeleteRenderedPost(post: PostPayload) {
 
 function startEditPost(post: PostPayload) {
   if (savingEditPostId.value || deletingPostId.value === post.id) return
-  // 首楼本质上是话题本体，其编辑应进入“发布话题”编辑态（可改标题/分类/正文），
-  // 而不是回复楼层那样就地编辑正文。此分支在 PR #217 中被误删，属行为回归（issue #379）。
+  // 首楼本质上是话题本体，其编辑应进入“发布话题”编辑态（可改标题/分类/正文）。
+  // 提问（contentType: 1）与瞬间（contentType: 2）在进入帖子主页后，
+  // 编辑功能保持和发布时一致的弹层编辑器 QuickPublishModal；
+  // 文章（contentType: 3）与常规长文跳转到文章发布/编辑页面。
   if (isFirstPost(post)) {
+    if (props.contentType === 1 || props.contentType === 2) {
+      const { openQuickPublishEdit } = useQuickPublish()
+      openQuickPublishEdit({
+        topicId: props.topicId,
+        contentType: props.contentType,
+        title: props.topicTitle,
+        content: post.content,
+        categoryIds: props.categories?.map((c) => c.id) || [],
+        images: props.topicImages,
+      })
+      return
+    }
     window.location.href = `/publish?id=${props.topicId}`
     return
   }
@@ -1763,6 +1804,8 @@ function lastEditedLabel(post: PostPayload) {
     user: authorDisplayName(post.lastEditor),
   })
 }
+
+defineExpose({ openFloatingPostComposer, focusPostComposer })
 </script>
 
 <template>
@@ -1792,23 +1835,104 @@ function lastEditedLabel(post: PostPayload) {
           :id="`post-${group.root.id}`"
           :key="group.root.id"
           :data-post-no="group.root.postNo"
-          class="group relative grid scroll-mt-20 grid-cols-[40px_minmax(0,1fr)] gap-2.5 px-3 py-4 transition-[background-color] sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-4 sm:p-5"
-          :class="{
-            'border-t border-line xl:border-t-transparent': index > 0,
-            'bg-info/10': highlightedPostId === group.root.id,
-            '[border-top-left-radius:calc(var(--gf-radius-box)-var(--gf-border))] [border-top-right-radius:calc(var(--gf-radius-box)-var(--gf-border))]': index === 0 && !postHasBefore,
-          }"
+          class="group relative scroll-mt-20 transition-[background-color]"
+          :class="[
+            isFirstPost(group.root) && hasShortFormImages
+              ? 'flex flex-col px-3 pt-0 pb-4 sm:grid sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-4 sm:p-5'
+              : 'grid grid-cols-[40px_minmax(0,1fr)] gap-2.5 px-3 py-4 sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-4 sm:p-5',
+            {
+              'border-t border-line xl:border-t-transparent': index > 0,
+              'bg-info/10': highlightedPostId === group.root.id,
+              '[border-top-left-radius:calc(var(--gf-radius-box)-var(--gf-border))] [border-top-right-radius:calc(var(--gf-radius-box)-var(--gf-border))]': index === 0 && !postHasBefore,
+            },
+          ]"
         >
           <div v-if="index > 0" class="pointer-events-none absolute left-5 right-5 top-0 hidden border-t border-line xl:block" aria-hidden="true" />
+
+          <!-- 移动端短文置顶多图轮播视窗（小红书/现代社媒图文风格：图窗在最上，满宽展开） -->
+          <div
+            v-if="isFirstPost(group.root) && hasShortFormImages"
+            class="block sm:hidden -mx-3 mb-3.5 overflow-hidden [border-top-left-radius:calc(var(--gf-radius-box)-var(--gf-border))] [border-top-right-radius:calc(var(--gf-radius-box)-var(--gf-border))]"
+          >
+            <TopicImageGallery
+              :images="topicImages!"
+              :title="props.topicTitle"
+            />
+          </div>
+
+          <!-- 移动端短文作者与头像栏（图窗下方，正文上方） -->
+          <div
+            v-if="isFirstPost(group.root) && hasShortFormImages"
+            class="flex sm:hidden items-center justify-between gap-2.5 mb-2.5"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <a
+                :href="`/u/${group.root.author.id}`"
+                class="shrink-0 pt-0.5"
+                @click="showUserCard(group.root.author, $event)"
+              >
+                <UserAvatar
+                  :src="group.root.author.avatarUrl"
+                  :alt="group.root.author.username"
+                  :badge="group.root.author.wornBadge"
+                  class="h-9 w-9 rounded-full ring-1 ring-line"
+                  img-class="rounded-full"
+                />
+              </a>
+              <div class="min-w-0 flex flex-col">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <a
+                    :href="`/u/${group.root.author.id}`"
+                    class="min-w-0 truncate font-semibold text-sm text-base-content hover:text-primary"
+                  >
+                    {{ authorDisplayName(group.root.author) }}
+                  </a>
+                  <span
+                    v-if="props.contentType === 1"
+                    class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-success/15 px-1.5 py-0.2 text-[10px] font-semibold text-success"
+                  >
+                    <HelpCircle class="h-2.5 w-2.5" />
+                    {{ t('publish.contentTypes.question') }}
+                  </span>
+                  <span
+                    v-else-if="props.contentType === 2"
+                    class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-purple-500/15 px-1.5 py-0.2 text-[10px] font-semibold text-purple-600 dark:text-purple-400"
+                  >
+                    <Sparkles class="h-2.5 w-2.5" />
+                    {{ t('publish.contentTypes.thought') }}
+                  </span>
+                </div>
+                <time class="text-xs text-base-content/55">{{ formatDateTime(group.root.createdAt) }}</time>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                v-if="canEditPost(group.root)"
+                type="button"
+                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="savingEditPostId === group.root.id || deletingPostId === group.root.id"
+                :title="t('common.edit')"
+                @click="startEditPost(group.root)"
+              >
+                <PencilLine class="h-3.5 w-3.5" />
+                <span class="sr-only">{{ t('common.edit') }}</span>
+              </button>
+            </div>
+          </div>
+
           <a
             :href="`/u/${group.root.author.id}`"
             class="sticky top-19 self-start pt-1"
+            :class="isFirstPost(group.root) && hasShortFormImages ? 'hidden sm:block' : 'block'"
             @click="showUserCard(group.root.author, $event)"
           >
             <UserAvatar :src="group.root.author.avatarUrl" :alt="group.root.author.username" :badge="group.root.author.wornBadge" class="h-9 w-9 rounded-full ring-1 ring-line sm:h-10 sm:w-10" img-class="rounded-full" />
           </a>
           <div class="min-w-0">
-            <div class="mb-1.5 flex min-w-0 items-start justify-between gap-2">
+            <div
+              class="mb-1.5 min-w-0 items-start justify-between gap-2"
+              :class="isFirstPost(group.root) && hasShortFormImages ? 'hidden sm:flex' : 'flex'"
+            >
               <div class="min-w-0">
                 <div class="flex min-w-0 items-center gap-2">
                   <a :href="`/u/${group.root.author.id}`" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(group.root.author) }}</a>
@@ -1819,7 +1943,8 @@ function lastEditedLabel(post: PostPayload) {
                   <time class="truncate">{{ formatDateTime(group.root.createdAt) }}</time>
                 </div>
               </div>
-              <div class="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
+              <div class="flex shrink-0 items-center gap-1 sm:gap-1.5">
+                <!-- 1. 编辑按钮：作者/可编辑者可见（首楼与回复楼层均可用） -->
                 <button
                   v-if="canEditPost(group.root)"
                   type="button"
@@ -1831,10 +1956,13 @@ function lastEditedLabel(post: PostPayload) {
                   <PencilLine class="h-3.5 w-3.5" />
                   <span class="sr-only">{{ t('common.edit') }}</span>
                 </button>
+
+                <!-- 2. 操作按钮组：非首楼移动+桌面均展示；首楼仅在桌面端展示快捷按钮，移动端收纳到首楼底部避免昵称被截断 -->
                 <button
                   v-if="canDeleteRenderedPost(group.root)"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  :class="isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :disabled="deletingPostId === group.root.id"
                   :title="deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete')"
                   @click="requestDeletePost(group.root)"
@@ -1845,7 +1973,8 @@ function lastEditedLabel(post: PostPayload) {
                 <button
                   v-if="(!viewer.isAuthenticated || canPost) && !group.root.isHidden && !isPostRemoved(group.root)"
                   type="button"
-                  class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
+                  class="h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
+                  :class="isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :title="t('topic.reply')"
                   @click="replyTo(group.root)"
                 >
@@ -1855,8 +1984,11 @@ function lastEditedLabel(post: PostPayload) {
                 <button
                   v-if="viewer.isAuthenticated && !group.root.isHidden && !isPostRemoved(group.root)"
                   type="button"
-                  class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
-                  :class="{ 'text-error hover:text-error': postActionState(group.root).isLiked }"
+                  class="h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
+                  :class="[
+                    isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex',
+                    { 'text-error hover:text-error': postActionState(group.root).isLiked },
+                  ]"
                   :title="t('topic.like')"
                   :disabled="postActionState(group.root).actingLike"
                   @click="togglePostLike(group.root)"
@@ -1869,7 +2001,10 @@ function lastEditedLabel(post: PostPayload) {
                   v-if="viewer.isAuthenticated && !group.root.isHidden && !isPostRemoved(group.root)"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  :class="{ 'text-primary hover:text-primary': postActionState(group.root).isBookmarked }"
+                  :class="[
+                    isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex',
+                    { 'text-primary hover:text-primary': postActionState(group.root).isBookmarked },
+                  ]"
                   :title="postActionState(group.root).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
                   :disabled="postActionState(group.root).actingBookmark"
                   @click="togglePostBookmark(group.root)"
@@ -1880,6 +2015,7 @@ function lastEditedLabel(post: PostPayload) {
                 <button
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  :class="isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :title="t('topic.share')"
                   @click="sharePost(group.root)"
                 >
@@ -1887,9 +2023,10 @@ function lastEditedLabel(post: PostPayload) {
                   <span class="sr-only">{{ t('topic.share') }}</span>
                 </button>
                 <button
-                  v-if="!isFirstPost(group.root) && !group.root.isOwnPost && !group.root.isHidden && !isPostRemoved(group.root)"
+                  v-if="!group.root.isOwnPost && !group.root.isHidden && !isPostRemoved(group.root)"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
+                  :class="isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :title="t('topic.report')"
                   @click="requestPostReport(group.root)"
                 >
@@ -1897,9 +2034,10 @@ function lastEditedLabel(post: PostPayload) {
                   <span class="sr-only">{{ t('topic.report') }}</span>
                 </button>
                 <button
-                  v-if="!isFirstPost(group.root) && group.root.canModerate && group.root.processStatus === 0"
+                  v-if="group.root.canModerate && group.root.processStatus === 0"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-50"
+                  :class="isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :disabled="postModerationBusy(group.root.id)"
                   :title="t('topic.moderationBan')"
                   @click="moderatePost(group.root, 'ban')"
@@ -1908,9 +2046,10 @@ function lastEditedLabel(post: PostPayload) {
                   <span class="sr-only">{{ t('topic.moderationBan') }}</span>
                 </button>
                 <button
-                  v-else-if="!isFirstPost(group.root) && group.root.canModerate && group.root.processStatus === 1"
+                  v-else-if="group.root.canModerate && group.root.processStatus === 1"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
+                  :class="isFirstPost(group.root) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :disabled="postModerationBusy(group.root.id)"
                   :title="t('topic.moderationUnban')"
                   @click="moderatePost(group.root, 'unban')"
@@ -1918,13 +2057,40 @@ function lastEditedLabel(post: PostPayload) {
                   <RotateCcw class="h-3.5 w-3.5" />
                   <span class="sr-only">{{ t('topic.moderationUnban') }}</span>
                 </button>
+
+                <!-- 大屏时间展示 -->
                 <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(group.root.createdAt) }}</time>
-                <span
-                  v-if="isFirstPost(group.root)"
-                  class="shrink-0 self-center rounded bg-base-200 px-1 py-0.5 text-[11px] font-semibold text-base-content/55 sm:px-1.5 sm:text-xs"
-                >
-                  {{ t('topic.originalPost') }}
-                </span>
+
+                <!-- 首楼内容类型徽章：只显示唯一且明确的类型徽章，未配置时回退为“正文” -->
+                <template v-if="isFirstPost(group.root)">
+                  <span
+                    v-if="props.contentType === 1"
+                    class="shrink-0 self-center inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success"
+                  >
+                    <HelpCircle class="h-3 w-3" />
+                    {{ t('publish.contentTypes.question') }}
+                  </span>
+                  <span
+                    v-else-if="props.contentType === 2"
+                    class="shrink-0 self-center inline-flex items-center gap-1 rounded-full bg-purple-500/15 px-2 py-0.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400"
+                  >
+                    <Sparkles class="h-3 w-3" />
+                    {{ t('publish.contentTypes.thought') }}
+                  </span>
+                  <span
+                    v-else-if="props.contentType === 3"
+                    class="shrink-0 self-center inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400"
+                  >
+                    <BookOpen class="h-3 w-3" />
+                    {{ t('publish.contentTypes.article') }}
+                  </span>
+                  <span
+                    v-else
+                    class="shrink-0 self-center rounded bg-base-200 px-1 py-0.5 text-[11px] font-semibold text-base-content/55 sm:px-1.5 sm:text-xs"
+                  >
+                    {{ t('topic.originalPost') }}
+                  </span>
+                </template>
               </div>
             </div>
             <PostReplyReference v-if="group.root.replyToPostId" :target="replyTargetFor(group.root)" />
@@ -1939,7 +2105,23 @@ function lastEditedLabel(post: PostPayload) {
             <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
               {{ t('topic.hiddenReplyPlaceholder') }}
             </div>
-            <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" :class="{ 'gf-prose-article': isBlogLikeTopic && isFirstPost(group.root), 'gf-prose-thought': props.contentType === 2 && isFirstPost(group.root) }" v-html="group.root.renderedContent" />
+            <div v-else>
+              <!-- 置顶多图轮播视窗（移动端已在最顶部置顶展示，桌面端在此保留） -->
+              <TopicImageGallery
+                v-if="isShortFormTopic && isFirstPost(group.root) && topicImages && topicImages.length > 0"
+                :images="topicImages"
+                :title="props.topicTitle"
+                class="mb-4 hidden sm:block"
+              />
+              <div
+                v-code-copy
+                v-code-highlight
+                v-math-render
+                class="gf-prose gf-prose-post"
+                :class="{ 'gf-prose-article': isBlogLikeTopic && isFirstPost(group.root), 'gf-prose-thought': props.contentType === 2 && isFirstPost(group.root) }"
+                v-html="renderedPostContent(group.root)"
+              />
+            </div>
             <div v-if="group.root.isHidden && !isPostRemoved(group.root) && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
               {{ t('topic.hiddenReplyBadge') }}
             </div>
@@ -1949,95 +2131,289 @@ function lastEditedLabel(post: PostPayload) {
             <div v-if="group.root.lastEditedAt && group.root.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
               {{ lastEditedLabel(group.root) }}
             </div>
-            <div v-if="isFirstPost(group.root) && topicActions" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-              <!-- Prominent reply/answer button for Questions -->
-              <button
-                v-if="isQuestionTopic && canPost && !isTopicRemoved()"
-                type="button"
-                class="gf-button gf-button-sm gf-button-primary px-3"
-                @click="replyTo(firstPost!)"
-              >
-                <CornerDownLeft class="h-4 w-4" />
-                {{ t('topic.writeAnswer') }}
-              </button>
-              <button
-                type="button"
-                class="gf-button gf-button-sm px-2.5"
-                :class="isLiked ? 'bg-error/10 text-error hover:bg-error/10' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-                :disabled="actingLike || isTopicRemoved()"
-                @click="toggleLike"
-              >
-                <Heart class="h-4 w-4" :fill="isLiked ? 'currentColor' : 'none'" />
-                {{ likeCount ? formatNumber(likeCount) : t('topic.like') }}
-              </button>
-              <button
-                type="button"
-                class="gf-button gf-button-sm px-2.5"
-                :class="isBookmarked ? 'bg-info/10 text-primary hover:bg-info/10' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-                :disabled="actingBookmark || isTopicRemoved()"
-                @click="toggleBookmark"
-              >
-                <Bookmark class="h-4 w-4" :fill="isBookmarked ? 'currentColor' : 'none'" />
-                {{ isBookmarked ? t('topic.bookmarked') : t('topic.bookmark') }}
-              </button>
-              <button
-                type="button"
-                class="gf-button gf-button-sm px-2.5"
-                :class="isWatched ? 'bg-success/10 text-success hover:bg-success/15' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-                :disabled="actingWatch || isTopicRemoved()"
-                @click="toggleWatch"
-              >
-                <Bell class="h-4 w-4" :fill="isWatched ? 'currentColor' : 'none'" />
-                {{ isWatched ? t('topic.watched') : t('topic.watch') }}
-              </button>
-              <button
-                v-if="group.root.revisionCount > 1"
-                type="button"
-                class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-base-200 hover:text-base-content"
-                @click="openPostHistory(group.root)"
-              >
-                <History class="h-4 w-4" />
-                {{ t('topic.editHistory') }}
-              </button>
-              <button
-                v-if="!topicActions.isOwnTopic && !isTopicRemoved()"
-                type="button"
-                class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-warning/10 hover:text-warning"
-                @click="requestTopicReport"
-              >
-                <Flag class="h-4 w-4" />
-                {{ t('topic.report') }}
-              </button>
-              <button
-                v-if="topicActions.isOwnTopic && !isTopicRemoved()"
-                type="button"
-                class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-error/10 hover:text-error"
-                @click="requestDeleteTopic"
-              >
-                <Trash2 class="h-4 w-4" />
-                {{ t('topic.deleteTopic') }}
-              </button>
-              <button
-                v-if="topicActions.canModerateTopic && topicProcessStatus === 0"
-                type="button"
-                class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-base-200 hover:text-base-content"
-                :disabled="actingModeration"
-                @click="requestTopicModeration('ban')"
-              >
-                <Ban class="h-4 w-4" />
-                {{ t('topic.moderationBan') }}
-              </button>
-              <button
-                v-else-if="topicActions.canModerateTopic && topicProcessStatus === 1"
-                type="button"
-                class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-base-200 hover:text-base-content"
-                :disabled="actingModeration"
-                @click="requestTopicModeration('unban')"
-              >
-                <RotateCcw class="h-4 w-4" />
-                {{ t('topic.moderationUnban') }}
-              </button>
-              <span v-if="actionMessage" class="text-xs" :class="actionMessageSuccess ? 'text-base-content/75' : 'text-error'">{{ actionMessage }}</span>
+            <div v-if="isFirstPost(group.root) && topicActions" class="mt-4 border-t border-line/60 pt-3">
+              <!-- 桌面端操作栏：完整平铺展开，不必收纳入更多菜单（sm 及以上屏幕显示） -->
+              <div class="hidden sm:flex sm:items-center sm:justify-between sm:gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <!-- 回复 / 回答按钮（“问题”、“文章”、“瞬间”主操作醒目化，去除计数） -->
+                  <button
+                    v-if="(!viewer.isAuthenticated || canPost) && !isTopicRemoved()"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full active:scale-95 transition-all duration-150 flex items-center gap-1.5"
+                    :class="isProminentReply
+                      ? 'bg-primary text-primary-content font-medium px-3.5 shadow-sm hover:shadow hover:bg-primary/90'
+                      : 'px-3 text-base-content/70 hover:bg-base-200 hover:text-base-content'"
+                    @click="replyTo(firstPost || group.root)"
+                  >
+                    <CornerDownLeft class="h-4 w-4 shrink-0" />
+                    <span>{{ isQuestionTopic ? t('topic.writeAnswer') : t('topic.reply') }}</span>
+                  </button>
+
+                  <!-- 点赞按钮 -->
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-3 active:scale-95 transition-all"
+                    :class="isLiked ? 'bg-error/10 text-error font-medium hover:bg-error/15' : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'"
+                    :disabled="actingLike || isTopicRemoved()"
+                    @click="toggleLike"
+                  >
+                    <Heart class="h-4 w-4 shrink-0 transition-transform" :class="{ 'scale-110': isLiked }" :fill="isLiked ? 'currentColor' : 'none'" />
+                    <span>{{ likeCount ? formatNumber(likeCount) : t('topic.like') }}</span>
+                  </button>
+
+                  <!-- 收藏按钮 -->
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-3 active:scale-95 transition-all"
+                    :class="isBookmarked ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium hover:bg-amber-500/15' : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'"
+                    :disabled="actingBookmark || isTopicRemoved()"
+                    @click="toggleBookmark"
+                  >
+                    <Bookmark class="h-4 w-4 shrink-0 transition-transform" :class="{ 'scale-110': isBookmarked }" :fill="isBookmarked ? 'currentColor' : 'none'" />
+                    <span>{{ isBookmarked ? t('topic.bookmarked') : t('topic.bookmark') }}</span>
+                  </button>
+
+                  <!-- 关注话题 -->
+                  <button
+                    v-if="viewer.isAuthenticated && !isTopicRemoved()"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-3 text-base-content/70 hover:bg-base-200 hover:text-base-content active:scale-95 transition-all"
+                    :class="{ 'text-success font-medium hover:text-success': isWatched }"
+                    :disabled="actingWatch"
+                    @click="toggleWatch"
+                  >
+                    <Bell class="h-4 w-4 shrink-0" :fill="isWatched ? 'currentColor' : 'none'" />
+                    <span>{{ isWatched ? t('topic.watched') : t('topic.watch') }}</span>
+                  </button>
+
+                  <!-- 查看编辑历史 -->
+                  <button
+                    v-if="group.root.revisionCount > 1"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-3 text-base-content/70 hover:bg-base-200 hover:text-base-content active:scale-95 transition-all"
+                    @click="openPostHistory(group.root)"
+                  >
+                    <History class="h-4 w-4 shrink-0" />
+                    <span>{{ t('topic.editHistory') }}</span>
+                  </button>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <!-- 分享按钮 -->
+                  <button
+                    type="button"
+                    class="gf-icon-button h-8 w-8 rounded-full text-base-content/60 hover:bg-base-200 hover:text-base-content active:scale-95 transition-all"
+                    :title="t('topic.share')"
+                    @click="sharePost(firstPost || group.root)"
+                  >
+                    <Share2 class="h-4 w-4" />
+                    <span class="sr-only">{{ t('topic.share') }}</span>
+                  </button>
+
+                  <!-- 举报话题 -->
+                  <button
+                    v-if="viewer.isAuthenticated && !topicActions.isOwnTopic && !isTopicRemoved()"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-2.5 text-base-content/70 hover:bg-warning/10 hover:text-warning active:scale-95 transition-all"
+                    @click="requestTopicReport"
+                  >
+                    <Flag class="h-3.5 w-3.5 shrink-0" />
+                    <span>{{ t('topic.report') }}</span>
+                  </button>
+
+                  <!-- 删除话题（作者） -->
+                  <button
+                    v-if="topicActions.isOwnTopic && !isTopicRemoved()"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-2.5 text-error hover:bg-error/10 active:scale-95 transition-all"
+                    @click="requestDeleteTopic"
+                  >
+                    <Trash2 class="h-3.5 w-3.5 shrink-0" />
+                    <span>{{ t('topic.deleteTopic') }}</span>
+                  </button>
+
+                  <!-- 封禁/解封（版主） -->
+                  <button
+                    v-if="topicActions.canModerateTopic && topicProcessStatus === 0"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-2.5 text-warning hover:bg-warning/10 active:scale-95 transition-all"
+                    :disabled="actingModeration"
+                    @click="requestTopicModeration('ban')"
+                  >
+                    <Ban class="h-3.5 w-3.5 shrink-0" />
+                    <span>{{ t('topic.moderationBan') }}</span>
+                  </button>
+                  <button
+                    v-else-if="topicActions.canModerateTopic && topicProcessStatus === 1"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-2.5 text-primary hover:bg-info/10 active:scale-95 transition-all"
+                    :disabled="actingModeration"
+                    @click="requestTopicModeration('unban')"
+                  >
+                    <RotateCcw class="h-3.5 w-3.5 shrink-0" />
+                    <span>{{ t('topic.moderationUnban') }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 移动端操作栏：单行高频互动 + 优雅的 Popover 收纳菜单（<sm 屏幕显示） -->
+              <div class="flex sm:hidden items-center justify-between gap-1">
+                <!-- 左侧核心高频互动：回复、点赞、收藏 -->
+                <div class="flex items-center gap-1.5">
+                  <!-- 回复 / 回答按钮（“问题”、“文章”、“瞬间”移动端主操作醒目化，去除计数） -->
+                  <button
+                    v-if="(!viewer.isAuthenticated || canPost) && !isTopicRemoved()"
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full active:scale-95 transition-all duration-150 flex items-center gap-1.5"
+                    :class="isProminentReply
+                      ? 'bg-primary text-primary-content font-medium px-3 shadow-xs hover:shadow hover:bg-primary/90'
+                      : 'px-2.5 text-base-content/70 hover:bg-base-200 hover:text-base-content'"
+                    @click="replyTo(firstPost || group.root)"
+                  >
+                    <CornerDownLeft class="h-3.5 w-3.5 shrink-0" />
+                    <span>{{ isQuestionTopic ? t('topic.writeAnswer') : t('topic.reply') }}</span>
+                  </button>
+
+                  <!-- 点赞按钮 -->
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-2.5 active:scale-95 transition-all"
+                    :class="isLiked ? 'bg-error/10 text-error font-medium hover:bg-error/15' : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'"
+                    :disabled="actingLike || isTopicRemoved()"
+                    @click="toggleLike"
+                  >
+                    <Heart class="h-3.5 w-3.5 shrink-0 transition-transform" :class="{ 'scale-110': isLiked }" :fill="isLiked ? 'currentColor' : 'none'" />
+                    <span>{{ likeCount ? formatNumber(likeCount) : t('topic.like') }}</span>
+                  </button>
+
+                  <!-- 收藏按钮 -->
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm rounded-full px-2.5 active:scale-95 transition-all"
+                    :class="isBookmarked ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium hover:bg-amber-500/15' : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'"
+                    :disabled="actingBookmark || isTopicRemoved()"
+                    @click="toggleBookmark"
+                  >
+                    <Bookmark class="h-3.5 w-3.5 shrink-0 transition-transform" :class="{ 'scale-110': isBookmarked }" :fill="isBookmarked ? 'currentColor' : 'none'" />
+                  </button>
+                </div>
+
+                <!-- 右侧分享与更多收纳 -->
+                <div class="flex items-center gap-1">
+                  <!-- 分享按钮 -->
+                  <button
+                    type="button"
+                    class="gf-icon-button h-8 w-8 rounded-full text-base-content/60 hover:bg-base-200 hover:text-base-content active:scale-95 transition-all"
+                    :title="t('topic.share')"
+                    @click="sharePost(firstPost || group.root)"
+                  >
+                    <Share2 class="h-4 w-4" />
+                    <span class="sr-only">{{ t('topic.share') }}</span>
+                  </button>
+
+                  <!-- 更多操作 Popover（关注、编辑历史、举报、删除、封禁） -->
+                  <PopoverRoot v-model:open="moreActionsOpen">
+                    <PopoverTrigger as-child>
+                      <button
+                        type="button"
+                        class="gf-icon-button h-8 w-8 rounded-full text-base-content/60 hover:bg-base-200 hover:text-base-content active:scale-95 transition-all"
+                        :title="t('topic.more')"
+                      >
+                        <MoreHorizontal class="h-4 w-4" />
+                        <span class="sr-only">{{ t('topic.more') }}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverPortal>
+                      <PopoverContent
+                        side="top"
+                        align="end"
+                        :side-offset="8"
+                        :collision-padding="16"
+                        class="z-[70] min-w-[160px] max-w-[200px] rounded-2xl border border-line/60 bg-base-100/98 p-1.5 shadow-[0_12px_36px_-6px_rgba(0,0,0,0.14),0_4px_12px_-2px_rgba(0,0,0,0.06)] backdrop-blur-md outline-none animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 duration-150"
+                      >
+                        <div class="flex flex-col gap-0.5" role="menu">
+                          <!-- 关注话题 -->
+                          <button
+                            v-if="viewer.isAuthenticated && !isTopicRemoved()"
+                            type="button"
+                            role="menuitem"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-base-content/85 transition-colors hover:bg-base-200/80 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-pointer"
+                            :class="{ 'text-success hover:text-success': isWatched }"
+                            :disabled="actingWatch"
+                            @click="toggleWatch(); moreActionsOpen = false"
+                          >
+                            <Bell class="h-4 w-4 shrink-0" :fill="isWatched ? 'currentColor' : 'none'" />
+                            <span>{{ isWatched ? t('topic.watched') : t('topic.watch') }}</span>
+                          </button>
+
+                          <!-- 查看编辑历史 -->
+                          <button
+                            v-if="group.root.revisionCount > 1"
+                            type="button"
+                            role="menuitem"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-base-content/85 transition-colors hover:bg-base-200/80 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-pointer"
+                            @click="openPostHistory(group.root); moreActionsOpen = false"
+                          >
+                            <History class="h-4 w-4 shrink-0" />
+                            <span>{{ t('topic.editHistory') }}</span>
+                          </button>
+
+                          <!-- 举报话题 -->
+                          <button
+                            v-if="viewer.isAuthenticated && !topicActions.isOwnTopic && !isTopicRemoved()"
+                            type="button"
+                            role="menuitem"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-base-content/85 transition-colors hover:bg-warning/10 hover:text-warning active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/60 cursor-pointer"
+                            @click="requestTopicReport(); moreActionsOpen = false"
+                          >
+                            <Flag class="h-4 w-4 shrink-0" />
+                            <span>{{ t('topic.report') }}</span>
+                          </button>
+
+                          <div v-if="(topicActions.isOwnTopic || topicActions.canModerateTopic) && !isTopicRemoved()" class="my-1 border-t border-line/60" />
+
+                          <!-- 删除话题（作者） -->
+                          <button
+                            v-if="topicActions.isOwnTopic && !isTopicRemoved()"
+                            type="button"
+                            role="menuitem"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-error transition-colors hover:bg-error/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/60 cursor-pointer"
+                            @click="requestDeleteTopic(); moreActionsOpen = false"
+                          >
+                            <Trash2 class="h-4 w-4 shrink-0" />
+                            <span>{{ t('topic.deleteTopic') }}</span>
+                          </button>
+
+                          <!-- 封禁/解封（版主） -->
+                          <button
+                            v-if="topicActions.canModerateTopic && topicProcessStatus === 0"
+                            type="button"
+                            role="menuitem"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-warning transition-colors hover:bg-warning/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/60 cursor-pointer"
+                            :disabled="actingModeration"
+                            @click="requestTopicModeration('ban'); moreActionsOpen = false"
+                          >
+                            <Ban class="h-4 w-4 shrink-0" />
+                            <span>{{ t('topic.moderationBan') }}</span>
+                          </button>
+                          <button
+                            v-else-if="topicActions.canModerateTopic && topicProcessStatus === 1"
+                            type="button"
+                            role="menuitem"
+                            class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-primary transition-colors hover:bg-info/10 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 cursor-pointer"
+                            :disabled="actingModeration"
+                            @click="requestTopicModeration('unban'); moreActionsOpen = false"
+                          >
+                            <RotateCcw class="h-4 w-4 shrink-0" />
+                            <span>{{ t('topic.moderationUnban') }}</span>
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </PopoverPortal>
+                  </PopoverRoot>
+                </div>
+              </div>
+              <span v-if="actionMessage" class="mt-2 block text-xs" :class="actionMessageSuccess ? 'text-base-content/75' : 'text-error'">{{ actionMessage }}</span>
             </div>
 
             <div v-if="group.replies.length" class="mt-4 space-y-2 border-t border-line pt-3">
@@ -2281,7 +2657,7 @@ function lastEditedLabel(post: PostPayload) {
           </div>
         </div>
 
-        <div v-if="(postHasAfter || loadingPostDirection === 'after' || postWindowError || (!postHasAfter && posts.length)) && !isBlogLikeTopic" ref="postLoadMoreEl" class="relative border-t border-line px-4 py-3 text-center xl:border-t-transparent">
+        <div v-if="postHasAfter || loadingPostDirection === 'after' || postWindowError || (!postHasAfter && posts.length)" ref="postLoadMoreEl" class="relative border-t border-line px-4 py-3 text-center xl:border-t-transparent">
           <div class="pointer-events-none absolute left-5 right-5 top-0 hidden border-t border-line xl:block" aria-hidden="true" />
           <button
             v-if="postHasAfter && postWindowError"
@@ -2312,7 +2688,7 @@ function lastEditedLabel(post: PostPayload) {
         <span class="block h-px scroll-mb-28" aria-hidden="true" />
       </div>
 
-      <aside v-if="hasAside && !isBlogLikeTopic" class="hidden min-w-0 xl:block">
+      <aside v-if="hasAside" class="hidden min-w-0 xl:block">
         <slot name="aside">
           <div v-if="topicActions" class="sticky top-19">
             <div class="px-4 py-4">
@@ -2378,7 +2754,7 @@ function lastEditedLabel(post: PostPayload) {
   </section>
 
   <TopicFloatingControls
-    v-if="topicActions && !isBlogLikeTopic"
+    v-if="topicActions"
     v-model:mobile-rail-open="mobilePostRailOpen"
     :open="composerOpen"
     :actions="floatingTopicActions"
@@ -2400,9 +2776,8 @@ function lastEditedLabel(post: PostPayload) {
     @select-rail="selectPostFromRail"
   />
 
-  <!-- Reply composer - hidden for Articles and Thoughts -->
   <PostComposer
-    v-if="composerMounted && !isBlogLikeTopic"
+    v-if="composerMounted"
     v-model="postContent"
     v-model:captcha-code="captchaCode"
     :open="composerOpen"
@@ -2879,6 +3254,7 @@ function lastEditedLabel(post: PostPayload) {
 }
 
 .gf-prose-article img {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
@@ -2909,8 +3285,10 @@ function lastEditedLabel(post: PostPayload) {
 }
 
 .gf-prose-thought img {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 0.375rem;
+  margin: 1rem auto;
 }
 </style>

@@ -5916,15 +5916,17 @@ export interface components {
             /** @description Required only when server-side posting risk controls request a captcha. */
             captchaCode?: string;
             /**
-             * @description 内容类型（默认 0）：
-             *     * 0 - 默认帖子
+             * @description 内容类型，取值 0-3；默认 0（兼容写法，服务端会将 0 规范为 3 - 文章）：
+             *     * 0 - 默认帖子（自动规范为 3 - 文章）
              *     * 1 - 提问（Q&A 结构）
-             *     * 2 - 想法（短内容）
+             *     * 2 - 瞬间（短内容，原「想法」更名）
              *     * 3 - 文章（长文）
              * @default 0
              * @enum {integer}
              */
             contentType: 0 | 1 | 2 | 3;
+            /** @description 图集图片 URL 列表，须为当前用户已上传的 /file/img/ 文件（服务端校验归属）；数量上限与单条长度上限同服务端。 */
+            images?: string[];
         };
         WriteTopicSuccess: components["schemas"]["ApiSuccess"] & {
             result: number | true;
@@ -6649,11 +6651,8 @@ export interface components {
             content: string;
             categoryId: number[];
             /**
-             * @description 内容类型（默认 0）：
-             *     * 0 - 默认帖子
-             *     * 1 - 提问（Q&A 结构）
-             *     * 2 - 想法（短内容）
-             *     * 3 - 文章（长文）
+             * @description 兼容保留字段（服务端 Agent 绑定不读取）；Agent 创建的话题恒为文章类型：
+             *     不传或传 0 时服务端统一按 3（文章）处理。
              * @default 0
              * @enum {integer}
              */

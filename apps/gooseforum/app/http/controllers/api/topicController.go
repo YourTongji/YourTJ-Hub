@@ -104,6 +104,7 @@ type WriteTopicReq struct {
 	CaptchaId   string   `json:"captchaId,omitempty"`
 	CaptchaCode string   `json:"captchaCode,omitempty"`
 	ContentType int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
+	Images      []string `json:"images,omitempty"`
 }
 
 // WriteTopic creates or updates a topic and its first post.
@@ -144,6 +145,12 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 统一权限检查
 	if _, err := component.CheckUserPermission(&userEntity, component.PermissionActionPost); err != nil {
 		return component.FailResponseError(err)
+	}
+
+	// 图集数量上限：与快捷发布选择器/契约描述一致（服务端单一事实源）。
+	// 超限按参数错误拒绝，防止单请求撑爆 image_urls 列与 usage 行。
+	if len(req.Params.Images) > fileusageservice.MaxGalleryImagesPerTopicWrite {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 
 	if len(req.Params.Title) < postingConfig.TextControl.MinTitleLength {
@@ -204,6 +211,12 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	var topic topics.Entity
 	var firstPost posts.Entity
 	var oldCategoryIds []uint64
+
+	// 未指定或默认内容类型自动规范为文章类型（ContentTypeArticle = 3）
+	if req.Params.ContentType == posts.ContentTypeRegular {
+		req.Params.ContentType = posts.ContentTypeArticle
+	}
+
 	if req.Params.TopicId != 0 {
 		topic = topics.Get(req.Params.TopicId)
 		// wiki 分站页面由 wiki 修订审核流程管理，禁止经论坛编辑端点直接改写
@@ -217,6 +230,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		firstPost = posts.Get(topic.FirstPostId)
 		if firstPost.Id == 0 {
 			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+		}
+		if firstPost.ContentType == posts.ContentTypeRegular {
+			firstPost.ContentType = posts.ContentTypeArticle
 		}
 		oldCategoryIds = append([]uint64(nil), topic.CategoryIds...)
 		// Prevent changing contentType on published topics with replies
@@ -237,6 +253,15 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
 	topic.ImageUrls = markdown2html.ExtractImageURLs(req.Params.Content)
+	if len(req.Params.Images) > 0 {
+		// 显式图集仅接受当前用户自己已上传且就绪的文件：非本人条目在此丢弃，
+		// 避免把他人文件登记成 ACTIVE 内容引用（否则删除/隐私清除后文件仍会
+		// 因活引用被 GC 跳过并持续公网可读，见 fileusageservice.FilterOwnedImageURLs）。
+		topic.ImageUrls = fileusageservice.FilterOwnedImageURLs(req.UserId, req.Params.Images)
+		if topic.FirstImageURL == "" && len(topic.ImageUrls) > 0 {
+			topic.FirstImageURL = topic.ImageUrls[0]
+		}
+	}
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
 	}
@@ -329,8 +354,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	// ---- 事务已提交：此后才允许缓存失效、统计与事件发布 ----
-	fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
+	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	if isEdit {
@@ -505,14 +529,6 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
-	// Check if the topic allows replies (thoughts and articles do not allow replies)
-	if topicEntity.FirstPostId > 0 {
-		firstPost := posts.Get(topicEntity.FirstPostId)
-		if firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle {
-			return component.FailResponseCode(component.MessageTopicRepliesNotAllowed, nil)
-		}
-	}
-
 	var parentPost posts.Entity
 	if req.Params.ReplyToPostId > 0 {
 		parentPost = posts.Get(req.Params.ReplyToPostId)
@@ -550,7 +566,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if err := topicunseenservice.MarkVisited(req.UserId, topicEntity.Id, postEntity.Id, time.Now()); err != nil {
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
-	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
+	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content)
 	if !pendingReview {
 		userStatistics.WriteComment(req.UserId)
 	}
@@ -588,7 +604,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		"id":              postEntity.Id,
 		"postNo":          postEntity.PostNo,
 		"renderedContent": postEntity.RenderedHTML,
-		"isAnswer":         isAnswer,
+		"isAnswer":        isAnswer,
 	})
 }
 
@@ -708,11 +724,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postEntity.LastEditorId = req.UserId
 	postEntity.LastEditedAt = &now
 
-	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
+	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content)
 	if isFirstPost {
 		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
 		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
-		fileusageservice.ReplaceTopic(topicEntity.Id, req.UserId, postEntity.Content)
+		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, nil)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 		if topicEntity.Status == 1 && !pendingReview {

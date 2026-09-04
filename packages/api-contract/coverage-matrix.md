@@ -4,9 +4,9 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：282
+- 快照路由总数：284
 - /api JSON 路由：223，已入契约：224（100%），已知未覆盖：0
-- 非 API 排除路由：58
+- 非 API 排除路由：60
 
 ## 已覆盖（224）
 
@@ -242,7 +242,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，58）
+## 排除（非 JSON API，60）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -290,6 +290,8 @@
 | GET | `/static/*filepath` | 静态资源（StaticFS 展开 GET+HEAD） |
 | GET | `/terms` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/theme-preview` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/topics/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API；/p/post/:id 的别名路由 |
+| GET | `/topics/:id/:postNo` | SSR 页面（GoHTML 三模渲染），非 JSON API；/p/post/:id/:postNo 的别名路由 |
 | GET | `/u/:userId` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/u/:userId/:section` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/u/:userId/:section/:subsection` | SSR 页面（GoHTML 三模渲染），非 JSON API |

@@ -35,7 +35,7 @@ const (
 const (
 	ContentTypeRegular  int8 = 0 // 默认帖子
 	ContentTypeQuestion int8 = 1 // 提问（Q&A 结构）
-	ContentTypeThought  int8 = 2 // 想法（短内容）
+	ContentTypeThought  int8 = 2 // 瞬间（短内容，原「想法」更名）
 	ContentTypeArticle  int8 = 3 // 文章（长文）
 )
 

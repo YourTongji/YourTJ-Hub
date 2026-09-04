@@ -6,6 +6,7 @@ import { i18n } from '../src/runtime/i18n'
 import AppShell from '../src/site/components/AppShell.vue'
 import MobileDrawer from '../src/site/components/MobileDrawer.vue'
 import WikiSidebar from '../src/site/components/WikiSidebar.vue'
+import { closePanel, panelOpen } from '../src/runtime/use-wiki-search'
 
 // reka-ui Dialog 在测试环境（happy-dom）可直接渲染，无需 stub 动画原语。
 
@@ -221,6 +222,47 @@ describe('AppShell 抽屉接线', () => {
     const sidebar = wrapper.get('aside[aria-label="Sidebar"]')
     expect(sidebar.text()).not.toContain('同济新手教程')
   })
+
+  // wiki 搜索移动端直达入口：header 图标按钮（<md）替代论坛全局搜索链接，
+  // 不开抽屉即可呼出局内搜索面板（与桌面侧栏胶囊/⌘K 共用同一面板）。
+  test('wiki 模式移动端 header 提供局内搜索直达入口，替代全局搜索链接', () => {
+    const wrapper = mount(AppShell, {
+      props: { layout: makeLayout('wiki') },
+      global: { plugins: [i18n] },
+    })
+    const trigger = wrapper.get('button[aria-label="打开搜索"]')
+    expect(trigger.classes()).toContain('md:hidden')
+    expect(wrapper.find('a[href="/search"]').exists()).toBe(false)
+  })
+
+  test('点击 header 搜索按钮打开共享面板并收起抽屉', async () => {
+    const wrapper = mount(AppShell, {
+      props: { layout: makeLayout('wiki') },
+      global: { plugins: [i18n] },
+    })
+    await wrapper.get('button[aria-label="打开菜单"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+    await wrapper.get('button[aria-label="打开搜索"]').trigger('click')
+    await flushPromises()
+    expect(panelOpen.value).toBe(true)
+    // 面板打开时抽屉收起：避免面板关闭后用户仍停留在抽屉层。
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+
+    closePanel()
+    await flushPromises()
+    expect(panelOpen.value).toBe(false)
+  })
+
+  test('论坛模式移动端保留全局搜索链接，不渲染 wiki 搜索按钮', () => {
+    const wrapper = mount(AppShell, {
+      props: { layout: makeLayout('forum') },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.find('button[aria-label="打开搜索"]').exists()).toBe(false)
+    expect(wrapper.get('a[href="/search"]').classes()).toContain('md:hidden')
+  })
 })
 
 beforeEach(() => {
@@ -243,5 +285,8 @@ beforeEach(() => {
 
 afterEach(() => {
   i18n.global.locale.value = 'zh'
+  // 共享 wiki 搜索面板是模块级单例：测试打开后必须复位，
+  // 否则后续挂载的 AppShell 会因 panelOpen=true 直接收起抽屉。
+  closePanel()
   vi.restoreAllMocks()
 })

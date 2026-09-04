@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { AlertTriangle, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, Send, X } from '@lucide/vue'
+import { AlertTriangle, BookOpen, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, MessageSquare, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
@@ -10,6 +10,7 @@ import PageHeader from '@/site/components/PageHeader.vue'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -31,7 +32,6 @@ const {
 const title = ref(page.props.topic.title || '')
 const content = ref(page.props.topic.content || '')
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
-const contentType = ref<0 | 1 | 2 | 3>((page.props.topic.contentType as 0 | 1 | 2 | 3) || 0)
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
 const uploading = ref(false)
@@ -50,13 +50,106 @@ const bodySection = ref<HTMLElement | null>(null)
 /** 移动端 toggle 挂载容器（正文 label 行右侧） */
 const editorToggleHost = ref<HTMLElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const route = useRoute()
 
-const contentTypes = [
-  { value: 0 as const, label: t('publish.contentTypes.regular'), icon: FileText },
-  { value: 1 as const, label: t('publish.contentTypes.question'), icon: HelpCircle },
-  { value: 2 as const, label: t('publish.contentTypes.thought'), icon: Lightbulb },
-  { value: 3 as const, label: t('publish.contentTypes.article'), icon: FileText },
-]
+function parseTypeParam(param: unknown): 0 | 1 | 2 | 3 | undefined {
+  if (typeof param !== 'string') return undefined
+  const val = param.toLowerCase().trim()
+  if (val === '1' || val === 'question') return 1
+  if (val === '2' || val === 'thought') return 2
+  if (val === '3' || val === 'article') return 3
+  if (val === '0' || val === 'regular') return 0
+  return undefined
+}
+
+function resolveInitialContentType(): 0 | 1 | 2 | 3 {
+  if (page.props.isEditing && page.props.topic.contentType !== undefined && page.props.topic.contentType !== null) {
+    const editType = Number(page.props.topic.contentType) as 0 | 1 | 2 | 3
+    return editType === 0 ? 3 : editType
+  }
+  const fromQuery = parseTypeParam(route?.query?.type ?? route?.query?.contentType)
+  if (fromQuery !== undefined) {
+    return fromQuery === 0 ? 3 : fromQuery
+  }
+  if (page.props.topic?.contentType !== undefined && page.props.topic?.contentType !== null) {
+    const rawType = Number(page.props.topic.contentType) as 0 | 1 | 2 | 3
+    return rawType === 0 ? 3 : rawType
+  }
+  return 3
+}
+
+const contentType = ref<0 | 1 | 2 | 3>(resolveInitialContentType())
+
+watch(
+  () => route?.query?.type ?? route?.query?.contentType,
+  (newVal) => {
+    if (!page.props.isEditing) {
+      const parsed = parseTypeParam(newVal)
+      if (parsed !== undefined) {
+        contentType.value = parsed
+      }
+    }
+  },
+)
+
+const currentTypeMeta = computed(() => {
+  switch (contentType.value) {
+    case 1:
+      return {
+        label: t('publish.contentTypes.question'),
+        desc: t('publish.contentTypesDesc.question'),
+        icon: HelpCircle,
+        badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      }
+    case 2:
+      return {
+        label: t('publish.contentTypes.thought'),
+        desc: t('publish.contentTypesDesc.thought'),
+        icon: Lightbulb,
+        badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+      }
+    case 3:
+      return {
+        label: t('publish.contentTypes.article'),
+        desc: t('publish.contentTypesDesc.article'),
+        icon: BookOpen,
+        badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+      }
+    default:
+      return {
+        label: t('publish.contentTypes.regular'),
+        desc: t('publish.contentTypesDesc.regular'),
+        icon: MessageSquare,
+        badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      }
+  }
+})
+
+const currentTypeCreateTitle = computed(() => {
+  switch (contentType.value) {
+    case 1:
+      return t('publish.contentTypesAction.question')
+    case 2:
+      return t('publish.contentTypesAction.thought')
+    case 3:
+      return t('publish.contentTypesAction.article')
+    default:
+      return t('publish.createTitle')
+  }
+})
+
+const currentTypeEditTitle = computed(() => {
+  switch (contentType.value) {
+    case 1:
+      return t('publish.contentTypesEdit.question')
+    case 2:
+      return t('publish.contentTypesEdit.thought')
+    case 3:
+      return t('publish.contentTypesEdit.article')
+    default:
+      return t('publish.editTitle')
+  }
+})
 
 const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
@@ -67,8 +160,6 @@ const bodyCharCount = computed(() => content.value.trim().length)
 const bodyFilled = computed(() => bodyCharCount.value > 0)
 const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
 const categoriesFull = computed(() => categoryIds.value.length >= 3)
-/** Use simple textarea for Thoughts (contentType=2) */
-const useSimpleEditor = computed(() => contentType.value === 2)
 /** 向上扩展：折叠标题/分类区，让编辑区占满 */
 const headerCollapsed = ref(false)
 const collapsedHeaderHeight = ref(0)
@@ -313,7 +404,20 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
 
 <template>
     <main class="min-w-0 pb-8">
-      <PageHeader :title="props.isEditing ? t('publish.editTitle') : t('publish.createTitle')" :description="t('publish.subtitle')" />
+      <PageHeader
+        :title="props.isEditing ? currentTypeEditTitle : currentTypeCreateTitle"
+        :description="currentTypeMeta.desc"
+      >
+        <template #badge>
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            :class="currentTypeMeta.badgeClass"
+          >
+            <component :is="currentTypeMeta.icon" class="h-3.5 w-3.5" :stroke-width="2" aria-hidden="true" />
+            <span>{{ currentTypeMeta.label }}</span>
+          </span>
+        </template>
+      </PageHeader>
 
       <!-- 单栏全宽：发布检查并入页脚，正文区吃满主列宽度 -->
       <section class="gf-card p-4 sm:p-5">
@@ -413,26 +517,6 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
           </div>
 
-          <!-- Content Type Selector -->
-          <div class="flex flex-col gap-2">
-            <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.contentType') }}</span>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="type in contentTypes"
-                :key="type.value"
-                type="button"
-                class="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition"
-                :class="contentType === type.value
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-line text-base-content/75 hover:border-primary/50 hover:bg-base-200'"
-                @click="contentType = type.value"
-              >
-                <component :is="type.icon" class="h-4 w-4" />
-                <span>{{ type.label }}</span>
-              </button>
-            </div>
-          </div>
-
           <div ref="bodySection">
             <div class="mb-2 flex items-center gap-2">
               <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
@@ -443,25 +527,17 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             </div>
 
             <div ref="editorHost" class="relative">
-              <!-- Simple textarea for Thoughts -->
-              <textarea
-                v-if="useSimpleEditor"
-                v-model="content"
-                class="gf-textarea min-h-[480px] w-full resize-y rounded-lg border border-line p-4 text-base outline-none focus:border-primary"
-                :placeholder="t('publish.thoughtPlaceholder')"
-              />
-              <!-- Vditor for Questions/Articles/Regular -->
               <VditorOfficial
-                v-else
                 ref="editor"
                 v-model="content"
                 :height="480"
-                :outline="true"
+                :simple="contentType !== 3"
+                :outline="contentType === 3"
                 :counter="true"
                 :header-toggle="true"
                 :header-collapsed="headerCollapsed"
                 :toggle-host="editorToggleHost"
-                :placeholder="t('publish.visualPlaceholder')"
+                :placeholder="contentType === 2 ? t('publish.thoughtPlaceholder') : t('publish.visualPlaceholder')"
                 @toggle-header="toggleHeaderCollapsed"
                 @upload="uploadImageFiles"
                 @error="handleEditorError"

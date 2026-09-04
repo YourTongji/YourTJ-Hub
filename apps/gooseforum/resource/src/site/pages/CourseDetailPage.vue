@@ -1005,20 +1005,24 @@ onBeforeUnmount(() => {
 
           <div>
             <span class="mb-1.5 block text-[13px] text-base-content/70">{{ t('courseDetailPage.content') }}</span>
-            <div class="relative overflow-hidden rounded-[var(--gf-radius-box)] border border-line/70 bg-base-100">
-              <!-- 与发布/回复同款富文本编辑器（紧凑工具栏）；失败时显示占位与错误，不阻塞表单其他字段 -->
+            <!-- 不用 overflow-hidden 裁圆角：那会把 more 下拉（.vditor-hint）一并裁掉；
+                 改为让内层 .vditor 继承圆角，下拉可自然溢出覆盖到下方表单 -->
+            <div class="relative rounded-[var(--gf-radius-box)] border border-line/70 bg-base-100 [&_.vditor]:rounded-[inherit]">
+              <!-- 与发布/回复同款富文本编辑器；slim-mobile：课评表单嵌套层级多（vw-64），
+                   移动端用 7 项精简行，≤320px 视口也单行完整（10 项会在 320px 裁掉 more） -->
               <VditorOfficial
                 ref="reviewEditor"
                 v-model="formContent"
-                :height="300"
+                :height="380"
                 :compact="true"
+                :slim-mobile="true"
                 :placeholder="t('courseDetailPage.contentPlaceholder')"
                 @upload="uploadReviewImages"
                 @error="onReviewEditorError"
               />
               <div
                 v-if="!reviewEditorReady"
-                class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-base-100/60 text-sm"
+                class="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-[inherit] bg-base-100/60 text-sm"
                 :class="reviewEditorFailed ? 'text-error' : 'text-base-content/55'"
                 :role="reviewEditorFailed ? 'alert' : 'status'"
                 aria-live="polite"
@@ -1602,14 +1606,19 @@ onBeforeUnmount(() => {
       </div>
       </Transition>
 
-      <!-- 导出实例：固定 760px 白卡，隐藏于视口外（html-to-image 捕获） -->
+      <!-- 导出实例：固定 760px 白卡，隐藏于视口外（html-to-image 捕获）。
+           ref 必须绑在内层卡片而非隐藏容器：html-to-image 会复制被捕获节点自身的
+           computed style，容器上的 opacity-0 会把整张导出图变成纯白（对齐 serverless：
+           ref 挂在 paper 节点，隐藏容器只负责视口外定位）。 -->
       <div
         v-if="sharePreview"
-        ref="shareExportEl"
         class="pointer-events-none fixed -left-[10000px] top-0 opacity-0"
         aria-hidden="true"
       >
-        <div class="share-paper w-[760px] overflow-hidden rounded-[26px] bg-white shadow-[0_28px_60px_rgba(14,165,233,0.16)]">
+        <div
+          ref="shareExportEl"
+          class="share-paper w-[760px] overflow-hidden rounded-[26px] bg-white shadow-[0_28px_60px_rgba(14,165,233,0.16)]"
+        >
           <div class="bg-gradient-to-br from-sky-50 via-white to-cyan-50 px-8 pb-8 pt-7">
             <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-slate-100 pb-5">
               <div class="min-w-0">

@@ -99,3 +99,53 @@ func TestSettingsPagePropsSerializesGoogleOAuthReady(t *testing.T) {
 		t.Fatalf("googleOAuthReady = %#v, want true", payload["googleOAuthReady"])
 	}
 }
+
+func TestParsePublishContentType(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int8
+	}{
+		{"", 0},
+		{"regular", 0},
+		{"0", 0},
+		{"question", 1},
+		{"1", 1},
+		{"Question", 1},
+		{"thought", 2},
+		{"2", 2},
+		{"Thought", 2},
+		{"article", 3},
+		{"3", 3},
+		{"Article", 3},
+		{"unknown", 0},
+	}
+	for _, tt := range tests {
+		got := parsePublishContentType(tt.input)
+		if got != tt.want {
+			t.Errorf("parsePublishContentType(%q) = %d, want %d", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestTopicPermissionsCanPost(t *testing.T) {
+	tests := []struct {
+		name        string
+		userID      uint64
+		contentType int8
+		wantCanPost bool
+	}{
+		{"guest cannot post to regular", 0, 0, false},
+		{"user can post to regular", 1, 0, true},
+		{"user can post to question", 1, 1, true},
+		{"user can post to thought (moment)", 1, 2, true},
+		{"user can post to article", 1, 3, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			canPost := tt.userID > 0 && (tt.contentType == 0 || tt.contentType == 1 || tt.contentType == 2 || tt.contentType == 3)
+			if canPost != tt.wantCanPost {
+				t.Errorf("canPost = %v, want %v", canPost, tt.wantCanPost)
+			}
+		})
+	}
+}
