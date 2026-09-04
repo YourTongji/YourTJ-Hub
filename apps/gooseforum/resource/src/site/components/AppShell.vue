@@ -193,14 +193,6 @@ const drawerSections = computed<SidebarSection[]>(() =>
   ),
 )
 
-// 桌面侧栏：回归原版单列平铺导航（13px 从属正文、16px 图标，见 sidebar 设计决策）。
-// 私信/通知由 navbar 直达图标承担，不在侧栏重复。
-const primaryItems = computed<SidebarNavItem[]>(() => [
-  ...browseItems.value,
-  ...functionItems.value,
-  ...personalItems.value,
-  ...adminItems.value,
-])
 
 // 分类列表：回归原版侧栏「分类」分区（色点 + 名称），首页不再叠加横滚分类 rail。
 const categoryItems = computed<SidebarCategoryItem[]>(() =>
@@ -809,28 +801,40 @@ async function loadUserCard() {
         <WikiSidebar v-if="isWikiMode" :tree="wikiTree" />
         <nav v-else class="py-3">
           <div class="pb-2">
-            <div class="space-y-0.5">
-              <a
-                v-for="item in primaryItems"
-                :key="item.key"
-                :href="item.url"
-                class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
-                :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+            <template v-for="(section, sectionIndex) in sidebarSections" :key="section.key">
+              <div
+                v-if="section.title"
+                class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55"
+                :class="sectionIndex > 0 ? 'mt-2' : ''"
               >
-                <component
-                  :is="navIcon(item)"
-                  v-if="navIcon(item)"
-                  class="h-4 w-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-                <span
-                  v-if="item.key === 'moderation' && hasModerationReports"
-                  class="h-2 w-2 shrink-0 rounded-full bg-error/100"
-                  aria-hidden="true"
-                />
-              </a>
-            </div>
+                {{ section.title }}
+              </div>
+              <div :class="section.title ? 'space-y-px' : 'space-y-0.5'">
+                <a
+                  v-for="item in section.items"
+                  :key="item.key"
+                  :href="item.url"
+                  class="flex items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
+                  :class="[
+                    section.title ? 'h-7' : 'h-8',
+                    item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content',
+                  ]"
+                >
+                  <component
+                    :is="navIcon(item)"
+                    v-if="navIcon(item)"
+                    class="h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+                  <span
+                    v-if="item.key === 'moderation' && hasModerationReports"
+                    class="h-2 w-2 shrink-0 rounded-full bg-error/100"
+                    aria-hidden="true"
+                  />
+                </a>
+              </div>
+            </template>
 
             <div v-if="resourceItems.length" class="mt-2">
               <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ t('shell.resources') }}</div>

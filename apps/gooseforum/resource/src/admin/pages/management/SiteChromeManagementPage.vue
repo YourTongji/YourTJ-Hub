@@ -81,10 +81,10 @@ const previewTabs = [
   { key: 'popular' as const, labelKey: 'topicList.tabs.popular' },
 ]
 
-// 固定侧栏主列表：与前台 AppShell primaryItems 对齐的无编辑项提示
-// （浏览/功能/个人固定项；私信/通知已上移 navbar，不进侧栏）。
-// 自定义主菜单项（config.mainMenu）渲染在其后——与 AppShell
-// personalItems（drafts + 服务端 main 项）→ adminItems 的顺序一致。
+// 固定侧栏主列表：与前台 AppShell 侧栏分区（sidebarSections）顺序对齐的无编辑项提示
+//（浏览无标题平铺 → 功能 → 个人；私信/通知已上移 navbar，不进侧栏）。
+// 自定义主菜单项（config.mainMenu）渲染在个人项之后——对应 AppShell
+// personalItems（drafts + 服务端 main 项）→ adminItems 的顺序。
 const fixedMainItems = [
   { key: 'topics', labelKey: 'shell.nav.topics', icon: MessageCircle, active: true },
   { key: 'hot', labelKey: 'shell.nav.hot', icon: Flame },
