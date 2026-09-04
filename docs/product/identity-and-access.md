@@ -190,20 +190,17 @@ before the stateful authentication middleware — never in the global chain):
   `Host`-derived origin (scheme from TLS or the first `X-Forwarded-Proto` hop so TLS-terminating
   proxies work; default ports normalized). The host-derived rule keeps multi-domain, LAN-IP,
   and `localhost` dev deployments working without enumerating origins, because a browser Origin
-  is always the domain the host-only session cookie is scoped to. (An earlier `csrf.allowedOrigins`
-  config option for alternate front-end origins was removed: the single-binary deployment has no
-  credentialed CORS, so such origins could not carry the session cookie anyway.)
+  is always the domain the host-only session cookie is scoped to.
 - When `Origin` is missing (legacy browsers that omit it on same-origin POSTs), the `Referer`
   origin is checked instead; otherwise the request is rejected with HTTP 403 and message code
   `auth.csrf.rejected`. curl/scripting clients that carry a cookie but no Origin/Referer are
   rejected fail-closed — they should send `Authorization` instead.
-- **Contract note**: the 403 `auth.csrf.rejected` envelope is middleware-owned and applies
-  uniformly to every cookie-authenticated state-changing request. It is not repeated on every
-  covered operation; the session-management operations in `paths/auth-sessions.yaml` (logout,
-  revoke, revoke-all) document it explicitly because their descriptions promise path-specific
-  effects (cookie cleared, session revoked) that the CSRF gate interrupts. Consumers must treat
-  any cookie-authenticated write operation as able to return this 403 and must not clear local
-  credentials or treat the session as revoked on it.
+- **Contract note**: every cookie-authenticated state-changing operation (including read-only
+  operations implemented with POST) declares the HTTP 403 `auth.csrf.rejected` response
+  (`csrfRejected` example) in its OpenAPI operation contract under `paths/`, with one shared
+  response shape: `ApiFailure` envelope, session cookie left untouched. Consumers handle it per
+  operation as documented; an operation that declares `accessTokenCookie` in its security but
+  lacks the 403 is a contract omission.
 
 Rationale for Origin checking instead of a double-submit CSRF token: both web frontends run on
 modern browsers that send `Origin` on every state-changing request, and the host-only +
