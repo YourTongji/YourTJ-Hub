@@ -36,6 +36,22 @@ function responseMessage(data: ApiResponse<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
 }
 
+// assertHttpOk 供手写 !response.ok 分支使用：HTTP 层失败但 body 是结构化
+// {code,messageCode} 信封时抛 ApiResponseError（messageCode 保留给 UI 展示可操作
+// 文案），否则保持通用 `HTTP ${status}` 错误。403 permission.emailRequired
+// （邮箱验证开启时 pending 账号写拦截，issue #404/#415）即走前者，让注册即发
+// 会话的未验证用户看到激活指引而非无差别 HTTP 403。
+async function assertHttpOk(response: Response, fallback: string): Promise<void> {
+  if (response.ok) {
+    return
+  }
+  const data = await response.json().catch(() => undefined) as ApiResponse<unknown> | undefined
+  if (data?.messageCode) {
+    throw new ApiResponseError(responseMessage(data, fallback), data.messageCode)
+  }
+  throw new Error(`HTTP ${response.status}`)
+}
+
 function t(key: string) {
   return i18n.global.t(key)
 }
@@ -607,9 +623,7 @@ export async function followUser(userId: number, isFollowing: boolean): Promise<
       action: isFollowing ? 2 : 1,
     }),
   })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.followFailed'))
 
   const data = (await response.json()) as ApiResponse<boolean>
   if (data.code !== undefined && data.code !== 0) {
@@ -628,6 +642,7 @@ export interface SubmitTopicInput {
   captchaId?: string
   captchaCode?: string
   contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
+  images?: string[]
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
@@ -641,9 +656,7 @@ export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
   if (response.status === 429) {
     return readApiResponse<number>(response, t('api.topicSaveFailed'))
   }
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.topicSaveFailed'))
 
   const data = (await response.json()) as ApiResponse<number>
   if (data.code !== undefined && data.code !== 0) {
@@ -836,9 +849,7 @@ export async function sendChatMessage(peerId: number, content: string): Promise<
     },
     body: JSON.stringify({ peerId, content, msgType: 1 }),
   })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.sendFailed'))
 
   const data = (await response.json()) as ApiResponse<{ convId: number }>
   if (data.code !== undefined && data.code !== 0) {
@@ -855,9 +866,7 @@ export async function markChatRead(convId: number): Promise<boolean> {
     },
     body: JSON.stringify({ convId }),
   })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.markReadFailed'))
 
   const data = (await response.json()) as ApiResponse<boolean>
   if (data.code !== undefined && data.code !== 0) {

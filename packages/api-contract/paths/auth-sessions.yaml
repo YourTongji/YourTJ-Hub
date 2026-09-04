@@ -8,14 +8,16 @@ logout:
       Session is optional. When the request carries a valid session token (cookie or Bearer), the
       server revokes that session record, so the token immediately stops authenticating. An absent,
       unverifiable, or already-revoked token is treated as already logged out, which makes this
-      operation idempotent. The `access_token` cookie is cleared on every path, including the rare
-      `session.revoke.failed` business failure (HTTP 200 with `code: 1`).
+      operation idempotent. The `access_token` cookie is cleared whenever the logout handler runs,
+      including the rare `session.revoke.failed` business failure (HTTP 200 with `code: 1`). A
+      cross-site cookie POST (missing or mismatched Origin/Referer) is rejected by the CSRF gate
+      before the handler with HTTP 403 `auth.csrf.rejected` and the cookie is left untouched.
     responses:
       '200':
         description: Logout completed (or the caller was already logged out), or a revocation failure.
         headers:
           Set-Cookie:
-            description: Expires the HTTP-only `access_token` session cookie on every logout response.
+            description: Expires the HTTP-only `access_token` session cookie whenever the logout handler runs.
             schema:
               type: string
         content:
@@ -25,6 +27,17 @@ logout:
             examples:
               success:
                 externalValue: ../fixtures/logout-success.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched
+          Origin/Referer, issue #406). The session cookie is not cleared on this path.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 listSessions:
   get:
@@ -108,6 +121,17 @@ revokeSession:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched
+          Origin/Referer, issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 revokeAllSessions:
   post:
@@ -143,3 +167,14 @@ revokeAllSessions:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched
+          Origin/Referer, issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

@@ -322,6 +322,8 @@ export interface TopicDetailPayload {
   id: number
   title: string
   description: string
+  firstImageUrl?: string
+  images?: string[]
   url: string
   topicStatus: number
   processStatus: number

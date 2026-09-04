@@ -82,29 +82,22 @@ func TestCanPostContentTypeRestriction(t *testing.T) {
 			shouldAllowReplies: true,
 		},
 		{
-			name:          "thought topic does not allow replies",
+			name:          "thought topic allows replies",
 			contentType:   posts.ContentTypeThought,
-			shouldAllowReplies: false,
+			shouldAllowReplies: true,
 		},
 		{
-			name:          "article topic does not allow replies",
+			name:          "article topic allows replies",
 			contentType:   posts.ContentTypeArticle,
-			shouldAllowReplies: false,
+			shouldAllowReplies: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This test documents the expected behavior
-			// The actual enforcement is in createPost function
-			if tt.contentType == posts.ContentTypeThought || tt.contentType == posts.ContentTypeArticle {
-				if tt.shouldAllowReplies {
-					t.Errorf("ContentType %d should not allow replies", tt.contentType)
-				}
-			} else {
-				if !tt.shouldAllowReplies {
-					t.Errorf("ContentType %d should allow replies", tt.contentType)
-				}
+			// This test documents that all topic content types allow replies
+			if !tt.shouldAllowReplies {
+				t.Errorf("ContentType %d should allow replies", tt.contentType)
 			}
 		})
 	}

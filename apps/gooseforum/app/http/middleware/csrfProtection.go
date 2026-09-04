@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/gin-gonic/gin"
 )
@@ -34,23 +33,23 @@ const accessTokenCookieName = "access_token"
 //     GitHub wiki webhook's HMAC auth, OIDC token endpoints).
 //
 // Enforcement for the remaining cookie-authenticated state changes: the
-// Origin must match the site origin (derived from the request Host plus the
-// X-Forwarded-Proto/TLS scheme so TLS-terminating proxies pass) or one of the
-// explicitly configured origins in `csrf.allowedOrigins`. When the Origin
-// header is missing (legacy browsers that omit Origin on same-origin POSTs),
-// the Referer origin is checked instead. Any mismatch is rejected with 403
-// (envelope messageCode `auth.csrf.rejected`).
+// Origin must match the site origin, derived from the request Host plus the
+// X-Forwarded-Proto/TLS scheme so TLS-terminating proxies pass. When the
+// Origin header is missing (legacy browsers that omit Origin on same-origin
+// POSTs), the Referer origin is checked instead. Any mismatch is rejected
+// with 403 (envelope messageCode `auth.csrf.rejected`).
 //
 // SameSite=Lax + HttpOnly + Secure cookies remain as defense in depth; the
 // origin check additionally covers the cases SameSite=Lax does not: same-site
 // cross-origin (subdomain) attacks and browsers without SameSite support.
 //
-// Mounted per write-route group (route4api.go), never globally, so anonymous
-// 401 semantics and public POSTs are untouched. Auth-first groups mount it
-// after the authentication middleware; the /file group mounts it at group
-// level before the per-route auth, so a cookie-bearing foreign-origin upload
-// is rejected by this gate (403) instead of the auth middleware (401). Do not
-// move this into bridge.go's global chain.
+// Mounted per write-route group (route4api.go) before the stateful
+// authentication middleware (JWTAuthCheck) and never globally, so a rejected
+// cross-site write is cut off before it can refresh a near-expiry JWT, extend
+// its user_sessions row, or publish activity events. Requests without an
+// access_token cookie pass through and keep their usual anonymous semantics
+// (JWTAuthCheck still answers 401). Do not move this into bridge.go's global
+// chain.
 func CSRFProtection(c *gin.Context) {
 	method := c.Request.Method
 	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
@@ -96,35 +95,25 @@ func sameSiteRequest(c *gin.Context) bool {
 	return false
 }
 
-// originMatches compares origin against the site-controlled origin set: the
-// request's own Host-derived origin and the configured csrf.allowedOrigins.
+// originMatches reports whether the candidate origin is this request's site
+// origin. The request's own Host always wins: the browser Origin equals the
+// URL the user visited, which is also the domain the host-only access_token
+// cookie is scoped to.
 func originMatches(c *gin.Context, origin string) bool {
 	candidate, err := url.Parse(origin)
 	if err != nil || candidate.Host == "" {
 		return false
 	}
-	for _, allowed := range siteAllowedOrigins(c) {
-		parsed, err := url.Parse(allowed)
-		if err != nil || parsed.Host == "" {
-			continue
-		}
-		if sameOrigin(candidate, parsed) {
-			return true
-		}
-	}
-	return false
+	return sameOrigin(candidate, siteOrigin(c))
 }
 
-// siteAllowedOrigins returns the origins this deployment accepts for
-// cookie-authenticated writes. The request's own Host always wins: the browser
-// Origin equals the URL the user visited, which is also the domain the
-// host-only access_token cookie is scoped to. X-Forwarded-Proto is honored
-// (first hop) so TLS-terminating reverse proxies (the supported deployment)
-// produce https origins; widening the allowed set by scheme is safe because an
-// attacker still cannot make its own Origin equal the victim host. Extra
-// origins (e.g. an alternate front-end domain that must share the cookie
-// session) are configured via `csrf.allowedOrigins` (comma separated).
-func siteAllowedOrigins(c *gin.Context) []string {
+// siteOrigin derives the deployment origin for this request from the request
+// Host and the effective scheme. X-Forwarded-Proto is honored (first hop) so
+// TLS-terminating reverse proxies (the supported deployment) produce https
+// origins; widening by scheme is safe because an attacker still cannot make
+// its own Origin equal the victim host. Invalid X-Forwarded-Proto values are
+// ignored and the connection scheme is kept.
+func siteOrigin(c *gin.Context) *url.URL {
 	scheme := "http"
 	if c.Request.TLS != nil {
 		scheme = "https"
@@ -137,13 +126,7 @@ func siteAllowedOrigins(c *gin.Context) []string {
 			scheme = proto
 		}
 	}
-	allowed := []string{scheme + "://" + c.Request.Host}
-	for _, raw := range strings.Split(preferences.GetString("csrf.allowedOrigins", ""), ",") {
-		if origin := strings.TrimSpace(raw); origin != "" {
-			allowed = append(allowed, origin)
-		}
-	}
-	return allowed
+	return &url.URL{Scheme: scheme, Host: c.Request.Host}
 }
 
 // sameOrigin compares scheme, hostname, and effective port (default ports are

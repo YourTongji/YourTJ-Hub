@@ -429,6 +429,157 @@ func TestAdminSaveSecuritySettingsHTTPContract(t *testing.T) {
 	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-save-security-settings")
 }
 
+// TestAdminSaveSecuritySettingsEnableVerificationBackfillsPendingAdmins 复现
+// issue #415 review P1：默认配置（邮箱验证关闭）下密码注册仍把账号存为 pending
+// （含首个用户经 FirstUserInit 提升的管理员）。管理员开启邮箱验证后，组级
+// CheckWritableAccount（route4api.go adminApi 组）会拦截其后续全部管理请求
+// （含关闭开关的 save-security-settings 本身）——SaveSecuritySettings 必须在
+// EnableEmailVerification false→true 转换时先把存量 pending 管理端账号批量激活
+// （逐用户 userservice.SaveUser，即时刷新中间件读取的用户缓存），否则 SMTP 不可用
+// 或激活链接过期时管理员没有任何控制台路径可撤销开关。普通存量 pending 用户
+// 不在激活范围，仍需走激活邮件/resend 流程。
+func TestAdminSaveSecuritySettingsEnableVerificationBackfillsPendingAdmins(t *testing.T) {
+	const savePath = "/api/admin/save-security-settings"
+	const enableBody = `{"settings":{"enableSignup":true,"enableEmailVerification":true,"allowedDomains":[],"reservedUsernames":[],"bannedUsernames":[],"sensitiveWords":[],"sensitiveAction":"block","captchaRequired":false}}`
+
+	t.Run("enabling verification activates pending admins and keeps the acting admin writable", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		actor := createContractSiteManager(t, conn)
+		peer := createContractSiteManager(t, conn)
+		for _, user := range []*users.EntityComplete{actor, peer} {
+			if err := conn.Model(user).Update("is_activated", users.ActivationPending).Error; err != nil {
+				t.Fatalf("mark site manager %d pending: %v", user.Id, err)
+			}
+			user.IsActivated = users.ActivationPending
+		}
+		// 请求进入时缓存里仍是旧配置（关闭）→ 中间件放行，到达控制器。
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("save status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-agent-disable-success.json"))
+		// 两个 pending 管理端账号立即激活（DB 直读，不依赖缓存）。
+		for _, user := range []*users.EntityComplete{actor, peer} {
+			row, err := users.Get(user.Id)
+			if err != nil || row.IsActivated != users.ActivationSuccess {
+				t.Fatalf("user %d is_activated = %d, want activated after enable", user.Id, row.IsActivated)
+			}
+		}
+		// 执行者（曾 pending）的用户缓存已被 backfill 即时刷新：开关已开启，
+		// 仍可再次调用 save-security-settings（撤销开关的控制台路径未被锁死）。
+		followUp := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if followUp.Code != http.StatusOK {
+			t.Fatalf("follow-up save status = %d, want 200 (acting admin must not be locked out): %s", followUp.Code, followUp.Body.String())
+		}
+	})
+
+	t.Run("enabling verification leaves frozen pending admins frozen and pending", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		actor := createContractSiteManager(t, conn)
+		frozenPeer := createContractSiteManager(t, conn)
+		for _, user := range []*users.EntityComplete{actor, frozenPeer} {
+			if err := conn.Model(user).Update("is_activated", users.ActivationPending).Error; err != nil {
+				t.Fatalf("mark site manager %d pending: %v", user.Id, err)
+			}
+			user.IsActivated = users.ActivationPending
+		}
+		// 冻结管理员同样 pending：治理冻结优先于激活状态，backfill 不得解冻激活。
+		if err := conn.Model(frozenPeer).Update("is_frozen", users.StatusFrozen).Error; err != nil {
+			t.Fatalf("freeze site manager %d: %v", frozenPeer.Id, err)
+		}
+		frozenPeer.IsFrozen = users.StatusFrozen
+
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("save status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		// 执行者（未冻结）正常激活；冻结账号保持 pending + frozen。
+		row, err := users.Get(actor.Id)
+		if err != nil || row.IsActivated != users.ActivationSuccess {
+			t.Fatalf("actor %d is_activated = %d, want activated", actor.Id, row.IsActivated)
+		}
+		frozenRow, err := users.Get(frozenPeer.Id)
+		if err != nil || frozenRow.IsActivated != users.ActivationPending || frozenRow.IsFrozen != users.StatusFrozen {
+			t.Fatalf("frozen peer %d activated = %d, frozen = %d; want both untouched (governance freeze wins)",
+				frozenPeer.Id, frozenRow.IsActivated, frozenRow.IsFrozen)
+		}
+	})
+
+	t.Run("enabling verification leaves ordinary pending users pending", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		actor := createContractSiteManager(t, conn)
+		if err := conn.Model(actor).Update("is_activated", users.ActivationPending).Error; err != nil {
+			t.Fatalf("mark site manager %d pending: %v", actor.Id, err)
+		}
+		actor.IsActivated = users.ActivationPending
+		regular := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Model(regular).Update("is_activated", users.ActivationPending).Error; err != nil {
+			t.Fatalf("mark regular user %d pending: %v", regular.Id, err)
+		}
+		regular.IsActivated = users.ActivationPending
+
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("save status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		row, err := users.Get(regular.Id)
+		if err != nil || row.IsActivated != users.ActivationPending {
+			t.Fatalf("ordinary pending user %d is_activated = %d, want still pending", regular.Id, row.IsActivated)
+		}
+	})
+
+	t.Run("keeping verification disabled does not activate pending admins", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		actor := createContractSiteManager(t, conn)
+		peer := createContractSiteManager(t, conn)
+		for _, user := range []*users.EntityComplete{actor, peer} {
+			if err := conn.Model(user).Update("is_activated", users.ActivationPending).Error; err != nil {
+				t.Fatalf("mark site manager %d pending: %v", user.Id, err)
+			}
+			user.IsActivated = users.ActivationPending
+		}
+		disableBody := `{"settings":{"enableSignup":true,"enableEmailVerification":false,"allowedDomains":[],"reservedUsernames":[],"bannedUsernames":[],"sensitiveWords":[],"sensitiveAction":"block","captchaRequired":false}}`
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, savePath, disableBody, contractSessionToken(t, actor))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("save status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		row, err := users.Get(peer.Id)
+		if err != nil || row.IsActivated != users.ActivationPending {
+			t.Fatalf("pending admin %d is_activated = %d, want still pending when verification stays disabled", peer.Id, row.IsActivated)
+		}
+	})
+
+	t.Run("re-saving verification enabled does not re-trigger backfill", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		actor := createContractSiteManager(t, conn)
+		peer := createContractSiteManager(t, conn)
+		if err := conn.Model(peer).Update("is_activated", users.ActivationPending).Error; err != nil {
+			t.Fatalf("mark site manager %d pending: %v", peer.Id, err)
+		}
+		peer.IsActivated = users.ActivationPending
+		// false→true 转换触发一次 backfill。
+		first := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if first.Code != http.StatusOK {
+			t.Fatalf("first save status = %d, want 200: %s", first.Code, first.Body.String())
+		}
+		if row, err := users.Get(peer.Id); err != nil || row.IsActivated != users.ActivationSuccess {
+			t.Fatalf("peer %d is_activated = %d, want activated after false->true", peer.Id, row.IsActivated)
+		}
+		// 人为把 peer 重新置为 pending（模拟开关开启后新出现的 pending 管理账号：
+		// 走激活邮件流程），再次保存 true 属 true→true，不得再次 backfill。
+		if err := conn.Model(peer).Update("is_activated", users.ActivationPending).Error; err != nil {
+			t.Fatalf("mark site manager %d pending again: %v", peer.Id, err)
+		}
+		second := serveAuthSecurityJSON(router, http.MethodPost, savePath, enableBody, contractSessionToken(t, actor))
+		if second.Code != http.StatusOK {
+			t.Fatalf("second save status = %d, want 200: %s", second.Code, second.Body.String())
+		}
+		if row, err := users.Get(peer.Id); err != nil || row.IsActivated != users.ActivationPending {
+			t.Fatalf("peer %d is_activated = %d, want still pending on true->true (no re-backfill)", peer.Id, row.IsActivated)
+		}
+	})
+}
+
 func TestAdminGetPostingSettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/posting-settings"
 

@@ -75,6 +75,17 @@ setup:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: TOTP setup rate limit exceeded.
         headers:
@@ -135,6 +146,17 @@ enable:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: TOTP enable rate limit exceeded.
         headers:
@@ -192,6 +214,17 @@ disable:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: TOTP disable rate limit exceeded.
         headers:

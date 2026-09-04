@@ -6,7 +6,7 @@ import PasswordInput from '@/site/components/PasswordInput.vue'
 import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
-import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
+import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -226,8 +226,9 @@ function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback
 }
 
-function onToggleTheme(event: MouseEvent) {
-  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
+function onToggleTheme() {
+  // Toggle between light and dark (manual mode)
+  setThemePreference(isDark.value ? 'light' : 'dark')
 }
 </script>
 

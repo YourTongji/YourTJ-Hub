@@ -17,10 +17,17 @@ import (
 
 // Route-level CSRF matrix (issue #406). Unlike the middleware unit tests in
 // app/http/middleware, these exercise the production route assembly
-// (apiRoute): CSRFProtection is mounted exactly where production mounts it
-// (logout before the handler; login/forum/admin groups after JWTAuthCheck).
+// (apiRoute + fileServer): CSRFProtection is mounted before the stateful
+// authentication middleware (JWTAuthCheck) in every cookie-write group
+// (logout; login/forum/chat/admin/file), so a cross-site cookie POST is
+// rejected 403 without ever reaching JWTAuthCheck — no JWT refresh, no
+// user_sessions extension, no activity event (Codex review P2). Requests
+// without a session cookie pass through CSRF untouched and keep their
+// anonymous semantics (JWTAuthCheck still answers 401).
+//
 // The logout matrix below needs no database (an invalid session JWT never
-// reaches one); the chain-attachment and real-session tests bootstrap the
+// reaches one); the real-session chain-attachment tests in this file and the
+// DB-backed no-refresh proofs in csrf_order_contract_test.go bootstrap the
 // minimal table set (users, user statistics, user sessions) so JWTAuthCheck
 // can validate a minted session.
 
@@ -44,12 +51,13 @@ func csrfRouteRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	apiRoute(router)
+	fileServer(router)
 	return router
 }
 
-func csrfRoutePost(t *testing.T, router http.Handler, cookie, authorization, origin, referer string) *httptest.ResponseRecorder {
+func csrfRoutePost(t *testing.T, router http.Handler, path, cookie, authorization, origin, referer string) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, "http://forum.example.test/api/logout", strings.NewReader(`{}`))
+	request := httptest.NewRequest(http.MethodPost, "http://forum.example.test"+path, strings.NewReader(`{}`))
 	request.Header.Set("Content-Type", "application/json")
 	if cookie != "" {
 		request.AddCookie(&http.Cookie{Name: "access_token", Value: cookie})
@@ -83,8 +91,31 @@ func assertCsrfRouteRejected(t *testing.T, recorder *httptest.ResponseRecorder) 
 	if envelope.MessageCode != "auth.csrf.rejected" {
 		t.Fatalf("messageCode = %q, want auth.csrf.rejected", envelope.MessageCode)
 	}
+	// A rejection must never carry a session cookie: CSRF runs before
+	// JWTAuthCheck, so the near-expiry JWT is not rotated on rejected
+	// cross-site requests (Codex review P2).
 	if strings.Contains(recorder.Header().Get("Set-Cookie"), "access_token") {
-		t.Fatal("rejected request must not clear or set the session cookie")
+		t.Fatal("rejected request must not set or refresh the session cookie")
+	}
+	if recorder.Header().Get("New-Token") != "" {
+		t.Fatal("rejected request must not emit a refreshed New-Token header")
+	}
+}
+
+func assertCsrfRouteUnauthenticated(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 (body %s)", recorder.Code, recorder.Body.String())
+	}
+	var envelope struct {
+		Code        int    `json:"code"`
+		MessageCode string `json:"messageCode"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode 401 body %q: %v", recorder.Body.String(), err)
+	}
+	if envelope.MessageCode != "auth.required" {
+		t.Fatalf("messageCode = %q, want auth.required", envelope.MessageCode)
 	}
 }
 
@@ -95,21 +126,106 @@ func assertCsrfRouteAllowed(t *testing.T, recorder *httptest.ResponseRecorder) {
 	}
 }
 
+// csrfCookieWriteGroupRoutes are representative POST routes of the four
+// authentication-first write groups in route4api.go. After the #406 follow-up
+// every group mounts CSRFProtection before JWTAuthCheck.
+var csrfCookieWriteGroupRoutes = []struct {
+	name string
+	path string
+}{
+	{"loginApi", "/api/user/sessions/revoke-all"},
+	{"forumLoginApi", "/api/forum/notification/mark-all-read"},
+	{"chatApi", "/api/forum/chat/messages"},
+	{"adminApi", "/api/admin/traffic-overview"},
+}
+
+// TestCSRFCookieWriteGroupsRejectCrossSiteBeforeAuthentication proves the
+// CSRF gate runs before JWTAuthCheck in every auth-first write group: a
+// cookie POST from a foreign Origin is rejected 403 auth.csrf.rejected even
+// though the cookie holds an invalid JWT — had JWTAuthCheck run first it
+// would have answered 401 and the test would fail here.
+func TestCSRFCookieWriteGroupsRejectCrossSiteBeforeAuthentication(t *testing.T) {
+	router := csrfRouteRouter()
+	for _, group := range csrfCookieWriteGroupRoutes {
+		t.Run(group.name, func(t *testing.T) {
+			recorder := csrfRoutePost(t, router, group.path, "bogus-session-jwt", "", "http://evil.example.test", "")
+			assertCsrfRouteRejected(t, recorder)
+		})
+	}
+}
+
+// TestCSRFCookieWriteGroupsAnonymousPostStaysUnauthenticated pins the
+// anonymous regression after the CSRF-first reorder: a POST without a
+// session cookie passes the CSRF gate and JWTAuthCheck still answers 401.
+func TestCSRFCookieWriteGroupsAnonymousPostStaysUnauthenticated(t *testing.T) {
+	router := csrfRouteRouter()
+	for _, group := range csrfCookieWriteGroupRoutes {
+		t.Run(group.name, func(t *testing.T) {
+			recorder := csrfRoutePost(t, router, group.path, "", "", "", "")
+			assertCsrfRouteUnauthenticated(t, recorder)
+		})
+	}
+}
+
+// TestCSRFCookieWriteGroupsSameOriginReachesAuthentication ensures the CSRF
+// gate does not over-block: a same-origin cookie POST passes through to
+// JWTAuthCheck, which rejects the bogus JWT with 401 (not 403).
+func TestCSRFCookieWriteGroupsSameOriginReachesAuthentication(t *testing.T) {
+	router := csrfRouteRouter()
+	for _, group := range csrfCookieWriteGroupRoutes {
+		t.Run(group.name, func(t *testing.T) {
+			recorder := csrfRoutePost(t, router, group.path, "bogus-session-jwt", "", "http://forum.example.test", "")
+			assertCsrfRouteUnauthenticated(t, recorder)
+		})
+	}
+}
+
+// TestCSRFFileGroupRejectsCrossSiteBeforeAuthentication proves the file
+// group's CSRF-first mount behaviorally: a foreign-Origin cookie POST to
+// /file/img-upload is rejected 403 by CSRF, not 401 by the invalid-JWT auth
+// check (oierxjn should#1).
+func TestCSRFFileGroupRejectsCrossSiteBeforeAuthentication(t *testing.T) {
+	router := csrfRouteRouter()
+	recorder := csrfRoutePost(t, router, "/file/img-upload", "bogus-session-jwt", "", "http://evil.example.test", "")
+	assertCsrfRouteRejected(t, recorder)
+}
+
+func TestCSRFFileGroupSameOriginReachesAuthentication(t *testing.T) {
+	router := csrfRouteRouter()
+	recorder := csrfRoutePost(t, router, "/file/img-upload", "bogus-session-jwt", "", "http://forum.example.test", "")
+	assertCsrfRouteUnauthenticated(t, recorder)
+}
+
+func TestCSRFFileGroupAnonymousPostStaysUnauthenticated(t *testing.T) {
+	router := csrfRouteRouter()
+	recorder := csrfRoutePost(t, router, "/file/img-upload", "", "", "", "")
+	assertCsrfRouteUnauthenticated(t, recorder)
+}
+
+// TestCSRFProtectedForumWriteRouteRejectsCookiePostWithoutOrigin pins the
+// fail-closed branch on the real /api/forum chain: a cookie POST without
+// Origin or Referer is rejected 403 before authentication runs.
+func TestCSRFProtectedForumWriteRouteRejectsCookiePostWithoutOrigin(t *testing.T) {
+	router := csrfRouteRouter()
+	recorder := csrfRoutePost(t, router, "/api/forum/topics/write", "bogus-session-jwt", "", "", "")
+	assertCsrfRouteRejected(t, recorder)
+}
+
 func TestCSRFLogoutRejectsCookiePostWithoutOrigin(t *testing.T) {
 	router := csrfRouteRouter()
-	assertCsrfRouteRejected(t, csrfRoutePost(t, router, "session-jwt", "", "", ""))
+	assertCsrfRouteRejected(t, csrfRoutePost(t, router, "/api/logout", "session-jwt", "", "", ""))
 }
 
 func TestCSRFLogoutRejectsCrossSiteOrigin(t *testing.T) {
 	router := csrfRouteRouter()
-	assertCsrfRouteRejected(t, csrfRoutePost(t, router, "session-jwt", "", "http://evil.example.test", ""))
+	assertCsrfRouteRejected(t, csrfRoutePost(t, router, "/api/logout", "session-jwt", "", "http://evil.example.test", ""))
 }
 
 func TestCSRFLogoutAllowsSameOriginCookiePost(t *testing.T) {
 	router := csrfRouteRouter()
 	// Invalid JWT in the cookie: the CSRF gate passes (same origin), then
 	// logout clears the cookie and stays idempotent.
-	recorder := csrfRoutePost(t, router, "not-a-jwt", "", "http://forum.example.test", "")
+	recorder := csrfRoutePost(t, router, "/api/logout", "not-a-jwt", "", "http://forum.example.test", "")
 	assertCsrfRouteAllowed(t, recorder)
 	if !strings.Contains(recorder.Header().Get("Set-Cookie"), "access_token") {
 		t.Fatal("same-origin logout should still clear the access_token cookie")
@@ -118,7 +234,7 @@ func TestCSRFLogoutAllowsSameOriginCookiePost(t *testing.T) {
 
 func TestCSRFLogoutAllowsRefererFallbackForCookiePost(t *testing.T) {
 	router := csrfRouteRouter()
-	recorder := csrfRoutePost(t, router, "not-a-jwt", "", "", "http://forum.example.test/p/1")
+	recorder := csrfRoutePost(t, router, "/api/logout", "not-a-jwt", "", "", "http://forum.example.test/p/1")
 	assertCsrfRouteAllowed(t, recorder)
 }
 
@@ -126,7 +242,7 @@ func TestCSRFLogoutAllowsApiClientWithAuthorizationEvenWithForeignOrigin(t *test
 	router := csrfRouteRouter()
 	// Bearer API clients are exempt from the origin check even when a cookie
 	// is also present and the Origin is foreign.
-	recorder := csrfRoutePost(t, router, "session-jwt", "Bearer api-token", "http://evil.example.test", "")
+	recorder := csrfRoutePost(t, router, "/api/logout", "session-jwt", "Bearer api-token", "http://evil.example.test", "")
 	assertCsrfRouteAllowed(t, recorder)
 }
 
@@ -134,37 +250,16 @@ func TestCSRFLogoutAllowsAnonymousPostWithoutOrigin(t *testing.T) {
 	router := csrfRouteRouter()
 	// No access_token cookie -> nothing cookie-authenticated to protect;
 	// anonymous logout stays an idempotent success.
-	recorder := csrfRoutePost(t, router, "", "", "", "")
+	recorder := csrfRoutePost(t, router, "/api/logout", "", "", "", "")
 	assertCsrfRouteAllowed(t, recorder)
-}
-
-// TestCSRFProtectedForumWriteRoute rejects cookie POSTs without Origin on the
-// real /api/forum write chain (JWTAuthCheck + CSRFProtection + handler).
-func TestCSRFProtectedForumWriteRoute(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	// Reuse the full apiRoute assembly; only the middleware ordering matters
-	// here and the request is rejected before any DB access.
-	apiRoute(router)
-
-	request := httptest.NewRequest(http.MethodPost, "http://forum.example.test/api/forum/topics/write", strings.NewReader(`{}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.AddCookie(&http.Cookie{Name: "access_token", Value: "session-jwt"})
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	// JWTAuthCheck runs first and fails on the bogus JWT before CSRF runs, so
-	// an unauthenticated write stays a 401 (anonymous semantics preserved).
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401 (body %s)", recorder.Code, recorder.Body.String())
-	}
 }
 
 // TestCSRFProtectedWriteRoutesRegistered pins the registered paths of the
 // cookie-authenticated write surface (a registration smoke test only:
 // router.Routes() exposes method+path+final handler, not the middleware
-// chain). TestCSRFGroupChainsRejectCrossSiteSessionWrites below is what
-// proves the middleware is attached.
+// chain). The behavioral chain-order coverage lives in
+// TestCSRFGroupChainsRejectCrossSiteSessionWrites, the rejection/401 matrix
+// above, and csrf_order_contract_test.go (oierxjn should#1).
 func TestCSRFProtectedWriteRoutesRegistered(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

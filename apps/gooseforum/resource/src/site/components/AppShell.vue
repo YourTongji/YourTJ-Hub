@@ -14,32 +14,48 @@ import {
   Languages,
   LogOut,
   Menu,
+  Monitor,
+  Moon,
   Palette,
   PenSquare,
   Scale,
+  Sun,
   TrendingUp,
   Search,
   Settings,
   Shield,
-  Moon,
-  Sun,
   GraduationCap,
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
-import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
+import { useSiteTheme, setThemePreference, type ThemePreference } from '@/runtime/site-theme'
 import { safeUrl } from '@/runtime/safe-url'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
+import { useWikiSearchPanel } from '@/runtime/use-wiki-search'
 import type { LayoutPayload } from '@gooseforum/client'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import UserAvatar from './UserAvatar.vue'
 import type UserCardComponent from './UserCard.vue'
 import WikiSidebar from './WikiSidebar.vue'
 import WikiSearchPanel from './WikiSearchPanel.vue'
+import PublishMenu from './PublishMenu.vue'
+import QuickPublishModal from './QuickPublishModal.vue'
+
+import { useShellState } from '@/runtime/shell-state'
+
+const route = useRoute()
+const shellState = useShellState()
+const isPublishPage = computed(() => route?.path === '/publish' || route?.name === 'publish')
+const isTopicPage = computed(() => {
+  if (shellState.isTopicPage) return true
+  const path = route?.path || ''
+  return path.startsWith('/p/post') || path.startsWith('/topics') || path.startsWith('/p/topic')
+})
 
 const props = defineProps<{
   layout: LayoutPayload
@@ -75,16 +91,30 @@ const MobileDrawer = defineAsyncComponent(() => import('./MobileDrawer.vue'))
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
 const drawerOpen = ref(false)
 const headerElevated = ref(false)
+const themeMenuOpen = ref(false)
 const langMenuOpen = ref(false)
 const userMenuOpen = ref(false)
-const closeTimers: Record<'lang' | 'user', number | undefined> = {
+const closeTimers: Record<'theme' | 'lang' | 'user', number | undefined> = {
+  theme: undefined,
   lang: undefined,
   user: undefined,
 }
 const { navigating } = useNavigationState()
 const { t, te, locale } = useI18n()
-const { isDark } = useSiteTheme()
+const { isDark, preference } = useSiteTheme()
 const unreadStatus = useUnreadStatus()
+
+const themeOptions = computed(() => [
+  { value: 'auto' as const, label: t('shell.themeAuto'), icon: Monitor },
+  { value: 'light' as const, label: t('shell.themeLight'), icon: Sun },
+  { value: 'dark' as const, label: t('shell.themeDark'), icon: Moon },
+])
+
+function selectTheme(preference: ThemePreference) {
+  setThemePreference(preference)
+  themeMenuOpen.value = false
+}
+
 const hasUnreadNotification = computed(() => unreadStatus.notifications.value)
 const hasUnreadMessage = computed(() => unreadStatus.messages.value)
 const hasModerationReports = computed(() => unreadStatus.moderationReports.value)
@@ -93,6 +123,12 @@ const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value)
 const activeSidebarKey = computed(() => props.layout.sidebar.activeKey || 'topics')
 const isWikiMode = computed(() => props.layout.sidebar.mode === 'wiki')
 const wikiTree = computed(() => props.layout.sidebar.wikiTree || [])
+// wiki 局内搜索面板是全局单例（桌面侧栏胶囊 / 移动 header 按钮 / ⌘K、/ 快捷键共用）。
+// 面板打开时收起移动抽屉，避免面板关闭后用户仍停留在抽屉层。
+const { panelOpen: wikiSearchOpen, openPanel: openWikiSearch } = useWikiSearchPanel()
+watch(wikiSearchOpen, (open) => {
+  if (open) drawerOpen.value = false
+})
 
 // 浏览组（排序入口）：默认平铺在侧栏顶部，不加重重复述首页 tab 的分组感。
 const browseItems = computed<SidebarNavItem[]>(() => [
@@ -303,10 +339,6 @@ function serverSidebarItems(items: typeof props.layout.sidebar.main): SidebarNav
   }))
 }
 
-function onToggleTheme(event: MouseEvent) {
-  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
-}
-
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -315,17 +347,19 @@ function updateHeaderElevated() {
   headerElevated.value = window.scrollY > 8
 }
 
-function setHoverMenu(menu: 'lang' | 'user', open: boolean) {
+function setHoverMenu(menu: 'theme' | 'lang' | 'user', open: boolean) {
   window.clearTimeout(closeTimers[menu])
   closeTimers[menu] = undefined
-  if (menu === 'lang') langMenuOpen.value = open
+  if (menu === 'theme') themeMenuOpen.value = open
+  else if (menu === 'lang') langMenuOpen.value = open
   else userMenuOpen.value = open
 }
 
-function closeHoverMenuSoon(menu: 'lang' | 'user') {
+function closeHoverMenuSoon(menu: 'theme' | 'lang' | 'user') {
   window.clearTimeout(closeTimers[menu])
   closeTimers[menu] = window.setTimeout(() => {
-    if (menu === 'lang') langMenuOpen.value = false
+    if (menu === 'theme') themeMenuOpen.value = false
+    else if (menu === 'lang') langMenuOpen.value = false
     else userMenuOpen.value = false
   }, 120)
 }
@@ -498,14 +532,8 @@ async function loadUserCard() {
 
         <div class="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
           <template v-if="layout.viewer.isAuthenticated">
-            <!-- 发布 CTA：sm+ 常驻 navbar 文字按钮；<sm 由右下角 FAB 承担，不占 navbar 空间 -->
-            <a
-              href="/publish"
-              class="gf-button gf-button-lg gf-button-primary hidden shrink-0 whitespace-nowrap active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-flex"
-            >
-              <PenSquare class="h-4 w-4" />
-              {{ t('shell.publish') }}
-            </a>
+            <!-- 发布 CTA：sm+ 常驻 navbar 呼出菜单；<sm 由右下角 FAB 承担，不占 navbar 空间 -->
+            <PublishMenu variant="navbar" />
 
             <!-- 通知 / 私信：从头像菜单提升为直达图标按钮，44px 命中区 -->
             <a
@@ -536,7 +564,10 @@ async function loadUserCard() {
             </a>
           </template>
 
+          <!-- 搜索入口（<md）：wiki 模式打开局内搜索面板（与侧栏胶囊/⌘K 同一面板）；
+               论坛模式跳转全局搜索页。同一时点只呈现一个搜索入口，避免双搜索图标。 -->
           <a
+            v-if="!isWikiMode"
             href="/search"
             class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
             :aria-label="t('shell.search')"
@@ -544,17 +575,55 @@ async function loadUserCard() {
           >
             <Search class="h-5 w-5" />
           </a>
-
           <button
+            v-else
             type="button"
-            class="gf-icon-button hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-flex"
-            :aria-label="isDark ? t('auth.switchToLight') : t('auth.switchToDark')"
-            :title="isDark ? t('auth.switchToLight') : t('auth.switchToDark')"
-            @click="onToggleTheme"
+            class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
+            :aria-label="t('wikiSearch.openSearch')"
+            :title="t('wikiSearch.openSearch')"
+            @click="openWikiSearch"
           >
-            <Sun v-if="isDark" class="h-5 w-5" />
-            <Moon v-else class="h-5 w-5" />
+            <Search class="h-5 w-5" />
           </button>
+
+<div
+            class="relative hidden sm:block"
+            @mouseenter="setHoverMenu('theme', true)"
+            @mouseleave="closeHoverMenuSoon('theme')"
+            @focusin="setHoverMenu('theme', true)"
+            @focusout="closeHoverMenuSoon('theme')"
+          >
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
+              :aria-label="t('shell.switchTheme')"
+              :title="t('shell.switchTheme')"
+              :aria-expanded="themeMenuOpen"
+              @click="themeMenuOpen = !themeMenuOpen"
+            >
+              <component :is="themeOptions.find(opt => opt.value === preference)?.icon ?? Monitor" class="h-5 w-5" />
+            </button>
+            <Transition name="gf-menu">
+              <div
+                v-if="themeMenuOpen"
+                class="absolute right-0 top-full z-[70] w-36 pt-2"
+              >
+                <div class="gf-menu-surface overflow-hidden py-1">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                    :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                    type="button"
+                    @click="selectTheme(option.value)"
+                  >
+                    <component :is="option.icon" class="h-4 w-4" />
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
 
           <div
             class="relative hidden sm:block"
@@ -637,10 +706,22 @@ async function loadUserCard() {
                         <span class="min-w-0 flex-1">{{ t('shell.nav.messages') }}</span>
                         <span v-show="hasUnreadMessage" class="h-2 w-2 rounded-full bg-error" />
                       </a>
-                      <button class="gf-menu-item w-full text-left sm:hidden" type="button" @click="onToggleTheme">
-                        <component :is="isDark ? Sun : Moon" class="h-4 w-4 text-icon-muted" />
-                        <span>{{ isDark ? t('auth.switchToLight') : t('auth.switchToDark') }}</span>
-                      </button>
+                      <div class="sm:hidden">
+                        <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
+                          {{ t('shell.switchTheme') }}
+                        </div>
+                        <button
+                          v-for="option in themeOptions"
+                          :key="option.value"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                          :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                          type="button"
+                          @click="selectTheme(option.value)"
+                        >
+                          <component :is="option.icon" class="h-4 w-4" />
+                          <span>{{ option.label }}</span>
+                        </button>
+                      </div>
                       <div class="sm:hidden">
                         <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
                           {{ t('shell.switchLanguage') }}
@@ -838,16 +919,11 @@ async function loadUserCard() {
 
     <component :is="UserCard" v-if="UserCard" />
     <WikiSearchPanel v-if="isWikiMode" />
+    <QuickPublishModal v-if="layout.viewer.isAuthenticated" :layout="layout" />
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
-         56px 直径（拇指可达），hover/active 有 scale 反馈，层级低于抽屉 z-[60]。 -->
-    <a
-      v-if="layout.viewer.isAuthenticated"
-      href="/publish"
-      class="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-content shadow-lg transition-[transform,box-shadow] duration-150 hover:scale-105 hover:shadow-xl active:scale-[0.94] motion-reduce:transition-none motion-reduce:hover:scale-100 sm:hidden"
-      :aria-label="t('shell.publish')"
-    >
-      <PenSquare class="h-6 w-6" />
-    </a>
+         56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。
+         若已在 /publish 发布页面或 /p/post 等帖子详情页，则主动隐去，避免遮挡内容和互动控件。 -->
+    <PublishMenu v-if="layout.viewer.isAuthenticated && !isPublishPage && !isTopicPage" variant="fab" />
   </div>
 </template>
