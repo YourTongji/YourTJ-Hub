@@ -65,7 +65,7 @@ function onOpenChange(nextOpen: boolean) {
 
 function handleItemClick(event: MouseEvent, item: PublishOption) {
   open.value = false
-  // 非文章类型（提问、想法、讨论）直接弹出弹层发布；保留 Cmd/Ctrl/新标签页快捷操作
+  // 非文章类型（瞬间、提问）直接弹出弹层发布；文章跳转发布页；保留 Cmd/Ctrl/新标签页快捷操作
   if (item.type !== 3) {
     if (!event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) {
       event.preventDefault()

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, X, ZoomIn } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
+import { decideHorizontalSwipe, SLIDE_SWIPE_THRESHOLD_PX } from '@/runtime/image-gestures'
 
+const { t } = useI18n()
 const props = defineProps<{
   images: string[]
   title?: string
@@ -77,18 +80,9 @@ function handleTouchStart(e: TouchEvent) {
 
 function handleTouchEnd(e: TouchEvent) {
   if (!e.changedTouches[0]) return
-  const deltaX = e.changedTouches[0].clientX - touchStartX
-  const deltaY = e.changedTouches[0].clientY - touchStartY
-  const deltaTime = Date.now() - touchStartTime
-
-  // 判定为水平滑动（横向位移显著大于纵向位移，且距离超过 36px，时间小于 450ms）
-  if (Math.abs(deltaX) > 36 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4 && deltaTime < 450) {
-    if (deltaX < 0) {
-      nextSlide()
-    } else {
-      prevSlide()
-    }
-  }
+  const direction = decideHorizontalSwipe(touchStartX, touchStartY, touchStartTime, e.changedTouches[0], SLIDE_SWIPE_THRESHOLD_PX)
+  if (direction === 'left') nextSlide()
+  if (direction === 'right') prevSlide()
 }
 
 function handleLightboxTouchStart(e: TouchEvent) {
@@ -100,17 +94,9 @@ function handleLightboxTouchStart(e: TouchEvent) {
 
 function handleLightboxTouchEnd(e: TouchEvent) {
   if (isZoomed.value || !e.changedTouches[0]) return
-  const deltaX = e.changedTouches[0].clientX - touchStartX
-  const deltaY = e.changedTouches[0].clientY - touchStartY
-  const deltaTime = Date.now() - touchStartTime
-
-  if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4 && deltaTime < 450) {
-    if (deltaX < 0) {
-      nextLightbox()
-    } else {
-      prevLightbox()
-    }
-  }
+  const direction = decideHorizontalSwipe(touchStartX, touchStartY, touchStartTime, e.changedTouches[0])
+  if (direction === 'left') nextLightbox()
+  if (direction === 'right') prevLightbox()
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -192,7 +178,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="absolute top-3 left-3 z-20 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/40 text-white/90 backdrop-blur-md hover:bg-black/65 hover:text-white active:scale-95 transition-all shadow-xs cursor-pointer"
-        aria-label="Zoom in"
+        :aria-label="t('publish.gallery.zoomIn')"
         @click.stop="openLightbox(currentIndex)"
       >
         <ZoomIn class="h-4 w-4 sm:h-4.5 sm:w-4.5" />
@@ -206,24 +192,24 @@ onBeforeUnmount(() => {
         {{ currentIndex + 1 }}/{{ images.length }}
       </div>
 
-      <!-- 左翻页箭头按钮（多图时渲染，首张禁用） -->
       <button
         v-if="images.length > 1"
         type="button"
         class="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/40 text-white/90 backdrop-blur-md hover:bg-black/65 hover:text-white active:scale-90 transition-all opacity-80 sm:opacity-0 sm:group-hover:opacity-100 disabled:opacity-0 disabled:pointer-events-none shadow-sm cursor-pointer"
-        aria-label="Previous image"
+        :aria-label="t('common.previousPage')"
+        :title="t('common.previousPage')"
         :disabled="currentIndex === 0"
         @click.stop="prevSlide"
       >
         <ChevronLeft class="h-5 w-5" />
       </button>
 
-      <!-- 右翻页箭头按钮（多图时渲染，末张禁用） -->
       <button
         v-if="images.length > 1"
         type="button"
         class="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-black/40 text-white/90 backdrop-blur-md hover:bg-black/65 hover:text-white active:scale-90 transition-all opacity-80 sm:opacity-0 sm:group-hover:opacity-100 disabled:opacity-0 disabled:pointer-events-none shadow-sm cursor-pointer"
-        aria-label="Next image"
+        :aria-label="t('common.nextPage')"
+        :title="t('common.nextPage')"
         :disabled="currentIndex === images.length - 1"
         @click.stop="nextSlide"
       >
@@ -239,7 +225,7 @@ onBeforeUnmount(() => {
             type="button"
             class="h-1.5 rounded-full transition-all duration-200 cursor-pointer"
             :class="idx === currentIndex ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/40 hover:bg-white/70'"
-            :aria-label="`Go to image ${idx + 1}`"
+            :aria-label="t('publish.gallery.goToImage', { index: idx + 1 })"
             @click.stop="goToSlide(idx)"
           />
         </div>
@@ -269,11 +255,11 @@ onBeforeUnmount(() => {
               {{ lightboxIndex + 1 }} / {{ images.length }}
             </div>
 
-            <!-- 关闭按钮 -->
             <button
               type="button"
               class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer"
-              aria-label="Close lightbox"
+              :aria-label="t('common.close')"
+              :title="t('common.close')"
               @click="closeLightbox"
             >
               <X class="h-5 w-5" />
@@ -294,12 +280,12 @@ onBeforeUnmount(() => {
               @click.stop="toggleZoom"
             />
 
-            <!-- Lightbox 左右导航箭头 -->
             <button
               v-if="images.length > 1 && lightboxIndex > 0"
               type="button"
               class="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-black/50 text-white/90 hover:bg-black/75 hover:text-white active:scale-90 transition-all shadow-md cursor-pointer"
-              aria-label="Previous image"
+              :aria-label="t('common.previousPage')"
+              :title="t('common.previousPage')"
               @click.stop="prevLightbox"
             >
               <ChevronLeft class="h-6 w-6 sm:h-7 sm:w-7" />
@@ -308,7 +294,8 @@ onBeforeUnmount(() => {
               v-if="images.length > 1 && lightboxIndex < images.length - 1"
               type="button"
               class="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-black/50 text-white/90 hover:bg-black/75 hover:text-white active:scale-90 transition-all shadow-md cursor-pointer"
-              aria-label="Next image"
+              :aria-label="t('common.nextPage')"
+              :title="t('common.nextPage')"
               @click.stop="nextLightbox"
             >
               <ChevronRight class="h-6 w-6 sm:h-7 sm:w-7" />
@@ -326,9 +313,10 @@ onBeforeUnmount(() => {
               type="button"
               class="h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-150 cursor-pointer"
               :class="idx === lightboxIndex ? 'border-primary scale-105' : 'border-transparent opacity-50 hover:opacity-80'"
+              :aria-label="t('publish.gallery.goToImage', { index: idx + 1 })"
               @click="lightboxIndex = idx"
             >
-              <img :src="img" class="h-full w-full object-cover" />
+              <img :src="img" :alt="t('publish.gallery.goToImage', { index: idx + 1 })" loading="lazy" decoding="async" class="h-full w-full object-cover" />
             </button>
           </div>
         </div>

@@ -804,6 +804,8 @@ let labelsLatched = false // #7：一旦隐藏即永久锁存（直到模块重�
 const HUB_NO_FOLD_TYPES = new Set(['emoji', 'headings', 'edit-mode'])
 let foldObserver: ResizeObserver | null = null
 let foldRaf = 0
+let toolbarPanelResizeHandler: (() => void) | null = null
+let toolbarPanelClampRaf = 0
 let toolbarEl: HTMLElement | null = null
 let moreWrapper: HTMLElement | null = null
 let hintPanel: HTMLElement | null = null
@@ -1276,7 +1278,9 @@ function initToolbarPanelPositionCorrection(v: Vditor) {
   }
 
   const runClamp = () => {
-    requestAnimationFrame(() => {
+    if (toolbarPanelClampRaf) return
+    toolbarPanelClampRaf = requestAnimationFrame(() => {
+      toolbarPanelClampRaf = 0
       const activePanels = toolbarEl.querySelectorAll<HTMLElement>('.vditor-panel, .vditor-hint')
       for (const p of activePanels) {
         clampPanelHorizontal(p)
@@ -1289,7 +1293,9 @@ function initToolbarPanelPositionCorrection(v: Vditor) {
     setTimeout(runClamp, 60)
   }, { passive: true })
 
-  window.addEventListener('resize', runClamp, { passive: true })
+  // 模块级保存绑定引用：卸载时据此移除，防止每个编辑器实例泄漏一个 window 监听
+  toolbarPanelResizeHandler = runClamp
+  window.addEventListener('resize', toolbarPanelResizeHandler, { passive: true })
 }
 
 onMounted(async () => {
@@ -1445,6 +1451,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', syncToolbarLeftPadding)
   if (foldRaf) cancelAnimationFrame(foldRaf)
   foldRaf = 0
+  // 工具栏面板横向避让清理：移除 window resize 监听并取消在途 rAF，
+  // 该监听持有 vditor DOM 闭包，不释放会导致每次编辑器实例泄漏监听器与 DOM
+  if (toolbarPanelResizeHandler) {
+    window.removeEventListener('resize', toolbarPanelResizeHandler)
+    toolbarPanelResizeHandler = null
+  }
+  if (toolbarPanelClampRaf) cancelAnimationFrame(toolbarPanelClampRaf)
+  toolbarPanelClampRaf = 0
   toolbarEl = moreWrapper = hintPanel = foldRegion = null
   mainRowSequence = []
   const currentEditor = editor

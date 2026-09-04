@@ -30,6 +30,9 @@ interface UploadedImageItem {
   uploading?: boolean
 }
 
+const MAX_IMAGE_COUNT = 9
+const UPLOAD_CONCURRENCY = 3
+
 const props = defineProps<{
   layout: LayoutPayload
 }>()
@@ -186,43 +189,58 @@ function moveImage(index: number, direction: 'left' | 'right') {
 
 async function uploadImageFiles(files: File[]) {
   if (!files.length || uploading.value) return
+  // 数量上限：在选择/粘贴入口统一提前拦截，未达上限时仅处理可容纳的张数
+  const remainingSlots = Math.max(0, MAX_IMAGE_COUNT - uploadedImages.value.length)
+  const accepted = remainingSlots > 0 ? files.slice(0, remainingSlots) : []
   uploading.value = true
-  uploadTotal.value = files.length
+  uploadTotal.value = accepted.length
   uploadDone.value = 0
   errorMessage.value = ''
+  if (accepted.length < files.length) {
+    errorMessage.value = t('publish.modal.maxImageCount', { count: MAX_IMAGE_COUNT })
+  }
 
   try {
-    for (const file of files) {
-      const validation = validateImageFile(file)
-      if (validation) {
-        errorMessage.value = `${file.name}: ${validation}`
-        continue
-      }
-      const tempId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-      uploadedImages.value.push({
-        id: tempId,
-        url: '',
-        alt: imageAlt(file.name),
-        uploading: true,
-      })
-
-      try {
-        const processed = await processImageFile(file)
-        const url = await uploadImage(processed.file)
-        const item = uploadedImages.value.find((i) => i.id === tempId)
-        if (item) {
-          item.url = url
-          item.uploading = false
+    // 有界并发上传（默认 3 张在途）：按入参顺序抢占游标，失败即中止后续调度，
+    // 成功项按占位入列顺序落位，最终图片列表顺序与选择顺序一致
+    let cursor = 0
+    let failed = false
+    const worker = async () => {
+      while (!failed && cursor < accepted.length) {
+        const file = accepted[cursor++]
+        const validation = validateImageFile(file)
+        if (validation) {
+          errorMessage.value = `${file.name}: ${validation}`
+          continue
         }
-        // 发瞬间图片作为顶部媒体独立管理，不必插入正文
-        uploadDone.value += 1
-      } catch (err) {
-        uploadedImages.value = uploadedImages.value.filter((i) => i.id !== tempId)
-        throw err
+        const tempId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+        uploadedImages.value.push({
+          id: tempId,
+          url: '',
+          alt: imageAlt(file.name),
+          uploading: true,
+        })
+
+        try {
+          const processed = await processImageFile(file)
+          const url = await uploadImage(processed.file)
+          const item = uploadedImages.value.find((i) => i.id === tempId)
+          if (item) {
+            item.url = url
+            item.uploading = false
+          }
+          // 发瞬间图片作为顶部媒体独立管理，不必插入正文
+          uploadDone.value += 1
+        } catch (err) {
+          failed = true
+          uploadedImages.value = uploadedImages.value.filter((i) => i.id !== tempId)
+          errorMessage.value = err instanceof Error ? err.message : t('api.imageUploadFailed')
+        }
       }
     }
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : t('api.imageUploadFailed')
+
+    const runnerCount = Math.min(UPLOAD_CONCURRENCY, accepted.length)
+    await Promise.all(Array.from({ length: runnerCount }, () => worker()))
   } finally {
     uploading.value = false
     uploadTotal.value = 0
@@ -241,12 +259,12 @@ async function handleSubmit() {
   let finalTitle = title.value.trim()
   if (quickPublishType.value === 2 && !finalTitle) {
     const cleanContent = content.value.replace(/[#*`~>[\]()\n]/g, ' ').trim()
-    finalTitle = cleanContent.slice(0, 30) || (uploadedImages.value.length > 0 ? '瞬间分享' : t('publish.contentTypesAction.thought'))
+    finalTitle = cleanContent.slice(0, 30) || (uploadedImages.value.length > 0 ? t('publish.modal.imageOnlyTitle') : t('publish.contentTypesAction.thought'))
   }
 
   let finalContent = content.value.trim()
   if (quickPublishType.value === 2 && !finalContent && uploadedImages.value.length > 0) {
-    finalContent = '分享瞬间'
+    finalContent = t('publish.modal.imageOnlyContent')
   }
 
   if (!finalTitle || !finalContent || categoryIds.value.length === 0) {
@@ -378,7 +396,8 @@ async function handleSubmit() {
                       v-if="idx > 0"
                       type="button"
                       class="flex h-5.5 w-5.5 items-center justify-center rounded-md bg-black/75 backdrop-blur-xs text-white hover:bg-black active:scale-90 transition-all cursor-pointer shadow-xs"
-                      title="向左移动"
+                      :title="t('publish.modal.moveImageLeft')"
+                      :aria-label="t('publish.modal.moveImageLeft')"
                       @click.stop="moveImage(idx, 'left')"
                     >
                       <ChevronLeft class="h-4 w-4" />
@@ -387,7 +406,8 @@ async function handleSubmit() {
                       v-if="idx < uploadedImages.length - 1"
                       type="button"
                       class="flex h-5.5 w-5.5 items-center justify-center rounded-md bg-black/75 backdrop-blur-xs text-white hover:bg-black active:scale-90 transition-all cursor-pointer shadow-xs"
-                      title="向右移动"
+                      :title="t('publish.modal.moveImageRight')"
+                      :aria-label="t('publish.modal.moveImageRight')"
                       @click.stop="moveImage(idx, 'right')"
                     >
                       <ChevronRight class="h-4 w-4" />
@@ -424,7 +444,7 @@ async function handleSubmit() {
             <!-- 空图片提示 -->
             <div v-if="uploadedImages.length === 0" class="flex flex-col justify-center pl-1 text-xs select-none">
               <span class="font-medium text-base-content/65">{{ t('publish.modal.uploadTip') }}</span>
-              <span class="text-[11px] text-base-content/40">支持相册、多图拖拽与粘贴</span>
+              <span class="text-[11px] text-base-content/40">{{ t('publish.modal.uploadTipDetail') }}</span>
             </div>
 
             <!-- 隐藏的通用文件上传控件 -->

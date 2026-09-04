@@ -54,6 +54,7 @@ describe('QuickPublishModal 组件', () => {
   })
 
   test('图片列表渲染 1, 2... 次序徽章并支持左右移动调整顺序', async () => {
+    i18n.global.locale.value = 'zh'
     const { openQuickPublish, closeQuickPublish } = useQuickPublish()
     openQuickPublish(2) // 瞬间类型
 
@@ -79,7 +80,7 @@ describe('QuickPublishModal 组件', () => {
     expect(badgeTexts).toContain('2')
 
     // 验证向右移动第一张图片
-    const moveRightBtn = document.body.querySelector('button[title="向右移动"]') as HTMLButtonElement | null
+    const moveRightBtn = document.body.querySelector(`button[title="${i18n.global.t('publish.modal.moveImageRight')}"]`) as HTMLButtonElement | null
     expect(moveRightBtn).not.toBeNull()
     moveRightBtn?.click()
     await flushPromises()

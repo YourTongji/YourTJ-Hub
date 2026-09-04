@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { decideHorizontalSwipe } from '@/runtime/image-gestures'
 
 export interface MarkdownPreviewImage {
   src: string
@@ -101,17 +102,9 @@ function handleTouchStart(e: TouchEvent) {
 
 function handleTouchEnd(e: TouchEvent) {
   if (isZoomed.value || !e.changedTouches[0]) return
-  const deltaX = e.changedTouches[0].clientX - touchStartX
-  const deltaY = e.changedTouches[0].clientY - touchStartY
-  const deltaTime = Date.now() - touchStartTime
-
-  if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4 && deltaTime < 450) {
-    if (deltaX < 0) {
-      showNext()
-    } else {
-      showPrevious()
-    }
-  }
+  const direction = decideHorizontalSwipe(touchStartX, touchStartY, touchStartTime, e.changedTouches[0])
+  if (direction === 'left') showNext()
+  if (direction === 'right') showPrevious()
 }
 
 function lockBodyScroll() {
@@ -250,7 +243,7 @@ defineExpose({
             :class="idx === currentIndex ? 'border-primary scale-105 shadow-md' : 'border-transparent opacity-50 hover:opacity-80'"
             @click.stop="goToImage(idx)"
           >
-            <img :src="img.src" :alt="img.alt" class="h-full w-full object-cover" />
+            <img :src="img.src" :alt="img.alt" loading="lazy" decoding="async" class="h-full w-full object-cover" />
           </button>
         </div>
       </div>
