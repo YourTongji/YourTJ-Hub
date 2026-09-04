@@ -200,7 +200,10 @@ before the stateful authentication middleware — never in the global chain):
   (`csrfRejected` example) in its OpenAPI operation contract under `paths/`, with one shared
   response shape: `ApiFailure` envelope, session cookie left untouched. Consumers handle it per
   operation as documented; an operation that declares `accessTokenCookie` in its security but
-  lacks the 403 is a contract omission.
+  lacks the 403 is a contract omission. The sole exception is `verifyTotp`
+  (`paths/auth-security.yaml`): it authenticates a short-lived `totp_challenge` token through
+  `TOTPChallengeAuth`, not the session chain, so the CSRF gate is not mounted and no 403 is
+  declared (see the login-flow rationale above).
 
 Rationale for Origin checking instead of a double-submit CSRF token: both web frontends run on
 modern browsers that send `Origin` on every state-changing request, and the host-only +
