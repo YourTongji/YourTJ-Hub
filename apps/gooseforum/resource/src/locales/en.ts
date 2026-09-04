@@ -233,6 +233,7 @@ export default {
     newNotification: 'New notification',
     followDescription: '{actor} followed you',
     badgeEarned: 'Earned the "{badge}" badge',
+    badgeGeneric: 'You earned a new badge',
     viewProfile: 'View profile',
     templates: {
       comment: 'commented on your topic',
@@ -1310,6 +1311,8 @@ export default {
       activationEmailSent: 'Verification email sent. Please check your inbox.',
       passwordChanged: 'Password changed',
       privacySaved: 'Privacy preferences saved',
+      browserNotificationsEnabled: 'Browser notifications enabled',
+      browserNotificationsDisabled: 'Browser notifications disabled',
       bindingDisconnected: 'Account binding disconnected',
       sessionRevoked: 'Session revoked',
       sessionsRevokedAll: 'Signed out of all devices',
@@ -1458,6 +1461,10 @@ export default {
       webPushDisabled: 'Push notifications disabled',
       webPushEnableFailed: 'Failed to enable push notifications',
       webPushDisableFailed: 'Failed to disable push notifications',
+      browserNotifications: 'Browser notifications',
+      browserNotificationsDescription: 'Show system notifications for new replies, follows, or badges while the page is in the background.',
+      browserNotificationsPermissionDenied: 'Notification permission was denied. Re-enable it from the browser address bar.',
+      browserNotificationsUnsupported: 'System notifications are not supported in this browser.',
     },
     binding: {
       title: 'Account bindings',

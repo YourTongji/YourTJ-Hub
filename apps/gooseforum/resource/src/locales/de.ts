@@ -233,6 +233,7 @@ export default {
     newNotification: 'Neue Benachrichtigung',
     followDescription: '{actor} folgt dir jetzt',
     badgeEarned: 'Du hast das Abzeichen "{badge}" erhalten',
+    badgeGeneric: 'Du hast ein neues Abzeichen erhalten',
     viewProfile: 'Profil anzeigen',
     templates: {
       comment: 'hat dein Thema kommentiert',
@@ -1337,6 +1338,8 @@ export default {
       activationEmailSent: 'Bestätigungs-E-Mail gesendet. Prüfe deinen Posteingang.',
       passwordChanged: 'Passwort geändert',
       privacySaved: 'Datenschutzeinstellungen gespeichert',
+      browserNotificationsEnabled: 'Browser-Benachrichtigungen aktiviert',
+      browserNotificationsDisabled: 'Browser-Benachrichtigungen deaktiviert',
       bindingDisconnected: 'Kontoverknüpfung entfernt',
       sessionRevoked: 'Sitzung widerrufen',
       sessionsRevokedAll: 'Auf allen Geräten abgemeldet',
@@ -1485,6 +1488,10 @@ export default {
       webPushDisabled: 'Push-Benachrichtigungen deaktiviert',
       webPushEnableFailed: 'Push-Benachrichtigungen konnten nicht aktiviert werden',
       webPushDisableFailed: 'Push-Benachrichtigungen konnten nicht deaktiviert werden',
+      browserNotifications: 'Browser-Benachrichtigungen',
+      browserNotificationsDescription: 'Zeige Systembenachrichtigungen für neue Antworten, Follower oder Abzeichen, wenn die Seite im Hintergrund geöffnet ist.',
+      browserNotificationsPermissionDenied: 'Die Berechtigung für Benachrichtigungen wurde verweigert. Erteile sie erneut über die Adressleiste des Browsers.',
+      browserNotificationsUnsupported: 'Dieser Browser unterstützt keine Systembenachrichtigungen.',
     },
     binding: {
       title: 'Kontoverknüpfungen',
