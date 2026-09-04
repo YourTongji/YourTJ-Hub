@@ -887,6 +887,7 @@ async function loadUserCard() {
                   :href="category.url"
                   class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
                   :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+                  :aria-current="category.active ? 'page' : undefined"
                 >
                   <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
                   <span class="truncate">{{ category.label }}</span>

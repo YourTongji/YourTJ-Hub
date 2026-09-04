@@ -7,7 +7,7 @@ import {
   BookOpen,
   CalendarRange,
   Eye,
-  EyeOff,
+  GraduationCap,
   FileText,
   Flame,
   Heart,
@@ -82,7 +82,9 @@ const previewTabs = [
 ]
 
 // 固定侧栏主列表：与前台 AppShell primaryItems 对齐的无编辑项提示
-// （私信/通知已上移 navbar，不进侧栏）。
+// （浏览/功能/个人固定项；私信/通知已上移 navbar，不进侧栏）。
+// 自定义主菜单项（config.mainMenu）渲染在其后——与 AppShell
+// personalItems（drafts + 服务端 main 项）→ adminItems 的顺序一致。
 const fixedMainItems = [
   { key: 'topics', labelKey: 'shell.nav.topics', icon: MessageCircle, active: true },
   { key: 'hot', labelKey: 'shell.nav.hot', icon: Flame },
@@ -91,7 +93,14 @@ const fixedMainItems = [
   { key: 'schedule', labelKey: 'shell.nav.schedule', icon: CalendarRange },
   { key: 'wiki', labelKey: 'shell.nav.wiki', icon: Library },
   { key: 'drafts', labelKey: 'shell.nav.drafts', icon: FileText },
+]
+
+// 管理项固定预览：紧随自定义主菜单项之后，与 AppShell adminItems 对应
+//（moderation 依权限可见；courseReviews/courseManage 需 CourseManager 权限）。
+const fixedAdminItems = [
   { key: 'moderation', labelKey: 'shell.nav.moderation', icon: Scale },
+  { key: 'courseReviews', labelKey: 'shell.nav.courseReviews', icon: GraduationCap },
+  { key: 'courseManage', labelKey: 'shell.nav.courseManage', icon: BookOpen },
 ]
 const fixedResourceItems = [
   { key: 'links', labelKey: 'shell.nav.links', icon: LinkIcon },
@@ -516,6 +525,15 @@ onMounted(load)
                   </Button>
                 </template>
               </Draggable>
+              <div
+                v-for="item in fixedAdminItems"
+                :key="item.key"
+                class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150"
+                :title="adminText('k00df')"
+              >
+                <component :is="item.icon" class="h-4 w-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">{{ t(item.labelKey) }}</span>
+              </div>
             </div>
 
             <div class="mt-2">

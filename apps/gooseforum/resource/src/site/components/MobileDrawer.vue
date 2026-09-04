@@ -187,6 +187,8 @@ onBeforeUnmount(() => {
                 :href="category.url"
                 class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
                 :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+                :aria-current="category.active ? 'page' : undefined"
+                @click="close"
               >
                 <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
                 <span class="min-w-0 flex-1 truncate">{{ category.label }}</span>
