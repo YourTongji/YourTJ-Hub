@@ -250,6 +250,17 @@ bookmarkCourse:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '404':
         description: Course does not exist or is hidden.
         content:
