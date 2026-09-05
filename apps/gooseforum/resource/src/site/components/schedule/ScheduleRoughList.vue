@@ -6,11 +6,11 @@
 import { computed, ref } from 'vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
-import { BookOpen, Save, Search } from '@lucide/vue'
+import { BookOpen, Save, Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { deriveConflicts } from '@/site/utils/pkConflict'
-import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { COURSE_STATUS, useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -75,6 +75,15 @@ function dropCourse(course: PkStagedCourse) {
   pendingDrop.value = course
 }
 
+function clearCourseClass(course: PkStagedCourse) {
+  if (course.status === COURSE_STATUS.UNSELECTED) {
+    store.popStagedCourse(course.courseCode)
+  } else {
+    store.clearStagedCourseClass(course.courseCode)
+  }
+  store.solidify()
+}
+
 function confirmDrop() {
   if (!pendingDrop.value) return
   store.popStagedCourse(pendingDrop.value.courseCode)
@@ -131,54 +140,118 @@ function teacherSummary(course: PkStagedCourse): string {
 
 <template>
   <div class="flex min-h-0 flex-col gap-3">
-    <div class="flex flex-wrap items-center gap-2">
-      <div class="relative min-w-0 flex-1">
-        <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-base-content/40" />
+    <!-- 顶部操作区：两行解耦，彻底避免 352px 侧栏内搜索框被挤压至 108px 导致占位文本截断 -->
+    <div class="flex flex-col gap-2">
+      <!-- 行 1：全宽搜索栏 + 左侧 Search 图标 + 右侧一键清空 X 按钮 -->
+      <div class="relative w-full">
+        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
         <input
           v-model="keyword"
           type="search"
-          class="gf-input gf-input-md w-full pl-8"
+          class="gf-input gf-input-md w-full pl-9 pr-8 rounded-xl transition-all"
           :placeholder="t('schedule.listSearchPlaceholder')"
           :aria-label="t('schedule.listSearchPlaceholder')"
         />
+        <button
+          v-if="keyword"
+          type="button"
+          class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-base-content/40 hover:text-base-content hover:bg-base-200 focus-visible:outline-none transition-colors"
+          :title="t('schedule.clearSearch')"
+          :aria-label="t('schedule.clearSearch')"
+          @click="keyword = ''"
+        >
+          <X class="h-3.5 w-3.5" />
+        </button>
       </div>
-      <button type="button" class="gf-button gf-button-md gf-button-primary" @click="emit('openPicker')">
-        {{ t('schedule.openPicker') }}
-      </button>
-      <button type="button" class="gf-button gf-button-md gf-button-outline" @click="saveTimetable">
-        <Save class="h-4 w-4" />
-        {{ t('schedule.saveTimetable') }}
+
+      <!-- 行 2：主副动作分级排布（主动作「选择课程」占据主体比例，辅助动作「保存课表」作为紧凑工具按钮），视觉重心平稳自洽 -->
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="gf-button gf-button-primary flex-1 h-10 justify-center gap-2 rounded-xl text-sm font-semibold shadow-xs transition-transform active:scale-[0.96]"
+          @click="emit('openPicker')"
+        >
+          <BookOpen class="h-4 w-4" />
+          <span>{{ t('schedule.openPicker') }}</span>
+        </button>
+        <button
+          type="button"
+          class="gf-button gf-button-secondary shrink-0 h-10 justify-center gap-1.5 rounded-xl border border-line/80 bg-base-100 px-3.5 text-sm font-medium text-base-content/80 shadow-xs transition-all hover:bg-base-200 hover:text-base-content active:scale-[0.96]"
+          :title="t('schedule.saveTimetable')"
+          @click="saveTimetable"
+        >
+          <Save class="h-4 w-4 text-base-content/60" />
+          <span>{{ t('schedule.saveTimetable') }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 搜索结果计数反馈栏 -->
+    <div
+      v-if="keyword.trim()"
+      class="flex items-center justify-between px-1 text-xs text-base-content/60"
+    >
+      <span>{{ t('schedule.searchResultsCount', { count: filteredCourses.length }) }}</span>
+      <button
+        type="button"
+        class="text-xs text-primary hover:underline"
+        @click="keyword = ''"
+      >
+        {{ t('schedule.clearSearch') }}
       </button>
     </div>
 
     <EmptyState
       v-if="!store.state.commonLists.stagedCourses.length"
-      class="gf-panel flex-1"
+      class="gf-panel rounded-2xl border border-line/70 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex-1 p-6"
       :icon="BookOpen"
-      :title="t('schedule.emptyStaged')"
-    />
+      :title="t('schedule.emptyStagedTitle')"
+      :description="t('schedule.emptyStagedHint')"
+    >
+      <button
+        type="button"
+        class="gf-button gf-button-sm gf-button-primary mt-1 shadow-sm transition-transform active:scale-[0.96]"
+        @click="emit('openPicker')"
+      >
+        <BookOpen class="h-3.5 w-3.5" />
+        {{ t('schedule.emptyStagedAction') }}
+      </button>
+    </EmptyState>
     <EmptyState
       v-else-if="!filteredCourses.length"
-      class="gf-panel flex-1"
+      class="gf-panel rounded-2xl border border-line/70 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex-1 p-6"
       :icon="Search"
       :title="t('schedule.listSearchEmpty')"
-    />
+      :description="t('schedule.emptySearchHint')"
+    >
+      <button
+        type="button"
+        class="gf-button gf-button-sm gf-button-ghost mt-1 border border-line/70 transition-transform active:scale-[0.96]"
+        @click="keyword = ''"
+      >
+        <X class="h-3.5 w-3.5" />
+        {{ t('schedule.clearSearch') }}
+      </button>
+    </EmptyState>
 
-    <ul v-else class="gf-panel gf-scrollbar-thin flex-1 divide-y divide-line/60 overflow-y-auto overscroll-contain">
+    <ul v-else class="gf-panel rounded-2xl border border-line/70 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] gf-scrollbar-thin flex-1 divide-y divide-line/60 overflow-y-auto overscroll-contain">
       <li
         v-for="course in filteredCourses"
         :key="course.courseCode"
-        class="px-3 py-2.5"
+        class="px-3 py-2.5 transition-colors duration-150 hover:bg-base-200/40"
         :class="courseConflicts(course).length > 0 ? 'bg-error/5' : ''"
       >
         <div class="flex items-start gap-2">
           <button
             type="button"
-            class="min-w-0 flex-1 text-left"
+            class="group min-w-0 flex-1 text-left"
             @click="selectCourse(course)"
           >
             <div class="flex flex-wrap items-center gap-1.5">
-              <span class="truncate text-[13px] font-semibold text-base-content">
+              <span
+                class="truncate text-[13px] font-semibold text-base-content group-hover:text-primary transition-colors duration-150"
+                :title="course.courseNameReserved"
+              >
                 {{ course.courseNameReserved }}
               </span>
               <span
@@ -194,7 +267,7 @@ function teacherSummary(course: PkStagedCourse): string {
               {{ course.courseCode }}
               <span class="text-base-content/50"> · {{ t('schedule.credit', { credit: course.credit }) }}</span>
               <template v-if="arrangedClassCount(course) > 0">
-                <span class="text-base-content/50"> · </span>{{ t('schedule.classCount', { count: course.courseDetail.length }) }}
+                <span class="text-base-content/50"> · </span>{{ t('schedule.classCount', { count: arrangedClassCount(course) }) }}
               </template>
             </p>
             <p v-if="teacherSummary(course)" class="mt-0.5 truncate text-[11px] text-base-content/55">
@@ -206,8 +279,8 @@ function teacherSummary(course: PkStagedCourse): string {
           </button>
           <button
             type="button"
-            class="gf-button gf-button-sm gf-button-ghost shrink-0"
-            @click="dropCourse(course)"
+            class="gf-button gf-button-sm gf-button-ghost shrink-0 transition-transform active:scale-[0.96]"
+            @click="course.status === 2 ? dropCourse(course) : clearCourseClass(course)"
           >
             {{ course.status === 2 ? t('schedule.dropCourse') : t('schedule.clear') }}
           </button>

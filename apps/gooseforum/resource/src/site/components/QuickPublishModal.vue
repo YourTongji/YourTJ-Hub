@@ -362,13 +362,20 @@ async function handleSubmit() {
         <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-2.5 sm:py-3 gap-2.5 sm:gap-3 overflow-hidden sm:overflow-y-auto">
           <!-- 首行入口：快捷传图与已上传图片预览横向滑动流（支持滑动预览与拖拽重排，移动端比例适度放大） -->
           <div class="gf-image-scroll-track shrink-0 flex items-center gap-3 overflow-x-auto pb-2 pt-0.5">
-            <!-- 已上传/正在上传的图片缩略图卡片列表（支持桌面拖拽与移动端触控拖拽排序） -->
+            <!-- 已上传/正在上传的图片缩略图卡片列表（支持桌面拖拽与移动端触控拖拽排序）
+                 触控点按/拖拽降级（issue #455）：✕/左右移按钮豁免拖拽热区（filter），
+                 触屏需长按 180ms 且位移超过阈值才进入拖拽，轻点按钮可正常触发点击 -->
             <Draggable
               v-model="uploadedImages"
               item-key="id"
               :animation="200"
               ghost-class="opacity-35"
               class="flex items-center gap-3 shrink-0"
+              filter=".gf-image-card-btn"
+              :prevent-on-filter="false"
+              :delay="180"
+              :delay-on-touch-only="true"
+              :touch-start-threshold="10"
             >
               <template #item="{ element: img, index: idx }">
                 <div
@@ -395,7 +402,7 @@ async function handleSubmit() {
                     <button
                       v-if="idx > 0"
                       type="button"
-                      class="flex h-5.5 w-5.5 items-center justify-center rounded-md bg-black/75 backdrop-blur-xs text-white hover:bg-black active:scale-90 transition-all cursor-pointer shadow-xs"
+                      class="gf-image-card-btn flex h-5.5 w-5.5 items-center justify-center rounded-md bg-black/75 backdrop-blur-xs text-white hover:bg-black active:scale-90 transition-all cursor-pointer shadow-xs"
                       :title="t('publish.modal.moveImageLeft')"
                       :aria-label="t('publish.modal.moveImageLeft')"
                       @click.stop="moveImage(idx, 'left')"
@@ -405,7 +412,7 @@ async function handleSubmit() {
                     <button
                       v-if="idx < uploadedImages.length - 1"
                       type="button"
-                      class="flex h-5.5 w-5.5 items-center justify-center rounded-md bg-black/75 backdrop-blur-xs text-white hover:bg-black active:scale-90 transition-all cursor-pointer shadow-xs"
+                      class="gf-image-card-btn flex h-5.5 w-5.5 items-center justify-center rounded-md bg-black/75 backdrop-blur-xs text-white hover:bg-black active:scale-90 transition-all cursor-pointer shadow-xs"
                       :title="t('publish.modal.moveImageRight')"
                       :aria-label="t('publish.modal.moveImageRight')"
                       @click.stop="moveImage(idx, 'right')"
@@ -418,7 +425,7 @@ async function handleSubmit() {
                   <button
                     v-if="!img.uploading"
                     type="button"
-                    class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 backdrop-blur-xs text-white hover:bg-error transition-all active:scale-90 shadow-xs cursor-pointer z-10"
+                    class="gf-image-card-btn absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 backdrop-blur-xs text-white hover:bg-error transition-all active:scale-90 shadow-xs cursor-pointer z-10"
                     :aria-label="t('publish.modal.deleteImage')"
                     @click.stop="removeImage(idx)"
                   >

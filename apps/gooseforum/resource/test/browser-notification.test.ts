@@ -254,3 +254,70 @@ describe('maybeNotifyUnread 翻转检测', () => {
     expect(FakeNotification.instances[0].options.body).toBe('有新的评论回复')
   })
 })
+
+describe('maybeNotifyUnread id 触发', () => {
+  test('连续未读期间新 id 前移仍触发', () => {
+    enableForTest()
+    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    expect(FakeNotification.instances).toHaveLength(1)
+    vi.advanceTimersByTime(60_000)
+    mod.maybeNotifyUnread(true, true, 'post_reply', 200)
+    expect(FakeNotification.instances).toHaveLength(2)
+  })
+
+  test('同 id 不重复触发（id 去重独立于时间窗）', () => {
+    enableForTest()
+    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    expect(FakeNotification.instances).toHaveLength(1)
+    vi.advanceTimersByTime(60_000)
+    mod.maybeNotifyUnread(true, true, 'comment', 100)
+    expect(FakeNotification.instances).toHaveLength(1)
+  })
+
+  test('已读清零重置游标后可再次触发', () => {
+    enableForTest()
+    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    expect(FakeNotification.instances).toHaveLength(1)
+    mod.maybeNotifyUnread(true, false, '', 0)
+    expect(FakeNotification.instances).toHaveLength(1)
+    vi.advanceTimersByTime(60_000)
+    mod.maybeNotifyUnread(false, true, 'comment', 300)
+    expect(FakeNotification.instances).toHaveLength(2)
+  })
+
+  test('页面可见时只推进游标不弹，切后台后新 id 才触发', () => {
+    enableForTest()
+    pageHidden = false
+    mod.maybeNotifyUnread(false, true, 'comment', 100)
+    expect(FakeNotification.instances).toHaveLength(0)
+    pageHidden = true
+    mod.maybeNotifyUnread(true, true, 'comment', 100)
+    expect(FakeNotification.instances).toHaveLength(0)
+    mod.maybeNotifyUnread(true, true, 'post_reply', 200)
+    expect(FakeNotification.instances).toHaveLength(1)
+  })
+
+  test('无 id 响应回落原翻转语义', () => {
+    enableForTest()
+    mod.maybeNotifyUnread(true, true, 'comment', 0)
+    expect(FakeNotification.instances).toHaveLength(0)
+    vi.advanceTimersByTime(60_000)
+    mod.maybeNotifyUnread(false, true, 'comment', 0)
+    expect(FakeNotification.instances).toHaveLength(1)
+  })
+})
+
+describe('通知点击 SPA 导航桥', () => {
+  test('已注册导航桥时点击走 SPA 跳转而非整页导航', async () => {
+    enableForTest()
+    // beforeEach 的 vi.resetModules 保证动态 import 与 mod 共享同一份全新模块实例
+    const nav = await import('../src/runtime/app-navigation')
+    const spy = vi.fn()
+    nav.registerAppNavigator(spy)
+    expect(mod.showBrowserNotification('comment')).toBe(true)
+    const notification = FakeNotification.instances[0]
+    notification.onclick?.()
+    expect(spy).toHaveBeenCalledWith('/notifications')
+    expect((window as unknown as { location: { href: string } }).location.href).toBe('http://localhost:3010/')
+  })
+})

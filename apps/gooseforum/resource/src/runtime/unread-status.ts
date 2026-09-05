@@ -29,6 +29,7 @@ function normalizeStatus(data: Partial<UnreadStatusPayload> | null | undefined):
     messages: Boolean(data?.messages),
     moderationReports: Boolean(data?.moderationReports),
     latestNotificationType: data?.latestNotificationType || '',
+    latestUnreadId: typeof data?.latestUnreadId === 'number' ? data.latestUnreadId : 0,
   }
 }
 
@@ -64,7 +65,7 @@ function applyUnread(data: Partial<UnreadStatusPayload> | null | undefined) {
   latestNotificationType.value = status.latestNotificationType || ''
   checked.value = true
   setUnreadMessagesDocumentTitle(status.messages)
-  maybeNotifyUnread(hadNotifications, status.notifications, status.latestNotificationType || '')
+  maybeNotifyUnread(hadNotifications, status.notifications, status.latestNotificationType || '', status.latestUnreadId || 0)
   writeCache(status)
 }
 

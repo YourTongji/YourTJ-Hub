@@ -57,6 +57,14 @@ const isTopicPage = computed(() => {
   const path = route?.path || ''
   return path.startsWith('/p/post') || path.startsWith('/topics') || path.startsWith('/p/topic')
 })
+const isSchedulePage = computed(() => {
+  const path = route?.path || ''
+  return path === '/schedule' || path.startsWith('/schedule/') || route?.name === 'schedule'
+})
+const isCoursePage = computed(() => {
+  const path = route?.path || ''
+  return path === '/courses' || path.startsWith('/courses/') || path.includes('/courses') || route?.name === 'courses' || route?.name === 'course'
+})
 
 const props = defineProps<{
   layout: LayoutPayload
@@ -242,6 +250,10 @@ const safeFooter = computed(() => ({ links: footerLinks.value, primary: footerPr
 const brandType = computed(() => props.layout.site.brandType || 'default')
 const brandText = computed(() => props.layout.site.brandText || props.layout.site.name)
 const brandImage = computed(() => safeUrl(props.layout.site.brandImage, 'image'))
+// 默认品牌字标按主题切换：Light 变体黑字（浅色主题），Dark 变体白字（深色主题）。
+const defaultBrandImage = computed(() =>
+  isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp',
+)
 const hasHeaderTitle = computed(() => Boolean(props.showHeaderTitle && props.headerTitle))
 const searchQuery = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
@@ -488,7 +500,7 @@ async function loadUserCard() {
             </span>
             <img
               v-else
-              src="/static/pic/brand-default.webp"
+              :src="defaultBrandImage"
               :alt="layout.site.name"
               class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
             />
@@ -973,7 +985,7 @@ async function loadUserCard() {
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。
-         若已在 /publish 发布页面或 /p/post 等帖子详情页，则主动隐去，避免遮挡内容和互动控件。 -->
-    <PublishMenu v-if="layout.viewer.isAuthenticated && !isPublishPage && !isTopicPage" variant="fab" />
+         若已在 /publish、帖子详情页、/schedule 排课器或 /courses 课程页面，则主动隐去，避免遮挡课表与关键交互操作。 -->
+    <PublishMenu v-if="layout.viewer.isAuthenticated && !isPublishPage && !isTopicPage && !isSchedulePage && !isCoursePage" variant="fab" />
   </div>
 </template>

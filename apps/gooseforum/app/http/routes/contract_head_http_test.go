@@ -14,16 +14,20 @@ package routes
 // HEAD responses never carry a body), which is what CDNs and reverse proxies
 // observe.
 //
-// The contract is therefore:
 //   - /static/*filepath: HEAD == GET status and headers — including the
-//     Cache-Control long-public header, which BrowserCache attaches to this
-//     mount only (assertRouter registers it after the /assets StaticFS) —
+//     Cache-Control long-public header from the BrowserCache mount middleware —
 //     with an empty body.
 //   - /assets/*filepath (frontend build output): HEAD == GET status and
-//     headers except Cache-Control, with an empty body; the mount carries no
-//     cache header to promise. TestHeadContractAssetsMatchGet probes a file
-//     the Vite manifest actually emits and skips when the build output is
-//     missing.
+//     headers — including the immutable Cache-Control header from the
+//     AssetsCache mount middleware (Vite filenames carry a content hash, so a
+//     byte change always changes the URL) — with an empty body.
+//     TestHeadContractAssetsMatchGet probes a file the Vite manifest actually
+//     emits and skips when the build output is missing.
+//   - both mounts answer *missing* files with 404 + Cache-Control: no-store:
+//     the cache middlewares defer the header decision to the final response
+//     status (httputil.DeferCacheHeader), so failure responses — e.g. a
+//     content-hashed chunk the previous bundle references during a deploy
+//     rollback — are never pinned into caches under the long max-age.
 //   - everything else (dynamic GET routes): HEAD 404 even when GET 200 —
 //     load balancer and monitor probes must use GET. HEAD never executes a
 //     write-side controller because no write route registers HEAD; that
@@ -56,11 +60,12 @@ const staticBadgeAsset = "/static/badges/commenter-50.svg"
 
 // setupHeadContractRouter assembles the production router exactly like main
 // does (RegisterByGin) with app.env pinned to production so the Vite dev
-// proxy is not registered and BrowserCache long-public headers apply. The
-// gzip middleware is installed at router registration time (assertRouter
-// reads server.gzip once), so server.gzip is pinned on here and restored on
-// cleanup: the gzip negotiation assertions below must hold regardless of the
-// developer's local [server].gzip setting.
+// proxy is not registered and both static mounts apply their production
+// cache headers (BrowserCache long-public on /static, AssetsCache immutable
+// on /assets). The gzip middleware is installed at router registration time
+// (assertRouter reads server.gzip once), so server.gzip is pinned on here and
+// restored on cleanup: the gzip negotiation assertions below must hold
+// regardless of the developer's local [server].gzip setting.
 func setupHeadContractRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	setupMcpRouteTestDB(t) // mcpRoute needs the page_config table migrated
@@ -176,9 +181,9 @@ func TestHeadRouteRegistrationContract(t *testing.T) {
 // TestHeadContractStaticAssetsMatchGet asserts the /static mount contract:
 // files served through gin StaticFS answer HEAD with the same status and
 // headers as GET — Content-Length, Content-Type, and the BrowserCache
-// long-public Cache-Control header that only this mount carries (assertRouter
-// attaches the middleware after the /assets registration) — plus an empty
-// body on the wire. server.gzip is pinned on by setupHeadContractRouter so
+// long-public Cache-Control header that this mount's subgroup carries
+// (assertRouter registers /static through a BrowserCache subgroup) — plus an
+// empty body on the wire. server.gzip is pinned on by setupHeadContractRouter so
 // the gzip negotiation assertions hold under any local [server].gzip config.
 func TestHeadContractStaticAssetsMatchGet(t *testing.T) {
 	router := setupHeadContractRouter(t)
@@ -282,11 +287,13 @@ func viteManifestEntryFile(t *testing.T, entry string) string {
 // TestHeadContractAssetsMatchGet asserts the /assets mount against a file the
 // Vite build actually emits (the site entry from the manifest), so the
 // successful-response path is exercised whenever the build output exists.
-// /assets carries no BrowserCache Cache-Control header — the contract only
-// promises HEAD == GET status and headers excluding Cache-Control plus an
-// empty body. Without `pnpm build` the manifest is absent and the test skips
-// (dist is never committed and CI never builds the frontend); a skip is not a
-// pass — the 200 path simply stays unasserted until the frontend is built.
+// /assets carries the AssetsCache immutable Cache-Control header (Vite
+// filenames carry a content hash, so a byte change always changes the URL) —
+// the contract promises HEAD == GET status and headers including
+// Cache-Control plus an empty body. Without `pnpm build` the manifest is
+// absent and the test skips (dist is never committed and CI never builds the
+// frontend); a skip is not a pass — the 200 path simply stays unasserted
+// until the frontend is built.
 func TestHeadContractAssetsMatchGet(t *testing.T) {
 	entryFile := viteManifestEntryFile(t, "src/site/main.ts")
 	router := setupHeadContractRouter(t)
@@ -319,8 +326,51 @@ func TestHeadContractAssetsMatchGet(t *testing.T) {
 	if got := headResp.Header.Get("Content-Type"); got == "" || got != getResp.Header.Get("Content-Type") {
 		t.Errorf("HEAD %s Content-Type = %q, GET Content-Type = %q; want equal and non-empty", assetPath, got, getResp.Header.Get("Content-Type"))
 	}
-	// Cache-Control is deliberately not compared: BrowserCache only applies
-	// to the /static mount, and /assets must not promise a cache header.
+	for _, header := range []string{"Cache-Control"} {
+		if got := headResp.Header.Get(header); got == "" {
+			t.Errorf("%s %s is empty on GET; want the /assets mount to set it", assetPath, header)
+		} else if got != getResp.Header.Get(header) {
+			t.Errorf("HEAD %s %s = %q, GET %s = %q; want equal", assetPath, header, got, header, getResp.Header.Get(header))
+		}
+	}
+	if got := getResp.Header.Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("GET %s Cache-Control = %q, want public, max-age=31536000, immutable", assetPath, got)
+	}
+}
+
+// TestHeadContractMissingAssetsAreNotCacheable pins the failure half of the
+// cache contract (Codex review): a *missing* asset answers the NoRoute 404
+// with Cache-Control: no-store — never the mount's long max-age. During a
+// deploy rollback the previous bundle can reference hashed chunks the current
+// binary does not embed; a 404 pinned under the immutable/long-public header
+// would keep serving that failure from browser and shared caches for months
+// even after the binary is restored.
+func TestHeadContractMissingAssetsAreNotCacheable(t *testing.T) {
+	router := setupHeadContractRouter(t)
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+	client := headContractClient()
+
+	for _, path := range []string{
+		"/assets/missing-chunk-a1b2c3d4e5.js",
+		"/static/definitely-not-a-real-file-477.svg",
+	} {
+		resp := headContractRequest(t, client, http.MethodGet, srv.URL+path, "")
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read GET %s body: %v", path, err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s status = %d, want 404", path, resp.StatusCode)
+		}
+		if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+			t.Errorf("GET %s Cache-Control = %q, want no-store (failure responses must never carry the mount max-age)", path, got)
+		}
+		if len(body) == 0 {
+			t.Errorf("GET %s body is empty, want the NoRoute JSON envelope", path)
+		}
+	}
 }
 
 // TestHeadContractDynamicRoutesAreGetOnly asserts the unsupported side of

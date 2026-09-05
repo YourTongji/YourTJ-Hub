@@ -6495,6 +6495,11 @@ export interface components {
             moderationReports: boolean;
             /** @description Event type of the latest unread notification; omitted when there are no unread notifications. */
             latestNotificationType?: string;
+            /**
+             * Format: uint64
+             * @description Id of the latest unread notification; monotonic across arrivals, reset to zero (omitted) when all notifications are read. Poll-based in-page notifications use it to detect new arrivals while unread stays true.
+             */
+            latestUnreadId?: number;
         };
         UnreadStatusSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["UnreadStatusResult"];

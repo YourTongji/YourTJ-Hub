@@ -6,7 +6,13 @@ import { i18n } from '../src/runtime/i18n'
 
 import ScheduleCellPicker from '../src/site/components/schedule/ScheduleCellPicker.vue'
 import { useScheduleStore } from '../src/site/composables/useScheduleStore'
-import type { PkCourse, PkCourseDetail, PkStagedCourse } from '../src/site/types/pk'
+import { getPkCourseDetails, getPkCoursesByTime } from '../src/runtime/pk-api'
+import type { PkCourse, PkCourseDetail, PkCourseOnTable, PkStagedCourse } from '../src/site/types/pk'
+
+vi.mock('../src/runtime/pk-api', () => ({
+  getPkCoursesByTime: vi.fn(async () => ({ courses: [], auxiliaryReady: true })),
+  getPkCourseDetails: vi.fn(async () => ({})),
+}))
 
 function makeDetail(code: string, day: number, time: number[]): PkCourseDetail {
   return {
@@ -40,22 +46,31 @@ function makeStaged(courseCode: string, details: PkCourseDetail[]): PkStagedCour
   }
 }
 
-function makeCompulsory(courseCode: string): PkCourse {
+function makeCourse(courseCode: string): PkCourse {
   return {
     courseCode,
-    courseName: courseCode,
+    courseName: `课程${courseCode}`,
     courseNameReserved: `课程${courseCode}`,
     credit: 3,
     courseType: '必',
-    teacher: [],
     status: 0,
+    teacher: [],
     courseDetail: [],
   }
 }
 
-function mountPicker(day: number, section: number): VueWrapper {
+function mountPicker(
+  day: number,
+  section: number,
+  options?: { replacingCourse?: PkCourseOnTable | null },
+): VueWrapper {
   return mount(ScheduleCellPicker, {
-    props: { open: true, day, section },
+    props: {
+      open: true,
+      day,
+      section,
+      replacingCourse: options?.replacingCourse,
+    },
     global: {
       plugins: [i18n],
     },
@@ -80,6 +95,7 @@ async function clickCandidate(index: number): Promise<void> {
 
 afterEach(() => {
   document.body.innerHTML = ''
+  vi.clearAllMocks()
 })
 
 describe('ScheduleCellPicker 时段备选课程选择框', () => {
@@ -88,6 +104,8 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
     store.clearStagedAndSelectedCourses()
     store.setCompulsoryCourses([])
     store.setMajorInfo({ calendarId: 121, grade: 2025, major: '00301' })
+    vi.mocked(getPkCoursesByTime).mockResolvedValue({ courses: [], auxiliaryReady: true })
+    vi.mocked(getPkCourseDetails).mockResolvedValue({})
   })
 
   test('只展示「该天该节次有课」的教学班', async () => {
@@ -115,18 +133,26 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('No staged courses at this time')
   })
 
-  test('计划内课程置顶，其他候选保持原顺序', async () => {
+  test('计划内课程在备选池和同时段全校列表中置顶，其他课程保持原序', async () => {
     const store = useScheduleStore()
     store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3])]))
     store.pushStagedCourse(makeStaged('122005', [makeDetail('122005.01', 1, [3])]))
     store.pushStagedCourse(makeStaged('122006', [makeDetail('122006.01', 1, [3])]))
-    store.setCompulsoryCourses([makeCompulsory('122005')])
+    store.setCompulsoryCourses([makeCourse('122005'), makeCourse('CHEM101')])
+    vi.mocked(getPkCoursesByTime).mockResolvedValue({
+      courses: [makeCourse('BIO101'), makeCourse('CHEM101'), makeCourse('PHY101')],
+      auxiliaryReady: true,
+    })
 
     mountPicker(1, 3)
     await flushPromises()
 
-    const names = dialogRows().map((row) => row.querySelector('span')?.textContent?.trim())
-    expect(names).toEqual(['课程122005', '课程122004', '课程122006'])
+    const stagedNames = dialogRows().map((row) => row.querySelector('span')?.textContent?.trim())
+    expect(stagedNames).toEqual(['课程122005', '课程122004', '课程122006'])
+
+    const dialogText = document.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialogText.indexOf('课程CHEM101')).toBeLessThan(dialogText.indexOf('课程BIO101'))
+    expect(dialogText.indexOf('课程BIO101')).toBeLessThan(dialogText.indexOf('课程PHY101'))
   })
 
   test('点击候选课程：无冲突时加入课表并关闭弹窗', async () => {
@@ -191,6 +217,112 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
 
     expect(wrapper.emitted('conflict')).toHaveLength(1)
     expect(wrapper.emitted('staged')).toBeUndefined()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  test('从该时段全校选修课 API 加载课程并支持展开班级后加入课表', async () => {
+    const electiveCourse: PkCourse = {
+      courseCode: 'BIO101',
+      courseName: '生物学概论',
+      courseNameReserved: '生物学概论',
+      credit: 2,
+      courseType: '选',
+      faculty: '生命科学与技术学院',
+      campus: '四平路校区',
+      status: 0,
+      teacher: [],
+      courseDetail: [],
+    }
+
+    const electiveDetail = makeDetail('BIO101.01', 2, [3, 4])
+
+    vi.mocked(getPkCoursesByTime).mockResolvedValue({
+      courses: [electiveCourse],
+      auxiliaryReady: true,
+    })
+    vi.mocked(getPkCourseDetails).mockResolvedValue({
+      BIO101: [electiveDetail],
+    })
+
+    const wrapper = mountPicker(2, 3)
+    await flushPromises()
+
+    // 验证调用了 getPkCoursesByTime(calendarId=121, day=2, section=2)
+    // 节次 3 对应第 2 大节（3-4节）
+    expect(getPkCoursesByTime).toHaveBeenCalledWith(121, 2, 2)
+
+    // 对话框中能看到该课程
+    const dialog = document.querySelector('[role="dialog"]')
+    expect(dialog?.textContent).toContain('生物学概论')
+    expect(dialog?.textContent).toContain('BIO101')
+
+    // 点击展开班级按钮
+    const expandBtn = [...dialog?.querySelectorAll('button') || []].find((btn) =>
+      btn.textContent?.includes('View classes') || btn.textContent?.includes('查看开课班级'),
+    )
+    expect(expandBtn).toBeDefined()
+    expandBtn?.click()
+    await flushPromises()
+
+    // 验证调用了 getPkCourseDetails
+    expect(getPkCourseDetails).toHaveBeenCalledWith(121, ['BIO101'])
+
+    // 能看到班级 BIO101.01
+    expect(dialog?.textContent).toContain('BIO101.01')
+
+    // 点击加入课表
+    const addBtn = [...dialog?.querySelectorAll('button') || []].find((btn) =>
+      btn.textContent?.includes('Add to schedule') || btn.textContent?.includes('加入课表'),
+    )
+    expect(addBtn).toBeDefined()
+    addBtn?.click()
+    await flushPromises()
+
+    const store = useScheduleStore()
+    expect(store.state.timeTableData.some((c) => c.code === 'BIO101.01')).toBe(true)
+    expect(wrapper.emitted('staged')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  test('同时段替换模式：点击新班级自动替换原课程并触发 replaced 事件', async () => {
+    const store = useScheduleStore()
+    // 先把原课程 122004.01 排入课表
+    const oldDetail = makeDetail('122004.01', 1, [3, 4])
+    store.pushStagedCourse(makeStaged('122004', [oldDetail]))
+    store.setClickedCourseInfo({ courseCode: '122004', courseName: '旧课程' })
+    store.stageCourse(oldDetail)
+    store.solidify()
+    expect(store.state.timeTableData).toHaveLength(1)
+
+    // 新课程
+    const newDetail = makeDetail('233005.01', 1, [3, 4])
+    store.pushStagedCourse(makeStaged('233005', [newDetail]))
+
+    const replacingCourse: PkCourseOnTable = {
+      ...store.state.timeTableData[0],
+      courseName: '旧课程',
+      code: '122004.01',
+    }
+
+    const wrapper = mountPicker(1, 3, { replacingCourse })
+    await flushPromises()
+
+    // 弹窗中应排除正在被替换的班级 122004.01，只显示 233005.01
+    const rows = dialogRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].textContent).toContain('233005.01')
+    expect(rows[0].textContent).not.toContain('122004.01')
+
+    // 点击替换
+    await clickCandidate(0)
+    await flushPromises()
+
+    // 原课程已被移除，新课程排入课表
+    expect(store.state.timeTableData.some((c) => c.code === '122004.01')).toBe(false)
+    expect(store.state.timeTableData.some((c) => c.code === '233005.01')).toBe(true)
+
+    // 触发 replaced 和 close 事件
+    expect(wrapper.emitted('replaced')).toHaveLength(1)
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 })

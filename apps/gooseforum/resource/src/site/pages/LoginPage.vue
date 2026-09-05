@@ -7,6 +7,7 @@ import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runti
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
+import { safeUrl } from '@/runtime/safe-url'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -78,7 +79,13 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
-const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.webp')
+// 与 AppShell 同一契约：仅 brandType === 'image' 且 URL 通过 safeUrl 消毒时采用
+// 管理端自定义品牌图；默认字标按主题切换（浅色 Light 黑字 / 深色 Dark 白字）。
+// 历史脏配置（brandType=default 但 brandImage 残留旧浅色 PNG）不再短路主题切换。
+const brandImage = computed(() => {
+  const custom = page.layout.site.brandType === 'image' ? safeUrl(page.layout.site.brandImage, 'image') : ''
+  return custom || (isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp')
+})
 
 onMounted(() => {
   refreshCaptcha()
@@ -234,7 +241,7 @@ function onToggleTheme() {
 
 <template>
   <main class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
-    <!-- 波点动效背景：纯 CSS 点阵 + 慢速漂移（transform 合成层，不影响首屏性能） -->
+    <!-- 波点静态背景：纯 CSS 点阵，无动画，零 GPU 开销 -->
     <div class="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <div class="gf-dot-grid absolute inset-0" />
     </div>
@@ -526,10 +533,10 @@ function onToggleTheme() {
 </template>
 
 <style scoped>
-/* 波点动效背景：
-   - 纯 CSS radial-gradient 点阵（无图片请求）
-   - 漂移动画仅用 transform（GPU 合成层，不触发重排/重绘）
-   - 80s 慢速循环 + 径向遮罩边缘淡出，视觉柔和、CPU 占用可忽略 */
+/* 波点静态背景：
+   - 纯 CSS radial-gradient 点阵（无图片请求，无动画）
+   - 径向遮罩边缘淡出，视觉柔和
+   - 静态渲染，零 GPU 开销 */
 .gf-dot-grid {
   background-image: radial-gradient(
     circle,
@@ -539,23 +546,6 @@ function onToggleTheme() {
   background-size: 24px 24px;
   mask-image: radial-gradient(ellipse at center, black 20%, transparent 78%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 78%);
-  animation: gf-dot-drift 80s linear infinite;
-  will-change: transform;
-}
-
-@keyframes gf-dot-drift {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-24px, -24px, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gf-dot-grid {
-    animation: none;
-  }
 }
 
 /* 移动端（<640px）：表单区以圆角卡片呈现，与波点背景区分；

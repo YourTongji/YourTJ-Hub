@@ -47,11 +47,17 @@ func assertRouter(ginApp *gin.Engine) {
 			slog.Info("assets proxied to vite dev server", "target", devServer)
 		}
 	} else {
-		staticRoute.StaticFS("assets", http.FS(assetsFs))
+		// 生产 /assets：Vite 产物文件名带内容哈希，字节变更必然换 URL ——
+		// 一年 immutable 缓存安全，二次访问零重验证请求。gin 组中间件随
+		// Use() 累加，挂载级子组保证 AssetsCache 只被本挂载捕获，不泄漏到
+		// /static（反之 BrowserCache 也不会改写 /assets 的 immutable 头）。
+		assetsRoute := staticRoute.Group("/")
+		assetsRoute.Use(middleware.AssetsCache)
+		assetsRoute.StaticFS("assets", http.FS(assetsFs))
 	}
-	staticRoute.
-		Use(middleware.BrowserCache).
-		StaticFS("static", http.FS(staticFS))
+	staticMount := staticRoute.Group("/")
+	staticMount.Use(middleware.BrowserCache)
+	staticMount.StaticFS("static", http.FS(staticFS))
 }
 
 func viteDevServerURL() string {
