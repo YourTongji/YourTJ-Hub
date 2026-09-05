@@ -556,10 +556,10 @@ async function loadUserCard() {
             <!-- 发布 CTA：sm+ 常驻 navbar 呼出菜单；<sm 由右下角 FAB 承担，不占 navbar 空间 -->
             <PublishMenu variant="navbar" />
 
-            <!-- 通知 / 私信：从头像菜单提升为直达图标按钮，36px 热区（display 覆盖需用 sm:inline-grid，保住 place-items-center 居中） -->
+            <!-- 通知 / 私信：从头像菜单提升为直达图标按钮，40px 触控热区（display 覆盖需用 sm:inline-grid，保住 place-items-center 居中） -->
             <a
               href="/notifications"
-              class="gf-icon-button relative h-9 w-9 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
+              class="gf-icon-button relative h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
               :aria-label="t('shell.nav.notifications')"
               :title="notificationTitle || t('shell.nav.notifications')"
             >
@@ -572,7 +572,7 @@ async function loadUserCard() {
             </a>
             <a
               href="/messages"
-              class="gf-icon-button relative hidden h-9 w-9 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-grid"
+              class="gf-icon-button relative hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-grid"
               :aria-label="t('shell.nav.messages')"
               :title="t('shell.nav.messages')"
             >
@@ -590,7 +590,7 @@ async function loadUserCard() {
           <a
             v-if="!isWikiMode"
             href="/search"
-            class="gf-icon-button h-9 w-9 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
+            class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
             :aria-label="t('shell.search')"
             :title="t('shell.search')"
           >
@@ -599,7 +599,7 @@ async function loadUserCard() {
           <button
             v-else
             type="button"
-            class="gf-icon-button h-9 w-9 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
+            class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
             :aria-label="t('wikiSearch.openSearch')"
             :title="t('wikiSearch.openSearch')"
             @click="openWikiSearch"
@@ -616,7 +616,7 @@ async function loadUserCard() {
           >
             <button
               type="button"
-              class="gf-icon-button h-9 w-9 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
+              class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
               :aria-label="t('shell.switchTheme')"
               :title="t('shell.switchTheme')"
               :aria-expanded="themeMenuOpen"
@@ -655,7 +655,7 @@ async function loadUserCard() {
           >
             <button
               type="button"
-              class="gf-icon-button h-9 w-9 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
+              class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
               :aria-label="t('shell.switchLanguage')"
               :title="t('shell.switchLanguage')"
               :aria-expanded="langMenuOpen"
