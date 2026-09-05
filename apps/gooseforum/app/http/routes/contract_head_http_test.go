@@ -14,16 +14,15 @@ package routes
 // HEAD responses never carry a body), which is what CDNs and reverse proxies
 // observe.
 //
-// The contract is therefore:
 //   - /static/*filepath: HEAD == GET status and headers — including the
-//     Cache-Control long-public header, which BrowserCache attaches to this
-//     mount only (assertRouter registers it after the /assets StaticFS) —
+//     Cache-Control long-public header from the BrowserCache mount middleware —
 //     with an empty body.
 //   - /assets/*filepath (frontend build output): HEAD == GET status and
-//     headers except Cache-Control, with an empty body; the mount carries no
-//     cache header to promise. TestHeadContractAssetsMatchGet probes a file
-//     the Vite manifest actually emits and skips when the build output is
-//     missing.
+//     headers — including the immutable Cache-Control header from the
+//     AssetsCache mount middleware (Vite filenames carry a content hash, so a
+//     byte change always changes the URL) — with an empty body.
+//     TestHeadContractAssetsMatchGet probes a file the Vite manifest actually
+//     emits and skips when the build output is missing.
 //   - everything else (dynamic GET routes): HEAD 404 even when GET 200 —
 //     load balancer and monitor probes must use GET. HEAD never executes a
 //     write-side controller because no write route registers HEAD; that
@@ -56,7 +55,9 @@ const staticBadgeAsset = "/static/badges/commenter-50.svg"
 
 // setupHeadContractRouter assembles the production router exactly like main
 // does (RegisterByGin) with app.env pinned to production so the Vite dev
-// proxy is not registered and BrowserCache long-public headers apply. The
+// proxy is not registered and both static mounts apply their production
+// cache headers (BrowserCache long-public on /static, AssetsCache immutable
+// on /assets). The
 // gzip middleware is installed at router registration time (assertRouter
 // reads server.gzip once), so server.gzip is pinned on here and restored on
 // cleanup: the gzip negotiation assertions below must hold regardless of the
@@ -176,9 +177,9 @@ func TestHeadRouteRegistrationContract(t *testing.T) {
 // TestHeadContractStaticAssetsMatchGet asserts the /static mount contract:
 // files served through gin StaticFS answer HEAD with the same status and
 // headers as GET — Content-Length, Content-Type, and the BrowserCache
-// long-public Cache-Control header that only this mount carries (assertRouter
-// attaches the middleware after the /assets registration) — plus an empty
-// body on the wire. server.gzip is pinned on by setupHeadContractRouter so
+// long-public Cache-Control header that this mount's subgroup carries
+// (assertRouter registers /static through a BrowserCache subgroup) — plus an
+// empty body on the wire. server.gzip is pinned on by setupHeadContractRouter so
 // the gzip negotiation assertions hold under any local [server].gzip config.
 func TestHeadContractStaticAssetsMatchGet(t *testing.T) {
 	router := setupHeadContractRouter(t)
@@ -282,11 +283,13 @@ func viteManifestEntryFile(t *testing.T, entry string) string {
 // TestHeadContractAssetsMatchGet asserts the /assets mount against a file the
 // Vite build actually emits (the site entry from the manifest), so the
 // successful-response path is exercised whenever the build output exists.
-// /assets carries no BrowserCache Cache-Control header — the contract only
-// promises HEAD == GET status and headers excluding Cache-Control plus an
-// empty body. Without `pnpm build` the manifest is absent and the test skips
-// (dist is never committed and CI never builds the frontend); a skip is not a
-// pass — the 200 path simply stays unasserted until the frontend is built.
+// /assets carries the AssetsCache immutable Cache-Control header (Vite
+// filenames carry a content hash, so a byte change always changes the URL) —
+// the contract promises HEAD == GET status and headers including
+// Cache-Control plus an empty body. Without `pnpm build` the manifest is
+// absent and the test skips (dist is never committed and CI never builds the
+// frontend); a skip is not a pass — the 200 path simply stays unasserted
+// until the frontend is built.
 func TestHeadContractAssetsMatchGet(t *testing.T) {
 	entryFile := viteManifestEntryFile(t, "src/site/main.ts")
 	router := setupHeadContractRouter(t)
@@ -319,8 +322,16 @@ func TestHeadContractAssetsMatchGet(t *testing.T) {
 	if got := headResp.Header.Get("Content-Type"); got == "" || got != getResp.Header.Get("Content-Type") {
 		t.Errorf("HEAD %s Content-Type = %q, GET Content-Type = %q; want equal and non-empty", assetPath, got, getResp.Header.Get("Content-Type"))
 	}
-	// Cache-Control is deliberately not compared: BrowserCache only applies
-	// to the /static mount, and /assets must not promise a cache header.
+	for _, header := range []string{"Cache-Control"} {
+		if got := headResp.Header.Get(header); got == "" {
+			t.Errorf("%s %s is empty on GET; want the /assets mount to set it", assetPath, header)
+		} else if got != getResp.Header.Get(header) {
+			t.Errorf("HEAD %s %s = %q, GET %s = %q; want equal", assetPath, header, got, header, getResp.Header.Get(header))
+		}
+	}
+	if got := getResp.Header.Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("GET %s Cache-Control = %q, want public, max-age=31536000, immutable", assetPath, got)
+	}
 }
 
 // TestHeadContractDynamicRoutesAreGetOnly asserts the unsupported side of

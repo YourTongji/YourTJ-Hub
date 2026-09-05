@@ -104,18 +104,17 @@ request.
 
 ### Supported HEAD surface (static assets)
 
-The two static mounts answer HEAD, but their header guarantees differ:
-`BrowserCache` (`Cache-Control: public, max-age=18144000`) is only attached
-to `/static/*filepath` — `assertRouter` registers the `/assets` StaticFS
-first and calls `staticRoute.Use(middleware.BrowserCache)` only before the
-`/static` registration, and Gin captures group middleware when each route is
-registered. The contract therefore promises:
+The two static mounts answer HEAD, and each carries its own production cache
+header via a mount-level subgroup in `assertRouter` (`AssetsCache` on
+`/assets`, `BrowserCache` on `/static`; Gin captures group middleware when
+each route is registered, so neither header leaks to the other mount). The
+contract therefore promises:
 
 - `/static/*filepath`: HEAD == GET status and headers, **including** the
-  long-public `Cache-Control`;
-- `/assets/*filepath`: HEAD == GET status and headers **except**
-  `Cache-Control` — the mount sets no cache header and the contract promises
-  none;
+  long-public `Cache-Control` (`public, max-age=18144000`);
+- `/assets/*filepath`: HEAD == GET status and headers, **including** the
+  immutable `Cache-Control` (`public, max-age=31536000, immutable` — Vite
+  filenames carry a content hash, so a byte change always changes the URL);
 
 both with an empty body on the wire.
 
@@ -124,10 +123,10 @@ both with an empty body on the wire.
 | `GET /static/...` | 200 | full file | set | set |
 | `HEAD /static/...` | 200 (same as GET) | empty (never sent) | set, same as GET | same as GET |
 | `HEAD /static/...` with `Accept-Encoding: gzip` | 200 | empty | unset (no body was written, so the gzip middleware cannot size it) | Content-Type present; no Content-Encoding |
-| `GET` / `HEAD /assets/...` (built entry) | 200 | full file / empty | set, same across methods | Content-Type set; **no `Cache-Control` promised** |
+| `GET` / `HEAD /assets/...` (built entry) | 200 | full file / empty | set, same across methods | Content-Type set; immutable `Cache-Control` |
 
 `HEAD` for an existing asset is therefore safe for cache existence checks
-(only `/static/...` additionally guarantees the long `Cache-Control`).
+(both mounts guarantee their production `Cache-Control`).
 `HEAD`/`GET` for a *missing* asset are both the same NoRoute 404: gin's
 StaticFS handler hands failed file opens to the engine's NoRoute chain
 (`controllers.NotFound`), so both methods answer the identical 404 JSON
@@ -170,7 +169,7 @@ Consequences for operators and integrators:
   surface.
 - **CDN origin checks**: if a CDN is configured to validate origin
   availability with HEAD against a page or API URL, point it at a `/static`
-  asset (supported; only this mount carries the cache header) or at
+  or `/assets` asset (both mounts carry their production cache header) or at
   `GET /health` (use GET).
 
 ### Guard tests
@@ -178,10 +177,11 @@ Consequences for operators and integrators:
 `apps/gooseforum/app/http/routes/contract_head_http_test.go` asserts this
 contract against the real `RegisterByGin` assembly over a real HTTP server:
 the registered HEAD route set is exactly the static mounts + `/mcp`; `/static`
-HEAD equals GET in status and headers (including `Cache-Control`); `/assets`
-HEAD equals GET except `Cache-Control`, probed against a manifest-emitted
-file and skipped without `pnpm build`; dynamic GET routes and write-only
-endpoints answer 404 to HEAD; and no body ever reaches the wire on HEAD. The
+HEAD equals GET in status and headers (including the long-public
+`Cache-Control`); `/assets` HEAD equals GET including the immutable
+`Cache-Control`, probed against a manifest-emitted file and skipped without
+`pnpm build`; dynamic GET routes and write-only endpoints answer 404 to HEAD;
+and no body ever reaches the wire on HEAD. The
 tests pin `server.gzip` on, so the gzip assertions hold under any local
 `[server].gzip` setting.
 

@@ -50,3 +50,31 @@ func requestWithMiddleware(middleware gin.HandlerFunc, method string) *httptest.
 	router.ServeHTTP(recorder, request)
 	return recorder
 }
+
+func TestAssetsCacheProduction(t *testing.T) {
+	oldEnv := preferences.GetString("app.env", "production")
+	t.Cleanup(func() {
+		preferences.Set("app.env", oldEnv)
+	})
+
+	preferences.Set("app.env", "production")
+	recorder := requestWithMiddleware(AssetsCache, http.MethodGet)
+
+	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control = %q, want immutable long cache", got)
+	}
+}
+
+func TestAssetsCacheLocal(t *testing.T) {
+	oldEnv := preferences.GetString("app.env", "production")
+	t.Cleanup(func() {
+		preferences.Set("app.env", oldEnv)
+	})
+
+	preferences.Set("app.env", "local")
+	recorder := requestWithMiddleware(AssetsCache, http.MethodGet)
+
+	if got := recorder.Header().Get("Cache-Control"); got != "" {
+		t.Fatalf("Cache-Control = %q, want empty local cache header", got)
+	}
+}

@@ -9,3 +9,10 @@ import (
 func SetLongPublic(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=18144000")
 }
+
+// SetImmutable marks the response as immutable-cached for one year. Reserved
+// for content-addressed assets (Vite build output carries a content hash in
+// the filename), where any byte change is guaranteed to change the URL.
+func SetImmutable(c *gin.Context) {
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+}
