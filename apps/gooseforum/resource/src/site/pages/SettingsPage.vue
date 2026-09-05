@@ -67,6 +67,14 @@ import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
 import { ApiResponseError } from '@/runtime/api'
 import { useSiteTheme } from '@/runtime/site-theme'
+import {
+  currentPushSubscription,
+  disableWebPush,
+  enableWebPush,
+  fetchPushConfig,
+  isWebPushSupported,
+  PushError,
+} from '@/runtime/web-push'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
 import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
@@ -255,6 +263,12 @@ const privacy = reactive({
   emailNotifications: true,
 })
 
+// Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准，
+// 不落入 localStorage 偏好（savePrivacy 只持久化展示类偏好）。
+const webPushAvailable = ref(false)
+const webPushEnabled = ref(false)
+const webPushBusy = ref(false)
+
 const displayName = computed(() => profileForm.nickname || usernameForm.username)
 const hasProfileBio = computed(() => Boolean(profileForm.bio.trim()))
 const hasProfileSignature = computed(() => Boolean(profileForm.signature.trim()))
@@ -351,6 +365,7 @@ onMounted(() => {
   void loadBindings()
   void loadSessions()
   void loadTotpStatus()
+  void initWebPush()
 })
 
 watch(activeTab, (tab) => {
@@ -974,6 +989,57 @@ async function submitPassword() {
 function savePrivacy() {
   localStorage.setItem('goose-privacy-settings', JSON.stringify(privacy))
   showStatus(t('settings.status.privacySaved'))
+}
+
+/** 初始化推送开关：仅浏览器支持且实例已配置 VAPID 时展示，初始态 = 现有订阅。 */
+async function initWebPush() {
+  if (!isWebPushSupported()) return
+  let configured = false
+  try {
+    configured = (await fetchPushConfig()).configured
+  } catch {
+    return // 网络/接口异常时保持隐藏，设置页其余功能不受影响
+  }
+  if (!configured) return
+  webPushAvailable.value = true
+  webPushEnabled.value = Boolean(await currentPushSubscription())
+}
+
+/** 开关切换：开启 = 授权 + 订阅 + 后端持久化；关闭 = 后端解绑 + 浏览器退订。 */
+async function onWebPushToggle(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (webPushBusy.value) {
+    target.checked = webPushEnabled.value
+    return
+  }
+  const enabling = target.checked
+  webPushBusy.value = true
+  try {
+    if (enabling) {
+      await enableWebPush(locale.value)
+      webPushEnabled.value = true
+      showStatus(t('settings.privacy.webPushEnabled'))
+    } else {
+      await disableWebPush()
+      webPushEnabled.value = false
+      showStatus(t('settings.privacy.webPushDisabled'))
+    }
+  } catch (err) {
+    target.checked = webPushEnabled.value
+    const code = err instanceof PushError ? err.code : 'network'
+    const message = code === 'permission-denied'
+      ? t('settings.privacy.webPushPermissionDenied')
+      : code === 'unconfigured'
+        ? t('settings.privacy.webPushUnconfigured')
+        : code === 'unsupported'
+          ? t('settings.privacy.webPushUnsupported')
+          : enabling
+            ? t('settings.privacy.webPushEnableFailed')
+            : t('settings.privacy.webPushDisableFailed')
+    showError(message)
+  } finally {
+    webPushBusy.value = false
+  }
 }
 
 const appearance = reactive<AppearanceSettings>(loadAppearanceSettings())
@@ -2011,6 +2077,22 @@ async function toggleBinding(provider: string) {
                   <span class="text-sm text-base-content/55">{{ t('settings.privacy.emailNotificationsDescription') }}</span>
                 </span>
                 <input v-model="privacy.emailNotifications" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="savePrivacy" />
+              </label>
+              <label v-if="webPushAvailable" class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.webPushNotifications') }}</span>
+                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.webPushNotificationsDescription') }}</span>
+                </span>
+                <span v-if="webPushBusy" class="flex items-center gap-2 text-xs text-base-content/55">
+                  <Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
+                </span>
+                <input
+                  v-else
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-line text-primary"
+                  :checked="webPushEnabled"
+                  @change="onWebPushToggle"
+                />
               </label>
             </div>
           </section>

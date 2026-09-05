@@ -32,6 +32,8 @@
     {{if .Image}}<meta name="twitter:image" content="{{.Image}}">{{end}}
     {{end}}
     {{if .Payload.Meta.JSONLD}}<script type="application/ld+json" data-goose-jsonld="page">{{json .Payload.Meta.JSONLD}}</script>{{end}}
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/static/pic/icons/apple-touch-icon.png">
     {{if .Payload.Layout.Site.Favicon}}<link rel="icon" href="{{ResourceAsset .Payload.Layout.Site.Favicon}}">{{end}}
     {{if .Payload.Layout.Site.ExternalLinks}}{{SafeHTML .Payload.Layout.Site.ExternalLinks}}{{end}}
     {{ResourceEntry `src/site/main.ts`}}
