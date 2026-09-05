@@ -1381,6 +1381,10 @@ onMounted(async () => {
       i18n: window.VditorI18n,
       icon: 'ant',
       lang: language.lang,
+      // 编辑器内图片只保留 Vditor 的编辑浮层；关闭原生双击全屏预览，避免移动端误触打开无法退出的灯箱。
+      image: {
+        isPreview: false,
+      },
       // 所见即所得：显示悬浮在片段左侧的块级控制指示器（</>、H1/H2、$、ToC）
       mode: 'wysiwyg',
       placeholder: props.placeholder,
