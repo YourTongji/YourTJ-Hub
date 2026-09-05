@@ -8,6 +8,7 @@ import { hydrateFlashMessages } from '@/runtime/flash-message'
 import { applySiteThemePayload, applyStoredTheme, initSystemThemeListener } from '@/runtime/site-theme'
 import { applyStoredAppearanceSettings } from '@/runtime/appearance-settings'
 import { installBaTouchEffect } from '@/runtime/ba-touch-effect'
+import { registerAppNavigator } from '@/runtime/app-navigation'
 import PayloadRouteView from '@/site/components/PayloadRouteView.vue'
 import { codeHighlightDirective } from '@/runtime/code-highlight-directive'
 import { mathRenderDirective } from '@/runtime/math-render-directive'
@@ -54,6 +55,11 @@ function commitPage(nextPage: typeof initialPage) {
 
 const router = installNavigation(initialPage, PayloadRouteView, (nextPage) => {
   commitPage(nextPage)
+})
+// 注册 SPA 导航桥：runtime 模块（如 browser-notification 通知点击）经此走 vue-router，
+// 避免整页跳转；需在应用启动时注册一次。
+registerAppNavigator((path) => {
+  void router.push(path)
 })
 
 const app = createApp({

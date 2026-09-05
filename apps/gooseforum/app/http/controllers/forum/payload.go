@@ -151,6 +151,7 @@ type UnreadStatusPayload struct {
 	Messages               bool   `json:"messages"`
 	ModerationReports      bool   `json:"moderationReports"`
 	LatestNotificationType string `json:"latestNotificationType,omitempty"`
+	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
 }
 
 type SitePayload struct {
@@ -788,6 +789,7 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		Messages:               status.Messages,
 		ModerationReports:      moderationservice.HasOpenReports(userID),
 		LatestNotificationType: status.LatestNotificationType,
+		LatestUnreadId:         status.LatestUnreadId,
 	}
 }
 

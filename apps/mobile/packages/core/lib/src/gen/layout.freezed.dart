@@ -2656,8 +2656,8 @@ UnreadStatusPayload _$UnreadStatusPayloadFromJson(Map<String, dynamic> json) {
 mixin _$UnreadStatusPayload {
   bool get notifications => throw _privateConstructorUsedError;
   bool get messages => throw _privateConstructorUsedError;
-  bool? get moderationReports => throw _privateConstructorUsedError;
   String? get latestNotificationType => throw _privateConstructorUsedError;
+  int? get latestUnreadId => throw _privateConstructorUsedError;
 
   /// Serializes this UnreadStatusPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -2679,8 +2679,8 @@ abstract class $UnreadStatusPayloadCopyWith<$Res> {
   $Res call({
     bool notifications,
     bool messages,
-    bool? moderationReports,
     String? latestNotificationType,
+    int? latestUnreadId,
   });
 }
 
@@ -2701,8 +2701,8 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
   $Res call({
     Object? notifications = null,
     Object? messages = null,
-    Object? moderationReports = freezed,
     Object? latestNotificationType = freezed,
+    Object? latestUnreadId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -2714,14 +2714,14 @@ class _$UnreadStatusPayloadCopyWithImpl<$Res, $Val extends UnreadStatusPayload>
                 ? _value.messages
                 : messages // ignore: cast_nullable_to_non_nullable
                       as bool,
-            moderationReports: freezed == moderationReports
-                ? _value.moderationReports
-                : moderationReports // ignore: cast_nullable_to_non_nullable
-                      as bool?,
             latestNotificationType: freezed == latestNotificationType
                 ? _value.latestNotificationType
                 : latestNotificationType // ignore: cast_nullable_to_non_nullable
                       as String?,
+            latestUnreadId: freezed == latestUnreadId
+                ? _value.latestUnreadId
+                : latestUnreadId // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -2740,8 +2740,8 @@ abstract class _$$UnreadStatusPayloadImplCopyWith<$Res>
   $Res call({
     bool notifications,
     bool messages,
-    bool? moderationReports,
     String? latestNotificationType,
+    int? latestUnreadId,
   });
 }
 
@@ -2761,8 +2761,8 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? notifications = null,
     Object? messages = null,
-    Object? moderationReports = freezed,
     Object? latestNotificationType = freezed,
+    Object? latestUnreadId = freezed,
   }) {
     return _then(
       _$UnreadStatusPayloadImpl(
@@ -2774,14 +2774,14 @@ class __$$UnreadStatusPayloadImplCopyWithImpl<$Res>
             ? _value.messages
             : messages // ignore: cast_nullable_to_non_nullable
                   as bool,
-        moderationReports: freezed == moderationReports
-            ? _value.moderationReports
-            : moderationReports // ignore: cast_nullable_to_non_nullable
-                  as bool?,
         latestNotificationType: freezed == latestNotificationType
             ? _value.latestNotificationType
             : latestNotificationType // ignore: cast_nullable_to_non_nullable
                   as String?,
+        latestUnreadId: freezed == latestUnreadId
+            ? _value.latestUnreadId
+            : latestUnreadId // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -2793,8 +2793,8 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   const _$UnreadStatusPayloadImpl({
     required this.notifications,
     required this.messages,
-    this.moderationReports,
     this.latestNotificationType,
+    this.latestUnreadId,
   });
 
   factory _$UnreadStatusPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -2805,13 +2805,13 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
   @override
   final bool messages;
   @override
-  final bool? moderationReports;
-  @override
   final String? latestNotificationType;
+  @override
+  final int? latestUnreadId;
 
   @override
   String toString() {
-    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, moderationReports: $moderationReports, latestNotificationType: $latestNotificationType)';
+    return 'UnreadStatusPayload(notifications: $notifications, messages: $messages, latestNotificationType: $latestNotificationType, latestUnreadId: $latestUnreadId)';
   }
 
   @override
@@ -2823,10 +2823,10 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
                 other.notifications == notifications) &&
             (identical(other.messages, messages) ||
                 other.messages == messages) &&
-            (identical(other.moderationReports, moderationReports) ||
-                other.moderationReports == moderationReports) &&
             (identical(other.latestNotificationType, latestNotificationType) ||
-                other.latestNotificationType == latestNotificationType));
+                other.latestNotificationType == latestNotificationType) &&
+            (identical(other.latestUnreadId, latestUnreadId) ||
+                other.latestUnreadId == latestUnreadId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2835,8 +2835,8 @@ class _$UnreadStatusPayloadImpl implements _UnreadStatusPayload {
     runtimeType,
     notifications,
     messages,
-    moderationReports,
     latestNotificationType,
+    latestUnreadId,
   );
 
   /// Create a copy of UnreadStatusPayload
@@ -2860,8 +2860,8 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   const factory _UnreadStatusPayload({
     required final bool notifications,
     required final bool messages,
-    final bool? moderationReports,
     final String? latestNotificationType,
+    final int? latestUnreadId,
   }) = _$UnreadStatusPayloadImpl;
 
   factory _UnreadStatusPayload.fromJson(Map<String, dynamic> json) =
@@ -2872,9 +2872,9 @@ abstract class _UnreadStatusPayload implements UnreadStatusPayload {
   @override
   bool get messages;
   @override
-  bool? get moderationReports;
-  @override
   String? get latestNotificationType;
+  @override
+  int? get latestUnreadId;
 
   /// Create a copy of UnreadStatusPayload
   /// with the given fields replaced by the non-null parameter values.

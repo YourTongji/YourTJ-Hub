@@ -103,7 +103,9 @@ func TestUnreadStatusHTTPContract(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
-		createContractNotification(t, conn, contractTestID(), user.Id, eventNotification.EventTypePostReply, false,
+		// 固定 id：响应含 latestUnreadId（最新未读通知 id），fixture 依赖确定值
+		// （unread-status-success.json latestUnreadId: 6001）。
+		createContractNotification(t, conn, 6001, user.Id, eventNotification.EventTypePostReply, false,
 			eventNotification.NotificationPayload{Title: "契约未读通知", ActorId: user.Id}, time.Now())
 		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/unread-status", "", contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {

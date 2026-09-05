@@ -19,6 +19,7 @@ func GetUnreadStatus(req component.BetterRequest[GetUnreadCountReq]) component.R
 		"messages":               status.Messages,
 		"moderationReports":      moderationservice.HasOpenReports(req.UserId),
 		"latestNotificationType": status.LatestNotificationType,
+		"latestUnreadId":         status.LatestUnreadId,
 	})
 }
 

@@ -15,7 +15,8 @@ abstract class LayoutPayload with _$LayoutPayload {
     required ThemePayload theme,
   }) = _LayoutPayload;
 
-  factory LayoutPayload.fromJson(Map<String, dynamic> json) => _$LayoutPayloadFromJson(json);
+  factory LayoutPayload.fromJson(Map<String, dynamic> json) =>
+      _$LayoutPayloadFromJson(json);
 }
 
 @freezed
@@ -31,7 +32,8 @@ abstract class SitePayload with _$SitePayload {
     required String brandImage,
   }) = _SitePayload;
 
-  factory SitePayload.fromJson(Map<String, dynamic> json) => _$SitePayloadFromJson(json);
+  factory SitePayload.fromJson(Map<String, dynamic> json) =>
+      _$SitePayloadFromJson(json);
 }
 
 @freezed
@@ -48,7 +50,8 @@ abstract class ViewerPayload with _$ViewerPayload {
     List<int>? adminPermissions,
   }) = _ViewerPayload;
 
-  factory ViewerPayload.fromJson(Map<String, dynamic> json) => _$ViewerPayloadFromJson(json);
+  factory ViewerPayload.fromJson(Map<String, dynamic> json) =>
+      _$ViewerPayloadFromJson(json);
 }
 
 @freezed
@@ -60,7 +63,8 @@ abstract class NavItemPayload with _$NavItemPayload {
     required String url,
   }) = _NavItemPayload;
 
-  factory NavItemPayload.fromJson(Map<String, dynamic> json) => _$NavItemPayloadFromJson(json);
+  factory NavItemPayload.fromJson(Map<String, dynamic> json) =>
+      _$NavItemPayloadFromJson(json);
 }
 
 @freezed
@@ -99,7 +103,8 @@ abstract class SidebarPayload with _$SidebarPayload {
     required String activeKey,
   }) = _SidebarPayload;
 
-  factory SidebarPayload.fromJson(Map<String, dynamic> json) => _$SidebarPayloadFromJson(json);
+  factory SidebarPayload.fromJson(Map<String, dynamic> json) =>
+      _$SidebarPayloadFromJson(json);
 }
 
 @freezed
@@ -109,15 +114,14 @@ abstract class FooterPayload with _$FooterPayload {
     required List<String> primary,
   }) = _FooterPayload;
 
-  factory FooterPayload.fromJson(Map<String, dynamic> json) => _$FooterPayloadFromJson(json);
+  factory FooterPayload.fromJson(Map<String, dynamic> json) =>
+      _$FooterPayloadFromJson(json);
 }
 
 @freezed
 abstract class FooterLinkPayload with _$FooterLinkPayload {
-  const factory FooterLinkPayload({
-    required String name,
-    required String url,
-  }) = _FooterLinkPayload;
+  const factory FooterLinkPayload({required String name, required String url}) =
+      _FooterLinkPayload;
 
   factory FooterLinkPayload.fromJson(Map<String, dynamic> json) =>
       _$FooterLinkPayloadFromJson(json);
@@ -133,7 +137,8 @@ abstract class ThemePayload with _$ThemePayload {
     required String themeColor,
   }) = _ThemePayload;
 
-  factory ThemePayload.fromJson(Map<String, dynamic> json) => _$ThemePayloadFromJson(json);
+  factory ThemePayload.fromJson(Map<String, dynamic> json) =>
+      _$ThemePayloadFromJson(json);
 }
 
 @freezed
@@ -141,8 +146,8 @@ abstract class UnreadStatusPayload with _$UnreadStatusPayload {
   const factory UnreadStatusPayload({
     required bool notifications,
     required bool messages,
-    bool? moderationReports,
     String? latestNotificationType,
+    int? latestUnreadId,
   }) = _UnreadStatusPayload;
 
   factory UnreadStatusPayload.fromJson(Map<String, dynamic> json) =>
