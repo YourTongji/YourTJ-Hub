@@ -1,7 +1,7 @@
 package webpushservice
 
 // 服务端推送文案表：按通知事件类型 × 订阅语言渲染推送 body 与通用标题。
-// 文案与前端通知模板（resource/src/locales/{zh,en,ja,it}.ts → notifications.templates.*）
+// 文案与前端通知模板（resource/src/locales/{zh,en,ja,de}.ts → notifications.templates.*）
 // 语义对齐，但服务端独立维护（SW 零逻辑，不依赖前端 i18n 包）。
 // 未知语言回落 zh；未知类型返回空串（调用方跳过推送）。
 
@@ -35,14 +35,14 @@ var bodyByLangType = map[string]map[string]string{
 		"like":         "あなたの返信にいいねしました",
 		"wiki_updated": "ウォッチ中の wiki ページが更新されました",
 	},
-	"it": {
-		"comment":      "ha commentato il tuo argomento",
-		"post_reply":   "ti ha risposto",
-		"topic_post":   "ha pubblicato in un topic che segui",
-		"follow":       "ha iniziato a seguirti",
-		"badge":        "ha ottenuto il badge \"{badge}\"",
-		"like":         "ha messo mi piace alla tua risposta",
-		"wiki_updated": "ha aggiornato una pagina wiki che segui",
+	"de": {
+		"comment":      "hat dein Thema kommentiert",
+		"post_reply":   "hat dir geantwortet",
+		"topic_post":   "hat in einem Thema gepostet, dem du folgst",
+		"follow":       "folgt dir jetzt",
+		"badge":        "hat das Abzeichen \"{badge}\" erhalten",
+		"like":         "hat deine Antwort mit \"Gefällt mir\" markiert",
+		"wiki_updated": "hat eine Wiki-Seite aktualisiert, der du folgst",
 	},
 }
 
@@ -52,7 +52,7 @@ var genericTitleByLang = map[string]string{
 	"zh": "有新的通知",
 	"en": "New notification",
 	"ja": "新しい通知があります",
-	"it": "Nuova notifica",
+	"de": "Neue Benachrichtigung",
 }
 
 // bodyText 返回指定语言与事件类型的正文；未知类型返回空串。

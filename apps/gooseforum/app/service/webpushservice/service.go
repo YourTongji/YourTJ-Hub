@@ -395,11 +395,16 @@ func truncateTitle(title string) string {
 	return title
 }
 
-// normalizeLang 把订阅语言收敛到服务端文案支持的四语言；未知回落 zh。
+// normalizeLang 把订阅语言收敛到服务端文案支持的四语言（与前端
+// normalizeLocale 同规则：取短码、大小写不敏感）；未知回落 zh。
 func normalizeLang(lang string) string {
-	switch strings.ToLower(strings.TrimSpace(lang)) {
-	case "zh", "en", "ja", "it":
-		return strings.ToLower(strings.TrimSpace(lang))
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	if i := strings.IndexAny(lang, "-_"); i >= 0 {
+		lang = lang[:i]
+	}
+	switch lang {
+	case "zh", "en", "ja", "de":
+		return lang
 	default:
 		return "zh"
 	}

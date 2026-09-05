@@ -4529,7 +4529,7 @@ PushSubscribeRequest:
       $ref: '#/PushSubscriptionBody'
     lang:
       type: string
-      enum: [zh, en, ja, it]
+      enum: [zh, en, ja, de]
       description: Subscriber's UI language used to render push copy; omitted or unknown falls back to zh.
   additionalProperties: false
 

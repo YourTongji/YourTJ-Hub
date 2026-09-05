@@ -41,7 +41,7 @@ type PushSubscriptionKey struct {
 // SubscribePushReq POST push/subscribe 请求。
 type SubscribePushReq struct {
 	Subscription PushSubscriptionBody `json:"subscription" validate:"required"`
-	Lang         string               `json:"lang" validate:"omitempty,oneof=zh en ja it"`
+	Lang         string               `json:"lang" validate:"omitempty,oneof=zh en ja de"`
 }
 
 // SubscribePush 保存当前用户的一条浏览器订阅。

@@ -6595,7 +6595,7 @@ export interface components {
              * @description Subscriber's UI language used to render push copy; omitted or unknown falls back to zh.
              * @enum {string}
              */
-            lang?: "zh" | "en" | "ja" | "it";
+            lang?: "zh" | "en" | "ja" | "de";
         };
         PushSubscribeSuccess: components["schemas"]["ApiSuccess"] & {
             /** @constant */

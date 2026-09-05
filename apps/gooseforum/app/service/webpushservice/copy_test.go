@@ -11,7 +11,7 @@ import (
 // 文案表完整性：4 语言 × 全部 7 事件类型的 body 均非空；badge 文案必须保留
 // {badge} 占位符（发送前用徽章名替换）；genericTitle 4 语言非空。
 func TestCopyTableComplete(t *testing.T) {
-	langs := []string{"zh", "en", "ja", "it"}
+	langs := []string{"zh", "en", "ja", "de"}
 	eventTypes := []string{
 		eventNotification.EventTypeComment,
 		eventNotification.EventTypePostReply,
@@ -37,7 +37,7 @@ func TestCopyTableComplete(t *testing.T) {
 	}
 }
 
-// 未知语言回落 zh；zh/en/ja/it 原样保留（大小写不敏感）。
+// 未知语言回落 zh；zh/en/ja/de 原样保留（大小写不敏感、接受短码）。
 func TestNormalizeLangFallback(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -46,12 +46,13 @@ func TestNormalizeLangFallback(t *testing.T) {
 		{"zh", "zh"},
 		{"en", "en"},
 		{"ja", "ja"},
-		{"it", "it"},
+		{"de", "de"},
 		{"EN", "en"},
 		{"ZH", "zh"},
 		{"", "zh"},
 		{"fr", "zh"},
-		{"de-DE", "zh"},
+		{"de-DE", "de"},
+		{"it", "zh"},
 	}
 	for _, c := range cases {
 		if got := normalizeLang(c.in); got != c.want {
