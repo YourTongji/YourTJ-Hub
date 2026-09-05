@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-14
+> Last verified: 2026-09-06
 
 ## Deployment shape
 
@@ -45,6 +45,46 @@
     `docker images | awk '/yourtj-wiki/{print $3}' | xargs -r docker rmi -f`
     （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
   - 若反向代理仍把旧 wiki 域名指到 127.0.0.1:5284/5285，退役后需同步摘除路由。
+
+### 静态资产缓存（反向代理注意事项）
+
+单二进制自身负责静态资产与文件下载的生产缓存头（实现：
+`app/http/httputil/cache.go` + `app/http/middleware/browsercache.go`，
+`app.env=production` 才生效；本地/开发响应不带缓存头）：
+
+| 路径 | 2xx 响应头 | 说明 |
+| --- | --- | --- |
+| `/assets/*`（Vite 构建，文件名含内容哈希） | `public, max-age=31536000, immutable`（`AssetsCache`） | 字节变更必然换 URL，二次访问零重验证 |
+| `/static/*`（内嵌静态文件） | `public, max-age=18144000`（`BrowserCache`） | 长公共缓存 |
+| `/file/img/*`（用户/版面图片，成功路径） | `public, max-age=18144000`（`SetLongPublic`） | 文件名内容寻址 |
+| `/sw.js` | `no-cache` | Service Worker 更新必须及时可见 |
+| `/manifest.webmanifest` | `public, max-age=3600` | PWA manifest 短缓存 |
+| `/`（SSR HTML）与 `/api/*` | 路由自控（多为 `no-store`/无缓存头） | 登录态与动态内容，禁止代理层长缓存 |
+| 上述静态挂载的 404/错误 | `no-store`（`DeferCacheHeader` 按最终状态码决定） | 部署回滚窗口不得把缺失 chunk 钉进缓存 |
+
+**反向代理（1Panel/openresty）不得对以上响应追加或覆盖 `cache-control`。**
+nginx `add_header` 是追加而非覆盖：一旦代理层再发一个 `Cache-Control`
+（典型事故：站点 `proxy/*.conf` 里的 `add_header Cache-Control no-cache`），
+浏览器按多个头中最严格语义执行，等价于禁用全部缓存——静态资产每次导航
+全量回源，长缓存完全失效。
+
+1Panel 修复路径：网站 → 全部网站 → 站点设置 → 反向代理，逐个编辑代理条目，
+删除 `add_header Cache-Control ...` 行（同时检查站点 conf.d 主配置）。
+修改保存后 1Panel 自动 reload；手动重载：
+`docker exec <openresty容器> nginx -t && docker exec <openresty容器> nginx -s reload`。
+
+部署/变更后验收（每条响应必须只出现一行 `cache-control`）：
+
+```bash
+curl -sI https://f.yourtj.de/assets/assets/<当前entry>.js   # public, max-age=31536000, immutable
+curl -sI https://f.yourtj.de/static/pic/icon.webp           # public, max-age=18144000
+curl -sI https://f.yourtj.de/sw.js                          # no-cache
+curl -sI https://f.yourtj.de/                               # no-store 系（HTML 不缓存）
+```
+
+排查技巧：绕过代理直打上游可二分定位注入方——`curl -sI http://127.0.0.1:5234/assets/...`
+（宿主机上执行；上游无头而公网有头 ⇒ 代理层注入）。dev 实例同理
+（`dev.yourtj.de` → `127.0.0.1:5235`）。
 
 ### 旧 VitePress wiki 内容迁移（GitHub 唯一真实源）
 
