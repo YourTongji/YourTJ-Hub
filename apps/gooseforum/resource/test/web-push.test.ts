@@ -9,6 +9,9 @@ import {
   enableWebPush,
   fetchPushConfig,
   isWebPushSupported,
+  prepareWebPush,
+  rebindPushSubscription,
+  resetPushPreparation,
 } from '../src/runtime/web-push'
 
 // Web Push 运行时（runtime/web-push.ts）与静态 Service Worker（static/sw.js）
@@ -61,6 +64,7 @@ function stubFetchByUrl(routes: Record<string, Response>) {
 
 beforeEach(() => {
   installPushCapabilities()
+  resetPushPreparation() // 模块级预取缓存不得跨用例复用
 })
 
 afterEach(() => {
@@ -179,6 +183,34 @@ describe('enableWebPush', () => {
       lang: 'ja',
     })
   })
+  test('reuses the cached preparation across calls', async () => {
+    const pushManager = {
+      subscribe: vi.fn(async () => ({
+        toJSON: () => ({
+          endpoint: ENDPOINT,
+          keys: { p256dh: 'p256dh-value', auth: 'auth-value' },
+        }),
+      })),
+    }
+    const serviceWorker = installPushCapabilities({
+      serviceWorker: {
+        register: vi.fn(async () => ({ pushManager })),
+        getRegistration: vi.fn(),
+      },
+    })
+    stubFetchByUrl({
+      '/api/forum/push/config': jsonResponse({ code: 0, result: { configured: true, applicationServerKey: APP_KEY } }),
+      '/api/forum/push/subscribe': jsonResponse({ code: 0 }),
+    })
+
+    await enableWebPush('zh')
+    await enableWebPush('ja')
+
+    expect(serviceWorker.register).toHaveBeenCalledTimes(1)
+    const configCalls = vi.mocked(fetch).mock.calls.filter(([url]) => String(url) === '/api/forum/push/config')
+    expect(configCalls).toHaveLength(1)
+    expect(pushManager.subscribe).toHaveBeenCalledTimes(2)
+  })
 
   test('maps NotAllowedError to permission-denied', async () => {
     installPushCapabilities({
@@ -222,6 +254,78 @@ describe('enableWebPush', () => {
       '/api/forum/push/subscribe': jsonResponse({ code: 1 }),
     })
     await expect(enableWebPush('zh')).rejects.toMatchObject({ code: 'network' })
+  })
+})
+describe('prepareWebPush', () => {
+  test('returns null when unsupported', () => {
+    vi.stubGlobal('isSecureContext', false)
+    expect(prepareWebPush()).toBeNull()
+  })
+
+  test('caches the config fetch and SW registration across calls', async () => {
+    const serviceWorker = installPushCapabilities({
+      serviceWorker: { register: vi.fn(async () => ({ pushManager: {} })), getRegistration: vi.fn() },
+    })
+    stubFetchByUrl({ '/api/forum/push/config': jsonResponse({ code: 0, result: { configured: true, applicationServerKey: APP_KEY } }) })
+
+    await expect(prepareWebPush()).resolves.toBeDefined()
+    await expect(prepareWebPush()).resolves.toBeDefined()
+
+    expect(serviceWorker.register).toHaveBeenCalledTimes(1)
+    const configCalls = vi.mocked(fetch).mock.calls.filter(([url]) => String(url) === '/api/forum/push/config')
+    expect(configCalls).toHaveLength(1)
+  })
+
+  test('resets the cache on failure so a later call retries', async () => {
+    const serviceWorker = installPushCapabilities({
+      serviceWorker: { register: vi.fn(async () => ({ pushManager: {} })), getRegistration: vi.fn() },
+    })
+    stubFetchByUrl({ '/api/forum/push/config': jsonResponse({ code: 1 }, false) })
+    await expect(prepareWebPush()).rejects.toMatchObject({ code: 'network' })
+
+    stubFetchByUrl({ '/api/forum/push/config': jsonResponse({ code: 0, result: { configured: true, applicationServerKey: APP_KEY } }) })
+    await expect(prepareWebPush()).resolves.toBeDefined()
+    expect(serviceWorker.register).toHaveBeenCalledTimes(1) // 失败后重试会重新走完整准备
+  })
+})
+
+describe('rebindPushSubscription', () => {
+  test('returns false when unsupported', async () => {
+    vi.stubGlobal('isSecureContext', false)
+    await expect(rebindPushSubscription('zh')).resolves.toBe(false)
+  })
+
+  test('returns false when there is no browser subscription', async () => {
+    installPushCapabilities({ serviceWorker: { register: vi.fn(), getRegistration: vi.fn(async () => null) } })
+    const fetchMock = stubFetchByUrl({ '/api/forum/push/subscribe': jsonResponse({ code: 0 }) })
+    await expect(rebindPushSubscription('zh')).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test('persists the existing browser subscription to the current account', async () => {
+    installPushCapabilities({
+      serviceWorker: {
+        register: vi.fn(),
+        getRegistration: vi.fn(async () => ({
+          pushManager: {
+            getSubscription: vi.fn(async () => ({
+              toJSON: () => ({ endpoint: ENDPOINT, keys: { p256dh: 'p256dh-value', auth: 'auth-value' } }),
+            })),
+          },
+        })),
+      },
+    })
+    stubFetchByUrl({ '/api/forum/push/subscribe': jsonResponse({ code: 0 }) })
+
+    await expect(rebindPushSubscription('fr')).resolves.toBe(true)
+
+    const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url) === '/api/forum/push/subscribe')
+    expect(call).toBeDefined()
+    const init = call![1] as RequestInit
+    expect(JSON.parse(String(init.body))).toEqual({
+      subscription: { endpoint: ENDPOINT, keys: { p256dh: 'p256dh-value', auth: 'auth-value' } },
+      lang: 'fr',
+    })
   })
 })
 
@@ -298,6 +402,7 @@ describe('static sw.js (pure push worker)', () => {
       },
       clients,
       registration: { showNotification },
+      URL, // vm 沙箱不提供全局 URL，注入 Node 实现供 sw.js 使用
     }
     sandbox.self = sandbox
     vm.runInNewContext(SW_SOURCE, sandbox)
@@ -328,7 +433,7 @@ describe('static sw.js (pure push worker)', () => {
     expect(Object.keys(handlers).sort()).toEqual(['notificationclick', 'push'])
   })
 
-  test('shows a notification when the payload is valid and no window is focused', async () => {
+  test('shows a notification without a tag when payload has no id', async () => {
     const harness = loadWorker()
     harness.clients.matchAll.mockResolvedValueOnce([{ focused: false }])
     await pushEvent(harness, {
@@ -341,7 +446,24 @@ describe('static sw.js (pure push worker)', () => {
       body: '有人回复了你的主题',
       icon: '/static/pic/icon_300.webp',
       data: { url: '/p/post/42#post-7' },
-      tag: 'goose-push',
+    })
+  })
+
+  test('uses the payload id as a unique notification tag', async () => {
+    const harness = loadWorker()
+    harness.clients.matchAll.mockResolvedValueOnce([{ focused: false }])
+    await pushEvent(harness, {
+      id: 1024,
+      title: '新回复',
+      body: '有人回复了你的主题',
+      url: '/p/post/42',
+      icon: '/static/pic/icon_300.webp',
+    })
+    expect(harness.showNotification).toHaveBeenCalledWith('新回复', {
+      body: '有人回复了你的主题',
+      icon: '/static/pic/icon_300.webp',
+      data: { url: '/p/post/42' },
+      tag: 'goose-push-1024',
     })
   })
 
@@ -371,17 +493,56 @@ describe('static sw.js (pure push worker)', () => {
     expect(harness.showNotification).not.toHaveBeenCalled()
   })
 
-  test('notificationclick closes and focuses an open window, else opens the payload URL', async () => {
+  test('focuses a window already at the target path without navigating', async () => {
+    const focus = vi.fn(async () => undefined)
+    const navigate = vi.fn(async () => undefined)
+    const harness = loadWorker()
+    // query/hash 与目标不同不算「不在目标页」：只比较 origin + pathname
+    harness.clients.matchAll.mockResolvedValueOnce([{ url: 'https://yourtj.example/p/post/9?from=push#top', focus, navigate }])
+    await notificationClick(harness, { url: '/p/post/9' })
+    expect(focus).toHaveBeenCalledOnce()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(harness.clients.openWindow).not.toHaveBeenCalled()
+  })
+
+  test('navigates a window on another path to the deep link before focusing', async () => {
+    const focus = vi.fn(async () => undefined)
+    const navigate = vi.fn(async () => undefined)
+    const harness = loadWorker()
+    harness.clients.matchAll.mockResolvedValueOnce([{ url: 'https://yourtj.example/home', focus, navigate }])
+    await notificationClick(harness, { url: '/p/post/9' })
+    expect(navigate).toHaveBeenCalledWith('/p/post/9')
+    expect(focus).toHaveBeenCalledOnce()
+    expect(focus.mock.invocationCallOrder[0]).toBeGreaterThan(navigate.mock.invocationCallOrder[0])
+    expect(harness.clients.openWindow).not.toHaveBeenCalled()
+  })
+
+  test('falls back to openWindow when navigate throws', async () => {
+    const focus = vi.fn(async () => undefined)
+    const navigate = vi.fn(async () => { throw new Error('cross-origin') })
+    const harness = loadWorker()
+    harness.clients.matchAll.mockResolvedValueOnce([{ url: 'https://yourtj.example/home', focus, navigate }])
+    await notificationClick(harness, { url: '/p/post/9' })
+    expect(harness.clients.openWindow).toHaveBeenCalledWith('/p/post/9')
+    expect(focus).not.toHaveBeenCalled() // 绝不聚焦未成功导航的窗口
+  })
+
+  test('falls back to openWindow when no window can navigate', async () => {
     const focus = vi.fn(async () => undefined)
     const harness = loadWorker()
-    harness.clients.matchAll.mockResolvedValueOnce([{ focus }])
+    harness.clients.matchAll.mockResolvedValueOnce([
+      { url: 'https://yourtj.example/about:blank', focus },
+      { url: 'https://yourtj.example/home', focus },
+    ])
     await notificationClick(harness, { url: '/p/post/9' })
-    expect(focus).toHaveBeenCalled()
-    expect(harness.clients.openWindow).not.toHaveBeenCalled()
+    expect(harness.clients.openWindow).toHaveBeenCalledWith('/p/post/9')
+    expect(focus).not.toHaveBeenCalled()
+  })
 
-    const fallback = loadWorker()
-    await notificationClick(fallback, { url: '/p/post/9' })
-    expect(fallback.clients.openWindow).toHaveBeenCalledWith('/p/post/9')
+  test('opens a new window when none is open, falling back to /notifications', async () => {
+    const harness = loadWorker()
+    await notificationClick(harness, { url: '/p/post/9' })
+    expect(harness.clients.openWindow).toHaveBeenCalledWith('/p/post/9')
 
     const noUrl = loadWorker()
     await notificationClick(noUrl, null)

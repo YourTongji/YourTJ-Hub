@@ -216,3 +216,39 @@ func RecoverStaleEmailTasks(staleAfter time.Duration) error {
 			"processed_at": time.Now(),
 		}).Error
 }
+
+// DeleteTerminalByTypePrefix 删除指定类型前缀下、指定终态集合且 processed_at
+// 早于 before 的任务行（有界保留清理，review P2：通知类终态任务只置 Success
+// 不清理会让 task_queue 随流量无界增长，放大轮询/备份/迁移成本）。采用
+// pluck-then-delete 分批循环（与 networkAccessLog.ExpireBefore 同款），
+// 兼容 SQLite/PG；只清理终态行，绝不动 Pending/Retrying/Running。
+// 返回累计删除行数。
+func DeleteTerminalByTypePrefix(typePrefix string, statuses []int, before time.Time, batch int) (int64, error) {
+	if batch <= 0 {
+		batch = 500
+	}
+	var total int64
+	for {
+		var ids []uint64
+		if err := builder().
+			Where("type LIKE ?", typePrefix+"%").
+			Where("status IN ?", statuses).
+			Where("processed_at < ?", before).
+			Order("id asc").
+			Limit(batch).
+			Pluck("id", &ids).Error; err != nil {
+			return total, err
+		}
+		if len(ids) == 0 {
+			return total, nil
+		}
+		res := builder().Where(queryopt.In("id", ids)).Delete(&Entity{})
+		if res.Error != nil {
+			return total, res.Error
+		}
+		total += res.RowsAffected
+		if int64(len(ids)) < int64(batch) {
+			return total, nil
+		}
+	}
+}

@@ -85,6 +85,40 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array<ArrayBuffer> {
   return output
 }
 
+type PreparedRegistration = { config: PushConfig; registration: ServiceWorkerRegistration }
+
+// 预取结果缓存：把「读配置 + 注册 SW」从用户手势回调里挪出来提前完成，
+// 让 enableWebPush 里的 subscribe 能落在短暂的用户激活窗口内。任一环节失败
+// 都会清空缓存，下一次调用会重试。
+let prepared: Promise<PreparedRegistration> | null = null
+
+/**
+ * 内部：清除预取缓存。供测试与配置变更场景使用（非页面切换流程）。
+ */
+export function resetPushPreparation(): void {
+  prepared = null
+}
+
+/**
+ * 预取推送准备：读取实例配置并确保 Service Worker 已注册（幂等、缓存）。
+ * 与手势无关，可在页面加载/账号切换后尽早调用；失败会重置缓存以便重试。
+ */
+export function prepareWebPush(): Promise<PreparedRegistration> | null {
+  if (!isWebPushSupported()) return null
+  prepared ??= (async (): Promise<PreparedRegistration> => {
+    try {
+      const config = await fetchPushConfig()
+      if (!config.configured || !config.applicationServerKey) throw new PushError('unconfigured')
+      const registration = await ensureServiceWorker()
+      return { config, registration }
+    } catch (error) {
+      prepared = null
+      throw error
+    }
+  })()
+  return prepared
+}
+
 /** 后端持久化订阅（POST /api/forum/push/subscribe）。 */
 async function persistSubscription(subscription: PushSubscription, lang: string): Promise<void> {
   const json = subscription.toJSON() as {
@@ -109,15 +143,15 @@ async function persistSubscription(subscription: PushSubscription, lang: string)
 }
 
 /**
- * 开启 Web Push：注册 SW → subscribe（浏览器授权）→ 后端持久化。
- * 必须由用户手势触发（浏览器要求 subscribe 在用户激活上下文中调用）。
+ * 开启 Web Push：subscribe（浏览器授权）→ 后端持久化。
+ * 必须由用户手势触发（浏览器要求 subscribe 在用户激活上下文中调用）；
+ * 配置读取、校验与 SW 注册已由 prepareWebPush 提前完成并缓存。
  */
 export async function enableWebPush(lang: string): Promise<void> {
-  if (!isWebPushSupported()) throw new PushError('unsupported')
-  const config = await fetchPushConfig()
+  const pending = prepareWebPush()
+  if (!pending) throw new PushError('unsupported')
+  const { config, registration } = await pending
   if (!config.configured || !config.applicationServerKey) throw new PushError('unconfigured')
-
-  const registration = await ensureServiceWorker()
   if (!registration.pushManager) throw new PushError('unsupported')
 
   let subscription: PushSubscription
@@ -136,6 +170,18 @@ export async function enableWebPush(lang: string): Promise<void> {
   }
 
   await persistSubscription(subscription, lang)
+}
+
+/**
+ * 账号切换后重新绑定：浏览器里已有订阅（属于上一个账号）时，把该订阅
+ * 持久化到当前账号（后端按 endpoint upsert，收敛所有权）。没有浏览器订阅
+ * 或不支持时返回 false，无需调用方报错。
+ */
+export async function rebindPushSubscription(lang: string): Promise<boolean> {
+  const subscription = await currentPushSubscription()
+  if (!subscription) return false
+  await persistSubscription(subscription, lang)
+  return true
 }
 
 /**

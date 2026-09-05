@@ -248,12 +248,9 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		slog.Error("close account failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	// 清空 Web Push 订阅：注销后不得再向该用户的浏览器订阅发送推送
-	// （anonymize 与 delete 两 mode 共用；长驻推送凭据等同会话凭据）。
-	if err := pushSubscription.DeleteByUser(req.UserId); err != nil {
-		slog.Error("delete push subscriptions on account close failed", "userId", req.UserId, "err", err)
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
-	}
+	// 会话吊销先于订阅清理完成：注销已提交后，token_version 自增与缓存失效
+	// 是安全关键步骤（不完成则旧会话在缓存 TTL 内仍被接受），绝不能被后续
+	// 清理失败阻断（review P2）。
 	if err := users.IncrementTokenVersionWithDB(dbconnect.Connect(), req.UserId); err != nil {
 		slog.Error("increment token version on account close failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
@@ -262,6 +259,13 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 	// authsessionservice.ValidateToken 会在缓存 TTL（2 分钟）内继续读到旧用户，
 	// 旧 token 仍被接受，注销即时性被破坏（review E）。
 	userservice.InvalidateUserInfoCache(req.UserId)
+	// 清空 Web Push 订阅：注销后不得再向该用户的浏览器订阅发送推送
+	// （anonymize 与 delete 两 mode 共用；长驻推送凭据等同会话凭据）。
+	// best-effort：清理失败仅记日志不阻断响应——注销已提交、会话已吊销，
+	// 残留订阅由发送侧 IsAccountClosed 检查兜底，绝不外发。
+	if err := pushSubscription.DeleteByUser(req.UserId); err != nil {
+		slog.Error("delete push subscriptions on account close failed", "userId", req.UserId, "err", err)
+	}
 	slog.Info("account closed", "userId", req.UserId, "mode", req.Params.Mode)
 	return component.SuccessResponse(true)
 }

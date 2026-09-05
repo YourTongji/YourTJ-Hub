@@ -190,3 +190,24 @@ func TestBuildPushContentUnnormalizedLangNil(t *testing.T) {
 		t.Errorf("unhandled lang content = %#v, want nil", content)
 	}
 }
+
+// buildPushContent 携带通知行 id：SW 用其生成唯一 notification tag，使多条
+// 未读通知在系统托盘各自呈现而不互相覆盖（review P2）。
+func TestBuildPushContentCarriesNotificationID(t *testing.T) {
+	notification := eventNotification.Entity{
+		Id:        987654,
+		EventType: eventNotification.EventTypeComment,
+		Payload: eventNotification.NotificationPayload{
+			TopicId:    1001,
+			TopicTitle: "话题标题",
+			PostNo:     3,
+		},
+	}
+	content := buildPushContent(notification, "zh")
+	if content == nil {
+		t.Fatal("comment content is nil")
+	}
+	if content.Id != 987654 {
+		t.Errorf("content.Id = %d, want 987654", content.Id)
+	}
+}

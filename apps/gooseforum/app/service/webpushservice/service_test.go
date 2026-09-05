@@ -3,27 +3,31 @@ package webpushservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 )
 
 // setupWebPushTestDB 迁移本组测试需要的表并清空行，保证断言基于干净基线。
-// event_notification/task_queue 为共享 sqlite 内存连接上的表，包内其他测试
-// （如 eventNotification_rep_test）也会 AutoMigrate 同一批表，重复迁移幂等无害。
+// event_notification/task_queue/push_subscriptions 为共享 sqlite 内存连接上的
+// 表，包内其他测试也会 AutoMigrate 同一批表，重复迁移幂等无害。
 func setupWebPushTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &taskQueue.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &taskQueue.Entity{}, &pushSubscription.Entity{}); err != nil {
 		t.Fatalf("migrate webpush tables: %v", err)
 	}
 	conn.Unscoped().Where("1 = 1").Delete(&eventNotification.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&pushSubscription.Entity{})
 }
 
 // clearVapidKeys 清空测试注入的 VAPID 配置，避免泄漏到其他测试。
@@ -226,4 +230,111 @@ func TestLogConfigStatusNoPanic(t *testing.T) {
 	preferences.Set("webpush.vapid_public_key", "")
 	preferences.Set("webpush.vapid_private_key", "")
 	LogConfigStatus()
+}
+
+// ValidateEndpoint 白名单校验：仅接受 https + 推送服务白名单 host；
+// http / IP 字面量 / localhost / 未知 host / userinfo / DNS 后缀伪装
+// 一律拒绝（review P1 存储型 SSRF 防护）。
+func TestValidateEndpoint(t *testing.T) {
+	valid := []string{
+		"https://fcm.googleapis.com/fcm/send/abc123",
+		"https://updates.push.services.mozilla.com/wpush/v2/gAAAA",
+		"https://web.push.apple.com/xyz",
+		"https://android.googleapis.com/gcm/send/abc",
+		"https://foo.fcm.googleapis.com/fcm/send/abc",
+	}
+	for _, ep := range valid {
+		if err := ValidateEndpoint(ep); err != nil {
+			t.Errorf("ValidateEndpoint(%q) = %v, want nil", ep, err)
+		}
+	}
+	invalid := []string{
+		"",                                       // 空
+		"not-a-url",                              // 非 URL
+		"http://fcm.googleapis.com/fcm/send/abc", // 非 https
+		"https://push.example.com/sub",           // 非白名单 host
+		"https://localhost/sub",                  // localhost
+		"https://127.0.0.1/sub",                  // IP 字面量（回环）
+		"https://10.0.0.8/sub",                   // IP 字面量（私网）
+		"https://user:pass@fcm.googleapis.com/x", // userinfo
+		"https://fcm.googleapis.com.evil.com/x",  // DNS 后缀伪装
+	}
+	for _, ep := range invalid {
+		if err := ValidateEndpoint(ep); err == nil {
+			t.Errorf("ValidateEndpoint(%q) = nil, want error", ep)
+		}
+	}
+}
+
+// RunPushTask 在 worker 关闭/租约取消（ctx 已取消）时返回 ctx.Err()：
+// 任务保持可重试（taskQueue 置 Retrying），由下个进程续投而不是被标记
+// Success 吞掉未发送订阅（review P2）。
+func TestRunPushTaskReturnsContextErrorWhenCancelled(t *testing.T) {
+	setupWebPushTestDB(t)
+	clearVapidKeys(t)
+	privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
+	if err != nil {
+		t.Fatalf("GenerateVAPIDKeys: %v", err)
+	}
+	preferences.Set("webpush.vapid_public_key", publicKey)
+	preferences.Set("webpush.vapid_private_key", privateKey)
+
+	notification := eventNotification.Entity{
+		UserId:    1,
+		EventType: eventNotification.EventTypeComment,
+		IsRead:    false,
+	}
+	if err := eventNotification.Create(&notification); err != nil {
+		t.Fatalf("create notification: %v", err)
+	}
+	if err := pushSubscription.Upsert(1, "https://fcm.googleapis.com/fcm/send/cancel",
+		strings.Repeat("A", 87), strings.Repeat("B", 22), "zh"); err != nil {
+		t.Fatalf("seed subscription: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // 任务处理前已取消：模拟 worker 关闭/租约取消
+	err = RunPushTask(ctx, makePushTask(t, 1, notification.Id))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunPushTask with cancelled ctx error = %v, want context.Canceled", err)
+	}
+}
+
+// CleanupTerminalTasks 只清理早于保留期的终态（Success/Failed）行；
+// 非终态（Pending）与保留期内的行保留（review P2 task_queue 无界增长防护）。
+func TestCleanupTerminalTasks(t *testing.T) {
+	setupWebPushTestDB(t)
+	cutoff := time.Now()
+	old := cutoff.Add(-8 * 24 * time.Hour)
+	makeTask := func(status uint8, processedAt time.Time) *taskQueue.Entity {
+		return &taskQueue.Entity{Type: TaskTypePush + "cleanup", Status: status, TaskJson: `{}`, ProcessedAt: processedAt}
+	}
+	oldSuccess := makeTask(taskQueue.StatusSuccess, old)
+	if err := taskQueue.Create(oldSuccess); err != nil {
+		t.Fatalf("create old success task: %v", err)
+	}
+	oldFailed := makeTask(taskQueue.StatusFailed, old)
+	if err := taskQueue.Create(oldFailed); err != nil {
+		t.Fatalf("create old failed task: %v", err)
+	}
+	fresh := makeTask(taskQueue.StatusSuccess, cutoff.Add(time.Minute))
+	if err := taskQueue.Create(fresh); err != nil {
+		t.Fatalf("create fresh task: %v", err)
+	}
+	pending := makeTask(taskQueue.StatusPending, old) // 非终态：即使很旧也保留
+	if err := taskQueue.Create(pending); err != nil {
+		t.Fatalf("create pending task: %v", err)
+	}
+
+	removed, err := CleanupTerminalTasks(cutoff, 100)
+	if err != nil {
+		t.Fatalf("CleanupTerminalTasks: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("removed = %d, want 2 (old success + old failed; fresh/pending kept)", removed)
+	}
+	tasks := taskQueue.GetPendingTasksByType(TaskTypePush, 10)
+	if len(tasks) != 1 || tasks[0].Id != pending.Id {
+		t.Errorf("pending tasks after cleanup = %+v, want only pending id %d", tasks, pending.Id)
+	}
 }

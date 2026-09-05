@@ -71,9 +71,9 @@ import {
   currentPushSubscription,
   disableWebPush,
   enableWebPush,
-  fetchPushConfig,
-  isWebPushSupported,
+  prepareWebPush,
   PushError,
+  rebindPushSubscription,
 } from '@/runtime/web-push'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
@@ -993,16 +993,23 @@ function savePrivacy() {
 
 /** 初始化推送开关：仅浏览器支持且实例已配置 VAPID 时展示，初始态 = 现有订阅。 */
 async function initWebPush() {
-  if (!isWebPushSupported()) return
-  let configured = false
+  const pending = prepareWebPush()
+  if (!pending) return
   try {
-    configured = (await fetchPushConfig()).configured
+    await pending
   } catch {
     return // 网络/接口异常时保持隐藏，设置页其余功能不受影响
   }
-  if (!configured) return
   webPushAvailable.value = true
   webPushEnabled.value = Boolean(await currentPushSubscription())
+  // 换账号后浏览器订阅仍属于旧账号：绑定到当前账号（失败静默，下次访问重试）。
+  if (webPushEnabled.value) {
+    try {
+      await rebindPushSubscription(locale.value)
+    } catch {
+      // 静默失败：开关状态不变，下次进入设置页重试
+    }
+  }
 }
 
 /** 开关切换：开启 = 授权 + 订阅 + 后端持久化；关闭 = 后端解绑 + 浏览器退订。 */

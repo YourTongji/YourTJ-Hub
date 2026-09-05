@@ -441,14 +441,14 @@ func TestPushSubscribeHTTPContract(t *testing.T) {
 	t.Run("success persists subscription for the caller", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
-		body := `{"subscription":{"endpoint":"https://push.example/contract-sub","keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`
+		body := `{"subscription":{"endpoint":"https://fcm.googleapis.com/fcm/send/contract-sub","keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`
 		recorder := serveJSON(router, "/api/forum/push/subscribe", body, contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("push subscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-subscribe-success.json"))
 		subs := pushSubscription.ListByUser(user.Id)
-		if len(subs) != 1 || subs[0].Endpoint != "https://push.example/contract-sub" || subs[0].Lang != "zh" {
+		if len(subs) != 1 || subs[0].Endpoint != "https://fcm.googleapis.com/fcm/send/contract-sub" || subs[0].Lang != "zh" {
 			t.Fatalf("subscription not persisted for caller: %+v", subs)
 		}
 	})
@@ -472,16 +472,38 @@ func TestPushSubscribeHTTPContract(t *testing.T) {
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
+
+	t.Run("non-allowlisted endpoint rejected as invalid params", func(t *testing.T) {
+		// review P1 SSRF：订阅 endpoint 必须在存储前通过推送服务白名单校验。
+		// 未知 host / IP 字面量 / 内网地址一律按业务参数错误拒绝，绝不落库。
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		for _, endpoint := range []string{
+			"https://push.example.com/evil",
+			"https://127.0.0.1/sub",
+			"http://fcm.googleapis.com/fcm/send/abc",
+		} {
+			body := fmt.Sprintf(`{"subscription":{"endpoint":%q,"keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`, endpoint)
+			recorder := serveJSON(router, "/api/forum/push/subscribe", body, contractSessionToken(t, user))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("endpoint %q status = %d, want 200 envelope: %s", endpoint, recorder.Code, recorder.Body.String())
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+		}
+		if subs := pushSubscription.ListByUser(user.Id); len(subs) != 0 {
+			t.Fatalf("rejected endpoints persisted %d subscription(s), want 0", len(subs))
+		}
+	})
 }
 
 func TestPushUnsubscribeHTTPContract(t *testing.T) {
 	t.Run("removes owned subscription", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
-		if err := pushSubscription.Upsert(user.Id, "https://push.example/contract-unsub", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
+		if err := pushSubscription.Upsert(user.Id, "https://fcm.googleapis.com/fcm/send/contract-unsub", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
 			t.Fatalf("seed subscription: %v", err)
 		}
-		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://push.example/contract-unsub"}`, contractSessionToken(t, user))
+		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://fcm.googleapis.com/fcm/send/contract-unsub"}`, contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("push unsubscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
@@ -495,10 +517,10 @@ func TestPushUnsubscribeHTTPContract(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		owner := createHTTPContractUser(t, conn, contractTestID())
 		caller := createHTTPContractUser(t, conn, contractTestID())
-		if err := pushSubscription.Upsert(owner.Id, "https://push.example/foreign", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
+		if err := pushSubscription.Upsert(owner.Id, "https://fcm.googleapis.com/fcm/send/foreign", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
 			t.Fatalf("seed foreign subscription: %v", err)
 		}
-		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://push.example/foreign"}`, contractSessionToken(t, caller))
+		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://fcm.googleapis.com/fcm/send/foreign"}`, contractSessionToken(t, caller))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("foreign unsubscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}

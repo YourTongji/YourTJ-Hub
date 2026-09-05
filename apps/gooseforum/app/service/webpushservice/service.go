@@ -8,10 +8,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,9 +34,82 @@ import (
 // "webpush.{notificationId}"，RunWorker 按前缀隔离领取。
 const TaskTypePush = "webpush."
 
-// pushHTTPClient 是发送用 HTTP 客户端：推送服务为第三方外部 I/O，
-// 必须带超时与连接复用，不能使用无超时默认 client。
-var pushHTTPClient = &http.Client{Timeout: 10 * time.Second}
+// pushHTTPClient 是发送用 HTTP 客户端：推送服务为第三方外部 I/O，必须带
+// 超时与连接复用。Dial 阶段执行解析后校验（dialPushService）：即使白名单
+// host 的 DNS 被投毒解析到内网/链路本地地址，连接也在建立前被拒绝——
+// 存储前静态校验 + 发送前解析后校验的双闸（review P1 SSRF/DNS rebinding）。
+var pushHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: func() *http.Transport {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DialContext = dialPushService
+		return transport
+	}(),
+}
+
+// ErrInvalidEndpoint 表示订阅 endpoint 未通过推送服务白名单校验。控制器
+// 收到后按业务参数错误返回，不向客户端暴露白名单细节。
+var ErrInvalidEndpoint = errors.New("webpush: invalid push endpoint")
+
+// allowedPushServiceHosts 是订阅 endpoint 的合法推送服务白名单。浏览器的
+// PushManager 只会签发其厂商推送服务的 endpoint（FCM / Mozilla autopush /
+// Apple Web Push），因此把服务端出站目标锁死在这几个公网域名：未知 host
+// （localhost、内网/链路本地、攻击者自建域名、IP 字面量）一律拒绝，从根上
+// 消除存储型 SSRF（review P1）。
+var allowedPushServiceHosts = []string{
+	"fcm.googleapis.com",                // Chrome / Edge / Chromium (FCM)
+	"android.googleapis.com",            // 旧版 GCM endpoint
+	"updates.push.services.mozilla.com", // Firefox autopush
+	"web.push.apple.com",                // Safari / WebKit
+}
+
+// ValidateEndpoint 校验订阅 endpoint：必须 https、无 userinfo、host 命中推送
+// 服务白名单（IP 字面量一律拒绝——浏览器不会产生 IP endpoint，字面量是探测
+// 信号）。存储前（SubscribePush）与发送前（RunPushTask）都调用。
+func ValidateEndpoint(endpoint string) error {
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+		return ErrInvalidEndpoint
+	}
+	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+	if host == "" {
+		return ErrInvalidEndpoint
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return ErrInvalidEndpoint
+	}
+	for _, allowed := range allowedPushServiceHosts {
+		if host == allowed || strings.HasSuffix(host, "."+allowed) {
+			return nil
+		}
+	}
+	return ErrInvalidEndpoint
+}
+
+// dialPushService 在 TCP 拨号前解析 host 并校验全部解析结果均为公网单播地址
+// （非私网/回环/链路本地/未指定），防止白名单 host 被解析到内网地址时的
+// DNS rebinding（review P1；与 agentservice webhook 发送侧同款校验）。
+func dialPushService(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("webpush: resolve %q failed: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("webpush: resolve %q returned no addresses", host)
+	}
+	for _, ip := range ips {
+		if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() ||
+			ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			return nil, fmt.Errorf("webpush: refuse dial to non-public address %s (host %q)", ip, host)
+		}
+	}
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	return dialer.DialContext(ctx, network, addr)
+}
 
 // VAPID 密钥解码后的字节长度：私钥 32B、公钥 65B（P-256 未压缩点）。
 const (
@@ -132,6 +209,14 @@ func RecoverStaleTasks() error {
 	return taskQueue.RecoverStaleRunning(TaskTypePush, taskQueue.LeaseDuration)
 }
 
+// CleanupTerminalTasks 删除指定时间前进入终态（Success/Failed）的推送任务行
+// （review P2：通知每条一行 outbox，只置终态不清理会让 task_queue 随通知流量
+// 无界增长，放大轮询/备份/迁移成本）。由每日 cron 做有界保留清理。
+func CleanupTerminalTasks(before time.Time, limit int) (int64, error) {
+	return taskQueue.DeleteTerminalByTypePrefix(TaskTypePush,
+		[]int{int(taskQueue.StatusSuccess), int(taskQueue.StatusFailed)}, before, limit)
+}
+
 // RunPushTask 是推送 worker 的任务处理函数（backgroundservice.RunWorker 语义）：
 // 任务整体按 Success 收尾（attempted 语义，不依赖 taskQueue 重试——部分订阅
 // 成功后重试会造成重复投递）；单订阅发送失败仅日志，由站内红点兜底。
@@ -180,6 +265,15 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		if sub == nil || sub.Endpoint == "" || sub.P256dh == "" || sub.Auth == "" {
 			continue
 		}
+		// 发送前复验 endpoint（review P1 SSRF）：存量或绕过存储校验的非法端点
+		// （非 https / 白名单外 host / IP 字面量）按 owner 自愈删除，不发送。
+		if err := ValidateEndpoint(sub.Endpoint); err != nil {
+			deleted++
+			if delErr := pushSubscription.DeleteByEndpoint(sub.Endpoint, payload.UserId); delErr != nil {
+				slog.Warn("webpush: delete invalid subscription failed", "endpoint", redactEndpoint(sub.Endpoint), "err", delErr)
+			}
+			continue
+		}
 		// 语言是订阅级属性（同一用户的不同浏览器可能用不同界面语言）。
 		content := buildPushContent(notification, normalizeLang(sub.Lang))
 		if content == nil {
@@ -203,6 +297,11 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 		}, opts)
 		if err != nil {
 			slog.Warn("webpush: send failed", "userId", payload.UserId, "endpoint", redactEndpoint(sub.Endpoint), "err", err)
+			if ctx.Err() != nil {
+				// worker 关闭/租约取消：剩余订阅未发送，把任务留给重试
+				// （返回错误使 taskQueue 置 Retrying，下个进程续投，review P2）。
+				return ctx.Err()
+			}
 			continue
 		}
 		// 读取并关闭响应体（连接复用需要排空）。
@@ -218,7 +317,7 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 			// 404/410：订阅在推送服务已失效（含 Chrome 270 天陈旧策略），
 			// 从本地删除，停止向死 endpoint 发送。
 			deleted++
-			if err := pushSubscription.DeleteByEndpoint(sub.Endpoint); err != nil {
+			if err := pushSubscription.DeleteByEndpoint(sub.Endpoint, payload.UserId); err != nil {
 				slog.Warn("webpush: delete stale subscription failed", "endpoint", redactEndpoint(sub.Endpoint), "err", err)
 			}
 			slog.Info("webpush: subscription removed (endpoint gone)", "userId", payload.UserId)
@@ -272,6 +371,9 @@ type pushContent struct {
 	Body  string `json:"body"`
 	URL   string `json:"url"`
 	Icon  string `json:"icon"`
+	// Id 通知行 id：SW 用它生成唯一 notification tag，使多条未读通知在系统
+	// 托盘各自呈现而不互相覆盖（review P2）。
+	Id uint64 `json:"id,omitempty"`
 }
 
 const pushIconPath = "/static/pic/icon_300.webp"
@@ -330,7 +432,7 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 		body = strings.ReplaceAll(body, "{badge}", name)
 	}
 
-	return &pushContent{Title: title, Body: body, URL: url, Icon: pushIconPath}
+	return &pushContent{Title: title, Body: body, URL: url, Icon: pushIconPath, Id: notification.Id}
 }
 
 // topicURL 构造帖子详情深链（与通知列表 BuildNotificationPayload 同规则）：
