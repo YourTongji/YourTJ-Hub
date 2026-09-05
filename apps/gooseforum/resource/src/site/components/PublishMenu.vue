@@ -18,8 +18,10 @@ const { t } = useI18n()
 const { openQuickPublish } = useQuickPublish()
 // 悬停/聚焦预热发布弹层 chunk：Vite 对相同 specifier 的动态 import 去重，
 // 预热与正式打开共享同一模块级 promise（useQuickPublish.loadQuickPublishModal）。
+// 预热失败保持静默（由 loadQuickPublishModal 清空缓存，下一次交互自动重试），
+// 避免悬停期间的瞬态网络错误刷出未处理的 promise rejection。
 const preloadQuickPublish = () => {
-  void loadQuickPublishModal()
+  loadQuickPublishModal().catch(() => {})
 }
 const open = ref(false)
 const itemRefs = ref<HTMLAnchorElement[]>([])
