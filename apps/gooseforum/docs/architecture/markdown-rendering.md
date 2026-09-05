@@ -165,17 +165,29 @@ Current client enhancement:
   variables stay literal; render failures leave the original text unchanged.
 - KaTeX renders from text input only — `trust`/raw-HTML output is never
   enabled — so math content stays escaped and cannot execute script.
+- Fenced ` ```mermaid ` code blocks are rendered as SVG by the
+  `v-content-enhancements` directive on saved topic/post HTML, reply quotes and
+  revision history, and by the Vditor editor preview (its `mermaidRender` is
+  overridden to load the same lazy chunk and to share the module's serial
+  render queue). The Mermaid chunk (JS) is imported only after a
+  `language-mermaid` block is detected, so pages without diagrams keep the
+  base bundle unchanged, and a failed chunk load resets the cached promise so
+  a later render can retry. Rendering uses strict Mermaid settings
+  (`securityLevel: strict`, `suppressErrorRendering`) and follows the site
+  dark/light theme: the shared instance is re-initialized whenever the theme
+  flips during an SPA session, so diagrams rendered afterwards pick up the
+  new theme without a page reload. Every failure — including input over
+  50,000 characters — keeps the original source code block with an error
+  marker, and a successful render replaces the whole `code-copy` wrapper (the
+  `v-code-copy` directive wraps `<pre>` blocks), so no dangling copy button
+  is left behind. Server-side goldmark output and the stored Markdown are
+  never modified, and the two rendering paths stay version-aligned because
+  the editor preview shares the same lazy Mermaid chunk as the directive.
 
-Potential client enhancements:
-
-- Mermaid for diagrams
-
-These should be loaded only on pages that need them, preferably by detecting
-matching code fences or inline markers. They should not become part of the base
-forum bundle until real usage justifies it.
-
-Client enhancement libraries should decorate already-rendered content. They
-should not change the canonical Markdown storage format.
+Client enhancement libraries should decorate already-rendered content, load
+lazily (preferably by detecting matching code fences or inline markers), and
+stay out of the base forum bundle until real usage justifies them. They should
+not change the canonical Markdown storage format.
 
 ## Feature Policy
 

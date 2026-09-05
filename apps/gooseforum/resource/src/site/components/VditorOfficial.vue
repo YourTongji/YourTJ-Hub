@@ -18,6 +18,7 @@ import hljsDarkCssUrl from 'highlight.js/styles/github-dark.css?url'
 import hljs from 'highlight.js'
 import { currentLocale } from '@/runtime/i18n'
 import { loadRuntimeScript } from '@/runtime/runtime-script'
+import { loadMermaid, nextMermaidDiagramId, renderDiagram } from '@/runtime/content-enhancements/mermaid'
 import { useSiteTheme } from '@/runtime/site-theme'
 import { useI18n } from 'vue-i18n'
 
@@ -964,6 +965,44 @@ function injectOfficialAssetPlaceholders() {
   }
 }
 
+/**
+ * 覆盖 Vditor 官方 mermaidRender（预览/分屏模式的流程图渲染）。
+ * 官方实现从 CDN 加载其捆绑的旧版 mermaid（11.6.0）且 securityLevel: loose，
+ * 本组件 cdn 为空，离线环境下会静默失败。这里改为惰性加载本站 mermaid chunk
+ * （与主题页 v-content-enhancements 共用同一引擎与 strict 安全配置），并跟随
+ * 站点深浅色主题；仍遵守 Vditor 的 data-processed 契约——预览重渲染时跳过
+ * 已处理的图表，渲染失败则保留源码代码块（预览为瞬时编辑态，下一次重渲染会
+ * 重建代码块并再次尝试）。
+ */
+function overrideMermaidPreviewRender() {
+  const namespace = Vditor as unknown as {
+    mermaidRender: (element: HTMLElement, _cdn: string, _theme: string) => void
+  }
+  namespace.mermaidRender = (element) => {
+    const blocks = Array.from(element.querySelectorAll<HTMLElement>('code.language-mermaid'))
+    if (blocks.length === 0) return
+    void (async () => {
+      let mermaid: Awaited<ReturnType<typeof loadMermaid>>
+      try {
+        mermaid = await loadMermaid()
+      } catch (error) {
+        console.warn('Unable to load Mermaid for the editor preview.', error)
+        return
+      }
+      for (const block of blocks) {
+        if (block.getAttribute('data-processed') === 'true' || !block.textContent?.trim()) continue
+        block.setAttribute('data-processed', 'true')
+        try {
+          const { svg } = await renderDiagram(mermaid, nextMermaidDiagramId('gf-vditor-mermaid'), block.textContent)
+          block.innerHTML = svg
+        } catch (error) {
+          console.warn('Unable to render Mermaid diagram in the editor preview; preserving its source code.', error)
+        }
+      }
+    })()
+  }
+}
+
 function syncEditorTheme() {
   if (!editor || !ready || destroyed) return
   editor.setTheme(isDark.value ? 'dark' : 'classic')
@@ -1323,6 +1362,9 @@ onMounted(async () => {
     return
   }
   if (destroyed || !root.value) return
+
+  // 在编辑器创建前安装 mermaid 预览覆盖（官方 CDN 版本离线不可用）
+  overrideMermaidPreviewRender()
 
   let nextEditor: Vditor | null = null
   try {

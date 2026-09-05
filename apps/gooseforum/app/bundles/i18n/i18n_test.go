@@ -108,11 +108,11 @@ func TestServerMessage(t *testing.T) {
 			want: fallback,
 		},
 		{
-			name:     "unknown code never leaks raw code",
-			lang:     "en",
-			code:     "some.unknown.code",
-			want:     fallback,
-			notWant:  "some.unknown.code",
+			name:    "unknown code never leaks raw code",
+			lang:    "en",
+			code:    "some.unknown.code",
+			want:    fallback,
+			notWant: "some.unknown.code",
 		},
 		{
 			name:     "unsupported lang falls back to zh",
