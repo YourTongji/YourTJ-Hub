@@ -104,9 +104,6 @@ export default {
     groupFunction: '機能',
     groupPersonal: '個人',
     groupAdmin: '管理',
-    railLabel: 'コミュニティカテゴリ',
-    railScrollPrev: 'カテゴリを前へスクロール',
-    railScrollNext: 'カテゴリを次へスクロール',
     nav: {
       topics: 'トピック',
       hot: '人気',

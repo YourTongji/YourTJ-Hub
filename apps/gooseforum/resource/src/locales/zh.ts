@@ -104,9 +104,6 @@ export default {
     groupFunction: '功能',
     groupPersonal: '个人',
     groupAdmin: '管理',
-    railLabel: '社区分区',
-    railScrollPrev: '向前滚动分区',
-    railScrollNext: '向后滚动分区',
     nav: {
       topics: '内容',
       hot: '热门',

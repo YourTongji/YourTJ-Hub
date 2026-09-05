@@ -28,7 +28,7 @@ import {
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
@@ -49,6 +49,7 @@ import QuickPublishModal from './QuickPublishModal.vue'
 import { useShellState } from '@/runtime/shell-state'
 
 const route = useRoute()
+const router = useRouter()
 const shellState = useShellState()
 const isPublishPage = computed(() => route?.path === '/publish' || route?.name === 'publish')
 const isTopicPage = computed(() => {
@@ -79,6 +80,11 @@ interface SidebarGroupItem {
   i18nLabel?: string
   items: SidebarNavItem[]
 }
+interface SidebarCategoryItem extends SidebarNavItem {
+  id: number
+  color: string
+}
+
 
 interface SidebarSection {
   key: string
@@ -187,6 +193,22 @@ const drawerSections = computed<SidebarSection[]>(() =>
     section.key === 'browse' ? { ...section, title: t('shell.groupBrowse') } : section,
   ),
 )
+
+
+// 分类列表：回归原版侧栏「分类」分区（色点 + 名称），首页不再叠加横滚分类 rail。
+const categoryItems = computed<SidebarCategoryItem[]>(() =>
+  asArray(props.layout.sidebar.categories).map((category) => {
+    const key = `category_${category.id}`
+    return {
+      key,
+      id: category.id,
+      label: category.label,
+      url: safeUrl(category.url, 'site-link'),
+      color: category.color,
+      active: activeSidebarKey.value === key,
+    }
+  }),
+)
 const resourceItems = computed<SidebarNavItem[]>(() => [
   sidebarItem('links', t('shell.nav.links'), '/links'),
   sidebarItem('sponsors', t('shell.nav.sponsors'), '/sponsors'),
@@ -287,16 +309,23 @@ function closeDrawer() {
   drawerOpen.value = false
 }
 
-function submitSearch() {
+// 搜索提交走客户端路由跳转：与 SearchPage 同策略，复用 router.push 的
+// X-Goose-Page JSON 拉取路径（顶部 loading bar、旧页保持）。此前用游离
+// anchor 的 click() 触发全局 a[href] 拦截器，但游离节点事件冒泡不到
+// document，拦截器永远收不到，浏览器每次都执行默认整页导航白屏（issue #446）。
+// 异常时降级整页跳转，保留可用性。
+async function submitSearch() {
   const query = searchQuery.value.trim()
   if (!query) {
     searchInput.value?.focus()
     return
   }
-  // 复用全局 SPA 导航（router 拦截 a[href] 点击）；绕过则回退整页跳转。
-  const link = document.createElement('a')
-  link.href = `/search?q=${encodeURIComponent(query)}`
-  link.click()
+  const target = `/search?q=${encodeURIComponent(query)}`
+  try {
+    await router.push(target)
+  } catch {
+    window.location.assign(target)
+  }
 }
 
 async function logout() {
@@ -530,12 +559,12 @@ async function loadUserCard() {
           </form>
         </div>
 
-        <div class="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
+        <div class="flex shrink-0 items-center justify-end gap-0.5 sm:gap-1">
           <template v-if="layout.viewer.isAuthenticated">
             <!-- 发布 CTA：sm+ 常驻 navbar 呼出菜单；<sm 由右下角 FAB 承担，不占 navbar 空间 -->
             <PublishMenu variant="navbar" />
 
-            <!-- 通知 / 私信：从头像菜单提升为直达图标按钮，44px 命中区 -->
+            <!-- 通知 / 私信：从头像菜单提升为直达图标按钮，40px 触控热区（display 覆盖需用 sm:inline-grid，保住 place-items-center 居中） -->
             <a
               href="/notifications"
               class="gf-icon-button relative h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
@@ -551,7 +580,7 @@ async function loadUserCard() {
             </a>
             <a
               href="/messages"
-              class="gf-icon-button relative hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-flex"
+              class="gf-icon-button relative hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-grid"
               :aria-label="t('shell.nav.messages')"
               :title="t('shell.nav.messages')"
             >
@@ -586,7 +615,7 @@ async function loadUserCard() {
             <Search class="h-5 w-5" />
           </button>
 
-<div
+          <div
             class="relative hidden sm:block"
             @mouseenter="setHoverMenu('theme', true)"
             @mouseleave="closeHoverMenuSoon('theme')"
@@ -595,7 +624,7 @@ async function loadUserCard() {
           >
             <button
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
+              class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
               :aria-label="t('shell.switchTheme')"
               :title="t('shell.switchTheme')"
               :aria-expanded="themeMenuOpen"
@@ -675,7 +704,7 @@ async function loadUserCard() {
             >
               <button
                 type="button"
-                class="relative flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150 hover:bg-base-200 active:scale-[0.96] motion-reduce:active:scale-100"
+                class="relative ml-1 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150 hover:bg-base-300 active:scale-[0.96] motion-reduce:active:scale-100"
                 :aria-label="t('shell.userMenu')"
                 :aria-expanded="userMenuOpen"
                 aria-haspopup="menu"
@@ -773,8 +802,8 @@ async function loadUserCard() {
     <GlobalFlash />
 
     <main
-      class="gf-shell-main mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-0 px-0 py-0 sm:gap-3 sm:px-5 sm:py-3 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-8 xl:grid-cols-[256px_minmax(0,1fr)]"
-      :class="{ 'xl:grid-cols-[256px_minmax(0,1fr)_280px]': rail }"
+      class="gf-shell-main mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-0 px-0 py-0 sm:gap-3 sm:px-5 sm:py-3 lg:grid-cols-[210px_minmax(0,1fr)] lg:px-8 xl:grid-cols-[224px_minmax(0,1fr)]"
+      :class="{ 'xl:grid-cols-[224px_minmax(0,1fr)_280px]': rail }"
     >
       <aside class="gf-scrollbar-none sticky top-16 -my-3 hidden h-[calc(100vh-4rem)] overflow-y-auto self-start lg:block" aria-label="Sidebar">
         <WikiSidebar v-if="isWikiMode" :tree="wikiTree" />
@@ -783,29 +812,32 @@ async function loadUserCard() {
             <template v-for="(section, sectionIndex) in sidebarSections" :key="section.key">
               <div
                 v-if="section.title"
-                class="mb-2 mt-4 px-3 text-[11px] font-bold uppercase tracking-wide text-base-content/50"
-                :class="sectionIndex === 0 ? 'mt-0' : ''"
+                class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55"
+                :class="sectionIndex > 0 ? 'mt-2' : ''"
               >
                 {{ section.title }}
               </div>
-              <div class="space-y-1" :class="sectionIndex > 0 && !section.title ? 'mt-4' : ''">
+              <div :class="section.title ? 'space-y-px' : 'space-y-0.5'">
                 <a
                   v-for="item in section.items"
                   :key="item.key"
                   :href="item.url"
-                  class="flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors duration-150"
-                  :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+                  class="flex items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
+                  :class="[
+                    section.title ? 'h-7' : 'h-8',
+                    item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content',
+                  ]"
                 >
                   <component
                     :is="navIcon(item)"
                     v-if="navIcon(item)"
-                    class="h-5 w-5 shrink-0"
+                    class="h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
                   <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
                   <span
-                    v-if="section.key === 'admin' && item.key === 'moderation' && hasModerationReports"
-                    class="h-2.5 w-2.5 shrink-0 rounded-full bg-error"
+                    v-if="item.key === 'moderation' && hasModerationReports"
+                    class="h-2 w-2 shrink-0 rounded-full bg-error/100"
                     aria-hidden="true"
                   />
                 </a>
@@ -813,19 +845,19 @@ async function loadUserCard() {
             </template>
 
             <div v-if="resourceItems.length" class="mt-2">
-              <div class="mb-2 px-3 text-[11px] font-bold uppercase tracking-wide text-base-content/50">{{ t('shell.resources') }}</div>
-              <div class="space-y-1">
+              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ t('shell.resources') }}</div>
+              <div class="space-y-px">
                 <a
                   v-for="item in resourceItems"
                   :key="item.key"
                   :href="item.url"
-                  class="flex h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-150"
+                  class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
                   :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
                 >
                   <component
                     :is="navIcon(item)"
                     v-if="navIcon(item)"
-                    class="h-[18px] w-[18px] shrink-0"
+                    class="h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
                   <span class="truncate">{{ item.label }}</span>
@@ -838,19 +870,19 @@ async function loadUserCard() {
               :key="group.key"
               class="mt-2"
             >
-              <div class="mb-2 px-3 text-[11px] font-bold uppercase tracking-wide text-base-content/50">{{ group.title }}</div>
-              <div class="space-y-1">
+              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ group.title }}</div>
+              <div class="space-y-px">
                 <a
                   v-for="item in group.items"
                   :key="item.key"
                   :href="item.url"
-                  class="flex h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-150"
+                  class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
                   :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
                 >
                   <component
                     :is="navIcon(item)"
                     v-if="navIcon(item)"
-                    class="h-[18px] w-[18px] shrink-0"
+                    class="h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
                   <span class="truncate">{{ item.label }}</span>
@@ -858,6 +890,22 @@ async function loadUserCard() {
               </div>
             </div>
 
+            <div v-if="categoryItems.length" class="mt-2">
+              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ t('shell.categories') }}</div>
+              <div class="space-y-px">
+                <a
+                  v-for="category in categoryItems"
+                  :key="category.key"
+                  :href="category.url"
+                  class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
+                  :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+                  :aria-current="category.active ? 'page' : undefined"
+                >
+                  <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                  <span class="truncate">{{ category.label }}</span>
+                </a>
+              </div>
+            </div>
           </div>
 
           <footer v-if="hasFooter" class="mt-0 px-2 pt-0.5 text-xs leading-5 text-base-content/75">
@@ -906,6 +954,7 @@ async function loadUserCard() {
       :sections="drawerSections"
       :resource-items="resourceItems"
       :sidebar-groups="sidebarGroups"
+      :category-items="categoryItems"
       :wiki-mode="isWikiMode"
       :wiki-tree="wikiTree"
       :footer="safeFooter"
@@ -914,6 +963,7 @@ async function loadUserCard() {
       :menu-label="t('shell.menu')"
       :resources-label="t('shell.resources')"
       :sidebar-icon="navIcon"
+      :categories-label="t('shell.categories')"
       @close="closeDrawer"
     />
 
