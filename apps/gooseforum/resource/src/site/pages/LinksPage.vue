@@ -53,7 +53,7 @@ function logoHref(url: string) {
                 :href="linkHref(link.url)"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="group rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-2 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
+                class="group relative rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-2 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
               >
                 <div class="flex items-center gap-2">
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[var(--gf-radius-field)] border border-line bg-base-100 sm:bg-base-200">
@@ -74,6 +74,13 @@ function logoHref(url: string) {
                     <p class="mt-0.5 truncate text-[11px] leading-4 text-base-content/55">{{ link.desc || link.url }}</p>
                   </div>
                 </div>
+                <!-- 描述被 truncate 截断时（issue #471），hover/focus 用完整描述的 gf-tooltip 兜底；
+                     完整文本本就在 DOM 中（truncate 仅视觉裁剪），tooltip 对读屏重复，故 aria-hidden -->
+                <span
+                  v-if="link.desc"
+                  aria-hidden="true"
+                  class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-56 -translate-x-1/2 whitespace-normal text-left leading-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                >{{ link.desc }}</span>
               </a>
             </div>
           </section>
