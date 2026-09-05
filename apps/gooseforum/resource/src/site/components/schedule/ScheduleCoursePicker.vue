@@ -17,6 +17,7 @@ import { ChevronLeft, ChevronRight, Loader2, RotateCcw, Search, X } from '@lucid
 import EmptyState from '@/site/components/EmptyState.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { sortPlannedCoursesFirst } from '@/site/utils/pkCourseOrder'
 import {
   getPkCampuses,
   getPkCourseDetails,
@@ -346,7 +347,10 @@ const campusValue = ref('')
 const facultyValue = ref('')
 
 const filteredSearchResults = computed(() => {
-  return searchResults.value.filter(matchesSearch)
+  return sortPlannedCoursesFirst(
+    searchResults.value.filter(matchesSearch),
+    store.state.commonLists.compulsoryCourses,
+  )
 })
 
 const searchSummaryText = computed(() => {

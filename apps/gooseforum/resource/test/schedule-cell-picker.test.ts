@@ -46,6 +46,19 @@ function makeStaged(courseCode: string, details: PkCourseDetail[]): PkStagedCour
   }
 }
 
+function makeCourse(courseCode: string): PkCourse {
+  return {
+    courseCode,
+    courseName: `课程${courseCode}`,
+    courseNameReserved: `课程${courseCode}`,
+    credit: 3,
+    courseType: '必',
+    status: 0,
+    teacher: [],
+    courseDetail: [],
+  }
+}
+
 function mountPicker(
   day: number,
   section: number,
@@ -89,6 +102,7 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
   beforeEach(() => {
     const store = useScheduleStore()
     store.clearStagedAndSelectedCourses()
+    store.setCompulsoryCourses([])
     store.setMajorInfo({ calendarId: 121, grade: 2025, major: '00301' })
     vi.mocked(getPkCoursesByTime).mockResolvedValue({ courses: [], auxiliaryReady: true })
     vi.mocked(getPkCourseDetails).mockResolvedValue({})
@@ -117,6 +131,28 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
     await flushPromises()
     // happy-dom 下 i18n 检测为 en，断言英文空态文案。
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('No staged courses at this time')
+  })
+
+  test('计划内课程在备选池和同时段全校列表中置顶，其他课程保持原序', async () => {
+    const store = useScheduleStore()
+    store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3])]))
+    store.pushStagedCourse(makeStaged('122005', [makeDetail('122005.01', 1, [3])]))
+    store.pushStagedCourse(makeStaged('122006', [makeDetail('122006.01', 1, [3])]))
+    store.setCompulsoryCourses([makeCourse('122005'), makeCourse('CHEM101')])
+    vi.mocked(getPkCoursesByTime).mockResolvedValue({
+      courses: [makeCourse('BIO101'), makeCourse('CHEM101'), makeCourse('PHY101')],
+      auxiliaryReady: true,
+    })
+
+    mountPicker(1, 3)
+    await flushPromises()
+
+    const stagedNames = dialogRows().map((row) => row.querySelector('span')?.textContent?.trim())
+    expect(stagedNames).toEqual(['课程122005', '课程122004', '课程122006'])
+
+    const dialogText = document.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialogText.indexOf('课程CHEM101')).toBeLessThan(dialogText.indexOf('课程BIO101'))
+    expect(dialogText.indexOf('课程BIO101')).toBeLessThan(dialogText.indexOf('课程PHY101'))
   })
 
   test('点击候选课程：无冲突时加入课表并关闭弹窗', async () => {

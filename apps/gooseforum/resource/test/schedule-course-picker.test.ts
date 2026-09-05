@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { i18n } from '../src/runtime/i18n'
 import ScheduleCoursePicker from '../src/site/components/schedule/ScheduleCoursePicker.vue'
+import type { PkCourse } from '../src/site/types/pk'
+
+const searchPkCourses = vi.hoisted(() => vi.fn(async (): Promise<PkCourse[]> => []))
 
 // 选课弹窗打开时会加载字典（getPkCampuses/getPkFaculties），mock 掉避免真实 fetch。
 vi.mock('../src/runtime/pk-api', () => ({
@@ -11,13 +14,27 @@ vi.mock('../src/runtime/pk-api', () => ({
   getPkCoursesByMajor: vi.fn(async () => []),
   getPkOptionalTypes: vi.fn(async () => []),
   getPkCoursesByNature: vi.fn(async () => []),
-  searchPkCourses: vi.fn(async () => []),
+  searchPkCourses,
   getPkCourseDetails: vi.fn(async () => []),
 }))
+
+function makeSearchCourse(courseCode: string): PkCourse {
+  return {
+    courseCode,
+    courseName: `课程${courseCode}`,
+    courseNameReserved: `课程${courseCode}`,
+    credit: 3,
+    courseType: '查',
+    status: 0,
+    teacher: [],
+    courseDetail: [],
+  }
+}
 
 describe('ScheduleCoursePicker Dialog 可访问性', () => {
   beforeEach(() => {
     i18n.global.locale.value = 'zh'
+    searchPkCourses.mockClear()
   })
 
   test('aria-describedby 指向存在的描述元素（P2-6 建议项）', async () => {
@@ -231,6 +248,39 @@ describe('ScheduleCoursePicker Dialog 可访问性', () => {
     await flushPromises()
 
     expect(courseNameInput!.value).toBe('')
+
+    wrapper.unmount()
+  })
+
+  test('高级检索将计划内课程置顶，其他结果保持原顺序', async () => {
+    const { useScheduleStore } = await import('../src/site/composables/useScheduleStore')
+    const store = useScheduleStore()
+    store.setMajorInfo({ calendarId: 121, grade: 2025, major: '00301' })
+    store.setCompulsoryCourses([makeSearchCourse('122005')])
+    searchPkCourses.mockResolvedValueOnce([
+      makeSearchCourse('122004'),
+      makeSearchCourse('122005'),
+      makeSearchCourse('122006'),
+    ])
+
+    const wrapper = mount(ScheduleCoursePicker, {
+      props: { open: true },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    tabs[2].click()
+    await flushPromises()
+    document.querySelector<HTMLFormElement>('[role="dialog"] form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await flushPromises()
+
+    const names = [...document.querySelectorAll<HTMLElement>('[role="dialog"] ul li')]
+      .map((row) => row.querySelector('span[title]')?.textContent?.trim())
+    expect(names).toEqual(['课程122005', '课程122004', '课程122006'])
 
     wrapper.unmount()
   })
