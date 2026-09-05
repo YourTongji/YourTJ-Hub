@@ -441,6 +441,14 @@
   },
   {
     "method": "GET",
+    "path": "/topics/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/topics/:id/:postNo"
+  },
+  {
+    "method": "GET",
     "path": "/u/:userId"
   },
   {
@@ -834,6 +842,10 @@
   {
     "method": "POST",
     "path": "/api/forum/moderation/course-relation-list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/course-relation-reset"
   },
   {
     "method": "POST",

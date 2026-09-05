@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, LayoutGrid, List, Mail, Plus, UsersRound } from '@lucide/vue'
+import { Bell, LayoutGrid, List, Mail, UsersRound } from '@lucide/vue'
 import { fetchPage } from '@/runtime/router'
 import { useHomeFeedMode } from '@/runtime/home-feed-mode'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -369,60 +369,54 @@ onBeforeUnmount(() => {
           class="gf-home-topic-toolbar"
           :class="feedMode === 'card' ? 'gf-home-topic-toolbar-card' : ''"
         >
-          <div class="gf-home-topic-tools">
-            <div class="gf-home-topic-tabs">
-              <a
-                v-for="tab in page.props.tabs"
-                :key="tab.key"
-                :href="tab.url"
-                class="gf-tab"
-                :class="tab.active ? 'gf-tab-active' : 'gf-tab-idle'"
-              >
-                {{ sortTabLabel(tab.key, tab.label) }}
-              </a>
-            </div>
-            <div
-              ref="feedModeGroup"
-              class="relative flex items-center gap-0.5 rounded-full border border-line bg-base-100 p-0.5"
-              role="group"
-              :aria-label="t('topicList.feedMode')"
+          <div class="gf-home-topic-tabs">
+            <a
+              v-for="tab in page.props.tabs"
+              :key="tab.key"
+              :href="tab.url"
+              class="gf-tab"
+              :class="tab.active ? 'gf-tab-active' : 'gf-tab-idle'"
             >
-              <span
-                aria-hidden="true"
-                class="pointer-events-none absolute bottom-0.5 top-0.5 rounded-full bg-primary"
-                :class="feedModePillReady && feedModePillShouldAnimate && !reducedMotion
-                  ? 'transition-[left,width] duration-[var(--gf-feed-slide-ms)] ease-out'
-                  : ''"
-                :style="{ left: `${feedModePillLeft}px`, width: `${feedModePillWidth}px` }"
-              />
-              <button
-                ref="feedModeTableBtn"
-                type="button"
-                class="relative z-10 inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
-                :class="feedModeButtonClass(feedMode === 'table')"
-                :aria-pressed="feedMode === 'table'"
-                @click="setFeedMode('table')"
-              >
-                <List class="h-3.5 w-3.5" />
-                {{ t('topicList.feedModeTable') }}
-              </button>
-              <button
-                ref="feedModeCardBtn"
-                type="button"
-                class="relative z-10 inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
-                :class="feedModeButtonClass(feedMode === 'card')"
-                :aria-pressed="feedMode === 'card'"
-                @click="setFeedMode('card')"
-              >
-                <LayoutGrid class="h-3.5 w-3.5" />
-                {{ t('topicList.feedModeCard') }}
-              </button>
-            </div>
+              {{ sortTabLabel(tab.key, tab.label) }}
+            </a>
           </div>
-          <a href="/publish" class="gf-button gf-button-md gf-button-primary shrink-0 whitespace-nowrap px-3 sm:h-8">
-            <Plus class="h-4 w-4" />
-            {{ t('topicList.newTopic') }}
-          </a>
+          <div
+            ref="feedModeGroup"
+            class="relative flex shrink-0 items-center gap-0.5 rounded-full border border-line bg-base-100 p-0.5"
+            role="group"
+            :aria-label="t('topicList.feedMode')"
+          >
+            <span
+              aria-hidden="true"
+              class="pointer-events-none absolute bottom-0.5 top-0.5 rounded-full bg-primary"
+              :class="feedModePillReady && feedModePillShouldAnimate && !reducedMotion
+                ? 'transition-[left,width] duration-[var(--gf-feed-slide-ms)] ease-out'
+                : ''"
+              :style="{ left: `${feedModePillLeft}px`, width: `${feedModePillWidth}px` }"
+            />
+            <button
+              ref="feedModeTableBtn"
+              type="button"
+              class="relative z-10 inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+              :class="feedModeButtonClass(feedMode === 'table')"
+              :aria-pressed="feedMode === 'table'"
+              @click="setFeedMode('table')"
+            >
+              <List class="h-3.5 w-3.5" />
+              {{ t('topicList.feedModeTable') }}
+            </button>
+            <button
+              ref="feedModeCardBtn"
+              type="button"
+              class="relative z-10 inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+              :class="feedModeButtonClass(feedMode === 'card')"
+              :aria-pressed="feedMode === 'card'"
+              @click="setFeedMode('card')"
+            >
+              <LayoutGrid class="h-3.5 w-3.5" />
+              {{ t('topicList.feedModeCard') }}
+            </button>
+          </div>
         </div>
 
         <TopicList :topics="topics" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
@@ -469,7 +463,7 @@ onBeforeUnmount(() => {
 
 /* 信息流切换：药丸滑动时长；激活按钮文字翻白的 delay 与之共享（见 feedModeButtonClass），
    调整滑动速度时只改这一处。 */
-.gf-home-topic-tools {
+.gf-home-topic-toolbar {
   --gf-feed-slide-ms: 300ms;
 }
 

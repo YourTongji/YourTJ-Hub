@@ -13,7 +13,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/markbates/goth/gothic"
 )
 
 // ProviderLogin 开始OAuth登录/绑定流程（根据登录状态自动判断）
@@ -22,7 +21,7 @@ func ProviderLogin(c *gin.Context) {
 	q.Add("provider", c.Param("provider"))
 	c.Request.URL.RawQuery = q.Encode()
 	// 开始 OAuth 流程
-	gothic.BeginAuthHandler(c.Writer, c.Request)
+	oauthservice.BeginOAuthAuthHandler(c.Writer, c.Request)
 }
 
 // ProviderCallback 处理OAuth登录/绑定回调（根据登录状态自动判断）
@@ -32,7 +31,7 @@ func ProviderCallback(c *gin.Context) {
 	c.Request.URL.RawQuery = q.Encode()
 
 	// 完成 OAuth 流程
-	gothUser, err := gothic.CompleteUserAuth(c.Writer, c.Request)
+	gothUser, err := oauthservice.CompleteOAuthUserAuth(c.Writer, c.Request)
 	if err != nil {
 		slog.Error("OAuth callback failed", "error", err)
 		forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthCallbackFailed)
@@ -69,20 +68,23 @@ func ProviderCallback(c *gin.Context) {
 				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOAuthAccountFrozen)
 				return
 			}
+			if errors.Is(err, oauthservice.ErrOAuthEmailUnverified) {
+				slog.Warn("OAuth callback rejected unverified email", "provider", gothUser.Provider)
+				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageAuthEmailUnverified)
+				return
+			}
 			slog.Error("Process OAuth callback failed", "error", err)
 			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
 			return
 		}
 
 		if user.IsActivated == users.ActivationPending {
-			// issue #155：OAuth 用户处于待激活状态（verified 邮箱未命中信任域名且
-			// 全局 EnableEmailVerification 开启）时，不发放会话——与密码登录对
-			// pending 用户的拒绝语义一致（authController 返回 auth.email.unverified）。
-			// 用户需通过激活邮件完成验证后重新登录。
-			slog.Info("OAuth callback rejected pending activation user",
+			// 待激活 OAuth 用户同样发放会话：写权限在权限层由
+			// CheckWritableAccount 拦截（permission.emailRequired），会话不授予
+			// 写能力，用户借此可在会话过期后重新登录并继续激活恢复流程
+			// （issue #427，与密码登录对 pending 用户的放行口径一致）。
+			slog.Info("OAuth callback issued session for pending activation user",
 				"userId", user.Id, "provider", gothUser.Provider)
-			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageAuthEmailUnverified)
-			return
 		}
 
 		// 生成JWT token（会话凭证，写会话记录）

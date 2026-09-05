@@ -83,15 +83,20 @@ function toggleCollapse(name: string) {
     >
       <button
         type="button"
-        class="flex h-7 w-full items-center gap-1 rounded-md px-2 text-left text-[11px] font-bold uppercase tracking-wide text-base-content/55 transition-colors hover:bg-base-300 hover:text-base-content"
+        class="flex h-7 w-full items-center gap-1 rounded-md px-2 text-left text-[11px] font-bold uppercase tracking-wide text-base-content/55 transition-colors hover:bg-base-300 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         :aria-expanded="!isCollapsed(group.name)"
+        :aria-controls="`wiki-sidebar-group-${group.name}`"
         @click="toggleCollapse(group.name)"
       >
         <ChevronDown v-if="!isCollapsed(group.name)" class="h-3 w-3 shrink-0" />
         <ChevronRight v-else class="h-3 w-3 shrink-0" />
         <span class="truncate">{{ group.label }}</span>
       </button>
-      <div v-if="!isCollapsed(group.name)" class="space-y-px">
+      <div
+        v-if="!isCollapsed(group.name)"
+        :id="`wiki-sidebar-group-${group.name}`"
+        class="space-y-px"
+      >
         <WikiSidebarNode
           v-for="node in group.nodes"
           :key="`${node.kind}:${node.path}`"

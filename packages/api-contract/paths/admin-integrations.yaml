@@ -89,7 +89,11 @@ adminSaveMailSettings:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -99,6 +103,8 @@ adminSaveMailSettings:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminTestMailConnection:
   post:
@@ -152,7 +158,11 @@ adminTestMailConnection:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -162,6 +172,8 @@ adminTestMailConnection:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminGetStorageSettings:
   get:
@@ -262,7 +274,11 @@ adminSaveStorageSettings:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -272,6 +288,8 @@ adminSaveStorageSettings:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminTestStorageConnection:
   post:
@@ -319,7 +337,11 @@ adminTestStorageConnection:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -329,6 +351,8 @@ adminTestStorageConnection:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminCreateStorageMigrateTask:
   post:
@@ -383,7 +407,11 @@ adminCreateStorageMigrateTask:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -393,6 +421,8 @@ adminCreateStorageMigrateTask:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminListStorageMigrateTasks:
   get:
@@ -531,7 +561,11 @@ adminSaveMcpSettings:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -541,6 +575,8 @@ adminSaveMcpSettings:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminGetScheduleSettings:
   get:
@@ -636,7 +672,11 @@ adminSaveScheduleSettings:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -646,3 +686,5 @@ adminSaveScheduleSettings:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

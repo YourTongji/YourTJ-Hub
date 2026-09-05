@@ -1,16 +1,17 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 func RegisterByGin(ginApp *gin.Engine) {
 	// 基础中间件
 	ginApp.Use(middleware.Recovery())
 	ginApp.Use(middleware.SiteMaintenance)
-	ginApp.Use(middleware.SiteInfo)
+	// 安全响应头（注册在 SiteMaintenance 之后：维护页含内联脚本，不能被页面级 CSP 禁用）
+	ginApp.Use(middleware.SecurityHeaders)
 	// 访问日志中间件
 	ginApp.Use(middleware.AccessLog)
 

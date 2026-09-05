@@ -39,7 +39,11 @@ adminListTopics:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -49,6 +53,8 @@ adminListTopics:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminGetTopicSource:
   post:
@@ -92,7 +98,11 @@ adminGetTopicSource:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -102,6 +112,8 @@ adminGetTopicSource:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminEditTopic:
   post:
@@ -150,7 +162,11 @@ adminEditTopic:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -160,6 +176,8 @@ adminEditTopic:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminDeleteTopic:
   post:
@@ -212,7 +230,11 @@ adminDeleteTopic:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -222,6 +244,8 @@ adminDeleteTopic:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminRestoreTopic:
   post:
@@ -269,7 +293,11 @@ adminRestoreTopic:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -279,6 +307,8 @@ adminRestoreTopic:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminDeletePost:
   post:
@@ -329,7 +359,11 @@ adminDeletePost:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -339,6 +373,8 @@ adminDeletePost:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminEditTopicPin:
   post:
@@ -388,7 +424,11 @@ adminEditTopicPin:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -398,6 +438,8 @@ adminEditTopicPin:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminEditTopicCategories:
   post:
@@ -452,7 +494,11 @@ adminEditTopicCategories:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the TopicsManager permission.
+        description: >-
+          Frozen account, or caller lacks the TopicsManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -462,3 +508,5 @@ adminEditTopicCategories:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

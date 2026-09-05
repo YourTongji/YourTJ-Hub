@@ -14,31 +14,49 @@ import {
   Languages,
   LogOut,
   Menu,
+  Monitor,
+  Moon,
   Palette,
   PenSquare,
   Scale,
+  Sun,
   TrendingUp,
   Search,
   Settings,
   Shield,
-  Moon,
-  Sun,
   GraduationCap,
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
-import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
+import { useSiteTheme, setThemePreference, type ThemePreference } from '@/runtime/site-theme'
+import { safeUrl } from '@/runtime/safe-url'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
+import { useWikiSearchPanel } from '@/runtime/use-wiki-search'
 import type { LayoutPayload } from '@gooseforum/client'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import UserAvatar from './UserAvatar.vue'
 import type UserCardComponent from './UserCard.vue'
 import WikiSidebar from './WikiSidebar.vue'
 import WikiSearchPanel from './WikiSearchPanel.vue'
+import PublishMenu from './PublishMenu.vue'
+import QuickPublishModal from './QuickPublishModal.vue'
+
+import { useShellState } from '@/runtime/shell-state'
+
+const route = useRoute()
+const router = useRouter()
+const shellState = useShellState()
+const isPublishPage = computed(() => route?.path === '/publish' || route?.name === 'publish')
+const isTopicPage = computed(() => {
+  if (shellState.isTopicPage) return true
+  const path = route?.path || ''
+  return path.startsWith('/p/post') || path.startsWith('/topics') || path.startsWith('/p/topic')
+})
 
 const props = defineProps<{
   layout: LayoutPayload
@@ -56,15 +74,22 @@ interface SidebarNavItem {
   active: boolean
 }
 
+interface SidebarGroupItem {
+  key: string
+  title: string
+  i18nLabel?: string
+  items: SidebarNavItem[]
+}
 interface SidebarCategoryItem extends SidebarNavItem {
   id: number
   color: string
 }
 
-interface SidebarGroupItem {
+
+interface SidebarSection {
   key: string
-  title: string
-  i18nLabel?: string
+  /** 有标题时渲染分组标题；无标题（浏览组）时直接平铺，保持视觉主导。 */
+  title?: string
   items: SidebarNavItem[]
 }
 
@@ -72,16 +97,30 @@ const MobileDrawer = defineAsyncComponent(() => import('./MobileDrawer.vue'))
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
 const drawerOpen = ref(false)
 const headerElevated = ref(false)
+const themeMenuOpen = ref(false)
 const langMenuOpen = ref(false)
 const userMenuOpen = ref(false)
-const closeTimers: Record<'lang' | 'user', number | undefined> = {
+const closeTimers: Record<'theme' | 'lang' | 'user', number | undefined> = {
+  theme: undefined,
   lang: undefined,
   user: undefined,
 }
 const { navigating } = useNavigationState()
 const { t, te, locale } = useI18n()
-const { isDark } = useSiteTheme()
+const { isDark, preference } = useSiteTheme()
 const unreadStatus = useUnreadStatus()
+
+const themeOptions = computed(() => [
+  { value: 'auto' as const, label: t('shell.themeAuto'), icon: Monitor },
+  { value: 'light' as const, label: t('shell.themeLight'), icon: Sun },
+  { value: 'dark' as const, label: t('shell.themeDark'), icon: Moon },
+])
+
+function selectTheme(preference: ThemePreference) {
+  setThemePreference(preference)
+  themeMenuOpen.value = false
+}
+
 const hasUnreadNotification = computed(() => unreadStatus.notifications.value)
 const hasUnreadMessage = computed(() => unreadStatus.messages.value)
 const hasModerationReports = computed(() => unreadStatus.moderationReports.value)
@@ -90,22 +129,38 @@ const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value)
 const activeSidebarKey = computed(() => props.layout.sidebar.activeKey || 'topics')
 const isWikiMode = computed(() => props.layout.sidebar.mode === 'wiki')
 const wikiTree = computed(() => props.layout.sidebar.wikiTree || [])
-const primaryItems = computed<SidebarNavItem[]>(() => {
-  const items: SidebarNavItem[] = [
-    sidebarItem('topics', t('shell.nav.topics'), '/'),
-    sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
-    sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
-    sidebarItem('courses', t('shell.nav.courses'), '/courses'),
-    sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
-    sidebarItem('wiki', t('shell.nav.wiki'), '/wiki'),
-  ]
-  if (props.layout.viewer.isAuthenticated) {
-    items.push(
-      sidebarItem('messages', t('shell.nav.messages'), '/messages'),
-      sidebarItem('notifications', t('shell.nav.notifications'), '/notifications'),
-      sidebarItem('drafts', t('shell.nav.drafts'), '/drafts'),
-    )
-  }
+// wiki 局内搜索面板是全局单例（桌面侧栏胶囊 / 移动 header 按钮 / ⌘K、/ 快捷键共用）。
+// 面板打开时收起移动抽屉，避免面板关闭后用户仍停留在抽屉层。
+const { panelOpen: wikiSearchOpen, openPanel: openWikiSearch } = useWikiSearchPanel()
+watch(wikiSearchOpen, (open) => {
+  if (open) drawerOpen.value = false
+})
+
+// 浏览组（排序入口）：默认平铺在侧栏顶部，不加重重复述首页 tab 的分组感。
+const browseItems = computed<SidebarNavItem[]>(() => [
+  sidebarItem('topics', t('shell.nav.topics'), '/'),
+  sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
+  sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
+])
+
+// 功能组：站点能力页。
+const functionItems = computed<SidebarNavItem[]>(() => [
+  sidebarItem('courses', t('shell.nav.courses'), '/courses'),
+  sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
+  sidebarItem('wiki', t('shell.nav.wiki'), '/wiki'),
+])
+
+// 个人组：登录后的个人内容入口（私信/通知已上移 navbar，不再重复）。
+const personalItems = computed<SidebarNavItem[]>(() => {
+  if (!props.layout.viewer.isAuthenticated) return []
+  const items: SidebarNavItem[] = [sidebarItem('drafts', t('shell.nav.drafts'), '/drafts')]
+  items.push(...serverSidebarItems(props.layout.sidebar.main))
+  return items
+})
+
+// 管理组：按权限可见。
+const adminItems = computed<SidebarNavItem[]>(() => {
+  const items: SidebarNavItem[] = []
   if (props.layout.viewer.isModerator) {
     items.push(sidebarItem('moderation', t('shell.nav.moderation'), '/moderation'))
   }
@@ -114,8 +169,46 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
     items.push(sidebarItem('courseReviews', t('shell.nav.courseReviews'), '/moderation/course-reviews'))
     items.push(sidebarItem('courseManage', t('shell.nav.courseManage'), '/moderation/courses'))
   }
-  return [...items, ...serverSidebarItems(props.layout.sidebar.main)]
+  return items
 })
+
+// 侧栏分区：浏览组无标题（就是首页的三个视角），其余组带标题归组。
+const sidebarSections = computed<SidebarSection[]>(() => {
+  const sections: SidebarSection[] = [
+    { key: 'browse', items: browseItems.value },
+    { key: 'function', title: t('shell.groupFunction'), items: functionItems.value },
+  ]
+  if (personalItems.value.length) {
+    sections.push({ key: 'personal', title: t('shell.groupPersonal'), items: personalItems.value })
+  }
+  if (adminItems.value.length) {
+    sections.push({ key: 'admin', title: t('shell.groupAdmin'), items: adminItems.value })
+  }
+  return sections
+})
+
+// 移动抽屉沿用同一分区，浏览组在抽屉中补标题以维持结构可读。
+const drawerSections = computed<SidebarSection[]>(() =>
+  sidebarSections.value.map((section) =>
+    section.key === 'browse' ? { ...section, title: t('shell.groupBrowse') } : section,
+  ),
+)
+
+
+// 分类列表：回归原版侧栏「分类」分区（色点 + 名称），首页不再叠加横滚分类 rail。
+const categoryItems = computed<SidebarCategoryItem[]>(() =>
+  asArray(props.layout.sidebar.categories).map((category) => {
+    const key = `category_${category.id}`
+    return {
+      key,
+      id: category.id,
+      label: category.label,
+      url: safeUrl(category.url, 'site-link'),
+      color: category.color,
+      active: activeSidebarKey.value === key,
+    }
+  }),
+)
 const resourceItems = computed<SidebarNavItem[]>(() => [
   sidebarItem('links', t('shell.nav.links'), '/links'),
   sidebarItem('sponsors', t('shell.nav.sponsors'), '/sponsors'),
@@ -131,19 +224,6 @@ const sidebarGroups = computed<SidebarGroupItem[]>(() =>
     }))
     .filter((group) => group.title && group.items.length > 0),
 )
-const categoryItems = computed<SidebarCategoryItem[]>(() =>
-  asArray(props.layout.sidebar.categories).map((category) => {
-    const key = `category_${category.id}`
-    return {
-      key,
-      id: category.id,
-      label: category.label,
-      url: category.url,
-      color: category.color,
-      active: activeSidebarKey.value === key,
-    }
-  }),
-)
 const headerResourceItems = computed(() => {
   const configured = serverSidebarItems(props.layout.header)
   return configured.length > 0
@@ -152,12 +232,19 @@ const headerResourceItems = computed(() => {
       .map((key) => resourceItems.value.find((item) => item.key === key))
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
 })
-const footerLinks = computed(() => asArray(props.layout.footer.links))
+const footerLinks = computed(() => asArray(props.layout.footer.links).map((link) => ({
+  ...link,
+  url: safeUrl(link.url, 'site-link'),
+})))
 const footerPrimary = computed(() => asArray(props.layout.footer.primary))
 const hasFooter = computed(() => footerLinks.value.length > 0 || footerPrimary.value.length > 0)
+const safeFooter = computed(() => ({ links: footerLinks.value, primary: footerPrimary.value }))
 const brandType = computed(() => props.layout.site.brandType || 'default')
 const brandText = computed(() => props.layout.site.brandText || props.layout.site.name)
+const brandImage = computed(() => safeUrl(props.layout.site.brandImage, 'image'))
 const hasHeaderTitle = computed(() => Boolean(props.showHeaderTitle && props.headerTitle))
+const searchQuery = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
 const sidebarIconMap = {
   topics: MessageCircle,
   hot: Flame,
@@ -222,6 +309,25 @@ function closeDrawer() {
   drawerOpen.value = false
 }
 
+// 搜索提交走客户端路由跳转：与 SearchPage 同策略，复用 router.push 的
+// X-Goose-Page JSON 拉取路径（顶部 loading bar、旧页保持）。此前用游离
+// anchor 的 click() 触发全局 a[href] 拦截器，但游离节点事件冒泡不到
+// document，拦截器永远收不到，浏览器每次都执行默认整页导航白屏（issue #446）。
+// 异常时降级整页跳转，保留可用性。
+async function submitSearch() {
+  const query = searchQuery.value.trim()
+  if (!query) {
+    searchInput.value?.focus()
+    return
+  }
+  const target = `/search?q=${encodeURIComponent(query)}`
+  try {
+    await router.push(target)
+  } catch {
+    window.location.assign(target)
+  }
+}
+
 async function logout() {
   const res = await fetch('/api/logout', { method: 'POST' })
   if (res.ok) {
@@ -257,13 +363,9 @@ function serverSidebarItems(items: typeof props.layout.sidebar.main): SidebarNav
     key: item.key,
     label: displayNavLabel(item),
     i18nLabel: item.i18nLabel,
-    url: item.url,
+    url: safeUrl(item.url, 'site-link'),
     active: activeSidebarKey.value === item.key,
   }))
-}
-
-function onToggleTheme(event: MouseEvent) {
-  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
 }
 
 function scrollToTop() {
@@ -274,17 +376,19 @@ function updateHeaderElevated() {
   headerElevated.value = window.scrollY > 8
 }
 
-function setHoverMenu(menu: 'lang' | 'user', open: boolean) {
+function setHoverMenu(menu: 'theme' | 'lang' | 'user', open: boolean) {
   window.clearTimeout(closeTimers[menu])
   closeTimers[menu] = undefined
-  if (menu === 'lang') langMenuOpen.value = open
+  if (menu === 'theme') themeMenuOpen.value = open
+  else if (menu === 'lang') langMenuOpen.value = open
   else userMenuOpen.value = open
 }
 
-function closeHoverMenuSoon(menu: 'lang' | 'user') {
+function closeHoverMenuSoon(menu: 'theme' | 'lang' | 'user') {
   window.clearTimeout(closeTimers[menu])
   closeTimers[menu] = window.setTimeout(() => {
-    if (menu === 'lang') langMenuOpen.value = false
+    if (menu === 'theme') themeMenuOpen.value = false
+    else if (menu === 'lang') langMenuOpen.value = false
     else userMenuOpen.value = false
   }, 120)
 }
@@ -329,11 +433,11 @@ async function loadUserCard() {
         ? 'sm:shadow-[0_1px_10px_rgb(15_23_42/0.04)]'
         : 'sm:shadow-none'"
     >
-      <div class="mx-auto grid h-16 w-full max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 sm:gap-4 sm:px-5 md:grid-cols-[auto_minmax(0,1fr)_auto] lg:gap-8 lg:px-8">
+      <div class="mx-auto grid h-14 w-full max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 sm:h-16 sm:gap-4 sm:px-5 md:grid-cols-[auto_minmax(0,1fr)_auto] lg:gap-8 lg:px-8">
         <div class="flex min-w-0 items-center gap-2 sm:gap-4 lg:gap-8">
           <button
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-md text-icon-muted hover:bg-base-300 hover:text-base-content lg:hidden"
+            class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 lg:hidden"
             :aria-label="t('shell.openMenu')"
             @click="openDrawer"
           >
@@ -371,8 +475,8 @@ async function loadUserCard() {
             :class="hasHeaderTitle ? 'hidden md:flex' : 'flex'"
           >
             <img
-              v-if="brandType === 'image' && layout.site.brandImage"
-              :src="layout.site.brandImage"
+              v-if="brandType === 'image' && brandImage"
+              :src="brandImage"
               :alt="layout.site.name"
               class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
             />
@@ -389,8 +493,34 @@ async function loadUserCard() {
               class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
             />
           </a>
+          <button
+            v-if="hasHeaderTitle"
+            type="button"
+            class="hidden min-w-0 items-center gap-3 text-left transition md:flex"
+            @click="scrollToTop"
+          >
+            <span class="block max-w-[280px] truncate text-lg font-semibold leading-6 text-base-content hover:text-primary">
+              {{ headerTitle }}
+            </span>
+            <span
+              v-if="headerTags?.length"
+              class="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] font-medium leading-4 text-base-content/55"
+            >
+              <span
+                v-for="tag in headerTags"
+                :key="tag.id"
+                class="inline-flex min-w-0 shrink-0 items-center gap-1"
+              >
+                <span
+                  class="h-1.5 w-1.5 rounded-[2px]"
+                  :style="{ backgroundColor: tag.color || 'var(--gf-color-base-content)' }"
+                />
+                <span class="max-w-24 truncate">{{ tag.name }}</span>
+              </span>
+            </span>
+          </button>
           <nav
-            v-if="!showHeaderTitle"
+            v-if="!hasHeaderTitle"
             class="hidden items-center gap-1 md:flex"
             aria-label="Header navigation"
           >
@@ -406,60 +536,126 @@ async function loadUserCard() {
         </div>
 
         <div class="hidden min-w-0 md:block">
-          <button
-            v-if="hasHeaderTitle"
-            type="button"
-            class="flex h-16 max-w-full flex-col items-start justify-center gap-0.5 text-left transition"
-            @click="scrollToTop"
+          <!-- 桌面居中搜索（Figma v3 Header）：胶囊搜索栏，回车走 SPA 跳转 /search?q= -->
+          <form
+            role="search"
+            class="relative mx-auto w-full max-w-[480px]"
+            @submit.prevent="submitSearch"
           >
-            <span class="block max-w-full truncate text-xl font-semibold leading-6 text-base-content hover:text-primary">
-              {{ headerTitle }}
-            </span>
-            <span
-              v-if="headerTags?.length"
-              class="flex max-w-full items-center gap-2 overflow-hidden text-[11px] font-medium leading-4 text-base-content/55"
-            >
-              <span
-                v-for="tag in headerTags"
-                :key="tag.id"
-                class="inline-flex min-w-0 shrink-0 items-center gap-1"
-              >
-                <span
-                  class="h-1.5 w-1.5 rounded-[2px]"
-                  :style="{ backgroundColor: tag.color || 'var(--gf-color-base-content)' }"
-                />
-                <span class="max-w-28 truncate">{{ tag.name }}</span>
-              </span>
-            </span>
-          </button>
+            <Search
+              class="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-base-content/45"
+              aria-hidden="true"
+            />
+            <input
+              ref="searchInput"
+              v-model="searchQuery"
+              type="search"
+              name="q"
+              autocomplete="off"
+              :placeholder="t('searchPage.inputPlaceholder')"
+              :aria-label="t('shell.search')"
+              class="h-10 w-full rounded-full border border-line bg-base-200 pl-10 pr-4 text-sm text-base-content transition-[border-color,background-color,box-shadow] duration-150 placeholder:text-base-content/50 hover:border-base-content/25 focus:border-primary/60 focus:bg-base-100 focus:outline-none focus:ring-2 focus:ring-primary/15"
+            />
+          </form>
         </div>
 
-        <div
-          class="items-center justify-end gap-0.5 sm:gap-1"
-          :class="hasHeaderTitle ? 'hidden md:flex' : 'flex'"
-        >
+        <div class="flex shrink-0 items-center justify-end gap-0.5 sm:gap-1">
+          <template v-if="layout.viewer.isAuthenticated">
+            <!-- 发布 CTA：sm+ 常驻 navbar 呼出菜单；<sm 由右下角 FAB 承担，不占 navbar 空间 -->
+            <PublishMenu variant="navbar" />
+
+            <!-- 通知 / 私信：从头像菜单提升为直达图标按钮，40px 触控热区（display 覆盖需用 sm:inline-grid，保住 place-items-center 居中） -->
+            <a
+              href="/notifications"
+              class="gf-icon-button relative h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
+              :aria-label="t('shell.nav.notifications')"
+              :title="notificationTitle || t('shell.nav.notifications')"
+            >
+              <Bell class="h-5 w-5" />
+              <span
+                v-show="hasUnreadNotification"
+                class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-base-100"
+                aria-hidden="true"
+              />
+            </a>
+            <a
+              href="/messages"
+              class="gf-icon-button relative hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-grid"
+              :aria-label="t('shell.nav.messages')"
+              :title="t('shell.nav.messages')"
+            >
+              <Inbox class="h-5 w-5" />
+              <span
+                v-show="hasUnreadMessage"
+                class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-base-100"
+                aria-hidden="true"
+              />
+            </a>
+          </template>
+
+          <!-- 搜索入口（<md）：wiki 模式打开局内搜索面板（与侧栏胶囊/⌘K 同一面板）；
+               论坛模式跳转全局搜索页。同一时点只呈现一个搜索入口，避免双搜索图标。 -->
           <a
+            v-if="!isWikiMode"
             href="/search"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
+            class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
             :aria-label="t('shell.search')"
             :title="t('shell.search')"
           >
             <Search class="h-5 w-5" />
           </a>
-
           <button
+            v-else
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
-            :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-            :title="isDark ? 'Light' : 'Dark'"
-            @click="onToggleTheme"
+            class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 md:hidden"
+            :aria-label="t('wikiSearch.openSearch')"
+            :title="t('wikiSearch.openSearch')"
+            @click="openWikiSearch"
           >
-            <Sun v-if="isDark" class="h-5 w-5" />
-            <Moon v-else class="h-5 w-5" />
+            <Search class="h-5 w-5" />
           </button>
 
           <div
-            class="relative"
+            class="relative hidden sm:block"
+            @mouseenter="setHoverMenu('theme', true)"
+            @mouseleave="closeHoverMenuSoon('theme')"
+            @focusin="setHoverMenu('theme', true)"
+            @focusout="closeHoverMenuSoon('theme')"
+          >
+            <button
+              type="button"
+              class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
+              :aria-label="t('shell.switchTheme')"
+              :title="t('shell.switchTheme')"
+              :aria-expanded="themeMenuOpen"
+              @click="themeMenuOpen = !themeMenuOpen"
+            >
+              <component :is="themeOptions.find(opt => opt.value === preference)?.icon ?? Monitor" class="h-5 w-5" />
+            </button>
+            <Transition name="gf-menu">
+              <div
+                v-if="themeMenuOpen"
+                class="absolute right-0 top-full z-[70] w-36 pt-2"
+              >
+                <div class="gf-menu-surface overflow-hidden py-1">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                    :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                    type="button"
+                    @click="selectTheme(option.value)"
+                  >
+                    <component :is="option.icon" class="h-4 w-4" />
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <div
+            class="relative hidden sm:block"
             @mouseenter="setHoverMenu('lang', true)"
             @mouseleave="closeHoverMenuSoon('lang')"
             @focusin="setHoverMenu('lang', true)"
@@ -467,10 +663,11 @@ async function loadUserCard() {
           >
             <button
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
+              class="gf-icon-button h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100"
               :aria-label="t('shell.switchLanguage')"
               :title="t('shell.switchLanguage')"
               :aria-expanded="langMenuOpen"
+              aria-haspopup="menu"
               @click="langMenuOpen = !langMenuOpen"
             >
               <Languages class="h-5 w-5" />
@@ -480,13 +677,14 @@ async function loadUserCard() {
                 v-if="langMenuOpen"
                 class="absolute right-0 top-full z-[70] w-36 pt-2"
               >
-                <div class="gf-menu-surface overflow-hidden py-1">
+                <div class="gf-menu-surface overflow-hidden py-1" role="menu">
                   <button
                     v-for="item in supportedLocales"
                     :key="item"
                     class="block w-full px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
                     :class="locale === item ? 'font-semibold text-primary' : 'text-base-content/75'"
                     type="button"
+                    role="menuitem"
                     @click="setLang(item)"
                   >
                     {{ t(`locale.${item}`) }}
@@ -506,15 +704,12 @@ async function loadUserCard() {
             >
               <button
                 type="button"
-                class="relative ml-1 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150 hover:bg-base-300"
+                class="relative ml-1 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150 hover:bg-base-300 active:scale-[0.96] motion-reduce:active:scale-100"
                 :aria-label="t('shell.userMenu')"
                 :aria-expanded="userMenuOpen"
+                aria-haspopup="menu"
               >
                 <UserAvatar :src="layout.viewer.avatarUrl" :alt="layout.viewer.username" class="h-9 w-9 rounded-full object-cover ring-1 ring-line/80" />
-                <span
-                  v-show="hasUnreadMessage || hasUnreadNotification"
-                  class="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-base-100"
-                />
               </button>
               <Transition name="gf-menu">
                 <div
@@ -529,24 +724,53 @@ async function loadUserCard() {
                       <a :href="`/u/${layout.viewer.id}`" class="gf-menu-item">
                         <UserRound class="h-4 w-4 text-icon-muted" /> {{ t('shell.profile') }}
                       </a>
-                      <a href="/messages" class="gf-menu-item">
-                        <Inbox class="h-4 w-4 text-icon-muted" />
-                        <span class="min-w-0 flex-1">{{ t('shell.nav.messages') }}</span>
-                        <span v-show="hasUnreadMessage" class="h-2 w-2 rounded-full bg-error" />
-                      </a>
-                      <a href="/notifications" class="gf-menu-item" :title="notificationTitle">
+                      <!-- 移动端从 navbar 收进的入口：sm 起隐藏（navbar 已有直达按钮） -->
+                      <a href="/notifications" class="gf-menu-item sm:hidden">
                         <Bell class="h-4 w-4 text-icon-muted" />
                         <span class="min-w-0 flex-1">{{ t('shell.nav.notifications') }}</span>
                         <span v-show="hasUnreadNotification" class="h-2 w-2 rounded-full bg-error" />
                       </a>
+                      <a href="/messages" class="gf-menu-item sm:hidden">
+                        <Inbox class="h-4 w-4 text-icon-muted" />
+                        <span class="min-w-0 flex-1">{{ t('shell.nav.messages') }}</span>
+                        <span v-show="hasUnreadMessage" class="h-2 w-2 rounded-full bg-error" />
+                      </a>
+                      <div class="sm:hidden">
+                        <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
+                          {{ t('shell.switchTheme') }}
+                        </div>
+                        <button
+                          v-for="option in themeOptions"
+                          :key="option.value"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                          :class="preference === option.value ? 'font-semibold text-primary' : 'text-base-content/75'"
+                          type="button"
+                          @click="selectTheme(option.value)"
+                        >
+                          <component :is="option.icon" class="h-4 w-4" />
+                          <span>{{ option.label }}</span>
+                        </button>
+                      </div>
+                      <div class="sm:hidden">
+                        <div class="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-base-content/55">
+                          {{ t('shell.switchLanguage') }}
+                        </div>
+                        <button
+                          v-for="item in supportedLocales"
+                          :key="item"
+                          class="block w-full px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:bg-base-200"
+                          :class="locale === item ? 'font-semibold text-primary' : 'text-base-content/75'"
+                          type="button"
+                          @click="setLang(item)"
+                        >
+                          {{ t(`locale.${item}`) }}
+                        </button>
+                      </div>
                       <a href="/drafts" class="gf-menu-item">
                         <FileText class="h-4 w-4 text-icon-muted" /> {{ t('shell.nav.drafts') }}
                       </a>
                     </div>
                     <div class="border-t border-line/70 py-1">
-                      <a href="/publish" class="gf-menu-item-primary">
-                        <PenSquare class="h-4 w-4" /> {{ t('shell.publish') }}
-                      </a>
                       <a href="/settings" class="gf-menu-item">
                         <Settings class="h-4 w-4 text-icon-muted" /> {{ t('shell.settings') }}
                       </a>
@@ -585,28 +809,40 @@ async function loadUserCard() {
         <WikiSidebar v-if="isWikiMode" :tree="wikiTree" />
         <nav v-else class="py-3">
           <div class="pb-2">
-            <div class="space-y-0.5">
-              <a
-                v-for="item in primaryItems"
-                :key="item.key"
-                :href="item.url"
-                class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
-                :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+            <template v-for="(section, sectionIndex) in sidebarSections" :key="section.key">
+              <div
+                v-if="section.title"
+                class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55"
+                :class="sectionIndex > 0 ? 'mt-2' : ''"
               >
-                <component
-                  :is="navIcon(item)"
-                  v-if="navIcon(item)"
-                  class="h-4 w-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-                <span
-                  v-if="(item.key === 'messages' && hasUnreadMessage) || (item.key === 'notifications' && hasUnreadNotification) || (item.key === 'moderation' && hasModerationReports)"
-                  class="h-2 w-2 shrink-0 rounded-full bg-error/100"
-                  aria-hidden="true"
-                />
-              </a>
-            </div>
+                {{ section.title }}
+              </div>
+              <div :class="section.title ? 'space-y-px' : 'space-y-0.5'">
+                <a
+                  v-for="item in section.items"
+                  :key="item.key"
+                  :href="item.url"
+                  class="flex items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
+                  :class="[
+                    section.title ? 'h-7' : 'h-8',
+                    item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content',
+                  ]"
+                >
+                  <component
+                    :is="navIcon(item)"
+                    v-if="navIcon(item)"
+                    class="h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+                  <span
+                    v-if="item.key === 'moderation' && hasModerationReports"
+                    class="h-2 w-2 shrink-0 rounded-full bg-error/100"
+                    aria-hidden="true"
+                  />
+                </a>
+              </div>
+            </template>
 
             <div v-if="resourceItems.length" class="mt-2">
               <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ t('shell.resources') }}</div>
@@ -663,6 +899,7 @@ async function loadUserCard() {
                   :href="category.url"
                   class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
                   :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+                  :aria-current="category.active ? 'page' : undefined"
                 >
                   <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
                   <span class="truncate">{{ category.label }}</span>
@@ -673,14 +910,16 @@ async function loadUserCard() {
 
           <footer v-if="hasFooter" class="mt-0 px-2 pt-0.5 text-xs leading-5 text-base-content/75">
             <div v-if="footerLinks.length" class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              <a
-                v-for="link in footerLinks"
-                :key="`${link.name}-${link.url}`"
-                :href="link.url"
-                class="inline-flex min-h-5 items-center rounded hover:text-primary"
-              >
-                {{ link.name }}
-              </a>
+              <template v-for="link in footerLinks" :key="`${link.name}-${link.url}`">
+                <a
+                  v-if="link.url"
+                  :href="link.url"
+                  class="inline-flex min-h-5 items-center rounded hover:text-primary"
+                >
+                  {{ link.name }}
+                </a>
+                <span v-else class="inline-flex min-h-5 items-center rounded">{{ link.name }}</span>
+              </template>
             </div>
             <div v-if="footerPrimary.length" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-base-content/75">
               <span
@@ -712,25 +951,29 @@ async function loadUserCard() {
     <MobileDrawer
       v-if="drawerOpen"
       :open="drawerOpen"
-      :primary-items="primaryItems"
+      :sections="drawerSections"
       :resource-items="resourceItems"
       :sidebar-groups="sidebarGroups"
       :category-items="categoryItems"
       :wiki-mode="isWikiMode"
       :wiki-tree="wikiTree"
-      :footer="layout.footer"
-      :has-unread-messages="hasUnreadMessage"
-      :has-unread-notifications="hasUnreadNotification"
+      :footer="safeFooter"
       :has-moderation-reports="hasModerationReports"
       :close-label="t('shell.closeMenu')"
       :menu-label="t('shell.menu')"
       :resources-label="t('shell.resources')"
-      :categories-label="t('shell.categories')"
       :sidebar-icon="navIcon"
+      :categories-label="t('shell.categories')"
       @close="closeDrawer"
     />
 
     <component :is="UserCard" v-if="UserCard" />
     <WikiSearchPanel v-if="isWikiMode" />
+    <QuickPublishModal v-if="layout.viewer.isAuthenticated" :layout="layout" />
+
+    <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
+         56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。
+         若已在 /publish 发布页面或 /p/post 等帖子详情页，则主动隐去，避免遮挡内容和互动控件。 -->
+    <PublishMenu v-if="layout.viewer.isAuthenticated && !isPublishPage && !isTopicPage" variant="fab" />
   </div>
 </template>

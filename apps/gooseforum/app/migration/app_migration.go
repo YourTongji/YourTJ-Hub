@@ -364,6 +364,25 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 27
 	}
+	if currentVersion < 28 {
+		// 历史帖子内容类型回填 v28：存量帖子默认属于文章类型（ContentTypeArticle = 3）。
+		// 部署前已存在的帖子的 content_type 存量值为 0（ContentTypeRegular），
+		// 将其统一回填为 3（文章）。幂等：仅对 content_type == 0 执行 UPDATE。
+		articleResult := datamigration.BackfillLegacyPostsContentTypeArticle()
+		slog.Info("app migration legacy posts content type article backfill done",
+			"updated", articleResult.Updated,
+			"failed", articleResult.Failed,
+			"lastFailed", articleResult.LastFailed)
+		if articleResult.Failed > 0 {
+			slog.Error("app migration legacy posts content type article backfill has failures", "failed", articleResult.Failed, "lastFailed", articleResult.LastFailed)
+			return dataMigrationError("legacy posts content type article backfill", 28, articleResult.Failed, articleResult.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(28); err != nil {
+			slog.Error("app migration sync migration version failed", "version", 28, "err", err)
+			return fmt.Errorf("app migration v28 sync migration version: %w", err)
+		}
+		currentVersion = 28
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }

@@ -36,6 +36,22 @@ function responseMessage(data: ApiResponse<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
 }
 
+// assertHttpOk 供手写 !response.ok 分支使用：HTTP 层失败但 body 是结构化
+// {code,messageCode} 信封时抛 ApiResponseError（messageCode 保留给 UI 展示可操作
+// 文案），否则保持通用 `HTTP ${status}` 错误。403 permission.emailRequired
+// （邮箱验证开启时 pending 账号写拦截，issue #404/#415）即走前者，让注册即发
+// 会话的未验证用户看到激活指引而非无差别 HTTP 403。
+async function assertHttpOk(response: Response, fallback: string): Promise<void> {
+  if (response.ok) {
+    return
+  }
+  const data = await response.json().catch(() => undefined) as ApiResponse<unknown> | undefined
+  if (data?.messageCode) {
+    throw new ApiResponseError(responseMessage(data, fallback), data.messageCode)
+  }
+  throw new Error(`HTTP ${response.status}`)
+}
+
 function t(key: string) {
   return i18n.global.t(key)
 }
@@ -280,7 +296,7 @@ export interface MyContentListResult {
   nextCursorId: number
 }
 
-/** 我的内容列表（PRD R9）：本人仍公开的话题/回复，供批量删除。 */
+/** 我的内容列表（PRD R9）：本人仍公开的内容/回复，供批量删除。 */
 export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
   const params = new URLSearchParams({ contentType, limit: String(limit) })
   if (cursorId > 0) params.set('cursorId', String(cursorId))
@@ -607,9 +623,7 @@ export async function followUser(userId: number, isFollowing: boolean): Promise<
       action: isFollowing ? 2 : 1,
     }),
   })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.followFailed'))
 
   const data = (await response.json()) as ApiResponse<boolean>
   if (data.code !== undefined && data.code !== 0) {
@@ -627,6 +641,8 @@ export interface SubmitTopicInput {
   website?: string
   captchaId?: string
   captchaCode?: string
+  contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
+  images?: string[]
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
@@ -640,9 +656,7 @@ export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
   if (response.status === 429) {
     return readApiResponse<number>(response, t('api.topicSaveFailed'))
   }
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.topicSaveFailed'))
 
   const data = (await response.json()) as ApiResponse<number>
   if (data.code !== undefined && data.code !== 0) {
@@ -835,9 +849,7 @@ export async function sendChatMessage(peerId: number, content: string): Promise<
     },
     body: JSON.stringify({ peerId, content, msgType: 1 }),
   })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.sendFailed'))
 
   const data = (await response.json()) as ApiResponse<{ convId: number }>
   if (data.code !== undefined && data.code !== 0) {
@@ -854,9 +866,7 @@ export async function markChatRead(convId: number): Promise<boolean> {
     },
     body: JSON.stringify({ convId }),
   })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
+  await assertHttpOk(response, t('api.markReadFailed'))
 
   const data = (await response.json()) as ApiResponse<boolean>
   if (data.code !== undefined && data.code !== 0) {
@@ -1771,6 +1781,19 @@ export interface CourseRelationItem {
   status: 'pending' | 'approved' | 'ignored' | 'merged'
   createdAt: string
   updatedAt: string
+  fromCourse?: CourseRelationCourseBrief
+  toCourse?: CourseRelationCourseBrief
+}
+
+export interface CourseRelationCourseBrief {
+  id: number
+  primaryCode: string
+  name: string
+  department?: string
+  teacherName?: string
+  teacherCode?: string
+  creditX10: number
+  status: number // 0 可见 / 1 隐藏（合并后旧卡隐藏）
 }
 
 export interface CourseRelationListResult {
@@ -1810,11 +1833,16 @@ export interface AdminCourseDetailItem {
   teamKey?: string
 }
 
-export async function fetchCourseRelations(status = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+export async function fetchCourseRelations(status = '', relationType = '', page = 1, pageSize = 20): Promise<CourseRelationListResult> {
+  // 「全部」时 status/relationType 为空串——契约 enum 只允许非空值，空过滤字段不进请求体
+  // （review P2：schema 校验客户端会拒绝 "" 枚举值）。
+  const payload: Record<string, unknown> = { page, pageSize }
+  if (status) payload.status = status
+  if (relationType) payload.relationType = relationType
   const response = await fetch('/api/forum/moderation/course-relation-list', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, page, pageSize }),
+    body: JSON.stringify(payload),
   })
   return readApiResponse<CourseRelationListResult>(response, t('api.adminCourseRelationListFailed'))
 }
@@ -1830,6 +1858,15 @@ export async function approveCourseRelation(relationId: number): Promise<CourseR
 
 export async function ignoreCourseRelation(relationId: number): Promise<CourseRelationItem> {
   const response = await fetch('/api/forum/moderation/course-relation-ignore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relationId }),
+  })
+  return readApiResponse<CourseRelationItem>(response, t('api.adminCourseRelationOpFailed'))
+}
+
+export async function resetCourseRelation(relationId: number): Promise<CourseRelationItem> {
+  const response = await fetch('/api/forum/moderation/course-relation-reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ relationId }),

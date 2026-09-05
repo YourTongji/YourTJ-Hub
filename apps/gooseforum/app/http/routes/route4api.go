@@ -85,6 +85,8 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/", forum.Home)
 	viewRouteApp.GET("/p/post/:id", forum.TopicDetail)
 	viewRouteApp.GET("/p/post/:id/:postNo", forum.TopicDetail)
+	viewRouteApp.GET("/topics/:id", forum.TopicDetail)
+	viewRouteApp.GET("/topics/:id/:postNo", forum.TopicDetail)
 	viewRouteApp.GET("/u/:userId", forum.UserProfile)
 	viewRouteApp.GET("/u/:userId/:section", forum.UserProfile)
 	viewRouteApp.GET("/u/:userId/:section/:subsection", forum.UserProfile)
@@ -136,7 +138,7 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
 	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
-	baseApi.POST("logout", api.Logout)
+	baseApi.POST("logout", middleware.CSRFProtection, api.Logout)
 
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
 	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
@@ -168,11 +170,18 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
 	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 
-	loginApi := ginApp.Group("api").Use(middleware.JWTAuthCheck)
+	// CSRF 防护（issue #406）：挂在认证之前的写组中间件（fileServer 组与
+	// logout 路由同样 CSRF 前置），先于 JWTAuthCheck 拦截跨站 Cookie 写请求，
+	// 避免被拒请求触发 JWT 续期 / 会话延长 / 活跃度事件（Codex review P2）。
+	// 仅校验「Cookie 可认证 + 状态变更方法」请求（Bearer 客户端豁免），详见
+	// middleware/csrfProtection.go 与 docs/product/identity-and-access.md
+	// 「认证与 CSRF 边界」。不挂全局，避免与 #407 全局安全头中间件冲突；
+	// GET/HEAD/OPTIONS 与匿名请求原样放行（匿名 POST 仍由 JWTAuthCheck 回 401）。
+	loginApi := ginApp.Group("api").Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
-	loginApi.POST("set-user-email", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
-	loginApi.POST("resend-activation-email", middleware.CheckWritableAccount, UpButterReq(api.ResendActivationEmail))
+	loginApi.POST("set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
+	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
@@ -184,10 +193,12 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
 	// TOTP 写操作校验账户密码或 6 位验证码（setup/enable/disable），挂 RateLimit 防止暴力破解；
-	// status 只读 enabled 标志、不验证任何凭据，无需限流。
-	loginApi.POST("user/totp/setup", middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
-	loginApi.POST("user/totp/enable", middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
-	loginApi.POST("user/totp/disable", middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
+	// 同时挂 CheckWritableAccount：pending/冻结账号不得变更 2FA 状态（issue #427，与
+	// change-password 等账户写操作口径一致）；status 只读 enabled 标志、不验证任何凭据，
+	// 无需限流也不挂写门禁。
+	loginApi.POST("user/totp/setup", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/enable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
+	loginApi.POST("user/totp/disable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
 	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
 
 	// PK 排课器 13 端点（Issue #187）：公开只读，统一 {code,msg,data} 信封，
@@ -241,11 +252,14 @@ func apiRoute(ginApp *gin.Engine) {
 	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。
 	forumApi.GET("posts/revisions", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostRevisions))
 
-	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
+	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
-	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
-	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
+	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的
+	// 读状态、不产生内容写（issue #427），未读角标无需等待激活才能清除；冻结
+	// 拦截保留。
+	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
+	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
 	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicStatus), UpButterReq(api.UpdateTopicStatus))
 	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))
@@ -254,9 +268,13 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("user/content-batch-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BatchDeleteContent))
 	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RestoreContent))
 	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
-	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
+	// 账号/内容生命周期销毁类写路由（隐私擦除、注销账号）用放行变体：pending
+	// 用户（未验证邮箱、不打算/无法验证）仍可注销自有账号或执行紧急隐私擦除
+	// 自救，控制器自带 ownership/密码/限流校验（issue #415 review P2）；
+	// 普通写仍被 CheckWritableAccount 拦截。
+	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
 	forumLoginApi.POST("user/content-event", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.ReportContentEvent))
-	forumLoginApi.POST("user/account-close", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
+	forumLoginApi.POST("user/account-close", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostUpdate), UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostDelete), UpButterReq(api.DeletePost))
@@ -298,6 +316,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/course-relation-approve", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationApprove))
 	forumLoginApi.POST("moderation/course-relation-ignore", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationIgnore))
 	forumLoginApi.POST("moderation/course-relation-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationCreate))
+	forumLoginApi.POST("moderation/course-relation-reset", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseRelationReset))
 	forumLoginApi.POST("moderation/course-merge", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMerge))
 	forumLoginApi.POST("moderation/course-merge-undo", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseMergeUndo))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
@@ -307,7 +326,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
 
-	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
+	chatApi := forumApi.Group("chat", middleware.CSRFProtection, middleware.JWTAuthCheck)
 
 	// Agent public API: opaque bearer-token authentication only. Writes reuse
 	// the human topic/post rate limits keyed by IP and bot userId.
@@ -320,9 +339,9 @@ func apiRoute(ginApp *gin.Engine) {
 	agentApi.GET("search", UpQueryReq(forum.SearchJSON))
 	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
-	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
+	chatApi.POST("mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
 
-	adminApi := baseApi.Group("admin", middleware.JWTAuthCheck, middleware.CheckWritableAccount)
+	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 
@@ -440,7 +459,7 @@ func apiRoute(ginApp *gin.Engine) {
 }
 
 func fileServer(ginApp *gin.Engine) {
-	r := ginApp.Group("file")
+	r := ginApp.Group("file", middleware.CSRFProtection)
 	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.SaveImgByGinContext)
 	r.POST("/img-upload/init", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.InitDirectImageUpload)
 	r.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)

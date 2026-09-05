@@ -58,8 +58,10 @@ export interface paths {
          * @description Session is optional. When the request carries a valid session token (cookie or Bearer), the
          *     server revokes that session record, so the token immediately stops authenticating. An absent,
          *     unverifiable, or already-revoked token is treated as already logged out, which makes this
-         *     operation idempotent. The `access_token` cookie is cleared on every path, including the rare
-         *     `session.revoke.failed` business failure (HTTP 200 with `code: 1`).
+         *     operation idempotent. The `access_token` cookie is cleared whenever the logout handler runs,
+         *     including the rare `session.revoke.failed` business failure (HTTP 200 with `code: 1`). A
+         *     cross-site cookie POST (missing or mismatched Origin/Referer) is rejected by the CSRF gate
+         *     before the handler with HTTP 403 `auth.csrf.rejected` and the cookie is left untouched.
          */
         post: operations["logout"];
         delete?: never;
@@ -236,7 +238,9 @@ export interface paths {
         /**
          * Retrieve the authenticated user's TOTP status
          * @description Returns only whether TOTP is currently enabled. Recovery-code inventory is intentionally not
-         *     exposed by this endpoint. Frozen accounts are not rejected, allowing account recovery actions.
+         *     exposed by this endpoint. The route is read-only and not writable-account-gated: frozen and
+         *     pending (unactivated) accounts are not rejected, so 2FA status remains readable during
+         *     account recovery (issue #427).
          */
         get: operations["getTotpStatus"];
         put?: never;
@@ -260,8 +264,10 @@ export interface paths {
          * Provision a TOTP secret for the authenticated user
          * @description Requires the account password as re-authentication. The secret and otpauth URI are returned
          *     once for authenticator enrollment; setup leaves TOTP disabled until enable is called. Calling
-         *     setup for an already enabled account returns `totp.alreadyEnabled`. Frozen accounts are not
-         *     rejected by this route because it is not a writable-account operation.
+         *     setup for an already enabled account returns `totp.alreadyEnabled`. The route is a
+         *     writable-account operation (issue #427): frozen accounts are rejected with
+         *     `permission.userFrozen`, and pending accounts (email verification enabled) with
+         *     `permission.emailRequired`.
          */
         post: operations["setupTotp"];
         delete?: never;
@@ -284,7 +290,9 @@ export interface paths {
          * @description Verifies the current six-digit code for a provisioned secret, marks TOTP enabled, and returns
          *     ten one-time recovery codes. Recovery codes are shown only in this success response. Calling
          *     enable without setup returns `totp.notEnabled`; calling it after enable returns
-         *     `totp.alreadyEnabled`. Frozen accounts are not rejected by this route.
+         *     `totp.alreadyEnabled`. The route is a writable-account operation (issue #427): frozen
+         *     accounts are rejected with `permission.userFrozen`, and pending accounts (email
+         *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["enableTotp"];
         delete?: never;
@@ -306,7 +314,9 @@ export interface paths {
          * Disable TOTP for the authenticated user
          * @description Accepts either the current TOTP code or the account password. Disabling removes all stored
          *     recovery codes and returns a human-readable success result. Calling disable when TOTP is not
-         *     enabled returns `totp.notEnabled`. Frozen accounts are not rejected by this route.
+         *     enabled returns `totp.notEnabled`. The route is a writable-account operation (issue #427):
+         *     frozen accounts are rejected with `permission.userFrozen`, and pending accounts (email
+         *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["disableTotp"];
         delete?: never;
@@ -578,8 +588,10 @@ export interface paths {
          *     be challenged with a captcha (`common.captchaRequired`, params action=post.create;
          *     a wrong or expired code fails with `auth.captcha.invalid`) or delayed by a posting
          *     cooldown (`comment.post.cooldown`, params minutes/availableAt). When mandatory
-         *     email verification is enabled, unverified accounts fail with
-         *     `permission.emailRequired` (HTTP 200, params action=评论, actionCode=comment).
+         *     email verification is enabled, unverified accounts are rejected by the route-level
+         *     `CheckWritableAccount` middleware before the controller runs with HTTP 403
+         *     `permission.emailRequired` (params action=写入, actionCode=write; see the 403
+         *     response below).
          *     Content length violations fail with `comment.content.tooShort` /
          *     `comment.content.tooLong` (params minLength/maxLength).
          */
@@ -3190,10 +3202,20 @@ export interface paths {
          *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
          *     the whole friend-links configuration with the submitted groups and
          *     clears the friend-links cache. Groups with a null `links` array are
-         *     normalized to an empty array before persistence. There is no
-         *     count/URL validation, and no request validation tags: JSON binding is
-         *     lenient, so a malformed or empty body binds to zero values and is saved
-         *     as-is (a null group list).
+         *     normalized to an empty array before persistence. URL fields are then
+         *     validated under the shared admin URL policy (issue #409): values are
+         *     trimmed and HTML-entity-decoded; each link `url` must be an absolute
+         *     http(s) URL with a host and each `logoUrl` may be a site-relative path
+         *     or an absolute http(s) URL. Dangerous schemes
+         *     (javascript:/data:/vbscript:/file:), protocol-relative `//`,
+         *     control-character/entity disguises, pure port/no-host forms such as
+         *     `https://:443` and overlong values are rejected; empty values are
+         *     valid. A rejected field fails the request with HTTP 200 `code: 1`,
+         *     messageCode `admin.url.invalid` and params `field` naming the first
+         *     offending field (e.g. `linksInfo[0].links[0].url`); nothing is
+         *     persisted. There are no request validation tags: JSON binding is
+         *     lenient, so a malformed or empty body binds to zero values and is
+         *     saved as-is (a null group list).
          */
         post: operations["adminSaveFriendLinks"];
         delete?: never;
@@ -3244,9 +3266,23 @@ export interface paths {
          *     the whole sponsors configuration with the submitted value and clears
          *     the sponsors cache. Null sponsor tier arrays are normalized to empty
          *     arrays, and blank content/contact titles or descriptions are filled
-         *     from the built-in defaults before persistence. There is no request
-         *     validation: JSON binding is lenient, so a malformed or empty body binds
-         *     to zero values and is saved (after default-filling) as-is.
+         *     from the built-in defaults before persistence. URL fields are then
+         *     validated under the shared admin URL policy (issue #409): values are
+         *     trimmed and HTML-entity-decoded; each sponsor tier `link` must be an
+         *     absolute http(s) URL with a host, each `avatarUrl` may be a
+         *     site-relative path or an absolute http(s) URL, and the contact
+         *     `buttonLink` additionally accepts a `mailto:` address. Dangerous
+         *     schemes (javascript:/data:/vbscript:/file:), protocol-relative `//`,
+         *     control-character/entity disguises, pure port/no-host forms such as
+         *     `https://:443` and overlong values are rejected; empty values are
+         *     valid. A rejected field fails the request with HTTP 200 `code: 1`,
+         *     messageCode `admin.url.invalid` and params `field` naming the first
+         *     offending field (e.g. `sponsorsInfo.sponsors.level0[0].link`,
+         *     `sponsorsInfo.sponsors.level0[0].avatarUrl` or
+         *     `sponsorsInfo.contact.buttonLink`); nothing is persisted. There is no
+         *     request validation tag: JSON binding is lenient, so a malformed or
+         *     empty body binds to zero values and is saved (after default-filling)
+         *     as-is.
          */
         post: operations["adminSaveSponsors"];
         delete?: never;
@@ -3375,9 +3411,20 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`.
          *     Replaces the whole site-settings configuration with the submitted
-         *     value and clears the site-settings and llms.txt caches. There is no
-         *     request validation: JSON binding is lenient, so a malformed or empty
-         *     body binds to zero values and is saved as-is.
+         *     value and clears the site-settings and llms.txt caches. URL fields
+         *     are validated before persistence under the shared admin URL policy
+         *     (issue #409): values are trimmed and HTML-entity-decoded, then
+         *     `siteUrl` must be an absolute http(s) URL with a host while
+         *     `siteLogo` may be a site-relative path or an absolute http(s) URL.
+         *     Dangerous schemes (javascript:/data:/vbscript:/file:),
+         *     protocol-relative `//`, control-character/entity disguises, pure
+         *     port/no-host forms such as `https://:443` and overlong values are
+         *     rejected; empty values are valid. A rejected field fails the request
+         *     with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
+         *     `field` naming the first offending field (`settings.siteUrl` or
+         *     `settings.siteLogo`); nothing is persisted. JSON binding stays
+         *     lenient: a missing/malformed body binds to zero values (empty URL
+         *     fields, hence valid) and is saved as-is.
          */
         post: operations["adminSaveSiteSettings"];
         delete?: never;
@@ -3425,9 +3472,22 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`.
          *     Replaces the whole chrome configuration with the submitted value and
-         *     clears the chrome cache. There is no request validation: JSON binding
-         *     is lenient, so a malformed or empty body binds to zero values and is
-         *     saved as-is.
+         *     clears the chrome cache. URL fields are validated before persistence
+         *     under the shared admin URL policy (issue #409): values are trimmed and
+         *     HTML-entity-decoded; header/main-menu/resources/sidebar/footer links
+         *     accept a site-relative path or an absolute http(s) URL with a host,
+         *     and `brandImage` accepts a site-relative path or an absolute http(s)
+         *     URL. Dangerous schemes (javascript:/data:/vbscript:/file:),
+         *     protocol-relative `//`, control-character/entity disguises, pure
+         *     port/no-host forms such as `https://:443` and overlong values are
+         *     rejected; empty values are valid. A rejected field fails the request
+         *     with HTTP 200 `code: 1`, messageCode `admin.url.invalid` and params
+         *     `field` naming the first offending field (e.g. `settings.header[0].url`,
+         *     `settings.sidebarGroups[0].items[0].url`, `settings.footerInfo.list[0].url`
+         *     or `settings.brandImage`); nothing
+         *     is persisted. JSON binding stays lenient: a missing/malformed body
+         *     binds to zero values (empty URL fields, hence valid) and is saved
+         *     as-is.
          */
         post: operations["adminSaveSiteChrome"];
         delete?: never;
@@ -3569,7 +3629,15 @@ export interface paths {
          *     added to `bannedUsernames` (compared case-insensitively against the
          *     currently stored list, trimmed) trigger a freeze of matching existing
          *     accounts; the freeze is idempotent, so re-saving the same list does
-         *     not reprocess accounts. The Go struct tags `settings` with
+         *     not reprocess accounts. When `enableEmailVerification` flips from off
+         *     to on, existing pending-activation accounts holding any admin/governance
+         *     role permission are activated immediately (frozen accounts stay frozen;
+         *     ordinary pending users are untouched) before the new configuration is
+         *     persisted — if that backfill fails, the save aborts with the
+         *     `common.operation.failed` business envelope (HTTP 200, `code` 1) and
+         *     the previously stored configuration remains in effect. Re-saving the
+         *     same enabled value does not re-run the backfill (true→true is a no-op).
+         *     The Go struct tags `settings` with
          *     `validate:"required"`, but struct-level required never fails, so a
          *     missing or malformed body saves a zero-value configuration.
          */
@@ -3623,6 +3691,16 @@ export interface paths {
          *     `settings` with `validate:"required"`, but struct-level required
          *     never fails, so a missing or malformed body saves a zero-value
          *     configuration.
+         *     The `uploadControl.authorizedExtensions` allowlist is canonicalized
+         *     before persistence (issue #408): only the built-in decodable image
+         *     extensions (.jpg/.jpeg/.png/.gif/.webp/.bmp) are accepted, matching is
+         *     case-insensitive and a leading dot is optional, and legal entries are
+         *     stored lower-cased with a leading dot and deduplicated. Submitting any
+         *     unsupported token (.svg/.html/.js/.xml/.pdf, double extensions, empty
+         *     strings) fails the whole save with an HTTP 200 `code: 1` envelope,
+         *     `messageCode` `admin.upload.extNotAllowed` and `params.extensions`
+         *     listing the offending tokens; nothing is persisted. An empty list is
+         *     valid and is stored/echoed as `[]`.
          */
         post: operations["adminSavePostingSettings"];
         delete?: never;
@@ -5396,6 +5474,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/moderation/course-relation-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revert a processed lineage candidate to pending (CourseManager/Admin)
+         * @description CourseManager-scoped write. Reverts an annotation decision back to the review queue
+         *     (approved/ignored → pending). Candidates that were physically merged are NOT resettable —
+         *     they must be rolled back through `adminCourseMergeUndo`; calling reset on them is a 409
+         *     `course.relation.notResettable` business failure. Writes an audit log entry.
+         */
+        post: operations["adminCourseRelationReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/moderation/course-relation-create": {
         parameters: {
             query?: never;
@@ -5822,6 +5923,18 @@ export interface components {
             captchaId?: string;
             /** @description Required only when server-side posting risk controls request a captcha. */
             captchaCode?: string;
+            /**
+             * @description 内容类型，取值 0-3；默认 0（兼容写法，服务端会将 0 规范为 3 - 文章）：
+             *     * 0 - 默认帖子（自动规范为 3 - 文章）
+             *     * 1 - 提问（Q&A 结构）
+             *     * 2 - 瞬间（短内容，原「想法」更名）
+             *     * 3 - 文章（长文）
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
+            /** @description 图集图片 URL 列表，须为当前用户已上传的 /file/img/ 文件（服务端校验归属）；数量上限与单条长度上限同服务端。 */
+            images?: string[];
         };
         WriteTopicSuccess: components["schemas"]["ApiSuccess"] & {
             result: number | true;
@@ -5912,6 +6025,8 @@ export interface components {
             postNo: number;
             /** @description Rendered HTML of the stored content. */
             renderedContent: string;
+            /** @description True when this post is an answer to a question (ReplyToPostId=1 on a question-type topic) */
+            isAnswer?: boolean;
         };
         CreatePostSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CreatePostResult"] | true;
@@ -6543,6 +6658,13 @@ export interface components {
             title: string;
             content: string;
             categoryId: number[];
+            /**
+             * @description 兼容保留字段（服务端 Agent 绑定不读取）；Agent 创建的话题恒为文章类型：
+             *     不传或传 0 时服务端统一按 3（文章）处理。
+             * @default 0
+             * @enum {integer}
+             */
+            contentType: 0 | 1 | 2 | 3;
         };
         /** @description Mirrors the forum PostWindow payload shape. */
         AgentPostListResponse: components["schemas"]["ApiSuccess"] & {
@@ -7247,10 +7369,15 @@ export interface components {
              * @enum {string}
              */
             status?: "pending" | "approved" | "ignored" | "merged";
+            /**
+             * @description 沿革候选类型过滤；空 = 全部。
+             * @enum {string}
+             */
+            relationType?: "EQUIVALENT" | "RENAMED_FROM" | "SPLIT_FROM" | "MERGED_FROM" | "RELATED";
             page?: number;
             pageSize?: number;
         };
-        /** @description 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。 */
+        /** @description 沿革候选（course_relations 行 + from/to 课程摘要）：from（历史/旧卡）→ to（当前/新卡）。 */
         AdminCourseRelationItem: {
             /** Format: uint64 */
             id: number;
@@ -7273,6 +7400,10 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description 旧卡课程摘要（课程已删除时缺省）。 */
+            fromCourse?: components["schemas"]["AdminCourseRelationCourseBrief"];
+            /** @description 新卡课程摘要（课程已删除时缺省）。 */
+            toCourse?: components["schemas"]["AdminCourseRelationCourseBrief"];
         };
         AdminCourseRelationListResult: {
             list: components["schemas"]["AdminCourseRelationItem"][];
@@ -7843,7 +7974,17 @@ export interface components {
             result: components["schemas"]["AdminFriendLinksGroup"][];
         };
         AdminSaveFriendLinksRequest: {
-            /** @description Replacement group list. No validation — a missing/null value is saved as null. */
+            /**
+             * @description Replacement group list. A missing/null value is saved as null. URL
+             *     fields are validated before persistence under the shared admin URL
+             *     policy (issue #409): each `url` must be an absolute http(s) URL with
+             *     a host and each `logoUrl` may be a site-relative path or an absolute
+             *     http(s) URL; dangerous schemes, protocol-relative `//`,
+             *     control-character/entity disguises and overlong values are rejected.
+             *     On rejection the request fails with HTTP 200 `code: 1`, messageCode
+             *     `admin.url.invalid` and params `field` naming the first offending
+             *     field; nothing is persisted.
+             */
             linksInfo?: components["schemas"]["AdminFriendLinksGroup"][];
         };
         AdminSponsorItem: {
@@ -7890,6 +8031,18 @@ export interface components {
         AdminSponsorsResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminSponsorsConfig"];
         };
+        /**
+         * @description Replacement sponsors configuration. URL fields are validated before
+         *     persistence under the shared admin URL policy (issue #409): each sponsor
+         *     tier `link` must be an absolute http(s) URL with a host, each `avatarUrl`
+         *     may be a site-relative path or an absolute http(s) URL, and the contact
+         *     `buttonLink` additionally accepts a `mailto:` address. Dangerous schemes,
+         *     protocol-relative `//`, control-character/entity disguises and overlong
+         *     values are rejected. On rejection the request fails with HTTP 200
+         *     `code: 1`, messageCode `admin.url.invalid` and params `field` naming the
+         *     first offending field; nothing is persisted. A malformed or empty body
+         *     binds to zero values and is saved (after default-filling) as-is.
+         */
         AdminSaveSponsorsRequest: {
             sponsorsInfo?: components["schemas"]["AdminSponsorsConfig"];
         };
@@ -7953,7 +8106,18 @@ export interface components {
             /** @description Stored site settings, or the built-in default when nothing has been saved. */
             result: components["schemas"]["AdminSiteSettingsConfig"];
         };
-        /** @description Replacement site settings. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is. */
+        /**
+         * @description Replacement site settings. URL fields are validated before persistence
+         *     under the shared admin URL policy (issue #409): `siteUrl` must be an
+         *     absolute http(s) URL with a host, while `siteLogo` may be a site-relative
+         *     path or an absolute http(s) URL. Dangerous schemes, protocol-relative
+         *     `//`, control-character/entity disguises, pure port/no-host forms such
+         *     as `https://:443` and overlong values are rejected. On rejection the
+         *     request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
+         *     and params `field` naming the first offending field; nothing is
+         *     persisted. A missing/malformed body binds to zero values (empty URL
+         *     fields, hence valid) and is saved as-is.
+         */
         AdminSaveSiteSettingsRequest: {
             settings?: components["schemas"]["AdminSiteSettingsConfig"];
         };
@@ -7999,7 +8163,20 @@ export interface components {
             /** @description Stored chrome configuration, or the built-in default when nothing has been saved. */
             result: components["schemas"]["AdminSiteChromeConfig"];
         };
-        /** @description Replacement chrome configuration. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is. */
+        /**
+         * @description Replacement chrome configuration. URL fields are validated before
+         *     persistence under the shared admin URL policy (issue #409):
+         *     header/main-menu/resources/sidebar/footer link `url` values accept a
+         *     site-relative path or an absolute http(s) URL with a host, and
+         *     `brandImage` accepts a site-relative path or an absolute http(s) URL.
+         *     Dangerous schemes, protocol-relative `//`, control-character/entity
+         *     disguises, pure port/no-host forms such as `https://:443` and overlong
+         *     values are rejected. On rejection the request fails with HTTP 200
+         *     `code: 1`, messageCode `admin.url.invalid` and params `field` naming the
+         *     first offending field; nothing is persisted. A missing/malformed body
+         *     binds to zero values (empty URL fields, hence valid) and is saved
+         *     as-is.
+         */
         AdminSaveSiteChromeRequest: {
             settings?: components["schemas"]["AdminSiteChromeConfig"];
         };
@@ -8112,6 +8289,7 @@ export interface components {
         };
         AdminPostingUploadControl: {
             allowAttachments: boolean;
+            /** @description Image-extension allowlist for user uploads, canonicalized by the server (issue #408). Only the built-in decodable image extensions are accepted: .jpg/.jpeg/.png/.gif/.webp/.bmp. Matching is case-insensitive and a leading dot is optional (`png`, `.PNG` and `.png` are the same entry); legal entries are stored lower-cased with a leading dot, deduplicated in first-appearance order. Submitting any unsupported token (.svg/.html/.js/.xml/.pdf, double extensions such as `avatar.png.exe`, empty strings) rejects the whole save with `admin.upload.extNotAllowed` (HTTP 200, `params.extensions` lists the offending tokens) and persists nothing. An empty list is valid and is stored/echoed as `[]`. */
             authorizedExtensions: string[];
             maxAttachmentSizeKb: number;
             maxDailyUploadsPerUser: number;
@@ -8642,6 +8820,8 @@ export interface components {
             likeCount: number;
             isLiked: boolean;
             isBookmarked: boolean;
+            /** @description True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself. */
+            isAnswer: boolean;
         };
         ReplyTargetPayload: {
             /** Format: uint64 */
@@ -9950,6 +10130,25 @@ export interface components {
             ratingAvg?: number | null;
             reviewCount: number;
         };
+        /** @description 沿革候选 from/to 课程摘要（管理端列表直接展示课程名/课号/教师；课程已删除时整体缺省）。 */
+        AdminCourseRelationCourseBrief: {
+            /** Format: uint64 */
+            id: number;
+            /** @description 课号。 */
+            primaryCode: string;
+            /** @description 课程名。 */
+            name: string;
+            /** @description 开课院系。 */
+            department?: string;
+            /** @description 身份教师姓名。 */
+            teacherName?: string;
+            /** @description 身份教师工号。 */
+            teacherCode?: string;
+            /** @description 学分 ×10。 */
+            creditX10: number;
+            /** @description 课程可见状态（0 可见 / 1 隐藏；合并后旧卡隐藏）。 */
+            status: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -10029,12 +10228,21 @@ export interface operations {
             /** @description Logout completed (or the caller was already logged out), or a revocation failure. */
             200: {
                 headers: {
-                    /** @description Expires the HTTP-only `access_token` session cookie on every logout response. */
+                    /** @description Expires the HTTP-only `access_token` session cookie whenever the logout handler runs. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared on this path. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -10251,6 +10459,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description TOTP setup rate limit exceeded. */
             429: {
                 headers: {
@@ -10294,6 +10511,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description TOTP enable rate limit exceeded. */
             429: {
                 headers: {
@@ -10330,6 +10556,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10483,6 +10718,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     revokeAllSessions: {
@@ -10505,6 +10749,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated POST rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10545,7 +10798,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10597,7 +10850,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10649,7 +10902,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10701,7 +10954,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10753,7 +11006,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10805,7 +11058,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10857,7 +11110,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`), its account
+             *     information cannot be resolved, or — when mandatory email verification is
+             *     enabled — the account is still pending activation (`permission.emailRequired`,
+             *     params action=写入, actionCode=write). The write gate rejects unverified
+             *     accounts with the same structured envelope on every `CheckWritableAccount`
+             *     write endpoint. A cross-site cookie-authenticated request (missing or
+             *     mismatched Origin/Referer) is rejected by the CSRF gate before the handler
+             *     with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406).
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10909,7 +11171,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10961,7 +11223,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11082,7 +11344,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11134,7 +11396,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11186,7 +11448,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11238,7 +11500,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11290,7 +11552,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11332,7 +11594,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11374,6 +11636,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     moderationUpdateReportStatus: {
@@ -11407,7 +11678,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11449,6 +11720,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     viewDeletedContent: {
@@ -11482,7 +11762,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11579,7 +11859,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11621,7 +11901,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11663,7 +11943,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11711,7 +11991,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11753,7 +12033,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11795,7 +12075,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11837,7 +12117,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11879,7 +12159,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`). */
+            /** @description Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`). A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11931,7 +12211,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12011,7 +12291,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12124,7 +12404,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12162,7 +12442,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12204,7 +12484,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12256,6 +12536,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     markChatRead: {
@@ -12289,7 +12578,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12471,7 +12760,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12523,7 +12812,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12575,7 +12864,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12627,7 +12916,18 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
+             *     information cannot be resolved. Pending-activation accounts are
+             *     intentionally allowed on this endpoint (self-service escape hatch): the
+             *     route uses the allow-pending variant of the write gate so users who
+             *     cannot or will not verify their email can still emergency-erase their
+             *     own content. Ownership checks and the shared deletion rate window are
+             *     unchanged. A cross-site cookie-authenticated request (missing or
+             *     mismatched Origin/Referer) is rejected by the CSRF gate before the
+             *     handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not
+             *     cleared (issue #406).
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12679,7 +12979,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12731,7 +13031,18 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /**
+             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
+             *     information cannot be resolved. Pending-activation accounts are
+             *     intentionally allowed on this endpoint (self-service escape hatch): the
+             *     route uses the allow-pending variant of the write gate so users who
+             *     cannot or will not verify their email can still close their own account.
+             *     The controller still requires the current password as a second factor,
+             *     and closure revokes every existing session. A cross-site
+             *     cookie-authenticated request (missing or mismatched Origin/Referer) is
+             *     rejected by the CSRF gate before the handler with HTTP 403
+             *     `auth.csrf.rejected`; the session cookie is not cleared (issue #406).
+             */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13101,6 +13412,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Course does not exist or is hidden. */
             404: {
                 headers: {
@@ -13402,7 +13722,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13470,7 +13790,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The caller is not the review author, or the account is frozen. */
+            /** @description The caller is not the review author, or the account is frozen. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13547,7 +13867,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The caller is not the review author, or the account is frozen. */
+            /** @description The caller is not the review author, or the account is frozen. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13606,6 +13926,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description The review does not exist, is hidden, or is deleted. */
             404: {
                 headers: {
@@ -13649,6 +13978,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13706,6 +14044,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description The review does not exist, is hidden, or is deleted. */
             404: {
                 headers: {
@@ -13749,6 +14096,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13810,6 +14166,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Report rate limit exceeded. */
             429: {
                 headers: {
@@ -13853,7 +14218,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The caller is not a CourseManager. */
+            /** @description The caller is not a CourseManager. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13905,7 +14270,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The caller is not a CourseManager. */
+            /** @description The caller is not a CourseManager. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13950,6 +14315,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14087,7 +14461,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14129,7 +14503,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14171,7 +14545,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14213,7 +14587,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14255,7 +14629,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14297,7 +14671,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14339,7 +14713,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14381,7 +14755,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14419,7 +14793,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14461,7 +14835,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14503,7 +14877,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14545,7 +14919,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14587,7 +14961,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14629,7 +15003,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14671,7 +15045,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the Admin permission. */
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14713,7 +15087,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the UserManager permission. */
+            /** @description Frozen account, or caller lacks the UserManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14755,7 +15129,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the UserManager permission. */
+            /** @description Frozen account, or caller lacks the UserManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14797,7 +15171,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the UserManager permission. */
+            /** @description Frozen account, or caller lacks the UserManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14839,7 +15213,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the UserManager permission. */
+            /** @description Frozen account, or caller lacks the UserManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14915,7 +15289,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            /** @description Frozen account, or caller lacks the RoleManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14953,7 +15327,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            /** @description Frozen account, or caller lacks the RoleManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -14995,7 +15369,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            /** @description Frozen account, or caller lacks the RoleManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15037,7 +15411,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            /** @description Frozen account, or caller lacks the RoleManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15079,7 +15453,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15121,7 +15495,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15163,7 +15537,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15201,7 +15575,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15243,7 +15617,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15285,7 +15659,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15327,7 +15701,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15369,7 +15743,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            /** @description Frozen account, or caller lacks the TopicsManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15449,7 +15823,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the PageManager permission. */
+            /** @description Frozen account, or caller lacks the PageManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15529,7 +15903,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the PageManager permission. */
+            /** @description Frozen account, or caller lacks the PageManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15609,7 +15983,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the PageManager permission. */
+            /** @description Frozen account, or caller lacks the PageManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15727,7 +16101,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15807,7 +16181,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15887,7 +16261,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15925,7 +16299,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16005,7 +16379,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16067,7 +16441,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Configuration saved (`result` is the string `success`). */
+            /** @description Configuration saved (`result` is the string `success`), or an HTTP 200 business failure when `authorizedExtensions` contains unsupported tokens (`admin.upload.extNotAllowed`, `params.extensions` lists them). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16085,7 +16459,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16165,7 +16539,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16245,7 +16619,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16325,7 +16699,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16405,7 +16779,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16447,7 +16821,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16527,7 +16901,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16607,7 +16981,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16687,7 +17061,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16729,7 +17103,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16809,7 +17183,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16851,7 +17225,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16893,7 +17267,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17011,7 +17385,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17091,7 +17465,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17171,7 +17545,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17213,7 +17587,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17255,7 +17629,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17297,7 +17671,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17339,7 +17713,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17396,7 +17770,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17438,7 +17812,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17591,7 +17965,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17678,7 +18052,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17915,7 +18289,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            /** @description The account is not a PageManager or Admin (or it is frozen). A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -18064,7 +18438,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            /** @description The account is not a PageManager or Admin (or it is frozen). A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -18163,7 +18537,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            /** @description The account is not a PageManager or Admin (or it is frozen). A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -18205,7 +18579,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -18874,6 +19248,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     adminCourseCreate: {
@@ -18900,6 +19283,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18942,6 +19334,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19000,6 +19401,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Course does not exist or was deleted. */
             404: {
                 headers: {
@@ -19042,6 +19452,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     adminReviewUpdate: {
@@ -19068,6 +19487,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19117,6 +19545,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Review does not exist or is deleted. */
             404: {
                 headers: {
@@ -19148,6 +19585,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19188,6 +19634,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     adminCourseRelationApprove: {
@@ -19214,6 +19669,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19272,8 +19736,77 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Candidate does not exist. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseRelationReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseRelationActionRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated lineage candidate, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseRelationItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the CourseManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Candidate is not in a resettable state (pending, or merged). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19307,6 +19840,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19349,6 +19891,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19407,6 +19958,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Candidate does not exist. */
             404: {
                 headers: {
@@ -19458,7 +20018,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -19510,7 +20070,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -19562,7 +20122,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;

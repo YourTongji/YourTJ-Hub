@@ -10,6 +10,7 @@ import MarkdownIt from 'markdown-it'
 import { Bot, CheckCircle2, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
 import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
 import type { BulkImportPreview } from '@/admin/bulkImport'
+import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -87,6 +88,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
+import { safeUrl } from '@/runtime/safe-url'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'onesystem' | 'schedule'
 
@@ -265,7 +267,7 @@ const postingForm = reactive<PostingSettings>({
   },
   uploadControl: {
     allowAttachments: true,
-    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
     maxAttachmentSizeKb: 5120,
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
@@ -461,7 +463,7 @@ function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
     globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
     baseUrl: (settings.baseUrl ?? '').trim().replace(/\/+$/, ''),
     model: (settings.model ?? '').trim(),
-    apiKey: '',
+    apiKey: settings.apiKey ?? '',
     apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
     temperature,
     maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
@@ -504,6 +506,18 @@ function validateAiSummary() {
   return true
 }
 
+function validateSiteInfo() {
+  if (siteForm.siteUrl.trim() !== '' && !safeUrl(siteForm.siteUrl, 'external')) {
+    adminToast.warning(adminText('k00up'))
+    return false
+  }
+  if (siteForm.siteLogo.trim() !== '' && !safeUrl(siteForm.siteLogo, 'image')) {
+    adminToast.warning(adminText('k00up'))
+    return false
+  }
+  return true
+}
+
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
   return {
     textControl: {
@@ -518,7 +532,7 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       allowAttachments: toBool(settings.uploadControl?.allowAttachments, true),
       authorizedExtensions: Array.isArray(settings.uploadControl?.authorizedExtensions)
         ? settings.uploadControl.authorizedExtensions.map(item => String(item).trim().toLowerCase()).filter(Boolean)
-        : ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+        : ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
       maxAttachmentSizeKb: Number(settings.uploadControl?.maxAttachmentSizeKb ?? 5120),
       maxDailyUploadsPerUser: Number(settings.uploadControl?.maxDailyUploadsPerUser ?? 10),
       newUserUploadCooldownMinutes: Number(settings.uploadControl?.newUserUploadCooldownMinutes ?? 1440),
@@ -822,7 +836,8 @@ async function save() {
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
   if (props.kind === 'ai-summary' && !validateAiSummary()) return
   if (props.kind === 'schedule' && !validateSchedule()) return
-
+  if (props.kind === 'site-info' && !validateSiteInfo()) return
+  if (props.kind === 'posting' && !validatePostingExtensions()) return
   saving.value = true
   try {
     if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
@@ -831,7 +846,17 @@ async function save() {
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
-    else if (props.kind === 'ai-summary') await saveAiSummarySettings(aiSummaryPayload())
+    else if (props.kind === 'ai-summary') {
+      await saveAiSummarySettings(aiSummaryPayload())
+      // 保存后立即同步徽标并清空明文 key：填了新 key（非留空=保留旧 key）即
+      // 视为已配置。清空后该标签页后续保存（如改 temperature）不再重发/重加密
+      // 同一明文，多管理员/多标签轮换 key 时旧表单不会静默恢复旧 key
+      // （空 = 保留已存密文语义，与 saveCookie 保存后清空一致）。
+      if (aiSummaryForm.apiKey.trim() !== '') {
+        aiSummaryForm.apiKeyConfigured = true
+        aiSummaryForm.apiKey = ''
+      }
+    }
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
@@ -843,6 +868,20 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+// validatePostingExtensions 保存前拦截：列表为空允许（服务端回退内置全集），
+// 但任一非法/危险扩展整单拒绝——前端校验只是体验，权威在服务端
+// （admin.upload.extNotAllowed）。
+function validatePostingExtensions() {
+  const entries = postingForm.uploadControl.authorizedExtensions
+  if (entries.length === 0) return true
+  const invalid = entries.filter(item => !isSupportedUploadExtension(item))
+  if (invalid.length > 0) {
+    adminToast.warning(adminText('k00uo', { extensions: invalid.join(', ') }))
+    return false
+  }
+  return true
 }
 
 async function sendTestMail() {
@@ -977,10 +1016,12 @@ function removeAllowedDomain(domain: string) {
 }
 
 function addExtension() {
-  const ext = newExtension.value.trim().toLowerCase()
-  if (!ext) return
-  if (!ext.startsWith('.')) {
-    adminToast.warning(adminText('k000j'))
+  const raw = newExtension.value
+  if (!raw.trim()) return
+  const ext = normalizeExtensionToken(raw)
+  if (!isSupportedUploadExtension(ext)) {
+    // 危险扩展（svg/html/xml/js 等）与非法输入（双扩展/空）即时提示，不允许入列。
+    adminToast.warning(adminText('k00uo', { extensions: ext || raw.trim() }))
     return
   }
   if (!postingForm.uploadControl.authorizedExtensions.includes(ext)) {
@@ -1880,25 +1921,27 @@ onUnmounted(stopSyncPolling)
       </Dialog>
 
       <Dialog :open="bulkImportOpen" @update:open="bulkImportOpen = $event">
-        <DialogContent class="sm:max-w-lg">
-          <DialogHeader>
+        <!-- 限高弹层：Textarea 基类 field-sizing-content 随内容撑高，粘贴超长词表时
+             仅中部滚动区滚动、页眉/页脚固定，防止弹层超出视口被裁且无法滚动。 -->
+        <DialogContent class="flex max-h-[min(700px,calc(100vh-1.5rem))] flex-col overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader class="shrink-0 px-6 pt-6">
             <DialogTitle>{{ adminText('k00ug') }}：{{ adminText(bulkImportTitleKey) }}</DialogTitle>
             <DialogDescription>{{ bulkImportTarget === 'sensitiveWords' ? adminText('k00un') : adminText('k00uf') }}</DialogDescription>
           </DialogHeader>
-          <div class="space-y-3">
-            <Textarea v-model="bulkImportText" class="min-h-32 text-sm" />
+          <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-2">
+            <Textarea v-model="bulkImportText" class="max-h-56 min-h-32 text-sm" />
             <p v-if="bulkImportEmptyHint" class="text-sm text-destructive">{{ adminText('k00uj') }}</p>
             <template v-if="bulkImportPreview">
               <p class="text-sm font-medium">{{ adminText('k00ui', { added: bulkImportPreview.added.length, skipped: bulkImportPreview.skipped }) }}</p>
               <p v-if="bulkImportPreview.truncated" class="text-xs text-muted-foreground">{{ adminText('k00uk', { limit: BULK_IMPORT_LIMIT }) }}</p>
-              <div v-if="bulkImportPreview.added.length > 0" class="flex max-h-44 flex-wrap gap-2 overflow-y-auto rounded-lg border bg-muted/10 p-3">
+              <div v-if="bulkImportPreview.added.length > 0" class="flex flex-wrap gap-2 rounded-lg border bg-muted/10 p-3">
                 <span v-if="bulkImportPreview.added.length > BULK_IMPORT_PREVIEW_LIMIT" class="w-full text-xs text-muted-foreground">{{ adminText('k00um', { limit: BULK_IMPORT_PREVIEW_LIMIT }) }}</span>
                 <Badge v-for="item in bulkImportPreview.added.slice(0, BULK_IMPORT_PREVIEW_LIMIT)" :key="item" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">{{ item }}</Badge>
               </div>
               <p v-if="bulkImportTarget === 'bannedUsernames'" class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{{ adminText('k00ul') }}</p>
             </template>
           </div>
-          <DialogFooter>
+          <DialogFooter class="shrink-0 px-6 pb-6">
             <Button variant="outline" type="button" @click="closeBulkImport">{{ adminText('k009q') }}</Button>
             <Button type="button" @click="confirmBulkImport">
               <ClipboardPaste class="size-4" />

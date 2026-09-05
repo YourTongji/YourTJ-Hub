@@ -8,9 +8,11 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
@@ -173,5 +175,120 @@ func TestOAuthCallbackLoginSuccessIssuesSession(t *testing.T) {
 	}
 	if count := countSessions(t, user.Id); count != 1 {
 		t.Fatalf("session rows = %d, want 1", count)
+	}
+}
+
+// enableEmailVerificationForTest 开启全站邮箱验证（SecuritySettings 页配置）。
+// OAuth 未验证邮箱拒绝路径依赖该开关；cleanup 删除配置并清缓存还原默认。
+func enableEmailVerificationForTest(t *testing.T) {
+	t.Helper()
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate page_config: %v", err)
+	}
+	encoded, err := json.Marshal(pageConfig.SecurityAndRegistration{EnableEmailVerification: true})
+	if err != nil {
+		t.Fatalf("encode security config: %v", err)
+	}
+	entity := pageConfig.Entity{PageType: pageConfig.SecuritySettings, Config: string(encoded)}
+	if err := conn.Where("page_type = ?", pageConfig.SecuritySettings).Assign(entity).FirstOrCreate(&entity).Error; err != nil {
+		t.Fatalf("save security config: %v", err)
+	}
+	hotdataserve.ClearSecuritySettingsConfigCache()
+	t.Cleanup(func() {
+		conn.Where("page_type = ?", pageConfig.SecuritySettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearSecuritySettingsConfigCache()
+	})
+}
+
+// TestOAuthCallbackLoginRejectsUnverifiedEmail 守卫 controller 拒绝分支：全站邮箱验证开启时，
+// Google OAuth 未提供 verified_email=true 邮箱的注册回调必须返回 403 +
+// MessageAuthEmailUnverified，不创建账号、不写 OAuth 绑定、不发会话 Cookie。
+func TestOAuthCallbackLoginRejectsUnverifiedEmail(t *testing.T) {
+	setupOAuthCallbackTestDB(t)
+	enableEmailVerificationForTest(t)
+
+	stubGothUser(t, goth.User{
+		Provider: oauthservice.ProviderGoogle,
+		UserID:   "google-uid-unverified",
+		NickName: "oauthunverified",
+		Email:    "attacker@gmail.com",
+		RawData:  map[string]any{"verified_email": false},
+	})
+
+	recorder, c := oauthCallbackRequest(t)
+	// stub 接管 goth 后 provider 仅用于 query 构造；保持请求与模拟的 Google 身份一致。
+	c.Params = gin.Params{{Key: "provider", Value: oauthservice.ProviderGoogle}}
+	ProviderCallback(c)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Props struct {
+			MessageCode component.MessageCode `json:"messageCode"`
+		} `json:"props"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode error page: %v", err)
+	}
+	if payload.Props.MessageCode != component.MessageAuthEmailUnverified {
+		t.Fatalf("messageCode = %q, want %q", payload.Props.MessageCode, component.MessageAuthEmailUnverified)
+	}
+	if hasAccessTokenCookie(recorder) {
+		t.Fatal("rejected OAuth registration must not receive an access_token cookie")
+	}
+	if users.ExistUsername("oauthunverified") {
+		t.Fatal("unverified OAuth user was created despite email verification being enabled")
+	}
+	if binding := userOAuth.GetByProviderAndUID(oauthservice.ProviderGoogle, "google-uid-unverified"); binding != nil {
+		t.Fatalf("unverified OAuth identity was bound despite rejection: %#v", binding)
+	}
+}
+
+// TestOAuthCallbackLoginPendingUserIssuesSession 待激活 OAuth 用户登录口径
+// （issue #427）：pending 账号 OAuth 登录同样签发会话（写权限在权限层由
+// CheckWritableAccount 拦截，会话本身不授予写能力），用户借此在会话过期后
+// 重新登录并继续激活恢复流程——与密码登录对 pending 用户的放行口径一致。
+func TestOAuthCallbackLoginPendingUserIssuesSession(t *testing.T) {
+	setupOAuthCallbackTestDB(t)
+
+	user := &users.EntityComplete{
+		Username:    "oauthpending",
+		Email:       "oauthpending@example.com",
+		IsActivated: users.ActivationPending,
+	}
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{
+		UserId:      user.Id,
+		Provider:    oauthservice.ProviderGitHub,
+		ProviderUid: "gh-uid-pending",
+	}); err != nil {
+		t.Fatalf("create oauth binding: %v", err)
+	}
+
+	stubGothUser(t, goth.User{
+		Provider: oauthservice.ProviderGitHub,
+		UserID:   "gh-uid-pending",
+		NickName: "oauthpending",
+		Email:    "oauthpending@example.com",
+	})
+
+	recorder, c := oauthCallbackRequest(t)
+	ProviderCallback(c)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	if loc := recorder.Header().Get("Location"); loc != "/" {
+		t.Fatalf("redirect location = %q, want /", loc)
+	}
+	if !hasAccessTokenCookie(recorder) {
+		t.Fatal("pending OAuth login must set access_token cookie")
+	}
+	if count := countSessions(t, user.Id); count != 1 {
+		t.Fatalf("pending user session rows = %d, want 1", count)
 	}
 }

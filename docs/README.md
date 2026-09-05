@@ -69,6 +69,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Testing strategy & commands](development/testing.md)
 - [Branches, commits & pull requests](development/pull-requests.md)
 - [Documentation governance](development/documentation.md)
+- [Go dependency vulnerability scanning](development/dependency-scanning.md)
 
 ### Operations
 

@@ -241,6 +241,18 @@ func GetMapByIds(ids []uint64) map[uint64]*Entity {
 	return result
 }
 
+// ListCoursesByIDs 批量按 ID 查询课程并返回错误，供需要失败可见性的调用方使用
+// （与静默吞错的 GetMapByIds 区分——管理端列表 hydration 在 DB 故障时应当报错
+// 而非 200 + 全部 #id 降级，review P2）。
+func ListCoursesByIDs(ids []uint64) ([]Entity, error) {
+	if len(ids) == 0 {
+		return []Entity{}, nil
+	}
+	var entities []Entity
+	err := courseBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error
+	return entities, err
+}
+
 // ---- Alias ----
 
 // GetAliasByNormalizedValue 按 (kind, normalized_value) 查找别名（跨课程冲突检测）。

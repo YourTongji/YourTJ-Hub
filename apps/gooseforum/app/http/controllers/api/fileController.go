@@ -3,10 +3,13 @@ package api
 import (
 	"bytes"
 	"io"
+	"mime"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
@@ -43,9 +46,27 @@ func GetFileByFileName(c *gin.Context) {
 		})
 		return
 	}
-	c.Header("Content-Disposition", "inline")
+	// 响应类型由存储对象名的规范化扩展名权威决定（issue #408），不采信
+	// 客户端声明或行内 assert_type——合法图片对象名必然带可映射扩展名。
+	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
+	if !ok {
+		// 未知/危险对象（历史残留、无扩展名等）：octet-stream + 附件下载，
+		// 绝不按行内类型内联渲染；nosniff 兜底防类型混淆。
+		contentType = "application/octet-stream"
+	}
+	c.Header("Content-Type", contentType)
+	c.Header("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(contentType, "image/") {
+		c.Header("Content-Disposition", "inline")
+	} else {
+		base := path.Base(filename)
+		if base == "." || base == "/" {
+			base = "download"
+		}
+		c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": base}))
+	}
 	httputil.SetLongPublic(c)
-	c.Data(http.StatusOK, entity.Type, entity.Data)
+	c.Data(http.StatusOK, contentType, entity.Data)
 }
 
 // SaveImgByGinContext handles image uploads with size and content checks.
@@ -71,7 +92,7 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 		return
 	}
 
-	_, failure = policy.Validate(file.Filename, file.Size, "")
+	contentType, failure := policy.Validate(file.Filename, file.Size, "")
 	if failure != nil {
 		c.JSON(failure.Status, failure.Data)
 		return
@@ -84,30 +105,21 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 	}
 	defer func() { _ = src.Close() }()
 
-	header := make([]byte, 512)
-	n, _ := io.ReadFull(src, header)
-	if n > 0 {
-		if !isValidImageContent(header[:n]) {
-			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadInvalidImage, nil))
-			return
-		}
-	}
-
-	remainingData, err := io.ReadAll(io.LimitReader(src, policy.MaxSize-int64(n)))
+	fileData, err := io.ReadAll(io.LimitReader(src, policy.MaxSize+1))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageUploadContentReadFailed, nil))
 		return
 	}
-
-	fileData := make([]byte, n+len(remainingData))
-	copy(fileData, header[:n])
-	copy(fileData[n:], remainingData)
-
 	if int64(len(fileData)) > policy.MaxSize {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(
 			component.MessageUploadFileTooLarge,
-
 			component.MessageParams{"maxSizeKb": policy.MaxSize / 1024}))
+		return
+	}
+	// 内容校验与直传完成同口径：sniff 类型 + 解码格式都必须与扩展名推出的类型一致，
+	// 伪造 MIME/扩展与字节不符在此拒绝，错误只回稳定 messageCode，不回解析细节。
+	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadInvalidImage, nil))
 		return
 	}
 
@@ -130,43 +142,4 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 		"filename": file.Filename,
 		"size":     len(fileData),
 	}, component.MessageUploadSuccess, nil))
-}
-
-// isValidImageContent checks common image file signatures.
-func isValidImageContent(data []byte) bool {
-	if len(data) < 8 {
-		return false
-	}
-
-	var imageSignatures = [][]byte{
-		{0xFF, 0xD8, 0xFF}, // JPEG
-		{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, // PNG
-		{0x47, 0x49, 0x46, 0x38, 0x37, 0x61},             // GIF87a
-		{0x47, 0x49, 0x46, 0x38, 0x39, 0x61},             // GIF89a
-		{0x52, 0x49, 0x46, 0x46},                         // WebP (RIFF)
-		{0x42, 0x4D},                                     // BMP
-	}
-
-	for _, signature := range imageSignatures {
-		if len(data) >= len(signature) && bytes.HasPrefix(data, signature) {
-			if bytes.HasPrefix(signature, []byte{0x52, 0x49, 0x46, 0x46}) {
-				if len(data) >= 12 && bytes.Equal(data[8:12], []byte("WEBP")) {
-					return true
-				}
-				continue
-			}
-			return true
-		}
-	}
-
-	return false
-}
-
-func isAllowedExtension(ext string, allowedExts []string) bool {
-	for _, allowedExt := range allowedExts {
-		if strings.ToLower(allowedExt) == ext {
-			return true
-		}
-	}
-	return false
 }

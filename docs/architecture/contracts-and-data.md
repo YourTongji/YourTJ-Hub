@@ -67,6 +67,124 @@ HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's curre
 wrapper reports malformed or incomplete JSON as
 an HTTP `200` validation failure, not a guaranteed `400`.
 
+## HTTP method contract: HEAD vs GET (issue #411)
+
+The single-binary app is served directly by Gin behind a CDN / reverse proxy
+(1Panel + Cloudflare in production; no in-compose nginx). Probes, cache
+warmers, and CDN origin checks frequently use `HEAD`; this section is the
+contract for what `HEAD` means on the forum's own listener
+(`apps/gooseforum/app/http/routes/bridge.go` → `RegisterByGin`).
+
+### Mechanism: Gin v1.12 does not synthesize HEAD for GET
+
+Gin registers and routes methods **exactly** as declared: a `HEAD` request
+only matches a route explicitly registered for `HEAD`. In this codebase the
+complete explicit HEAD surface on the **production** listener is produced by
+two calls and one helper:
+
+- `StaticFS("assets", ...)` and `StaticFS("static", ...)` register
+  `GET` **and** `HEAD` for `/assets/*filepath` and `/static/*filepath`
+  (`route4api.go` `assertRouter`);
+- `Any("/mcp")` registers `HEAD` alongside every other method
+  (`mcpRoute.go`).
+
+In dev mode (`app.env != production`) `assertRouter` additionally
+registers a Vite reverse proxy via `Any("assets/*path")` (`route4api.go`),
+which answers HEAD for `/assets/*` as well. The contract tests and the
+tables below exercise the production listener.
+
+Everything else — SSR pages (`/`, `/p/post/:id`, ...), `/health`,
+`/robots.txt` / `/sitemap.xml` / `/rss.xml`, JSON APIs (`/api/...`), and the
+file download route `/file/img/*filename` — is GET-only. `HEAD` on those
+paths is not a route error but the plain NoRoute handler, i.e. the same
+`404` JSON envelope an unregistered method gets. The Go `net/http` server
+then strips the response body on the wire (RFC 9110: HEAD responses never
+carry a body), so a CDN or proxy never sees NoRoute's JSON payload on a HEAD
+request.
+
+### Supported HEAD surface (static assets)
+
+The two static mounts answer HEAD, but their header guarantees differ:
+`BrowserCache` (`Cache-Control: public, max-age=18144000`) is only attached
+to `/static/*filepath` — `assertRouter` registers the `/assets` StaticFS
+first and calls `staticRoute.Use(middleware.BrowserCache)` only before the
+`/static` registration, and Gin captures group middleware when each route is
+registered. The contract therefore promises:
+
+- `/static/*filepath`: HEAD == GET status and headers, **including** the
+  long-public `Cache-Control`;
+- `/assets/*filepath`: HEAD == GET status and headers **except**
+  `Cache-Control` — the mount sets no cache header and the contract promises
+  none;
+
+both with an empty body on the wire.
+
+| Request | Status | Body | Content-Length | Content-Type / Cache-Control |
+|---|---|---|---|---|
+| `GET /static/...` | 200 | full file | set | set |
+| `HEAD /static/...` | 200 (same as GET) | empty (never sent) | set, same as GET | same as GET |
+| `HEAD /static/...` with `Accept-Encoding: gzip` | 200 | empty | unset (no body was written, so the gzip middleware cannot size it) | Content-Type present; no Content-Encoding |
+| `GET` / `HEAD /assets/...` (built entry) | 200 | full file / empty | set, same across methods | Content-Type set; **no `Cache-Control` promised** |
+
+`HEAD` for an existing asset is therefore safe for cache existence checks
+(only `/static/...` additionally guarantees the long `Cache-Control`).
+`HEAD`/`GET` for a *missing* asset are both the same NoRoute 404: gin's
+StaticFS handler hands failed file opens to the engine's NoRoute chain
+(`controllers.NotFound`), so both methods answer the identical 404 JSON
+envelope — HEAD simply never sends the body on the wire. The `/assets`
+contract tests probe a file the Vite build actually emits
+(`static/dist/.vite/manifest.json`, site entry) and skip when the build
+output is absent — `dist/` is never committed and CI never builds the
+frontend.
+
+### Unsupported HEAD surface (dynamic GET routes)
+
+| Request | GET status | HEAD status |
+|---|---|---|
+| `/health` | 200 (db ping ok) / 503 | **404** |
+| `/robots.txt`, `/sitemap.xml` | 200 | **404** |
+| `/` (SSR home) | 200 | **404** |
+| `/api/login-public-key`, `/api/forum/get-site-statistics`, ... | 200 | **404** |
+| `/file/img/:filename` (existing upload) | 200 | **404** (no HEAD route registered) |
+| write-only endpoints (`POST /api/forum/topics/write`, `POST /file/img-upload`, ...) | 404 (method not routed for anonymous GET) | **404** — the controller never executes |
+
+Consequences for operators and integrators:
+
+- **Probes must use `GET`.** `deploy.sh`, compose health checks, and 1Panel /
+  Cloudflare health endpoints already use `GET /health` (curl `-fsS`). Do not
+  switch monitor probes to `HEAD /health`: they would receive the stable
+  404 NoRoute response even when the service is healthy.
+- **HEAD has no *business* side effects — but it is not free on `/mcp`.**
+  Write controllers are reachable only via their registered method
+  (`POST`/`PATCH`/`DELETE`/`PUT`). No write route has a HEAD registration, so
+  a HEAD request never triggers a write; unregistered methods on write paths
+  answer the stable 404 envelope. `Any("/mcp")` does register HEAD, so
+  `HEAD /mcp` runs the `mcp.auth` per-IP rate limiter and consumes the same
+  quota as any other `/mcp` request — repeated HEAD probes can exhaust the
+  quota and make legitimate MCP calls answer 429. Health probes must use
+  `GET /health`, which is outside the MCP rate limits. If a future change
+  needs HEAD on a dynamic route, register it explicitly and run the
+  routes-snapshot gate (`TestRoutesSnapshot`) — the snapshot carries HEAD
+  only for the two static mounts (`/assets/*filepath`, `/static/*filepath`)
+  and `/mcp` today, and `TestHeadRouteRegistrationContract` pins that exact
+  surface.
+- **CDN origin checks**: if a CDN is configured to validate origin
+  availability with HEAD against a page or API URL, point it at a `/static`
+  asset (supported; only this mount carries the cache header) or at
+  `GET /health` (use GET).
+
+### Guard tests
+
+`apps/gooseforum/app/http/routes/contract_head_http_test.go` asserts this
+contract against the real `RegisterByGin` assembly over a real HTTP server:
+the registered HEAD route set is exactly the static mounts + `/mcp`; `/static`
+HEAD equals GET in status and headers (including `Cache-Control`); `/assets`
+HEAD equals GET except `Cache-Control`, probed against a manifest-emitted
+file and skipped without `pnpm build`; dynamic GET routes and write-only
+endpoints answer 404 to HEAD; and no body ever reaches the wire on HEAD. The
+tests pin `server.gzip` on, so the gzip assertions hold under any local
+`[server].gzip` setting.
+
 ## Contract pipeline (Partial)
 
 ```
@@ -172,8 +290,10 @@ complete operation coverage and the precondition for such a gate is met.
   与卡级 `course-lineage-seed` CLI（E1-E3，装配课程目录可见卡在 course.id 层面配对，
   默认 dry-run，`--write`/`--write-family` 幂等写 pending，不复活已处置关系），
   或管理端手动创建；审核面板
-  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）批准/
-  忽略/合并/撤销。
+  （`/api/forum/moderation/course-relation-*`、`course-merge(-undo)`，OpenAPI 覆盖）按状态
+  （pending/approved/ignored/merged）与类型（EQUIVALENT/RENAMED_FROM/SPLIT_FROM/
+  MERGED_FROM/RELATED）过滤，支持批准/忽略/撤回处理决定（approved/ignored →
+  pending；merged 只能走 `course-merge-undo`）/合并/撤销。
 
 ## Task queue & background workers
 

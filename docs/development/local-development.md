@@ -10,7 +10,7 @@
 
 ## Dependencies
 
-- Go 1.26+
+- Go 1.26.6+（`apps/gooseforum/go.mod` 声明 `go 1.26.6` + `toolchain go1.26.8`，issue #447：更早的 patch 含 7 个已修复的 stdlib CVE；默认 `GOTOOLCHAIN=auto` 下旧工具链会自动下载合规版本，设 `GOTOOLCHAIN=local` 则明确报错而非静默编译）
 - Node 24 + pnpm 11 (the forum frontend workspace lives in `apps/gooseforum/resource/` with its own
   pnpm-workspace.yaml; **note**: the home-directory `/Users/yzxoi/pnpm-workspace.yaml` can interfere
   with pnpm's upward lookup — run pnpm from inside `resource/`)

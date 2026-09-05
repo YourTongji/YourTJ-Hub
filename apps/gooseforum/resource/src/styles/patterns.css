@@ -1,6 +1,6 @@
 @layer components {
   .gf-home-topic-toolbar {
-    @apply flex flex-col gap-3 border-b border-line bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:border-y sm:border-t-0;
+    @apply flex items-center justify-between gap-3 border-b border-line bg-base-100 px-4 py-3 sm:border-y sm:border-t-0;
   }
 
   .gf-home-topic-tools {
@@ -16,6 +16,7 @@
   .gf-home-topic-tabs::-webkit-scrollbar {
     display: none;
   }
+
 
   .gf-topic-list-header {
     @apply hidden grid-cols-[minmax(0,1fr)_112px_72px_72px_88px] gap-3 border-b border-line/70 bg-base-100/70 px-4 py-1.5 text-[13px] font-normal leading-5 text-base-content/55 lg:grid;
@@ -59,7 +60,6 @@
   border-radius: 0.35rem;
   animation: wiki-hit-flash 2.8s ease-out forwards;
 }
-
 @keyframes wiki-hit-flash {
   0% {
     background: var(--wiki-hit-bg-strong);

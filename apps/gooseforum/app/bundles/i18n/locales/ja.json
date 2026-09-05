@@ -111,6 +111,7 @@
   "serverMessages.auth.required": "このページを表示するにはログインしてください。",
   "serverMessages.permission.denied": "この操作を実行する権限がありません。",
   "serverMessages.permission.userFrozen": "アカウントが停止されているため、続行できません。",
+  "serverMessages.permission.emailRequired": "続行する前にメール認証を完了してください。",
   "serverMessages.common.operation.failed": "操作に失敗しました。しばらくしてからもう一度お試しください。",
   "serverMessages.oauth.callback.failed": "OAuth コールバックに失敗しました。しばらくしてからもう一度お試しください。",
   "serverMessages.oauth.process.failed": "OAuth ログイン処理に失敗しました。しばらくしてからもう一度お試しください。",

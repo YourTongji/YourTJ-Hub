@@ -4,12 +4,22 @@ import { ExternalLink, Link, Send, ShieldCheck } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { LayoutPayload, LinksPageProps } from '@gooseforum/client'
+import { safeUrl } from '@/runtime/safe-url'
 
-defineProps<{
+const page = defineProps<{
   layout: LayoutPayload
   props: LinksPageProps
 }>()
 const { t } = useI18n()
+
+// 渲染防线（issue #409）：历史脏配置/绕过 API 的链接降级为 '#'，不进入 href。
+function linkHref(url: string) {
+  return safeUrl(url, 'external') || '#'
+}
+
+function logoHref(url: string) {
+  return safeUrl(url, 'image')
+}
 </script>
 
 <template>
@@ -40,7 +50,7 @@ const { t } = useI18n()
               <a
                 v-for="link in group.links"
                 :key="`${group.name}-${link.url}`"
-                :href="link.url"
+                :href="linkHref(link.url)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="group rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-2 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
@@ -48,8 +58,8 @@ const { t } = useI18n()
                 <div class="flex items-center gap-2">
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[var(--gf-radius-field)] border border-line bg-base-100 sm:bg-base-200">
                     <img
-                      v-if="link.logoUrl"
-                      :src="link.logoUrl"
+                      v-if="logoHref(link.logoUrl)"
+                      :src="logoHref(link.logoUrl)"
                       :alt="link.name"
                       class="h-full w-full object-cover"
                       loading="lazy"

@@ -14,6 +14,8 @@ func TestNormalize(t *testing.T) {
 		"en":             "en",
 		"en-US,en;q=0.9": "en",
 		"ja_JP":          "ja",
+		"de":             "de",
+		"de-DE":          "de",
 		"ko":             Fallback, // unsupported -> fallback
 		"  en  ":         "en",
 		"fr-FR,fr;q=0.7": Fallback,
@@ -29,6 +31,9 @@ func TestTranslateFallback(t *testing.T) {
 	// A key present in every locale returns the localized value.
 	if got := T("en", "search"); got != "Search" {
 		t.Errorf(`T("en","search") = %q, want "Search"`, got)
+	}
+	if got := T("de", "search"); got != "Suchen" {
+		t.Errorf(`T("de","search") = %q, want "Suchen"`, got)
 	}
 	// An unsupported locale falls back to zh (the source locale).
 	if got := T("ko", "search"); got != "搜索" {
@@ -103,11 +108,11 @@ func TestServerMessage(t *testing.T) {
 			want: fallback,
 		},
 		{
-			name:     "unknown code never leaks raw code",
-			lang:     "en",
-			code:     "some.unknown.code",
-			want:     fallback,
-			notWant:  "some.unknown.code",
+			name:    "unknown code never leaks raw code",
+			lang:    "en",
+			code:    "some.unknown.code",
+			want:    fallback,
+			notWant: "some.unknown.code",
 		},
 		{
 			name:     "unsupported lang falls back to zh",

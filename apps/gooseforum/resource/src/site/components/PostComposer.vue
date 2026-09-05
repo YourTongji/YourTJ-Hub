@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
 import { uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
@@ -53,20 +53,25 @@ watch(
 )
 const composerBusy = computed(() => props.submitting || uploadingImage.value)
 
-/** 桌面端浮动面板高度：默认更高，顶部手柄可拖拽调整 */
+/** 浮动面板高度：支持桌面端与移动端顶部手柄拖拽调整 */
 const MOBILE_VIEWPORT_QUERY = '(max-width: 520px)'
 const DESKTOP_COMPOSER_HEIGHT = 480
 const MIN_COMPOSER_HEIGHT = 240
 const MAX_COMPOSER_HEIGHT = 720
-const isMobileComposer = () => window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+const isMobileComposer = () => typeof window !== 'undefined' && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
 const composerHeight = ref(DESKTOP_COMPOSER_HEIGHT)
 const editorArea = ref<HTMLElement | null>(null)
 const draggingHeight = ref(false)
 const dragStartY = ref(0)
 const dragStartHeight = ref(0)
 
+onMounted(() => {
+  if (isMobileComposer()) {
+    composerHeight.value = Math.min(380, Math.max(MIN_COMPOSER_HEIGHT, Math.floor(window.innerHeight * 0.6)))
+  }
+})
+
 function startHeightDrag(event: PointerEvent) {
-  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
   draggingHeight.value = true
   dragStartY.value = event.clientY
   dragStartHeight.value = composerHeight.value
@@ -77,7 +82,8 @@ function moveHeightDrag(event: PointerEvent) {
   if (!draggingHeight.value) return
   // 手柄在顶部：向上拖（clientY 减小）→ 变高；向下拖 → 变矮
   const delta = dragStartY.value - event.clientY
-  composerHeight.value = Math.min(MAX_COMPOSER_HEIGHT, Math.max(MIN_COMPOSER_HEIGHT, dragStartHeight.value + delta))
+  const maxAllowed = isMobileComposer() ? Math.max(MIN_COMPOSER_HEIGHT, window.innerHeight - 24) : MAX_COMPOSER_HEIGHT
+  composerHeight.value = Math.min(maxAllowed, Math.max(MIN_COMPOSER_HEIGHT, dragStartHeight.value + delta))
   // 同步 Vditor 高度，让编辑器填满新的编辑区
   void nextTick(() => {
     if (editorArea.value && editor.value) {
@@ -141,7 +147,7 @@ onBeforeUnmount(() => {
   clearTimeout(lockSettleTimer)
 })
 
-// 登录后回跳当前话题页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
+// 登录后回跳当前内容页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
 const loginHref = computed(() => {
   const currentPath = typeof window === 'undefined' ? '' : window.location.pathname + window.location.search + window.location.hash
   return currentPath ? `/login?redirect=${encodeURIComponent(currentPath)}` : '/login'
@@ -222,14 +228,13 @@ function submit() {
             v-if="open"
             role="dialog"
             aria-labelledby="post-composer-title"
-            class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3"
+            class="gf-floating-surface gf-composer-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-visible p-3"
             :style="{
-              height: isMobileComposer() ? undefined : `${composerHeight}px`,
+              height: `${composerHeight}px`,
             }"
           >
-            <!-- 桌面端高度拖拽手柄（design-taste：细 grip 条、hover 高亮、ns-resize 光标、实时跟随无动画） -->
+            <!-- 高度拖拽手柄（移动端与桌面端统一提供，实时跟随无动画） -->
             <div
-              v-if="!isMobileComposer()"
               class="composer-resize-handle"
               :class="{ 'is-active': draggingHeight }"
               role="separator"
@@ -261,7 +266,7 @@ function submit() {
               </button>
             </div>
 
-            <div ref="editorArea" class="relative min-h-0 flex-1 overflow-y-auto">
+            <div ref="editorArea" class="relative min-h-[160px] flex-1 flex flex-col overflow-visible">
               <!-- Vditor 异步就绪前显示加载占位；初始化失败则结束转圈并提示失败（可关面板重开重试） -->
               <div
                 v-if="!editorReady || editorInitFailed"
@@ -277,7 +282,7 @@ function submit() {
               <VditorOfficial
                 ref="editor"
                 v-model="content"
-                :height="isMobileComposer() ? 320 : 400"
+                :height="isMobileComposer() ? 320 : '100%'"
                 :compact="true"
                 :placeholder="composerPlaceholder"
                 @input="emit('clearValidation')"
@@ -288,7 +293,7 @@ function submit() {
 
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
             <p v-if="successMessage" class="mt-2 text-sm text-success">{{ successMessage }}</p>
-            <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2">
+            <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 class="relative h-9 w-24 shrink-0 overflow-hidden rounded-md border border-line"
@@ -305,7 +310,7 @@ function submit() {
                 maxlength="8"
               />
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-2">
+            <div class="mt-3 flex flex-wrap items-center gap-2 shrink-0">
               <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="emit('clearTarget')">
                 {{ t('common.cancel') }}
               </button>
@@ -429,5 +434,141 @@ function submit() {
   .guest-lock-closed {
     opacity: 1;
   }
+}
+
+/* 移动端回复框专属工具栏与编辑器美化：对称均分、优雅质感、直观触达 */
+@media (max-width: 640px) {
+  .gf-floating-surface .vditor {
+    border: 1px solid color-mix(in oklch, var(--gf-color-base-content) 12%, transparent) !important;
+    border-radius: 14px !important;
+    overflow: visible !important;
+    background-color: var(--color-base-100, #fff) !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  }
+
+  .gf-floating-surface .vditor:focus-within {
+    border-color: color-mix(in oklch, var(--gf-color-primary) 65%, transparent) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--gf-color-primary) 12%, transparent) !important;
+  }
+
+  .gf-floating-surface .vditor-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 6px 8px !important;
+    background: color-mix(in oklch, var(--gf-color-base-200) 45%, var(--gf-color-base-100)) !important;
+    border-bottom: 1px solid color-mix(in oklch, var(--gf-color-base-content) 8%, transparent) !important;
+    border-radius: 14px 14px 0 0 !important;
+    gap: 2px !important;
+    overflow: visible !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .gf-floating-surface .vditor-toolbar__item {
+    flex: 1 1 0 !important;
+    max-width: 36px !important;
+    min-width: 28px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 6px !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: color-mix(in oklch, var(--gf-color-base-content) 75%, transparent) !important;
+    transition: all 0.15s cubic-bezier(0.2, 0, 0, 1) !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped:hover {
+    background-color: color-mix(in oklch, var(--gf-color-base-content) 10%, transparent) !important;
+    color: var(--color-base-content, #24292e) !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped:active {
+    transform: scale(0.9) !important;
+    background-color: color-mix(in oklch, var(--gf-color-primary) 15%, transparent) !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .gf-composer-surface .vditor-panel,
+  .gf-composer-surface .vditor-hint {
+    z-index: 100 !important;
+    max-width: min(320px, calc(100vw - 32px)) !important;
+    top: calc(100% + 4px) !important;
+    bottom: auto !important;
+    left: 0 !important;
+    right: auto !important;
+    max-height: min(220px, 38vh) !important;
+    overflow-y: auto !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item:last-child > .vditor-hint,
+  .gf-composer-surface .vditor-toolbar__item:last-child > .vditor-panel,
+  .gf-composer-surface .vditor-toolbar__item:nth-last-child(2) > .vditor-hint,
+  .gf-composer-surface .vditor-toolbar__item:nth-last-child(2) > .vditor-panel {
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  .gf-composer-surface .vditor-emojis {
+    max-height: 160px !important;
+  }
+}
+
+/* 移动端与桌面端回复框：全高 Flex 自适应填满，底栏确认/取消按键永不被推挤或遮挡 */
+.gf-composer-surface .vditor-official {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.gf-composer-surface .vditor-official .vditor {
+  height: 100% !important;
+  flex: 1 1 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.gf-composer-surface .vditor-official .vditor-content {
+  flex: 1 1 0 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .gf-composer-surface {
+    min-height: 240px;
+  }
+}
+
+/* 桌面与通用回复框：工具栏下拉浮层自然向下展开，并限制最大高度防止外层容器产生滚动条 */
+.gf-composer-surface .vditor-toolbar__item > .vditor-hint,
+.gf-composer-surface .vditor-toolbar__item > .vditor-panel {
+  top: calc(100% + 4px) !important;
+  bottom: auto !important;
+  max-height: min(280px, 45vh) !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+}
+
+.gf-composer-surface .vditor-toolbar__item:last-child > .vditor-hint,
+.gf-composer-surface .vditor-toolbar__item:last-child > .vditor-panel {
+  right: 0 !important;
+  left: auto !important;
 }
 </style>

@@ -183,10 +183,21 @@
 
   .gf-prose img {
     @apply my-2.5 max-w-full rounded-lg border border-line object-contain;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .gf-prose-post img {
     @apply cursor-zoom-in;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .gf-prose p:has(> img),
+  .gf-prose p:has(> a > img) {
+    text-align: center;
   }
 
   .gf-prose-post ul,
@@ -233,6 +244,24 @@
   .gf-prose-post img {
     @apply my-1.5 max-w-full rounded-lg border border-line object-contain;
     max-height: min(360px, 70vh);
+  }
+
+  /* 客户端内容增强（Mermaid 等）渲染出的图表容器：居中、横向可滚动、自适应深浅色 */
+  .gf-prose .gf-content-diagram {
+    @apply my-2.5 flex max-w-full justify-center overflow-x-auto rounded-lg border border-line bg-base-100 p-3;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gf-prose .gf-content-diagram svg {
+    display: block;
+    height: auto;
+    max-width: 100%;
+  }
+
+  /* 渲染失败的图表保留原始代码块，用 warning 描边提示降级 */
+  .gf-prose pre[data-gf-enhancement='mermaid-error'] {
+    border-color: color-mix(in oklch, var(--gf-color-warning) 45%, transparent);
   }
 }
 

@@ -31,6 +31,7 @@ func newTestServeRuntime(t *testing.T) *serveRuntime {
 		startupGate:   gate,
 		listener:      listener,
 		quit:          make(chan os.Signal, 1),
+		startupDone:   make(chan struct{}),
 		migrate:       func() error { return nil },
 		startBusiness: func() {},
 	}
@@ -84,6 +85,45 @@ func TestServeRuntimeFatalMigrationSurfaces(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("wait() did not return after fatal shutdown")
+	}
+}
+
+// TestServeRuntimeFatalMigrationRaceWithQuit 确定性复现 #370 遗留竞态：quit 信号
+// 先于启动 goroutine 的 setFatal 到达时，wait() 不得吞掉致命迁移错误。
+// migrate 用阻塞桩挂起，确保信号入队时错误尚未记录：
+//   - 修复前：wait() 立即返回 nil 错误（致命失败被吞 → 进程会以 0 退出）；
+//   - 修复后：wait() 等待启动结果落定（startupDone 屏障），放行后返回 boom。
+func TestServeRuntimeFatalMigrationRaceWithQuit(t *testing.T) {
+	rt := newTestServeRuntime(t)
+	boom := errors.New("schema migration failed: simulate")
+	allowMigrate := make(chan struct{})
+	rt.migrate = func() error { <-allowMigrate; return boom }
+	rt.start()
+
+	// 迁移 goroutine 仍被挂起、setFatal 未执行时信号已入队——最窄窗口。
+	rt.requestShutdown()
+	errCh := make(chan error, 1)
+	go func() { errCh <- rt.wait() }()
+
+	// 修复前：wait() 会立刻读到 nil 并返回，此处直接判负；修复后：wait()
+	// 阻塞在 startupDone 上，等待下面放行。
+	select {
+	case err := <-errCh:
+		t.Fatalf("wait() returned before startup settled = %v, want it to wait for the fatal migration outcome", err)
+	case <-time.After(1 * time.Second):
+	}
+
+	close(allowMigrate)
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, boom) {
+			t.Fatalf("wait() after fatal migration = %v, want %v", err, boom)
+		}
+		if rt.startupGate.Ready() {
+			t.Fatal("startup gate reported ready after a fatal migration failure")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("wait() did not return after startup settled")
 	}
 }
 

@@ -5,13 +5,14 @@ import { readInitialPayload, updateDocumentMeta } from '@/runtime/payload'
 import { installNavigation, preparePayload } from '@/runtime/router'
 import { currentLocale, i18n } from '@/runtime/i18n'
 import { hydrateFlashMessages } from '@/runtime/flash-message'
-import { applySiteThemePayload, applyStoredTheme } from '@/runtime/site-theme'
+import { applySiteThemePayload, applyStoredTheme, initSystemThemeListener } from '@/runtime/site-theme'
 import { applyStoredAppearanceSettings } from '@/runtime/appearance-settings'
 import { installBaTouchEffect } from '@/runtime/ba-touch-effect'
 import PayloadRouteView from '@/site/components/PayloadRouteView.vue'
 import { codeHighlightDirective } from '@/runtime/code-highlight-directive'
 import { mathRenderDirective } from '@/runtime/math-render-directive'
 import { codeCopyDirective } from '@/runtime/code-copy-directive'
+import { contentEnhancementsDirective } from '@/runtime/content-enhancements'
 
 const initialPayload = readInitialPayload()
 const initialPage = await preparePayload(initialPayload)
@@ -24,6 +25,7 @@ const isReloadNavigation = navigationEntry?.type === 'reload'
 document.documentElement.lang = currentLocale()
 applySiteThemePayload(initialPayload.layout.theme)
 applyStoredTheme()
+initSystemThemeListener()
 applyStoredAppearanceSettings()
 installBaTouchEffect()
 
@@ -67,6 +69,7 @@ app.use(router)
 app.directive('code-highlight', codeHighlightDirective)
 app.directive('math-render', mathRenderDirective)
 app.directive('code-copy', codeCopyDirective)
+app.directive('content-enhancements', contentEnhancementsDirective)
 await router.isReady()
 app.mount('#goose-app')
 
