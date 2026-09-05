@@ -1,9 +1,10 @@
 /**
- * Pure delimiter detection for Markdown math ($...$ and $$...$$).
+ * Pure delimiter detection for Markdown math.
  *
- * The detection rules are a port of KaTeX auto-render's brace-balanced scan,
- * plus MathJax-style inline guards (delimiters must not sit next to whitespace
- * and inline math cannot span lines) to keep prices and shell variables literal.
+ * Supports `$...$`, `$$...$$`, `\(...\)`, `\[...\]`, and common
+ * `\begin{env}...\end{env}` environments. The detection rules use a
+ * brace-balanced scan and keep `$` delimiters away from prices and shell
+ * variables.
  *
  * This module must stay free of DOM and KaTeX imports so the directive can use
  * it as a cheap loading gate without pulling the KaTeX chunk into the bundle.
@@ -12,7 +13,7 @@
 export interface MathSegment {
   /** TeX source without the surrounding delimiters. */
   text: string
-  /** True for block math ($$...$$), false for inline ($...$). */
+  /** True for block math, false for inline math. */
   display: boolean
   /** Offset of the opening delimiter in the source string. */
   start: number
@@ -20,8 +21,44 @@ export interface MathSegment {
   end: number
 }
 
-const BLOCK_DELIMITER = '$$'
-const INLINE_DELIMITER = '$'
+interface MathDelimiter {
+  open: string
+  close: string
+  display: boolean
+  singleDollar: boolean
+}
+
+const MATH_ENVIRONMENTS = [
+  'equation',
+  'equation*',
+  'align',
+  'align*',
+  'aligned',
+  'gather',
+  'gather*',
+  'multline',
+  'multline*',
+  'split',
+  'cases',
+  'matrix',
+  'pmatrix',
+  'bmatrix',
+  'vmatrix',
+  'Vmatrix',
+] as const
+
+const MATH_DELIMITERS: MathDelimiter[] = [
+  { open: '$$', close: '$$', display: true, singleDollar: false },
+  { open: '\\[', close: '\\]', display: true, singleDollar: false },
+  ...MATH_ENVIRONMENTS.map((environment) => ({
+    open: `\\begin{${environment}}`,
+    close: `\\end{${environment}}`,
+    display: true,
+    singleDollar: false,
+  })),
+  { open: '$', close: '$', display: false, singleDollar: true },
+  { open: '\\(', close: '\\)', display: false, singleDollar: false },
+]
 
 function isEscaped(source: string, index: number): boolean {
   let backslashes = 0
@@ -66,7 +103,7 @@ function findInlineClosing(source: string, startIndex: number): number {
   let index = startIndex
   while (index < source.length) {
     const char = source[index]
-    if (braceLevel <= 0 && char === INLINE_DELIMITER) {
+    if (braceLevel <= 0 && char === '$') {
       if (index > startIndex && !isWhitespace(source[index - 1])) return index
       return -1
     }
@@ -82,48 +119,60 @@ function findInlineClosing(source: string, startIndex: number): number {
   return -1
 }
 
+function findNextDelimiter(source: string, start: number): { index: number; delimiter: MathDelimiter } | null {
+  let best: { index: number; delimiter: MathDelimiter } | null = null
+  for (const delimiter of MATH_DELIMITERS) {
+    let index = source.indexOf(delimiter.open, start)
+    while (index !== -1 && isEscaped(source, index)) {
+      index = source.indexOf(delimiter.open, index + 1)
+    }
+    if (index !== -1 && (best === null || index < best.index)) {
+      best = { index, delimiter }
+    }
+  }
+  return best
+}
+
 export function extractMathSegments(source: string): MathSegment[] {
   const segments: MathSegment[] = []
   let index = 0
 
   while (index < source.length) {
-    const dollarIndex = source.indexOf(INLINE_DELIMITER, index)
-    if (dollarIndex === -1) break
+    const found = findNextDelimiter(source, index)
+    if (!found) break
 
-    if (isEscaped(source, dollarIndex)) {
-      index = dollarIndex + 1
-      continue
-    }
+    const { index: openIndex, delimiter } = found
+    const openEnd = openIndex + delimiter.open.length
 
-    if (source.startsWith(BLOCK_DELIMITER, dollarIndex)) {
-      const close = findClosingDelimiter(source, BLOCK_DELIMITER, dollarIndex + BLOCK_DELIMITER.length)
+    if (delimiter.singleDollar) {
+      if (isWhitespace(source[openIndex + 1])) {
+        index = openIndex + 1
+        continue
+      }
+
+      const close = findInlineClosing(source, openEnd)
       if (close !== -1) {
-        const text = source.slice(dollarIndex + BLOCK_DELIMITER.length, close)
-        if (text.trim().length > 0) {
-          segments.push({ text, display: true, start: dollarIndex, end: close + BLOCK_DELIMITER.length })
-          index = close + BLOCK_DELIMITER.length
+        const text = source.slice(openEnd, close)
+        if (text.length > 0 && !text.includes('\n')) {
+          segments.push({ text, display: delimiter.display, start: openIndex, end: close + 1 })
+          index = close + 1
           continue
         }
       }
-      index = dollarIndex + 1
+      index = openIndex + 1
       continue
     }
 
-    if (isWhitespace(source[dollarIndex + 1])) {
-      index = dollarIndex + 1
-      continue
-    }
-
-    const close = findInlineClosing(source, dollarIndex + 1)
+    const close = findClosingDelimiter(source, delimiter.close, openEnd)
     if (close !== -1) {
-      const text = source.slice(dollarIndex + 1, close)
-      if (text.length > 0 && !text.includes('\n')) {
-        segments.push({ text, display: false, start: dollarIndex, end: close + 1 })
-        index = close + 1
+      const text = source.slice(openEnd, close)
+      if (text.trim().length > 0) {
+        segments.push({ text, display: delimiter.display, start: openIndex, end: close + delimiter.close.length })
+        index = close + delimiter.close.length
         continue
       }
     }
-    index = dollarIndex + 1
+    index = openIndex + delimiter.open.length
   }
 
   return segments

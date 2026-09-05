@@ -6,11 +6,7 @@ import (
 	"strings"
 )
 
-const (
-	mathPlaceholderPrefix = "@@YOURTJ_MATH_"
-	mathBlockDelimiter    = "$$"
-	mathInlineDelimiter   = "$"
-)
+const mathPlaceholderPrefix = "@@YOURTJ_MATH_"
 
 type mathSegment struct {
 	text    string
@@ -23,6 +19,51 @@ type mathPlaceholder struct {
 	token    string
 	original string
 }
+
+type mathDelimiter struct {
+	open         string
+	close        string
+	display      bool
+	singleDollar bool
+}
+
+var mathEnvironments = []string{
+	"equation",
+	"equation*",
+	"align",
+	"align*",
+	"aligned",
+	"gather",
+	"gather*",
+	"multline",
+	"multline*",
+	"split",
+	"cases",
+	"matrix",
+	"pmatrix",
+	"bmatrix",
+	"vmatrix",
+	"Vmatrix",
+}
+
+var mathDelimiters = func() []mathDelimiter {
+	delimiters := []mathDelimiter{
+		{open: "$$", close: "$$", display: true},
+		{open: "\\[", close: "\\]", display: true},
+	}
+	for _, environment := range mathEnvironments {
+		delimiters = append(delimiters, mathDelimiter{
+			open:    "\\begin{" + environment + "}",
+			close:   "\\end{" + environment + "}",
+			display: true,
+		})
+	}
+	delimiters = append(delimiters,
+		mathDelimiter{open: "$", close: "$", display: false, singleDollar: true},
+		mathDelimiter{open: "\\(", close: "\\)", display: false},
+	)
+	return delimiters
+}()
 
 func protectMathSegments(source string) (string, []mathPlaceholder) {
 	segments := extractMathSegments(source)
@@ -71,59 +112,79 @@ func extractMathSegments(source string) []mathSegment {
 	index := 0
 
 	for index < len(source) {
-		relative := strings.Index(source[index:], mathInlineDelimiter)
-		if relative == -1 {
+		openIndex, delimiter, ok := findNextMathDelimiter(source, index)
+		if !ok {
 			break
 		}
-		dollarIndex := index + relative
+		openEnd := openIndex + len(delimiter.open)
 
-		if isMathEscaped(source, dollarIndex) {
-			index = dollarIndex + 1
-			continue
-		}
+		if delimiter.singleDollar {
+			if openIndex+1 < len(source) && isMathWhitespace(source[openIndex+1]) {
+				index = openIndex + 1
+				continue
+			}
 
-		if strings.HasPrefix(source[dollarIndex:], mathBlockDelimiter) {
-			closeIndex := findMathClosingDelimiter(source, mathBlockDelimiter, dollarIndex+len(mathBlockDelimiter))
+			closeIndex := findMathInlineClosing(source, openEnd)
 			if closeIndex != -1 {
-				text := source[dollarIndex+len(mathBlockDelimiter) : closeIndex]
-				if strings.TrimSpace(text) != "" {
+				text := source[openEnd:closeIndex]
+				if len(text) > 0 && !strings.Contains(text, "\n") {
 					segments = append(segments, mathSegment{
 						text:    text,
-						display: true,
-						start:   dollarIndex,
-						end:     closeIndex + len(mathBlockDelimiter),
+						display: delimiter.display,
+						start:   openIndex,
+						end:     closeIndex + 1,
 					})
-					index = closeIndex + len(mathBlockDelimiter)
+					index = closeIndex + 1
 					continue
 				}
 			}
-			index = dollarIndex + 1
+			index = openIndex + 1
 			continue
 		}
 
-		if dollarIndex+1 < len(source) && isMathWhitespace(source[dollarIndex+1]) {
-			index = dollarIndex + 1
-			continue
-		}
-
-		closeIndex := findMathInlineClosing(source, dollarIndex+1)
+		closeIndex := findMathClosingDelimiter(source, delimiter.close, openEnd)
 		if closeIndex != -1 {
-			text := source[dollarIndex+1 : closeIndex]
-			if len(text) > 0 && !strings.Contains(text, "\n") {
+			text := source[openEnd:closeIndex]
+			if strings.TrimSpace(text) != "" {
 				segments = append(segments, mathSegment{
 					text:    text,
-					display: false,
-					start:   dollarIndex,
-					end:     closeIndex + 1,
+					display: delimiter.display,
+					start:   openIndex,
+					end:     closeIndex + len(delimiter.close),
 				})
-				index = closeIndex + 1
+				index = closeIndex + len(delimiter.close)
 				continue
 			}
 		}
-		index = dollarIndex + 1
+		index = openEnd
 	}
 
 	return segments
+}
+
+func findNextMathDelimiter(source string, start int) (int, mathDelimiter, bool) {
+	bestIndex := -1
+	var best mathDelimiter
+	for _, delimiter := range mathDelimiters {
+		index := start
+		for {
+			relative := strings.Index(source[index:], delimiter.open)
+			if relative == -1 {
+				break
+			}
+			candidate := index + relative
+			if isMathEscaped(source, candidate) {
+				index = candidate + 1
+				continue
+			}
+			if bestIndex == -1 || candidate < bestIndex {
+				bestIndex = candidate
+				best = delimiter
+			}
+			break
+		}
+	}
+	return bestIndex, best, bestIndex != -1
 }
 
 func isMathEscaped(source string, index int) bool {
@@ -167,7 +228,7 @@ func findMathInlineClosing(source string, startIndex int) int {
 	braceLevel := 0
 	index := startIndex
 	for index < len(source) {
-		if braceLevel <= 0 && source[index] == mathInlineDelimiter[0] {
+		if braceLevel <= 0 && source[index] == '$' {
 			if index > startIndex && !isMathWhitespace(source[index-1]) {
 				return index
 			}
