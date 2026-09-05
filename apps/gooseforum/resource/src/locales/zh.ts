@@ -233,6 +233,7 @@ export default {
     newNotification: '有新的通知',
     followDescription: '{actor} 关注了你',
     badgeEarned: '获得了「{badge}」徽章',
+    badgeGeneric: '你获得了新的徽章',
     viewProfile: '查看主页',
     templates: {
       comment: '评论了你的内容',
@@ -1312,6 +1313,8 @@ export default {
       activationEmailSent: '验证邮件已发送，请查收邮箱',
       passwordChanged: '密码已修改',
       privacySaved: '隐私偏好已保存',
+      browserNotificationsEnabled: '浏览器通知已开启',
+      browserNotificationsDisabled: '浏览器通知已关闭',
       bindingDisconnected: '账号绑定已解除',
       sessionRevoked: '会话已吊销',
       sessionsRevokedAll: '已退出所有设备',
@@ -1460,6 +1463,10 @@ export default {
       webPushDisabled: '已关闭推送通知',
       webPushEnableFailed: '开启推送通知失败',
       webPushDisableFailed: '关闭推送通知失败',
+      browserNotifications: '浏览器通知',
+      browserNotificationsDescription: '页面在后台时，新回复、关注或徽章会弹出系统通知。',
+      browserNotificationsPermissionDenied: '通知权限被拒绝，请在浏览器地址栏中重新授权',
+      browserNotificationsUnsupported: '当前浏览器不支持系统通知。',
     },
     binding: {
       title: '账号绑定',

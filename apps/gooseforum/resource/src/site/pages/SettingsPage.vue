@@ -96,6 +96,12 @@ import {
 } from '@/runtime/appearance-settings'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
+import {
+  disableBrowserNotifications,
+  enableBrowserNotifications,
+  isBrowserNotificationEnabled,
+  isBrowserNotificationSupported,
+} from '@/runtime/browser-notification'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
 import type { LayoutPayload, SettingsPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
@@ -268,6 +274,12 @@ const privacy = reactive({
 const webPushAvailable = ref(false)
 const webPushEnabled = ref(false)
 const webPushBusy = ref(false)
+
+// 浏览器级通知（Web Notification API，issue #444）：偏好独立于 privacy 存 localStorage，
+// 由 runtime/browser-notification 直接读写，权限状态由浏览器维护。
+const browserNotificationsSupported = isBrowserNotificationSupported()
+const browserNotificationsEnabled = ref(isBrowserNotificationEnabled())
+const togglingBrowserNotifications = ref(false)
 
 const displayName = computed(() => profileForm.nickname || usernameForm.username)
 const hasProfileBio = computed(() => Boolean(profileForm.bio.trim()))
@@ -1009,6 +1021,28 @@ async function initWebPush() {
     } catch {
       // 静默失败：开关状态不变，下次进入设置页重试
     }
+  }
+}
+
+async function toggleBrowserNotifications() {
+  const next = !browserNotificationsEnabled.value
+  togglingBrowserNotifications.value = true
+  try {
+    if (next) {
+      const granted = await enableBrowserNotifications()
+      browserNotificationsEnabled.value = granted
+      if (granted) {
+        showStatus(t('settings.status.browserNotificationsEnabled'))
+      } else {
+        showError(t('settings.privacy.browserNotificationsPermissionDenied'))
+      }
+    } else {
+      disableBrowserNotifications()
+      browserNotificationsEnabled.value = false
+      showStatus(t('settings.status.browserNotificationsDisabled'))
+    }
+  } finally {
+    togglingBrowserNotifications.value = false
   }
 }
 
@@ -2099,6 +2133,21 @@ async function toggleBinding(provider: string) {
                   class="h-5 w-5 rounded border-line text-primary"
                   :checked="webPushEnabled"
                   @change="onWebPushToggle"
+                />
+              </label>
+              <label class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.browserNotifications') }}</span>
+                  <span class="text-sm text-base-content/55">
+                    {{ browserNotificationsSupported ? t('settings.privacy.browserNotificationsDescription') : t('settings.privacy.browserNotificationsUnsupported') }}
+                  </span>
+                </span>
+                <input
+                  :checked="browserNotificationsEnabled"
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-line text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!browserNotificationsSupported || togglingBrowserNotifications"
+                  @change="toggleBrowserNotifications"
                 />
               </label>
             </div>

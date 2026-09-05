@@ -233,6 +233,7 @@ export default {
     newNotification: '新しい通知があります',
     followDescription: '{actor} さんがあなたをフォローしました',
     badgeEarned: '「{badge}」バッジを獲得しました',
+    badgeGeneric: '新しいバッジを獲得しました',
     viewProfile: 'プロフィールを見る',
     templates: {
       comment: 'あなたのトピックにコメントしました',
@@ -1337,6 +1338,8 @@ export default {
       activationEmailSent: '確認メールを送信しました。メールをご確認ください。',
       passwordChanged: 'パスワードを変更しました',
       privacySaved: 'プライバシー設定を保存しました',
+      browserNotificationsEnabled: 'ブラウザ通知を有効にしました',
+      browserNotificationsDisabled: 'ブラウザ通知を無効にしました',
       bindingDisconnected: 'アカウント連携を解除しました',
       sessionRevoked: 'セッションを失効しました',
       sessionsRevokedAll: 'すべての端末からログアウトしました',
@@ -1485,6 +1488,10 @@ export default {
       webPushDisabled: 'プッシュ通知をオフにしました',
       webPushEnableFailed: 'プッシュ通知をオンにできませんでした',
       webPushDisableFailed: 'プッシュ通知をオフにできませんでした',
+      browserNotifications: 'ブラウザ通知',
+      browserNotificationsDescription: 'ページがバックグラウンドのとき、新しい返信・フォロー・バッジをシステム通知でお知らせします。',
+      browserNotificationsPermissionDenied: '通知の権限が拒否されました。ブラウザのアドレスバーから再許可してください。',
+      browserNotificationsUnsupported: 'このブラウザではシステム通知を利用できません。',
     },
     binding: {
       title: 'アカウント連携',
