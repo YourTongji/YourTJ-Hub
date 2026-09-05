@@ -463,7 +463,7 @@ function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
     globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
     baseUrl: (settings.baseUrl ?? '').trim().replace(/\/+$/, ''),
     model: (settings.model ?? '').trim(),
-    apiKey: '',
+    apiKey: settings.apiKey ?? '',
     apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
     temperature,
     maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
@@ -846,7 +846,14 @@ async function save() {
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
-    else if (props.kind === 'ai-summary') await saveAiSummarySettings(aiSummaryPayload())
+    else if (props.kind === 'ai-summary') {
+      await saveAiSummarySettings(aiSummaryPayload())
+      // 保存后立即同步徽标：填了新 key（非留空=保留旧 key）即视为已配置，
+      // 不依赖重进页面重新 GET（与 onesystem saveCookie 的成功后置位一致）。
+      if (aiSummaryForm.apiKey.trim() !== '') {
+        aiSummaryForm.apiKeyConfigured = true
+      }
+    }
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
