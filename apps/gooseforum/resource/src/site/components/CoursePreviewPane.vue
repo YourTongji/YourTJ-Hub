@@ -17,6 +17,7 @@ import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import { bookmarkCourse, getCourseRelated, listCourseReviews, type CourseRelatedResult, type ReviewPage, type ReviewPayload } from '@/runtime/api'
 import { reviewAvatarSrc } from '@/site/utils/course-review-share'
 import { useFlashMessages } from '@/runtime/flash-message'
+import { formatDateTime } from '@/runtime/format'
 import { shortTerm, sortedRecentTerms } from '@/site/utils/term'
 import type { CourseSummaryPayload } from '@gooseforum/client'
 
@@ -598,7 +599,7 @@ function courseStars(ratingAvg: number | undefined) {
                 />
                 <div class="min-w-0">
                   <p class="truncate text-sm font-bold text-base-content">{{ authorLabel(review.author) }}</p>
-                  <p class="text-xs text-base-content/50">{{ review.createdAt }}</p>
+                  <p class="text-xs text-base-content/50">{{ formatDateTime(review.createdAt) }}</p>
                 </div>
               </div>
               <div v-if="review.rating" class="flex shrink-0 gap-0.5 text-amber-400">
