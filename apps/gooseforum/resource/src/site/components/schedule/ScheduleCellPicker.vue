@@ -7,6 +7,7 @@ import { BookOpen, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { sortPlannedCoursesFirst } from '@/site/utils/pkCourseOrder'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkCourseDetail } from '@/site/types/pk'
 
@@ -67,7 +68,7 @@ const candidates = computed<CellCandidate[]>(() => {
       }
     }
   }
-  return list
+  return sortPlannedCoursesFirst(list, store.state.commonLists.compulsoryCourses)
 })
 
 function arrangementText(detail: PkCourseDetail): string {

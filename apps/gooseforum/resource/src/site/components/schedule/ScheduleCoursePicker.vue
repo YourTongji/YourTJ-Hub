@@ -10,6 +10,7 @@ import { Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { sortPlannedCoursesFirst } from '@/site/utils/pkCourseOrder'
 import {
   getPkCampuses,
   getPkCourseDetails,
@@ -100,6 +101,9 @@ const searchForm = ref({
   teacherName: '',
 })
 const searchResults = ref<PkCourse[]>([])
+const orderedSearchResults = computed(() =>
+  sortPlannedCoursesFirst(searchResults.value, store.state.commonLists.compulsoryCourses),
+)
 const searchLoading = ref(false)
 const campuses = ref<PkDictItem[]>([])
 const faculties = ref<PkDictItem[]>([])
@@ -435,8 +439,8 @@ async function submit() {
               </button>
             </form>
 
-            <ul v-if="searchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
-              <li v-for="course in searchResults" :key="course.courseCode">
+            <ul v-if="orderedSearchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
+              <li v-for="course in orderedSearchResults" :key="course.courseCode">
                 <label
                   class="flex cursor-pointer items-center gap-2 px-3 py-2"
                   :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"

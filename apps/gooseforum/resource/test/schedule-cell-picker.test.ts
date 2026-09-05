@@ -6,7 +6,7 @@ import { i18n } from '../src/runtime/i18n'
 
 import ScheduleCellPicker from '../src/site/components/schedule/ScheduleCellPicker.vue'
 import { useScheduleStore } from '../src/site/composables/useScheduleStore'
-import type { PkCourseDetail, PkStagedCourse } from '../src/site/types/pk'
+import type { PkCourse, PkCourseDetail, PkStagedCourse } from '../src/site/types/pk'
 
 function makeDetail(code: string, day: number, time: number[]): PkCourseDetail {
   return {
@@ -37,6 +37,19 @@ function makeStaged(courseCode: string, details: PkCourseDetail[]): PkStagedCour
     teacher: [],
     status: 0,
     courseDetail: details,
+  }
+}
+
+function makeCompulsory(courseCode: string): PkCourse {
+  return {
+    courseCode,
+    courseName: courseCode,
+    courseNameReserved: `课程${courseCode}`,
+    credit: 3,
+    courseType: '必',
+    teacher: [],
+    status: 0,
+    courseDetail: [],
   }
 }
 
@@ -73,6 +86,7 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
   beforeEach(() => {
     const store = useScheduleStore()
     store.clearStagedAndSelectedCourses()
+    store.setCompulsoryCourses([])
     store.setMajorInfo({ calendarId: 121, grade: 2025, major: '00301' })
   })
 
@@ -99,6 +113,20 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
     await flushPromises()
     // happy-dom 下 i18n 检测为 en，断言英文空态文案。
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('No staged courses at this time')
+  })
+
+  test('计划内课程置顶，其他候选保持原顺序', async () => {
+    const store = useScheduleStore()
+    store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3])]))
+    store.pushStagedCourse(makeStaged('122005', [makeDetail('122005.01', 1, [3])]))
+    store.pushStagedCourse(makeStaged('122006', [makeDetail('122006.01', 1, [3])]))
+    store.setCompulsoryCourses([makeCompulsory('122005')])
+
+    mountPicker(1, 3)
+    await flushPromises()
+
+    const names = dialogRows().map((row) => row.querySelector('span')?.textContent?.trim())
+    expect(names).toEqual(['课程122005', '课程122004', '课程122006'])
   })
 
   test('点击候选课程：无冲突时加入课表并关闭弹窗', async () => {
