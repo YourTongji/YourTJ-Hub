@@ -74,12 +74,14 @@ function logoHref(url: string) {
                     <p class="mt-0.5 truncate text-[11px] leading-4 text-base-content/55">{{ link.desc || link.url }}</p>
                   </div>
                 </div>
-                <!-- 描述被 truncate 截断时（issue #471），hover/focus 用完整描述的 gf-tooltip 兜底；
+                <!-- 描述被 truncate 截断时（issue #471），hover/focus 在卡片上方展示完整描述：
+                     与卡片同宽（inset-x-0）、紧贴上沿（bottom-full），高度随内容自适配。
+                     配色用 base 主题变量（随深浅色正确翻转）；neutral 是对比色变量，会反向。
                      完整文本本就在 DOM 中（truncate 仅视觉裁剪），tooltip 对读屏重复，故 aria-hidden -->
                 <span
                   v-if="link.desc"
                   aria-hidden="true"
-                  class="gf-tooltip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 max-w-56 -translate-x-1/2 whitespace-normal text-left leading-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                  class="pointer-events-none absolute inset-x-0 bottom-full z-10 break-words rounded-[var(--gf-radius-field)] border border-line bg-base-100 px-2 py-1 text-left text-[11px] font-medium leading-4 text-base-content shadow-md opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                 >{{ link.desc }}</span>
               </a>
             </div>
