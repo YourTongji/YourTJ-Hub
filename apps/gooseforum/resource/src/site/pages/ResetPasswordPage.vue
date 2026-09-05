@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, LoaderCircle } from '@lucide/vue'
 import { resetPassword } from '@/runtime/api'
+import { useSiteTheme } from '@/runtime/site-theme'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import type { LayoutPayload, ResetPasswordPageProps } from '@gooseforum/client'
 
@@ -11,6 +12,12 @@ const page = defineProps<{
   props: ResetPasswordPageProps
 }>()
 const { t } = useI18n()
+const { isDark } = useSiteTheme()
+
+// 默认品牌字标按主题切换：Light 变体黑字（浅色主题），Dark 变体白字（深色主题）。
+const defaultBrandImage = computed(() =>
+  isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp',
+)
 
 const form = reactive({
   password: '',
@@ -63,7 +70,7 @@ async function submit() {
               {{ page.layout.site.brandText || page.layout.site.name }}
             </span>
             <span v-else class="inline-flex">
-              <img src="/static/pic/brand-default.webp" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
+              <img :src="defaultBrandImage" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
             </span>
           </a>
 
