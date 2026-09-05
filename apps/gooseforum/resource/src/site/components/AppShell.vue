@@ -242,6 +242,10 @@ const safeFooter = computed(() => ({ links: footerLinks.value, primary: footerPr
 const brandType = computed(() => props.layout.site.brandType || 'default')
 const brandText = computed(() => props.layout.site.brandText || props.layout.site.name)
 const brandImage = computed(() => safeUrl(props.layout.site.brandImage, 'image'))
+// 默认品牌字标按主题切换：Light 变体黑字（浅色主题），Dark 变体白字（深色主题）。
+const defaultBrandImage = computed(() =>
+  isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp',
+)
 const hasHeaderTitle = computed(() => Boolean(props.showHeaderTitle && props.headerTitle))
 const searchQuery = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
@@ -488,7 +492,7 @@ async function loadUserCard() {
             </span>
             <img
               v-else
-              src="/static/pic/brand-default.webp"
+              :src="defaultBrandImage"
               :alt="layout.site.name"
               class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
             />

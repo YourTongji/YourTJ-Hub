@@ -78,7 +78,10 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
-const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.webp')
+// 管理端自定义品牌图优先；默认字标按主题切换（浅色 Light 黑字 / 深色 Dark 白字）。
+const brandImage = computed(() =>
+  page.layout.site.brandImage || (isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp'),
+)
 
 onMounted(() => {
   refreshCaptcha()
