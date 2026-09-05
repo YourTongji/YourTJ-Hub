@@ -18,6 +18,10 @@ type Status struct {
 	Notifications          bool   `json:"notifications"`
 	Messages               bool   `json:"messages"`
 	LatestNotificationType string `json:"latestNotificationType,omitempty"`
+	// LatestUnreadId 最新一条未读通知的 id：新通知使其前移、已读清零后置 0。
+	// 它是单调信号——轮询型浏览器通知据此识别「未读期间又来了一条新的」，
+	// 而不是只看「无未读→有未读」布尔翻转（issue #444 review）。
+	LatestUnreadId uint64 `json:"latestUnreadId,omitempty"`
 }
 
 func GetStatus(userID uint64) Status {
@@ -42,6 +46,7 @@ func loadStatus(userID uint64) Status {
 		Notifications:          latest.Id != 0,
 		Messages:               imUserChatConfigs.HasUnread(userID),
 		LatestNotificationType: latest.EventType,
+		LatestUnreadId:         latest.Id,
 	}
 }
 
