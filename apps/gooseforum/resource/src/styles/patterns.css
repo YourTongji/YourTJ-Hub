@@ -3,10 +3,12 @@
     @apply flex items-center justify-between gap-3 border-b border-line bg-base-100 px-4 py-3 sm:border-y sm:border-t-0;
   }
 
+  .gf-home-topic-tools {
+    @apply flex min-w-0 flex-wrap items-center gap-2;
+  }
+
   .gf-home-topic-tabs {
-    @apply flex min-w-0 items-center gap-0.5 overflow-x-auto bg-base-200 p-0.5;
-    border-radius: var(--gf-radius-box);
-    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.06);
+    @apply flex min-w-0 items-center gap-2 overflow-x-auto;
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
@@ -15,25 +17,6 @@
     display: none;
   }
 
-  /*
-   * Feed 过滤 tab（分段指示器）：灰色凹凸轨道 + 白色 active 凸起 pill，
-   * 与右侧「列表/卡片」主色分段控件互为镜像（中性 VS 强调），全断点统一一套视觉。
-   */
-  .gf-feed-tabs {
-    @apply items-stretch;
-  }
-
-  .gf-feed-tabs .gf-tab {
-    @apply h-8 px-3 text-sm;
-  }
-
-  .gf-feed-tabs .gf-tab-idle {
-    @apply text-base-content/55 hover:bg-base-200/80 hover:text-base-content;
-  }
-
-  .gf-feed-tabs .gf-tab-active {
-    @apply bg-base-100 text-base-content font-semibold shadow-[0_1px_2px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.12)] ring-1 ring-line/60;
-  }
 
   .gf-topic-list-header {
     @apply hidden grid-cols-[minmax(0,1fr)_112px_72px_72px_88px] gap-3 border-b border-line/70 bg-base-100/70 px-4 py-1.5 text-[13px] font-normal leading-5 text-base-content/55 lg:grid;
@@ -77,12 +60,6 @@
   border-radius: 0.35rem;
   animation: wiki-hit-flash 2.8s ease-out forwards;
 }
-
-/* 分段指示器轨道：暗色主题下加深内阴影，保持"凹槽"语义可见 */
-[data-theme="gf-dark"] .gf-home-topic-tabs {
-  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.3);
-}
-
 @keyframes wiki-hit-flash {
   0% {
     background: var(--wiki-hit-bg-strong);

@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { Bell, LayoutGrid, List, Mail, UsersRound } from '@lucide/vue'
 import { fetchPage } from '@/runtime/router'
 import { useHomeFeedMode } from '@/runtime/home-feed-mode'
-import CategoryRail from '@/site/components/CategoryRail.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import TopicList from '@/site/components/TopicList.vue'
@@ -94,9 +93,6 @@ watch(
 )
 
 const announcementItems = computed(() => page.props.announcement.items || [])
-// 社区分区快捷导航：分类数据来自 layout payload，activeKey 由后端 category_<id> 给出。
-const railCategories = computed(() => page.layout.sidebar.categories || [])
-const railActiveCategory = computed(() => page.layout.sidebar.activeKey || '')
 const hasMultipleAnnouncements = computed(() => announcementItems.value.length > 1)
 const activeAnnouncementIndex = ref(0)
 const activeAnnouncement = computed(() => announcementItems.value[activeAnnouncementIndex.value] || null)
@@ -373,7 +369,7 @@ onBeforeUnmount(() => {
           class="gf-home-topic-toolbar"
           :class="feedMode === 'card' ? 'gf-home-topic-toolbar-card' : ''"
         >
-          <div class="gf-home-topic-tabs gf-feed-tabs flex-1">
+          <div class="gf-home-topic-tabs">
             <a
               v-for="tab in page.props.tabs"
               :key="tab.key"
@@ -422,12 +418,6 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-
-        <!-- 社区分区快捷导航：卡片体系内部、toolbar 与 Feed 之间，分隔线过渡 -->
-        <CategoryRail
-          :categories="railCategories"
-          :active-category="railActiveCategory"
-        />
 
         <TopicList :topics="topics" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
           <template #empty>
