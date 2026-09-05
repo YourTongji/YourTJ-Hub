@@ -1,4 +1,12 @@
 // @vitest-environment happy-dom
+vi.mock('@/site/composables/useQuickPublish', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/site/composables/useQuickPublish')>()
+  return {
+    ...actual,
+    loadQuickPublishModal: vi.fn(actual.loadQuickPublishModal),
+  }
+})
+
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -7,6 +15,7 @@ import AppShell from '../src/site/components/AppShell.vue'
 import PublishMenu from '../src/site/components/PublishMenu.vue'
 import { i18n } from '../src/runtime/i18n'
 import { useQuickPublish } from '../src/site/composables/useQuickPublish'
+import * as quickPublishComposable from '../src/site/composables/useQuickPublish'
 import { useShellState, resetShellState } from '../src/runtime/shell-state'
 
 function makeLayout(isAuthenticated = true): LayoutPayload {
@@ -123,6 +132,30 @@ describe('PublishMenu 组件', () => {
 
     expect(quickPublishOpen.value).toBe(true)
     expect(quickPublishType.value).toBe(1)
+
+    wrapper.unmount()
+  })
+
+  test('pointerenter 悬停菜单项触发 QuickPublishModal 预加载', async () => {
+    const preloadSpy = vi.mocked(quickPublishComposable.loadQuickPublishModal)
+    preloadSpy.mockClear()
+
+    const wrapper = mount(PublishMenu, {
+      props: { variant: 'navbar' },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('button')
+    await trigger.trigger('click')
+    await flushPromises()
+
+    // 弹层打开会自动聚焦首个菜单项（onOpenChange → focus），本身就会触发
+    // @focusin 预热；这里断言 pointerenter 追加一次调用。
+    const callsBeforeHover = preloadSpy.mock.calls.length
+    const menuItem = document.body.querySelector<HTMLAnchorElement>('a[role="menuitem"]')
+    expect(menuItem).not.toBeNull()
+    menuItem?.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }))
+    expect(preloadSpy.mock.calls.length).toBe(callsBeforeHover + 1)
 
     wrapper.unmount()
   })

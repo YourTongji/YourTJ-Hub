@@ -3,7 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, ChevronDown, HelpCircle, PenSquare, Plus, Sparkles } from '@lucide/vue'
 import { PopoverArrow, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
-import { useQuickPublish } from '@/site/composables/useQuickPublish'
+import { loadQuickPublishModal, useQuickPublish } from '@/site/composables/useQuickPublish'
 
 const props = withDefaults(
   defineProps<{
@@ -16,6 +16,11 @@ const props = withDefaults(
 
 const { t } = useI18n()
 const { openQuickPublish } = useQuickPublish()
+// 悬停/聚焦预热发布弹层 chunk：Vite 对相同 specifier 的动态 import 去重，
+// 预热与正式打开共享同一模块级 promise（useQuickPublish.loadQuickPublishModal）。
+const preloadQuickPublish = () => {
+  void loadQuickPublishModal()
+}
 const open = ref(false)
 const itemRefs = ref<HTMLAnchorElement[]>([])
 
@@ -128,6 +133,8 @@ function handleItemKeydown(event: KeyboardEvent, index: number) {
         :aria-label="t('publish.chooseContentType')"
         :aria-expanded="open"
         aria-haspopup="true"
+        @pointerenter="preloadQuickPublish()"
+        @focusin="preloadQuickPublish()"
       >
         <Plus
           class="h-6 w-6 stroke-[2.6] transition-transform duration-200"
@@ -158,6 +165,8 @@ function handleItemKeydown(event: KeyboardEvent, index: number) {
             class="group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors duration-150 hover:bg-base-200/80 active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 cursor-pointer"
             @click="handleItemClick($event, item)"
             @keydown="handleItemKeydown($event, index)"
+            @pointerenter="preloadQuickPublish()"
+            @focusin="preloadQuickPublish()"
           >
             <span :class="item.badgeClass">
               <component :is="item.icon" class="h-3.5 w-3.5" aria-hidden="true" />

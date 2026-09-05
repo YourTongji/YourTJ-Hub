@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { loadQuickPublishModal, useEverOpenedQuickPublish } from '../src/site/composables/useQuickPublish'
 import { describe, expect, test } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -263,5 +264,29 @@ describe('QuickPublishModal 组件', () => {
     closeQuickPublish()
     await flushPromises()
     wrapper.unmount()
+  })
+})
+
+describe('QuickPublish 懒加载与首开锁存', () => {
+  test('loadQuickPublishModal 重复调用返回同一个缓存 promise', async () => {
+    const first = loadQuickPublishModal()
+    const second = loadQuickPublishModal()
+    expect(first).toBe(second)
+    const mod = await first
+    expect(mod.default).toBe(QuickPublishModal)
+  })
+
+  test('everOpenedQuickPublish 首开后保持 true，closeQuickPublish 不复位', async () => {
+    const everOpened = useEverOpenedQuickPublish()
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    everOpened.value = false
+
+    expect(everOpened.value).toBe(false)
+    openQuickPublish(1)
+    expect(everOpened.value).toBe(true)
+
+    closeQuickPublish()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(everOpened.value).toBe(true)
   })
 })

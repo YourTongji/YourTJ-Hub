@@ -44,7 +44,7 @@ import type UserCardComponent from './UserCard.vue'
 import WikiSidebar from './WikiSidebar.vue'
 import WikiSearchPanel from './WikiSearchPanel.vue'
 import PublishMenu from './PublishMenu.vue'
-import QuickPublishModal from './QuickPublishModal.vue'
+import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
 
 import { useShellState } from '@/runtime/shell-state'
 
@@ -102,6 +102,8 @@ interface SidebarSection {
 }
 
 const MobileDrawer = defineAsyncComponent(() => import('./MobileDrawer.vue'))
+const QuickPublishModal = defineAsyncComponent(() => loadQuickPublishModal())
+const everOpenedQuickPublish = useEverOpenedQuickPublish()
 const UserCard = shallowRef<typeof UserCardComponent | null>(null)
 const drawerOpen = ref(false)
 const headerElevated = ref(false)
@@ -981,7 +983,7 @@ async function loadUserCard() {
 
     <component :is="UserCard" v-if="UserCard" />
     <WikiSearchPanel v-if="isWikiMode" />
-    <QuickPublishModal v-if="layout.viewer.isAuthenticated" :layout="layout" />
+    <QuickPublishModal v-if="layout.viewer.isAuthenticated && everOpenedQuickPublish" :layout="layout" />
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。
