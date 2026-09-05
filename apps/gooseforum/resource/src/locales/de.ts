@@ -104,9 +104,6 @@ export default {
     groupFunction: 'Funktionen',
     groupPersonal: 'Persönlich',
     groupAdmin: 'Verwaltung',
-    railLabel: 'Community-Kategorien',
-    railScrollPrev: 'Kategorien zurückblättern',
-    railScrollNext: 'Kategorien vorblättern',
     nav: {
       topics: 'Themen',
       hot: 'Trending',
