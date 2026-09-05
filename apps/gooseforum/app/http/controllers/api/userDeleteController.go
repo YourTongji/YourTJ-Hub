@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
@@ -245,6 +246,12 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 
 	if err := users.CloseAccount(req.UserId); err != nil {
 		slog.Error("close account failed", "userId", req.UserId, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	// 清空 Web Push 订阅：注销后不得再向该用户的浏览器订阅发送推送
+	// （anonymize 与 delete 两 mode 共用；长驻推送凭据等同会话凭据）。
+	if err := pushSubscription.DeleteByUser(req.UserId); err != nil {
+		slog.Error("delete push subscriptions on account close failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	if err := users.IncrementTokenVersionWithDB(dbconnect.Connect(), req.UserId); err != nil {

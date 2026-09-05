@@ -155,6 +155,12 @@ paths:
     $ref: ./paths/forum-notifications.yaml#/markNotificationRead
   /api/forum/notification/mark-all-read:
     $ref: ./paths/forum-notifications.yaml#/markAllNotificationsRead
+  /api/forum/push/config:
+    $ref: ./paths/forum-notifications.yaml#/getPushConfig
+  /api/forum/push/subscribe:
+    $ref: ./paths/forum-notifications.yaml#/subscribePush
+  /api/forum/push/unsubscribe:
+    $ref: ./paths/forum-notifications.yaml#/unsubscribePush
   /api/forum/chat/send:
     $ref: ./paths/forum-chat.yaml#/sendChatMessage
   /api/forum/chat/messages:
@@ -815,6 +821,28 @@ components:
       $ref: ./components/schemas.yaml#/NotificationMarkAllReadSuccess
     NotificationMarkAllReadResponse:
       $ref: ./components/schemas.yaml#/NotificationMarkAllReadResponse
+    PushConfigResult:
+      $ref: ./components/schemas.yaml#/PushConfigResult
+    PushConfigSuccess:
+      $ref: ./components/schemas.yaml#/PushConfigSuccess
+    PushConfigResponse:
+      $ref: ./components/schemas.yaml#/PushConfigResponse
+    PushSubscriptionKey:
+      $ref: ./components/schemas.yaml#/PushSubscriptionKey
+    PushSubscriptionBody:
+      $ref: ./components/schemas.yaml#/PushSubscriptionBody
+    PushSubscribeRequest:
+      $ref: ./components/schemas.yaml#/PushSubscribeRequest
+    PushSubscribeSuccess:
+      $ref: ./components/schemas.yaml#/PushSubscribeSuccess
+    PushSubscribeResponse:
+      $ref: ./components/schemas.yaml#/PushSubscribeResponse
+    PushUnsubscribeRequest:
+      $ref: ./components/schemas.yaml#/PushUnsubscribeRequest
+    PushUnsubscribeSuccess:
+      $ref: ./components/schemas.yaml#/PushUnsubscribeSuccess
+    PushUnsubscribeResponse:
+      $ref: ./components/schemas.yaml#/PushUnsubscribeResponse
     SendChatMessageRequest:
       $ref: ./components/schemas.yaml#/SendChatMessageRequest
     SendChatMessageResult:

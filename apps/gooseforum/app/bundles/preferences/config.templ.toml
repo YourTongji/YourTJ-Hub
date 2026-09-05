@@ -53,6 +53,12 @@ maxLifeSeconds = 300
 url = "http://localhost:7700"
 masterkey = ""
 
+# Web Push 浏览器推送（可选）：配置 VAPID 密钥后启用「页面关闭也能收到」的
+# 系统推送通道（生成命令：yourtj-hub webpush-keys）。留空 = 通道关闭。
+[webpush]
+vapid_public_key = ""
+vapid_private_key = ""
+
 # Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
 # 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用（站内 wiki 读旧数据）。
 [wiki.git]

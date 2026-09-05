@@ -35,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/spf13/cast"
 
@@ -57,6 +58,7 @@ func runWeb(_ *cobra.Command, _ []string) error {
 	slog.Info(fmt.Sprintf("GooseForum:useMem %d KB", m.Alloc/1024/8))
 
 	warnInsecureServerURL()
+	webpushservice.LogConfigStatus()
 	startDebugServices()
 	return ginServe()
 }
@@ -310,6 +312,11 @@ func startBusinessServices() {
 	// course-review-cleanup 前缀任务，脱敏超窗 deleted 行；失败按 taskQueue
 	// 语义重试至多 3 次后 failed 并有日志
 	backgroundservice.RunWorker("course_review_cleanup_worker", courseservice.TaskTypeCourseReviewCleanup, courseservice.RunCleanupTask)
+	// Web Push 推送 worker：消费 webpush. 前缀 outbox 任务（通知行创建后入队），
+	// 向用户浏览器订阅发送系统推送。实例未配置 VAPID 密钥时任务直接 no-op
+	// 置 Success（dev 从 main 快照同步的任务行绝不会外发）。
+	webpushservice.RecoverStaleTasks()
+	backgroundservice.RunWorker("webpush_worker", webpushservice.TaskTypePush, webpushservice.RunPushTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

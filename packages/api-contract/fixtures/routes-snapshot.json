@@ -205,6 +205,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/push/config"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/search"
   },
   {
@@ -345,6 +349,10 @@
   },
   {
     "method": "GET",
+    "path": "/manifest.webmanifest"
+  },
+  {
+    "method": "GET",
     "path": "/mcp"
   },
   {
@@ -430,6 +438,10 @@
   {
     "method": "GET",
     "path": "/static/*filepath"
+  },
+  {
+    "method": "GET",
+    "path": "/sw.js"
   },
   {
     "method": "GET",
@@ -930,6 +942,14 @@
   {
     "method": "POST",
     "path": "/api/forum/posts/update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/push/subscribe"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/push/unsubscribe"
   },
   {
     "method": "POST",
