@@ -43,13 +43,13 @@ function makeRouter(): Router {
   })
 }
 
-async function mountShell(router: Router): Promise<VueWrapper> {
-  const wrapper = mount(AppShell, {
+// mount 与内部 setup/onMounted 均同步完成，无需 Promise 包装
+function mountShell(router: Router): VueWrapper {
+  return mount(AppShell, {
     props: { layout: minimalLayout() },
     global: { plugins: [i18n, router] },
     attachTo: document.body,
   })
-  return wrapper
 }
 
 // 回归测试（issue #446，与 SearchPage 提交同一体验问题的另一处实例）：
@@ -65,7 +65,7 @@ describe('AppShell navbar 搜索表单提交', () => {
 
   test('回车提交走客户端路由跳转（不再整页导航）', async () => {
     const router = makeRouter()
-    const wrapper = await mountShell(router)
+    const wrapper = mountShell(router)
     await wrapper.get('input[type="search"]').setValue('Vue 白屏')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -76,7 +76,7 @@ describe('AppShell navbar 搜索表单提交', () => {
 
   test('查询词首尾空白被裁剪（与后端 buildSearchURL 语义一致）', async () => {
     const router = makeRouter()
-    const wrapper = await mountShell(router)
+    const wrapper = mountShell(router)
     await wrapper.get('input[type="search"]').setValue('  选课  ')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -86,7 +86,7 @@ describe('AppShell navbar 搜索表单提交', () => {
 
   test('空查询不导航、聚焦输入框', async () => {
     const router = makeRouter()
-    const wrapper = await mountShell(router)
+    const wrapper = mountShell(router)
     const input = wrapper.get('input[type="search"]')
     const focusSpy = vi.spyOn(input.element, 'focus')
     await wrapper.get('form').trigger('submit')
@@ -94,6 +94,41 @@ describe('AppShell navbar 搜索表单提交', () => {
     expect(router.currentRoute.value.path).toBe('/')
     expect(focusSpy).toHaveBeenCalled()
     focusSpy.mockRestore()
+    wrapper.unmount()
+  })
+
+  test('duplicated navigation 不触发整页回退', async () => {
+    const router = makeRouter()
+    const wrapper = mountShell(router)
+    const assignSpy = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
+    await wrapper.get('input[type="search"]').setValue('选课')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(router.currentRoute.value.query.q).toBe('选课')
+    // 重复提交相同查询：duplicated navigation 属正常取消（resolve 非 reject），
+    // 绝不落入 location.assign 整页回退
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(router.currentRoute.value.query.q).toBe('选课')
+    expect(assignSpy).not.toHaveBeenCalled()
+    assignSpy.mockRestore()
+    wrapper.unmount()
+  })
+
+  test('router.push 真异常时降级整页跳转', async () => {
+    const router = makeRouter()
+    const wrapper = mountShell(router)
+    // guard 抛未捕获异常 → push promise reject → 落入 catch 整页回退保留可用性
+    router.beforeEach(() => {
+      throw new Error('guard exploded')
+    })
+    const assignSpy = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
+    await wrapper.get('input[type="search"]').setValue('Vue 白屏')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(assignSpy).toHaveBeenCalledWith('/search?q=Vue%20%E7%99%BD%E5%B1%8F')
+    expect(router.currentRoute.value.path).toBe('/')
+    assignSpy.mockRestore()
     wrapper.unmount()
   })
 })
