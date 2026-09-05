@@ -279,4 +279,13 @@ describe('移动视图下 Vditor 编辑器工具栏架构与交互规范', () =>
     expect(componentSource).toContain('left: 12px !important')
     expect(componentSource).toContain('right: auto !important')
   })
+
+  test('编辑器图片不启用 Vditor 原生灯箱，避免预览阻断内容编辑', () => {
+    const componentSource = readFileSync(
+      resolve(process.cwd(), 'src/site/components/VditorOfficial.vue'),
+      'utf8',
+    )
+
+    expect(componentSource).toMatch(/image:\s*\{\s*isPreview:\s*false,\s*\}/)
+  })
 })
