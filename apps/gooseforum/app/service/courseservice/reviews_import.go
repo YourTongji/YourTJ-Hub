@@ -45,6 +45,7 @@ type importReviewRow struct {
 	Content            string `json:"content"`
 	CreatedAt          string `json:"created_at"`
 	LegacyHelpfulCount int    `json:"legacy_helpful_count"`
+	IsHidden           bool   `json:"is_hidden,omitempty"`
 }
 
 // ImportReviews 导入历史评价（reviews.jsonl）。
@@ -332,6 +333,7 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 		return fmt.Errorf("lookup offering source ref %s: %w", row.OfferingExternalID, err)
 	}
 	rating, createdAt, helpful, content := parseReviewRow(row)
+	status := reviewStatus(row)
 	checksum := rowChecksum(row)
 	// review source_ref 的 external_id：带 id 行用行 id，旧格式行用 offering 外部 id
 	// （向后兼容，两种模式互不覆盖）。
@@ -347,9 +349,9 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 
 	var reviewID uint64
 	if strings.TrimSpace(row.ID) == "" {
-		reviewID, err = upsertLegacyReviewByOfferingTx(tx, offeringLocalID, rating, content, helpful, createdAt, report)
+		reviewID, err = upsertLegacyReviewByOfferingTx(tx, offeringLocalID, rating, content, helpful, status, createdAt, report)
 	} else {
-		reviewID, err = upsertLegacyReviewByRefTx(tx, ref, refErr, offeringLocalID, rating, content, helpful, createdAt, report)
+		reviewID, err = upsertLegacyReviewByRefTx(tx, ref, refErr, offeringLocalID, rating, content, helpful, status, createdAt, report)
 	}
 	if err != nil {
 		return err
@@ -369,7 +371,7 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 
 // upsertLegacyReviewByOfferingTx 旧格式（行无 id）：按 offering 查 legacy 行
 // （author_user_id=0），有则原地更新、无则创建（每 offering 至多一条）。
-func upsertLegacyReviewByOfferingTx(tx *gorm.DB, offeringLocalID uint64, rating *int, content string, helpful int, createdAt time.Time, report *ReviewsImportReport) (uint64, error) {
+func upsertLegacyReviewByOfferingTx(tx *gorm.DB, offeringLocalID uint64, rating *int, content string, helpful int, status int8, createdAt time.Time, report *ReviewsImportReport) (uint64, error) {
 	existing, findErr := course.FindLegacyReviewByOfferingTx(tx, offeringLocalID)
 	switch {
 	case findErr == nil:
@@ -377,6 +379,7 @@ func upsertLegacyReviewByOfferingTx(tx *gorm.DB, offeringLocalID uint64, rating 
 			"rating":               rating,
 			"content":              content,
 			"legacy_helpful_count": helpful,
+			"status":               status,
 			"created_at":           createdAt,
 		}
 		if err := tx.Model(&course.ReviewEntity{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
@@ -391,7 +394,7 @@ func upsertLegacyReviewByOfferingTx(tx *gorm.DB, offeringLocalID uint64, rating 
 			Rating:             rating,
 			Content:            content,
 			IsAnonymous:        true,
-			Status:             course.ReviewStatusVisible,
+			Status:             status,
 			LegacyHelpfulCount: helpful,
 			Source:             course.ReviewSourceLegacyImport,
 			CreatedAt:          createdAt,
@@ -410,7 +413,7 @@ func upsertLegacyReviewByOfferingTx(tx *gorm.DB, offeringLocalID uint64, rating 
 // 有则更新、无则创建；author_user_id 置 NULL——NULL 在唯一索引
 // (offering_id, author_user_id) 中彼此不冲突（SQLite/PostgreSQL 一致），
 // 同 offering 多条 legacy 评价可共存。
-func upsertLegacyReviewByRefTx(tx *gorm.DB, ref course.SourceRefEntity, refErr error, offeringLocalID uint64, rating *int, content string, helpful int, createdAt time.Time, report *ReviewsImportReport) (uint64, error) {
+func upsertLegacyReviewByRefTx(tx *gorm.DB, ref course.SourceRefEntity, refErr error, offeringLocalID uint64, rating *int, content string, helpful int, status int8, createdAt time.Time, report *ReviewsImportReport) (uint64, error) {
 	if refErr == nil {
 		var existing course.ReviewEntity
 		if err := tx.Model(&course.ReviewEntity{}).Where("id = ?", ref.LocalId).First(&existing).Error; err != nil {
@@ -421,6 +424,7 @@ func upsertLegacyReviewByRefTx(tx *gorm.DB, ref course.SourceRefEntity, refErr e
 			"rating":               rating,
 			"content":              content,
 			"legacy_helpful_count": helpful,
+			"status":               status,
 			"created_at":           createdAt,
 		}
 		if err := tx.Model(&course.ReviewEntity{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
@@ -438,7 +442,7 @@ func upsertLegacyReviewByRefTx(tx *gorm.DB, ref course.SourceRefEntity, refErr e
 		Rating:             rating,
 		Content:            content,
 		IsAnonymous:        true,
-		Status:             course.ReviewStatusVisible,
+		Status:             status,
 		LegacyHelpfulCount: helpful,
 		Source:             course.ReviewSourceLegacyImport,
 		CreatedAt:          createdAt,
@@ -448,6 +452,14 @@ func upsertLegacyReviewByRefTx(tx *gorm.DB, ref course.SourceRefEntity, refErr e
 	}
 	report.Inserted++
 	return entity.Id, nil
+}
+
+// reviewStatus 将源库的隐藏标记映射到 Hub 课评状态；旧 manifest 缺失该字段时保持公开。
+func reviewStatus(row importReviewRow) int8 {
+	if row.IsHidden {
+		return course.ReviewStatusHidden
+	}
+	return course.ReviewStatusVisible
 }
 
 // parseReviewRow 将行字段转为落库值：rating 0 → NULL（不计平均），content 去首尾空白。

@@ -455,6 +455,9 @@ def main() -> int:
                 "instructor_ids": instructor_ids,
                 # 班号信息：教学班 code（如 32000101）与班名（如 01班）。
                 # hub importer 落库 class_code/class_name，详情页按班展示。
+                # 显式携带一系统教学班 id：课程卡 external id 可能随课程归并变化，
+                # Hub 仍应按 teaching_class_id 复用同一个 offering。
+                "teaching_class_id": str(class_id),
                 "class_code": class_code,
                 "class_name": (r["name"] or "").strip(),
             }
@@ -514,7 +517,7 @@ def main() -> int:
     reviews_out = []
     unmapped_by_sem = {}
     for r in cur.execute(
-        "SELECT id, course_id, semester, rating, comment, created_at, approve_count FROM reviews ORDER BY id"
+        "SELECT id, course_id, semester, rating, comment, created_at, approve_count, is_hidden FROM reviews ORDER BY id"
     ):
         report["reviews_raw"] += 1
         course_ext = course_id_to_ext.get(r["course_id"])
@@ -543,6 +546,7 @@ def main() -> int:
                 "content": r["comment"] or "",
                 "created_at": created,
                 "legacy_helpful_count": int(r["approve_count"] or 0),
+                "is_hidden": bool(r["is_hidden"]),
             }
         )
     report["reviews_written"] = len(reviews_out)

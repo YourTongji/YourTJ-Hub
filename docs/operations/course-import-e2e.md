@@ -29,7 +29,8 @@
 避免同一教学班同时挂主码课与班号课造成目录双写（旧版多挂载行为已废弃）。
 `reviews.jsonl` 按 `reviews.course_id` 行级归因到对应课程卡；有评价但无同教师教学班的
 课程行生成教师专属虚拟 offering（`other-{course_ext}`，沿用 `other-*` 机制）承载评价，
-保证评价精确落在对应教师卡、全库 `reviews_unmapped=0`。
+保证评价精确落在对应教师卡、全库 `reviews_unmapped=0`。源库 `is_hidden=1` 的评价导出为
+`is_hidden: true`，Hub 导入后保持 `ReviewStatusHidden`，不会因数据迁移被重新公开。
 
 > **卡片计数说明（issue #326 实测）**：目录卡数 = (code, teacher_code) 组合数，而非
 > 上游 (code, teacher_id) 行数——上游存在同名同院系多工号的重复教师记录（如全九清
