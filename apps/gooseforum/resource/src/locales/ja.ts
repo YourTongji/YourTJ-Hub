@@ -479,6 +479,7 @@ export default {
     dropCourse: '解除',
     clear: 'クリア',
     syncLatest: '最新に同期',
+    syncSyncing: '同期中…',
     syncSuccess: '同期しました',
     loading: '読み込み中…',
     emptyRequired: '予定内の授業はありません',

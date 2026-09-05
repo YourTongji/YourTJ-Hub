@@ -481,6 +481,7 @@ export default {
     dropCourse: '退课',
     clear: '清除',
     syncLatest: '同步最新',
+    syncSyncing: '同步中…',
     syncSuccess: '同步成功',
     loading: '正在加载…',
     emptyRequired: '暂无计划内课程',
