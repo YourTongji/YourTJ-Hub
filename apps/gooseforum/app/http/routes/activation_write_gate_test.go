@@ -1,8 +1,10 @@
 package routes
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
@@ -212,5 +214,47 @@ func TestActivationWriteGateNoRegression(t *testing.T) {
 		if got := decodeContractEnvelope(t, recorder).MessageCode; got == string(component.MessagePermissionEmailRequired) {
 			t.Fatal("verification disabled must not emit permission.emailRequired")
 		}
+	})
+}
+
+// TestPendingUserCanReLogin 过期会话重登口径（issue #427）：pending 账号密码登录
+// 成功并签发会话（New-Token + Set-Cookie），但写权限仍被 CheckWritableAccount
+// 拦截——会话不授予写能力，pending 用户借此在会话过期后恢复激活流程
+// （resend-activation-email 需要会话）。
+func TestPendingUserCanReLogin(t *testing.T) {
+	t.Run("pending user password login issues session and keeps write gate", func(t *testing.T) {
+		conn, router := setupHTTPContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+
+		body, err := json.Marshal(map[string]string{
+			"username":          user.Username,
+			"encryptedPassword": encryptLoginPassword(t, "secret123"),
+		})
+		if err != nil {
+			t.Fatalf("marshal pending login request: %v", err)
+		}
+		recorder := serveJSON(router, "/api/login", string(body), "")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending login status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		response := decodeContractEnvelope(t, recorder)
+		assertFixtureEnvelope(t, response, contractFixture(t, "login-success.json"))
+		if string(response.Result) != `"登录成功"` {
+			t.Fatalf("pending login result = %s, want login success message", response.Result)
+		}
+		if recorder.Header().Get("New-Token") == "" {
+			t.Fatal("pending login response missing New-Token header")
+		}
+		if !strings.Contains(recorder.Header().Get("Set-Cookie"), "access_token=") {
+			t.Fatal("pending login response missing access_token session cookie")
+		}
+
+		// 新会话仍不授予写能力：登录签发的 token 请求 topics/write 必须 403。
+		write := serveJSON(router, "/api/forum/topics/write", `{}`, recorder.Header().Get("New-Token"))
+		if write.Code != http.StatusForbidden {
+			t.Fatalf("pending re-login topics/write status = %d, want 403: %s", write.Code, write.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, write), contractFixture(t, "permission-email-required.json"))
 	})
 }

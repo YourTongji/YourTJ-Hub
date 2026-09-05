@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	otptotp "github.com/pquerna/otp/totp"
 	"gorm.io/gorm"
 )
@@ -22,11 +22,12 @@ func setupTotpSettingsContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupAuthSecurityContractTest(t)
 	loginAPI := router.Group("/api").Use(middleware.JWTAuthCheck)
-	// 与真实挂载保持一致：setup/enable/disable 校验账户密码或 6 位验证码，挂 RateLimit 防暴力破解；
-	// status 只读 enabled 标志，不限流。
-	loginAPI.POST("/user/totp/setup", middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
-	loginAPI.POST("/user/totp/enable", middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
-	loginAPI.POST("/user/totp/disable", middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
+	// 与真实挂载保持一致：setup/enable/disable 校验账户密码或 6 位验证码，挂
+	// CheckWritableAccount（pending/冻结拒绝，issue #427）与 RateLimit 防暴力破解；
+	// status 只读 enabled 标志，不限流也不挂写门禁。
+	loginAPI.POST("/user/totp/setup", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
+	loginAPI.POST("/user/totp/enable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
+	loginAPI.POST("/user/totp/disable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
 	loginAPI.GET("/user/totp/status", UpButterReq(api.TotpStatus))
 	return conn, router
 }
@@ -193,12 +194,10 @@ func TestTotpSettingsHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, setupAgain), contractFixture(t, "totp-already-enabled.json"))
 	})
 
-	t.Run("frozen account is not rejected by TOTP settings routes", func(t *testing.T) {
-		// S5 契约测试：这 4 个路由未挂 CheckWritableAccount，冻结账户不被拒绝是当前实际行为
-		// （authsessionservice.ValidateToken 不检查 IsFrozen），契约如实描述并在此 pin 住，
-		// 防止未来挂载 CheckWritableAccount 时静默改变契约行为。与 change-password（冻结 403）
-		// 的行为差异是已知决策点：若后续给 TOTP 路由补上 CheckWritableAccount，
-		// 需同步更新契约（403 + auth.account.frozen）与本测试。
+	t.Run("frozen account is rejected by TOTP settings write routes", func(t *testing.T) {
+		// S5 契约测试：setup/enable/disable 挂 CheckWritableAccount 后，冻结账户被
+		// 稳定 403 拒绝（permission.userFrozen，与 change-password 等账户写操作口径
+		// 一致，issue #427）；status 只读不挂写门禁，冻结账户仍可读。
 		conn, router := setupTotpSettingsContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
 		entity, err := users.Get(user.Id)
@@ -212,14 +211,50 @@ func TestTotpSettingsHTTPContract(t *testing.T) {
 		token := contractSessionToken(t, user)
 
 		setup := serveAuthSecurityJSON(router, http.MethodPost, "/api/user/totp/setup", `{"password":"secret123"}`, token)
-		if setup.Code != http.StatusOK {
-			t.Fatalf("frozen setup status = %d, want 200: %s", setup.Code, setup.Body.String())
+		if setup.Code != http.StatusForbidden {
+			t.Fatalf("frozen setup status = %d, want 403: %s", setup.Code, setup.Body.String())
 		}
-		assertResultObjectKeysMatchFixture(t, decodeContractEnvelope(t, setup), contractFixture(t, "totp-setup-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, setup), contractFixture(t, "account-frozen.json"))
+
+		enable := serveAuthSecurityJSON(router, http.MethodPost, "/api/user/totp/enable", `{"code":"000000"}`, token)
+		if enable.Code != http.StatusForbidden {
+			t.Fatalf("frozen enable status = %d, want 403: %s", enable.Code, enable.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, enable), contractFixture(t, "account-frozen.json"))
+
+		disable := serveAuthSecurityJSON(router, http.MethodPost, "/api/user/totp/disable", `{"code":"000000"}`, token)
+		if disable.Code != http.StatusForbidden {
+			t.Fatalf("frozen disable status = %d, want 403: %s", disable.Code, disable.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, disable), contractFixture(t, "account-frozen.json"))
 
 		status := serveAuthSecurityJSON(router, http.MethodGet, "/api/user/totp/status", "", token)
 		if status.Code != http.StatusOK {
 			t.Fatalf("frozen status status = %d, want 200: %s", status.Code, status.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, status), contractFixture(t, "totp-status-disabled.json"))
+	})
+
+	t.Run("pending activation account is rejected by TOTP settings write routes", func(t *testing.T) {
+		// issue #427：邮箱验证开启时 pending 账号（注册即发会话）不得变更 2FA 状态，
+		// 与 CheckWritableAccount 的统一口径一致（permission.emailRequired）。
+		conn, router := setupTotpSettingsContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		token := contractSessionToken(t, user)
+
+		for _, path := range []string{"/api/user/totp/setup", "/api/user/totp/enable", "/api/user/totp/disable"} {
+			recorder := serveAuthSecurityJSON(router, http.MethodPost, path, `{}`, token)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("pending %s status = %d, want 403: %s", path, recorder.Code, recorder.Body.String())
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "permission-email-required.json"))
+		}
+
+		// 只读 status 不被拦截，pending 用户可读 2FA 状态。
+		status := serveAuthSecurityJSON(router, http.MethodGet, "/api/user/totp/status", "", token)
+		if status.Code != http.StatusOK {
+			t.Fatalf("pending status status = %d, want 200: %s", status.Code, status.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, status), contractFixture(t, "totp-status-disabled.json"))
 	})

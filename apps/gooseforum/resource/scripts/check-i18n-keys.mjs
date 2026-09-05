@@ -1,5 +1,5 @@
 // 四语言 locale 键差集校验（issue #225/#230）：
-// 扫描 src/locales/{zh,en,ja,it}.ts 的顶层块，收集每个块下的嵌套键路径
+// 扫描 src/locales/{zh,en,ja,de}.ts 的顶层块，收集每个块下的嵌套键路径
 // （如 schedule.arrangedCount），校验四语言键集合完全一致，防止键名泄漏回归。
 // 用法：node scripts/check-i18n-keys.mjs（作为 pnpm check:i18n 运行）
 import { readFileSync } from 'node:fs'
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const locales = ['zh', 'en', 'ja', 'it']
+const locales = ['zh', 'en', 'ja', 'de']
 
 /**
  * 粗解析 TS locale 文件为嵌套键集合。

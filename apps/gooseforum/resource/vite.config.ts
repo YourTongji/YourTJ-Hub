@@ -25,6 +25,7 @@ export default defineConfig({
   },
   server: {
     port: 3010,
-    origin: 'http://localhost:3010',
+    // 不固定 dev server 的来源地址：页面 CSP 为 script-src 'self'，固定后 `?url` 运行时资源
+    // 生成绝对 URL 会被判为跨域脚本静默拦截（issue #453）。保持相对路径经后端 /assets 同源代理。
   },
 })

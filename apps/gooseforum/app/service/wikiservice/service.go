@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 )
 
 // ActionResult 通用动作成功响应（契约 {ok:true}）。
@@ -78,10 +79,12 @@ func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint
 			if err := eventNotification.CreateBatch(notifications, 100); err != nil {
 				slog.Warn("wiki: notify watchers failed", "topicId", topicId, "error", err)
 			} else {
-				for _, userId := range watchers {
-					if userId != editorId {
-						unreadservice.Invalidate(userId)
+				for _, notification := range notifications {
+					if notification == nil {
+						continue
 					}
+					unreadservice.Invalidate(notification.UserId)
+					webpushservice.EnqueueNotification(notification.UserId, notification.Id)
 				}
 			}
 		}

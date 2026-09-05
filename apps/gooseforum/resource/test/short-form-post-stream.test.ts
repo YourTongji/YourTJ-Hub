@@ -567,4 +567,3 @@ describe('瞬间（短文 contentType: 2）在 PostStream 中的架构完整性'
     wrapper.unmount()
   })
 })
-

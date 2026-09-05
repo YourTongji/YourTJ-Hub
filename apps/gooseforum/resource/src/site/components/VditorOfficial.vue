@@ -5,6 +5,7 @@ import 'vditor/dist/index.css'
 import luteUrl from 'vditor/dist/js/lute/lute.min.js?url'
 import antIconUrl from 'vditor/dist/js/icons/ant.js?url'
 import enUrl from 'vditor/dist/js/i18n/en_US.js?url'
+import deUrl from 'vditor/dist/js/i18n/de_DE.js?url'
 import jaUrl from 'vditor/dist/js/i18n/ja_JP.js?url'
 import zhUrl from 'vditor/dist/js/i18n/zh_CN.js?url'
 import katexJsUrl from 'katex/dist/katex.min.js?url'
@@ -17,6 +18,7 @@ import hljsDarkCssUrl from 'highlight.js/styles/github-dark.css?url'
 import hljs from 'highlight.js'
 import { currentLocale } from '@/runtime/i18n'
 import { loadRuntimeScript } from '@/runtime/runtime-script'
+import { loadMermaid, nextMermaidDiagramId, renderDiagram } from '@/runtime/content-enhancements/mermaid'
 import { useSiteTheme } from '@/runtime/site-theme'
 import { useI18n } from 'vue-i18n'
 
@@ -137,7 +139,7 @@ const OFFICIAL_TOOLBAR: Array<string | IMenuItem> = [
 
 const languageAssets = {
   en: { lang: 'en_US', url: enUrl },
-  it: { lang: 'en_US', url: enUrl },
+  de: { lang: 'de_DE', url: deUrl },
   ja: { lang: 'ja_JP', url: jaUrl },
   zh: { lang: 'zh_CN', url: zhUrl },
 } as const
@@ -472,7 +474,7 @@ function syncHighlightTheme() {
 
 /** 知乎式图标+小字：2-3 字短标签（对齐知乎工具栏文案），避免长词撑宽/换行；
  *   hover tooltip 保留官方完整「功能 + 快捷键」；
- *   文案走 i18n（editor.toolbar.*，见 locales/{zh,en,ja,it}.ts） */
+ *   文案走 i18n（editor.toolbar.*，见 locales/{zh,en,ja,de}.ts） */
 const TOOLBAR_LABEL_KEYS: Record<string, string> = {
   headings: 'editor.toolbar.headings',
   bold: 'editor.toolbar.bold',
@@ -963,6 +965,44 @@ function injectOfficialAssetPlaceholders() {
   }
 }
 
+/**
+ * 覆盖 Vditor 官方 mermaidRender（预览/分屏模式的流程图渲染）。
+ * 官方实现从 CDN 加载其捆绑的旧版 mermaid（11.6.0）且 securityLevel: loose，
+ * 本组件 cdn 为空，离线环境下会静默失败。这里改为惰性加载本站 mermaid chunk
+ * （与主题页 v-content-enhancements 共用同一引擎与 strict 安全配置），并跟随
+ * 站点深浅色主题；仍遵守 Vditor 的 data-processed 契约——预览重渲染时跳过
+ * 已处理的图表，渲染失败则保留源码代码块（预览为瞬时编辑态，下一次重渲染会
+ * 重建代码块并再次尝试）。
+ */
+function overrideMermaidPreviewRender() {
+  const namespace = Vditor as unknown as {
+    mermaidRender: (element: HTMLElement, _cdn: string, _theme: string) => void
+  }
+  namespace.mermaidRender = (element) => {
+    const blocks = Array.from(element.querySelectorAll<HTMLElement>('code.language-mermaid'))
+    if (blocks.length === 0) return
+    void (async () => {
+      let mermaid: Awaited<ReturnType<typeof loadMermaid>>
+      try {
+        mermaid = await loadMermaid()
+      } catch (error) {
+        console.warn('Unable to load Mermaid for the editor preview.', error)
+        return
+      }
+      for (const block of blocks) {
+        if (block.getAttribute('data-processed') === 'true' || !block.textContent?.trim()) continue
+        block.setAttribute('data-processed', 'true')
+        try {
+          const { svg } = await renderDiagram(mermaid, nextMermaidDiagramId('gf-vditor-mermaid'), block.textContent)
+          block.innerHTML = svg
+        } catch (error) {
+          console.warn('Unable to render Mermaid diagram in the editor preview; preserving its source code.', error)
+        }
+      }
+    })()
+  }
+}
+
 function syncEditorTheme() {
   if (!editor || !ready || destroyed) return
   editor.setTheme(isDark.value ? 'dark' : 'classic')
@@ -1322,6 +1362,9 @@ onMounted(async () => {
     return
   }
   if (destroyed || !root.value) return
+
+  // 在编辑器创建前安装 mermaid 预览覆盖（官方 CDN 版本离线不可用）
+  overrideMermaidPreviewRender()
 
   let nextEditor: Vditor | null = null
   try {
@@ -1773,11 +1816,11 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   opacity: 0.9;
 }
 
-/* ===== 英文/意大利文标签更宽：10px 下溢出/截断，缩到 9px 保持单行 =====
+/* ===== 英文/德文标签更宽：10px 下溢出/截断，缩到 9px 保持单行 =====
  * 仅命中主行「图标下小字」（选择器粒度与 L1428 图标-only 隐藏规则一致），
  * 与 more 子菜单 / 折叠区 12px 文字（L1410-1417 / L1459-1466）正交。 */
 .vditor-official[data-locale='en'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label,
-.vditor-official[data-locale='it'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label {
+.vditor-official[data-locale='de'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label {
   font-size: 9px;
 }
 

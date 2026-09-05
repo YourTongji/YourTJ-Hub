@@ -35,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/spf13/cast"
 
@@ -57,6 +58,7 @@ func runWeb(_ *cobra.Command, _ []string) error {
 	slog.Info(fmt.Sprintf("GooseForum:useMem %d KB", m.Alloc/1024/8))
 
 	warnInsecureServerURL()
+	webpushservice.LogConfigStatus()
 	startDebugServices()
 	return ginServe()
 }
@@ -170,11 +172,15 @@ func prepareServeRuntime() {
 }
 
 type serveRuntime struct {
-	server        *http.Server
-	startupGate   *middleware.StartupGate
-	listener      net.Listener
-	quit          chan os.Signal
-	shutdownOnce  sync.Once
+	server       *http.Server
+	startupGate  *middleware.StartupGate
+	listener     net.Listener
+	quit         chan os.Signal
+	shutdownOnce sync.Once
+	// startupDone 在启动 goroutine（迁移）落定后关闭。wait() 收到 quit 信号后
+	// 必须先等它再读 fatalErr：外部信号/测试可能抢在 setFatal 之前把信号入队，
+	// 若无此屏障会读到 nil，把致命迁移错误吞掉（#370 遗留竞态）。
+	startupDone   chan struct{}
 	fatalMu       sync.Mutex
 	fatalErr      error
 	migrate       func() error
@@ -204,6 +210,7 @@ func newServeRuntime(port string) (*serveRuntime, error) {
 		startupGate:   startupGate,
 		listener:      listener,
 		quit:          make(chan os.Signal, 1),
+		startupDone:   make(chan struct{}),
 		migrate:       migration.M,
 		startBusiness: startBusinessServices,
 	}, nil
@@ -223,6 +230,8 @@ func (r *serveRuntime) start() {
 	// 业务服务并放行流量；worker/cron 全部在成功路径内启动，避免半迁移
 	// 实例处理业务请求。
 	go func() {
+		// 无论成功/失败/deferred，启动结果落定后关闭屏障，wait() 才能安全读 fatal。
+		defer close(r.startupDone)
 		if err := r.runStartup(); err != nil {
 			r.setFatal(err)
 			r.requestShutdown()
@@ -303,6 +312,11 @@ func startBusinessServices() {
 	// course-review-cleanup 前缀任务，脱敏超窗 deleted 行；失败按 taskQueue
 	// 语义重试至多 3 次后 failed 并有日志
 	backgroundservice.RunWorker("course_review_cleanup_worker", courseservice.TaskTypeCourseReviewCleanup, courseservice.RunCleanupTask)
+	// Web Push 推送 worker：消费 webpush. 前缀 outbox 任务（通知行创建后入队），
+	// 向用户浏览器订阅发送系统推送。实例未配置 VAPID 密钥时任务直接 no-op
+	// 置 Success（dev 从 main 快照同步的任务行绝不会外发）。
+	_ = webpushservice.RecoverStaleTasks()
+	backgroundservice.RunWorker("webpush_worker", webpushservice.TaskTypePush, webpushservice.RunPushTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()
@@ -354,6 +368,11 @@ func (r *serveRuntime) requestShutdown() {
 func (r *serveRuntime) wait() error {
 	signal := <-r.quit
 	slog.Info("Shutdown Server ...", "signal", signal)
+	// 先等启动 goroutine 落定再读 fatal：quit 信号可能先于 setFatal 到达
+	// （外部信号或测试直接 requestShutdown），直接读 fatal() 会把致命迁移
+	// 错误吞成 nil 导致进程以 0 退出。启动 goroutine 内先 setFatal 再发信号，
+	// 屏障等待只有微秒级；外部信号撞上超长迁移时关停会等迁移结束（更安全）。
+	<-r.startupDone
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := r.server.Shutdown(shutdownCtx); err != nil {

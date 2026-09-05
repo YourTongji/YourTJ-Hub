@@ -24,6 +24,7 @@ interface PublishOption {
   href: string
   label: string
   icon: any
+  /** 轻量 tinted badge：与帖子详情内容类型徽标同款（透明底 15% + 同色系文字，无渐变实底） */
   badgeClass: string
 }
 
@@ -34,7 +35,7 @@ const publishOptions = computed<PublishOption[]>(() => [
     label: t('publish.contentTypesAction.thought'),
     icon: Sparkles,
     badgeClass:
-      'flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-b from-[#8b5cf6] to-[#6366f1] text-white shadow-[0_2px_6px_rgba(99,102,241,0.35)] transition-transform duration-150 group-hover:scale-105',
+      'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-500/15 text-purple-600 dark:text-purple-400',
   },
   {
     type: 1,
@@ -42,7 +43,7 @@ const publishOptions = computed<PublishOption[]>(() => [
     label: t('publish.contentTypesAction.question'),
     icon: HelpCircle,
     badgeClass:
-      'flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-b from-[#1cd2a3] to-[#0ea883] text-white shadow-[0_2px_6px_rgba(14,168,131,0.35)] transition-transform duration-150 group-hover:scale-105',
+      'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
   },
   {
     type: 3,
@@ -50,7 +51,7 @@ const publishOptions = computed<PublishOption[]>(() => [
     label: t('publish.contentTypesAction.article'),
     icon: BookOpen,
     badgeClass:
-      'flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-b from-[#f59e0b] to-[#ea580c] text-white shadow-[0_2px_6px_rgba(234,88,12,0.35)] transition-transform duration-150 group-hover:scale-105',
+      'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400',
   },
 ])
 
@@ -101,7 +102,7 @@ function handleItemKeydown(event: KeyboardEvent, index: number) {
     >
       <button
         type="button"
-        class="gf-button gf-button-lg gf-button-primary hidden shrink-0 whitespace-nowrap active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-flex items-center gap-1.5 shadow-sm"
+        class="gf-button gf-button-md gf-button-primary hidden shrink-0 whitespace-nowrap active:scale-[0.96] motion-reduce:active:scale-100 sm:inline-flex items-center gap-1.5"
         :aria-label="t('publish.chooseContentType')"
         :aria-expanded="open"
         aria-haspopup="true"
@@ -154,14 +155,14 @@ function handleItemKeydown(event: KeyboardEvent, index: number) {
             ref="itemRefs"
             :href="item.href"
             role="menuitem"
-            class="group flex items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors duration-150 hover:bg-base-200/80 active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 cursor-pointer"
+            class="group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors duration-150 hover:bg-base-200/80 active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 cursor-pointer"
             @click="handleItemClick($event, item)"
             @keydown="handleItemKeydown($event, index)"
           >
-            <div :class="item.badgeClass">
-              <component :is="item.icon" class="h-4 w-4 stroke-[2.4]" aria-hidden="true" />
-            </div>
-            <span class="text-[15px] font-medium text-base-content/90 transition-colors group-hover:text-primary tracking-wide whitespace-nowrap">
+            <span :class="item.badgeClass">
+              <component :is="item.icon" class="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <span class="text-sm font-medium text-base-content/90 transition-colors group-hover:text-primary tracking-wide whitespace-nowrap">
               {{ item.label }}
             </span>
           </a>

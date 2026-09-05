@@ -20,6 +20,11 @@ interface SidebarGroupItem {
   i18nLabel?: string
   items: SidebarNavItem[]
 }
+interface SidebarCategoryItem extends SidebarNavItem {
+  id: number
+  color: string
+}
+
 
 interface SidebarSection {
   key: string
@@ -32,6 +37,7 @@ const props = defineProps<{
   sections: SidebarSection[]
   resourceItems: SidebarNavItem[]
   sidebarGroups: SidebarGroupItem[]
+  categoryItems: SidebarCategoryItem[]
   footer: FooterPayload
   /** wiki 模式：抽屉顶部展示完整 wiki 导航树（首页/命名空间/页面），与桌面侧栏一致。 */
   wikiMode?: boolean
@@ -40,6 +46,7 @@ const props = defineProps<{
   closeLabel: string
   menuLabel: string
   resourcesLabel: string
+  categoriesLabel: string
   sidebarIcon: (item: SidebarNavItem) => unknown
 }>()
 
@@ -170,6 +177,21 @@ onBeforeUnmount(() => {
                   aria-hidden="true"
                 />
                 <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+              </a>
+            </div>
+            <div v-if="categoryItems.length" class="mt-4 space-y-0.5">
+              <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ categoriesLabel }}</div>
+              <a
+                v-for="category in categoryItems"
+                :key="category.key"
+                :href="category.url"
+                class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
+                :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+                :aria-current="category.active ? 'page' : undefined"
+                @click="close"
+              >
+                <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                <span class="min-w-0 flex-1 truncate">{{ category.label }}</span>
               </a>
             </div>
           </nav>

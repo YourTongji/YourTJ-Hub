@@ -10,40 +10,40 @@ import (
 // The actual implementation with database queries is tested via integration tests and fixtures.
 func TestIsAnswerPostLogic(t *testing.T) {
 	tests := []struct {
-		name          string
-		contentType   int8
+		name             string
+		contentType      int8
 		replyToFirstPost bool
-		shouldBeAnswer bool
+		shouldBeAnswer   bool
 	}{
 		{
-			name:          "reply to first post on question topic should be an answer",
-			contentType:   posts.ContentTypeQuestion,
+			name:             "reply to first post on question topic should be an answer",
+			contentType:      posts.ContentTypeQuestion,
 			replyToFirstPost: true,
-			shouldBeAnswer: true,
+			shouldBeAnswer:   true,
 		},
 		{
-			name:          "reply to other post on question topic should not be an answer",
-			contentType:   posts.ContentTypeQuestion,
+			name:             "reply to other post on question topic should not be an answer",
+			contentType:      posts.ContentTypeQuestion,
 			replyToFirstPost: false,
-			shouldBeAnswer: false,
+			shouldBeAnswer:   false,
 		},
 		{
-			name:          "reply to first post on regular topic should not be an answer",
-			contentType:   posts.ContentTypeRegular,
+			name:             "reply to first post on regular topic should not be an answer",
+			contentType:      posts.ContentTypeRegular,
 			replyToFirstPost: true,
-			shouldBeAnswer: false,
+			shouldBeAnswer:   false,
 		},
 		{
-			name:          "reply to first post on thought topic should not be an answer",
-			contentType:   posts.ContentTypeThought,
+			name:             "reply to first post on thought topic should not be an answer",
+			contentType:      posts.ContentTypeThought,
 			replyToFirstPost: true,
-			shouldBeAnswer: false,
+			shouldBeAnswer:   false,
 		},
 		{
-			name:          "reply to first post on article topic should not be an answer",
-			contentType:   posts.ContentTypeArticle,
+			name:             "reply to first post on article topic should not be an answer",
+			contentType:      posts.ContentTypeArticle,
 			replyToFirstPost: true,
-			shouldBeAnswer: false,
+			shouldBeAnswer:   false,
 		},
 	}
 
@@ -67,28 +67,28 @@ func TestIsAnswerPostLogic(t *testing.T) {
 
 func TestCanPostContentTypeRestriction(t *testing.T) {
 	tests := []struct {
-		name          string
-		contentType   int8
+		name               string
+		contentType        int8
 		shouldAllowReplies bool
 	}{
 		{
-			name:          "regular topic allows replies",
-			contentType:   posts.ContentTypeRegular,
+			name:               "regular topic allows replies",
+			contentType:        posts.ContentTypeRegular,
 			shouldAllowReplies: true,
 		},
 		{
-			name:          "question topic allows replies",
-			contentType:   posts.ContentTypeQuestion,
+			name:               "question topic allows replies",
+			contentType:        posts.ContentTypeQuestion,
 			shouldAllowReplies: true,
 		},
 		{
-			name:          "thought topic allows replies",
-			contentType:   posts.ContentTypeThought,
+			name:               "thought topic allows replies",
+			contentType:        posts.ContentTypeThought,
 			shouldAllowReplies: true,
 		},
 		{
-			name:          "article topic allows replies",
-			contentType:   posts.ContentTypeArticle,
+			name:               "article topic allows replies",
+			contentType:        posts.ContentTypeArticle,
 			shouldAllowReplies: true,
 		},
 	}

@@ -77,10 +77,15 @@
   endpoints reject pending accounts before the controller runs with HTTP 403 and the
   structured `permission.emailRequired` envelope (params actionCode=write) — the same
   envelope is returned by every `CheckWritableAccount` write endpoint and is parsed by the
-  web client into an actionable activation message. Recovery writes (resend-activation-email,
-  set-user-email) stay allowed, as do the self-service account-close and content
-  privacy-erase lifecycle endpoints (the controllers keep their ownership, password, and
-  rate-limit checks). Enabling the setting backfills pending manage-role accounts
+  web client into an actionable activation message. The gate covers content writes and
+  account-security writes (profile, password, OAuth unbind, TOTP setup/enable/disable);
+  recovery writes (resend-activation-email, set-user-email) stay allowed, as do the
+  self-service account-close and content privacy-erase lifecycle endpoints (the controllers
+  keep their ownership, password, and rate-limit checks) and unread cleanup
+  (notification/chat mark-read only mutates the user's own read state, no content write).
+  Pending accounts can re-login by password or OAuth — a session itself grants no write
+  capability, so re-login only restores the recovery path (resend-activation-email) after
+  the original session expires. Enabling the setting backfills pending manage-role accounts
   (admin/site/user/… permissions) and activates them immediately through the user-cache
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.

@@ -238,7 +238,9 @@ export interface paths {
         /**
          * Retrieve the authenticated user's TOTP status
          * @description Returns only whether TOTP is currently enabled. Recovery-code inventory is intentionally not
-         *     exposed by this endpoint. Frozen accounts are not rejected, allowing account recovery actions.
+         *     exposed by this endpoint. The route is read-only and not writable-account-gated: frozen and
+         *     pending (unactivated) accounts are not rejected, so 2FA status remains readable during
+         *     account recovery (issue #427).
          */
         get: operations["getTotpStatus"];
         put?: never;
@@ -262,8 +264,10 @@ export interface paths {
          * Provision a TOTP secret for the authenticated user
          * @description Requires the account password as re-authentication. The secret and otpauth URI are returned
          *     once for authenticator enrollment; setup leaves TOTP disabled until enable is called. Calling
-         *     setup for an already enabled account returns `totp.alreadyEnabled`. Frozen accounts are not
-         *     rejected by this route because it is not a writable-account operation.
+         *     setup for an already enabled account returns `totp.alreadyEnabled`. The route is a
+         *     writable-account operation (issue #427): frozen accounts are rejected with
+         *     `permission.userFrozen`, and pending accounts (email verification enabled) with
+         *     `permission.emailRequired`.
          */
         post: operations["setupTotp"];
         delete?: never;
@@ -286,7 +290,9 @@ export interface paths {
          * @description Verifies the current six-digit code for a provisioned secret, marks TOTP enabled, and returns
          *     ten one-time recovery codes. Recovery codes are shown only in this success response. Calling
          *     enable without setup returns `totp.notEnabled`; calling it after enable returns
-         *     `totp.alreadyEnabled`. Frozen accounts are not rejected by this route.
+         *     `totp.alreadyEnabled`. The route is a writable-account operation (issue #427): frozen
+         *     accounts are rejected with `permission.userFrozen`, and pending accounts (email
+         *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["enableTotp"];
         delete?: never;
@@ -308,7 +314,9 @@ export interface paths {
          * Disable TOTP for the authenticated user
          * @description Accepts either the current TOTP code or the account password. Disabling removes all stored
          *     recovery codes and returns a human-readable success result. Calling disable when TOTP is not
-         *     enabled returns `totp.notEnabled`. Frozen accounts are not rejected by this route.
+         *     enabled returns `totp.notEnabled`. The route is a writable-account operation (issue #427):
+         *     frozen accounts are rejected with `permission.userFrozen`, and pending accounts (email
+         *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["disableTotp"];
         delete?: never;
@@ -1402,6 +1410,79 @@ export interface paths {
          *     `notification.markAllRead.failed`.
          */
         post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/push/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Web Push channel configuration for the caller
+         * @description Returns whether the instance has Web Push enabled and, when enabled, the
+         *     VAPID application server key (65-byte P-256 uncompressed point, base64url)
+         *     the browser must pass to PushManager.subscribe as applicationServerKey.
+         *     configured=false when the instance has no [webpush] VAPID keys (dev keeps
+         *     the channel off); clients then hide the push opt-in toggle.
+         */
+        get: operations["getPushConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/push/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Persist the caller's browser push subscription
+         * @description Saves one Web Push subscription (PushSubscription.toJSON()) owned by the
+         *     caller. endpoint is globally unique: resubscribing from the same browser
+         *     (or after logging into another account) converges the row to the current
+         *     user and refreshes its keys and language. Business failure surfaces as
+         *     HTTP 200 `common.operation.failed`. The subscription carries long-lived
+         *     push-service credentials and is deleted on account close.
+         */
+        post: operations["subscribePush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/push/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove one of the caller's browser push subscriptions
+         * @description Deletes the subscription with the given endpoint when it belongs to the
+         *     caller (idempotent: an endpoint the caller does not own, or that does not
+         *     exist, silently succeeds and never reveals other users' subscriptions).
+         *     Clients call this after browser-side PushSubscription.unsubscribe() so the
+         *     server stops sending to a dead endpoint.
+         */
+        post: operations["unsubscribePush"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6487,6 +6568,49 @@ export interface components {
             messageCode: "notification.markAllRead.success";
         };
         NotificationMarkAllReadResponse: components["schemas"]["NotificationMarkAllReadSuccess"] | components["schemas"]["ApiFailure"];
+        PushConfigResult: {
+            /** @description True when the instance has [webpush] VAPID keys and the push channel is enabled. */
+            configured: boolean;
+            /** @description VAPID public key (65-byte P-256 uncompressed point, base64url) to pass as PushManager.subscribe applicationServerKey; present only when configured is true. */
+            applicationServerKey?: string;
+        };
+        PushConfigSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PushConfigResult"];
+        };
+        PushConfigResponse: components["schemas"]["PushConfigSuccess"] | components["schemas"]["ApiFailure"];
+        PushSubscriptionKey: {
+            /** @description PushSubscription.getKey('p256dh') as base64url (65-byte P-256 uncompressed point). */
+            p256dh: string;
+            /** @description PushSubscription.getKey('auth') as base64url (16-byte secret). */
+            auth: string;
+        };
+        PushSubscriptionBody: {
+            /** @description PushSubscription.endpoint URL; globally unique — resubscribing from the same browser converges the row to the current user. */
+            endpoint: string;
+            keys: components["schemas"]["PushSubscriptionKey"];
+        };
+        PushSubscribeRequest: {
+            subscription: components["schemas"]["PushSubscriptionBody"];
+            /**
+             * @description Subscriber's UI language used to render push copy; omitted or unknown falls back to zh.
+             * @enum {string}
+             */
+            lang?: "zh" | "en" | "ja" | "de";
+        };
+        PushSubscribeSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        };
+        PushSubscribeResponse: components["schemas"]["PushSubscribeSuccess"] | components["schemas"]["ApiFailure"];
+        PushUnsubscribeRequest: {
+            /** @description Endpoint of the subscription to remove; must belong to the caller (foreign endpoints silently succeed, never revealing other users' subscriptions). */
+            endpoint: string;
+        };
+        PushUnsubscribeSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        };
+        PushUnsubscribeResponse: components["schemas"]["PushUnsubscribeSuccess"] | components["schemas"]["ApiFailure"];
         SendChatMessageRequest: {
             /**
              * Format: uint64
@@ -10451,7 +10575,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10503,7 +10627,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10555,7 +10679,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12423,6 +12547,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationMarkAllReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getPushConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Push channel configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushConfigResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    subscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription persisted (or a legacy business failure envelope). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscribeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    unsubscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushUnsubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription removed (or a legacy business failure envelope). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushUnsubscribeResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

@@ -58,7 +58,6 @@ func setUniversalSecurityHeaders(headers http.Header) {
 	headers.Set(headerPermissionsPolicy, "camera=(), microphone=(), geolocation=()")
 }
 
-
 // isHTMLPageRoute 按请求路由形态判断该响应是否承载浏览器 HTML 文档。
 // 排除非页面表面（API/OIDC/文件/静态资源/健康检查）；其余引擎级 GET 属于 forum viewRoute
 // 页面、/activate 或 robots/sitemap/rss/llms 等根级文本导出——对非文档响应浏览器忽略 CSP，

@@ -7,10 +7,9 @@ import {
   BookOpen,
   CalendarRange,
   Eye,
-  EyeOff,
+  GraduationCap,
   FileText,
   Flame,
-  GraduationCap,
   Heart,
   Inbox,
   Languages,
@@ -82,54 +81,26 @@ const previewTabs = [
   { key: 'popular' as const, labelKey: 'topicList.tabs.popular' },
 ]
 
-// 固定侧栏分区：与前台 AppShell 的 sidebarSections 保持同步的无编辑项提示。
-interface FixedSidebarItem {
-  key: string
-  labelKey: string
-  icon: typeof MessageCircle
-  active?: boolean
-}
+// 固定侧栏主列表：与前台 AppShell 侧栏分区（sidebarSections）顺序对齐的无编辑项提示
+//（浏览无标题平铺 → 功能 → 个人；私信/通知已上移 navbar，不进侧栏）。
+// 自定义主菜单项（config.mainMenu）渲染在个人项之后——对应 AppShell
+// personalItems（drafts + 服务端 main 项）→ adminItems 的顺序。
+const fixedMainItems = [
+  { key: 'topics', labelKey: 'shell.nav.topics', icon: MessageCircle, active: true },
+  { key: 'hot', labelKey: 'shell.nav.hot', icon: Flame },
+  { key: 'popular', labelKey: 'shell.nav.popular', icon: TrendingUp },
+  { key: 'courses', labelKey: 'shell.nav.courses', icon: BookOpen },
+  { key: 'schedule', labelKey: 'shell.nav.schedule', icon: CalendarRange },
+  { key: 'wiki', labelKey: 'shell.nav.wiki', icon: Library },
+  { key: 'drafts', labelKey: 'shell.nav.drafts', icon: FileText },
+]
 
-interface FixedSidebarSection {
-  key: string
-  titleKey?: string
-  items: FixedSidebarItem[]
-}
-
-const fixedSidebarSections: FixedSidebarSection[] = [
-  {
-    key: 'browse',
-    items: [
-      { key: 'topics', labelKey: 'shell.nav.topics', icon: MessageCircle, active: true },
-      { key: 'hot', labelKey: 'shell.nav.hot', icon: Flame },
-      { key: 'popular', labelKey: 'shell.nav.popular', icon: TrendingUp },
-    ],
-  },
-  {
-    key: 'function',
-    titleKey: 'shell.groupFunction',
-    items: [
-      { key: 'courses', labelKey: 'shell.nav.courses', icon: BookOpen },
-      { key: 'schedule', labelKey: 'shell.nav.schedule', icon: CalendarRange },
-      { key: 'wiki', labelKey: 'shell.nav.wiki', icon: Library },
-    ],
-  },
-  {
-    key: 'personal',
-    titleKey: 'shell.groupPersonal',
-    items: [
-      { key: 'drafts', labelKey: 'shell.nav.drafts', icon: FileText },
-    ],
-  },
-  {
-    key: 'admin',
-    titleKey: 'shell.groupAdmin',
-    items: [
-      { key: 'moderation', labelKey: 'shell.nav.moderation', icon: Scale },
-      { key: 'courseReviews', labelKey: 'shell.nav.courseReviews', icon: GraduationCap },
-      { key: 'courseManage', labelKey: 'shell.nav.courseManage', icon: BookOpen },
-    ],
-  },
+// 管理项固定预览：紧随自定义主菜单项之后，与 AppShell adminItems 对应
+//（moderation 依权限可见；courseReviews/courseManage 需 CourseManager 权限）。
+const fixedAdminItems = [
+  { key: 'moderation', labelKey: 'shell.nav.moderation', icon: Scale },
+  { key: 'courseReviews', labelKey: 'shell.nav.courseReviews', icon: GraduationCap },
+  { key: 'courseManage', labelKey: 'shell.nav.courseManage', icon: BookOpen },
 ]
 const fixedResourceItems = [
   { key: 'links', labelKey: 'shell.nav.links', icon: LinkIcon },
@@ -521,55 +492,48 @@ onMounted(load)
       <div class="mx-auto grid w-full max-w-[1600px] grid-cols-[224px_minmax(0,1fr)] gap-3 px-5 py-3">
         <aside class="-my-3 min-w-0 self-start">
           <nav class="py-3">
-            <div class="pb-2">
-              <template v-for="section in fixedSidebarSections" :key="section.key">
-                <div
-                  v-if="section.titleKey"
-                  class="mb-1 mt-3 px-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
-                >
-                  {{ t(section.titleKey) }}
-                </div>
-                <div class="space-y-0.5">
-                  <div
-                    v-for="item in section.items"
-                    :key="item.key"
-                    class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
-                    :class="item.active ? 'bg-[var(--gf-color-primary)]/10 text-[var(--gf-color-primary)]' : 'text-muted-foreground'"
-                    :title="adminText('k00df')"
-                  >
-                    <component :is="item.icon" class="h-4 w-4 shrink-0" />
-                    <span class="min-w-0 flex-1 truncate">{{ t(item.labelKey) }}</span>
+            <div class="space-y-0.5 pb-2">
+              <div
+                v-for="item in fixedMainItems"
+                :key="item.key"
+                class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
+                :class="item.active ? 'bg-[var(--gf-color-primary)]/10 text-[var(--gf-color-primary)]' : 'text-muted-foreground'"
+                :title="adminText('k00df')"
+              >
+                <component :is="item.icon" class="h-4 w-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">{{ t(item.labelKey) }}</span>
+              </div>
+
+              <Draggable v-model="config.mainMenu" item-key="id" handle=".chrome-drag-item" class="space-y-0.5">
+                <template #item="{ element, index }">
+                  <div class="chrome-drag-item group relative flex h-8 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
+                    <LinkIcon class="h-4 w-4 shrink-0 opacity-80" />
+                    <span class="min-w-0 flex-1 truncate">{{ element.label || adminText('k00dd') }}</span>
+                    <span class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openItem('mainMenu', index)">
+                        <Pencil class="h-4 w-4" />
+                      </button>
+                      <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('mainMenu', index)">
+                        <Trash2 class="h-4 w-4" />
+                      </button>
+                    </span>
                   </div>
-                  <!-- 个人组内嵌可编辑项：对位前台 personalItems（草稿箱 + 个人菜单配置） -->
-                  <Draggable
-                    v-if="section.key === 'personal'"
-                    v-model="config.mainMenu"
-                    item-key="id"
-                    handle=".chrome-drag-item"
-                    class="space-y-0.5"
-                  >
-                    <template #item="{ element, index }">
-                      <div class="chrome-drag-item group relative flex h-8 cursor-grab items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground active:cursor-grabbing" :class="{ 'opacity-40': !element.enabled }">
-                        <LinkIcon class="h-4 w-4 shrink-0 opacity-80" />
-                        <span class="min-w-0 flex-1 truncate">{{ element.label || adminText('k00dd') }}</span>
-                        <span class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                          <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-[var(--gf-color-primary)]/10 hover:text-[var(--gf-color-primary)]" @click.stop="openItem('mainMenu', index)">
-                            <Pencil class="h-4 w-4" />
-                          </button>
-                          <button type="button" class="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-card/80 text-muted-foreground backdrop-blur transition hover:scale-110 hover:bg-destructive/10 hover:text-destructive" @click.stop="removeItem('mainMenu', index)">
-                            <Trash2 class="h-4 w-4" />
-                          </button>
-                        </span>
-                      </div>
-                    </template>
-                    <template #footer>
-                      <Button variant="ghost" size="sm" type="button" :class="['mt-1 h-7 px-2 text-[13px]', addButtonClass]" @click="openItem('mainMenu', null)">
-                        <Plus class="mr-1 h-4 w-4" />{{ adminText('k00dg') }}
-                      </Button>
-                    </template>
-                  </Draggable>
-                </div>
-              </template>
+                </template>
+                <template #footer>
+                  <Button variant="ghost" size="sm" type="button" :class="['mt-1 h-7 px-2 text-[13px]', addButtonClass]" @click="openItem('mainMenu', null)">
+                    <Plus class="mr-1 h-4 w-4" />{{ adminText('k00dg') }}
+                  </Button>
+                </template>
+              </Draggable>
+              <div
+                v-for="item in fixedAdminItems"
+                :key="item.key"
+                class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150"
+                :title="adminText('k00df')"
+              >
+                <component :is="item.icon" class="h-4 w-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">{{ t(item.labelKey) }}</span>
+              </div>
             </div>
 
             <div class="mt-2">
@@ -652,6 +616,15 @@ onMounted(load)
               <Plus class="mr-1 h-4 w-4" />{{ adminText('k00dj') }}
             </Button>
 
+            <div class="mt-2">
+              <div class="mb-1 px-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{{ t('shell.categories') }}</div>
+              <div v-for="category in categories" :key="category.id" class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-colors duration-150" :title="adminText('k00dk')">
+                <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                <span class="truncate">{{ category.label }}</span>
+              </div>
+              <div v-if="!categories.length" class="px-2 py-1 text-[13px] text-muted-foreground">{{ adminText('k00dl') }}</div>
+            </div>
+
             <footer
               class="-mx-1 mt-0 cursor-pointer rounded-md border border-dashed border-transparent px-3 py-1 text-xs leading-5 text-muted-foreground transition hover:border-[var(--gf-color-primary)]/25 hover:bg-[var(--gf-color-primary)]/5"
               @click="footerManageOpen = true"
@@ -679,16 +652,16 @@ onMounted(load)
         </aside>
 
         <main class="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
-          <!-- 分段指示器（最新/热门/流行）+ 视图切换：预览区内可交互，结构与前台一致 -->
+          <!-- tabs（最新/热门/流行）+ 视图切换：预览区内可交互，结构与前台一致（轻量 tab，无轨道） -->
           <div class="flex h-14 items-center justify-between gap-3 border-b border-border px-4">
-            <div class="flex items-center gap-0.5 rounded-lg bg-muted p-0.5" style="box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.06)">
+            <div class="flex items-center gap-2">
               <button
                 v-for="tab in previewTabs"
                 :key="tab.key"
                 type="button"
                 class="rounded-md px-3 py-1.5 text-sm transition-colors duration-150"
                 :class="previewTab === tab.key
-                  ? 'bg-card font-semibold text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)] ring-1 ring-border'
+                  ? 'bg-[var(--gf-color-primary)] font-semibold text-[var(--gf-color-primary-content)]'
                   : 'font-medium text-muted-foreground hover:bg-muted/80 hover:text-foreground'"
                 @click="previewTab = tab.key"
               >
@@ -721,19 +694,6 @@ onMounted(load)
             </div>
           </div>
 
-          <!-- 社区分区快捷导航（CategoryRail 预览：真实分类链接，可横向滚动） -->
-          <div class="flex items-center gap-2 overflow-x-auto border-b border-border px-4 py-3">
-            <a
-              v-for="category in categories"
-              :key="category.id"
-              :href="category.url"
-              class="inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2 py-1 transition-colors duration-150 hover:border-[var(--gf-color-primary)]/30"
-              :style="{ background: `color-mix(in srgb, ${category.color} 6%, var(--gf-color-base-100))` }"
-            >
-              <span class="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-white" :style="{ backgroundColor: category.color }">{{ (category.icon || '').trim() || category.label.slice(0, 1) }}</span>
-              <span class="truncate text-[13px] font-semibold text-foreground/85">{{ category.label }}</span>
-            </a>
-          </div>
 
           <div class="space-y-0 divide-y divide-border px-4">
             <div v-for="index in 7" :key="index" class="py-4">
