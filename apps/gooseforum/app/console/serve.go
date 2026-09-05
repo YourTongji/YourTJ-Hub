@@ -315,7 +315,7 @@ func startBusinessServices() {
 	// Web Push 推送 worker：消费 webpush. 前缀 outbox 任务（通知行创建后入队），
 	// 向用户浏览器订阅发送系统推送。实例未配置 VAPID 密钥时任务直接 no-op
 	// 置 Success（dev 从 main 快照同步的任务行绝不会外发）。
-	webpushservice.RecoverStaleTasks()
+	_ = webpushservice.RecoverStaleTasks()
 	backgroundservice.RunWorker("webpush_worker", webpushservice.TaskTypePush, webpushservice.RunPushTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()

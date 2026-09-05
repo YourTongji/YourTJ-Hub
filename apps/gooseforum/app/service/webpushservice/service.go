@@ -288,7 +288,7 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 
 	payload := notification.Payload
 	title := ""
-	url := ""
+	var url string
 
 	// 深链：wiki 页 → ProfileURL；话题类 → 帖子详情（楼层号稳定优先）；
 	// 关注 → 用户主页；徽章/其余 → 通知中心。
