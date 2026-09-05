@@ -428,6 +428,45 @@ describe('ScheduleDetailList 课评摘要与跳转', () => {
     expect(addBtn.text()).toContain('Add to schedule')
   })
 
+  test('一门课程包含多个教学班时，已加入状态仅显示在当前选定的教学班上，未选班级保持加入课表', async () => {
+    const store = useScheduleStore()
+    store.clearStagedAndSelectedCourses()
+    store.setMajorInfo({ calendarId: 121, grade: 2025, major: '00301' })
+    store.setClickedCourseInfo({ courseCode: '110002', courseName: '大学物理' })
+    const detailA = makeDetail('110002.01')
+    const detailB = makeDetail('110002.02')
+    store.pushStagedCourse(makeStaged('110002', [detailA, detailB]))
+
+    const wrapper = mountList()
+    await flushPromises()
+
+    const addButtons = wrapper.findAll('button.gf-button.gf-button-xs')
+    expect(addButtons.length).toBe(2)
+    // 初始均未加入
+    expect(addButtons[0].text()).toContain('Add to schedule')
+    expect(addButtons[1].text()).toContain('Add to schedule')
+
+    // 选中班级 A
+    await addButtons[0].trigger('click')
+    await flushPromises()
+
+    // 班级 A 显示「已加入」(Added)，班级 B 仍显示「加入课表」(Add to schedule)
+    expect(addButtons[0].text()).toContain('Added')
+    expect(addButtons[0].classes()).toContain('gf-button-primary')
+    expect(addButtons[1].text()).toContain('Add to schedule')
+    expect(addButtons[1].classes()).toContain('gf-button-secondary')
+
+    // 点击切换为班级 B
+    await addButtons[1].trigger('click')
+    await flushPromises()
+
+    // 此时班级 B 变为「已加入」，班级 A 变回「加入课表」
+    expect(addButtons[0].text()).toContain('Add to schedule')
+    expect(addButtons[0].classes()).toContain('gf-button-secondary')
+    expect(addButtons[1].text()).toContain('Added')
+    expect(addButtons[1].classes()).toContain('gf-button-primary')
+  })
+
   test('超长教学班课评列表默认折叠展示前 4 项，并支持展开与收起', async () => {
     getPkCourseReviewBrief.mockResolvedValue({
       courseId: 42,

@@ -33,7 +33,7 @@ import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import { listCourseReviews, type ReviewPage, type ReviewPayload } from '@/runtime/api'
 import { reviewAvatarSrc } from '@/site/utils/course-review-share'
-import { getCourseBaseCode, isSameCourse, type PkConflictItem } from '@/site/utils/pkConflict'
+import { getCourseBaseCode, type PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkArrangement, PkCourseDetail, PkCourseReviewBrief, PkReviewBriefClass } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -385,10 +385,11 @@ function formatArrSlot(arr: PkArrangement): { day: string; sections: string; wee
   return { day, sections, weeks, room }
 }
 
-/** 判断教学班是否已加入课表（暂存 status=1、已选 status=2 或已存在于课表数据中）。 */
+/** 判断具体教学班是否已加入课表（暂存 status=1、已选 status=2 或精确班级课号已在课表中）。 */
 function isClassAdded(detail: PkCourseDetail): boolean {
   if (detail.status === 1 || detail.status === 2) return true
-  return store.state.timeTableData.some((c) => isSameCourse(c.code, detail.code))
+  const target = normalizeClassCode(detail.code)
+  return store.state.timeTableData.some((c) => normalizeClassCode(c.code) === target)
 }
 
 function tryStage(detail: PkCourseDetail) {

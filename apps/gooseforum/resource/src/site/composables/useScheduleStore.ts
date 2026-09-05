@@ -611,10 +611,12 @@ export function useScheduleStore() {
     const course = plan.stagedCourses.find((c) => c.courseCode === courseCode)
     if (!course) return
     for (const detail of course.courseDetail) {
-      if (detail.status === COURSE_STATUS.STAGED) {
+      if (detail.status === COURSE_STATUS.STAGED || detail.status === COURSE_STATUS.SELECTED) {
         detail.status = COURSE_STATUS.UNSELECTED
       }
     }
+    plan.selectedCourses = plan.selectedCourses.filter((code) => !isClassOfCourse(code, courseCode))
+    state.commonLists.selectedCourses = plan.selectedCourses
     course.status = COURSE_STATUS.UNSELECTED
     syncActiveView()
   }
