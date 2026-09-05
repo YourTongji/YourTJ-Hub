@@ -146,6 +146,7 @@ abstract class UnreadStatusPayload with _$UnreadStatusPayload {
   const factory UnreadStatusPayload({
     required bool notifications,
     required bool messages,
+    bool? moderationReports,
     String? latestNotificationType,
     int? latestUnreadId,
   }) = _UnreadStatusPayload;
