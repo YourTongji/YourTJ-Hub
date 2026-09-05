@@ -5,6 +5,7 @@ import 'vditor/dist/index.css'
 import luteUrl from 'vditor/dist/js/lute/lute.min.js?url'
 import antIconUrl from 'vditor/dist/js/icons/ant.js?url'
 import enUrl from 'vditor/dist/js/i18n/en_US.js?url'
+import deUrl from 'vditor/dist/js/i18n/de_DE.js?url'
 import jaUrl from 'vditor/dist/js/i18n/ja_JP.js?url'
 import zhUrl from 'vditor/dist/js/i18n/zh_CN.js?url'
 import katexJsUrl from 'katex/dist/katex.min.js?url'
@@ -137,7 +138,7 @@ const OFFICIAL_TOOLBAR: Array<string | IMenuItem> = [
 
 const languageAssets = {
   en: { lang: 'en_US', url: enUrl },
-  it: { lang: 'en_US', url: enUrl },
+  de: { lang: 'de_DE', url: deUrl },
   ja: { lang: 'ja_JP', url: jaUrl },
   zh: { lang: 'zh_CN', url: zhUrl },
 } as const
@@ -1773,11 +1774,11 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
   opacity: 0.9;
 }
 
-/* ===== 英文/意大利文标签更宽：10px 下溢出/截断，缩到 9px 保持单行 =====
+/* ===== 英文/德文标签更宽：10px 下溢出/截断，缩到 9px 保持单行 =====
  * 仅命中主行「图标下小字」（选择器粒度与 L1428 图标-only 隐藏规则一致），
  * 与 more 子菜单 / 折叠区 12px 文字（L1410-1417 / L1459-1466）正交。 */
 .vditor-official[data-locale='en'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label,
-.vditor-official[data-locale='it'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label {
+.vditor-official[data-locale='de'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label {
   font-size: 9px;
 }
 

@@ -170,11 +170,11 @@ func prepareServeRuntime() {
 }
 
 type serveRuntime struct {
-	server        *http.Server
-	startupGate   *middleware.StartupGate
-	listener      net.Listener
-	quit          chan os.Signal
-	shutdownOnce  sync.Once
+	server       *http.Server
+	startupGate  *middleware.StartupGate
+	listener     net.Listener
+	quit         chan os.Signal
+	shutdownOnce sync.Once
 	// startupDone 在启动 goroutine（迁移）落定后关闭。wait() 收到 quit 信号后
 	// 必须先等它再读 fatalErr：外部信号/测试可能抢在 setFatal 之前把信号入队，
 	// 若无此屏障会读到 nil，把致命迁移错误吞掉（#370 遗留竞态）。
