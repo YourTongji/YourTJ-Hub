@@ -231,12 +231,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
-	if securityConfig.EnableEmailVerification && userEntity.IsActivated == users.ActivationPending {
-		c.JSON(200, component.FailDataCode(component.MessageAuthEmailUnverified, nil))
-		return
-	}
-
+	// 待激活账号允许重新登录：写权限在权限层由 CheckWritableAccount 拦截
+	// （permission.emailRequired），会话本身不授予写能力，pending 用户借此
+	// 找回过期会话后可继续走 resend-activation-email 激活恢复（issue #427）。
 	// 封禁用户不允许登录（与 OIDC/goth 路径的冻结检查一致）。
 	if userEntity.IsFrozen == users.StatusFrozen {
 		c.JSON(200, component.FailDataCode(component.MessageAuthAccountFrozen, nil))

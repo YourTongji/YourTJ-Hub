@@ -36,13 +36,13 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI := forumAPI.Use(middleware.JWTAuthCheck)
 	forumLoginAPI.GET("/unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginAPI.GET("/notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
-	forumLoginAPI.POST("/notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
-	forumLoginAPI.POST("/notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
+	forumLoginAPI.POST("/notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
+	forumLoginAPI.POST("/notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
 
 	chatAPI := forumAPI.Group("/chat", middleware.JWTAuthCheck)
 	chatAPI.POST("/send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatAPI.POST("/messages", UpButterReq(api.GetMessages))
-	chatAPI.POST("/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
+	chatAPI.POST("/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
 	return conn, router
 }
 
@@ -345,6 +345,67 @@ func TestChatMarkReadHTTPContract(t *testing.T) {
 		recorder := serveJSON(router, "/api/forum/chat/mark-read", `{"convId":987654321}`, contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
+	})
+}
+
+// TestPendingUserReadStateCleanupAllowed 未读清理放行变体（issue #427）：
+// pending 用户仅清理自己的读状态、不产生内容写，notification/chat mark-read
+// 不被拦截；冻结拦截在放行变体中保留（已由上方 frozen 用例 pin 住）。
+func TestPendingUserReadStateCleanupAllowed(t *testing.T) {
+	t.Run("pending user can mark notification read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		notificationID := contractTestID()
+		createContractNotification(t, conn, notificationID, user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{Title: "契约待读通知", ActorId: user.Id}, time.Now())
+		body := fmt.Sprintf(`{"notificationId":%d}`, notificationID)
+
+		recorder := serveJSON(router, "/api/forum/notification/mark-read", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending notification mark-read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-read-success.json"))
+	})
+
+	t.Run("pending user can mark all notifications read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+
+		recorder := serveJSON(router, "/api/forum/notification/mark-all-read", `{}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending notification mark-all-read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-all-read-success.json"))
+	})
+
+	t.Run("pending user can mark chat read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		convID := contractTestID()
+		createContractConversation(t, conn, convID, user.Id, peer.Id)
+		body := fmt.Sprintf(`{"convId":%d}`, convID)
+
+		recorder := serveJSON(router, "/api/forum/chat/mark-read", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending chat mark-read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-success.json"))
+	})
+
+	t.Run("pending user cannot mark another conversation read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		// 放行变体不豁免越权：非会话成员仍被拒绝（CWE-639 回归）。
+		recorder := serveJSON(router, "/api/forum/chat/mark-read", `{"convId":987654321}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
 	})

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const locales = ['zh', 'en', 'ja', 'it']
+const locales = ['zh', 'en', 'ja', 'de']
 
 /**
  * 粗解析 TS locale 文件为嵌套键集合。

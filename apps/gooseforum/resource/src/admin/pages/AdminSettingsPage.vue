@@ -463,7 +463,7 @@ function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
     globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
     baseUrl: (settings.baseUrl ?? '').trim().replace(/\/+$/, ''),
     model: (settings.model ?? '').trim(),
-    apiKey: '',
+    apiKey: settings.apiKey ?? '',
     apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
     temperature,
     maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
@@ -846,7 +846,17 @@ async function save() {
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
-    else if (props.kind === 'ai-summary') await saveAiSummarySettings(aiSummaryPayload())
+    else if (props.kind === 'ai-summary') {
+      await saveAiSummarySettings(aiSummaryPayload())
+      // 保存后立即同步徽标并清空明文 key：填了新 key（非留空=保留旧 key）即
+      // 视为已配置。清空后该标签页后续保存（如改 temperature）不再重发/重加密
+      // 同一明文，多管理员/多标签轮换 key 时旧表单不会静默恢复旧 key
+      // （空 = 保留已存密文语义，与 saveCookie 保存后清空一致）。
+      if (aiSummaryForm.apiKey.trim() !== '') {
+        aiSummaryForm.apiKeyConfigured = true
+        aiSummaryForm.apiKey = ''
+      }
+    }
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))

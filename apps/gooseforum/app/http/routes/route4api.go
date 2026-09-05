@@ -193,10 +193,12 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
 	// TOTP 写操作校验账户密码或 6 位验证码（setup/enable/disable），挂 RateLimit 防止暴力破解；
-	// status 只读 enabled 标志、不验证任何凭据，无需限流。
-	loginApi.POST("user/totp/setup", middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
-	loginApi.POST("user/totp/enable", middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
-	loginApi.POST("user/totp/disable", middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
+	// 同时挂 CheckWritableAccount：pending/冻结账号不得变更 2FA 状态（issue #427，与
+	// change-password 等账户写操作口径一致）；status 只读 enabled 标志、不验证任何凭据，
+	// 无需限流也不挂写门禁。
+	loginApi.POST("user/totp/setup", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/enable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
+	loginApi.POST("user/totp/disable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
 	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
 
 	// PK 排课器 13 端点（Issue #187）：公开只读，统一 {code,msg,data} 信封，
@@ -253,8 +255,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
-	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
-	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
+	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的
+	// 读状态、不产生内容写（issue #427），未读角标无需等待激活才能清除；冻结
+	// 拦截保留。
+	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
+	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
 	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicStatus), UpButterReq(api.UpdateTopicStatus))
 	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))
@@ -334,7 +339,7 @@ func apiRoute(ginApp *gin.Engine) {
 	agentApi.GET("search", UpQueryReq(forum.SearchJSON))
 	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
-	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
+	chatApi.POST("mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 

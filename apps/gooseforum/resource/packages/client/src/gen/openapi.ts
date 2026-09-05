@@ -238,7 +238,9 @@ export interface paths {
         /**
          * Retrieve the authenticated user's TOTP status
          * @description Returns only whether TOTP is currently enabled. Recovery-code inventory is intentionally not
-         *     exposed by this endpoint. Frozen accounts are not rejected, allowing account recovery actions.
+         *     exposed by this endpoint. The route is read-only and not writable-account-gated: frozen and
+         *     pending (unactivated) accounts are not rejected, so 2FA status remains readable during
+         *     account recovery (issue #427).
          */
         get: operations["getTotpStatus"];
         put?: never;
@@ -262,8 +264,10 @@ export interface paths {
          * Provision a TOTP secret for the authenticated user
          * @description Requires the account password as re-authentication. The secret and otpauth URI are returned
          *     once for authenticator enrollment; setup leaves TOTP disabled until enable is called. Calling
-         *     setup for an already enabled account returns `totp.alreadyEnabled`. Frozen accounts are not
-         *     rejected by this route because it is not a writable-account operation.
+         *     setup for an already enabled account returns `totp.alreadyEnabled`. The route is a
+         *     writable-account operation (issue #427): frozen accounts are rejected with
+         *     `permission.userFrozen`, and pending accounts (email verification enabled) with
+         *     `permission.emailRequired`.
          */
         post: operations["setupTotp"];
         delete?: never;
@@ -286,7 +290,9 @@ export interface paths {
          * @description Verifies the current six-digit code for a provisioned secret, marks TOTP enabled, and returns
          *     ten one-time recovery codes. Recovery codes are shown only in this success response. Calling
          *     enable without setup returns `totp.notEnabled`; calling it after enable returns
-         *     `totp.alreadyEnabled`. Frozen accounts are not rejected by this route.
+         *     `totp.alreadyEnabled`. The route is a writable-account operation (issue #427): frozen
+         *     accounts are rejected with `permission.userFrozen`, and pending accounts (email
+         *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["enableTotp"];
         delete?: never;
@@ -308,7 +314,9 @@ export interface paths {
          * Disable TOTP for the authenticated user
          * @description Accepts either the current TOTP code or the account password. Disabling removes all stored
          *     recovery codes and returns a human-readable success result. Calling disable when TOTP is not
-         *     enabled returns `totp.notEnabled`. Frozen accounts are not rejected by this route.
+         *     enabled returns `totp.notEnabled`. The route is a writable-account operation (issue #427):
+         *     frozen accounts are rejected with `permission.userFrozen`, and pending accounts (email
+         *     verification enabled) with `permission.emailRequired`.
          */
         post: operations["disableTotp"];
         delete?: never;
@@ -10451,7 +10459,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10503,7 +10511,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10555,7 +10563,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            /** @description Rejected by the account write gate or the CSRF gate. `permission.userFrozen` for frozen accounts, `permission.emailRequired` for pending accounts (issue #427), or a cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
             403: {
                 headers: {
                     [name: string]: unknown;
