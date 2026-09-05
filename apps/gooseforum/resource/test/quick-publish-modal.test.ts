@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import Draggable from 'vuedraggable'
 import QuickPublishModal from '../src/site/components/QuickPublishModal.vue'
 import { i18n } from '../src/runtime/i18n'
 import { useQuickPublish } from '../src/site/composables/useQuickPublish'
@@ -193,5 +194,74 @@ describe('QuickPublishModal 组件', () => {
     // 等待退场过渡结束后被异步清空
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(quickPublishEditPayload.value).toBeNull()
+  })
+  test('多图触控降级：删除/左右移按钮豁免拖拽热区，触屏启用长按延迟与位移阈值', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.uploadedImages = [
+      { id: 'img_1', url: '/img/first.webp', alt: 'first' },
+      { id: 'img_2', url: '/img/second.webp', alt: 'second' },
+    ]
+    await flushPromises()
+
+    // 拖拽列表对触控做点按/拖拽降级配置（issue #455）
+    const draggableWrapper = wrapper.findComponent(Draggable)
+    expect(draggableWrapper.exists()).toBe(true)
+    const attrs = draggableWrapper.vm.$attrs as Record<string, unknown>
+    expect(String(attrs['filter'])).toContain('gf-image-card-btn')
+    expect(attrs['prevent-on-filter']).toBe(false)
+    expect(attrs['delay-on-touch-only']).toBe(true)
+    expect(Number(attrs['delay'])).toBeGreaterThanOrEqual(100)
+    expect(Number(attrs['touch-start-threshold'])).toBeGreaterThan(0)
+
+    // 2 张图 → 删除 ×2 + 右移 ×1 + 左移 ×1，均带豁免类
+    const actionButtons = document.body.querySelectorAll('button.gf-image-card-btn')
+    expect(actionButtons.length).toBe(4)
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('点击缩略图右上角删除按钮可移除对应图片', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.uploadedImages = [
+      { id: 'img_1', url: '/img/first.webp', alt: 'first' },
+      { id: 'img_2', url: '/img/second.webp', alt: 'second' },
+    ]
+    await flushPromises()
+
+    const deleteBtn = document.body.querySelector(`button[aria-label="${i18n.global.t('publish.modal.deleteImage')}"]`) as HTMLButtonElement | null
+    expect(deleteBtn).not.toBeNull()
+    deleteBtn?.click()
+    await flushPromises()
+
+    expect(vm.uploadedImages.length).toBe(1)
+    expect(vm.uploadedImages[0].url).toBe('/img/second.webp')
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
   })
 })
