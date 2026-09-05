@@ -48,9 +48,11 @@
 
 ### 静态资产缓存（反向代理注意事项）
 
-单二进制自身负责静态资产与文件下载的生产缓存头（实现：
-`app/http/httputil/cache.go` + `app/http/middleware/browsercache.go`，
-`app.env=production` 才生效；本地/开发响应不带缓存头）：
+单二进制自身负责静态资产与文件下载的缓存头（实现：
+`app/http/httputil/cache.go` + `app/http/middleware/browsercache.go`）。
+`/assets/*` 与 `/static/*` 的挂载级缓存中间件（`AssetsCache`/`BrowserCache`）
+仅在 `app.env=production` 生效，本地/开发响应不带缓存头；`/file/img/*` 与
+下方 PWA 文件（`servePWAStatic`）的缓存头不区分环境，恒定输出：
 
 | 路径 | 2xx 响应头 | 说明 |
 | --- | --- | --- |
@@ -73,13 +75,15 @@ nginx `add_header` 是追加而非覆盖：一旦代理层再发一个 `Cache-Co
 修改保存后 1Panel 自动 reload；手动重载：
 `docker exec <openresty容器> nginx -t && docker exec <openresty容器> nginx -s reload`。
 
-部署/变更后验收（每条响应必须只出现一行 `cache-control`）：
+部署/变更后验收（每条响应必须只出现一行 `cache-control`）。统一用 GET 探测
+（丢弃 body、保留响应头）：`/sw.js` 与 `/` 只注册了 GET 处理器，HEAD
+（`curl -I`）会落入 NoRoute 返回 404（HEAD 契约见 `contract_head_http_test.go`）：
 
 ```bash
-curl -sI https://f.yourtj.de/assets/assets/<当前entry>.js   # public, max-age=31536000, immutable
-curl -sI https://f.yourtj.de/static/pic/icon.webp           # public, max-age=18144000
-curl -sI https://f.yourtj.de/sw.js                          # no-cache
-curl -sI https://f.yourtj.de/                               # no-store 系（HTML 不缓存）
+curl -sS -D - -o /dev/null https://f.yourtj.de/assets/assets/<当前entry>.js   # public, max-age=31536000, immutable
+curl -sS -D - -o /dev/null https://f.yourtj.de/static/pic/icon.webp           # public, max-age=18144000
+curl -sS -D - -o /dev/null https://f.yourtj.de/sw.js                          # no-cache
+curl -sS -D - -o /dev/null https://f.yourtj.de/                               # no-store 系（HTML 不缓存）
 ```
 
 排查技巧：绕过代理直打上游可二分定位注入方——`curl -sI http://127.0.0.1:5234/assets/...`
