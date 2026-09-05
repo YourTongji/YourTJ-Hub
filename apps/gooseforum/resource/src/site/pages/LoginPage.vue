@@ -7,6 +7,7 @@ import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runti
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
+import { safeUrl } from '@/runtime/safe-url'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -78,7 +79,13 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
-const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.webp')
+// 与 AppShell 同一契约：仅 brandType === 'image' 且 URL 通过 safeUrl 消毒时采用
+// 管理端自定义品牌图；默认字标按主题切换（浅色 Light 黑字 / 深色 Dark 白字）。
+// 历史脏配置（brandType=default 但 brandImage 残留旧浅色 PNG）不再短路主题切换。
+const brandImage = computed(() => {
+  const custom = page.layout.site.brandType === 'image' ? safeUrl(page.layout.site.brandImage, 'image') : ''
+  return custom || (isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp')
+})
 
 onMounted(() => {
   refreshCaptcha()

@@ -12,6 +12,8 @@ import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@
 import type { BulkImportPreview } from '@/admin/bulkImport'
 import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
+import { normalizeAnnouncement, serializeAnnouncement } from '@/admin/utils/announcement'
+import { toBool } from '@/admin/utils/toBool'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
 import { Badge } from '@/admin/components/ui/badge'
@@ -358,17 +360,6 @@ const httpNotifyGuideHtml = computed(() => {
   return guideMarkdown.render(guides[guideLocale as keyof typeof guides] || httpNotifyGuideZh)
 })
 
-function toBool(value: unknown, fallback = false) {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'number') return value === 1
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (['true', '1', 'yes', 'on', 'enabled'].includes(normalized)) return true
-    if (['false', '0', 'no', 'off', 'disabled', ''].includes(normalized)) return false
-  }
-  return fallback
-}
-
 function normalizeSite(settings: Partial<SiteSettings> = {}) {
   return {
     siteName: settings.siteName ?? '',
@@ -622,32 +613,6 @@ function validateHttpNotify(settings: HttpNotifySettings) {
   return true
 }
 
-function normalizeAnnouncement(settings: Partial<AnnouncementConfig> = {}) {
-  const items = settings.items ?? []
-  // 旧版单则数据迁移为一条 legacy 公告，保证编辑入口不丢失
-  if (items.length === 0 && settings.content) {
-    return {
-      enabled: toBool(settings.enabled, false),
-      content: settings.content ?? '',
-      items: [{ id: 'legacy', title: '', content: settings.content, enabled: true }],
-    } satisfies AnnouncementConfig
-  }
-  return {
-    enabled: toBool(settings.enabled, false),
-    content: settings.content ?? '',
-    items,
-  } satisfies AnnouncementConfig
-}
-
-function serializeAnnouncement(): AnnouncementConfig {
-  const items = (announcementForm.items ?? []).filter((item) => item.content.trim())
-  const isLegacyOnly = items.length === 1 && items[0].id === 'legacy'
-  return {
-    enabled: announcementForm.enabled,
-    content: isLegacyOnly ? items[0].content : announcementForm.content,
-    items: isLegacyOnly ? [] : items,
-  }
-}
 
 function addAnnouncementItem() {
   if (!announcementForm.items) announcementForm.items = []
@@ -861,7 +826,7 @@ async function save() {
     else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
     else if (props.kind === 'schedule') await saveScheduleSettings(normalizeSchedule(scheduleForm))
-    else await saveAnnouncement(serializeAnnouncement())
+    else await saveAnnouncement(serializeAnnouncement(announcementForm))
     adminToast.success(adminText('k000e'))
   } catch (err) {
     adminToast.error(err, adminText('k000f'))

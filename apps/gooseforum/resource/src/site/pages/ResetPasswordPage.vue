@@ -3,6 +3,8 @@ import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, LoaderCircle } from '@lucide/vue'
 import { resetPassword } from '@/runtime/api'
+import { useSiteTheme } from '@/runtime/site-theme'
+import { safeUrl } from '@/runtime/safe-url'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import type { LayoutPayload, ResetPasswordPageProps } from '@gooseforum/client'
 
@@ -11,6 +13,17 @@ const page = defineProps<{
   props: ResetPasswordPageProps
 }>()
 const { t } = useI18n()
+const { isDark } = useSiteTheme()
+
+// 与 AppShell 同一契约：仅 brandType === 'image' 且 URL 通过 safeUrl 消毒时采用
+// 管理端自定义品牌图；默认字标按主题切换：Light 变体黑字（浅色主题），Dark 变体白字（深色主题）。
+// 历史脏配置（brandType=default 但 brandImage 残留旧浅色 PNG）不再短路主题切换。
+const customBrandImage = computed(() =>
+  page.layout.site.brandType === 'image' ? safeUrl(page.layout.site.brandImage, 'image') : '',
+)
+const defaultBrandImage = computed(() =>
+  isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp',
+)
 
 const form = reactive({
   password: '',
@@ -56,14 +69,14 @@ async function submit() {
       <div class="gf-card grid w-full overflow-hidden border-0 shadow-none sm:border sm:shadow-[0_2px_12px_rgb(0_0_0/calc(var(--gf-depth)*0.04))] md:grid-cols-2">
         <div class="flex min-h-screen flex-col justify-center px-4 py-12 sm:min-h-[470px] sm:px-8 sm:py-6">
           <a href="/" class="mb-6 inline-flex items-baseline text-[27px] font-semibold leading-none tracking-[-0.04em] text-primary">
-            <span v-if="page.layout.site.brandImage && page.layout.site.brandType !== 'text'" class="inline-flex">
-              <img :src="page.layout.site.brandImage" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
+            <span v-if="customBrandImage" class="inline-flex">
+              <img :src="customBrandImage" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
             </span>
             <span v-else-if="page.layout.site.brandType === 'text'">
               {{ page.layout.site.brandText || page.layout.site.name }}
             </span>
             <span v-else class="inline-flex">
-              <img src="/static/pic/brand-default.webp" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
+              <img :src="defaultBrandImage" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
             </span>
           </a>
 
