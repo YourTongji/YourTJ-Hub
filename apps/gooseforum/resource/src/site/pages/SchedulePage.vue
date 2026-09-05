@@ -9,7 +9,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
-import { Download, RefreshCw, Star, X } from '@lucide/vue'
+import { Download, Loader2, RefreshCw, Star, X } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import ScheduleConfigSection from '@/site/components/schedule/ScheduleConfigSection.vue'
 import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
@@ -333,10 +333,12 @@ onBeforeUnmount(() => {
             v-if="dataOutdated"
             type="button"
             class="gf-button gf-button-md gf-button-primary"
+            :disabled="syncing"
             @click="syncLatest"
           >
-            <RefreshCw class="h-4 w-4" />
-            {{ t('schedule.syncLatest') }}
+            <Loader2 v-if="syncing" class="h-4 w-4 animate-spin" />
+            <RefreshCw v-else class="h-4 w-4" />
+            {{ syncing ? t('schedule.syncSyncing') : t('schedule.syncLatest') }}
           </button>
           <div ref="exportRoot" class="relative">
             <button

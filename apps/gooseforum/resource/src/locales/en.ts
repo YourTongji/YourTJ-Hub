@@ -479,6 +479,7 @@ export default {
     dropCourse: 'Drop',
     clear: 'Clear',
     syncLatest: 'Sync Latest',
+    syncSyncing: 'Syncing…',
     syncSuccess: 'Synced successfully',
     loading: 'Loading…',
     emptyRequired: 'No required courses available',

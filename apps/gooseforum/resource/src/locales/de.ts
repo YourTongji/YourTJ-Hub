@@ -479,6 +479,7 @@ export default {
     dropCourse: 'Entfernen',
     clear: 'Leeren',
     syncLatest: 'Synchronisieren',
+    syncSyncing: 'Wird synchronisiert…',
     syncSuccess: 'Synchronisiert',
     loading: 'Wird geladen…',
     emptyRequired: 'Keine Pflichtkurse verfügbar',
