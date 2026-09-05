@@ -455,8 +455,8 @@ function onToggleTheme() {
 
         <aside class="relative hidden overflow-hidden border-t border-line md:block md:border-l md:border-t-0">
           <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-info/5 to-base-100" />
-          <div class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15" />
-          <div class="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-info/15" />
+          <div class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
+          <div class="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-info/15 blur-3xl" />
 
           <div class="relative flex h-full min-h-[470px] flex-col justify-between gap-8 p-8">
             <div>
