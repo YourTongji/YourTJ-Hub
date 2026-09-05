@@ -23,6 +23,11 @@ package routes
 //     byte change always changes the URL) — with an empty body.
 //     TestHeadContractAssetsMatchGet probes a file the Vite manifest actually
 //     emits and skips when the build output is missing.
+//   - both mounts answer *missing* files with 404 + Cache-Control: no-store:
+//     the cache middlewares defer the header decision to the final response
+//     status (httputil.DeferCacheHeader), so failure responses — e.g. a
+//     content-hashed chunk the previous bundle references during a deploy
+//     rollback — are never pinned into caches under the long max-age.
 //   - everything else (dynamic GET routes): HEAD 404 even when GET 200 —
 //     load balancer and monitor probes must use GET. HEAD never executes a
 //     write-side controller because no write route registers HEAD; that
@@ -57,11 +62,10 @@ const staticBadgeAsset = "/static/badges/commenter-50.svg"
 // does (RegisterByGin) with app.env pinned to production so the Vite dev
 // proxy is not registered and both static mounts apply their production
 // cache headers (BrowserCache long-public on /static, AssetsCache immutable
-// on /assets). The
-// gzip middleware is installed at router registration time (assertRouter
-// reads server.gzip once), so server.gzip is pinned on here and restored on
-// cleanup: the gzip negotiation assertions below must hold regardless of the
-// developer's local [server].gzip setting.
+// on /assets). The gzip middleware is installed at router registration time
+// (assertRouter reads server.gzip once), so server.gzip is pinned on here and
+// restored on cleanup: the gzip negotiation assertions below must hold
+// regardless of the developer's local [server].gzip setting.
 func setupHeadContractRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	setupMcpRouteTestDB(t) // mcpRoute needs the page_config table migrated
@@ -331,6 +335,41 @@ func TestHeadContractAssetsMatchGet(t *testing.T) {
 	}
 	if got := getResp.Header.Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
 		t.Errorf("GET %s Cache-Control = %q, want public, max-age=31536000, immutable", assetPath, got)
+	}
+}
+
+// TestHeadContractMissingAssetsAreNotCacheable pins the failure half of the
+// cache contract (Codex review): a *missing* asset answers the NoRoute 404
+// with Cache-Control: no-store — never the mount's long max-age. During a
+// deploy rollback the previous bundle can reference hashed chunks the current
+// binary does not embed; a 404 pinned under the immutable/long-public header
+// would keep serving that failure from browser and shared caches for months
+// even after the binary is restored.
+func TestHeadContractMissingAssetsAreNotCacheable(t *testing.T) {
+	router := setupHeadContractRouter(t)
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+	client := headContractClient()
+
+	for _, path := range []string{
+		"/assets/missing-chunk-a1b2c3d4e5.js",
+		"/static/definitely-not-a-real-file-477.svg",
+	} {
+		resp := headContractRequest(t, client, http.MethodGet, srv.URL+path, "")
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read GET %s body: %v", path, err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s status = %d, want 404", path, resp.StatusCode)
+		}
+		if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+			t.Errorf("GET %s Cache-Control = %q, want no-store (failure responses must never carry the mount max-age)", path, got)
+		}
+		if len(body) == 0 {
+			t.Errorf("GET %s body is empty, want the NoRoute JSON envelope", path)
+		}
 	}
 }
 

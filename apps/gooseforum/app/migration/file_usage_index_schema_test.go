@@ -181,10 +181,12 @@ func TestFileNameIndexAddedOnLegacySchema(t *testing.T) {
 	exerciseFileNameIndexUpgrade(t, conn)
 }
 
-// TestFileNameIndexAddedOnLegacySchemaOnPostgreSQL 同上，PostgreSQL 版（生产
-// 默认库方言，模型/迁移变更必须过 PG 门禁）。
+// TestSchemaFileNameIndexAddedOnLegacySchemaOnPostgreSQL 同上，PostgreSQL 版
+// （生产默认库方言，模型/迁移变更必须过 PG 门禁）。TestSchema 前缀是刻意的：
+// CI 的 ci-backend-pg job 以 -run 'TestSchema' 圈定迁移包 PG 用例，同名模式的
+// 新用例自动纳入（workflow 注释即约定），PG 门禁之外的命名会在 CI 中静默跳过。
 // 依赖 YOURTJ_TEST_PG_URL，未设置时跳过。
-func TestFileNameIndexAddedOnLegacySchemaOnPostgreSQL(t *testing.T) {
+func TestSchemaFileNameIndexAddedOnLegacySchemaOnPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {
 		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL file_usage index test")

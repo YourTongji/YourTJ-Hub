@@ -130,7 +130,11 @@ both with an empty body on the wire.
 `HEAD`/`GET` for a *missing* asset are both the same NoRoute 404: gin's
 StaticFS handler hands failed file opens to the engine's NoRoute chain
 (`controllers.NotFound`), so both methods answer the identical 404 JSON
-envelope — HEAD simply never sends the body on the wire. The `/assets`
+envelope — HEAD simply never sends the body on the wire. Failure responses
+carry `Cache-Control: no-store`, never a mount max-age: both cache
+middlewares defer the header decision to the final response status
+(`httputil.DeferCacheHeader`), so a missing content-hashed chunk during a
+deploy rollback cannot be pinned into browser or shared caches. The `/assets`
 contract tests probe a file the Vite build actually emits
 (`static/dist/.vite/manifest.json`, site entry) and skip when the build
 output is absent — `dist/` is never committed and CI never builds the
@@ -180,8 +184,10 @@ the registered HEAD route set is exactly the static mounts + `/mcp`; `/static`
 HEAD equals GET in status and headers (including the long-public
 `Cache-Control`); `/assets` HEAD equals GET including the immutable
 `Cache-Control`, probed against a manifest-emitted file and skipped without
-`pnpm build`; dynamic GET routes and write-only endpoints answer 404 to HEAD;
-and no body ever reaches the wire on HEAD. The
+`pnpm build`; missing assets on both mounts answer 404 with
+`Cache-Control: no-store` (`TestHeadContractMissingAssetsAreNotCacheable`);
+dynamic GET routes and write-only endpoints answer 404 to HEAD; and no body
+ever reaches the wire on HEAD. The
 tests pin `server.gzip` on, so the gzip assertions hold under any local
 `[server].gzip` setting.
 
