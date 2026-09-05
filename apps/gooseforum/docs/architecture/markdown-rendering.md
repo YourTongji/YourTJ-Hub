@@ -168,15 +168,21 @@ Current client enhancement:
 - Fenced ` ```mermaid ` code blocks are rendered as SVG by the
   `v-content-enhancements` directive on saved topic/post HTML, reply quotes and
   revision history, and by the Vditor editor preview (its `mermaidRender` is
-  overridden to load the same lazy chunk). The Mermaid chunk (JS) is imported
-  only after a `language-mermaid` block is detected, so pages without diagrams
-  keep the base bundle unchanged. Rendering uses strict Mermaid settings
-  (`securityLevel: strict`, `suppressErrorRendering`), follows the site
-  dark/light theme, and every failure — including input over 50,000 characters
-  — keeps the original source code block with an error marker. Server-side
-  goldmark output and the stored Markdown are never modified, and the two
-  rendering paths stay version-aligned because the editor preview shares the
-  same lazy Mermaid chunk as the directive.
+  overridden to load the same lazy chunk and to share the module's serial
+  render queue). The Mermaid chunk (JS) is imported only after a
+  `language-mermaid` block is detected, so pages without diagrams keep the
+  base bundle unchanged, and a failed chunk load resets the cached promise so
+  a later render can retry. Rendering uses strict Mermaid settings
+  (`securityLevel: strict`, `suppressErrorRendering`) and follows the site
+  dark/light theme: the shared instance is re-initialized whenever the theme
+  flips during an SPA session, so diagrams rendered afterwards pick up the
+  new theme without a page reload. Every failure — including input over
+  50,000 characters — keeps the original source code block with an error
+  marker, and a successful render replaces the whole `code-copy` wrapper (the
+  `v-code-copy` directive wraps `<pre>` blocks), so no dangling copy button
+  is left behind. Server-side goldmark output and the stored Markdown are
+  never modified, and the two rendering paths stay version-aligned because
+  the editor preview shares the same lazy Mermaid chunk as the directive.
 
 Client enhancement libraries should decorate already-rendered content, load
 lazily (preferably by detecting matching code fences or inline markers), and

@@ -121,6 +121,17 @@ describe('enhanceMermaid', () => {
     expect(deps.renderDiagram).toHaveBeenCalledTimes(1)
   })
 
+  test('replaces the whole code-copy wrapper so no dangling copy button remains', async () => {
+    const root = diagramRoot(`<div class="gf-code-block">${mermaidBlockHtml()}<button class="gf-code-copy">Copy</button></div>`)
+    const deps = renderDeps()
+
+    await enhanceMermaid(root, deps)
+
+    expect(root.querySelector('.gf-code-block')).toBeNull()
+    expect(root.querySelector('.gf-code-copy')).toBeNull()
+    expect(root.querySelector('.gf-content-diagram-mermaid')).not.toBeNull()
+  })
+
   test('skips blocks already claimed by a previous pass', async () => {
     const root = diagramRoot(mermaidBlockHtml())
     root.querySelector('pre')!.dataset.gfEnhancement = 'mermaid'
@@ -148,6 +159,53 @@ describe('resolveMermaidTheme', () => {
 
     delete document.documentElement.dataset.theme
     expect(resolveMermaidTheme()).toBe('default')
+  })
+})
+
+describe('loadMermaid singleton behavior', () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.theme
+    vi.doUnmock('mermaid')
+    vi.resetModules()
+  })
+
+  test('re-initializes the shared instance when the site theme flips during the SPA lifetime', async () => {
+    vi.resetModules()
+    vi.doMock('mermaid', () => ({
+      default: { initialize: vi.fn(), render: vi.fn() },
+    }))
+    const mermaidModule = await import('mermaid')
+    const { loadMermaid } = await import('../src/runtime/content-enhancements/mermaid')
+
+    document.documentElement.dataset.theme = 'gf-light'
+    const first = await loadMermaid()
+    expect(mermaidModule.default.initialize).toHaveBeenCalledTimes(1)
+    expect(mermaidModule.default.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: 'default' }))
+
+    document.documentElement.dataset.theme = 'gf-dark'
+    const second = await loadMermaid()
+    expect(second).toBe(first)
+    expect(mermaidModule.default.initialize).toHaveBeenCalledTimes(2)
+    expect(mermaidModule.default.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: 'dark' }))
+
+    // 同一主题下重复调用不重复 initialize。
+    await loadMermaid()
+    expect(mermaidModule.default.initialize).toHaveBeenCalledTimes(2)
+  })
+
+  test('resets the cached promise when the chunk fails to load, so a later call can retry', async () => {
+    vi.resetModules()
+    let attempt = 0
+    vi.doMock('mermaid', () => {
+      if (attempt === 0) throw new Error('chunk fetch failed')
+      return { default: { initialize: vi.fn(), render: vi.fn() } }
+    })
+    const { loadMermaid } = await import('../src/runtime/content-enhancements/mermaid')
+
+    // vitest 会包装 mock factory 抛出的错误，这里只断言「首次加载失败」这一行为。
+    await expect(loadMermaid()).rejects.toThrow()
+    attempt = 1
+    await expect(loadMermaid()).resolves.toBeTruthy()
   })
 })
 

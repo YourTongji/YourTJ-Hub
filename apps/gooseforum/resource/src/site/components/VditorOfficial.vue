@@ -17,7 +17,7 @@ import hljsDarkCssUrl from 'highlight.js/styles/github-dark.css?url'
 import hljs from 'highlight.js'
 import { currentLocale } from '@/runtime/i18n'
 import { loadRuntimeScript } from '@/runtime/runtime-script'
-import { loadMermaid, nextMermaidDiagramId } from '@/runtime/content-enhancements/mermaid'
+import { loadMermaid, nextMermaidDiagramId, renderDiagram } from '@/runtime/content-enhancements/mermaid'
 import { useSiteTheme } from '@/runtime/site-theme'
 import { useI18n } from 'vue-i18n'
 
@@ -992,7 +992,7 @@ function overrideMermaidPreviewRender() {
         if (block.getAttribute('data-processed') === 'true' || !block.textContent?.trim()) continue
         block.setAttribute('data-processed', 'true')
         try {
-          const { svg } = await mermaid.render(nextMermaidDiagramId('gf-vditor-mermaid'), block.textContent)
+          const { svg } = await renderDiagram(mermaid, nextMermaidDiagramId('gf-vditor-mermaid'), block.textContent)
           block.innerHTML = svg
         } catch (error) {
           console.warn('Unable to render Mermaid diagram in the editor preview; preserving its source code.', error)
