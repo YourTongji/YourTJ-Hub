@@ -848,10 +848,13 @@ async function save() {
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
     else if (props.kind === 'ai-summary') {
       await saveAiSummarySettings(aiSummaryPayload())
-      // 保存后立即同步徽标：填了新 key（非留空=保留旧 key）即视为已配置，
-      // 不依赖重进页面重新 GET（与 onesystem saveCookie 的成功后置位一致）。
+      // 保存后立即同步徽标并清空明文 key：填了新 key（非留空=保留旧 key）即
+      // 视为已配置。清空后该标签页后续保存（如改 temperature）不再重发/重加密
+      // 同一明文，多管理员/多标签轮换 key 时旧表单不会静默恢复旧 key
+      // （空 = 保留已存密文语义，与 saveCookie 保存后清空一致）。
       if (aiSummaryForm.apiKey.trim() !== '') {
         aiSummaryForm.apiKeyConfigured = true
+        aiSummaryForm.apiKey = ''
       }
     }
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)

@@ -24,12 +24,15 @@ describe('admin AI summary apiKey 保存链路(回归: 填了 key 保存后仍�
     expect(fn).not.toContain("apiKey: ''")
   })
 
-  test('ai-summary 保存成功后同步 apiKeyConfigured 徽标状态', () => {
+  test('ai-summary 保存成功后同步徽标并清空明文 key', () => {
     const saveFn = extractFunction('save', true)
-    // save() 内 ai-summary 分支：保存后立即置位（依赖重新进入页面会误导用户）。
+    // save() 内 ai-summary 分支：保存后立即置位徽标并清空明文——后续保存（如改
+    // temperature）不再重发/重加密同一明文，多管理员轮换 key 时旧表单不会静默
+    // 恢复旧 key（空 = 保留已存密文语义，与 saveCookie 保存后清空一致）。
     const branch = saveFn.slice(saveFn.indexOf("kind === 'ai-summary'"))
     expect(branch).toContain('await saveAiSummarySettings(aiSummaryPayload())')
     expect(branch).toContain('aiSummaryForm.apiKeyConfigured = true')
+    expect(branch).toContain('aiSummaryForm.apiKey = \'\'')
   })
 
   test('apiKeyConfigured 为只读回显字段，不随保存请求回传（issue #324 安全模式）', () => {
