@@ -28,7 +28,7 @@ import {
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
@@ -49,6 +49,7 @@ import QuickPublishModal from './QuickPublishModal.vue'
 import { useShellState } from '@/runtime/shell-state'
 
 const route = useRoute()
+const router = useRouter()
 const shellState = useShellState()
 const isPublishPage = computed(() => route?.path === '/publish' || route?.name === 'publish')
 const isTopicPage = computed(() => {
@@ -287,16 +288,23 @@ function closeDrawer() {
   drawerOpen.value = false
 }
 
-function submitSearch() {
+// 搜索提交走客户端路由跳转：与 SearchPage 同策略，复用 router.push 的
+// X-Goose-Page JSON 拉取路径（顶部 loading bar、旧页保持）。此前用游离
+// anchor 的 click() 触发全局 a[href] 拦截器，但游离节点事件冒泡不到
+// document，拦截器永远收不到，浏览器每次都执行默认整页导航白屏（issue #446）。
+// 异常时降级整页跳转，保留可用性。
+async function submitSearch() {
   const query = searchQuery.value.trim()
   if (!query) {
     searchInput.value?.focus()
     return
   }
-  // 复用全局 SPA 导航（router 拦截 a[href] 点击）；绕过则回退整页跳转。
-  const link = document.createElement('a')
-  link.href = `/search?q=${encodeURIComponent(query)}`
-  link.click()
+  const target = `/search?q=${encodeURIComponent(query)}`
+  try {
+    await router.push(target)
+  } catch {
+    window.location.assign(target)
+  }
 }
 
 async function logout() {
