@@ -29,12 +29,22 @@ import {
   clusterBySections,
   consolidateSameClassArrangements,
   currentWeekForDate,
-  detectWeekParity,
   formatWeeksText,
   MAX_WEEK,
 } from '@/site/utils/pkArrange'
 import { conflictBaseOf, deriveConflicts, CUSTOM_EVENT_CODE_PREFIX, type PkConflictItem } from '@/site/utils/pkConflict'
-import { dayPartBoundaries, sectionTimesFor, type DayPart } from '@/site/utils/sectionTimes'
+import { sectionTimesFor } from '@/site/utils/sectionTimes'
+import {
+  cardMinHeightFor,
+  cellInnerHeightFor,
+  compactTeacherName as compactTeacherNames,
+  computeRowHeights,
+  dayPartLabelForRow,
+  formatDisplayWeeks as formatDisplayWeeksWith,
+  interactiveRowMetrics,
+  teacherName as courseTeacherName,
+  weekParityLabel,
+} from '@/site/utils/timetableGrid'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -197,18 +207,13 @@ function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
   }
 }
 
-/** 教师名（teacherAndCode "张三(T001)" → "张三"）。 */
 function teacherName(course: PkCourseOnTable): string {
-  return String(course.teacherAndCode || '').replace(/\([^)]*\)$/g, '').trim()
+  return courseTeacherName(course)
 }
 
-/** 课程卡片内紧凑展示教师名（最多展示 2 位，超量智能显示 "首位 等"，防多位教师炸裂撑满空间）。 */
+/** 课程卡片内紧凑展示教师名（最多展示 2 位，超量显示「首位 等」，防多位教师撑满空间）。 */
 function compactTeacherName(raw: string): string {
-  if (!raw) return ''
-  const teachers = raw.split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
-  if (teachers.length <= 1) return raw
-  if (teachers.length === 2) return teachers.join('、')
-  return `${teachers[0]} 等`
+  return compactTeacherNames(raw, 2)
 }
 
 /** 课程学分（从已加课程列表中匹配）。 */
@@ -230,26 +235,9 @@ function sectionSpanText(sections: number[]): string {
   return t('schedule.sectionsN', { range: span })
 }
 
-/**
- * 周次格式精简（如单周 1-15 提炼为 "1-15周(单)"，避免粗暴罗列 "1,3,5,7,9,11,13,15周"）。
- */
+/** 周次格式精简（共享实现见 timetableGrid，如单周 1-15 → "1-15周(单周)"）。 */
 function formatDisplayWeeks(weeks: readonly number[] | undefined): string {
-  if (!weeks || weeks.length === 0) return ''
-  const parity = detectWeekParity(weeks)
-  const sorted = [...new Set(weeks)].sort((a, b) => a - b)
-  if (parity === 'odd' && sorted.length >= 3) {
-    const isRegularStep = sorted.every((w, i) => i === 0 || w === sorted[i - 1] + 2)
-    if (isRegularStep) {
-      return `${sorted[0]}-${sorted[sorted.length - 1]}周(${t('schedule.parityOdd')})`
-    }
-  }
-  if (parity === 'even' && sorted.length >= 3) {
-    const isRegularStep = sorted.every((w, i) => i === 0 || w === sorted[i - 1] + 2)
-    if (isRegularStep) {
-      return `${sorted[0]}-${sorted[sorted.length - 1]}周(${t('schedule.parityEven')})`
-    }
-  }
-  return t('schedule.weeksN', { range: formatWeeksText(weeks) })
+  return formatDisplayWeeksWith(weeks, t)
 }
 
 /** 周次节次教室行（回退/辅助文本）。 */
@@ -268,99 +256,38 @@ function courseSubline(course: PkCourseOnTable): string {
 }
 
 /**
- * 动态计算每行的基准与扩展高度：
- * 统筹整课表所有单元格的最小空间需求，当同行存在单双周多门课纵向堆叠时，
- * 该节次行会自动增高；同行单门课自动均分撑满扩展后的行高，消除下半截留白。
- *
- * 排序策略：**相同 span 内，多门课格子优先处理**，确保行高先被真实内容需求撑高，
- * 再处理单门课——单门课无需拉升行高，但可以感知到已被多门课拉升的行高并正确计算 minHeight。
+ * 动态计算每行的基准与扩展高度（共享实现见 timetableGrid）：
+ * 单双周多门课纵向堆叠时该行自动增高，同行单门课均分撑满扩展后的行高。
+ * 交互网格按移动/桌面切换行高度量。
  */
-const computedRowHeights = computed<number[]>(() => {
-  const rowCount = cellCourses.value.length
-  if (rowCount === 0) return []
-  const baseH = isMobile.value ? 52 : 58
-  const padV = isMobile.value ? 4 : 8
-  // 每张叠放（紧凑模式）卡片的现实最小高度估算，含边框、paddings 和单行课名+教室+周次
-  // 移动端：p-1(4px*2)=8 + 课名12 + 教室10 + 周次10 + gap(2*4)=8 ≈ 58px
-  // 桌面端：p-1.5(6px*2)=12 + 课名14 + 教室11 + 周次11 + gap(2*4)=8 ≈ 72px
-  const multiCardH = isMobile.value ? 58 : 72
-  const rowHeights = new Array(rowCount).fill(baseH)
-
-  interface CellInfo {
-    span: number
-    rIndex: number
-    dayIndex: number
-    count: number
-  }
-
-  const cells: CellInfo[] = []
-  for (let r = 0; r < rowCount; r++) {
-    const row = cellCourses.value[r]
-    if (!row) continue
-    for (let d = 0; d < 7; d++) {
-      if (!occupiedGrid.value?.[r]?.[d]) {
-        const span = cellSpans.value?.[r]?.[d] || 1
-        const count = row[d]?.length || 0
-        cells.push({ span, rIndex: r, dayIndex: d, count })
-      }
-    }
-  }
-
-  // 主排序：span 升序（小跨度先确定基准），次排序：count 降序（同 span 内多门课先撑高行高）
-  cells.sort((a, b) => a.span - b.span || b.count - a.count)
-
-  for (const { span, rIndex, count } of cells) {
-    if (count === 0) continue
-    let reqInner = 0
-    if (count === 1) {
-      // 单门课只需填满当前行高，不主动拉伸（行高由多门课决定）
-      reqInner = Math.max(span * baseH - padV, baseH - padV)
-    } else {
-      reqInner = count * multiCardH + (count - 1) * 4
-    }
-    const reqTotal = reqInner + padV
-    let curTotal = 0
-    for (let i = 0; i < span; i++) {
-      curTotal += rowHeights[rIndex + i] || baseH
-    }
-    if (reqTotal > curTotal) {
-      const diff = reqTotal - curTotal
-      const perRow = Math.ceil(diff / span)
-      for (let i = 0; i < span; i++) {
-        const idx = rIndex + i
-        if (idx < rowCount) {
-          rowHeights[idx] += perRow
-        }
-      }
-    }
-  }
-
-  return rowHeights
-})
+const computedRowHeights = computed<number[]>(() =>
+  computeRowHeights(
+    {
+      cellCourses: cellCourses.value,
+      cellSpans: cellSpans.value,
+      occupiedGrid: occupiedGrid.value,
+    },
+    interactiveRowMetrics(isMobile.value),
+  ),
+)
 
 function cellInnerHeight(rIndex: number, dayIndex: number): number {
-  const span = cellSpans.value?.[rIndex]?.[dayIndex] || 1
-  const padV = isMobile.value ? 4 : 8
-  const baseH = isMobile.value ? 52 : 58
-  let totalH = 0
-  for (let i = 0; i < span; i++) {
-    totalH += computedRowHeights.value[rIndex + i] || baseH
-  }
-  return Math.max(baseH - padV, totalH - padV)
+  return cellInnerHeightFor(
+    cellSpans.value?.[rIndex]?.[dayIndex] || 1,
+    computedRowHeights.value,
+    interactiveRowMetrics(isMobile.value),
+    rIndex,
+  )
 }
 
 function cardMinHeight(rIndex: number, dayIndex: number, courseCount: number): number {
-  const innerH = cellInnerHeight(rIndex, dayIndex)
-  const count = Math.max(1, courseCount)
-  const baseH = isMobile.value ? 52 : 58
-  const padV = isMobile.value ? 4 : 8
-  // 单门课跨 2+ 节（标准舒展模式）：直接返回格子全高，彻底撑满，消除下半截空白
-  if (count === 1) {
-    return Math.max(baseH - padV, innerH)
-  }
-  // 多门叠放：均分可用高度（扣除各卡片间 gap-1 = 4px）
-  const available = innerH - (count - 1) * 4
-  return Math.max(baseH - padV, Math.floor(available / count))
+  return cardMinHeightFor(
+    cellSpans.value?.[rIndex]?.[dayIndex] || 1,
+    computedRowHeights.value,
+    courseCount,
+    interactiveRowMetrics(isMobile.value),
+    rIndex,
+  )
 }
 
 // ---- 桌面端课程块浮动预览微卡片 ----
@@ -418,7 +345,6 @@ function courseAriaLabel(course: PkCourseOnTable): string {
   if (isConflicted(course)) parts.push(`[${t('schedule.conflictBadge')}]`)
   return parts.join(' ')
 }
-const courseFullTitle = courseAriaLabel
 
 // ---- 网格渲染（对齐上游 updateTimeTable；单周模式按过滤后集合重算）----
 
@@ -470,12 +396,9 @@ function updateTimeTable() {
   occupiedGrid.value = covered
 }
 
-/** 单双周标识提取（多课/紧凑展示用）。 */
+/** 单双周标识提取（多课/紧凑展示用；共享实现见 timetableGrid）。 */
 function weekParityBadge(weeks: readonly number[] | undefined): string | null {
-  const parity = detectWeekParity(weeks)
-  if (parity === 'odd') return t('schedule.parityOdd')
-  if (parity === 'even') return t('schedule.parityEven')
-  return null
+  return weekParityLabel(weeks, t)
 }
 
 /** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
@@ -489,22 +412,9 @@ function sectionTimeText(index: number): string {
   return item ? `${item.start}-${item.end}` : ''
 }
 
-/** 上午/下午/晚上分组边界（每段首个节次，1-based；0 表示该行不分组）。 */
-const dayPartStarts = computed(() => {
-  const boundaries = dayPartBoundaries(sectionTimes.value)
-  return boundaries
-})
-
-/** 该行是否为某时段分组首行（渲染分组标签）。 */
+/** 该行是否为某时段分组首行（渲染分组标签；共享实现见 timetableGrid）。 */
 function dayPartLabelAt(index: number): string | null {
-  const row = index + 1
-  for (const [part, start] of Object.entries(dayPartStarts.value)) {
-    if (start === row) {
-      const key = part as DayPart
-      return t(`schedule.dayPart.${key}`)
-    }
-  }
-  return null
+  return dayPartLabelForRow(index + 1, sectionTimes.value, t)
 }
 
 /** 该格在当前周次视图下是否已被占用（单周模式按周过滤，空格可点选加课）。 */

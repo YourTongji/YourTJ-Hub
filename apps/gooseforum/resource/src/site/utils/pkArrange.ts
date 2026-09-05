@@ -172,16 +172,6 @@ export function maxRowsForCalendar(calendarId: number | undefined): number {
   return 12
 }
 
-/** UI 行 → 节段（时段）映射：1-2→1、3-4→2、5-6→3、7-8→4、9-10→5、11→6；旧制 9→5、10-12→6。 */
-export function getRowSection(row: number, calendarId: number | undefined): number {
-  if (maxRowsForCalendar(calendarId) === 11) {
-    return Math.min(6, Math.ceil(row / 2))
-  }
-  if (row <= 8) return Math.ceil(row / 2)
-  if (row === 9) return 5
-  return 6
-}
-
 /** 同列课程的节次区间簇（相交/包含的课程归入同一格渲染）。 */
 export interface PkDayCluster<T> {
   /** 簇内最早节次（1-based，格子锚定行）。 */

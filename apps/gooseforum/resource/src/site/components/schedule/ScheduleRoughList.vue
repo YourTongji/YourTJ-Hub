@@ -267,7 +267,7 @@ function teacherSummary(course: PkStagedCourse): string {
               {{ course.courseCode }}
               <span class="text-base-content/50"> · {{ t('schedule.credit', { credit: course.credit }) }}</span>
               <template v-if="arrangedClassCount(course) > 0">
-                <span class="text-base-content/50"> · </span>{{ t('schedule.classCount', { count: course.courseDetail.length }) }}
+                <span class="text-base-content/50"> · </span>{{ t('schedule.classCount', { count: arrangedClassCount(course) }) }}
               </template>
             </p>
             <p v-if="teacherSummary(course)" class="mt-0.5 truncate text-[11px] text-base-content/55">

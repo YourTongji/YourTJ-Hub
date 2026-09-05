@@ -420,6 +420,9 @@ describe('ScheduleTimeTable 同格多课渲染', () => {
       b.textContent?.includes('Download') || b.textContent?.includes('下载图片'),
     )
     expect(downloadBtn).toBeTruthy()
+    // img-fx 渐显完成前导出/复制保持禁用，防止把马赛克动画截进导出图片
+    expect((downloadBtn as HTMLButtonElement).disabled).toBe(true)
+    expect((copyBtn as HTMLButtonElement).disabled).toBe(true)
 
     // 5. 点击海报内部不关闭，点击焦点外空白区域关闭预览
     const poster = modalContent?.querySelector('.bg-white.rounded-2xl') as HTMLElement

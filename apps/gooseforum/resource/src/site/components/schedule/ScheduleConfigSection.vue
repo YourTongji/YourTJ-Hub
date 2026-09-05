@@ -9,12 +9,12 @@ import { useI18n } from 'vue-i18n'
 import { ChevronDown } from '@lucide/vue'
 import SchedulePlanBar from '@/site/components/schedule/SchedulePlanBar.vue'
 import ScheduleMajorSelector from '@/site/components/schedule/ScheduleMajorSelector.vue'
-import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { CONFIG_COLLAPSED_STORAGE_KEY, useScheduleStore } from '@/site/composables/useScheduleStore'
 
 const { t } = useI18n()
 const store = useScheduleStore()
 
-const COLLAPSED_STORAGE_KEY = 'goose:scheduleConfigCollapsed'
+const COLLAPSED_STORAGE_KEY = CONFIG_COLLAPSED_STORAGE_KEY
 
 const isCollapsed = computed({
   get: () => store.state.isConfigCollapsed,

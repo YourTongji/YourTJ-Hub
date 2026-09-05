@@ -3,12 +3,12 @@ import {
   buildWeekMask,
   consolidateSameClassArrangements,
   detectWeekParity,
-  getRowSection,
   maxRowsForCalendar,
   parseArrangeInfoText,
   weekMasksOverlap,
   weeksOverlap,
 } from '../src/site/utils/pkArrange'
+import { getRowSection } from '../src/site/utils/timetable'
 
 describe('buildWeekMask', () => {
   test('构建位掩码', () => {
@@ -88,11 +88,19 @@ describe('maxRowsForCalendar / getRowSection', () => {
     expect(maxRowsForCalendar(undefined)).toBe(12)
   })
 
-  test('节段映射', () => {
+  test('节段映射（旧 12 节制，权威实现为 utils/timetable）', () => {
     expect(getRowSection(1, 119)).toBe(1)
     expect(getRowSection(3, 119)).toBe(2)
     expect(getRowSection(9, 119)).toBe(5)
+    expect(getRowSection(10, 119)).toBe(5)
     expect(getRowSection(11, 119)).toBe(6)
+    expect(getRowSection(12, 119)).toBe(6)
+  })
+
+  test('节段映射（新 11 节制）', () => {
+    expect(getRowSection(9, 121)).toBe(5)
+    expect(getRowSection(10, 121)).toBe(5)
+    expect(getRowSection(11, 121)).toBe(6)
   })
 })
 

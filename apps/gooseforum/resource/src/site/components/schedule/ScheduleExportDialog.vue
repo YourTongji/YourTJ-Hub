@@ -2,7 +2,7 @@
 // 独立课表图片导出生成器：
 // - 柔和无边框暗场毛玻璃悬浮浮层 (Borderless Floating Stage)；
 // - 移植 Jakub Antalik 的 img-fx (https://github.com/Jakubantalik/img-fx) 像素马赛克流光与对角粒子消融显现动效；
-// - 课表下方独立悬浮交互按钮坞（关闭、重放动效、复制、下载）；
+// - 课表下方独立悬浮交互按钮坞（关闭、复制、下载）；
 // - 固定 1140px 高清画幅，双向动态等比缩放自适应任何屏幕尺寸，杜绝视口容器切割与内容截断；
 // - 品牌标识与主标题在水平对位轴上严密对称平衡，彻底杜绝 AI slop 模板感。
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -21,12 +21,19 @@ import logoUrl from '@/site/assets/logo.svg?url'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { courseColorSlotFor, courseSlotVar } from '@/site/utils/courseColors'
-import {
-  detectWeekParity,
-  formatWeeksText,
-} from '@/site/utils/pkArrange'
 import { conflictBaseOf, CUSTOM_EVENT_CODE_PREFIX } from '@/site/utils/pkConflict'
-import { dayPartBoundaries, sectionTimesFor, type DayPart } from '@/site/utils/sectionTimes'
+import { sectionTimesFor } from '@/site/utils/sectionTimes'
+import {
+  cardMinHeightFor,
+  cellInnerHeightFor,
+  compactTeacherName as compactTeacherNames,
+  computeRowHeights,
+  dayPartLabelForRow,
+  formatDisplayWeeks as formatDisplayWeeksWith,
+  posterRowMetrics,
+  teacherName as courseTeacherName,
+  weekParityLabel,
+} from '@/site/utils/timetableGrid'
 import { ImgFxController } from '@/site/utils/imgFxCanvas'
 import type { PkCalendar, PkCourseOnTable } from '@/site/types/pk'
 
@@ -213,125 +220,55 @@ function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
 }
 
 function teacherName(course: PkCourseOnTable): string {
-  return String(course.teacherAndCode || '').replace(/\([^)]*\)$/g, '').trim()
+  return courseTeacherName(course)
 }
 
 function compactTeacherName(raw: string): string {
-  if (!raw) return ''
-  const teachers = raw.split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
-  if (teachers.length <= 3) return teachers.join('、')
-  return `${teachers.slice(0, 2).join('、')} 等`
+  return compactTeacherNames(raw, 3)
 }
 
 function weekParityBadge(weeks: readonly number[] | undefined): string {
-  if (!weeks || weeks.length === 0) return ''
-  const parity = detectWeekParity(weeks)
-  if (parity === 'odd') return t('schedule.parityOdd')
-  if (parity === 'even') return t('schedule.parityEven')
-  return ''
+  return weekParityLabel(weeks, t) ?? ''
 }
 
 function formatDisplayWeeks(weeks: readonly number[] | undefined): string {
-  if (!weeks || weeks.length === 0) return ''
-  const parity = detectWeekParity(weeks)
-  const sorted = [...new Set(weeks)].sort((a, b) => a - b)
-  if (parity === 'odd' && sorted.length >= 3) {
-    const isRegularStep = sorted.every((w, i) => i === 0 || w === sorted[i - 1] + 2)
-    if (isRegularStep) return `${sorted[0]}-${sorted[sorted.length - 1]}周(单)`
-  }
-  if (parity === 'even' && sorted.length >= 3) {
-    const isRegularStep = sorted.every((w, i) => i === 0 || w === sorted[i - 1] + 2)
-    if (isRegularStep) return `${sorted[0]}-${sorted[sorted.length - 1]}周(双)`
-  }
-  return t('schedule.weeksN', { range: formatWeeksText(weeks) })
+  return formatDisplayWeeksWith(weeks, t)
 }
 
 /**
- * 动态计算每行的基准与扩展高度：
- * 当同一行/节次跨度中有某天存在单双周多门课纵向堆叠（如周五两门课）时，
- * 该节次行会自动增高；此处统筹整网格所有单元格的最小空间需求，
- * 使得同行跨同样节次的单门课（如周一、周三）也能自动对齐均分/撑满整个扩展后的行高，
- * 绝不会出现单双周两门课很高而单门课下面留出大片空白的割裂现象。
- *
- * 排序策略：同 span 内，多门课格子（count > 1）先处理，确保行高先被真实内容需求撑高。
+ * 动态计算每行的基准与扩展高度（共享实现见 timetableGrid）：
+ * 当同一行/节次跨度中存在单双周多门课纵向堆叠时该行自动增高，
+ * 同行单门课自动均分撑满扩展后的行高，避免割裂留白。
+ * 海报画幅固定 1140px，使用更舒展的 posterRowMetrics。
  */
-const computedRowHeights = computed<number[]>(() => {
-  const rowCount = props.cellCourses.length
-  if (rowCount === 0) return []
-  const rowHeights = new Array(rowCount).fill(76)
-
-  interface CellInfo {
-    span: number
-    rIndex: number
-    dayIndex: number
-    count: number
-  }
-
-  const cells: CellInfo[] = []
-  for (let r = 0; r < rowCount; r++) {
-    const row = props.cellCourses[r]
-    if (!row) continue
-    for (let d = 0; d < 7; d++) {
-      if (!props.occupiedGrid?.[r]?.[d]) {
-        const span = props.cellSpans?.[r]?.[d] || 1
-        const count = row[d]?.length || 0
-        cells.push({ span, rIndex: r, dayIndex: d, count })
-      }
-    }
-  }
-
-  // 主排序：span 升序（小跨度先确定基准），次排序：count 降序（同 span 内多门课先撑高行高）
-  cells.sort((a, b) => a.span - b.span || b.count - a.count)
-
-  for (const { span, rIndex, count } of cells) {
-    if (count === 0) continue
-    let reqInner = 0
-    if (count === 1) {
-      // 单门课只需填满当前行高，不主动拉伸（行高由多门课决定）
-      reqInner = Math.max(span * 76 - 8, 68)
-    } else {
-      // 多门课纵向堆叠（如单双周），紧凑卡片高度约 90px，间距 4px
-      reqInner = count * 90 + (count - 1) * 4
-    }
-    const reqTotal = reqInner + 8 // 8px 为 td 上下 padding
-    let curTotal = 0
-    for (let i = 0; i < span; i++) {
-      curTotal += rowHeights[rIndex + i] || 76
-    }
-    if (reqTotal > curTotal) {
-      const diff = reqTotal - curTotal
-      const perRow = Math.ceil(diff / span)
-      for (let i = 0; i < span; i++) {
-        const idx = rIndex + i
-        if (idx < rowCount) {
-          rowHeights[idx] += perRow
-        }
-      }
-    }
-  }
-
-  return rowHeights
-})
+const computedRowHeights = computed<number[]>(() =>
+  computeRowHeights(
+    {
+      cellCourses: props.cellCourses,
+      cellSpans: props.cellSpans,
+      occupiedGrid: props.occupiedGrid,
+    },
+    posterRowMetrics,
+  ),
+)
 
 function cellInnerHeight(rIndex: number, dayIndex: number): number {
-  const span = props.cellSpans?.[rIndex]?.[dayIndex] || 1
-  let totalH = 0
-  for (let i = 0; i < span; i++) {
-    totalH += computedRowHeights.value[rIndex + i] || 76
-  }
-  return Math.max(68, totalH - 8)
+  return cellInnerHeightFor(
+    props.cellSpans?.[rIndex]?.[dayIndex] || 1,
+    computedRowHeights.value,
+    posterRowMetrics,
+    rIndex,
+  )
 }
 
 function cardMinHeight(rIndex: number, dayIndex: number, courseCount: number): number {
-  const innerH = cellInnerHeight(rIndex, dayIndex)
-  const count = Math.max(1, courseCount)
-  // 单门课：直接返回格子全高，彻底撑满，消除下半截空白
-  if (count === 1) {
-    return Math.max(68, innerH)
-  }
-  // 多门叠放：均分可用高度（扣除各卡片间 gap-1 = 4px）
-  const available = innerH - (count - 1) * 4
-  return Math.max(68, Math.floor(available / count))
+  return cardMinHeightFor(
+    props.cellSpans?.[rIndex]?.[dayIndex] || 1,
+    computedRowHeights.value,
+    courseCount,
+    posterRowMetrics,
+    rIndex,
+  )
 }
 
 const sectionTimes = computed(() => sectionTimesFor(store.readTimeTableRows(), store.state.sectionTimeOverrides))
@@ -342,17 +279,8 @@ function sectionTimeText(index: number): string {
   return `${times.start}-${times.end}`
 }
 
-const dayPartStarts = computed(() => dayPartBoundaries(sectionTimes.value))
-
 function dayPartLabelAt(index: number): string | null {
-  const row = index + 1
-  for (const [part, start] of Object.entries(dayPartStarts.value)) {
-    if (start === row) {
-      const key = part as DayPart
-      return t(`schedule.dayPart.${key}`)
-    }
-  }
-  return null
+  return dayPartLabelForRow(index + 1, sectionTimes.value, t)
 }
 
 /** 格式化导出时间戳 */
@@ -367,7 +295,7 @@ const exportTimestamp = computed(() => {
 })
 
 async function handleDownload() {
-  if (generating.value) return
+  if (generating.value || !isRevealed.value) return
   generating.value = true
   try {
     const dataUrl = await generateImageDataUrl()
@@ -385,7 +313,7 @@ async function handleDownload() {
 }
 
 async function handleCopy() {
-  if (generating.value) return
+  if (generating.value || !isRevealed.value) return
   generating.value = true
   try {
     const dataUrl = await generateImageDataUrl()
@@ -680,8 +608,8 @@ async function handleCopy() {
           <!-- 复制图片（桌面/平板展示，移动端直接使用保存下载） -->
           <button
             type="button"
-            class="hidden sm:flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-100 hover:bg-white/15 transition-all active:scale-[0.96]"
-            :disabled="generating"
+            class="hidden sm:flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-100 hover:bg-white/15 transition-all active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="generating || !isRevealed"
             @click="handleCopy"
           >
             <Check v-if="copied" class="h-3.5 w-3.5 text-emerald-400" />
@@ -692,8 +620,8 @@ async function handleCopy() {
           <!-- 下载高清图片 -->
           <button
             type="button"
-            class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-white shadow-md hover:brightness-110 transition-all active:scale-[0.96]"
-            :disabled="generating"
+            class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-white shadow-md hover:brightness-110 transition-all active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="generating || !isRevealed"
             @click="handleDownload"
           >
             <Loader2 v-if="generating" class="h-3.5 w-3.5 animate-spin" />

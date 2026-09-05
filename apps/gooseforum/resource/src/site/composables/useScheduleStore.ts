@@ -43,6 +43,9 @@ import type {
   PkWeekView,
 } from '@/site/types/pk'
 
+/** 配置区折叠记忆键：store 与 ScheduleConfigSection 共用，改名会静默破坏持久化。 */
+export const CONFIG_COLLAPSED_STORAGE_KEY = 'goose:scheduleConfigCollapsed'
+
 /** localStorage 键（带 pk. 前缀避免与论坛其他状态冲突）。 */
 const STORAGE_KEYS = {
   majorSelected: 'pk.majorSelected',
@@ -54,7 +57,7 @@ const STORAGE_KEYS = {
   activePlanId: 'pk.activePlanId',
   weekView: 'pk.weekView',
   updateTime: 'pk.updateTime',
-  configCollapsed: 'goose:scheduleConfigCollapsed',
+  configCollapsed: CONFIG_COLLAPSED_STORAGE_KEY,
 } as const
 
 function writeStorage(key: string, value: unknown): void {
@@ -601,10 +604,13 @@ export function useScheduleStore() {
   }
 
   /**
-   * 清除备选课程已选中的教学班（仅用于 status=STAGED 的课程）。
-   * 将所有 status=STAGED(1) 的 courseDetail 重置为 UNSELECTED(0)，
-   * 并将课程自身 status 降回 UNSELECTED(0)，之后重建派生态。
+   * 清除备选课程已选中的教学班（反选）：所有 STAGED(1)/SELECTED(2) 的 courseDetail
+   * 重置为 UNSELECTED(0)，已保存班级同步移出 selectedCourses，课程自身 status
+   * 降回 UNSELECTED(0)，之后重建派生态。
    * 与 popStagedCourse 的区别：课程条目仍留在备选列表中，不会退课。
+   * 调用方契约：STAGED 课程可直接清除；已保存（SELECTED）课程属于已保存数据，
+   * 破坏性移除入口（RoughList）须先走确认弹窗，反选入口（DetailList 的双向
+   * 「已加入」切换）为即时操作——两处语义均为有意设计。
    */
   function clearStagedCourseClass(courseCode: string): void {
     const plan = activePlan()
@@ -983,8 +989,5 @@ export function useScheduleStore() {
     stats,
     creditSummary,
     setConfigCollapsed,
-    collapseConfig: () => setConfigCollapsed(true),
-    expandConfig: () => setConfigCollapsed(false),
-    toggleConfig: () => setConfigCollapsed(!state.isConfigCollapsed),
   }
 }

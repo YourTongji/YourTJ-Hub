@@ -377,10 +377,13 @@ onBeforeUnmount(() => {
       <div role="tablist" aria-label="schedule tabs" class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
         <button
           v-for="tab in MOBILE_TABS"
+          :id="`schedule-tab-${tab.key}`"
           :key="tab.key"
           type="button"
           role="tab"
           :aria-selected="mobileTab === tab.key"
+          :aria-controls="`schedule-panel-${tab.key}`"
+          :tabindex="mobileTab === tab.key ? 0 : -1"
           class="gf-tab flex-1"
           :class="mobileTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
           @click="mobileTab = tab.key"
@@ -392,6 +395,10 @@ onBeforeUnmount(() => {
 
       <ScheduleTimeTable
         v-if="mobileTab === 'timetable'"
+        id="schedule-panel-timetable"
+        role="tabpanel"
+        aria-labelledby="schedule-tab-timetable"
+        tabindex="-1"
         @open-detail="handleOpenDetail"
         @cell-click="handleCellClick"
         @customize="customizeOpen = true"
@@ -399,6 +406,10 @@ onBeforeUnmount(() => {
       />
       <ScheduleRoughList
         v-if="mobileTab === 'list'"
+        id="schedule-panel-list"
+        role="tabpanel"
+        aria-labelledby="schedule-tab-list"
+        tabindex="-1"
         @open-picker="pickerOpen = true"
         @open-detail="classPickOpen = true"
       />
