@@ -171,6 +171,23 @@ func TestImportReviewsCreatesLegacyRow(t *testing.T) {
 	}
 }
 
+func TestImportReviewsPreservesHiddenStatus(t *testing.T) {
+	_, offeringId := setupReviewsImportTest(t)
+	manifestPath := writeReviewsManifestFixture(t,
+		`{"id":"hidden-1","offering_external_id":"o1","rating":5,"content":"隐藏历史评价","created_at":"2023-06-01T00:00:00Z","is_hidden":true}`+"\n",
+		"approval-1")
+	if _, err := ImportReviews(context.Background(), manifestPath, false); err != nil {
+		t.Fatalf("import hidden review: %v", err)
+	}
+	var review course.ReviewEntity
+	if err := dbconnect.Connect().Where("offering_id = ?", offeringId).First(&review).Error; err != nil {
+		t.Fatalf("load hidden review: %v", err)
+	}
+	if review.Status != course.ReviewStatusHidden {
+		t.Fatalf("expected hidden status, got %d", review.Status)
+	}
+}
+
 // TestImportReviewsUpsertSameOffering 重复导入同一 offering 的 legacy 行更新而非重复插入。
 func TestImportReviewsUpsertSameOffering(t *testing.T) {
 	_, offeringId := setupReviewsImportTest(t)

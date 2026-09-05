@@ -508,6 +508,25 @@ func TestApplyOfferingRowQuarantinesMissingSourceRefWithReport(t *testing.T) {
 	}
 }
 
+func TestParseOfferingExternalID(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+		want uint64
+	}{
+		{name: "teaching class external id", id: "1111111124951406-1294", want: 1111111124951406},
+		{name: "virtual offering", id: "other-1294", want: 0},
+		{name: "invalid", id: "not-an-offering", want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseOfferingExternalID(tt.id); got != tt.want {
+				t.Fatalf("parseOfferingExternalID(%q) = %d, want %d", tt.id, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestApplyOfferingRowQuarantinesMissingInstructorSourceRefWithReport(t *testing.T) {
 	db := newOfferingImportTestDB(t)
 	if err := db.Create(&course.SourceRefEntity{

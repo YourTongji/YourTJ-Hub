@@ -1,12 +1,62 @@
 // @vitest-environment happy-dom
-import { describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createRouter, createWebHistory } from 'vue-router'
+import type { LayoutPayload } from '@gooseforum/client'
+import AppShell from '../src/site/components/AppShell.vue'
 import PublishMenu from '../src/site/components/PublishMenu.vue'
 import { i18n } from '../src/runtime/i18n'
 import { useQuickPublish } from '../src/site/composables/useQuickPublish'
 import { useShellState, resetShellState } from '../src/runtime/shell-state'
 
+function makeLayout(isAuthenticated = true): LayoutPayload {
+  return {
+    viewer: {
+      id: 1,
+      username: 'test',
+      email: 'test@example.com',
+      avatarUrl: '',
+      isAuthenticated,
+      canAccessAdmin: false,
+      isModerator: false,
+      requiresEmailVerification: false,
+      adminPermissions: [],
+    },
+    site: {
+      name: 'GooseForum',
+      description: '',
+      logo: '',
+      favicon: '',
+      externalLinks: '',
+      brandType: 'default',
+      brandText: 'GooseForum',
+      brandImage: '',
+    },
+    header: [],
+    sidebar: {
+      main: [],
+      resources: [],
+      groups: [],
+      categories: [],
+      activeKey: 'home',
+      mode: 'forum',
+    },
+    categories: [],
+    navigation: [],
+    footer: { links: [], primary: [] },
+    unread: { notifications: false, messages: false, moderationReports: false, latestNotificationType: '' },
+    theme: { enabled: false, current: 'gf-light', themeColor: '#ffffff' },
+  } as any
+}
+
 describe('PublishMenu 组件', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
   test('渲染桌面端 (navbar) 模式的原版 gf-button 触发按钮', () => {
     const wrapper = mount(PublishMenu, {
       props: { variant: 'navbar' },
@@ -86,5 +136,57 @@ describe('PublishMenu 组件', () => {
 
     resetShellState()
     expect(shellState.isTopicPage).toBe(false)
+  })
+
+  test('在排课器 (/schedule) 与课程页面 (/courses) 下移动端 FAB 自动隐去', async () => {
+    const router = createRouter({
+      history: createWebHistory(),
+      routes: [
+        { path: '/', component: { template: '<div>Home</div>' } },
+        { path: '/schedule', component: { template: '<div>Schedule</div>' } },
+        { path: '/courses', component: { template: '<div>Courses</div>' } },
+        { path: '/courses/:id', component: { template: '<div>CourseDetail</div>' } },
+      ],
+    })
+
+    await router.push('/')
+    await router.isReady()
+
+    const wrapper = mount(AppShell, {
+      props: { layout: makeLayout(true) },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    // 1. 在普通页面（/），移动端 FAB 显示
+    const fabHome = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
+    expect(fabHome).toBeDefined()
+
+    // 2. 导航到 /schedule，FAB 自动隐藏
+    await router.push('/schedule')
+    await flushPromises()
+    const fabSchedule = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
+    expect(fabSchedule).toBeUndefined()
+
+    // 3. 导航到 /courses，FAB 自动隐藏
+    await router.push('/courses')
+    await flushPromises()
+    const fabCourses = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
+    expect(fabCourses).toBeUndefined()
+
+    // 4. 导航到 /courses/123，FAB 自动隐藏
+    await router.push('/courses/123')
+    await flushPromises()
+    const fabCourseDetail = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
+    expect(fabCourseDetail).toBeUndefined()
+
+    // 5. 导航回首页，FAB 恢复
+    await router.push('/')
+    await flushPromises()
+    const fabHomeAgain = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
+    expect(fabHomeAgain).toBeDefined()
+
+    wrapper.unmount()
   })
 })

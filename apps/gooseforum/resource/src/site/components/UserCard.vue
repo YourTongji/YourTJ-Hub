@@ -419,7 +419,7 @@ onBeforeUnmount(() => {
 }
 
 .gf-user-card__signature-text:lang(en),
-.gf-user-card__signature-text:lang(it) {
+.gf-user-card__signature-text:lang(de) {
   font-size: 0.75rem;
 }
 </style>

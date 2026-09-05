@@ -474,7 +474,7 @@ function syncHighlightTheme() {
 
 /** 知乎式图标+小字：2-3 字短标签（对齐知乎工具栏文案），避免长词撑宽/换行；
  *   hover tooltip 保留官方完整「功能 + 快捷键」；
- *   文案走 i18n（editor.toolbar.*，见 locales/{zh,en,ja,it}.ts） */
+ *   文案走 i18n（editor.toolbar.*，见 locales/{zh,en,ja,de}.ts） */
 const TOOLBAR_LABEL_KEYS: Record<string, string> = {
   headings: 'editor.toolbar.headings',
   bold: 'editor.toolbar.bold',

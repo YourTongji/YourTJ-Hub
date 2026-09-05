@@ -6,7 +6,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
-import { X } from '@lucide/vue'
+import { ArrowLeftRight, ExternalLink, X } from '@lucide/vue'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import { getCourseBaseCode } from '@/site/utils/pkConflict'
 import type { PkCourseOnTable, PkCourseReviewBrief } from '@/site/types/pk'
@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  replace: [course: PkCourseOnTable]
 }>()
 
 const detailDialogOpen = computed({
@@ -92,6 +93,12 @@ async function loadBrief() {
   }
 }
 
+function onReplace() {
+  if (!props.course) return
+  emit('replace', props.course)
+  emit('close')
+}
+
 watch(
   () => props.course,
   (course) => {
@@ -131,12 +138,25 @@ watch(
               {{ parsed.arrangement }}
             </p>
 
-            <a
-              :href="reviewHref"
-              class="gf-button gf-button-md gf-button-primary mt-2 w-full"
-            >
-              {{ t('schedule.reviews') }}
-            </a>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-secondary gap-1.5 rounded-xl border border-line/80 font-medium text-xs text-base-content hover:border-primary/50 hover:text-primary transition-all active:scale-[0.96] cursor-pointer"
+                @click="onReplace"
+              >
+                <ArrowLeftRight class="h-3.5 w-3.5" />
+                <span>{{ t('schedule.replaceCourseInSlot') }}</span>
+              </button>
+              <a
+                :href="reviewHref"
+                class="gf-button gf-button-md gf-button-primary gap-1.5 rounded-xl text-xs shadow-xs"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span>{{ t('schedule.reviews') }}</span>
+                <ExternalLink class="h-3.5 w-3.5" />
+              </a>
+            </div>
 
             <div class="rounded-lg border border-line/60 bg-base-200/40 p-3">
               <template v-if="briefLoading">
