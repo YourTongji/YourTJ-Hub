@@ -241,7 +241,7 @@ function onToggleTheme() {
 
 <template>
   <main class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
-    <!-- 波点动效背景：纯 CSS 点阵 + 慢速漂移（transform 合成层，不影响首屏性能） -->
+    <!-- 波点静态背景：纯 CSS 点阵，无动画，零 GPU 开销 -->
     <div class="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <div class="gf-dot-grid absolute inset-0" />
     </div>
@@ -455,8 +455,8 @@ function onToggleTheme() {
 
         <aside class="relative hidden overflow-hidden border-t border-line md:block md:border-l md:border-t-0">
           <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-info/5 to-base-100" />
-          <div class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
-          <div class="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-info/15 blur-3xl" />
+          <div class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15" />
+          <div class="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-info/15" />
 
           <div class="relative flex h-full min-h-[470px] flex-col justify-between gap-8 p-8">
             <div>
@@ -533,10 +533,10 @@ function onToggleTheme() {
 </template>
 
 <style scoped>
-/* 波点动效背景：
-   - 纯 CSS radial-gradient 点阵（无图片请求）
-   - 漂移动画仅用 transform（GPU 合成层，不触发重排/重绘）
-   - 80s 慢速循环 + 径向遮罩边缘淡出，视觉柔和、CPU 占用可忽略 */
+/* 波点静态背景：
+   - 纯 CSS radial-gradient 点阵（无图片请求，无动画）
+   - 径向遮罩边缘淡出，视觉柔和
+   - 静态渲染，零 GPU 开销 */
 .gf-dot-grid {
   background-image: radial-gradient(
     circle,
@@ -546,23 +546,6 @@ function onToggleTheme() {
   background-size: 24px 24px;
   mask-image: radial-gradient(ellipse at center, black 20%, transparent 78%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 78%);
-  animation: gf-dot-drift 80s linear infinite;
-  will-change: transform;
-}
-
-@keyframes gf-dot-drift {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-24px, -24px, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gf-dot-grid {
-    animation: none;
-  }
 }
 
 /* 移动端（<640px）：表单区以圆角卡片呈现，与波点背景区分；
