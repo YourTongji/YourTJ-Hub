@@ -219,3 +219,212 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(store.state.commonLists.stagedCourses).toEqual([])
   })
 })
+describe('ScheduleMajorSelector 快速清除与整体清空', () => {
+  let mounted: VueWrapper | null = null
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    localStorage.clear()
+    setStoredSelection({})
+    getPkCalendars.mockResolvedValue([
+      { calendarId: 121, calendarName: '2025-2026学年第2学期' },
+      { calendarId: 120, calendarName: '2025-2026学年第1学期' },
+    ])
+    getPkGrades.mockResolvedValue([2025, 2024])
+    getPkMajors.mockResolvedValue([{ code: '00301', name: '2025(00301 数学类)' }])
+    mounted = null
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    document.body.innerHTML = ''
+  })
+
+  test('点击专业清除按钮清空已选专业，并更新 store', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    const store = useScheduleStore()
+    expect(store.state.majorSelected.major).toBe('00301')
+
+    const clearMajorBtn = wrapper.find(`button[aria-label="${i18n.global.t('schedule.clearMajor')}"]`)
+    expect(clearMajorBtn.exists()).toBe(true)
+    await clearMajorBtn.trigger('click')
+    await flushPromises()
+
+    expect(store.state.majorSelected.major).toBeUndefined()
+    expect((comboboxes(wrapper)[2].element as HTMLInputElement).value).toBe('')
+  })
+
+  test('点击专业输入框内部的 X 按钮清空已选专业', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    const store = useScheduleStore()
+    expect(store.state.majorSelected.major).toBe('00301')
+
+    const clearMajorBtns = wrapper.findAll(`button[aria-label="${i18n.global.t('schedule.clearMajor')}"]`)
+    expect(clearMajorBtns.length).toBeGreaterThanOrEqual(2)
+    await clearMajorBtns[1].trigger('click')
+    await flushPromises()
+
+    expect(store.state.majorSelected.major).toBeUndefined()
+    expect((comboboxes(wrapper)[2].element as HTMLInputElement).value).toBe('')
+  })
+
+  test('点击年级清除按钮清空年级与级联专业', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    const store = useScheduleStore()
+    expect(store.state.majorSelected.grade).toBe(2025)
+    expect(store.state.majorSelected.major).toBe('00301')
+
+    const clearGradeBtn = wrapper.find(`button[aria-label="${i18n.global.t('schedule.clearGrade')}"]`)
+    expect(clearGradeBtn.exists()).toBe(true)
+    await clearGradeBtn.trigger('click')
+    await flushPromises()
+
+    expect(store.state.majorSelected.grade).toBeUndefined()
+    expect(store.state.majorSelected.major).toBeUndefined()
+    expect(comboboxes(wrapper)[1].text()).toContain(i18n.global.t('schedule.selectPlaceholder'))
+    expect((comboboxes(wrapper)[2].element as HTMLInputElement).value).toBe('')
+  })
+
+  test('点击清空已选配置重置学期、年级、专业', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2025, major: '00301' })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    const store = useScheduleStore()
+    expect(store.state.majorSelected.calendarId).toBe(121)
+    expect(store.state.majorSelected.grade).toBe(2025)
+    expect(store.state.majorSelected.major).toBe('00301')
+
+    const resetAllBtn = wrapper.find(`button[title="${i18n.global.t('schedule.resetSelectionHint')}"]`)
+    expect(resetAllBtn.exists()).toBe(true)
+    expect(resetAllBtn.text()).toContain(i18n.global.t('schedule.resetSelection'))
+
+    await resetAllBtn.trigger('click')
+    await flushPromises()
+
+    expect(store.state.majorSelected.calendarId).toBeUndefined()
+    expect(store.state.majorSelected.grade).toBeUndefined()
+    expect(store.state.majorSelected.major).toBeUndefined()
+    expect(comboboxes(wrapper)[0].text()).toContain(i18n.global.t('schedule.selectPlaceholder'))
+    expect(comboboxes(wrapper)[1].text()).toContain(i18n.global.t('schedule.selectPlaceholder'))
+    expect((comboboxes(wrapper)[2].element as HTMLInputElement).value).toBe('')
+  })
+
+  test('专业代码查询提示徽章展示高对比度文案并支持 Hover 与 Click 打开指南 Popover', async () => {
+    vi.useFakeTimers()
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] }, attachTo: document.body })
+    const wrapper = mounted
+    await flushPromises()
+
+    const trigger = wrapper.find('[data-testid="schedule-major-code-trigger"]')
+    expect(trigger.exists()).toBe(true)
+    expect(trigger.text()).toContain(i18n.global.t('schedule.majorCodeBadge'))
+    expect(trigger.attributes('title')).toBe(i18n.global.t('schedule.majorCodeHelp'))
+    expect(trigger.classes()).toContain('text-primary')
+    expect(trigger.classes()).toContain('bg-primary/10')
+    expect(trigger.classes()).toContain('border-primary/30')
+    expect(trigger.classes()).toContain('cursor-help')
+
+    // 触发 hover (mouseenter)
+    await trigger.trigger('mouseenter')
+    vi.advanceTimersByTime(150)
+    await flushPromises()
+
+    expect(document.body.textContent).toContain(i18n.global.t('schedule.majorCodeGuideTitle'))
+
+    // 移出 hover (mouseleave)
+    await trigger.trigger('mouseleave')
+    vi.advanceTimersByTime(260)
+    await flushPromises()
+
+    // 点击固定打开
+    await trigger.trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain(i18n.global.t('schedule.majorCodeGuideTitle'))
+
+    vi.useRealTimers()
+  })
+})
+
+describe('ScheduleMajorSelector 配置就绪主动提示与收起交互', () => {
+  let mounted: VueWrapper | null = null
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    localStorage.clear()
+    setStoredSelection({})
+    getPkCalendars.mockResolvedValue([
+      { calendarId: 121, calendarName: '2025-2026学年第2学期' },
+    ])
+    getPkGrades.mockResolvedValue([2024])
+    getPkMajors.mockResolvedValue([{ code: '080901', name: '计算机科学与技术' }])
+    mounted = null
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    document.body.innerHTML = ''
+  })
+
+  test('collapsible 模式下未完成所有配置时：展示常规收起配置按钮，无就绪卡片', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2024, major: undefined })
+    mounted = mount(ScheduleMajorSelector, {
+      props: { collapsible: true },
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+
+    // 不显示就绪高亮卡片
+    expect(mounted.find('[data-testid="schedule-config-ready-card"]').exists()).toBe(false)
+
+    // 显示普通收起按钮
+    const collapseBtn = mounted.findAll('button').find((b) => b.text().trim() === i18n.global.t('schedule.collapseSettings'))
+    expect(collapseBtn).toBeDefined()
+
+    await collapseBtn!.trigger('click')
+    await flushPromises()
+    expect(mounted.emitted('toggle-collapse')).toHaveLength(1)
+  })
+
+  test('collapsible 模式下完成所有配置时：展示高醒目度就绪卡片，点击收起进入选课触发折叠', async () => {
+    setStoredSelection({ calendarId: 121, grade: 2024, major: '080901' })
+    mounted = mount(ScheduleMajorSelector, {
+      props: { collapsible: true },
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+
+    // 显示就绪高亮卡片且带有无障碍属性
+    const readyCard = mounted.find('[data-testid="schedule-config-ready-card"]')
+    expect(readyCard.exists()).toBe(true)
+    expect(readyCard.attributes('role')).toBe('status')
+    expect(readyCard.attributes('aria-live')).toBe('polite')
+    expect(readyCard.text()).toContain(i18n.global.t('schedule.configReadyTitle'))
+    expect(readyCard.text()).toContain(i18n.global.t('schedule.configReadyDesc'))
+    expect(readyCard.text()).toContain(i18n.global.t('schedule.readyToPick'))
+
+    // 包含高醒目度收起按钮
+    const doneBtn = readyCard.find('button.gf-button-primary')
+    expect(doneBtn.exists()).toBe(true)
+    expect(doneBtn.text()).toContain(i18n.global.t('schedule.collapseSettingsDone'))
+
+    await doneBtn.trigger('click')
+    await flushPromises()
+    expect(mounted.emitted('toggle-collapse')).toHaveLength(1)
+  })
+})

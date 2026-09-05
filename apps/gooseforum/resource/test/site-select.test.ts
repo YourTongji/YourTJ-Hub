@@ -34,7 +34,6 @@ describe('SiteSelect attrs 透传', () => {
     wrapper.unmount()
   })
 })
-
 // P1-1（review #320 第二轮）：$attrs.class 与静态 w-full 同时传给 trigger 时，
 // Tailwind 产物顺序会让 w-full 覆盖调用方 w-44。twMerge 必须让调用方宽度胜出。
 describe('SiteSelect twMerge class 合并', () => {
@@ -292,6 +291,40 @@ describe('SiteSelect 长文本溢出', () => {
     expect(labelSpan!.parentElement!.classList.contains('min-w-0')).toBe(true)
     // inline 元素上 text-overflow: ellipsis 不生效，文本 span 必须为 block
     expect(labelSpan!.classList.contains('block')).toBe(true)
+    wrapper.unmount()
+  })
+})
+
+describe('SiteSelect clearable 模式', () => {
+  test('启用 clearable 且有值时渲染清除按钮，点击触发清空', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: {
+        modelValue: '2026-1',
+        options: [{ value: '2026-1', label: '2026学年' }],
+        clearable: true,
+        clearLabel: '清除',
+      },
+      attachTo: document.body,
+    })
+    const clearBtn = wrapper.find('button[aria-label="清除"]')
+    expect(clearBtn.exists()).toBe(true)
+    await clearBtn.trigger('click')
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([''])
+    wrapper.unmount()
+  })
+
+  test('启用 clearable 但无值时不渲染清除按钮', () => {
+    const wrapper = mount(SiteSelect, {
+      props: {
+        modelValue: '',
+        options: [{ value: '2026-1', label: '2026学年' }],
+        clearable: true,
+        clearLabel: '清除',
+      },
+      attachTo: document.body,
+    })
+    const clearBtn = wrapper.find('button[aria-label="清除"]')
+    expect(clearBtn.exists()).toBe(false)
     wrapper.unmount()
   })
 })

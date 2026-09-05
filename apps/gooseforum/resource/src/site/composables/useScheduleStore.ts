@@ -54,7 +54,24 @@ const STORAGE_KEYS = {
   activePlanId: 'pk.activePlanId',
   weekView: 'pk.weekView',
   updateTime: 'pk.updateTime',
+  configCollapsed: 'goose:scheduleConfigCollapsed',
 } as const
+
+function writeStorage(key: string, value: unknown): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // localStorage 可能不可用（隐私/受限浏览模式），静默忽略。
+  }
+}
+
+function readStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
 
 export const COURSE_STATUS = {
   UNSELECTED: 0,
@@ -82,6 +99,8 @@ interface ScheduleState {
   majorSelected: PkMajorSelection
   plans: PkPlan[]
   activePlanId: string
+  /** 侧边栏配置区域（方案条+专业选择器）折叠记忆状态 */
+  isConfigCollapsed: boolean
   commonLists: CommonLists
   clickedCourseInfo: PkClickedCourse
   /** 派生态：由激活方案重建（不持久化）。 */
@@ -117,6 +136,7 @@ function createInitialState(): ScheduleState {
     majorSelected: { calendarId: undefined, grade: undefined, major: undefined },
     plans: [plan],
     activePlanId: plan.id,
+    isConfigCollapsed: readStorage(STORAGE_KEYS.configCollapsed) === '1',
     commonLists: createEmptyCommonLists(),
     clickedCourseInfo: { courseCode: '', courseName: '', teacherCode: '', teacherName: '' },
     occupied: createEmptyOccupied(),
@@ -255,6 +275,7 @@ function sanitizeMajorSelected(value: unknown): PkMajorSelection {
     calendarId: typeof input.calendarId === 'number' ? input.calendarId : undefined,
     grade: typeof input.grade === 'number' ? input.grade : undefined,
     major: typeof input.major === 'string' ? input.major : undefined,
+    majorName: typeof input.majorName === 'string' ? input.majorName : undefined,
   }
 }
 
@@ -420,23 +441,6 @@ export function rebuildScheduleFromStaged(
 
 const state = reactive<ScheduleState>(createInitialState())
 
-function writeStorage(key: string, value: unknown): void {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // localStorage 可能不可用（隐私/受限浏览模式），静默忽略。
-  }
-}
-
-function readStorage(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-
 function readTimeTableRows(): number {
   return maxRowsForCalendar(state.majorSelected.calendarId)
 }
@@ -465,7 +469,7 @@ function removeCourseFromSchedule(classCode: string): void {
   const input = String(classCode ?? '').trim()
   // 入参可能是基础课号（退课按 courseCode 传入，如 '122004'）或班级课号
   // （'122004.01' / '12200401'）。getCourseBaseCode 对无点号的基础课号会误裁
-  // 后两位（'122004'→'1220'），故先与备选池精确匹配，命中即为完整基础课号。
+  // 后两位（'122004'→'1220'），故先与备选课程精确匹配，命中即为完整基础课号。
   const base = plan.stagedCourses.some((course) => course.courseCode === input)
     ? input
     : getCourseBaseCode(input)
@@ -594,6 +598,25 @@ export function useScheduleStore() {
   function popStagedCourse(courseCode: string): void {
     removeCourseFromSchedule(courseCode)
     state.clickedCourseInfo = { courseCode: '', courseName: '', teacherCode: '', teacherName: '' }
+  }
+
+  /**
+   * 清除备选课程已选中的教学班（仅用于 status=STAGED 的课程）。
+   * 将所有 status=STAGED(1) 的 courseDetail 重置为 UNSELECTED(0)，
+   * 并将课程自身 status 降回 UNSELECTED(0)，之后重建派生态。
+   * 与 popStagedCourse 的区别：课程条目仍留在备选列表中，不会退课。
+   */
+  function clearStagedCourseClass(courseCode: string): void {
+    const plan = activePlan()
+    const course = plan.stagedCourses.find((c) => c.courseCode === courseCode)
+    if (!course) return
+    for (const detail of course.courseDetail) {
+      if (detail.status === COURSE_STATUS.STAGED) {
+        detail.status = COURSE_STATUS.UNSELECTED
+      }
+    }
+    course.status = COURSE_STATUS.UNSELECTED
+    syncActiveView()
   }
 
   function setClickedCourseInfo(payload: PkClickedCourse): void {
@@ -829,7 +852,25 @@ export function useScheduleStore() {
     const weekView = safeParseJson(readStorage(STORAGE_KEYS.weekView))
     state.weekView = sanitizeWeekView(weekView) ?? { week: null, useCurrent: false }
 
+    const collapsed = readStorage(STORAGE_KEYS.configCollapsed)
+    if (collapsed === '1') {
+      state.isConfigCollapsed = true
+    } else if (collapsed === '0') {
+      state.isConfigCollapsed = false
+    }
+
     syncActiveView()
+  }
+
+  function setConfigCollapsed(collapsed: boolean): void {
+    state.isConfigCollapsed = collapsed
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage?.setItem(STORAGE_KEYS.configCollapsed, collapsed ? '1' : '0')
+      }
+    } catch {
+      // ignore
+    }
   }
 
   /** 仅恢复同步时间（不触发课程缓存校验）。 */
@@ -913,6 +954,7 @@ export function useScheduleStore() {
     setSearchedCourses,
     pushStagedCourse,
     popStagedCourse,
+    clearStagedCourseClass,
     setClickedCourseInfo,
     clearStagedAndSelectedCourses,
     stageCourse,
@@ -938,5 +980,9 @@ export function useScheduleStore() {
     isMajorSelected,
     stats,
     creditSummary,
+    setConfigCollapsed,
+    collapseConfig: () => setConfigCollapsed(true),
+    expandConfig: () => setConfigCollapsed(false),
+    toggleConfig: () => setConfigCollapsed(!state.isConfigCollapsed),
   }
 }

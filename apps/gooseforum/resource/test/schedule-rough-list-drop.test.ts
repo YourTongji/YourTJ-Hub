@@ -119,3 +119,72 @@ describe('ScheduleRoughList 退课持久化', () => {
     expect(localStorage.getItem('pk.plans')).toContain('122004')
   })
 })
+
+describe('ScheduleRoughList 清除备选课程教学班（不退课）', () => {
+  let mounted: VueWrapper | null = null
+
+  /** 预置一门 STAGED（未保存）的课程：已选教学班但尚未 saveSelectedCourses。 */
+  function seedStagedOnlyCourse(courseCode: string) {
+    const store = useScheduleStore()
+    store.setClickedCourseInfo({ courseCode, courseName: `课程${courseCode}` })
+    store.pushStagedCourse(makeStaged(courseCode, [makeDetail(`${courseCode}.01`)]))
+    store.stageCourse(makeDetail(`${courseCode}.01`))
+    // 故意不调 saveSelectedCourses，课程 status 停在 STAGED(1)
+    store.solidify()
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    const store = useScheduleStore()
+    store.clearStagedAndSelectedCourses()
+    store.setMajorInfo({ calendarId: 121, grade: 2025, major: '00301' })
+    seedStagedOnlyCourse('133001')
+    mounted = null
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    document.body.innerHTML = ''
+  })
+
+  test('清除按钮不弹确认弹窗，直接清除教学班，课程仍留在备选列表', async () => {
+    const store = useScheduleStore()
+    // 初始：课程在备选列表，courseDetail 已有 STAGED(1) 班级
+    expect(store.state.commonLists.stagedCourses.map((c) => c.courseCode)).toContain('133001')
+    const before = store.state.commonLists.stagedCourses.find((c) => c.courseCode === '133001')!
+    expect(before.status).toBe(1) // STAGED
+    expect(before.courseDetail[0].status).toBe(1) // STAGED
+
+    mounted = mount(ScheduleRoughList, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    // 点击"清除"按钮（status != 2 时显示"清除"）
+    const clearButton = mounted.find('li button.gf-button-ghost')
+    expect(clearButton.exists()).toBe(true)
+    await clearButton.trigger('click')
+    await flushPromises()
+
+    // 不应出现退课确认弹窗
+    const dangerBtn = document.querySelector('.gf-button-danger')
+    expect(dangerBtn).toBeNull()
+
+    // 课程仍留在备选列表（不退课）
+    expect(store.state.commonLists.stagedCourses.map((c) => c.courseCode)).toContain('133001')
+
+    // 课程 status 回到 UNSELECTED(0)
+    const after = store.state.commonLists.stagedCourses.find((c) => c.courseCode === '133001')!
+    expect(after.status).toBe(0) // UNSELECTED
+    expect(after.courseDetail[0].status).toBe(0) // UNSELECTED
+
+    // 课表中不再有该班
+    expect(store.state.timeTableData.map((t) => t.code)).not.toContain('133001.01')
+
+    // localStorage 已同步，课程仍持久化但 status=0
+    expect(localStorage.getItem('pk.plans')).toContain('133001')
+    const persisted = JSON.parse(localStorage.getItem('pk.plans')!) as Array<{ stagedCourses: Array<{ courseCode: string; status: number; courseDetail: Array<{ status: number }> }> }>
+    const course = persisted[0].stagedCourses.find((c) => c.courseCode === '133001')!
+    expect(course.status).toBe(0)
+    expect(course.courseDetail[0].status).toBe(0)
+  })
+})

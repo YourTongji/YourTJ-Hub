@@ -12,14 +12,17 @@ defineProps<{
 
 <template>
   <div class="flex min-h-56 flex-col items-center justify-center px-6 text-center">
-    <!-- 加载态：品牌 logo 动画替代图标旋转；空态/错误态仍用传入图标 -->
     <LogoLoader v-if="loading" :size="40" />
-    <component
-      :is="icon"
+    <div
       v-else-if="icon"
-      class="h-8 w-8 text-base-content/35"
-    />
-    <h2 class="mt-2 text-base font-semibold text-base-content">{{ title }}</h2>
+      class="flex h-12 w-12 items-center justify-center rounded-2xl border border-line/60 bg-base-200/80 text-base-content/45 shadow-sm"
+    >
+      <component
+        :is="icon"
+        class="h-6 w-6 text-base-content/40 transition-colors"
+      />
+    </div>
+    <h2 class="mt-3 text-base font-semibold text-base-content">{{ title }}</h2>
     <p v-if="description" class="mt-1 text-sm text-base-content/55">{{ description }}</p>
     <div v-if="$slots.default" class="mt-4">
       <slot />

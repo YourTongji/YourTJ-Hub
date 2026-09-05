@@ -84,6 +84,11 @@
     border-radius: var(--gf-radius-field);
   }
 
+  .gf-button-xs {
+    @apply h-7 px-2.5 text-xs;
+    min-height: 1.75rem;
+  }
+
   .gf-button-sm {
     @apply h-8 px-3;
   }
@@ -111,6 +116,11 @@
   .gf-button-secondary {
     border: var(--gf-border) solid var(--gf-color-line);
     @apply bg-base-100 text-base-content/75 hover:bg-base-200 hover:text-base-content;
+  }
+
+  .gf-button-outline {
+    border: var(--gf-border) solid var(--gf-color-line);
+    @apply bg-transparent text-base-content/75 hover:bg-base-200 hover:text-base-content;
   }
 
   .gf-button-danger {

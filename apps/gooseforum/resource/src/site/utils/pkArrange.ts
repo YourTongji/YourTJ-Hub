@@ -255,3 +255,129 @@ export function formatWeeksText(weeks: readonly number[] | undefined): string {
   }
   return parts.join(',')
 }
+
+/**
+ * 判定周次集合的奇偶性：
+ * - 纯奇数周返回 'odd'（单周）
+ * - 纯偶数周返回 'even'（双周）
+ * - 混合或空返回 null（全周/连续/其他）
+ */
+export function detectWeekParity(weeks: readonly number[] | undefined): 'odd' | 'even' | null {
+  if (!weeks || weeks.length === 0) return null
+  const unique = [...new Set(weeks)]
+  if (unique.every((w) => w % 2 === 1)) return 'odd'
+  if (unique.every((w) => w % 2 === 0)) return 'even'
+  return null
+}
+
+/**
+ * 合并同一节次簇（cluster）内属于同一教学班的多段安排。
+ *
+ * 背景：教务排课常将同一门课、同一教学班因教师轮换或周次中断拆分为多条 arrangement（例如
+ * 现代分析测试技术 12117901 在周一 5-6 节包含 [1-2 16]、[3-4]、[5-6]、[7]... 共 7 段）。
+ * 若不合并，课表网格会把 7 段安排视作 7 门不同课程垂直切片堆叠，产生严重截断与高度畸变。
+ *
+ * 合并规则：
+ * - 针对同一天、同教学班课号（code，若无 code 则以 courseName 为标识）的条目合并；
+ * - occupyWeek 取各段周次的并集并排序去重；
+ * - occupyRoom 智能聚合：若地点相同则保留，若不同则提取非重复地点以 ' / ' 拼接；
+ * - teacherAndCode 智能去重：提取不同教师姓名拼接；
+ * - arrangementText 与 showText 以合并后的周次、节次、教室重新生成。
+ */
+export function consolidateSameClassArrangements<T extends {
+  code: string
+  courseName: string
+  occupyDay: number
+  occupyTime: number[]
+  occupyWeek?: number[]
+  teacherAndCode?: string
+  arrangementText?: string
+  occupyRoom?: string
+  showText?: string
+}>(courses: T[]): T[] {
+  if (courses.length <= 1) return courses
+
+  const groups = new Map<string, T[]>()
+  for (const item of courses) {
+    const key = item.code || item.courseName || 'unknown'
+    const existing = groups.get(key)
+    if (existing) {
+      existing.push(item)
+    } else {
+      groups.set(key, [item])
+    }
+  }
+
+  const result: T[] = []
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      result.push(group[0])
+      continue
+    }
+
+    const first = group[0]
+    const allWeeks = [
+      ...new Set(group.flatMap((g) => g.occupyWeek ?? [])),
+    ].sort((a, b) => a - b)
+
+    const allTimes = [
+      ...new Set(group.flatMap((g) => g.occupyTime ?? [])),
+    ].sort((a, b) => a - b)
+
+    const rooms = [...new Set(group.map((g) => g.occupyRoom?.trim()).filter(Boolean))] as string[]
+    const consolidatedRoom = rooms.join(' / ') || first.occupyRoom || ''
+
+    const teacherStrings = group
+      .map((g) => g.teacherAndCode?.trim())
+      .filter(Boolean) as string[]
+    const teacherNames = [
+      ...new Set(
+        teacherStrings.flatMap((t) =>
+          t
+            .split(/[,，、]/)
+            .map((s) => s.replace(/\([^)]*\)$/g, '').trim())
+            .filter(Boolean),
+        ),
+      ),
+    ]
+    const consolidatedTeacher =
+      teacherNames.length > 0 ? teacherNames.join('、') : first.teacherAndCode || ''
+
+    const weeksText = formatWeeksText(allWeeks)
+    const timeSpan =
+      allTimes.length === 0
+        ? ''
+        : allTimes.length === 1
+          ? `第${allTimes[0]}节`
+          : `第${allTimes[0]}-${allTimes[allTimes.length - 1]}节`
+
+    const consolidatedArrangement = [
+      weeksText ? `[${weeksText}周]` : '',
+      `周${first.occupyDay}`,
+      timeSpan,
+      consolidatedRoom,
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    const consolidatedShowText = [
+      consolidatedTeacher,
+      `${first.courseName}(${first.code})`,
+      consolidatedArrangement,
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    result.push({
+      ...first,
+      occupyWeek: allWeeks,
+      occupyTime: allTimes,
+      occupyRoom: consolidatedRoom,
+      teacherAndCode: consolidatedTeacher,
+      arrangementText: consolidatedArrangement,
+      showText: consolidatedShowText,
+    })
+  }
+
+  return result
+}

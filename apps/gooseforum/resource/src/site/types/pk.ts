@@ -84,6 +84,7 @@ export interface PkMajorSelection {
   calendarId: number | undefined
   grade: number | undefined
   major: string | undefined
+  majorName?: string | undefined
 }
 
 /** 选修课类型。对应 optionalCourseType。 */

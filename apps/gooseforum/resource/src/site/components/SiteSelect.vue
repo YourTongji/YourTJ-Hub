@@ -2,7 +2,8 @@
 import { computed, nextTick, ref, useAttrs, watch, type ComponentPublicInstance } from 'vue'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { Check, ChevronDown } from '@lucide/vue'
+import { i18n } from '@/runtime/i18n'
+import { Check, ChevronDown, X } from '@lucide/vue'
 import {
   SelectContent,
   SelectItem,
@@ -31,11 +32,25 @@ const props = defineProps<{
   searchable?: boolean
   searchPlaceholder?: string
   emptyText?: string
+  align?: 'start' | 'center' | 'end'
+  /** 启用后当有选中项时在 hover 状态显示一键清除按钮（复用箭头位置，零额外宽度占用）。 */
+  clearable?: boolean
+  /** 清除按钮的无障碍标签 / title 提示文本。 */
+  clearLabel?: string
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+function t(key: string): string {
+  try {
+    const res = i18n.global.t(key)
+    return typeof res === 'string' && res !== key ? res : 'Clear'
+  } catch {
+    return 'Clear'
+  }
+}
 
 // SelectRoot 是 renderless 组件（inheritAttrs: false），调用方 attrs（如 class 间距/宽度）
 // 必须显式透传到 SelectTrigger，否则被整体丢弃（SettingsPage 语言选择/字号预设回归）。
@@ -43,18 +58,22 @@ const emit = defineEmits<{
 // 调用方宽度（如 w-44）覆盖默认 w-full，避免 CSS 产物顺序导致覆盖失败。
 defineOptions({ inheritAttrs: false })
 
-const attrs = useAttrs()
-const { class: callerClass, ...restAttrs } = attrs
-const triggerClass = computed(() =>
-  twMerge('gf-input flex w-full items-center justify-between gap-2 text-left', clsx(callerClass as ClassValue)),
-)
-
 // reka-ui@2.9.8 的 SelectContentImpl 对 Tab 无条件 preventDefault 且不关闭 Select
 // （SelectContentImpl.js handleKeyDown），补明确的 Tab 关闭 + 焦点回到 trigger。
 const open = ref(false)
 const triggerRef = ref<ComponentPublicInstance | null>(null)
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
+
+const attrs = useAttrs()
+const { class: callerClass, ...restAttrs } = attrs
+const triggerClass = computed(() =>
+  twMerge(
+    'gf-input group flex w-full items-center justify-between gap-2 text-left cursor-pointer transition-colors duration-150 select-none',
+    open.value ? 'border-primary ring-2 ring-primary/20' : '',
+    clsx(callerClass as ClassValue),
+  ),
+)
 
 const filteredOptions = computed(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase()
@@ -122,20 +141,42 @@ function handleContentKeydown(event: KeyboardEvent) {
           <span
             class="block truncate"
             :class="selectedLabel.length ? 'text-base-content' : 'text-base-content/45'"
+            :title="selectedLabel[0] ?? props.placeholder ?? ''"
           >
             {{ selectedLabel[0] ?? props.placeholder ?? '' }}
           </span>
         </template>
       </SelectValue>
-      <ChevronDown class="h-4 w-4 shrink-0 text-base-content/45" />
+      <!-- 右侧指示器：支持 clearable 时在 hover 时替换为清除图标，零额外宽度开销 -->
+      <div v-if="props.clearable && props.modelValue" class="relative flex h-4 w-4 shrink-0 items-center justify-center">
+        <button
+          type="button"
+          class="hidden group-hover:flex h-4 w-4 items-center justify-center rounded-sm text-base-content/45 hover:text-error transition-colors cursor-pointer"
+          :title="props.clearLabel || t('schedule.clear')"
+          :aria-label="props.clearLabel || t('schedule.clear')"
+          @click.stop.prevent="emit('update:modelValue', '')"
+        >
+          <X class="h-3.5 w-3.5" />
+        </button>
+        <ChevronDown
+          class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-200 group-hover:hidden"
+          :class="open ? 'rotate-180 text-primary' : ''"
+        />
+      </div>
+      <ChevronDown
+        v-else
+        class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-200"
+        :class="open ? 'rotate-180 text-primary' : ''"
+      />
     </SelectTrigger>
 
     <SelectPortal>
       <SelectContent
-        class="gf-menu-surface z-[2100] min-w-[var(--reka-select-trigger-width)] overflow-hidden p-1"
+        class="gf-menu-surface z-[2100] min-w-[var(--reka-select-trigger-width)] max-w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line/80 bg-base-100/98 p-1 shadow-2xl backdrop-blur-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-1.5 data-[side=top]:slide-in-from-bottom-1.5 duration-150 ease-out origin-[var(--reka-popper-transform-origin)]"
         position="popper"
         :side-offset="6"
-        align="start"
+        :collision-padding="8"
+        :align="props.align ?? 'start'"
         :body-lock="false"
         :disable-outside-pointer-events="false"
         @keydown="handleContentKeydown"
@@ -160,18 +201,19 @@ function handleContentKeydown(event: KeyboardEvent) {
         >
           {{ props.emptyText ?? '' }}
         </div>
-        <SelectViewport class="gf-scrollbar-thin max-h-64 overflow-y-auto overscroll-contain">
+        <SelectViewport class="gf-scrollbar-thin max-h-[min(18rem,calc(var(--reka-popper-available-height,18rem)-1.5rem))] overflow-y-auto overscroll-contain">
           <SelectItem
             v-for="option in filteredOptions"
             :key="option.value"
             :value="option.value"
-            class="flex h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-base-content outline-none select-none hover:bg-base-200 data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary"
-            :class="option.value === props.modelValue ? 'bg-primary/10 text-primary' : ''"
+            :title="option.label"
+            class="flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-base-content outline-none select-none transition-colors duration-150 hover:bg-base-200/80 data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary"
+            :class="option.value === props.modelValue ? 'bg-primary/10 text-primary font-semibold' : ''"
             data-site-select-option
           >
             <SelectItemText class="min-w-0 flex-1 truncate">{{ option.label }}</SelectItemText>
             <SelectItemIndicator>
-              <Check class="h-4 w-4 shrink-0" />
+              <Check class="h-4 w-4 shrink-0 text-primary" />
             </SelectItemIndicator>
           </SelectItem>
         </SelectViewport>
