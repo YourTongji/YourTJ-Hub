@@ -187,4 +187,23 @@ describe('ScheduleRoughList 清除备选课程教学班（不退课）', () => {
     expect(course.status).toBe(0)
     expect(course.courseDetail[0].status).toBe(0)
   })
+
+  test('未选教学班的课程点击清除后从备选列表移除', async () => {
+    const store = useScheduleStore()
+    // 先清除已暂存的教学班，构造截图中的「未选」课程状态。
+    store.clearStagedCourseClass('133001')
+    store.solidify()
+    expect(store.state.commonLists.stagedCourses.find((c) => c.courseCode === '133001')?.status).toBe(0)
+
+    mounted = mount(ScheduleRoughList, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    const clearButton = mounted.find('li button.gf-button-ghost')
+    expect(clearButton.exists()).toBe(true)
+    await clearButton.trigger('click')
+    await flushPromises()
+
+    expect(store.state.commonLists.stagedCourses.map((c) => c.courseCode)).not.toContain('133001')
+    expect(localStorage.getItem('pk.plans')).not.toContain('133001')
+  })
 })

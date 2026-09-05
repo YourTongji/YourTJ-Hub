@@ -445,7 +445,7 @@ export default {
   },
   schedule: {
     title: '排课器',
-    subtitle: '规划新学期课表：选课、冲突检测与导出。',
+    subtitle: '规划你的新学期课表',
     calendar: '学期',
     grade: '年级',
     major: '专业',

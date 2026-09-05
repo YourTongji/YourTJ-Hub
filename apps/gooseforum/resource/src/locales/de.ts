@@ -443,7 +443,7 @@ export default {
   },
   schedule: {
     title: 'Stundenplan',
-    subtitle: 'Plane das nächste Semester: Wähle Kurse, erkenne Konflikte und exportiere.',
+    subtitle: 'Plane deinen Stundenplan für das neue Semester',
     calendar: 'Semester',
     grade: 'Jahr',
     major: 'Studiengang',

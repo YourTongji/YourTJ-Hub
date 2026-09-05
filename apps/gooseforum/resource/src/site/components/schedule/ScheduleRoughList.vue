@@ -10,7 +10,7 @@ import { BookOpen, Save, Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { deriveConflicts } from '@/site/utils/pkConflict'
-import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { COURSE_STATUS, useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -76,7 +76,11 @@ function dropCourse(course: PkStagedCourse) {
 }
 
 function clearCourseClass(course: PkStagedCourse) {
-  store.clearStagedCourseClass(course.courseCode)
+  if (course.status === COURSE_STATUS.UNSELECTED) {
+    store.popStagedCourse(course.courseCode)
+  } else {
+    store.clearStagedCourseClass(course.courseCode)
+  }
   store.solidify()
 }
 

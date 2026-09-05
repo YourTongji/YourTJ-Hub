@@ -443,7 +443,7 @@ export default {
   },
   schedule: {
     title: 'Schedule',
-    subtitle: 'Plan your next-semester timetable: pick courses, detect conflicts, and export.',
+    subtitle: 'Plan your next-semester timetable',
     calendar: 'Term',
     grade: 'Grade',
     major: 'Major',

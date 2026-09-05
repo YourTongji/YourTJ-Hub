@@ -443,7 +443,7 @@ export default {
   },
   schedule: {
     title: '時間割プランナー',
-    subtitle: '新学期の時間割を計画：履修選択・衝突検出・エクスポート。',
+    subtitle: '新学期の時間割を計画',
     calendar: '学期',
     grade: '学年',
     major: '専攻',
