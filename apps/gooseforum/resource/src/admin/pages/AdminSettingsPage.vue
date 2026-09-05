@@ -1921,25 +1921,27 @@ onUnmounted(stopSyncPolling)
       </Dialog>
 
       <Dialog :open="bulkImportOpen" @update:open="bulkImportOpen = $event">
-        <DialogContent class="sm:max-w-lg">
-          <DialogHeader>
+        <!-- 限高弹层：Textarea 基类 field-sizing-content 随内容撑高，粘贴超长词表时
+             仅中部滚动区滚动、页眉/页脚固定，防止弹层超出视口被裁且无法滚动。 -->
+        <DialogContent class="flex max-h-[min(700px,calc(100vh-1.5rem))] flex-col overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader class="shrink-0 px-6 pt-6">
             <DialogTitle>{{ adminText('k00ug') }}：{{ adminText(bulkImportTitleKey) }}</DialogTitle>
             <DialogDescription>{{ bulkImportTarget === 'sensitiveWords' ? adminText('k00un') : adminText('k00uf') }}</DialogDescription>
           </DialogHeader>
-          <div class="space-y-3">
-            <Textarea v-model="bulkImportText" class="min-h-32 text-sm" />
+          <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-2">
+            <Textarea v-model="bulkImportText" class="max-h-56 min-h-32 text-sm" />
             <p v-if="bulkImportEmptyHint" class="text-sm text-destructive">{{ adminText('k00uj') }}</p>
             <template v-if="bulkImportPreview">
               <p class="text-sm font-medium">{{ adminText('k00ui', { added: bulkImportPreview.added.length, skipped: bulkImportPreview.skipped }) }}</p>
               <p v-if="bulkImportPreview.truncated" class="text-xs text-muted-foreground">{{ adminText('k00uk', { limit: BULK_IMPORT_LIMIT }) }}</p>
-              <div v-if="bulkImportPreview.added.length > 0" class="flex max-h-44 flex-wrap gap-2 overflow-y-auto rounded-lg border bg-muted/10 p-3">
+              <div v-if="bulkImportPreview.added.length > 0" class="flex flex-wrap gap-2 rounded-lg border bg-muted/10 p-3">
                 <span v-if="bulkImportPreview.added.length > BULK_IMPORT_PREVIEW_LIMIT" class="w-full text-xs text-muted-foreground">{{ adminText('k00um', { limit: BULK_IMPORT_PREVIEW_LIMIT }) }}</span>
                 <Badge v-for="item in bulkImportPreview.added.slice(0, BULK_IMPORT_PREVIEW_LIMIT)" :key="item" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">{{ item }}</Badge>
               </div>
               <p v-if="bulkImportTarget === 'bannedUsernames'" class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{{ adminText('k00ul') }}</p>
             </template>
           </div>
-          <DialogFooter>
+          <DialogFooter class="shrink-0 px-6 pb-6">
             <Button variant="outline" type="button" @click="closeBulkImport">{{ adminText('k009q') }}</Button>
             <Button type="button" @click="confirmBulkImport">
               <ClipboardPaste class="size-4" />
