@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
@@ -26,6 +27,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 		&optRecord.Entity{},
 		&moderationLog.Entity{},
 		&contentDeleteEvent.Entity{},
+		&pushSubscription.Entity{},
 	); err != nil {
 		t.Fatalf("migrate batch delete tables: %v", err)
 	}

@@ -16,6 +16,12 @@ export default defineConfig({
     assetsDir: 'assets',
     manifest: true,
     emptyOutDir: true,
+    // 页面级 CSP（securityHeaders.go buildPageCSP）的 script-src/style-src 均不放行 data:。
+    // 默认 4096B 内联阈值会把 ?url 导入的小资产（vditor 语言包、content-theme/hljs 主题 CSS）
+    // 内联成 data:text/javascript|css 而被 CSP 拦截：语言包报错令编辑器无法挂载，主题 CSS 静默丢失
+    // （issue #461）。必须保持 0，让所有 ?url 运行时资产落成 /assets 同源文件；dev server 恒不内联，
+    // 此约束只在生产构建生效。
+    assetsInlineLimit: 0,
     rollupOptions: {
       input: {
         site: 'src/site/main.ts',

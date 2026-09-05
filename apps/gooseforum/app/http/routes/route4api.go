@@ -2,16 +2,16 @@ package routes
 
 import (
 	"errors"
-	"log/slog"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
-
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/gin-contrib/gzip"
+	"io/fs"
+	"log/slog"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
@@ -130,6 +130,37 @@ func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/llms.txt", middleware.RateLimit(middleware.RateLimitLLMSIndex), controllers.RenderLLMSIndex)
 	ginApp.GET("/llms-full.txt", middleware.RateLimit(middleware.RateLimitLLMSFull), controllers.RenderLLMSFull)
 	ginApp.GET("/p/posts/:document", middleware.RateLimit(middleware.RateLimitLLMSTopic), controllers.RenderLLMSTopic)
+	// PWA 静态入口（根 scope）：Service Worker 必须可被根路径注册才能控制
+	// 全站页面（push 通知在页面关闭后由浏览器投递给 SW）；manifest 供 iOS
+	// 「添加到主屏幕」识别（Web Push 的 iOS 前置条件）。
+	ginApp.GET("/sw.js", servePWAStatic("sw.js", "text/javascript"))
+	ginApp.GET("/manifest.webmanifest", servePWAStatic("manifest.webmanifest", "application/manifest+json"))
+}
+
+// servePWAStatic 从 resource/static 读取并直出 PWA 文件。
+// /sw.js 必须 no-cache：浏览器按 24h HTTP 缓存会延迟 SW 更新（注册方另以
+// updateViaCache:'none' 双保险）；manifest 允许短缓存。
+func servePWAStatic(name, contentType string) func(*gin.Context) {
+	return func(c *gin.Context) {
+		staticFS, err := resource.GetStaticFS()
+		if err != nil {
+			c.String(http.StatusInternalServerError, "static fs unavailable")
+			return
+		}
+		content, err := fs.ReadFile(staticFS, name)
+		if err != nil {
+			c.String(http.StatusNotFound, "not found")
+			return
+		}
+		c.Header("Content-Type", contentType)
+		if name == "sw.js" {
+			c.Header("Cache-Control", "no-cache")
+		} else {
+			c.Header("Cache-Control", "public, max-age=3600")
+		}
+		c.Status(http.StatusOK)
+		_, _ = c.Writer.Write(content)
+	}
 }
 
 func apiRoute(ginApp *gin.Engine) {
@@ -260,6 +291,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 拦截保留。
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
+	forumLoginApi.GET("push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
+	forumLoginApi.POST("push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
+	forumLoginApi.POST("push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
 	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicStatus), UpButterReq(api.UpdateTopicStatus))
 	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))

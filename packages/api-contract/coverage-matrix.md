@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：284
-- /api JSON 路由：223，已入契约：224（100%），已知未覆盖：0
-- 非 API 排除路由：60
+- 快照路由总数：289
+- /api JSON 路由：226，已入契约：227（100%），已知未覆盖：0
+- 非 API 排除路由：62
 
-## 已覆盖（224）
+## 已覆盖（227）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -55,6 +55,7 @@
 | GET | `/api/forum/notifications` | `getNotifications` |
 | GET | `/api/forum/posts/revisions` | `getPostRevisions` |
 | GET | `/api/forum/posts/window` | `getPostWindow` |
+| GET | `/api/forum/push/config` | `getPushConfig` |
 | GET | `/api/forum/search` | `searchForum` |
 | GET | `/api/forum/unread-status` | `getUnreadStatus` |
 | GET | `/api/forum/user/deleted-content` | `deletedContentList` |
@@ -189,6 +190,8 @@
 | POST | `/api/forum/posts/delete` | `deletePost` |
 | POST | `/api/forum/posts/like` | `likePost` |
 | POST | `/api/forum/posts/update` | `updatePost` |
+| POST | `/api/forum/push/subscribe` | `subscribePush` |
+| POST | `/api/forum/push/unsubscribe` | `unsubscribePush` |
 | POST | `/api/forum/report` | `createReport` |
 | POST | `/api/forum/topics/bookmark` | `bookmarkTopic` |
 | POST | `/api/forum/topics/delete` | `deleteTopic` |
@@ -242,7 +245,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，60）
+## 排除（非 JSON API，62）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -266,6 +269,7 @@
 | GET | `/llms-full.txt` | SEO/机器可读文本输出，非 JSON API |
 | GET | `/llms.txt` | SEO/机器可读文本输出，非 JSON API |
 | GET | `/login` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/manifest.webmanifest` | PWA manifest 静态文件，非 JSON API |
 | GET | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
 | GET | `/messages` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/moderation` | SSR 页面（GoHTML 三模渲染），非 JSON API |
@@ -288,6 +292,7 @@
 | GET | `/sitemap.xml` | SEO/机器可读文本输出，非 JSON API |
 | GET | `/sponsors` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/static/*filepath` | 静态资源（StaticFS 展开 GET+HEAD） |
+| GET | `/sw.js` | PWA Service Worker 静态文件，非 JSON API |
 | GET | `/terms` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/theme-preview` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/topics/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API；/p/post/:id 的别名路由 |

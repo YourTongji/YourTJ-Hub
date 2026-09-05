@@ -6,13 +6,12 @@
 // 数据全部走 /api/pk/* JSON API 异步加载（SSR 空壳）；localStorage 持久化由 store 负责。
 // 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync
 // 以全方案课程并集请求，applySyncToAllPlans 各方案保留排课状态。
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
-import { Download, RefreshCw, X } from '@lucide/vue'
+import { Download, RefreshCw, Star, X } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
-import ScheduleMajorSelector from '@/site/components/schedule/ScheduleMajorSelector.vue'
-import SchedulePlanBar from '@/site/components/schedule/SchedulePlanBar.vue'
+import ScheduleConfigSection from '@/site/components/schedule/ScheduleConfigSection.vue'
 import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
 import ScheduleRoughList from '@/site/components/schedule/ScheduleRoughList.vue'
 import ScheduleDetailList from '@/site/components/schedule/ScheduleDetailList.vue'
@@ -66,9 +65,20 @@ const pickerOpen = ref(false)
 const customizeOpen = ref(false)
 /** 点击课程 → 浮动「选择教学班」弹窗（内容 = ScheduleDetailList）。 */
 const classPickOpen = ref(false)
+/** 选择教学班弹窗内的快捷课评面板展开状态。 */
+const detailReviewOpen = ref(false)
+
+watch(classPickOpen, (open) => {
+  if (!open) {
+    detailReviewOpen.value = false
+  }
+})
+
 const detailCourse = ref<PkCourseOnTable | null>(null)
 /** 点击课表空白格 → 该时段备选课程选择框（day/section 为点击位置）。 */
 const cellPick = ref<{ day: number; section: number } | null>(null)
+/** 同时段替换目标课程（从 ScheduleDetailCard 点击「同时段替换」发起） */
+const replacingCourse = ref<PkCourseOnTable | null>(null)
 
 const dataOutdated = computed(() => store.state.flags.isDataOutdated)
 
@@ -167,8 +177,29 @@ function handleOpenDetail(course: PkCourseOnTable) {
 }
 
 function handleCellClick(day: number, section: number) {
-  // 点击课表空格：弹出该时段可选课程（来自备选池 stagedCourses）。
+  // 点击课表空格：弹出该时段可选课程
+  replacingCourse.value = null
   cellPick.value = { day, section }
+}
+
+function handleReplaceCourse(course: PkCourseOnTable) {
+  replacingCourse.value = course
+  detailCourse.value = null
+  cellPick.value = {
+    day: course.occupyDay,
+    section: course.occupyTime[0] ?? 1,
+  }
+}
+
+function handleCloseCellPicker() {
+  cellPick.value = null
+  replacingCourse.value = null
+}
+
+function handleReplacedCourse(from: string, to: string) {
+  flash(t('schedule.replaceSuccess', { from, to }), 'success')
+  cellPick.value = null
+  replacingCourse.value = null
 }
 
 // ---- 导出（CSV/XLS 菜单保留在页头；PNG 在课表工具条内）----
@@ -339,18 +370,20 @@ onBeforeUnmount(() => {
     </PageHeader>
 
     <!-- 移动端：双 tab（课表/选课），方案条置顶；教学班选择走弹窗 -->
-    <div v-if="isMobile" class="mt-4 space-y-3">
-      <SchedulePlanBar />
-      <ScheduleMajorSelector />
+    <div v-if="isMobile" class="mt-4 space-y-3 px-3 sm:px-0">
+      <ScheduleConfigSection />
       <ScheduleStatsCard />
 
       <div role="tablist" aria-label="schedule tabs" class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
         <button
           v-for="tab in MOBILE_TABS"
+          :id="`schedule-tab-${tab.key}`"
           :key="tab.key"
           type="button"
           role="tab"
           :aria-selected="mobileTab === tab.key"
+          :aria-controls="`schedule-panel-${tab.key}`"
+          :tabindex="mobileTab === tab.key ? 0 : -1"
           class="gf-tab flex-1"
           :class="mobileTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
           @click="mobileTab = tab.key"
@@ -362,12 +395,21 @@ onBeforeUnmount(() => {
 
       <ScheduleTimeTable
         v-if="mobileTab === 'timetable'"
+        id="schedule-panel-timetable"
+        role="tabpanel"
+        aria-labelledby="schedule-tab-timetable"
+        tabindex="-1"
         @open-detail="handleOpenDetail"
         @cell-click="handleCellClick"
         @customize="customizeOpen = true"
+        @open-picker="pickerOpen = true"
       />
       <ScheduleRoughList
         v-if="mobileTab === 'list'"
+        id="schedule-panel-list"
+        role="tabpanel"
+        aria-labelledby="schedule-tab-list"
+        tabindex="-1"
         @open-picker="pickerOpen = true"
         @open-detail="classPickOpen = true"
       />
@@ -376,15 +418,19 @@ onBeforeUnmount(() => {
     <!-- 桌面：左右两栏同高——右栏课表自然高度定容器高，左栏绝对定位拉满并内部滚动 -->
     <div v-else class="mt-4 lg:relative">
       <div class="flex flex-col gap-3 lg:absolute lg:inset-y-0 lg:left-0 lg:w-[352px] lg:min-h-0">
-        <SchedulePlanBar />
-        <ScheduleMajorSelector />
+        <ScheduleConfigSection />
         <ScheduleStatsCard />
         <ScheduleRoughList class="min-h-0 lg:flex-1" @open-picker="pickerOpen = true" @open-detail="classPickOpen = true" />
       </div>
       <!-- 右栏保底高度：空课表（未选课/全退）时仍保留整张课表的高度，
            避免绝对定位的左栏（方案/选择器/统计/列表）被压扁。 -->
       <div class="min-w-0 lg:min-h-[720px] lg:pl-[368px]">
-        <ScheduleTimeTable @open-detail="handleOpenDetail" @cell-click="handleCellClick" @customize="customizeOpen = true" />
+        <ScheduleTimeTable
+          @open-detail="handleOpenDetail"
+          @cell-click="handleCellClick"
+          @customize="customizeOpen = true"
+          @open-picker="pickerOpen = true"
+        />
       </div>
     </div>
 
@@ -394,35 +440,63 @@ onBeforeUnmount(() => {
       :open="cellPick !== null"
       :day="cellPick?.day ?? null"
       :section="cellPick?.section ?? null"
-      @close="cellPick = null"
+      :replacing-course="replacingCourse"
+      @close="handleCloseCellPicker"
       @conflict="handleConflict"
       @staged="flash(t('schedule.stagedSuccess'), 'success')"
+      @replaced="handleReplacedCourse"
     />
     <ScheduleCustomEventDialog :open="customizeOpen" @close="customizeOpen = false" />
-    <ScheduleDetailCard :course="detailCourse" @close="detailCourse = null" />
+    <ScheduleDetailCard :course="detailCourse" @close="detailCourse = null" @replace="handleReplaceCourse" />
 
     <!-- 选择教学班弹窗：点击已选课程弹出（浮动，取代内联班级列） -->
     <DialogRoot :open="classPickOpen" @update:open="classPickOpen = $event">
       <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40 backdrop-blur-[2px]" />
         <DialogContent
-          class="fixed left-1/2 top-1/2 z-[2100] max-h-[85vh] w-[92vw] max-w-[520px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto outline-none lg:max-w-[880px]"
+          class="fixed left-1/2 top-1/2 z-[2100] flex h-[85vh] max-h-[85vh] w-[92vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl outline-none transition-[max-width] duration-300 ease-out"
+          :class="detailReviewOpen ? 'max-w-[1040px]' : 'max-w-[640px]'"
         >
-          <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
-            <div class="flex items-start justify-between gap-2 border-b border-line/60 px-4 py-3">
-              <div class="min-w-0">
-                <DialogTitle class="truncate text-sm font-bold text-base-content">
-                  {{ store.state.clickedCourseInfo.courseName || t('schedule.classPickerTitle') }}
-                </DialogTitle>
-                <DialogDescription class="text-[11px] text-base-content/55">{{ t('schedule.classPickerHint') }}</DialogDescription>
-              </div>
-              <button type="button" class="gf-icon-button shrink-0" :aria-label="t('common.close')" @click="classPickOpen = false">
+          <!-- 弹窗顶栏：标题 + 课评展开/收起切换按钮 + 关闭按钮 -->
+          <div class="flex items-center justify-between gap-3 border-b border-line/60 bg-base-100 px-5 py-3.5 shrink-0">
+            <div class="min-w-0 flex-1">
+              <DialogTitle class="truncate text-base font-bold text-base-content">
+                {{ store.state.clickedCourseInfo.courseName || t('schedule.classPickerTitle') }}
+              </DialogTitle>
+              <DialogDescription class="mt-0.5 text-xs text-base-content/55">
+                {{ t('schedule.classPickerHint') }}
+              </DialogDescription>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                class="gf-button gf-button-sm gap-1.5 rounded-xl border border-line/70 bg-base-100 px-3 text-xs font-semibold text-base-content/80 shadow-xs transition-all hover:bg-base-200 hover:text-base-content active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-primary"
+                :class="{ 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/15': detailReviewOpen }"
+                @click="detailReviewOpen = !detailReviewOpen"
+              >
+                <Star class="h-3.5 w-3.5" :class="detailReviewOpen ? 'fill-warning text-warning' : 'text-base-content/50'" />
+                <span>{{ detailReviewOpen ? t('schedule.hideReviews') : t('schedule.reviews') }}</span>
+              </button>
+
+              <button
+                type="button"
+                class="gf-icon-button rounded-xl"
+                :aria-label="t('common.close')"
+                @click="classPickOpen = false"
+              >
                 <X class="h-4 w-4" />
               </button>
             </div>
-            <div class="max-h-[calc(85vh-64px)] overflow-y-auto overscroll-contain">
-              <ScheduleDetailList @conflict="handleConflict" @staged="flash(t('schedule.stagedSuccess'), 'success')" />
-            </div>
+          </div>
+
+          <!-- 弹窗内容区：包含教学班卡片列表与浮动课评面板 -->
+          <div class="min-h-0 flex-1 overflow-hidden flex flex-col">
+            <ScheduleDetailList
+              v-model:review-panel-open="detailReviewOpen"
+              @conflict="handleConflict"
+              @staged="flash(t('schedule.stagedSuccess'), 'success')"
+            />
           </div>
         </DialogContent>
       </DialogPortal>

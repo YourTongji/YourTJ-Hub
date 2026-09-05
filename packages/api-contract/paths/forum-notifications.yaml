@@ -199,3 +199,149 @@ markAllNotificationsRead:
                 externalValue: ../fixtures/account-frozen.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+getPushConfig:
+  get:
+    tags: [Forum]
+    summary: Read Web Push channel configuration for the caller
+    operationId: getPushConfig
+    description: |
+      Returns whether the instance has Web Push enabled and, when enabled, the
+      VAPID application server key (65-byte P-256 uncompressed point, base64url)
+      the browser must pass to PushManager.subscribe as applicationServerKey.
+      configured=false when the instance has no [webpush] VAPID keys (dev keeps
+      the channel off); clients then hide the push opt-in toggle.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Push channel configuration.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PushConfigResponse
+            examples:
+              enabled:
+                externalValue: ../fixtures/push-config-enabled.json
+              disabled:
+                externalValue: ../fixtures/push-config-disabled.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+subscribePush:
+  post:
+    tags: [Forum]
+    summary: Persist the caller's browser push subscription
+    operationId: subscribePush
+    description: |
+      Saves one Web Push subscription (PushSubscription.toJSON()) owned by the
+      caller. endpoint is globally unique: resubscribing from the same browser
+      (or after logging into another account) converges the row to the current
+      user and refreshes its keys and language. Business failure surfaces as
+      HTTP 200 `common.operation.failed`. The subscription carries long-lived
+      push-service credentials and is deleted on account close.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PushSubscribeRequest
+    responses:
+      '200':
+        description: Subscription persisted (or a legacy business failure envelope).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PushSubscribeResponse
+            examples:
+              success:
+                externalValue: ../fixtures/push-subscribe-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+unsubscribePush:
+  post:
+    tags: [Forum]
+    summary: Remove one of the caller's browser push subscriptions
+    operationId: unsubscribePush
+    description: |
+      Deletes the subscription with the given endpoint when it belongs to the
+      caller (idempotent: an endpoint the caller does not own, or that does not
+      exist, silently succeeds and never reveals other users' subscriptions).
+      Clients call this after browser-side PushSubscription.unsubscribe() so the
+      server stops sending to a dead endpoint.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PushUnsubscribeRequest
+    responses:
+      '200':
+        description: Subscription removed (or a legacy business failure envelope).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PushUnsubscribeResponse
+            examples:
+              success:
+                externalValue: ../fixtures/push-unsubscribe-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

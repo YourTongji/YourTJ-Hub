@@ -775,6 +775,12 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 
 	existingRef, refErr := sourceRefByExternal(tx, source, row.ID, course.EntityTypeOffering)
 	teachingClassID := parseTeachingClassIDString(row.TeachingClassID)
+	// 兼容旧版 converter：它把教学班号编码在 external id（{class_id}-{course_id}）
+	// 中但未填 teaching_class_id。优先使用显式字段，缺失时从稳定外部 ID 回退解析，
+	// 使课程卡 external id 变化时仍能按教学班复用既有 offering。
+	if teachingClassID == 0 {
+		teachingClassID = parseOfferingExternalID(row.ID)
+	}
 	if refErr == nil {
 		if existingRef.Checksum == checksum {
 			report.Skipped++ // 内容未变化
@@ -878,6 +884,13 @@ func parseTeachingClassIDString(v string) uint64 {
 		return 0
 	}
 	return id
+}
+
+// parseOfferingExternalID 从 offering external id 的首段解析教学班号。
+// other-* 虚拟 offering 与格式非法的 ID 返回 0。
+func parseOfferingExternalID(externalID string) uint64 {
+	head, _, _ := strings.Cut(strings.TrimSpace(externalID), "-")
+	return parseTeachingClassIDString(head)
 }
 
 // getOrCreateTermTx 事务内按 code 查找学期，不存在则创建（事务内可见，避免同批次重复建）。

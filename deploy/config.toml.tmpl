@@ -56,6 +56,13 @@ maxLifeSeconds = 300
 url = "http://meilisearch:7700"
 masterkey = {{MEILI_MASTER_KEY}}
 
+# Web Push 浏览器推送（可选增强通道）：vapid 密钥为空 = 通道关闭（dev 保持空，
+# 从 main 快照同步的订阅/任务行绝不外发）。密钥由 GitHub Environments secrets
+# VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY 注入（生成：yourtj-hub webpush-keys）。
+[webpush]
+vapid_public_key = {{VAPID_PUBLIC_KEY}}
+vapid_private_key = {{VAPID_PRIVATE_KEY}}
+
 [wiki.git]
 repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
 branch = "main"

@@ -4326,6 +4326,11 @@ UnreadStatusResult:
     latestNotificationType:
       type: string
       description: Event type of the latest unread notification; omitted when there are no unread notifications.
+    latestUnreadId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Id of the latest unread notification; monotonic across arrivals, reset to zero (omitted) when all notifications are read. Poll-based in-page notifications use it to detect new arrivals while unread stays true.
   additionalProperties: false
 
 UnreadStatusSuccess:
@@ -4469,6 +4474,108 @@ NotificationMarkAllReadSuccess:
 NotificationMarkAllReadResponse:
   oneOf:
     - $ref: '#/NotificationMarkAllReadSuccess'
+    - $ref: '#/ApiFailure'
+
+PushConfigResult:
+  type: object
+  required: [configured]
+  properties:
+    configured:
+      type: boolean
+      description: True when the instance has [webpush] VAPID keys and the push channel is enabled.
+    applicationServerKey:
+      type: string
+      description: VAPID public key (65-byte P-256 uncompressed point, base64url) to pass as PushManager.subscribe applicationServerKey; present only when configured is true.
+  additionalProperties: false
+
+PushConfigSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/PushConfigResult'
+
+PushConfigResponse:
+  oneOf:
+    - $ref: '#/PushConfigSuccess'
+    - $ref: '#/ApiFailure'
+
+PushSubscriptionKey:
+  type: object
+  required: [p256dh, auth]
+  properties:
+    p256dh:
+      type: string
+      description: PushSubscription.getKey('p256dh') as base64url (65-byte P-256 uncompressed point).
+    auth:
+      type: string
+      description: PushSubscription.getKey('auth') as base64url (16-byte secret).
+  additionalProperties: false
+
+PushSubscriptionBody:
+  type: object
+  required: [endpoint, keys]
+  properties:
+    endpoint:
+      type: string
+      minLength: 1
+      description: PushSubscription.endpoint URL; globally unique — resubscribing from the same browser converges the row to the current user.
+    keys:
+      $ref: '#/PushSubscriptionKey'
+  additionalProperties: false
+
+PushSubscribeRequest:
+  type: object
+  required: [subscription]
+  properties:
+    subscription:
+      $ref: '#/PushSubscriptionBody'
+    lang:
+      type: string
+      enum: [zh, en, ja, de]
+      description: Subscriber's UI language used to render push copy; omitted or unknown falls back to zh.
+  additionalProperties: false
+
+PushSubscribeSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+
+PushSubscribeResponse:
+  oneOf:
+    - $ref: '#/PushSubscribeSuccess'
+    - $ref: '#/ApiFailure'
+
+PushUnsubscribeRequest:
+  type: object
+  required: [endpoint]
+  properties:
+    endpoint:
+      type: string
+      minLength: 1
+      description: Endpoint of the subscription to remove; must belong to the caller (foreign endpoints silently succeed, never revealing other users' subscriptions).
+  additionalProperties: false
+
+PushUnsubscribeSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+
+PushUnsubscribeResponse:
+  oneOf:
+    - $ref: '#/PushUnsubscribeSuccess'
     - $ref: '#/ApiFailure'
 
 SendChatMessageRequest:

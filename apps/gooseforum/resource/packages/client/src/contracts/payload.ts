@@ -208,6 +208,8 @@ export interface UnreadStatusPayload {
   messages: boolean
   moderationReports?: boolean
   latestNotificationType?: string
+  /** 最新一条未读通知的 id（单调递增；仅在有未读时存在）。 */
+  latestUnreadId?: number
 }
 
 export interface SitePayload {
