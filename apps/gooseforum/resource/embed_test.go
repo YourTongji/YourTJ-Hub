@@ -56,4 +56,9 @@ func TestStaticFS(t *testing.T) {
 	if _, err := fs.Stat(staticFS, "pic/icon_300.webp"); err != nil {
 		t.Fatalf("expected bundled icon to be readable: %v", err)
 	}
+	for _, staticFile := range []string{"sw.js", "manifest.webmanifest"} {
+		if _, err := fs.Stat(staticFS, staticFile); err != nil {
+			t.Fatalf("expected %s to be readable from static fs: %v", staticFile, err)
+		}
+	}
 }

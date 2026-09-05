@@ -48,6 +48,15 @@ func QueryByUserId(userId uint64, limit int, startId uint64, unreadOnly bool) (n
 	return
 }
 
+// GetByID 返回指定通知行（不存在时返回零值实体，调用方用 Id==0 判断）。
+// 推送 worker 用：读取通知行作为推送事件源（类型/标题/已读状态）。
+func GetByID(id uint64) (entity Entity) {
+	builder().
+		Where(queryopt.Eq("id", id)).
+		First(&entity)
+	return
+}
+
 // GetLastUnread 获取用户未读通知数量
 func GetLastUnread(userId uint64) (entity Entity) {
 	builder().

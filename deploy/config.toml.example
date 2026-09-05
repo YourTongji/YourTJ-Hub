@@ -57,6 +57,14 @@ maxLifeSeconds = 300
 url = "http://meilisearch:7700"
 masterkey = "REPLACE_MEILI_KEY"
 
+# Web Push 浏览器推送（可选增强通道）：密钥留空 = 通道关闭。本机生成：
+#   cd apps/gooseforum && go run . webpush-keys
+# 部署实例由 GitHub Environments secrets VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+# 经 render_config.py 注入（见 docs/operations/deployment.md）。
+[webpush]
+vapid_public_key = ""
+vapid_private_key = ""
+
 # Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
 # 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用。
 [wiki.git]

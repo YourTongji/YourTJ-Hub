@@ -41,7 +41,15 @@ TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 INSTANCE_TOKENS = {"SERVER_URL", "TRUSTED_PROXIES"}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
-BASE_OPTIONAL_TOKENS = {"AI_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"}
+BASE_OPTIONAL_TOKENS = {
+    "AI_API_KEY",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    # Web Push VAPID：未配置即通道关闭（dev 必须保持空——快照同步的
+    # 订阅/任务行绝不能从 dev 外发推送）。
+    "VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+}
 
 DEFAULT_TMPL = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "config.toml.tmpl"

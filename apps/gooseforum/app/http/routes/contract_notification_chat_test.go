@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,7 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
 		&eventNotification.Entity{},
+		&pushSubscription.Entity{},
 		&imConversations.Entity{},
 		&imUserChatConfigs.Entity{},
 		&messages.Entity{},
@@ -38,6 +40,9 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.GET("/notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	forumLoginAPI.POST("/notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
 	forumLoginAPI.POST("/notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
+	forumLoginAPI.GET("/push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
+	forumLoginAPI.POST("/push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
+	forumLoginAPI.POST("/push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
 
 	chatAPI := forumAPI.Group("/chat", middleware.JWTAuthCheck)
 	chatAPI.POST("/send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
@@ -408,5 +413,131 @@ func TestPendingUserReadStateCleanupAllowed(t *testing.T) {
 			t.Fatalf("pending non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
+	})
+}
+
+func TestPushConfigHTTPContract(t *testing.T) {
+	t.Run("disabled when no vapid keys configured", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/push/config", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push config status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-config-disabled.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/push/config", "", "")
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
+	})
+}
+
+func TestPushSubscribeHTTPContract(t *testing.T) {
+	t.Run("success persists subscription for the caller", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := `{"subscription":{"endpoint":"https://fcm.googleapis.com/fcm/send/contract-sub","keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`
+		recorder := serveJSON(router, "/api/forum/push/subscribe", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push subscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-subscribe-success.json"))
+		subs := pushSubscription.ListByUser(user.Id)
+		if len(subs) != 1 || subs[0].Endpoint != "https://fcm.googleapis.com/fcm/send/contract-sub" || subs[0].Lang != "zh" {
+			t.Fatalf("subscription not persisted for caller: %+v", subs)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/push/subscribe", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/push/subscribe", `{}`, "account-frozen.json")
+	})
+
+	t.Run("empty subscription fails legacy validation", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveJSON(router, "/api/forum/push/subscribe", `{"subscription":{"endpoint":"","keys":{}}}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+	})
+
+	t.Run("non-allowlisted endpoint rejected as invalid params", func(t *testing.T) {
+		// review P1 SSRF：订阅 endpoint 必须在存储前通过推送服务白名单校验。
+		// 未知 host / IP 字面量 / 内网地址一律按业务参数错误拒绝，绝不落库。
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		for _, endpoint := range []string{
+			"https://push.example.com/evil",
+			"https://127.0.0.1/sub",
+			"http://fcm.googleapis.com/fcm/send/abc",
+		} {
+			body := fmt.Sprintf(`{"subscription":{"endpoint":%q,"keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`, endpoint)
+			recorder := serveJSON(router, "/api/forum/push/subscribe", body, contractSessionToken(t, user))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("endpoint %q status = %d, want 200 envelope: %s", endpoint, recorder.Code, recorder.Body.String())
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+		}
+		if subs := pushSubscription.ListByUser(user.Id); len(subs) != 0 {
+			t.Fatalf("rejected endpoints persisted %d subscription(s), want 0", len(subs))
+		}
+	})
+}
+
+func TestPushUnsubscribeHTTPContract(t *testing.T) {
+	t.Run("removes owned subscription", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := pushSubscription.Upsert(user.Id, "https://fcm.googleapis.com/fcm/send/contract-unsub", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
+			t.Fatalf("seed subscription: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://fcm.googleapis.com/fcm/send/contract-unsub"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push unsubscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-unsubscribe-success.json"))
+		if subs := pushSubscription.ListByUser(user.Id); len(subs) != 0 {
+			t.Fatalf("subscription not removed: %+v", subs)
+		}
+	})
+
+	t.Run("foreign endpoint is idempotent success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		owner := createHTTPContractUser(t, conn, contractTestID())
+		caller := createHTTPContractUser(t, conn, contractTestID())
+		if err := pushSubscription.Upsert(owner.Id, "https://fcm.googleapis.com/fcm/send/foreign", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
+			t.Fatalf("seed foreign subscription: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://fcm.googleapis.com/fcm/send/foreign"}`, contractSessionToken(t, caller))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("foreign unsubscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-unsubscribe-success.json"))
+		// 他人订阅未被删除（越权防护）。
+		if subs := pushSubscription.ListByUser(owner.Id); len(subs) != 1 {
+			t.Fatalf("foreign subscription was removed: %+v", subs)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/push/unsubscribe", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/push/unsubscribe", `{}`, "account-frozen.json")
 	})
 }

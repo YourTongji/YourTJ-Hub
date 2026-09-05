@@ -71,6 +71,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"pk_teacher_timeslot",
 		"pk_fetch_log",
 		"pk_setting",
+		"push_subscriptions",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
@@ -180,6 +181,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"pk_teacher",
 		"pk_teacher_timeslot",
 		"pk_fetch_log",
+		"push_subscriptions",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)
