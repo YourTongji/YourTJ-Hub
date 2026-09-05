@@ -378,6 +378,31 @@ describe('disableWebPush', () => {
 })
 
 describe('static sw.js (pure push worker)', () => {
+  // BroadcastChannel 假件：sw.js 弹出通知后向共享去重频道广播 {at} 时间戳，
+  // 轮询型浏览器通知（browser-notification.ts）收到后在去重窗口内让位。
+  // 仅在 loadWorker({ withBroadcastChannel: true }) 时注入沙箱。
+  class FakeBroadcastChannel {
+    static instances: FakeBroadcastChannel[] = []
+    static posted: Array<{ at: number }> = []
+    name: string
+    onmessage: ((event: MessageEvent<{ at?: number }>) => void) | null = null
+
+    constructor(name: string) {
+      this.name = name
+      FakeBroadcastChannel.instances.push(this)
+    }
+
+    postMessage(data: unknown) {
+      FakeBroadcastChannel.posted.push(data as { at: number })
+    }
+
+    close() {}
+  }
+
+  function resetBroadcastChannelFake() {
+    FakeBroadcastChannel.instances = []
+    FakeBroadcastChannel.posted = []
+  }
   interface WorkerHarness {
     handlers: Record<string, (event: any) => void>
     clients: {
@@ -387,7 +412,7 @@ describe('static sw.js (pure push worker)', () => {
     showNotification: ReturnType<typeof vi.fn>
   }
 
-  function loadWorker(): WorkerHarness {
+  function loadWorker(options: { withBroadcastChannel?: boolean } = {}): WorkerHarness {
     const handlers: Record<string, (event: any) => void> = {}
     const showNotification = vi.fn(async () => undefined)
     const openWindow = vi.fn(async () => undefined)
@@ -403,6 +428,10 @@ describe('static sw.js (pure push worker)', () => {
       clients,
       registration: { showNotification },
       URL, // vm 沙箱不提供全局 URL，注入 Node 实现供 sw.js 使用
+    }
+    if (options.withBroadcastChannel) {
+      resetBroadcastChannelFake()
+      sandbox.BroadcastChannel = FakeBroadcastChannel
     }
     sandbox.self = sandbox
     vm.runInNewContext(SW_SOURCE, sandbox)
@@ -547,5 +576,31 @@ describe('static sw.js (pure push worker)', () => {
     const noUrl = loadWorker()
     await notificationClick(noUrl, null)
     expect(noUrl.clients.openWindow).toHaveBeenCalledWith('/notifications')
+  })
+
+  test('broadcasts a dedup timestamp after showing a push notification', async () => {
+    const harness = loadWorker({ withBroadcastChannel: true })
+    harness.clients.matchAll.mockResolvedValueOnce([{ focused: false }])
+    await pushEvent(harness, { title: '新回复', body: '…', url: '/p/post/42', icon: '/icon.png' })
+    expect(harness.showNotification).toHaveBeenCalledOnce()
+    // 轮询通道（browser-notification.ts）在同一频道收到 {at} 后 60s 内让位。
+    expect(FakeBroadcastChannel.posted).toHaveLength(1)
+    expect(typeof FakeBroadcastChannel.posted[0].at).toBe('number')
+    expect(FakeBroadcastChannel.instances).toHaveLength(1)
+  })
+
+  test('does not broadcast when the reader is focused (nothing shown)', async () => {
+    const harness = loadWorker({ withBroadcastChannel: true })
+    harness.clients.matchAll.mockResolvedValueOnce([{ focused: true }])
+    await pushEvent(harness, { title: '新回复', body: '…', url: '/p/post/42', icon: '/icon.png' })
+    expect(harness.showNotification).not.toHaveBeenCalled()
+    expect(FakeBroadcastChannel.posted).toHaveLength(0)
+  })
+
+  test('still shows the notification when BroadcastChannel is unavailable', async () => {
+    const harness = loadWorker() // 沙箱不注入 BroadcastChannel：广播优雅跳过
+    harness.clients.matchAll.mockResolvedValueOnce([{ focused: false }])
+    await pushEvent(harness, { title: '新回复', body: '…', url: '/p/post/42', icon: '/icon.png' })
+    expect(harness.showNotification).toHaveBeenCalledOnce()
   })
 })

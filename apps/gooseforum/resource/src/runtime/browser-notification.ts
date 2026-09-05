@@ -31,6 +31,11 @@ const DEFAULT_BODY_KEY = 'notifications.newNotification'
 let lastShownAt = 0
 let channel: BroadcastChannel | null | undefined
 
+// 模块加载即打开去重频道（不等首次弹出）：Web Push（sw.js）在弹出通知后会
+// 向同一频道广播 {at}。若只在 markShown 时才懒建频道，首个轮询翻转发生在
+// SW 广播之后（本页尚未监听）就会漏掉抑制信号，造成同一事件双弹。
+ensureDedupChannel()
+
 export function isBrowserNotificationSupported(): boolean {
   return typeof window !== 'undefined' && 'Notification' in window
 }
@@ -85,7 +90,9 @@ function readShownAt(): number {
 
 function ensureDedupChannel() {
   if (channel !== undefined) return
-  channel = null
+  // BroadcastChannel 尚不可用（老浏览器/模块加载早于 channel 注入的测试环境）
+  // 时保持 undefined 直接返回：后续环境可用时 markShown 会重试重建，避免
+  // 永久锁死为 null 导致跨标签页/SW 的抑制信号全部丢失。
   if (typeof BroadcastChannel === 'undefined') return
   try {
     const bc = new BroadcastChannel(DEDUP_CHANNEL_NAME)
@@ -95,6 +102,7 @@ function ensureDedupChannel() {
     }
     channel = bc
   } catch {
+    // 构造失败（如隐私模式限制）：本会话内不再重试。
     channel = null
   }
 }

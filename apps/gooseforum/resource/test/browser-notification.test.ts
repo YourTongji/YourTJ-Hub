@@ -222,12 +222,16 @@ describe('showBrowserNotification', () => {
     expect(FakeNotification.instances).toHaveLength(2)
   })
 
-  test('其他标签页广播去重：收到消息后本标签页不再弹', () => {
+  test('其他标签页广播去重：收到消息后本标签页不再弹', async () => {
     enableForTest()
+    // happy-dom 自带真实 BroadcastChannel：模块加载即建频道的实现会先抓到
+    // 真实实例，之后 stub 的 Fake 收不到 post。因此先 stub、再重载模块，
+    // 让模块级 ensureDedupChannel 持有 Fake。
     vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+    await loadModule()
     expect(mod.showBrowserNotification('comment')).toBe(true)
     expect(FakeBroadcastChannel.posted).toHaveLength(1)
-    // 模拟另一标签页刚弹过通知
+    // 模拟另一标签页/SW 刚弹过通知
     FakeBroadcastChannel.instances[0].onmessage?.({ data: { at: Date.now() + 1 } } as MessageEvent)
     expect(mod.showBrowserNotification('comment')).toBe(false)
     expect(FakeNotification.instances).toHaveLength(1)

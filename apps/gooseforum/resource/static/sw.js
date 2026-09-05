@@ -10,6 +10,11 @@
 // clients.claim: pure push needs neither.
 
 const FALLBACK_URL = '/notifications';
+// 与轮询型浏览器通知（resource/src/runtime/browser-notification.ts）共享去重
+// 频道：Web Push（即时到达）真正弹出后广播时间戳 {at}，轮询通道在同一去重
+// 窗口（60s）内让位，避免同一事件在系统层双弹。频道名与页面端
+// DEDUP_CHANNEL_NAME 保持一致，改动需两侧同步。
+const DEDUP_CHANNEL_NAME = 'goose:browser-notifications-dedup';
 
 // Show a push notification unless the user is currently looking at a focused
 // window of this site. Whether to push while a page is visible is the
@@ -38,6 +43,18 @@ self.addEventListener('push', (event) => {
     // payload 缺 id 时不设 tag，各通知按默认行为分别展示。
     if (payload.id != null) notificationOptions.tag = 'goose-push-' + payload.id;
     await self.registration.showNotification(payload.title, notificationOptions);
+    // 仅在真正弹出后广播：前台聚焦的窗口会提前 return，不广播（SW 未弹出时
+    // 轮询通道应正常兜底）。页面端 browser-notification.ts 模块加载即监听
+    // 同一频道，收到 {at} 后在去重窗口内不再重复弹出。
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const dedupChannel = new BroadcastChannel(DEDUP_CHANNEL_NAME);
+        dedupChannel.postMessage({ at: Date.now() });
+        dedupChannel.close();
+      } catch {
+        // 广播失败只影响去重：轮询通道可能重复弹一次，可接受。
+      }
+    }
   })());
 });
 
