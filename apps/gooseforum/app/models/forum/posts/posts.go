@@ -31,6 +31,14 @@ const (
 	RetentionPurged       = "PURGED"
 )
 
+// 内容类型常量
+const (
+	ContentTypeRegular  int8 = 0 // 默认帖子
+	ContentTypeQuestion int8 = 1 // 提问（Q&A 结构）
+	ContentTypeThought  int8 = 2 // 瞬间（短内容，原「想法」更名）
+	ContentTypeArticle  int8 = 3 // 文章（长文）
+)
+
 type Entity struct {
 	Id              uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_id,priority:2;" json:"id"`
 	TopicId         uint64    `gorm:"column:topic_id;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;" json:"topicId"`
@@ -57,6 +65,8 @@ type Entity struct {
 	RetentionStatus  string `gorm:"column:retention_status;type:varchar(32);not null;default:'NORMAL';index:idx_posts_visibility_retention,priority:2;" json:"-"`
 	DeletedBy        uint64 `gorm:"column:deleted_by;not null;default:0;" json:"-"`
 	DeleteReason     string `gorm:"column:delete_reason;type:varchar(512);not null;default:'';" json:"-"`
+	// 内容类型（区分提问/想法/文章等不同形式）
+	ContentType int8 `gorm:"column:content_type;not null;default:0;" json:"contentType"`
 }
 
 func (itself *Entity) TableName() string {

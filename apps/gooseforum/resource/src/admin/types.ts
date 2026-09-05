@@ -323,6 +323,7 @@ export interface ScheduleSettings {
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string
+  internalEndpoint: string
   bucket: string
   region: string
   bucketLookup: 'auto' | 'dns' | 'path'

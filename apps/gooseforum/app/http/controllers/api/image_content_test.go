@@ -109,3 +109,62 @@ func TestValidateUploadedImageRejectsOversizedHeader(t *testing.T) {
 		t.Fatalf("validateUploadedImage() error = %v, want errInvalidImageContent", err)
 	}
 }
+
+// tinyWebPLossless is a 1x1 pixel lossless VP8L WebP (exercises the vp8l
+// decoder path that CVE-2026-46603 / GO-2026-6222 covers).
+var tinyWebPLossless = []byte{
+	0x52, 0x49, 0x46, 0x46, 0x1c, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+	0x56, 0x50, 0x38, 0x4c, 0x0f, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00,
+	0x00, 0x07, 0x10, 0xfd, 0x8f, 0xfe, 0x07, 0x22, 0xa2, 0xff, 0x01, 0x00,
+}
+
+// tinyBMP is a 1x1 pixel 24-bit BMP.
+var tinyBMP = []byte{
+	0x42, 0x4d, 0x3a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00,
+	0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+	0x00, 0x00, 0x01, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00,
+	0x00, 0x00, 0xc4, 0x0e, 0x00, 0x00, 0xc4, 0x0e, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00,
+}
+
+// truncatedWebP is a WebP/VP8L header cut off mid-chunk, so the decoder must
+// report a stable error instead of panicking or hanging.
+var truncatedWebP = []byte{
+	0x52, 0x49, 0x46, 0x46, 0x1c, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+	0x56, 0x50, 0x38, 0x4c, 0x0f, 0x00, 0x00, 0x00,
+}
+
+// TestValidateUploadedImageWebPAndBMP guards the x/image upgrade (issue #405,
+// CVE-2026-46603): lossless VP8L and BMP inputs must keep validating, and
+// truncated/corrupt WebP input must fail with the stable invalid-image error.
+func TestValidateUploadedImageWebPAndBMP(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        []byte
+		contentType string
+		wantErr     bool
+	}{
+		{name: "valid lossless webp", data: tinyWebPLossless, contentType: "image/webp"},
+		{name: "valid bmp", data: tinyBMP, contentType: "image/bmp"},
+		{name: "webp bytes with wrong content type", data: tinyWebPLossless, contentType: "image/png", wantErr: true},
+		{name: "truncated webp", data: truncatedWebP, contentType: "image/webp", wantErr: true},
+		{name: "bmp bytes with wrong content type", data: tinyBMP, contentType: "image/webp", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateUploadedImage(bytes.NewReader(tt.data), tt.contentType)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("validateUploadedImage() error = nil, want error")
+				}
+				if !errors.Is(err, errInvalidImageContent) {
+					t.Fatalf("validateUploadedImage() error = %v, want errInvalidImageContent", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateUploadedImage() error = %v, want nil", err)
+			}
+		})
+	}
+}

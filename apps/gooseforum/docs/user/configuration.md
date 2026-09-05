@@ -130,6 +130,22 @@ client_secret = ""                # GitHub OAuth App Client Secret
 - 需要在 GitHub Settings > Developer settings > OAuth Apps 创建应用
 - Authorization callback URL: `https://yourdomain.com/api/oauth/github/callback`
 
+### [google] OAuth 配置（可选）
+
+```toml
+[google]
+client_id = ""                    # Google OAuth 客户端 ID
+client_secret = ""                # Google OAuth 客户端密钥
+```
+
+Google 登录仅请求 `openid`、`email`、`profile`。站点设置中的 `siteUrl` 必须是与 Google
+Cloud Console 中登记的重定向 URI 同源的绝对 URL，回调地址为：
+`<siteUrl>/api/auth/google/callback`。本地开发可登记
+`http://localhost:5234/api/auth/google/callback`。
+Google 仅在 userinfo 返回 `verified_email=true` 时将邮箱视为可信，并进入已有账号绑定或激活流程；
+启用全站邮箱验证时，未提供可用已验证邮箱的 OAuth 注册会被拒绝。修改 Google 凭据后需要重启服务；
+通过管理后台修改 `siteUrl` 会即时刷新 OAuth provider。
+
 ## 🔄 配置文件热重载
 
 GooseForum 支持配置文件热重载，修改 `config.toml` 文件后无需重启服务即可生效（部分配置除外）。

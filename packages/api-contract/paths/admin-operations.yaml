@@ -33,7 +33,11 @@ adminAgentList:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -43,6 +47,8 @@ adminAgentList:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminAgentCreate:
   post:
@@ -56,7 +62,9 @@ adminAgentCreate:
       password, and no role. The plaintext token (`agt_` prefix) is returned
       exactly once — only its hash and non-secret prefix are stored. A username
       failing the `^[a-zA-Z0-9_-]{6,32}$` rule fails with
-      `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with
+      `admin.agent.usernameInvalid` (HTTP 200); a username hitting the
+      reserved/banned lists fails with `auth.username.reserved` /
+      `auth.username.banned` (HTTP 200); a taken username fails with
       `admin.agent.usernameExists` (HTTP 200); an invalid webhook endpoint
       fails with `admin.agent.webhookInvalid` (HTTP 200); an over-long nickname
       fails with `common.request.invalidParams` (HTTP 200). JSON binding is
@@ -73,7 +81,7 @@ adminAgentCreate:
             $ref: ../components/schemas.yaml#/AdminAgentCreateRequest
     responses:
       '200':
-        description: Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`).
+        description: Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `auth.username.reserved` / `auth.username.banned` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`).
         content:
           application/json:
             schema:
@@ -83,6 +91,12 @@ adminAgentCreate:
                 externalValue: ../fixtures/admin-agent-create-success.json
               usernameInvalid:
                 externalValue: ../fixtures/admin-agent-create-username-invalid.json
+              usernameReserved:
+                summary: Username hits the reserved list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/admin-agent-create-username-reserved.json
+              usernameBanned:
+                summary: Username hits the banned list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/admin-agent-create-username-banned.json
               usernameExists:
                 externalValue: ../fixtures/admin-agent-create-username-exists.json
               webhookInvalid:
@@ -99,7 +113,11 @@ adminAgentCreate:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -109,6 +127,8 @@ adminAgentCreate:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminAgentUpdate:
   post:
@@ -163,7 +183,11 @@ adminAgentUpdate:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -173,6 +197,8 @@ adminAgentUpdate:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminAgentRotateToken:
   post:
@@ -222,7 +248,11 @@ adminAgentRotateToken:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -232,6 +262,8 @@ adminAgentRotateToken:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminAgentDisable:
   post:
@@ -281,7 +313,11 @@ adminAgentDisable:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -291,6 +327,8 @@ adminAgentDisable:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminOptRecordPage:
   post:
@@ -333,7 +371,11 @@ adminOptRecordPage:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -343,6 +385,8 @@ adminOptRecordPage:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminTrafficOverview:
   post:
@@ -386,7 +430,11 @@ adminTrafficOverview:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the Admin permission.
+        description: >-
+          Frozen account, or caller lacks the Admin permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -396,3 +444,5 @@ adminTrafficOverview:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

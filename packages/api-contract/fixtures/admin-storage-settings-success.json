@@ -2,6 +2,7 @@
   "result": {
     "provider": "s3",
     "endpoint": "https://s3.contract.example.test",
+    "internalEndpoint": "",
     "bucket": "contract-bucket",
     "region": "contract-region",
     "bucketLookup": "auto",

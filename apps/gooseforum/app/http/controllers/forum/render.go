@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
+	"github.com/gin-gonic/gin"
 )
 
 type templateRegistry struct {
@@ -141,12 +141,22 @@ func renderPageWithStatus(c *gin.Context, status int, templateName string, paylo
 		c.JSON(status, payload)
 		return
 	}
+	// HTML 文档同样禁用缓存：goose-payload 内嵌管理端配置（如 /schedule 节次作息），
+	// 缺头时浏览器启发式缓存/bfcache 会把保存后的新配置继续以旧 DOM 呈现。
+	c.Header("Cache-Control", "no-store")
+	// Content-Type 必须显式声明：view 路由组挂了 gzip 中间件，模板又是流式写入，
+	// 压缩 writer 会在首字节提交响应头，Go 的内容嗅探没有机会补 Content-Type；
+	// 缺头叠加 nosniff 会被浏览器按 text/plain 展示源码。
+	c.Header("Content-Type", "text/html; charset=utf-8")
 	if currentRegistry == nil {
 		if errCurrentRegistry != nil {
-			c.String(http.StatusInternalServerError, errCurrentRegistry.Error())
-			return
+			// 500 详情只落服务端日志，不回显内部错误（review 备注：避免向客户端泄漏
+			// 内部路径/实现细节）。
+			slog.Error("render template registry unavailable", "err", errCurrentRegistry)
+		} else {
+			slog.Error("render template registry is not initialized")
 		}
-		c.String(http.StatusInternalServerError, "resource template registry is not initialized")
+		c.String(http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if err := currentRegistry.render(c.Writer, filepath.Base(templateName), templateData{
@@ -154,7 +164,7 @@ func renderPageWithStatus(c *gin.Context, status int, templateName string, paylo
 		Lang:    requestLang(c),
 	}); err != nil {
 		slog.Error("render resource template failed", "template", templateName, "err", err)
-		c.String(http.StatusInternalServerError, err.Error())
+		c.String(http.StatusInternalServerError, "internal server error")
 	}
 }
 

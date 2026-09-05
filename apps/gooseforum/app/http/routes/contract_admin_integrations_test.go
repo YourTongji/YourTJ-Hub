@@ -63,7 +63,7 @@ func clearAdminIntegrationCaches() {
 	hotdataserve.ClearMailSettingsConfigCache()
 	hotdataserve.ClearStorageSettingsConfigCache()
 	hotdataserve.ClearMCPSettingsConfigCache()
-	hotdataserve.ClearScheduleSettingsConfigCache()
+	// scheduleSettingsConfigCache 已删除（SSR 直读 DB，无缓存读方），无需清缓存。
 }
 
 // adminIntegrationsGuardScenarios 跑本文件 10 条路由公共的中间件守卫场景：
@@ -281,10 +281,10 @@ func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearStorageSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":""}}`,
+			`{"settings":{"provider":"s3","endpoint":"https://s3.new.example.test","internalEndpoint":"https://s3-internal.new.example.test","bucket":"new-bucket","region":"r","bucketLookup":"auto","secure":true,"accessKey":"new-ak","secretKey":"new-sk","publicUrlPrefix":""}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettingsStorage{})
-		if stored.Provider != "s3" || stored.Endpoint != "https://s3.new.example.test" || stored.Bucket != "new-bucket" {
+		if stored.Provider != "s3" || stored.Endpoint != "https://s3.new.example.test" || stored.InternalEndpoint != "https://s3-internal.new.example.test" || stored.Bucket != "new-bucket" {
 			t.Fatalf("stored storage settings = %#v, want submitted values", stored)
 		}
 		if plain, err := securestore.DecryptPurpose(stored.AccessKeyEncrypted, securestore.StorageAccessKeyPurpose); err != nil || plain != "new-ak" {
@@ -472,7 +472,6 @@ func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.ScheduleSettings).Delete(&pageConfig.Entity{})
-			hotdataserve.ClearScheduleSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"sectionTimes":[{"section":12,"start":"20:10","end":"20:55"},{"section":1,"start":"08:00","end":"08:45"}]}}`,
@@ -491,7 +490,6 @@ func TestAdminSaveScheduleSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.ScheduleSettings).Delete(&pageConfig.Entity{})
-			hotdataserve.ClearScheduleSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"sectionTimes":[{"section":1,"start":"08:00","end":"08:45"},{"section":1,"start":"09:00","end":"09:45"}]}}`,

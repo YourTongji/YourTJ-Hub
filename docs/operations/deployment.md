@@ -191,13 +191,23 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 | `MEILI_MASTER_KEY` | both | `[meilisearch].masterkey` |
 | `WIKI_WEBHOOK_SECRET` | both | `[wiki.git].webhook_secret` |
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | both（可选） | Google OAuth；为空时登录入口保持关闭 |
 | `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
 | `RELEASE_TOKEN` | repo-level | release-to-main 合并 dev→main 用 PAT |
 
 > 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
 
 设置：`gh secret set <KEY> --env production`（值经管道从服务器读取，勿回显终端/日志）。
-仓库级 VM_* 已迁移到 environments；旧 repo-level 同名 secret 不再被 workflows 引用。
+
+**实例 ↔ GitHub Environment 映射**：部署/巡检 workflow 的 job 一律按此声明 `environment:`，
+从对应环境读取 `VM_*` 与渲染 secrets（不存在仓库级 fallback）：
+- `deploy-dev.yml` / `apply-config.yml(env=dev)` / `config-drift-check.yml(matrix=dev)` → `dev`
+- `deploy-main.yml` / `apply-config.yml(env=main)` / `config-drift-check.yml(matrix=main)` → `production`
+
+> 注意实例名 ≠ GitHub Environment：`main`/`dev` 是 workflow 输入里的实例名，对应 secrets 分别
+> 存在 `production`/`dev` 环境（早期错误映射 `environment: main` 曾命中一个空的 `main` 环境，
+> 本次修复已删除该空环境）。仓库级同名 `VM_*` 已一并移除（此前作为迁移兜底存在）——当前无任何
+> workflow 引用 repo-level `VM_*`；缺环境 secret 时渲染/apply/drift 会 fail-closed，不再静默 fallback。
 
 ## First-time server setup
 
@@ -504,6 +514,26 @@ CLI 同步（运维 cron 等自动化场景）：
 导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 (term, teaching_class_id)
 唯一索引——先物化后导入时导入器复用已有行（不重复建卡）。
 
+**纯本地物化补跑（course-materialize，不依赖一系统 cookie）**：学期已同步到 PK 域但
+物化失败/遗漏时（如 `--materialize` 当时 cookie 失效、网络不可用），无需重新抓一系统，
+直接消费本地 PK 域数据补物化到课程目录：
+
+```bash
+# 物化指定学期：数字 calendarId、标准学期码、一系统中文学期名均可
+# （学期名经 calendar_id_i18n 归一化反查，中文学期名 "2026-2027学年第1学期" 亦支持）
+./bin/yourtj-hub course-materialize 122
+./bin/yourtj-hub course-materialize 2026-2027-1
+./bin/yourtj-hub course-materialize "2026-2027学年第1学期"
+
+# 预检模式（不写库）：校验学期已同步 + 打印教学班统计
+./bin/yourtj-hub course-materialize 122 --dry-run
+```
+
+行为保证：写入前全量解析校验（未同步/错拼的学期 ID 显式报错，不空成功）；重复参数
+自动去重；物化幂等（同 `teaching_class_id` upsert，不写 `status`、不复活隐藏行）。
+学期码规范化：中文学期标记 → 标准码 `YYYY-YYYY-N` 才建 `course_term` 行，无法识别的
+标记（如短学期）保持 `term_id=0` 不建垃圾行。
+
 凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
 （设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
 - 运维 cron（每日，选课季加频；应用内不自造调度器）：
@@ -524,6 +554,38 @@ CLI 同步（运维 cron 等自动化场景）：
   进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
 - 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
   需到管理端重新保存。
+
+**卡级课程沿革候选（course-lineage-seed，2026 课改治理）**：`course-lineage-scan`
+（教学班级级 dry-run JSON）产出的候选是 pk_course_detail.id，无法直接落
+`course_relations`（其 from/to 为 course.id）。`course-lineage-seed` 在课程目录
+卡层面（course.id）装配并配对，产出可直接进入管理端「课程沿革」审核面板的
+候选：
+
+```bash
+# dry-run（默认，不写库）：装配全部可见课程卡并报告候选规模
+./bin/yourtj-hub course-lineage-seed
+
+# 把 E1 EQUIVALENT 候选写入 course_relations（status=pending，含证据快照）
+./bin/yourtj-hub course-lineage-seed --write
+
+# 额外写入 E2 SPLIT_FROM / E3 RELATED 家族标注候选（经管理端 approve 后详情页展示）
+./bin/yourtj-hub course-lineage-seed --write --write-family
+
+# 候选明细 JSON（含课程名/证据）输出到 stdout 供离线审核
+./bin/yourtj-hub course-lineage-seed --json
+```
+
+规则（同教师工号组内配对，跨教师同名/同码卡是合法分班不产候选）：
+
+- E1 EQUIVALENT（conf 0.9）：同师 + 归一名称一致 + 学分一致 + 共享一系统课程码
+  （course_code / new_course_code，经 `offering.teaching_class_id` → `pk_course_detail`）
+  → 冗余卡并入规范卡，可经管理端确认后合并（offering/评价/别名迁移、旧卡隐藏）。
+- E2 SPLIT_FROM（conf 0.5）：同师 + 同课程家族 + 变体不同（A1/A2/B、基础/进阶、
+  上/下、实验/理论、generic→A1 层次重组）→ 分层标注，绝不合并。
+- E3 RELATED（conf 0.2）：同师 + 同名 + 学分巨变 → 弱关联标注，供人工核查。
+
+写入幂等：同 (from,to,type) 已存在（含已 approved/ignored/merged）自动跳过，
+不复活已处置的关系；写路径单事务完成，失败整体回滚。
 
 ### 学期起止日期（可选，config 维护）
 
@@ -550,9 +612,10 @@ end = "2026-01-18"
 
 - 新机已装 Docker Engine + Compose + 2G swap（`deploy/scripts/init-server.sh` 会在 CI 首次部署时下发，
   也可手动拷贝 `deploy/` 后在服务器执行）。
-- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先更新 GitHub Secrets（`VM_HOST` → 新机 IP、
-  `VM_USER` → `root`、`VM_SSH_KEY` → PEM 内容）再触发 dev 部署**。反代统一由 1Panel 承担
-  （自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
+- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先在 GitHub Environments secrets 更新
+  `VM_HOST`（production 与 dev 均改新机 IP）、`VM_USER` → `root`、`VM_SSH_KEY` → 新机 PEM
+  内容，再触发 dev 部署**（workflows 只读 Environments，无 repo 级 fallback）。反代统一由
+  1Panel 承担（自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
 - **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
   Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
 - 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
@@ -659,7 +722,7 @@ curl -fsS -H "Host: f.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反�
 3. 等 TTL 过后从外网验证 `https://f.yourtj.de` 与 `https://dev.yourtj.de` 可达、
    登录/发帖/附件/搜索 spot-check。
 4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
-5. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
+5. 更新 GitHub Environments secrets `VM_HOST`（production 与 dev）→ 新机 IP；旧机从 CI 摘除。
 
 ### 风险与回滚
 

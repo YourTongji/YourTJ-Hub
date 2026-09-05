@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { MessageSquare, Pin, Sparkles } from '@lucide/vue'
+import { MessageSquare, Pin, Sparkles, HelpCircle, BookOpen } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
 import { topicDescription } from '@/runtime/topic-description'
@@ -131,6 +131,19 @@ onBeforeUnmount(() => {
             class="h-2 w-2 shrink-0 rounded-full bg-primary"
             aria-hidden="true"
           />
+          <!-- Content type badge -->
+          <span v-if="topic.contentType === 1" class="inline-flex h-5 items-center gap-1 rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
+            <HelpCircle class="h-3 w-3" />
+            <span>{{ t('publish.contentTypes.question') }}</span>
+          </span>
+          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 items-center gap-1 rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+            <Sparkles class="h-3 w-3" />
+            <span>{{ t('publish.contentTypes.thought') }}</span>
+          </span>
+          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 items-center gap-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            <BookOpen class="h-3 w-3" />
+            <span>{{ t('publish.contentTypes.article') }}</span>
+          </span>
         </span>
         <a
           v-for="category in showCategories ? topic.categories : []"

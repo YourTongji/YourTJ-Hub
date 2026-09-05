@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/llmprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
@@ -51,6 +52,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -1182,9 +1184,12 @@ type SaveFriendLinksReq struct {
 	LinksInfo []pageConfig.FriendLinksGroup `json:"linksInfo"`
 }
 
-// SaveFriendLinks 保存友情链接
+// SaveFriendLinks 保存友情链接：外链与 logo URL 经字段策略校验后落库。
 func SaveFriendLinks(req component.BetterRequest[SaveFriendLinksReq]) component.Response {
 	normalizeFriendLinks(req.Params.LinksInfo)
+	if field := validateFriendLinksURLs(req.Params.LinksInfo); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
 	return savePageConfig(pageConfig.FriendShipLinks, req.Params.LinksInfo, hotdataserve.ClearFriendLinksConfigCache)
 }
 
@@ -1207,10 +1212,13 @@ type SaveSponsorsReq struct {
 	SponsorsInfo pageConfig.SponsorsConfig `json:"sponsorsInfo"`
 }
 
-// SaveSponsors 保存赞助商配置
+// SaveSponsors 保存赞助商配置：外链、头像与联系按钮 URL 经字段策略校验后落库。
 func SaveSponsors(req component.BetterRequest[SaveSponsorsReq]) component.Response {
 	config := req.Params.SponsorsInfo
 	fillSponsorsConfigDefaults(&config)
+	if field := validateSponsorsURLs(&config); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
 	return savePageConfig(pageConfig.SponsorsPage, config, hotdataserve.ClearSponsorsConfigCache)
 }
 
@@ -1266,10 +1274,15 @@ type SaveSiteSettingsReq struct {
 	Settings pageConfig.SiteSettingsConfig `json:"settings"`
 }
 
-// SaveSiteSettings 保存站点设置
+// SaveSiteSettings 保存站点设置：站点 URL 与 logo URL 经字段策略校验后落库。
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
+	settings := req.Params.Settings
+	if field := validateSiteSettingsURLs(&settings); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
+	return savePageConfig(pageConfig.SiteSettings, settings, func() {
 		hotdataserve.ClearSiteSettingsConfigCache()
+		oauthservice.RefreshOAuthProviders()
 		llmsservice.ClearCache()
 	})
 }
@@ -1283,8 +1296,13 @@ type SaveSiteChromeReq struct {
 	Settings pageConfig.SiteChromeConfig `json:"settings"`
 }
 
+// SaveSiteChrome 保存站点 chrome：导航/footer 链接与品牌图 URL 经字段策略校验后落库。
 func SaveSiteChrome(req component.BetterRequest[SaveSiteChromeReq]) component.Response {
-	return savePageConfig(pageConfig.SiteChrome, req.Params.Settings, hotdataserve.ClearSiteChromeConfigCache)
+	settings := req.Params.Settings
+	if field := validateSiteChromeURLs(&settings); field != "" {
+		return component.FailResponseCode(component.MessageAdminUrlInvalid, component.MessageParams{"field": field})
+	}
+	return savePageConfig(pageConfig.SiteChrome, settings, hotdataserve.ClearSiteChromeConfigCache)
 }
 
 func GetSiteTheme(req component.BetterRequest[component.Null]) component.Response {
@@ -1424,10 +1442,13 @@ type SaveSecuritySettingsReq struct {
 
 // SaveSecuritySettings 保存安全与注册设置
 func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) component.Response {
-	// 新增/更新的禁用用户名：自动冻结匹配的存量账号（幂等，重复保存不会重复处理）
+	// 新增/更新的禁用用户名：自动冻结匹配的存量账号（幂等，重复保存不会重复处理）。
+	// 归一化匹配（大小写/NFKC 全半角/零宽/leet）与策略层同规则，见
+	// moderationservice.FreezeUsersByBannedUsernames；批量收集后一次扫描，避免
+	// 逐个词全表扫描。
 	current := pageConfig.GetConfigByPageType(pageConfig.SecuritySettings, defaultconfig.GetDefaultSecuritySettingsConfig())
-	newBanned := req.Params.Settings.BannedUsernames
-	for _, username := range newBanned {
+	var addedBanned []string
+	for _, username := range req.Params.Settings.BannedUsernames {
 		normalized := strings.ToLower(strings.TrimSpace(username))
 		if normalized == "" {
 			continue
@@ -1440,12 +1461,64 @@ func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) 
 			}
 		}
 		if !already {
-			if err := moderationservice.FreezeUsersByBannedUsername(username, req.UserId); err != nil {
-				slog.Warn("freeze users for banned username failed", "username", username, "err", err)
-			}
+			addedBanned = append(addedBanned, username)
+		}
+	}
+	if len(addedBanned) > 0 {
+		if err := moderationservice.FreezeUsersByBannedUsernames(addedBanned, req.UserId); err != nil {
+			slog.Warn("freeze users for banned usernames failed", "bannedUsernames", addedBanned, "err", err)
+		}
+	}
+	// 邮箱验证由关闭切到开启：先把存量待激活管理员批量激活，再落库新配置。
+	// 顺序有意为之——开启后 CheckWritableAccount（issue #404）会以
+	// permission.emailRequired 拦截全部 admin 端点（含本开关所在路由），
+	// 若激活先行失败则中止保存、站点保持旧配置，管理员不会进入
+	// 「配置已开启但自身仍 pending」的锁死态；重复保存幂等（已激活跳过）。
+	// 普通存量 pending 用户不在激活范围，仍需走激活邮件流程。
+	if req.Params.Settings.EnableEmailVerification && !current.EnableEmailVerification {
+		if err := activatePendingAdminAccounts(); err != nil {
+			slog.Error("activate pending admins on enabling email verification failed", "err", err)
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 	}
 	return savePageConfig(pageConfig.SecuritySettings, req.Params.Settings, hotdataserve.ClearSecuritySettingsConfigCache)
+}
+
+// activatePendingAdminAccounts 扫描仍处于待激活状态的管理端账号并逐个激活。
+// 默认配置下邮箱验证关闭，密码注册（CreateUser needValid=true）仍会把账号存为
+// pending，首个用户经 FirstUserInit 提升为管理员——开启邮箱验证后其所有写请求
+// 都会被组级 CheckWritableAccount 拦截，必须在此刻同步激活。判定用
+// permission.CheckAnyRole（角色持有 permission.All() 任一管理/治理权限，与
+// adminApi 组各子组挂载的权限枚举一致；Admin 角色隐式覆盖其余全部），覆盖
+// 首位管理员与 UserManager/SiteManager 等管理账号。逐用户走
+// userservice.SaveUser（DB 保存 + 用户信息缓存即时刷新），避免中间件 2 分钟
+// TTL 缓存继续读到旧 pending 状态而把刚激活的管理账号再次锁死。冻结账号跳过
+// （治理冻结优先于激活状态，不由本开关解除）。
+func activatePendingAdminAccounts() error {
+	// SQL 侧预过滤：只加载待激活且可能持有管理角色的账号，避免全表读。
+	// role_id = 0（含 bot 账号）与已激活行不进内存；冻结账号仍需加载后在
+	// 循环内跳过（治理冻结优先于激活状态，不由本开关解除）。
+	var list []users.EntityComplete
+	if err := db.Connect().Model(&users.EntityComplete{}).
+		Where("is_activated = ? AND role_id > 0", users.ActivationPending).
+		Find(&list).Error; err != nil {
+		return err
+	}
+	for i := range list {
+		user := &list[i]
+		if user.IsFrozen == users.StatusFrozen {
+			continue
+		}
+		if !permission.CheckAnyRole(user.RoleId) {
+			continue
+		}
+		user.Activate()
+		if err := userservice.SaveUser(user); err != nil {
+			return err
+		}
+		slog.Info("activated pending admin while enabling email verification", "userId", user.Id)
+	}
+	return nil
 }
 
 // GetPostingSettings 获取发布内容设置
@@ -1462,11 +1535,23 @@ type SavePostingSettingsReq struct {
 // SavePostingSettings 保存发布内容设置。
 // maxDailyTopicsPerUser 非法负值归一为 0（不限额，issue #369），与读取路径
 // GetPostingSettingsConfig 的归一化保持一致，避免管理端回显与生效语义分裂。
+// uploadControl.authorizedExtensions 只允许内置图片扩展集合（imagepolicy）的子集
+// （issue #408）：混入危险/非法扩展（.svg/.html/.js/.xml/.pdf、双扩展、空串等）
+// 整单拒绝并回稳定错误码 admin.upload.extNotAllowed，绝不落库——配置保存的权威
+// 校验在服务端，前端交互校验只是体验层。
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
 	settings := req.Params.Settings
 	if settings.TextControl.MaxDailyTopicsPerUser < 0 {
 		settings.TextControl.MaxDailyTopicsPerUser = 0
 	}
+	canonical, dropped := imagepolicy.CanonicalizeList(settings.UploadControl.AuthorizedExtensions)
+	if len(dropped) > 0 {
+		return component.FailResponseCode(component.MessageAdminUploadExtNotAllowed, component.MessageParams{
+			"extensions": strings.Join(dropped, ", "),
+		})
+	}
+	// 合法条目统一规范化为小写带点形式后落库（png → .png、.JPG → .jpg、去重）。
+	settings.UploadControl.AuthorizedExtensions = canonical
 	return savePageConfig(pageConfig.PostingSettings, settings, func() {
 		hotdataserve.ClearPostingSettingsConfigCache()
 		llmsservice.ClearCache()
@@ -1526,7 +1611,9 @@ func SaveScheduleSettings(req component.BetterRequest[SaveScheduleSettingsReq]) 
 	if !ok {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, hotdataserve.ClearScheduleSettingsConfigCache)
+	// 排课器作息已无缓存读方（SSR 直读 DB，scheduleSettingsConfigCache 已删除），
+	// 保存无需清缓存回调（review：GetScheduleSettingsConfigCache 全仓无调用方）。
+	return savePageConfig(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{SectionTimes: sectionTimes}, nil)
 }
 
 // isValidScheduleClockTime 校验严格 HH:MM（两位小时/分钟 + 冒号）且时钟值合法
@@ -1779,6 +1866,7 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 	storage := jsonopt.Decode[pageConfig.StorageSettingsStorage](entity.Config)
 	storage.Provider = provider
 	storage.Endpoint = input.Endpoint
+	storage.InternalEndpoint = input.InternalEndpoint
 	storage.Bucket = input.Bucket
 	storage.Region = input.Region
 	storage.BucketLookup = input.BucketLookup

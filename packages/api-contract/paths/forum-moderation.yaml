@@ -48,7 +48,11 @@ moderationUpdateTopicStatus:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -56,6 +60,8 @@ moderationUpdateTopicStatus:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 moderationUpdatePostStatus:
   post:
@@ -105,7 +111,11 @@ moderationUpdatePostStatus:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -113,6 +123,8 @@ moderationUpdatePostStatus:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 listModerationReports:
   post:
@@ -161,6 +173,17 @@ listModerationReports:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 moderationUpdateReportStatus:
   post:
@@ -210,7 +233,11 @@ moderationUpdateReportStatus:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -218,6 +245,8 @@ moderationUpdateReportStatus:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 listModerationLogs:
   post:
@@ -262,6 +291,17 @@ listModerationLogs:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Cross-site cookie-authenticated request rejected by the CSRF gate (missing or
+          mismatched Origin/Referer, issue #406). The session cookie is not cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 viewDeletedContent:
   post:
@@ -314,7 +354,11 @@ viewDeletedContent:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -322,3 +366,5 @@ viewDeletedContent:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

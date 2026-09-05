@@ -384,6 +384,21 @@ WriteTopicRequest:
     captchaCode:
       type: string
       description: Required only when server-side posting risk controls request a captcha.
+    contentType:
+      type: integer
+      enum: [0, 1, 2, 3]
+      default: 0
+      description: |
+        内容类型，取值 0-3；默认 0（兼容写法，服务端会将 0 规范为 3 - 文章）：
+        * 0 - 默认帖子（自动规范为 3 - 文章）
+        * 1 - 提问（Q&A 结构）
+        * 2 - 瞬间（短内容，原「想法」更名）
+        * 3 - 文章（长文）
+    images:
+      type: array
+      items:
+        type: string
+      description: 图集图片 URL 列表，须为当前用户已上传的 /file/img/ 文件（服务端校验归属）；数量上限与单条长度上限同服务端。
   additionalProperties: false
 
 WriteTopicSuccess:
@@ -529,6 +544,13 @@ AgentWriteTopicRequest:
         type: integer
         format: uint64
         minimum: 1
+    contentType:
+      type: integer
+      enum: [0, 1, 2, 3]
+      default: 0
+      description: |
+        兼容保留字段（服务端 Agent 绑定不读取）；Agent 创建的话题恒为文章类型：
+        不传或传 0 时服务端统一按 3（文章）处理。
   additionalProperties: false
   description: Agent topics always publish (topicStatus=1); website and captcha fields are deliberately absent.
 
@@ -679,7 +701,7 @@ SearchResultPayload:
 # record.
 PostPayload:
   type: object
-  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked]
+  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked, isAnswer]
   properties:
     id:
       type: integer
@@ -750,6 +772,9 @@ PostPayload:
       type: boolean
     isBookmarked:
       type: boolean
+    isAnswer:
+      type: boolean
+      description: True only when the topic is a Question (contentType=1), the post is not the first post, and it replies to the question itself.
   additionalProperties: false
 
 ReplyTargetPayload:
@@ -1905,6 +1930,10 @@ AdminCourseRelationListRequest:
       type: string
       enum: [pending, approved, ignored, merged]
       description: 沿革候选状态过滤；空 = 全部。
+    relationType:
+      type: string
+      enum: [EQUIVALENT, RENAMED_FROM, SPLIT_FROM, MERGED_FROM, RELATED]
+      description: 沿革候选类型过滤；空 = 全部。
     page:
       type: integer
       minimum: 1
@@ -1914,9 +1943,41 @@ AdminCourseRelationListRequest:
       maximum: 50
   additionalProperties: false
 
+AdminCourseRelationCourseBrief:
+  type: object
+  description: 沿革候选 from/to 课程摘要（管理端列表直接展示课程名/课号/教师；课程已删除时整体缺省）。
+  required: [id, primaryCode, name, creditX10, status]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+      description: 课号。
+    name:
+      type: string
+      description: 课程名。
+    department:
+      type: string
+      description: 开课院系。
+    teacherName:
+      type: string
+      description: 身份教师姓名。
+    teacherCode:
+      type: string
+      description: 身份教师工号。
+    creditX10:
+      type: integer
+      description: 学分 ×10。
+    status:
+      type: integer
+      description: 课程可见状态（0 可见 / 1 隐藏；合并后旧卡隐藏）。
+  additionalProperties: false
+
 AdminCourseRelationItem:
   type: object
-  description: 沿革候选（course_relations 行）：from（历史/旧卡）→ to（当前/新卡）。
+  description: 沿革候选（course_relations 行 + from/to 课程摘要）：from（历史/旧卡）→ to（当前/新卡）。
   required: [id, fromCourseId, toCourseId, relationType, source, confidence, evidenceJson, manual, status, createdAt, updatedAt]
   properties:
     id:
@@ -1956,6 +2017,12 @@ AdminCourseRelationItem:
     updatedAt:
       type: string
       format: date-time
+    fromCourse:
+      $ref: '#/AdminCourseRelationCourseBrief'
+      description: 旧卡课程摘要（课程已删除时缺省）。
+    toCourse:
+      $ref: '#/AdminCourseRelationCourseBrief'
+      description: 新卡课程摘要（课程已删除时缺省）。
   additionalProperties: false
 
 AdminCourseRelationListResult:
@@ -2377,6 +2444,9 @@ CreatePostResult:
     renderedContent:
       type: string
       description: Rendered HTML of the stored content.
+    isAnswer:
+      type: boolean
+      description: True when this post is an answer to a question (ReplyToPostId=1 on a question-type topic)
   additionalProperties: false
 
 CreatePostSuccess:
@@ -6216,7 +6286,16 @@ AdminSaveFriendLinksRequest:
       type: array
       items:
         $ref: '#/AdminFriendLinksGroup'
-      description: Replacement group list. No validation — a missing/null value is saved as null.
+      description: |
+        Replacement group list. A missing/null value is saved as null. URL
+        fields are validated before persistence under the shared admin URL
+        policy (issue #409): each `url` must be an absolute http(s) URL with
+        a host and each `logoUrl` may be a site-relative path or an absolute
+        http(s) URL; dangerous schemes, protocol-relative `//`,
+        control-character/entity disguises and overlong values are rejected.
+        On rejection the request fails with HTTP 200 `code: 1`, messageCode
+        `admin.url.invalid` and params `field` naming the first offending
+        field; nothing is persisted.
   additionalProperties: false
 
 AdminSponsorItem:
@@ -6328,6 +6407,17 @@ AdminSaveSponsorsRequest:
     sponsorsInfo:
       $ref: '#/AdminSponsorsConfig'
   additionalProperties: false
+  description: |
+    Replacement sponsors configuration. URL fields are validated before
+    persistence under the shared admin URL policy (issue #409): each sponsor
+    tier `link` must be an absolute http(s) URL with a host, each `avatarUrl`
+    may be a site-relative path or an absolute http(s) URL, and the contact
+    `buttonLink` additionally accepts a `mailto:` address. Dangerous schemes,
+    protocol-relative `//`, control-character/entity disguises and overlong
+    values are rejected. On rejection the request fails with HTTP 200
+    `code: 1`, messageCode `admin.url.invalid` and params `field` naming the
+    first offending field; nothing is persisted. A malformed or empty body
+    binds to zero values and is saved (after default-filling) as-is.
 
 AdminAnnouncementItem:
   type: object
@@ -6466,7 +6556,17 @@ AdminSaveSiteSettingsRequest:
     settings:
       $ref: '#/AdminSiteSettingsConfig'
   additionalProperties: false
-  description: Replacement site settings. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is.
+  description: |
+    Replacement site settings. URL fields are validated before persistence
+    under the shared admin URL policy (issue #409): `siteUrl` must be an
+    absolute http(s) URL with a host, while `siteLogo` may be a site-relative
+    path or an absolute http(s) URL. Dangerous schemes, protocol-relative
+    `//`, control-character/entity disguises, pure port/no-host forms such
+    as `https://:443` and overlong values are rejected. On rejection the
+    request fails with HTTP 200 `code: 1`, messageCode `admin.url.invalid`
+    and params `field` naming the first offending field; nothing is
+    persisted. A missing/malformed body binds to zero values (empty URL
+    fields, hence valid) and is saved as-is.
 
 AdminSiteChromeItem:
   type: object
@@ -6583,7 +6683,19 @@ AdminSaveSiteChromeRequest:
     settings:
       $ref: '#/AdminSiteChromeConfig'
   additionalProperties: false
-  description: Replacement chrome configuration. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is.
+  description: |
+    Replacement chrome configuration. URL fields are validated before
+    persistence under the shared admin URL policy (issue #409):
+    header/main-menu/resources/sidebar/footer link `url` values accept a
+    site-relative path or an absolute http(s) URL with a host, and
+    `brandImage` accepts a site-relative path or an absolute http(s) URL.
+    Dangerous schemes, protocol-relative `//`, control-character/entity
+    disguises, pure port/no-host forms such as `https://:443` and overlong
+    values are rejected. On rejection the request fails with HTTP 200
+    `code: 1`, messageCode `admin.url.invalid` and params `field` naming the
+    first offending field; nothing is persisted. A missing/malformed body
+    binds to zero values (empty URL fields, hence valid) and is saved
+    as-is.
 
 AdminSiteThemeTokens:
   type: object
@@ -6752,16 +6864,35 @@ AdminSecuritySettingsConfig:
       type: array
       items:
         type: string
-      description: Usernames rejected at registration/rename.
+      description: >-
+        Usernames rejected at registration/rename. Also enforced for nicknames
+        (EditUserInfo) and OAuth/Agent account creation. Matching is
+        whole-string equality after normalization (case folding, NFKC/full-width,
+        zero-width stripping, ASCII leetspeak folding), so `Admin`, `ａｄｍｉｎ`,
+        and `adm1n` all hit `admin` while `myadmin` does not. Reserved entries
+        never freeze existing accounts. The built-in default list ships in
+        `defaultconfig/pageconfig/security.json` and is backfilled to stored
+        configs whose arrays are empty by data migration v27.
     bannedUsernames:
       type: array
       items:
         type: string
-      description: Usernames rejected at registration/rename; saving a newly added entry also freezes matching existing accounts (idempotent).
+      description: >-
+        Usernames rejected at registration/rename (same whole-string normalized
+        equality as `reservedUsernames`); saving a newly added entry also freezes
+        matching existing accounts (idempotent). The built-in default list is
+        deliberately empty so upgrades never freeze existing accounts.
     sensitiveWords:
       type: array
       items:
         type: string
+      description: >-
+        Words scanned against content (topics/posts/chat/reviews/profile free
+        text) with a normalized substring scan (case folding, NFKC/full-width,
+        zero-width stripping; no leetspeak folding). The default list holds
+        conservative multi-character legal-bottom-line terms from the
+        Apache-2.0 fwwdn/sensitive-stop-words bank and is backfilled by data
+        migration v27 for stored configs whose array is empty.
     sensitiveAction:
       type: string
       description: "`block` rejects matching content, `review` routes it to the moderation queue."
@@ -6821,6 +6952,18 @@ AdminPostingUploadControl:
       type: array
       items:
         type: string
+      description: >-
+        Image-extension allowlist for user uploads, canonicalized by the
+        server (issue #408). Only the built-in decodable image extensions
+        are accepted: .jpg/.jpeg/.png/.gif/.webp/.bmp. Matching is
+        case-insensitive and a leading dot is optional (`png`, `.PNG` and
+        `.png` are the same entry); legal entries are stored lower-cased
+        with a leading dot, deduplicated in first-appearance order.
+        Submitting any unsupported token (.svg/.html/.js/.xml/.pdf, double
+        extensions such as `avatar.png.exe`, empty strings) rejects the
+        whole save with `admin.upload.extNotAllowed` (HTTP 200,
+        `params.extensions` lists the offending tokens) and persists
+        nothing. An empty list is valid and is stored/echoed as `[]`.
     maxAttachmentSizeKb:
       type: integer
     maxDailyUploadsPerUser:
@@ -7338,6 +7481,9 @@ AdminStorageSettingsConfig:
     endpoint:
       type: string
       description: S3-compatible endpoint; required with bucket when provider is `s3`.
+    internalEndpoint:
+      type: string
+      description: "Optional S3 server-side endpoint (e.g. Alibaba OSS internal `-internal.aliyuncs.com`); when set and its host differs from `endpoint`, server-side reads/writes use it while browser direct uploads still presign against `endpoint`. Empty = single endpoint."
     bucket:
       type: string
     region:
@@ -7366,6 +7512,8 @@ AdminStorageSettingsView:
       type: string
       enum: [local, s3]
     endpoint:
+      type: string
+    internalEndpoint:
       type: string
     bucket:
       type: string

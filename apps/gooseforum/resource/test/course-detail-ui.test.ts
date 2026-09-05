@@ -55,4 +55,32 @@ describe('课程详情页弹窗键盘可访问性', () => {
     // 弹窗（v-if="sharePreview"）尚未挂载，querySelector 落空即 no-op。
     expect(body.indexOf('await openShare(review)')).toBeLessThan(body.indexOf('nextTick'))
   })
+
+  test('分享导出 ref 绑在内层 share-paper 卡片上', () => {
+    // html-to-image 复制被捕获节点自身 computed style：ref 挂在 opacity-0 隐藏容器上
+    // 会把整张导出图变成纯白。对齐 serverless：ref 挂 paper 节点，容器只负责视口外定位。
+    const start = detailSource.indexOf('导出实例')
+    const end = detailSource.indexOf('</Teleport>', start)
+    const exportBlock = detailSource.slice(start, end)
+    const wrapperTag = exportBlock.match(/<div[^>]*opacity-0[^>]*>/)?.[0] ?? ''
+    const paperTag = exportBlock.match(/<div[^>]*share-paper[^>]*>/)?.[0] ?? ''
+    expect(wrapperTag).not.toBe('')
+    expect(paperTag).not.toBe('')
+    expect(wrapperTag).not.toContain('ref="shareExportEl"')
+    expect(paperTag).toContain('ref="shareExportEl"')
+  })
+
+  test('课评编辑器容器不裁切 more 下拉（禁用 overflow-hidden，圆角交给内层 .vditor 继承）', () => {
+    // 包裹层 overflow-hidden 会把 vditor 的 .vditor-hint 下拉一并裁掉，交互不全；
+    // 圆角改由 [&_.vditor]:rounded-[inherit] 实现，下拉可自然溢出到下方表单之上。
+    const start = detailSource.indexOf(':slim-mobile="true"')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const editorBlock = detailSource.slice(detailSource.lastIndexOf('<div', start), start)
+    const wrapperTag = editorBlock.match(/<div[^>]*rounded-\[var\(--gf-radius-box\)\][^>]*>/)?.[0] ?? ''
+    expect(wrapperTag).not.toBe('')
+    expect(wrapperTag).not.toContain('overflow-hidden')
+    expect(wrapperTag).toContain('[&_.vditor]:rounded-[inherit]')
+    // 默认高度 380：300 偏矮，more 下拉长列表在编辑区内可视空间不足
+    expect(detailSource).toContain(':height="380"')
+  })
 })

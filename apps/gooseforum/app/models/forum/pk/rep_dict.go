@@ -194,3 +194,11 @@ func chunkInt(arr []int, size int) [][]int {
 	}
 	return out
 }
+
+// ListAllCalendars 返回全部学期（calendarId 倒序），供学期名/中文标记归一化反查
+// （course-pk-sync / course-materialize 的学期参数解析，双向 NormalizeTermLabel 匹配）。
+func ListAllCalendars() ([]CalendarEntity, error) {
+	var entities []CalendarEntity
+	err := calendarBuilder().Order("calendar_id DESC").Find(&entities).Error
+	return entities, err
+}

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
 	"github.com/spf13/cobra"
@@ -74,6 +75,20 @@ func resolvePkCalendarId(arg string, explicitID uint64) (uint64, error) {
 	}
 	if id, ok := pk.GetCalendarIdByI18n(arg); ok {
 		return id, nil
+	}
+	// 归一化反查：pk_calendar.calendar_id_i18n 可能存中文学期名（"2025-2026学年第2学期"）
+	// 而调用方传标准码（或相反）——按 NormalizeTermLabel 双向匹配（review P2：CLI 文档
+	// 承诺的学期名形式必须对生产中文学期名可用）。
+	if normalized := course.NormalizeTermLabel(arg); normalized != "" {
+		calendars, err := pk.ListAllCalendars()
+		if err != nil {
+			return 0, fmt.Errorf("列举 pk_calendar 失败：%w", err)
+		}
+		for _, c := range calendars {
+			if course.NormalizeTermLabel(c.CalendarIdI18n) == normalized {
+				return c.CalendarId, nil
+			}
+		}
 	}
 	return 0, fmt.Errorf("无法解析学期 %q 对应的一系统 calendarId：请先以 --calendar-id 同步一次，或直接传数字 calendarId（如 121）", arg)
 }

@@ -44,14 +44,22 @@ import { useI18n } from 'vue-i18n'
 const props = defineProps<{
   modelValue: string
   placeholder: string
-  /** 编辑器固定高度（官方 demo 为 360） */
-  height?: number
+  /** 编辑器固定高度（官方 demo 为 360，支持 'auto' / '100%'） */
+  height?: number | string
+  /** 隐藏工具栏内的上传图片按钮 */
+  hideUpload?: boolean
   /** 左侧大纲：按需开启（官方默认关闭） */
   outline?: boolean
   /** 字数统计：按需开启（官方默认关闭） */
   counter?: boolean
   /** 紧凑工具栏：浮动面板等窄容器只留高频按钮，其余收进 more（桌面端） */
   compact?: boolean
+  /** 普通/极简工具栏（推特/知乎风格）：仅保留核心基础排版、表情与图片上传 */
+  simple?: boolean
+  /** 窄容器进一步精简（课评表单等 vw-64 嵌套容器）：
+   *  移动端主行 7 项（标题左一），≤320px 视口单行完整；
+   *  桌面端 compact 同构但标题提升左一（SLIM_DESKTOP_TOOLBAR），不影响其他 compact 宿主 */
+  slimMobile?: boolean
   /** 工具栏最左显示「向上扩展」按钮：折叠标题/分类区（发布页用） */
   headerToggle?: boolean
   /** 头部折叠态：用于按钮激活高亮 */
@@ -168,11 +176,8 @@ const COMPACT_TOOLBAR: Array<string | IMenuItem> = [
   '|',
   'undo',
   'redo',
-  '|',
-  'edit-mode',
   {
     name: 'more',
-    // 上向气泡：避免右向气泡超出浮动面板（overflow hidden）被裁剪
     tipPosition: 'n',
     toolbar: [
       'headings',
@@ -181,52 +186,218 @@ const COMPACT_TOOLBAR: Array<string | IMenuItem> = [
       'line',
       ...mathToolbarItems(),
       'table',
-      'insert-before',
-      'insert-after',
       '|',
       'fullscreen',
-      'both',
       'preview',
-      'export',
-      'devtools',
-      'info',
       'help',
     ],
   },
 ]
 
 /**
- * 官方移动端最佳配置（https://b3log.org/vditor/demo/sweet-mobile.html）：
- * 精简工具栏：emoji / link / upload / edit-mode + more（insert-after/fullscreen/preview/info/help）。
+ * 移动端文章专属工具栏（Article Mobile Toolbar）：
+ * 单行流线型设计（9 项核心排版高频工具 + 1 项统一收纳门），彻底杜绝双行折行臃肿，
+ * 主行一键直达：标题、加粗、斜体、引用、列表、代码块、图片、链接；
+ * 更多菜单优雅收纳：表格、表情、撤销/重做、删除线、有序/任务列表、行内代码、分割线、公式、全屏与预览。
  */
-const MOBILE_TOOLBAR: Array<string | IMenuItem> = [
-  'emoji',
+const ARTICLE_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
+  'headings',
+  'bold',
+  'italic',
+  'quote',
+  'list',
+  'code',
   uploadToolbarItem(),
   'link',
-  'edit-mode',
   {
     name: 'more',
-    // 上向气泡：避免右向气泡超出浮动面板（overflow hidden）被裁剪
     tipPosition: 'n',
-    toolbar: ['insert-after', 'fullscreen', 'preview', 'info', 'help'],
+    toolbar: [
+      'table',
+      'emoji',
+      'undo',
+      'redo',
+      'strike',
+      'ordered-list',
+      'check',
+      'inline-code',
+      'line',
+      ...mathToolbarItems(),
+      'fullscreen',
+      'preview',
+      'help',
+    ],
   },
+]
+
+/**
+ * 移动端回复/楼层评论专属工具栏（Compact Mobile Toolbar）：
+ * 专为社区楼层回复与短评定制：聚焦最常用的高频互动与轻量排版能力，
+ * 彻底消除左偏空旷（整体居中均分平衡），交互直观纯粹（去除非直观的 edit-mode / insert-after）。
+ */
+const COMPACT_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
+  'emoji',
+  uploadToolbarItem(),
+  'quote',
+  'bold',
+  'code',
+  'list',
+  'link',
+  'undo',
+  'redo',
+  {
+    name: 'more',
+    tipPosition: 'n',
+    toolbar: [
+      'italic',
+      'strike',
+      'ordered-list',
+      'check',
+      'inline-code',
+      'table',
+      'line',
+      'fullscreen',
+      'help',
+    ],
+  },
+]
+
+/**
+ * 移动端短文/极简专属工具栏（Simple Mobile Toolbar - 瞬间与提问）：
+ * 极简单行，高频纯粹，包含图片、表情、加粗、斜体、列表、链接、撤销与重做。
+ */
+const SIMPLE_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
+  uploadToolbarItem(),
+  'emoji',
+  'bold',
+  'italic',
+  'list',
+  'link',
+  'undo',
+  'redo',
+]
+
+/**
+ * 移动端窄容器精简工具栏（Slim Mobile Toolbar - 课评表单等 vw-64 嵌套容器）：
+ * 在 compact 移动端（10 项，需 ≥330px 容器）基础上进一步收敛为主行 7 项，
+ * 7×32+5=229px，≤320px 视口也单行完整不裁剪；标题放左一（与官方默认工具栏一致，
+ * 课评常用分级标题），表情/图片/加粗/引用/列表直达主行，代码块等低频项收进 more，
+ * 与 compact 同一「高频直达 + 低频收纳」交互模型。
+ */
+const SLIM_MOBILE_TOOLBAR: Array<string | IMenuItem> = [
+  'headings',
+  'emoji',
+  uploadToolbarItem(),
+  'bold',
+  'quote',
+  'list',
+  {
+    name: 'more',
+    tipPosition: 'n',
+    toolbar: [
+      'undo',
+      'redo',
+      '|',
+      'code',
+      'inline-code',
+      'italic',
+      'strike',
+      'link',
+      'ordered-list',
+      'check',
+      '|',
+      'line',
+      'table',
+      '|',
+      'fullscreen',
+      'help',
+    ],
+  },
+]
+
+/**
+ * 桌面端窄容器精简工具栏（slimMobile 桌面分支，课评编辑器专用）：
+ * 与 COMPACT_TOOLBAR 同构（不影响回复浮窗等 compact 宿主），仅两处差异：
+ * 标题提升到主行左一（对齐官方默认工具栏与移动端 slim），并从 more 子菜单移除避免重复。
+ */
+const SLIM_DESKTOP_TOOLBAR: Array<string | IMenuItem> = (() => {
+  const compact = COMPACT_TOOLBAR.map((item) =>
+    typeof item === 'object' && item.name === 'more'
+      ? { ...item, toolbar: item.toolbar?.filter((name) => name !== 'headings') }
+      : item,
+  )
+  return ['headings', ...compact]
+})()
+
+/**
+ * 极简/普通编辑器工具栏（参考推特/知乎输入卡片）：
+ * 仅保留基础高频排版与媒体能力，彻底去除大纲、公式、表格、复杂主题及多级菜单。
+ */
+const SIMPLE_TOOLBAR: Array<string | IMenuItem> = [
+  'bold',
+  'italic',
+  'strike',
+  'link',
+  '|',
+  'list',
+  'ordered-list',
+  'quote',
+  'code',
+  'inline-code',
+  '|',
+  'emoji',
+  uploadToolbarItem(),
+  '|',
+  'undo',
+  'redo',
 ]
 
 /** 移动端判定：与 vditor Constants.MOBILE_WIDTH 一致 */
 const MOBILE_VIEWPORT_QUERY = '(max-width: 520px)'
 
 /** 官方建议：移动端高度 = 屏高一半，防止软键盘弹起时布局跳动 */
-function resolveHeight(): number {
+function resolveHeight(): number | string {
+  if (typeof props.height === 'string') return props.height
   if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+    if (props.simple || props.compact) return props.height ?? 280
     return Math.floor(window.innerHeight / 2)
   }
   return props.height ?? 360
 }
 
-/** 工具栏选择：移动端官方精简 > 桌面 compact 紧凑 > 桌面完整 */
+/** 工具栏选择：
+ *  移动端优先：simple -> SIMPLE_MOBILE_TOOLBAR；slimMobile -> SLIM_MOBILE_TOOLBAR（窄容器）；
+ *  compact -> COMPACT_MOBILE_TOOLBAR；默认 -> ARTICLE_MOBILE_TOOLBAR
+ *  桌面端：simple -> SIMPLE_TOOLBAR；slimMobile -> SLIM_DESKTOP_TOOLBAR（compact 同构 + 标题左一）；
+ *  compact -> COMPACT_TOOLBAR；默认 -> OFFICIAL_TOOLBAR
+ */
 function resolveToolbar(): Array<string | IMenuItem> {
-  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return MOBILE_TOOLBAR
-  return props.compact ? COMPACT_TOOLBAR : OFFICIAL_TOOLBAR
+  let list: Array<string | IMenuItem>
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+    if (props.simple) {
+      list = [...SIMPLE_MOBILE_TOOLBAR]
+    } else if (props.slimMobile) {
+      list = [...SLIM_MOBILE_TOOLBAR]
+    } else if (props.compact) {
+      list = [...COMPACT_MOBILE_TOOLBAR]
+    } else {
+      list = [...ARTICLE_MOBILE_TOOLBAR]
+    }
+  } else if (props.simple) {
+    list = [...SIMPLE_TOOLBAR]
+  } else if (props.slimMobile) {
+    list = [...SLIM_DESKTOP_TOOLBAR]
+  } else {
+    list = props.compact ? [...COMPACT_TOOLBAR] : [...OFFICIAL_TOOLBAR]
+  }
+
+  if (props.hideUpload) {
+    list = list.filter((item) => {
+      if (typeof item === 'string') return item !== 'upload'
+      return (item as IMenuItem).name !== 'upload'
+    })
+  }
+  return list
 }
 
 /** 行间公式 / 块级公式：自定义按钮，插入 $...$ / $$...$$ 并交给 Lute 渲染。
@@ -634,6 +805,8 @@ let labelsLatched = false // #7：一旦隐藏即永久锁存（直到模块重�
 const HUB_NO_FOLD_TYPES = new Set(['emoji', 'headings', 'edit-mode'])
 let foldObserver: ResizeObserver | null = null
 let foldRaf = 0
+let toolbarPanelResizeHandler: (() => void) | null = null
+let toolbarPanelClampRaf = 0
 let toolbarEl: HTMLElement | null = null
 let moreWrapper: HTMLElement | null = null
 let hintPanel: HTMLElement | null = null
@@ -699,6 +872,7 @@ function unfoldItem(item: HTMLElement) {
 function measureToolbar() {
   foldRaf = 0
   if (destroyed || !toolbarEl?.isConnected || !foldRegion) return
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
   // 恒覆盖工具栏左 padding（防 vditor setPadding 按「内容 padding + 大纲宽度」
   // 在窄屏/大纲展开时把图标挤到右端）；再按宽度滞回切换标签显隐。
   syncToolbarLeftPadding()
@@ -1044,6 +1218,125 @@ function syncHeaderToggleHost() {
   syncToolbarLeftPadding()
 }
 
+let popoverObservers: MutationObserver[] = []
+
+/**
+ * 悬浮辅助栏（链接 / 表格 / 代码块等）第一行层级与边缘切割防御：
+ * 1. 当 targetElement 处于编辑器第一行时，Vditor 原生计算 targetElement.offsetTop - 21 会得出负值（例如 -8px 或极小正值），
+ *    导致悬浮工具栏向上插入 toolbar 底边内部，或被顶层父级容器边界切断。
+ *    此处将悬浮栏自动翻转并定位于当前行下方（目标行 offsetTop + 30px），彻底避开顶部工具栏和容器顶边缘。
+ * 2. 在移动视图或窄视口下，若浮层宽度可能溢出右侧屏幕或处于左侧负值，自动进行边界约束（clamp）。
+ */
+function initPopoverPositionCorrection(v: Vditor) {
+  for (const obs of popoverObservers) obs.disconnect()
+  popoverObservers = []
+
+  const wysiwyg = v.vditor?.wysiwyg
+  if (!wysiwyg) return
+
+  const popovers = [wysiwyg.popover, wysiwyg.selectPopover].filter(Boolean) as HTMLElement[]
+
+  for (const popover of popovers) {
+    let adjusting = false
+    const adjust = () => {
+      if (adjusting || popover.style.display === 'none') return
+      adjusting = true
+
+      try {
+        const topVal = parseFloat(popover.style.top || '0')
+        const wysiwygEl = wysiwyg.element
+        if (!wysiwygEl) return
+
+        // 第一行层级与边缘切割防御：top 偏小或为负数时，翻转到当前行正下方
+        if (topVal < 14) {
+          const dataTop = parseFloat(popover.getAttribute('data-top') || '0')
+          const targetOffsetTop = isNaN(dataTop) ? 0 : dataTop + 21
+          const safeTop = Math.max(targetOffsetTop + 30, 36)
+          popover.style.top = `${safeTop}px`
+        }
+
+        // 横向边缘防裁切（移动端/窄容器下防止右侧溢出屏幕或左侧负值）
+        const leftVal = parseFloat(popover.style.left || '0')
+        const popoverWidth = popover.offsetWidth || 280
+        const containerWidth = wysiwygEl.clientWidth
+        if (containerWidth > 0) {
+          const maxLeft = Math.max(6, containerWidth - popoverWidth - 8)
+          const safeLeft = Math.min(Math.max(6, leftVal), maxLeft)
+          if (Math.abs(leftVal - safeLeft) > 1) {
+            popover.style.left = `${safeLeft}px`
+          }
+        }
+      } finally {
+        adjusting = false
+      }
+    }
+
+    const observer = new MutationObserver(() => {
+      adjust()
+    })
+
+    observer.observe(popover, {
+      attributes: true,
+      attributeFilter: ['style', 'data-top'],
+    })
+
+    popoverObservers.push(observer)
+  }
+}
+
+/**
+ * 工具栏下拉面板横向边界自适应：
+ * 防止移动端或窄屏视口下，浮层超出屏幕左/右侧边缘被浏览器截断。
+ */
+function initToolbarPanelPositionCorrection(v: Vditor) {
+  const toolbarEl = v.vditor?.toolbar?.element
+  if (!toolbarEl) return
+
+  const clampPanelHorizontal = (panel: HTMLElement) => {
+    if (panel.style.display === 'none') return
+    panel.style.removeProperty('transform')
+
+    const panelRect = panel.getBoundingClientRect()
+    if (panelRect.width === 0 || panelRect.height === 0) return
+
+    const container = toolbarEl.closest('.gf-modal-editor, .gf-composer-surface, .vditor-official') as HTMLElement | null
+    const containerRect = container?.getBoundingClientRect()
+    const maxRight = containerRect ? Math.min(window.innerWidth - 8, containerRect.right - 8) : window.innerWidth - 8
+    const minLeft = containerRect ? Math.max(8, containerRect.left + 8) : 8
+
+    let shiftX = 0
+    if (panelRect.left < minLeft) {
+      shiftX = minLeft - panelRect.left
+    } else if (panelRect.right > maxRight) {
+      shiftX = -(panelRect.right - maxRight)
+    }
+
+    if (shiftX !== 0) {
+      panel.style.setProperty('transform', `translateX(${shiftX}px)`, 'important')
+    }
+  }
+
+  const runClamp = () => {
+    if (toolbarPanelClampRaf) return
+    toolbarPanelClampRaf = requestAnimationFrame(() => {
+      toolbarPanelClampRaf = 0
+      const activePanels = toolbarEl.querySelectorAll<HTMLElement>('.vditor-panel, .vditor-hint')
+      for (const p of activePanels) {
+        clampPanelHorizontal(p)
+      }
+    })
+  }
+
+  toolbarEl.addEventListener('click', () => {
+    runClamp()
+    setTimeout(runClamp, 60)
+  }, { passive: true })
+
+  // 模块级保存绑定引用：卸载时据此移除，防止每个编辑器实例泄漏一个 window 监听
+  toolbarPanelResizeHandler = runClamp
+  window.addEventListener('resize', toolbarPanelResizeHandler, { passive: true })
+}
+
 onMounted(async () => {
   if (!root.value) return
   const language = languageAssets[currentLocale()]
@@ -1148,6 +1441,8 @@ onMounted(async () => {
         if (props.modelValue && props.modelValue !== nextEditor?.getValue()) {
           nextEditor?.setValue(props.modelValue, true)
         }
+        initPopoverPositionCorrection(nextEditor!)
+        initToolbarPanelPositionCorrection(nextEditor!)
       },
       input(value) {
         emit('update:modelValue', value)
@@ -1189,6 +1484,8 @@ onBeforeUnmount(() => {
   destroyed = true
   fullscreenLabelObserver?.disconnect()
   fullscreenLabelObserver = null
+  for (const obs of popoverObservers) obs.disconnect()
+  popoverObservers = []
   // 工具栏收纳清理：观察器/监听/rAF 全部释放，防止陈旧实例泄漏
   foldObserver?.disconnect()
   foldObserver = null
@@ -1196,6 +1493,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', syncToolbarLeftPadding)
   if (foldRaf) cancelAnimationFrame(foldRaf)
   foldRaf = 0
+  // 工具栏面板横向避让清理：移除 window resize 监听并取消在途 rAF，
+  // 该监听持有 vditor DOM 闭包，不释放会导致每次编辑器实例泄漏监听器与 DOM
+  if (toolbarPanelResizeHandler) {
+    window.removeEventListener('resize', toolbarPanelResizeHandler)
+    toolbarPanelResizeHandler = null
+  }
+  if (toolbarPanelClampRaf) cancelAnimationFrame(toolbarPanelClampRaf)
+  toolbarPanelClampRaf = 0
   toolbarEl = moreWrapper = hintPanel = foldRegion = null
   mainRowSequence = []
   const currentEditor = editor
@@ -1236,19 +1541,25 @@ function getValue() {
   return editor && ready ? editor.getValue() : props.modelValue
 }
 
+function setValue(value: string) {
+  if (!editor || !ready) return
+  editor.setValue(value, true)
+  if (value !== props.modelValue) emit('update:modelValue', value)
+}
+
 function syncValue() {
   const value = getValue()
   if (value !== props.modelValue) emit('update:modelValue', value)
   return value
 }
 
-defineExpose({ editorFailed, editorReady, focus, getValue, insertMarkdown, setHeight, syncValue })
+defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue })
 </script>
 
 <template>
   <!-- 用 data-locale 属性而非 :class 驱动语言样式：Vue 动态 class 重渲染会抹掉
        Vditor 命令式添加的 .vditor 类（编辑器边框/工具栏样式依赖它），属性则不影响 className -->
-  <div ref="root" class="vditor-official" :data-locale="locale" />
+  <div ref="root" class="vditor-official" :class="{ 'vditor-official--slim': slimMobile }" :data-locale="locale" />
 </template>
 
 <style>
@@ -1621,22 +1932,70 @@ defineExpose({ editorFailed, editorReady, focus, getValue, insertMarkdown, setHe
     --toolbar-height: 44px;
   }
 
+  .vditor-official .vditor-toolbar {
+    overflow: visible;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    gap: 3px;
+    padding: 5px 8px;
+    align-items: center;
+    background: color-mix(in oklch, var(--gf-color-base-200) 40%, var(--gf-color-base-100));
+    border-bottom: 1px solid color-mix(in oklch, var(--gf-color-base-content) 10%, transparent);
+    border-radius: 12px 12px 0 0;
+  }
+
+  .vditor-official .vditor-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .vditor-official .vditor-toolbar__item {
-    /* 自适应：按钮弹性均分富余空间，宽屏舒展、窄屏自动收紧（min-width 40px 触控保底） */
-    flex: 1 1 0;
-    min-width: 0;
+    /* 防止子元素溢出重叠：紧凑 32px，外边距归零使用 gap 统一间距 */
+    flex: 0 0 auto;
+    min-width: 32px;
+    margin: 0;
   }
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped {
-    width: 100%;
-    min-width: 40px;
-    padding: 8px 4px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 5px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    color: color-mix(in oklch, var(--gf-color-base-content) 75%, transparent);
+    transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .vditor-official .vditor-toolbar__item .vditor-tooltipped:hover {
+    background-color: color-mix(in oklch, var(--gf-color-base-content) 10%, transparent);
+    color: var(--color-base-content, #24292e);
+  }
+
+  .vditor-official .vditor-toolbar__item .vditor-tooltipped:active {
+    transform: scale(0.92);
+    background-color: color-mix(in oklch, var(--gf-color-primary) 15%, transparent);
+  }
+
+  .vditor-official .vditor-toolbar__item .vditor-tooltipped svg {
+    width: 17px;
+    height: 17px;
   }
 
   .vditor-official .hub-outline-toggle--float {
     top: 0;
     left: 35px;
     height: var(--toolbar-height);
+  }
+}
+
+/* 移动触控端关闭悬浮文字气泡（触控点击后不会残留黑色气泡遮挡界面） */
+@media (hover: none), (max-width: 640px) {
+  .vditor-official .vditor-toolbar__item .vditor-tooltipped::after,
+  .vditor-official .vditor-toolbar__item .vditor-tooltipped::before {
+    display: none !important;
   }
 }
 
@@ -1783,6 +2142,199 @@ defineExpose({ editorFailed, editorReady, focus, getValue, insertMarkdown, setHe
   to {
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+}
+
+/* 最左侧按钮 tooltip：靠左对齐，杜绝向左溢出屏幕或容器边界 */
+.vditor-official .vditor-toolbar__item:first-child .vditor-tooltipped::after {
+  left: 0 !important;
+  transform: none !important;
+}
+.vditor-official .vditor-toolbar__item:first-child .vditor-tooltipped::before {
+  left: 12px !important;
+}
+
+/* 最右侧按钮 tooltip：靠右对齐，杜绝向右溢出屏幕或容器边界 */
+.vditor-official .vditor-toolbar__item:last-child .vditor-tooltipped::after {
+  left: auto !important;
+  right: 0 !important;
+  transform: none !important;
+}
+.vditor-official .vditor-toolbar__item:last-child .vditor-tooltipped::before {
+  left: auto !important;
+  right: 12px !important;
+}
+
+/* 底部工具栏弹层（如瞬间与提问 QuickPublishModal）：tooltip 向上弹出，避免被弹层底部切割 */
+.gf-modal-editor .vditor-toolbar__item .vditor-tooltipped::after {
+  top: auto !important;
+  bottom: 100% !important;
+  margin-top: 0 !important;
+  margin-bottom: 5px !important;
+}
+.gf-modal-editor .vditor-toolbar__item .vditor-tooltipped::before {
+  top: -5px !important;
+  bottom: auto !important;
+  border-top-color: #3b3e43 !important;
+  border-bottom-color: transparent !important;
+}
+
+/* 工具栏下拉面板与提示列表（emoji、more、headings 等）：提升层级至 100，高于吸顶工具栏与各容器，解决被裁切与穿透遮挡 */
+.vditor-official .vditor-toolbar__item > .vditor-panel,
+.vditor-official .vditor-toolbar__item > .vditor-hint {
+  z-index: 100 !important;
+  opacity: 1 !important;
+  background-color: var(--panel-background-color, #fff) !important;
+  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.12)) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.18), 0 3px 8px -1px rgba(0, 0, 0, 0.08) !important;
+  padding: 4px 6px !important;
+  box-sizing: border-box !important;
+  max-height: min(280px, 48vh) !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  top: calc(100% + 4px) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* 底部工具栏弹层编辑器（如瞬间与提问弹层）：工具栏下拉浮层自然向上展开进入编辑正文区 */
+.gf-modal-editor .vditor-official .vditor-toolbar__item > .vditor-panel,
+.gf-modal-editor .vditor-official .vditor-toolbar__item > .vditor-hint {
+  top: auto !important;
+  bottom: calc(100% + 8px) !important;
+}
+
+.gf-modal-editor .vditor-official .vditor-toolbar__item > .vditor-panel:before,
+.gf-modal-editor .vditor-official .vditor-toolbar__item > .vditor-hint:before {
+  top: auto !important;
+  bottom: -14px !important;
+  border-top-color: var(--panel-background-color, #fff) !important;
+  border-bottom-color: transparent !important;
+}
+
+/* 当工具栏项靠近右侧时（Vditor 动态计算添加的 .vditor-panel--left 或末尾项）：向左展开，防止被右侧容器边界裁切 */
+.vditor-official .vditor-toolbar__item > .vditor-panel.vditor-panel--left,
+.vditor-official .vditor-toolbar__item > .vditor-hint.vditor-panel--left,
+.vditor-official .vditor-toolbar__item:last-child > .vditor-hint,
+.vditor-official .vditor-toolbar__item:last-child > .vditor-panel,
+.vditor-official .vditor-toolbar__item:nth-last-child(2) > .vditor-hint,
+.vditor-official .vditor-toolbar__item:nth-last-child(2) > .vditor-panel {
+  right: 0 !important;
+  left: auto !important;
+}
+
+.vditor-official .vditor-toolbar__item > .vditor-panel.vditor-panel--left:before,
+.vditor-official .vditor-toolbar__item > .vditor-hint.vditor-panel--left:before,
+.vditor-official .vditor-toolbar__item:last-child > .vditor-panel:before,
+.vditor-official .vditor-toolbar__item:nth-last-child(2) > .vditor-panel:before {
+  left: auto !important;
+  right: 12px !important;
+}
+
+/* 正文段落跟随悬浮辅助组件（wysiwyg 行内浮层、公式块工具、链接浮层、表格浮层等）：
+   遵循 Vditor 动态计算的 top / left 坐标，跟随在其控制的段落文本块附近，同时避免被容器截断 */
+.vditor-official .vditor-wysiwyg > .vditor-panel {
+  z-index: 80 !important;
+  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.12)) !important;
+  border-radius: 8px !important;
+  background-color: var(--panel-background-color, #fff) !important;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.14), 0 2px 6px -1px rgba(0, 0, 0, 0.08) !important;
+  max-width: calc(100% - 16px) !important;
+  box-sizing: border-box !important;
+}
+
+/* 浮动栏内的输入框美化 */
+.vditor-official .vditor-panel .vditor-input {
+  border: 1px solid var(--color-line, rgba(0, 0, 0, 0.14)) !important;
+  border-radius: 6px !important;
+  background-color: var(--color-base-100, #fff) !important;
+  color: var(--color-base-content, #24292e) !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  margin: 0 2px !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+
+.vditor-official .vditor-panel .vditor-input:focus {
+  border-color: var(--color-primary, #3b82f6) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px var(--color-primary-focus, rgba(59, 130, 246, 0.2)) !important;
+}
+
+/* 浮动栏内的操作图标按钮美化与触控 */
+.vditor-official .vditor-panel .vditor-icon {
+  border-radius: 6px !important;
+  padding: 4px !important;
+  width: 26px !important;
+  height: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s, color 0.15s !important;
+}
+
+.vditor-official .vditor-panel .vditor-icon:hover {
+  background-color: var(--color-base-200, rgba(0, 0, 0, 0.06)) !important;
+}
+
+/* 移动视图下的面板与表情栏防裁切：紧凑高度、自适应视口宽度 */
+@media (max-width: 640px) {
+  .vditor-official .vditor-toolbar {
+    overflow: visible !important;
+  }
+  .vditor-official .vditor-panel {
+    padding: 3px 4px !important;
+    max-width: min(320px, calc(100vw - 24px)) !important;
+  }
+  .vditor-official .vditor-emojis {
+    max-height: 160px !important;
+  }
+  .vditor-official .vditor-panel .vditor-input {
+    width: 95px !important;
+    max-width: 110px !important;
+    font-size: 12px !important;
+    padding: 3px 5px !important;
+  }
+  .vditor-official .vditor-panel .vditor-icon {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+/*
+ * slim（课评）编辑器面板避让：标题/表情按钮贴工具栏左缘，vditor 对左侧按钮的
+ * 面板加 --left（right:0 锚定按钮右缘），宽面板会整体伸向视口外左侧被裁/溢出
+ * （楼层回复编辑器表情为左一、面板默认向右展开故无此问题）。
+ * 对齐 QuickPublishModal 的纯 CSS 避让：这两类面板改为左锚定 + 视口宽度封顶，
+ * 表情面板左移一格（32px）与标题面板对齐编辑器左缘展开；箭头随锚定方向复位。
+ * 仅作用于 slimMobile 宿主（.vditor-official--slim）+ 移动端视口，其他编辑器不受影响。
+ * 注：标题面板类名是 .vditor-hint.vditor-panel--arrow（无 .vditor-panel），需单独匹配。
+ */
+@media (max-width: 520px) {
+  .vditor-official--slim .vditor-toolbar__item:has(> [data-type='headings']) > .vditor-hint,
+  .vditor-official--slim .vditor-toolbar__item:has(> [data-type='emoji']) > .vditor-panel {
+    left: 0 !important;
+    right: auto !important;
+    max-width: min(320px, calc(100vw - 48px)) !important;
+  }
+
+  /* 表情是第二格（标题 32px）：左移一格与标题面板对齐编辑器左缘 */
+  .vditor-official--slim .vditor-toolbar__item:has(> [data-type='emoji']) > .vditor-panel {
+    left: -32px !important;
+  }
+
+  .vditor-official--slim
+    .vditor-toolbar__item:has(> [data-type='headings'])
+    > .vditor-hint.vditor-panel--arrow:before,
+  .vditor-official--slim
+    .vditor-toolbar__item:has(> [data-type='emoji'])
+    > .vditor-panel.vditor-panel--arrow:before {
+    left: 12px !important;
+    right: auto !important;
   }
 }
 </style>

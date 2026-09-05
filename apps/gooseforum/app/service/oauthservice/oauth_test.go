@@ -1,17 +1,215 @@
 package oauthservice
 
 import (
+	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
+
+func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
+	t.Helper()
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate page_config: %v", err)
+	}
+	conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
+	if siteURL != "" {
+		pageConfig.CreateOrSave(&pageConfig.Entity{
+			PageType: pageConfig.SiteSettings,
+			Config:   jsonopt.Encode(pageConfig.SiteSettingsConfig{SiteUrl: siteURL}),
+		})
+	}
+	hotdataserve.ClearSiteSettingsConfigCache()
+	preferences.Set("google.client_id", "test-google-client-id")
+	preferences.Set("google.client_secret", "test-google-client-secret")
+	googleProvider.Store(nil)
+	t.Cleanup(func() {
+		preferences.Set("google.client_id", "")
+		preferences.Set("google.client_secret", "")
+		googleProvider.Store(nil)
+		goth.ClearProviders()
+		conn.Where("page_type = ?", pageConfig.SiteSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearSiteSettingsConfigCache()
+	})
+}
+
+func TestInitGoogleProviderUsesConfiguredCredentialsAndScopes(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test/")
+
+	if !IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = false, want true")
+	}
+	InitOAuth()
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after InitOAuth(), want true")
+	}
+	provider := initGoogleProvider()
+	if provider == nil {
+		t.Fatal("initGoogleProvider() returned nil with valid configuration")
+	}
+	if provider.ClientKey != "test-google-client-id" || provider.Secret != "test-google-client-secret" {
+		t.Fatalf("provider credentials = %q/%q, want test credentials", provider.ClientKey, provider.Secret)
+	}
+	if provider.CallbackURL != "https://hub.example.test/api/auth/google/callback" {
+		t.Fatalf("provider callback URL = %q, want absolute site callback", provider.CallbackURL)
+	}
+
+	session, err := provider.BeginAuth("test-state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	authURL, err := session.GetAuthURL()
+	if err != nil {
+		t.Fatalf("GetAuthURL() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	if got := parsed.Query().Get("scope"); got != "openid email profile" {
+		t.Fatalf("Google OAuth scope = %q, want %q", got, "openid email profile")
+	}
+}
+
+func TestGoogleOAuthReadyRequiresMatchingStartupRegistration(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test")
+
+	if IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = true before InitOAuth(), want false")
+	}
+	InitOAuth()
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after InitOAuth(), want true")
+	}
+
+	preferences.Set("google.client_secret", "changed-after-startup")
+	if !IsGoogleOAuthReady() {
+		t.Fatal("IsGoogleOAuthReady() = false after changing live credentials, want true until restart")
+	}
+
+	InitOAuth()
+	provider := googleProvider.Load()
+	if provider == nil {
+		t.Fatal("Google provider = nil after restart with changed credentials")
+	}
+	if provider.Secret != "changed-after-startup" {
+		t.Fatalf("Google provider secret = %q after restart, want changed credential", provider.Secret)
+	}
+}
+
+func TestRefreshOAuthProvidersKeepsStartupCredentials(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://old.example.test")
+	InitOAuth()
+
+	preferences.Set("google.client_id", "changed-after-startup")
+	preferences.Set("google.client_secret", "changed-after-startup")
+	entity := pageConfig.GetByPageType(pageConfig.SiteSettings)
+	entity.Config = jsonopt.Encode(pageConfig.SiteSettingsConfig{SiteUrl: "https://new.example.test"})
+	pageConfig.CreateOrSave(&entity)
+	hotdataserve.ClearSiteSettingsConfigCache()
+	RefreshOAuthProviders()
+
+	provider, err := goth.GetProvider(ProviderGoogle)
+	if err != nil {
+		t.Fatalf("goth.GetProvider(%q) error = %v", ProviderGoogle, err)
+	}
+	googleProvider, ok := provider.(*google.Provider)
+	if !ok {
+		t.Fatalf("Google provider type = %T, want *google.Provider", provider)
+	}
+	if googleProvider.CallbackURL != "https://new.example.test/api/auth/google/callback" {
+		t.Fatalf("Google provider callback URL = %q, want refreshed site URL", googleProvider.CallbackURL)
+	}
+	if googleProvider.ClientKey != "test-google-client-id" || googleProvider.Secret != "test-google-client-secret" {
+		t.Fatalf("Google provider credentials = %q/%q, want startup credentials", googleProvider.ClientKey, googleProvider.Secret)
+	}
+}
+
+func TestParseGoogleVerifiedEmail(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      string
+		flag     any
+		verified bool
+	}{
+		{name: "real boolean", key: "verified_email", flag: true, verified: true},
+		{name: "real string true", key: "verified_email", flag: " true ", verified: true},
+		{name: "real string one", key: "verified_email", flag: "1", verified: true},
+		{name: "real number one", key: "verified_email", flag: float64(1), verified: true},
+		{name: "real json number one", key: "verified_email", flag: json.Number("1.0"), verified: true},
+		{name: "legacy boolean", key: "email_verified", flag: true, verified: true},
+		{name: "boolean false", key: "verified_email", flag: false, verified: false},
+		{name: "string false", key: "verified_email", flag: "false", verified: false},
+		{name: "number zero", key: "verified_email", flag: float64(0), verified: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := parseOAuthUserInfo(goth.User{
+				Provider: ProviderGoogle,
+				Email:    " Alice@Example.Test ",
+				RawData:  map[string]any{tt.key: tt.flag},
+			})
+			if user.EmailVerified != tt.verified {
+				t.Fatalf("emailVerified = %v, want %v", user.EmailVerified, tt.verified)
+			}
+			if tt.verified && user.VerifiedEmail != "alice@example.test" {
+				t.Fatalf("verified email = %q, want normalized email", user.VerifiedEmail)
+			}
+			if !tt.verified && user.VerifiedEmail != "" {
+				t.Fatalf("unverified email = %q, want empty", user.VerifiedEmail)
+			}
+		})
+	}
+}
+
+func TestGoogleOAuthRequiresSiteURL(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "")
+
+	if IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = true without site URL")
+	}
+	if provider := initGoogleProvider(); provider != nil {
+		t.Fatal("initGoogleProvider() returned a provider without site URL")
+	}
+}
+
+func TestGoogleOAuthRequiresAbsoluteSiteURL(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "hub.example.test")
+
+	if IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = true with relative site URL")
+	}
+	if provider := initGoogleProvider(); provider != nil {
+		t.Fatal("initGoogleProvider() returned a provider with relative site URL")
+	}
+}
+
+func TestGoogleOAuthRequiresCredentials(t *testing.T) {
+	setupGoogleOAuthProviderConfig(t, "https://hub.example.test")
+
+	preferences.Set("google.client_secret", "")
+	if IsGoogleOAuthConfigured() {
+		t.Fatal("IsGoogleOAuthConfigured() = true without client secret")
+	}
+	if provider := initGoogleProvider(); provider != nil {
+		t.Fatal("initGoogleProvider() returned a provider without client secret")
+	}
+}
 
 // legacyOAuthSchema 是 Issue #131 之前的旧 user_o_auth 表结构，含 5 个明文凭据列。
 const legacyOAuthSchema = `CREATE TABLE user_o_auth (

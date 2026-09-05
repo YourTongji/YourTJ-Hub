@@ -341,6 +341,48 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 26
 	}
+	if currentVersion < 27 {
+		// 安全设置默认词库 v27（Blueprint R4）：新默认 reservedUsernames /
+		// sensitiveWords 词库上线。无 securitySettings 存储行时读取侧自然
+		// 吃新默认，跳过不写；对已保存过且某数组为空（len==0）的存量实例
+		// 各自独立并入对应新默认数组。幂等：数组非空即视为管理员已维护，
+		// 绝不覆盖；bannedUsernames 永不被写入（默认 banned 为空，误并入
+		// 会把存量账号静默推入冻结）。
+		securityResult := datamigration.EnsureSecuritySettingsDefaults()
+		slog.Info("app migration security settings defaults done",
+			"updated", securityResult.Updated,
+			"skipped", securityResult.Skipped,
+			"failed", securityResult.Failed,
+			"lastFailed", securityResult.LastFailed)
+		if securityResult.Failed > 0 {
+			slog.Error("app migration security settings defaults has failures", "failed", securityResult.Failed, "lastFailed", securityResult.LastFailed)
+			return dataMigrationError("security settings defaults", 27, securityResult.Failed, securityResult.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(27); err != nil {
+			slog.Error("app migration sync migration version failed", "version", 27, "err", err)
+			return fmt.Errorf("app migration v27 sync migration version: %w", err)
+		}
+		currentVersion = 27
+	}
+	if currentVersion < 28 {
+		// 历史帖子内容类型回填 v28：存量帖子默认属于文章类型（ContentTypeArticle = 3）。
+		// 部署前已存在的帖子的 content_type 存量值为 0（ContentTypeRegular），
+		// 将其统一回填为 3（文章）。幂等：仅对 content_type == 0 执行 UPDATE。
+		articleResult := datamigration.BackfillLegacyPostsContentTypeArticle()
+		slog.Info("app migration legacy posts content type article backfill done",
+			"updated", articleResult.Updated,
+			"failed", articleResult.Failed,
+			"lastFailed", articleResult.LastFailed)
+		if articleResult.Failed > 0 {
+			slog.Error("app migration legacy posts content type article backfill has failures", "failed", articleResult.Failed, "lastFailed", articleResult.LastFailed)
+			return dataMigrationError("legacy posts content type article backfill", 28, articleResult.Failed, articleResult.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(28); err != nil {
+			slog.Error("app migration sync migration version failed", "version", 28, "err", err)
+			return fmt.Errorf("app migration v28 sync migration version: %w", err)
+		}
+		currentVersion = 28
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }

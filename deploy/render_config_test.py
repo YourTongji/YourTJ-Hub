@@ -128,6 +128,13 @@ check(
     "GH_CLIENT_ID" not in rc.optional_tokens("main"),
 )
 check("dev 的 GH_CLIENT_ID 允许空", "GH_CLIENT_ID" in rc.optional_tokens("dev"))
+check(
+    "Google OAuth 凭据在 main/dev 均允许空",
+    {"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"}
+    <= rc.optional_tokens("main")
+    and {"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"}
+    <= rc.optional_tokens("dev"),
+)
 
 env_empty = {tok: "" for tok in real_tokens}
 expect_exit(
@@ -151,6 +158,7 @@ values, summary = rc.build_values(
     "dev", fake_instance, env_partial, real_tokens, rc.optional_tokens("dev")
 )
 check_eq("dev 空 GH_CLIENT_ID 渲染为空串", "", values.get("GH_CLIENT_ID", "<missing>"))
+check_eq("dev 空 GOOGLE_CLIENT_ID 渲染为空串", "", values.get("GOOGLE_CLIENT_ID", "<missing>"))
 check_eq("dev 空 AI_API_KEY 渲染为空串", "", values.get("AI_API_KEY", "<missing>"))
 check_eq("dev 渲染 signingKey 正确", "s" * 32, values["SIGNING_KEY"])
 secret_toks = {t for t, _, src in summary if src == "secret"}

@@ -538,6 +538,9 @@ paths:
   /api/forum/moderation/course-relation-ignore:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseRelationIgnore/post
+  /api/forum/moderation/course-relation-reset:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseRelationReset/post
   /api/forum/moderation/course-relation-create:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseRelationCreate/post

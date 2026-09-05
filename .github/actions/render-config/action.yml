@@ -27,6 +27,14 @@ inputs:
     description: GH_CLIENT_SECRET（github.client_secret；dev 可空）
     required: false
     default: ""
+  google-client-id:
+    description: GOOGLE_CLIENT_ID（google.client_id；可选）
+    required: false
+    default: ""
+  google-client-secret:
+    description: GOOGLE_CLIENT_SECRET（google.client_secret；可选）
+    required: false
+    default: ""
   ai-api-key:
     description: AI_API_KEY（ai_summary.api_key；可空，AI 总结默认关闭）
     required: false
@@ -45,6 +53,8 @@ runs:
         WIKI_WEBHOOK_SECRET: ${{ inputs.wiki-webhook-secret }}
         GH_CLIENT_ID: ${{ inputs.gh-client-id }}
         GH_CLIENT_SECRET: ${{ inputs.gh-client-secret }}
+        GOOGLE_CLIENT_ID: ${{ inputs.google-client-id }}
+        GOOGLE_CLIENT_SECRET: ${{ inputs.google-client-secret }}
         AI_API_KEY: ${{ inputs.ai-api-key }}
       run: |
         set -euo pipefail

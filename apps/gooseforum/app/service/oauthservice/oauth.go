@@ -8,17 +8,23 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/sessionstore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
@@ -43,33 +49,93 @@ const (
 // controller 依据该 sentinel error 渲染 403 冻结错误页（与 OIDC exchange 的冻结语义一致）。
 var ErrAccountFrozen = errors.New("账号已冻结，禁止 OAuth 登录")
 
+// ErrOAuthEmailUnverified 表示 OAuth provider 未提供可用于站点验证的邮箱。
+var ErrOAuthEmailUnverified = errors.New("OAuth 邮箱未验证或不可用")
+
+type oauthCredentials struct {
+	clientID     string
+	clientSecret string
+}
+
+var (
+	// oauthProviderMu 与 goth provider registry 的替换及请求查找保持同步。
+	oauthProviderMu sync.RWMutex
+	// startupOAuthCredentials 固定进程启动时读取的 OAuth 凭据；运行时只刷新回调地址。
+	startupGitHubCredentials oauthCredentials
+	startupGoogleCredentials oauthCredentials
+	// googleProvider 保存当前已注册的 Google provider。
+	googleProvider atomic.Pointer[google.Provider]
+)
+
 // InitOAuth configures available OAuth providers.
 func InitOAuth() {
+	oauthProviderMu.Lock()
+	defer oauthProviderMu.Unlock()
+
+	startupGitHubCredentials = oauthCredentials{
+		clientID:     strings.TrimSpace(preferences.GetString("github.client_id", "")),
+		clientSecret: strings.TrimSpace(preferences.GetString("github.client_secret", "")),
+	}
+	startupGoogleCredentials = oauthCredentials{
+		clientID:     strings.TrimSpace(preferences.GetString("google.client_id", "")),
+		clientSecret: strings.TrimSpace(preferences.GetString("google.client_secret", "")),
+	}
+	initOAuthProvidersLocked()
+}
+
+// RefreshOAuthProviders rebuilds providers with startup credentials and the
+// current site callback URL. It deliberately does not reread client secrets.
+func RefreshOAuthProviders() {
+	oauthProviderMu.Lock()
+	defer oauthProviderMu.Unlock()
+	initOAuthProvidersLocked()
+}
+
+func initOAuthProvidersLocked() {
 	gothic.Store = sessionstore.GetSession()
 
 	var providers []goth.Provider
+	var configuredGoogleProvider *google.Provider
 
-	if provider := initGitHubProvider(); provider != nil {
+	if provider := initGitHubProviderWithCredentials(startupGitHubCredentials); provider != nil {
 		providers = append(providers, provider)
 	}
 
-	if provider := initGoogleProvider(); provider != nil {
+	if provider := initGoogleProviderWithCredentials(startupGoogleCredentials); provider != nil {
 		providers = append(providers, provider)
+		configuredGoogleProvider = provider
 	}
 
+	// SiteUrl 可在管理后台修改；重建 provider 前先移除旧实例，避免继续使用过期回调地址。
+	goth.ClearProviders()
 	if len(providers) > 0 {
 		goth.UseProviders(providers...)
 		slog.Info("OAuth提供商初始化完成", "count", len(providers))
 	} else {
 		slog.Warn("未配置任何OAuth提供商")
 	}
+	googleProvider.Store(configuredGoogleProvider)
 }
 
-// initGitHubProvider returns a GitHub provider when configured.
-func initGitHubProvider() goth.Provider {
-	clientID := preferences.GetString("github.client_id", "")
-	clientSecret := preferences.GetString("github.client_secret", "")
-	callbackURL := hotdataserve.GetSiteSettingsConfigCache().SiteUrl + "/api/auth/github/callback"
+// BeginOAuthAuthHandler serializes provider lookup with runtime provider refresh.
+func BeginOAuthAuthHandler(w http.ResponseWriter, r *http.Request) {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+	gothic.BeginAuthHandler(w, r)
+}
+
+// CompleteOAuthUserAuth serializes provider lookup and user fetching with
+// runtime provider refresh.
+func CompleteOAuthUserAuth(w http.ResponseWriter, r *http.Request) (goth.User, error) {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+	return gothic.CompleteUserAuth(w, r)
+}
+
+func initGitHubProviderWithCredentials(credentials oauthCredentials) goth.Provider {
+	callbackURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/") + "/api/auth/github/callback"
+	clientID := strings.TrimSpace(credentials.clientID)
+	clientSecret := strings.TrimSpace(credentials.clientSecret)
 	if clientID == "" || clientSecret == "" {
 		slog.Warn("GitHub OAuth配置缺失，跳过初始化")
 		return nil
@@ -81,16 +147,64 @@ func initGitHubProvider() goth.Provider {
 	return github.New(clientID, clientSecret, callbackURL, "user:email")
 }
 
+// IsGoogleOAuthConfigured reports whether Google OAuth has all values required
+// to construct an absolute callback URL. It does not imply provider registration.
+func IsGoogleOAuthConfigured() bool {
+	clientID, clientSecret, callbackURL := googleOAuthConfig()
+	return clientID != "" && clientSecret != "" && callbackURL != ""
+}
+
+// IsGoogleOAuthReady reports whether the running process has registered Google
+// with its startup credentials and the current callback URL.
+// RefreshOAuthProviders must be called after a runtime siteUrl change.
+func IsGoogleOAuthReady() bool {
+	oauthProviderMu.RLock()
+	defer oauthProviderMu.RUnlock()
+
+	callbackURL := googleOAuthCallbackURL()
+	if callbackURL == "" {
+		return false
+	}
+
+	provider := googleProvider.Load()
+	return provider != nil &&
+		provider.CallbackURL == callbackURL
+}
+
+func googleOAuthConfig() (clientID, clientSecret, callbackURL string) {
+	clientID = strings.TrimSpace(preferences.GetString("google.client_id", ""))
+	clientSecret = strings.TrimSpace(preferences.GetString("google.client_secret", ""))
+	return clientID, clientSecret, googleOAuthCallbackURL()
+}
+
+func googleOAuthCallbackURL() string {
+	siteURL := strings.TrimRight(strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl), "/")
+	parsedURL, err := url.Parse(siteURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return ""
+	}
+	return siteURL + "/api/auth/google/callback"
+}
+
 // initGoogleProvider returns a Google provider when configured.
 func initGoogleProvider() *google.Provider {
-	clientID := preferences.GetString("google.client_id")
-	clientSecret := preferences.GetString("google.client_secret")
-	callbackURL := hotdataserve.GetSiteSettingsConfigCache().SiteUrl + "/api/auth/google/callback"
-	if clientID != "" && clientSecret != "" && callbackURL != "" {
-		// goth.UseProviders(googleProvider)
-		slog.Info("Google OAuth provider configuration found (implementation pending)")
+	return initGoogleProviderWithCredentials(oauthCredentials{
+		clientID:     preferences.GetString("google.client_id", ""),
+		clientSecret: preferences.GetString("google.client_secret", ""),
+	})
+}
+
+func initGoogleProviderWithCredentials(credentials oauthCredentials) *google.Provider {
+	clientID := strings.TrimSpace(credentials.clientID)
+	clientSecret := strings.TrimSpace(credentials.clientSecret)
+	callbackURL := googleOAuthCallbackURL()
+	if clientID == "" || clientSecret == "" || callbackURL == "" {
+		slog.Warn("Google OAuth配置缺失，跳过初始化")
+		return nil
 	}
-	return nil
+
+	slog.Info("Google OAuth提供商初始化完成")
+	return google.New(clientID, clientSecret, callbackURL, "openid", "email", "profile")
 }
 
 // OAuthUserInfo is the normalized user data from an OAuth provider.
@@ -105,8 +219,9 @@ type OAuthUserInfo struct {
 	Location  string `json:"location"`
 	Provider  string `json:"provider"`
 
-	// VerifiedEmail 是 provider 已确认真实的邮箱（GitHub verified 邮箱）。
-	// EmailVerified 标记该邮箱来自可信来源（GitHub /user/emails 的 verified=true）。
+	// VerifiedEmail 是 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
+	// verified_email=true 的邮箱）。
+	// EmailVerified 标记该邮箱来自可信来源（GitHub /user/emails 或 Google OIDC）。
 	// issue #155：只信 verified 邮箱作为绑定/激活依据，goth 的 Email 字段
 	// 可能是未验证的公开邮箱，不可直接用于信任决策。
 	VerifiedEmail string `json:"verifiedEmail,omitempty"`
@@ -215,7 +330,8 @@ func emailInTrustedDomains(email string) bool {
 }
 
 // parseOAuthUserInfo normalizes provider-specific user data.
-// 对 GitHub 额外获取 verified primary 邮箱（issue #155）。
+// 对 GitHub 额外获取 verified primary 邮箱（issue #155），Google 则只信任
+// userinfo 中 verified_email=true 的邮箱。
 func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 	userInfo := OAuthUserInfo{
 		ID:        gothUser.UserID,
@@ -250,7 +366,51 @@ func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 		}
 	}
 
+	// Google goth provider 的实际字段是 verified_email；同时兼容 OIDC 代理常见的
+	// email_verified 别名及字符串/数字形式。只有断言为 true 且邮箱非空时，才进入
+	// 可信邮箱绑定/激活路径。
+	if userInfo.Provider == ProviderGoogle {
+		verifiedFlag, ok := gothUser.RawData["verified_email"]
+		if !ok {
+			verifiedFlag, ok = gothUser.RawData["email_verified"]
+		}
+		if ok && oauthFlagIsTrue(verifiedFlag) {
+			if verified := strings.ToLower(strings.TrimSpace(userInfo.Email)); verified != "" {
+				userInfo.VerifiedEmail = verified
+				userInfo.EmailVerified = true
+			}
+		}
+	}
+
 	return userInfo
+}
+
+// oauthFlagIsTrue accepts the boolean representation emitted by standard JSON
+// decoding and the string/number variants used by some OIDC proxies and mocks.
+func oauthFlagIsTrue(value any) bool {
+	switch value := value.(type) {
+	case bool:
+		return value
+	case string:
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		return normalized == "true" || normalized == "1"
+	case json.Number:
+		return value == "1" || value == "1.0"
+	case float64:
+		return value == 1
+	case float32:
+		return value == 1
+	case int:
+		return value == 1
+	case int64:
+		return value == 1
+	case uint:
+		return value == 1
+	case uint64:
+		return value == 1
+	default:
+		return false
+	}
 }
 
 // gitHubEmailAPIURL 为 GitHub 邮箱列表 API（var 便于测试覆盖）。
@@ -308,35 +468,55 @@ func fetchGitHubVerifiedEmail(accessToken string) string {
 	return ""
 }
 
+// maxOAuthUsernameAttempts 限制 OAuth 建号用户名退避（重名/命中名单）尝试次数。
+const maxOAuthUsernameAttempts = 100
+
+// usernameReservedOrBanned 报告候选用户名是否命中保留/禁用名单（注册入口同规则）。
+func usernameReservedOrBanned(username string, cfg pageConfig.SecurityAndRegistration) bool {
+	code, _ := moderationservice.CheckUsernameAllowedWithConfig(username, cfg)
+	return code != ""
+}
+
 // createUserFromOAuth creates a local account from OAuth user data.
 // 激活策略（issue #155）：
 //   - verified 邮箱命中信任域名（allowedDomains 空 = 全信任）→ needValid=false 直接激活；
-//   - 未命中或未获取到 verified 邮箱 → needValid = EnableEmailVerification 开关
-//     （默认 false 保持现状免验证，不回归）；开关开启时进入 ActivationPending
-//     并补发激活邮件（与密码注册流程一致）。
+//   - verified 邮箱未命中信任域名 → EnableEmailVerification 开启时进入
+//     ActivationPending 并补发激活邮件；
+//   - 未获取到可用 verified 邮箱 → EnableEmailVerification 开启时拒绝 OAuth 建号，
+//     关闭时保持免验证兼容行为。
 func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) {
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	email := strings.ToLower(strings.TrimSpace(userInfo.VerifiedEmail))
+	hasVerifiedEmail := userInfo.EmailVerified && email != ""
+	if securityConfig.EnableEmailVerification && !hasVerifiedEmail {
+		// 没有可发激活邮件的可信地址时直接拒绝，不能将未验证的 OAuth 身份
+		// 当作已激活账号放行，也不能创建无法恢复的 pending 账号。
+		return nil, ErrOAuthEmailUnverified
+	}
+
 	username := userInfo.Login
 	originalUsername := username
 	counter := 1
-	for users.ExistUsername(username) {
+	// 候选名必须既不与存量用户重名，也不命中保留/禁用名单（社交登录对
+	// 保留/禁用名做退避建号而非拒绝登录，最小惊讶）。退避候选同样过名单，
+	// 上限 100 防死循环（超限属异常，报错回滚）。
+	for users.ExistUsername(username) || usernameReservedOrBanned(username, securityConfig) {
 		username = fmt.Sprintf("%s_%d", originalUsername, counter)
 		counter++
+		if counter > maxOAuthUsernameAttempts {
+			return nil, fmt.Errorf("无法为 OAuth 登录名 %q 分配可用用户名（重名或命中保留/禁用名单）", originalUsername)
+		}
 	}
 
-	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
-	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱）。
+	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
+	// verified_email=true 的邮箱）。
 	// 无 verified 邮箱时保持存 ""（与旧行为一致），不降级存 goth 公开邮箱——
-	// 未验证邮箱若被 OIDC userinfo 推导为 email_verified=true 会造成信任越界
+	// 未验证邮箱若被 OIDC userinfo 推导为 verified_email=true 会造成信任越界
 	// （PR #167 review, medium）。
-	email := strings.ToLower(strings.TrimSpace(userInfo.VerifiedEmail))
 
 	// 信任判定：仅 verified 邮箱命中信任域名才免验证。
-	trusted := userInfo.EmailVerified && email != "" && emailInTrustedDomains(email)
-	// 无 verified 邮箱时保持旧行为免验证（needValid=false）：
-	// 该场景没有可用的激活邮箱，若进入 ActivationPending 将形成无恢复路径的
-	// 永久死账号（PR #167 review, blocking）。开关开启且未命中信任域名时，
-	// 仅当存在 verified 邮箱才要求邮箱激活。
-	needValid := !trusted && securityConfig.EnableEmailVerification && userInfo.EmailVerified
+	trusted := hasVerifiedEmail && emailInTrustedDomains(email)
+	needValid := !trusted && securityConfig.EnableEmailVerification
 
 	userEntity, err := userservice.CreateUser(username, randopt.RandomString(32), email, needValid)
 	if err != nil {
@@ -368,11 +548,38 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 	userEntity.Nickname = username
 	userEntity.Bio = userInfo.Bio
 	userEntity.Website = userInfo.Blog
+	// 第三方资料自由文本（GitHub bio/blog）与 EditUserInfo 同规则过内容敏感词检查：
+	// 命中即清空对应字段并写审核日志（subject=user_profile）。社交登录建号不应被
+	// 第三方简介文本阻断（最小惊讶），但落库资料必须与站内资料拦截口径一致，否则
+	// GitHub 简介可绕过 /api/set-user-info 的敏感词拦截直接进入资料。
+	if hit, word := moderationservice.CheckContentAllowed(userEntity.Bio); hit {
+		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Bio))
+		slog.Warn("OAuth 导入 bio 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
+		userEntity.Bio = ""
+	}
+	if hit, word := moderationservice.CheckContentAllowed(userEntity.Website); hit {
+		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Website))
+		slog.Warn("OAuth 导入 blog 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
+		userEntity.Website = ""
+	}
 	if err := userservice.SaveUser(userEntity); err != nil {
 		return nil, err
 	}
 
 	return userEntity, nil
+}
+
+// oauthProfileExcerpt 截断 OAuth 资料字段为审核日志摘要（100 个 rune，rune 边界安全）。
+func oauthProfileExcerpt(s string) string {
+	const maxRunes = 100
+	n := 0
+	for i := range s {
+		if n >= maxRunes {
+			return s[:i]
+		}
+		n++
+	}
+	return s
 }
 
 // createOAuthRecord stores a provider account binding. Only the identity

@@ -80,6 +80,7 @@ const (
 	MessageAuthActivationResendCooldown  MessageCode = "auth.activation.resendCooldown"  // 验证邮件发送过于频繁，params.retryAfterSeconds。
 	MessageAuthActivationResendDaily     MessageCode = "auth.activation.resendDaily"     // 验证邮件达到当天重发上限，params.limit。
 	MessageAuthActivationResendFailed    MessageCode = "auth.activation.resendFailed"    // 验证邮件重新发送失败。
+	MessageAuthCsrfRejected              MessageCode = "auth.csrf.rejected"              // 跨站请求被拒绝（Origin/Referer 校验失败，issue #406）。
 )
 
 const (
@@ -119,28 +120,29 @@ const (
 )
 
 const (
-	MessageTopicNotFound            MessageCode = "topic.notFound"            // 主题不存在。
-	MessageTopicOwnerMismatch       MessageCode = "topic.ownerMismatch"       // 不能修改或删除他人的主题。
-	MessageTopicOperationDenied     MessageCode = "topic.operationDenied"     // 当前主题不可操作。
-	MessageTopicSaveFailed          MessageCode = "topic.saveFailed"          // 主题保存失败。
-	MessageTopicDailyLimit          MessageCode = "topic.dailyLimit"          // 当天发布过多。
-	MessageTopicTitleTooShort       MessageCode = "topic.title.tooShort"      // 标题过短，params.minLength。
-	MessageTopicTitleTooLong        MessageCode = "topic.title.tooLong"       // 标题过长，params.maxLength。
-	MessageTopicContentTooShort     MessageCode = "topic.content.tooShort"    // 正文过短，params.minLength。
-	MessageTopicContentTooLong      MessageCode = "topic.content.tooLong"     // 正文过长，params.maxLength。
-	MessageTopicPostCooldown        MessageCode = "topic.post.cooldown"       // 新用户发帖冷却中，params.minutes/availableAt。
-	MessageCommentContentTooShort   MessageCode = "comment.content.tooShort"  // 评论过短，params.minLength。
-	MessageCommentContentTooLong    MessageCode = "comment.content.tooLong"   // 评论过长，params.maxLength。
-	MessageCommentPostCooldown      MessageCode = "comment.post.cooldown"     // 新用户评论冷却中，params.minutes/availableAt。
-	MessageCommentParentPostMissing MessageCode = "comment.parentPostMissing" // 父 post 不存在。
-	MessageCommentCreateFailed      MessageCode = "comment.createFailed"      // 评论创建失败，params.error 可带原始错误。
-	MessagePostNotFound             MessageCode = "post.notFound"             // post 不存在。
-	MessagePostUpdateFailed         MessageCode = "post.updateFailed"         // post 更新失败，params.error 可带原始错误。
-	MessageReportNotFound           MessageCode = "report.notFound"           // 举报不存在。
-	MessageReportTargetInvalid      MessageCode = "report.targetInvalid"      // 举报对象无效。
-	MessageReportOwnContent         MessageCode = "report.ownContent"         // 不能举报自己的内容。
-	MessageReportDuplicate          MessageCode = "report.duplicate"          // 已举报，等待处理。
-	MessageReportCreateFailed       MessageCode = "report.createFailed"       // 举报提交失败。
+	MessageTopicNotFound                    MessageCode = "topic.notFound"                    // 主题不存在。
+	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
+	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
+	MessageTopicSaveFailed                  MessageCode = "topic.saveFailed"                  // 主题保存失败。
+	MessageTopicDailyLimit                  MessageCode = "topic.dailyLimit"                  // 当天发布过多。
+	MessageTopicTitleTooShort               MessageCode = "topic.title.tooShort"              // 标题过短，params.minLength。
+	MessageTopicTitleTooLong                MessageCode = "topic.title.tooLong"               // 标题过长，params.maxLength。
+	MessageTopicContentTooShort             MessageCode = "topic.content.tooShort"            // 正文过短，params.minLength。
+	MessageTopicContentTooLong              MessageCode = "topic.content.tooLong"             // 正文过长，params.maxLength。
+	MessageTopicPostCooldown                MessageCode = "topic.post.cooldown"               // 新用户发帖冷却中，params.minutes/availableAt。
+	MessageCommentContentTooShort           MessageCode = "comment.content.tooShort"          // 评论过短，params.minLength。
+	MessageCommentContentTooLong            MessageCode = "comment.content.tooLong"           // 评论过长，params.maxLength。
+	MessageCommentPostCooldown              MessageCode = "comment.post.cooldown"             // 新用户评论冷却中，params.minutes/availableAt。
+	MessageCommentParentPostMissing         MessageCode = "comment.parentPostMissing"         // 父 post 不存在。
+	MessageCommentCreateFailed              MessageCode = "comment.createFailed"              // 评论创建失败，params.error 可带原始错误。
+	MessageTopicContentTypeChangeNotAllowed MessageCode = "topic.contentTypeChangeNotAllowed" // 不能更改已有回复的话题的内容类型。
+	MessagePostNotFound                     MessageCode = "post.notFound"                     // post 不存在。
+	MessagePostUpdateFailed                 MessageCode = "post.updateFailed"                 // post 更新失败，params.error 可带原始错误。
+	MessageReportNotFound                   MessageCode = "report.notFound"                   // 举报不存在。
+	MessageReportTargetInvalid              MessageCode = "report.targetInvalid"              // 举报对象无效。
+	MessageReportOwnContent                 MessageCode = "report.ownContent"                 // 不能举报自己的内容。
+	MessageReportDuplicate                  MessageCode = "report.duplicate"                  // 已举报，等待处理。
+	MessageReportCreateFailed               MessageCode = "report.createFailed"               // 举报提交失败。
 
 	// 课评（course review）
 	MessageReviewNotFound         MessageCode = "review.notFound"              // 评价不存在或不可见。
@@ -187,6 +189,7 @@ const (
 	MessageCourseRelationMerged            MessageCode = "course.relation.merged"            // 该候选已合并，不可重复操作。
 	MessageCourseRelationListFailed        MessageCode = "course.relation.listFailed"        // 沿革候选列表读取失败。
 	MessageCourseRelationOpFailed          MessageCode = "course.relation.opFailed"          // 沿革操作失败。
+	MessageCourseRelationNotResettable     MessageCode = "course.relation.notResettable"     // 该候选不可撤回（仅 approved/ignored 可撤回为 pending）。
 	MessageCourseReviewScopeInvalid        MessageCode = "course.reviewScopeInvalid"         // 课评范围取值非法（仅 teacher/team/course）。
 	MessageCourseMergeTargetHidden         MessageCode = "course.mergeTargetHidden"          // 目标课程已隐藏，不可作为合并目标。
 	MessageCourseRelationConfidenceInvalid MessageCode = "course.relation.confidenceInvalid" // 沿革候选置信度超出 [0,1]。
@@ -260,11 +263,14 @@ const (
 
 const (
 	// 审核策略（保留/禁用用户名、敏感词）
-	MessageAuthUsernameReserved    MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
-	MessageAuthUsernameBanned      MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
-	MessageContentSensitiveBlocked MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
-	MessageContentSensitiveReview  MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
-	MessageChatSensitiveBlocked    MessageCode = "chat.sensitive.blocked"          // 私信内容包含敏感词，已被拦截。
+	MessageAuthUsernameReserved        MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
+	MessageAuthUsernameBanned          MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
+	MessageAuthNicknameReserved        MessageCode = "auth.nickname.reserved"          // 昵称被保留，不可使用。
+	MessageAuthNicknameBanned          MessageCode = "auth.nickname.banned"            // 昵称被禁用，不可使用。
+	MessageContentSensitiveBlocked     MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
+	MessageContentSensitiveReview      MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
+	MessageChatSensitiveBlocked        MessageCode = "chat.sensitive.blocked"          // 私信内容包含敏感词，已被拦截。
+	MessageCourseReviewSensitiveBanned MessageCode = "course.review.sensitiveBlocked"  // 课评包含敏感词，已被拦截。
 
 	// 存储设置
 	MessageAdminStorageSaveFailed             MessageCode = "admin.storage.saveFailed"             // 存储设置保存失败，params.error 可带原始错误。
@@ -302,4 +308,10 @@ const (
 	MessageAdminAgentNeedsRotate     MessageCode = "admin.agent.needsRotate"     // 该 Agent 的令牌已被吊销，重新启用前必须先轮换。
 	MessageAdminAgentRoleNotAllowed  MessageCode = "admin.agent.roleNotAllowed"  // 机器人账号不允许被授予角色。
 	MessageAdminAgentRotateConflict  MessageCode = "admin.agent.rotateConflict"  // 并发轮换冲突，请重试。
+
+	// 上传扩展配置（issue #408）
+	MessageAdminUploadExtNotAllowed MessageCode = "admin.upload.extNotAllowed" // 上传扩展名白名单含不受支持的扩展，params.extensions。
+
+	// 管理员可配置 URL 校验（issue #409）
+	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 )

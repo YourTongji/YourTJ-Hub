@@ -15,9 +15,11 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -220,6 +222,29 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
 
+	// 昵称与用户名同一份保留/禁用名单（整串归一化全等），防冒充性昵称
+	// （"官方/客服/管理员" 等）。昵称非空才检查；空 = 保留系统随机默认。
+	if nickname := strings.TrimSpace(req.Params.Nickname); nickname != "" {
+		if _, err := moderationservice.CheckNicknameAllowed(nickname); err != nil {
+			return component.FailResponseError(err)
+		}
+	}
+	// 个人资料自由文本（bio/signature/website/websiteName）做内容敏感词
+	// 拦截（精确子串，block）。命中即拒并写审核日志，不落库。
+	profileText := strings.Join([]string{
+		req.Params.Bio,
+		req.Params.Signature,
+		req.Params.Website,
+		req.Params.WebsiteName,
+	}, "\n")
+	if hit, word := moderationservice.CheckContentAllowed(profileText); hit {
+		moderationservice.SensitiveContentBlocked(req.UserId, moderationLog.SubjectUserProfile, 0, word, truncateExcerpt(profileText))
+		return component.FailResponseCode(
+			component.MessageContentSensitiveBlocked,
+			component.MessageParams{"word": word},
+		)
+	}
+
 	userEntity.Nickname = req.Params.Nickname
 	// 全字段覆盖：bio/signature 允许清空（空字符串也要落库）
 	userEntity.Bio = req.Params.Bio
@@ -369,7 +394,7 @@ func UploadAvatar(c *gin.Context) {
 	if configMaxSize := int64(postingConfig.UploadControl.MaxAttachmentSizeKb) * 1024; configMaxSize > 0 && configMaxSize < maxSize {
 		maxSize = configMaxSize
 	}
-	allowedExts := postingConfig.UploadControl.AuthorizedExtensions
+	allowedExts := imagepolicy.EffectiveAllowedExtensions(postingConfig.UploadControl.AuthorizedExtensions)
 
 	mainData, err := readAvatarUploadFile(files.Main, maxSize, allowedExts)
 	if err != nil {
@@ -479,18 +504,14 @@ func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts
 		)
 	}
 
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if len(allowedExts) > 0 {
-		if !isAllowedExtension(ext, allowedExts) {
-			extensions := strings.Join(allowedExts, ", ")
-			return nil, component.NewMessageError(
-				component.MessageUploadUnsupportedExt,
-				"不支持的文件格式，允许的格式为: "+extensions,
-				component.MessageParams{"extensions": extensions},
-			)
-		}
-	} else if _, err := filedata.CheckImageType(file.Filename); err != nil {
-		return nil, component.NewMessageError(component.MessageUploadUnsupportedImage, "不支持的图片格式，仅支持 JPG、PNG、GIF、WebP、BMP 格式", nil)
+	contentType, err := filedata.CheckImageType(file.Filename)
+	if err != nil || !imagepolicy.IsAllowedExt(filepath.Ext(file.Filename), allowedExts) {
+		extensions := strings.Join(allowedExts, ", ")
+		return nil, component.NewMessageError(
+			component.MessageUploadUnsupportedExt,
+			"不支持的文件格式，允许的格式为: "+extensions,
+			component.MessageParams{"extensions": extensions},
+		)
 	}
 
 	src, err := file.Open()
@@ -499,23 +520,21 @@ func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts
 	}
 	defer func() { _ = src.Close() }()
 
-	header := make([]byte, 512)
-	n, _ := io.ReadFull(src, header)
-	if n > 0 && !isValidImageContent(header[:n]) {
-		return nil, component.NewMessageError(component.MessageUploadInvalidImage, "文件内容不是有效的图片格式", nil)
-	}
-
-	remainingData, err := io.ReadAll(io.LimitReader(src, maxSize-int64(n)+1))
+	fileData, err := io.ReadAll(io.LimitReader(src, maxSize+1))
 	if err != nil {
 		return nil, component.NewMessageError(component.MessageUploadReadFailed, "读取文件失败", nil)
 	}
-	fileData := append(bytes.Clone(header[:n]), remainingData...)
 	if int64(len(fileData)) > maxSize {
 		return nil, component.NewMessageError(
 			component.MessageUploadFileTooLarge,
 			fmt.Sprintf("文件大小超过限制，最大允许%dKB", maxSize/1024),
 			component.MessageParams{"maxSizeKb": maxSize / 1024},
 		)
+	}
+	// 头像与普通图片上传同口径做解码级内容校验（issue #408）：扩展名推出的类型
+	// 必须与 sniff/解码格式一致，伪造内容只回稳定 messageCode。
+	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
+		return nil, component.NewMessageError(component.MessageUploadInvalidImage, "文件内容不是有效的图片格式", nil)
 	}
 	return fileData, nil
 }

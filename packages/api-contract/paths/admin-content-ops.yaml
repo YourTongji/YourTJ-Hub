@@ -108,7 +108,11 @@ adminSaveBadge:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -118,6 +122,8 @@ adminSaveBadge:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminDeleteBadge:
   post:
@@ -167,7 +173,11 @@ adminDeleteBadge:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -177,6 +187,8 @@ adminDeleteBadge:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminListReviewQueue:
   post:
@@ -227,7 +239,11 @@ adminListReviewQueue:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -237,6 +253,8 @@ adminListReviewQueue:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminReviewAction:
   post:
@@ -295,7 +313,11 @@ adminReviewAction:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -305,6 +327,8 @@ adminReviewAction:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 adminListFileResources:
   post:
@@ -349,7 +373,11 @@ adminListFileResources:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account, or caller lacks the SiteManager permission.
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -359,3 +387,5 @@ adminListFileResources:
                 externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

@@ -128,6 +128,16 @@
     },
     {
       "method": "GET",
+      "path": "/topics/:id",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API；/p/post/:id 的别名路由"
+    },
+    {
+      "method": "GET",
+      "path": "/topics/:id/:postNo",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API；/p/post/:id/:postNo 的别名路由"
+    },
+    {
+      "method": "GET",
       "path": "/p/posts/:document",
       "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
     },

@@ -1,4 +1,4 @@
-.PHONY: dev down server web build test gen contract-lint contract-generate-ts contract-check hooks
+.PHONY: dev down server web build test gen govulncheck contract-lint contract-generate-ts contract-check hooks
 
 dev: ## Start local dependencies (postgres + meilisearch)
 	docker compose up -d
@@ -35,6 +35,11 @@ test: ## Run backend, contract, and frontend checks
 	$(MAKE) contract-check
 	cd apps/gooseforum/resource && pnpm typecheck && pnpm test
 
+# Go dependency vulnerability scan (issue #410): reports only reachable
+# vulnerabilities and exits non-zero on network/DB fetch failures, same as the
+# CI job (which runs golang/govulncheck-action in apps/gooseforum).
+govulncheck: ## Scan Go module for reachable vulnerabilities (govulncheck)
+	cd apps/gooseforum && go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 gen: contract-generate-ts ## Generate currently supported API client artifacts
 
 hooks: ## Install/verify local git hooks (lefthook)

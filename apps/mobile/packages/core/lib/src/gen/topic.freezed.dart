@@ -1962,6 +1962,8 @@ mixin _$TopicDetailPayload {
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get description => throw _privateConstructorUsedError;
+  String? get firstImageUrl => throw _privateConstructorUsedError;
+  List<String>? get images => throw _privateConstructorUsedError;
   String get url => throw _privateConstructorUsedError;
   int get topicStatus => throw _privateConstructorUsedError;
   int get processStatus => throw _privateConstructorUsedError;
@@ -2000,6 +2002,8 @@ abstract class $TopicDetailPayloadCopyWith<$Res> {
     int id,
     String title,
     String description,
+    String? firstImageUrl,
+    List<String>? images,
     String url,
     int topicStatus,
     int processStatus,
@@ -2038,6 +2042,8 @@ class _$TopicDetailPayloadCopyWithImpl<$Res, $Val extends TopicDetailPayload>
     Object? id = null,
     Object? title = null,
     Object? description = null,
+    Object? firstImageUrl = freezed,
+    Object? images = freezed,
     Object? url = null,
     Object? topicStatus = null,
     Object? processStatus = null,
@@ -2068,6 +2074,14 @@ class _$TopicDetailPayloadCopyWithImpl<$Res, $Val extends TopicDetailPayload>
                 ? _value.description
                 : description // ignore: cast_nullable_to_non_nullable
                       as String,
+            firstImageUrl: freezed == firstImageUrl
+                ? _value.firstImageUrl
+                : firstImageUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            images: freezed == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             url: null == url
                 ? _value.url
                 : url // ignore: cast_nullable_to_non_nullable
@@ -2157,6 +2171,8 @@ abstract class _$$TopicDetailPayloadImplCopyWith<$Res>
     int id,
     String title,
     String description,
+    String? firstImageUrl,
+    List<String>? images,
     String url,
     int topicStatus,
     int processStatus,
@@ -2195,6 +2211,8 @@ class __$$TopicDetailPayloadImplCopyWithImpl<$Res>
     Object? id = null,
     Object? title = null,
     Object? description = null,
+    Object? firstImageUrl = freezed,
+    Object? images = freezed,
     Object? url = null,
     Object? topicStatus = null,
     Object? processStatus = null,
@@ -2225,6 +2243,14 @@ class __$$TopicDetailPayloadImplCopyWithImpl<$Res>
             ? _value.description
             : description // ignore: cast_nullable_to_non_nullable
                   as String,
+        firstImageUrl: freezed == firstImageUrl
+            ? _value.firstImageUrl
+            : firstImageUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        images: freezed == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         url: null == url
             ? _value.url
             : url // ignore: cast_nullable_to_non_nullable
@@ -2297,6 +2323,8 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
     required this.id,
     required this.title,
     required this.description,
+    this.firstImageUrl,
+    final List<String>? images,
     required this.url,
     required this.topicStatus,
     required this.processStatus,
@@ -2312,7 +2340,8 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
     required this.isWatched,
     required this.createdAt,
     required this.updatedAt,
-  }) : _participants = participants,
+  }) : _images = images,
+       _participants = participants,
        _categories = categories;
 
   factory _$TopicDetailPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -2324,6 +2353,18 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
   final String title;
   @override
   final String description;
+  @override
+  final String? firstImageUrl;
+  final List<String>? _images;
+  @override
+  List<String>? get images {
+    final value = _images;
+    if (value == null) return null;
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final String url;
   @override
@@ -2369,7 +2410,7 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
 
   @override
   String toString() {
-    return 'TopicDetailPayload(id: $id, title: $title, description: $description, url: $url, topicStatus: $topicStatus, processStatus: $processStatus, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, maxPostNo: $maxPostNo, viewCount: $viewCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked, isWatched: $isWatched, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'TopicDetailPayload(id: $id, title: $title, description: $description, firstImageUrl: $firstImageUrl, images: $images, url: $url, topicStatus: $topicStatus, processStatus: $processStatus, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, maxPostNo: $maxPostNo, viewCount: $viewCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked, isWatched: $isWatched, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -2381,6 +2422,9 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
             (identical(other.title, title) || other.title == title) &&
             (identical(other.description, description) ||
                 other.description == description) &&
+            (identical(other.firstImageUrl, firstImageUrl) ||
+                other.firstImageUrl == firstImageUrl) &&
+            const DeepCollectionEquality().equals(other._images, _images) &&
             (identical(other.url, url) || other.url == url) &&
             (identical(other.topicStatus, topicStatus) ||
                 other.topicStatus == topicStatus) &&
@@ -2416,11 +2460,13 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     title,
     description,
+    firstImageUrl,
+    const DeepCollectionEquality().hash(_images),
     url,
     topicStatus,
     processStatus,
@@ -2436,7 +2482,7 @@ class _$TopicDetailPayloadImpl implements _TopicDetailPayload {
     isWatched,
     createdAt,
     updatedAt,
-  );
+  ]);
 
   /// Create a copy of TopicDetailPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -2460,6 +2506,8 @@ abstract class _TopicDetailPayload implements TopicDetailPayload {
     required final int id,
     required final String title,
     required final String description,
+    final String? firstImageUrl,
+    final List<String>? images,
     required final String url,
     required final int topicStatus,
     required final int processStatus,
@@ -2486,6 +2534,10 @@ abstract class _TopicDetailPayload implements TopicDetailPayload {
   String get title;
   @override
   String get description;
+  @override
+  String? get firstImageUrl;
+  @override
+  List<String>? get images;
   @override
   String get url;
   @override

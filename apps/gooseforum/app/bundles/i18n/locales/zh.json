@@ -111,6 +111,7 @@
   "serverMessages.auth.required": "请先登录后再访问此页面。",
   "serverMessages.permission.denied": "当前用户没有执行该操作的权限。",
   "serverMessages.permission.userFrozen": "您的账号已被封禁，无法继续此操作。",
+  "serverMessages.permission.emailRequired": "请先完成邮箱验证后再进行此操作。",
   "serverMessages.common.operation.failed": "操作失败，请稍后重试。",
   "serverMessages.oauth.callback.failed": "第三方账号登录回调失败，请稍后重试。",
   "serverMessages.oauth.process.failed": "第三方账号登录处理失败，请稍后重试。",

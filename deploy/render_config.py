@@ -9,8 +9,8 @@
   - 值经 json.dumps 编码为 TOML basic string / inline array（引号、反斜杠、换行安全）;
   - 渲染后仍残留 {{ 或 }}（未知 token）→ 拒绝输出;
   - 必需 token 为空 → 拒绝输出。allow-empty 按环境收紧:
-      main: 仅 AI_API_KEY 允许为空（GitHub 凭据生产必须非空）;
-      dev:  AI_API_KEY + GH_CLIENT_ID/GH_CLIENT_SECRET 允许为空
+      main: AI_API_KEY + Google OAuth 凭据允许为空（可选功能）;
+      dev:  AI_API_KEY + GH_CLIENT_ID/GH_CLIENT_SECRET + Google OAuth 凭据允许为空
             （dev 因 DB 站点设置无环境隔离保持 GitHub 登录关闭）;
   - PG_DSN 的 dbname 必须等于实例期望 pg_dbname（防跨库连错: dev 配到 yourtj_main 即拒绝）;
   - 产物必须能被 tomllib 解析;
@@ -41,7 +41,7 @@ TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 INSTANCE_TOKENS = {"SERVER_URL", "TRUSTED_PROXIES"}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
-BASE_OPTIONAL_TOKENS = {"AI_API_KEY"}
+BASE_OPTIONAL_TOKENS = {"AI_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"}
 
 DEFAULT_TMPL = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "config.toml.tmpl"

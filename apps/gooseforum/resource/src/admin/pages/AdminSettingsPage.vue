@@ -7,7 +7,10 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Bot, CheckCircle2, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
+import type { BulkImportPreview } from '@/admin/bulkImport'
+import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -85,6 +88,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
+import { safeUrl } from '@/runtime/safe-url'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'onesystem' | 'schedule'
 
@@ -109,6 +113,31 @@ const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
+
+// ---- 安全名单批量粘贴导入（Blueprint R5：解析纯函数见 src/admin/bulkImport.ts）----
+type BulkImportTarget = 'reservedUsernames' | 'bannedUsernames' | 'sensitiveWords'
+const bulkImportOpen = ref(false)
+const bulkImportTarget = ref<BulkImportTarget>('reservedUsernames')
+const bulkImportText = ref('')
+// 解析结果由输入驱动实时计算：文本为空时返回 null（此时确认导入会提示 k00uj）。
+// 敏感词列表用短语模式（保留条目内部空格，多词短语逐条导入），名单类用默认模式。
+const bulkImportPreview = computed<BulkImportPreview | null>(() => {
+  const text = bulkImportText.value.trim()
+  if (!text) return null
+  const target = bulkImportTarget.value
+  return parseImportText(text, securityForm[target], target === 'sensitiveWords' ? { preserveSpaces: true } : undefined)
+})
+const bulkImportEmptyHint = ref(false)
+
+// 弹层标题展示目标名单名（键 k00hr/k00ht/k00hv）。
+const bulkImportTitleKey = computed(() => {
+  const titleKeys: Record<BulkImportTarget, string> = {
+    reservedUsernames: 'k00hr',
+    bannedUsernames: 'k00ht',
+    sensitiveWords: 'k00hv',
+  }
+  return titleKeys[bulkImportTarget.value]
+})
 
 // ---- 一系统同步（issue #248 排课数据自愈入口）----
 const onesystemForm = reactive<{ cookie: string, cookieConfigured: boolean }>({
@@ -238,7 +267,7 @@ const postingForm = reactive<PostingSettings>({
   },
   uploadControl: {
     allowAttachments: true,
-    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
     maxAttachmentSizeKb: 5120,
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
@@ -253,6 +282,7 @@ const postingForm = reactive<PostingSettings>({
 const storageForm = reactive<StorageSettings>({
   provider: 'local',
   endpoint: '',
+  internalEndpoint: '',
   bucket: '',
   region: '',
   bucketLookup: 'auto',
@@ -476,6 +506,18 @@ function validateAiSummary() {
   return true
 }
 
+function validateSiteInfo() {
+  if (siteForm.siteUrl.trim() !== '' && !safeUrl(siteForm.siteUrl, 'external')) {
+    adminToast.warning(adminText('k00up'))
+    return false
+  }
+  if (siteForm.siteLogo.trim() !== '' && !safeUrl(siteForm.siteLogo, 'image')) {
+    adminToast.warning(adminText('k00up'))
+    return false
+  }
+  return true
+}
+
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
   return {
     textControl: {
@@ -490,7 +532,7 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       allowAttachments: toBool(settings.uploadControl?.allowAttachments, true),
       authorizedExtensions: Array.isArray(settings.uploadControl?.authorizedExtensions)
         ? settings.uploadControl.authorizedExtensions.map(item => String(item).trim().toLowerCase()).filter(Boolean)
-        : ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+        : ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
       maxAttachmentSizeKb: Number(settings.uploadControl?.maxAttachmentSizeKb ?? 5120),
       maxDailyUploadsPerUser: Number(settings.uploadControl?.maxDailyUploadsPerUser ?? 10),
       newUserUploadCooldownMinutes: Number(settings.uploadControl?.newUserUploadCooldownMinutes ?? 1440),
@@ -664,6 +706,7 @@ function normalizeStorage(settings: Partial<StorageSettings> = {}) {
   return {
     provider: settings.provider === 's3' ? 's3' : 'local',
     endpoint: settings.endpoint ?? '',
+    internalEndpoint: settings.internalEndpoint ?? '',
     bucket: settings.bucket ?? '',
     region: settings.region ?? '',
     bucketLookup: settings.bucketLookup === 'dns' || settings.bucketLookup === 'path' ? settings.bucketLookup : 'auto',
@@ -793,7 +836,8 @@ async function save() {
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
   if (props.kind === 'ai-summary' && !validateAiSummary()) return
   if (props.kind === 'schedule' && !validateSchedule()) return
-
+  if (props.kind === 'site-info' && !validateSiteInfo()) return
+  if (props.kind === 'posting' && !validatePostingExtensions()) return
   saving.value = true
   try {
     if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
@@ -814,6 +858,20 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+// validatePostingExtensions 保存前拦截：列表为空允许（服务端回退内置全集），
+// 但任一非法/危险扩展整单拒绝——前端校验只是体验，权威在服务端
+// （admin.upload.extNotAllowed）。
+function validatePostingExtensions() {
+  const entries = postingForm.uploadControl.authorizedExtensions
+  if (entries.length === 0) return true
+  const invalid = entries.filter(item => !isSupportedUploadExtension(item))
+  if (invalid.length > 0) {
+    adminToast.warning(adminText('k00uo', { extensions: invalid.join(', ') }))
+    return false
+  }
+  return true
 }
 
 async function sendTestMail() {
@@ -909,6 +967,31 @@ function removeSensitiveWord(word: string) {
   securityForm.sensitiveWords = securityForm.sensitiveWords.filter(item => item !== word)
 }
 
+function openBulkImport(target: BulkImportTarget) {
+  bulkImportTarget.value = target
+  bulkImportText.value = ''
+  bulkImportEmptyHint.value = false
+  bulkImportOpen.value = true
+}
+
+function closeBulkImport() {
+  bulkImportOpen.value = false
+  bulkImportEmptyHint.value = false
+}
+
+function confirmBulkImport() {
+  if (!bulkImportPreview.value) {
+    bulkImportEmptyHint.value = true
+    return
+  }
+  const target = bulkImportTarget.value
+  const added = bulkImportPreview.value.added
+  if (added.length > 0) {
+    securityForm[target] = [...securityForm[target], ...added]
+  }
+  closeBulkImport()
+}
+
 function addAllowedDomain() {
   const domain = newAllowedDomain.value.trim().toLowerCase()
   if (!domain || allowedDomains.value.includes(domain)) return
@@ -923,10 +1006,12 @@ function removeAllowedDomain(domain: string) {
 }
 
 function addExtension() {
-  const ext = newExtension.value.trim().toLowerCase()
-  if (!ext) return
-  if (!ext.startsWith('.')) {
-    adminToast.warning(adminText('k000j'))
+  const raw = newExtension.value
+  if (!raw.trim()) return
+  const ext = normalizeExtensionToken(raw)
+  if (!isSupportedUploadExtension(ext)) {
+    // 危险扩展（svg/html/xml/js 等）与非法输入（双扩展/空）即时提示，不允许入列。
+    adminToast.warning(adminText('k00uo', { extensions: ext || raw.trim() }))
     return
   }
   if (!postingForm.uploadControl.authorizedExtensions.includes(ext)) {
@@ -1223,7 +1308,7 @@ onUnmounted(stopSyncPolling)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('reservedUsernames')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newReservedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addReservedUsername" />
             <Button type="button" variant="secondary" @click="addReservedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -1239,7 +1324,7 @@ onUnmounted(stopSyncPolling)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('bannedUsernames')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newBannedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addBannedUsername" />
             <Button type="button" variant="secondary" @click="addBannedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -1255,7 +1340,7 @@ onUnmounted(stopSyncPolling)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('sensitiveWords')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newSensitiveWord" class="max-w-sm" @keydown.enter.prevent="addSensitiveWord" />
             <Button type="button" variant="secondary" @click="addSensitiveWord"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -1572,6 +1657,10 @@ onUnmounted(stopSyncPolling)
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fu') }}<Input v-model="storageForm.region" :disabled="storageForm.provider !== 's3'" /></label>
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g5') }}<Input v-model="storageForm.publicUrlPrefix" :disabled="storageForm.provider !== 's3'" placeholder="https://cdn.example.com" /></label>
         </div>
+        <label class="grid gap-2 text-sm font-medium">{{ adminText('k00uc') }}
+          <Input v-model="storageForm.internalEndpoint" :disabled="storageForm.provider !== 's3'" placeholder="https://oss-<region>-internal.aliyuncs.com" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00ud') }}</span>
+        </label>
         <div class="grid gap-6 md:grid-cols-2">
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}
             <div class="flex items-center gap-2">
@@ -1816,6 +1905,35 @@ onUnmounted(stopSyncPolling)
               <Loader2 v-if="migrating" class="size-4 animate-spin" />
               <HardDrive v-else class="size-4" />
               {{ adminText('k00gb') }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog :open="bulkImportOpen" @update:open="bulkImportOpen = $event">
+        <DialogContent class="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{{ adminText('k00ug') }}：{{ adminText(bulkImportTitleKey) }}</DialogTitle>
+            <DialogDescription>{{ bulkImportTarget === 'sensitiveWords' ? adminText('k00un') : adminText('k00uf') }}</DialogDescription>
+          </DialogHeader>
+          <div class="space-y-3">
+            <Textarea v-model="bulkImportText" class="min-h-32 text-sm" />
+            <p v-if="bulkImportEmptyHint" class="text-sm text-destructive">{{ adminText('k00uj') }}</p>
+            <template v-if="bulkImportPreview">
+              <p class="text-sm font-medium">{{ adminText('k00ui', { added: bulkImportPreview.added.length, skipped: bulkImportPreview.skipped }) }}</p>
+              <p v-if="bulkImportPreview.truncated" class="text-xs text-muted-foreground">{{ adminText('k00uk', { limit: BULK_IMPORT_LIMIT }) }}</p>
+              <div v-if="bulkImportPreview.added.length > 0" class="flex max-h-44 flex-wrap gap-2 overflow-y-auto rounded-lg border bg-muted/10 p-3">
+                <span v-if="bulkImportPreview.added.length > BULK_IMPORT_PREVIEW_LIMIT" class="w-full text-xs text-muted-foreground">{{ adminText('k00um', { limit: BULK_IMPORT_PREVIEW_LIMIT }) }}</span>
+                <Badge v-for="item in bulkImportPreview.added.slice(0, BULK_IMPORT_PREVIEW_LIMIT)" :key="item" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">{{ item }}</Badge>
+              </div>
+              <p v-if="bulkImportTarget === 'bannedUsernames'" class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{{ adminText('k00ul') }}</p>
+            </template>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" @click="closeBulkImport">{{ adminText('k009q') }}</Button>
+            <Button type="button" @click="confirmBulkImport">
+              <ClipboardPaste class="size-4" />
+              {{ adminText('k00uh') }}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,7 +2,7 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
 >
 > Owner: Platform maintainers, Security reviewer
 >
@@ -13,7 +13,8 @@
 - **Identity source = the forum's own `users` table** (uint64 numeric ID). The forum built-in OIDC
   Provider issues standard OIDC tokens with `sub` = the user's numeric ID for a small set of
   first-party clients (e.g. the course-selection site and the mobile app). Password login, TOTP 2FA
-  and GitHub OAuth (goth) remain available.
+  GitHub OAuth and Google OAuth (goth) remain available when their provider credentials and absolute
+  site callback URL are configured.
 - **Numeric ID is a hard constraint**: credit's `GetID()` parses sub with `strconv.ParseUint`. A UUID
   fails to parse and falls back to 0, making all users collide. The OIDC provider enforces this
   server-side (the `sub` claim is always the numeric `users.id`).
@@ -29,7 +30,12 @@
   code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
-- GitHub OAuth (goth): unchanged; callback binds or signs in and issues a session token.
+- GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
+  requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
+  binding only when the Google userinfo response contains `verified_email=true`. When site-wide email
+  verification is enabled, OAuth registration without a usable verified email is rejected. Provider
+  credential changes require a process restart; saving a new site callback URL in the admin console
+  refreshes the providers immediately.
 
 ### Built-in OIDC Provider (first-party clients)
 
@@ -66,6 +72,31 @@
 - Registration: forum self-service password registration (with email verification when enabled);
   GitHub OAuth can auto-provision accounts. The built-in OIDC provider never creates accounts — it
   authenticates existing users.
+- Email verification (`enableEmailVerification`): password registration stores the account as
+  `pending` but still issues a session. While the setting is on, authenticated **write**
+  endpoints reject pending accounts before the controller runs with HTTP 403 and the
+  structured `permission.emailRequired` envelope (params actionCode=write) — the same
+  envelope is returned by every `CheckWritableAccount` write endpoint and is parsed by the
+  web client into an actionable activation message. Recovery writes (resend-activation-email,
+  set-user-email) stay allowed, as do the self-service account-close and content
+  privacy-erase lifecycle endpoints (the controllers keep their ownership, password, and
+  rate-limit checks). Enabling the setting backfills pending manage-role accounts
+  (admin/site/user/… permissions) and activates them immediately through the user-cache
+  refresh path, so the admin console cannot lock itself out; ordinary pending users are left
+  untouched and must still complete the activation email.
+- Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
+  registration/rename and at OAuth/Agent account creation with **normalized whole-string
+  equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
+  `Admin`, `ａｄｍｉｎ`, `adm1n` all collide with a reserved `admin` while `myadmin` does not.
+  Nicknames edited through the profile share the same lists and equality rule. Reserved entries
+  only block new/renamed accounts and never freeze existing ones; banned entries additionally
+  freeze matching existing accounts (idempotent) when first added by an admin. GitHub OAuth
+  auto-provision backs a matching login off to `<name>_<n>` and re-checks every backoff candidate
+  against both lists; Agent creation rejects reserved/banned usernames outright. Course reviews
+  and profile free text (bio/signature/website/websiteName) are scanned against `sensitiveWords`
+  (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
+  message for reviews). Built-in defaults ship with an empty banned list and a curated
+  reserved/sensitive bank (see `docs/architecture/contracts-and-data.md`).
 - Session: forum JWT valid 7 days (GooseForum scale, tunable). Every session-scoped token carries a
   `jti` that maps to a row in `user_sessions`; the auth middleware rejects tokens whose session row is
   missing or expired, so revocation is immediate.
@@ -133,6 +164,66 @@
   userId) and skip only browser-specific honeypot, captcha, and new-user cooldown gates. Topic
   creation always publishes (`topicStatus=1`).
 - Mention parsing, webhook sending, OAuth/session/scopes for Agents remain `Planned`.
+
+## Credential transport & CSRF boundary
+
+Auth contract for state-changing API requests (issue #406):
+
+- **Browser pages (site + admin SPA, GoHTML SSR views)** authenticate solely with the HttpOnly
+  `access_token` cookie that login flows set (password/TOTP, GitHub/Google OAuth callbacks, OIDC
+  exchange). They issue same-origin relative `fetch()` calls and never send an `Authorization`
+  header. The cookie is `SameSite=Lax` + `Secure` (whenever `app.env != "local"`) and is
+  host-only, so it is only sent to the exact domain that set it.
+- **Non-browser clients** authenticate with an `Authorization: Bearer` header: the mobile app
+  (forum JWT from `POST /api/auth/oidc/exchange`, stored in Keychain/Keystore), Agent `agt_`
+  tokens (`/api/v1/agent/*`, MCP), and curl/scripting API clients. A browser cannot attach these
+  headers cross-site, so bearer-authenticated requests carry no CSRF risk.
+- **Exempt flows**: top-level navigation and `Set-Cookie` flows (login/register/reset, OAuth and
+  OIDC callbacks, `/api/auth/oidc/exchange`) are GET/state-creating entry points that cannot be
+  CSRF'd against an existing session (they create rather than mutate a session). The wiki GitHub
+  webhook authenticates by HMAC signature, not by cookie. `/api/auth/totp/verify` consumes a
+  short-lived challenge cookie that is only issued as the response to a successful password
+  verification, so a cross-site attacker cannot obtain it.
+
+CSRF enforcement (`middleware.CSRFProtection`, mounted per write-route group in `route4api.go`
+before the stateful authentication middleware — never in the global chain):
+
+- Only **state-changing methods (POST/PUT/PATCH/DELETE) that carry the `access_token` cookie**
+  are checked; GET/HEAD/OPTIONS and cookie-less requests (anonymous writes, server-to-server)
+  pass.
+- The gate runs **before `JWTAuthCheck`** on every cookie-write group (`logout`; the
+  `login`/`forum`/`chat`/`admin`/`file` groups), so a rejected cross-site write never reaches the
+  authentication middleware: it cannot refresh a near-expiry JWT, extend its `user_sessions`
+  row, or publish activity events (issue #406 follow-up). Anonymous writes carry no cookie, pass
+  the gate, and keep their usual semantics (`JWTAuthCheck` still answers 401).
+- A request with an `Authorization` header is always exempt (Bearer clients, even when a cookie
+  happens to ride along).
+- The remaining cookie-authenticated writes must present an `Origin` that matches the request's
+  `Host`-derived origin (scheme from TLS or the first `X-Forwarded-Proto` hop so TLS-terminating
+  proxies work; default ports normalized). The host-derived rule keeps multi-domain, LAN-IP,
+  and `localhost` dev deployments working without enumerating origins, because a browser Origin
+  is always the domain the host-only session cookie is scoped to.
+- When `Origin` is missing (legacy browsers that omit it on same-origin POSTs), the `Referer`
+  origin is checked instead; otherwise the request is rejected with HTTP 403 and message code
+  `auth.csrf.rejected`. curl/scripting clients that carry a cookie but no Origin/Referer are
+  rejected fail-closed — they should send `Authorization` instead.
+- **Contract note**: every cookie-authenticated state-changing operation (including read-only
+  operations implemented with POST) declares the HTTP 403 `auth.csrf.rejected` response
+  (`csrfRejected` example) in its OpenAPI operation contract under `paths/`, with one shared
+  response shape: `ApiFailure` envelope, session cookie left untouched. Consumers handle it per
+  operation as documented; an operation that declares `accessTokenCookie` in its security but
+  lacks the 403 is a contract omission. The sole exception is `verifyTotp`
+  (`paths/auth-security.yaml`): it authenticates a short-lived `totp_challenge` token through
+  `TOTPChallengeAuth`, not the session chain, so the CSRF gate is not mounted and no 403 is
+  declared (see the login-flow rationale above).
+
+Rationale for Origin checking instead of a double-submit CSRF token: both web frontends run on
+modern browsers that send `Origin` on every state-changing request, and the host-only +
+`SameSite=Lax` cookie already stops the classic cross-site POST. A double-submit token would add
+a JS-readable cookie surface and frontend plumbing to every write call while contributing almost
+no additional protection for this deployment shape. SameSite alone is not relied on: the Origin
+check additionally covers same-site cross-origin (subdomain) hosts and browsers without SameSite
+support.
 
 ## Security notes
 

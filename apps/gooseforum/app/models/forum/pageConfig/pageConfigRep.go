@@ -2,8 +2,10 @@ package pageConfig
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/spf13/cast"
@@ -35,17 +37,29 @@ func GetByPageType(pageType string) (entity Entity) {
 func GetConfigByPageType[T any](pageType string, defaultValue T) T {
 	var entity Entity
 	builder().Where(queryopt.Eq(filedPageType, pageType)).First(&entity)
-	if entity.Id > 0 {
-		return jsonopt.Decode[T](entity.Config)
+	if entity.Id == 0 {
+		return defaultValue
 	}
-
-	return defaultValue
+	decoded, err := jsonopt.DecodeE[T](entity.Config)
+	if err != nil {
+		// 配置 JSON 损坏时回退默认值（review LOW）：损坏行不应让读方拿到空配置
+		// （如节次作息整表消失、默认 12 节退化为 0 节），回退默认值保证页面可用；
+		// 同时告警便于运维发现并修复该行。
+		slog.Warn("pageConfig: stored config JSON corrupted, falling back to default",
+			"page_type", pageType, "err", err)
+		return defaultValue
+	}
+	return decoded
 }
 
 // GetPostingSettingsConfig 读取发布内容设置（issue #369，上游 c47cff94）。
-// 与 GetConfigByPageType 的区别：升级前的存量配置缺少
-// textControl.maxDailyTopicsPerUser 时用默认值补齐（避免旧配置在升级后被
-// 当作 0=不限额）；非法负值归一为 0（不限额），与保存端归一化一致。
+// 与 GetConfigByPageType 的区别：
+//   - 升级前的存量配置缺少 textControl.maxDailyTopicsPerUser 时用默认值补齐
+//     （避免旧配置在升级后被当作 0=不限额）；非法负值归一为 0（不限额）。
+//   - uploadControl.authorizedExtensions 只允许内置图片扩展集合（imagepolicy）的
+//     子集（issue #408）：历史配置中混入的危险扩展（.svg/.html/.js/.xml/.pdf 等）
+//     在读取路径被过滤，绝不参与生效 allowlist，并告警便于运维修正保存值。
+//     保留条目的拼写（无点/大写历史值）不改写，回显仍与落库一致。
 func GetPostingSettingsConfig(defaultValue PostingContent) PostingContent {
 	entity := GetByPageType(PostingSettings)
 	if entity.Id == 0 {
@@ -64,10 +78,16 @@ func GetPostingSettingsConfig(defaultValue PostingContent) PostingContent {
 	if config.TextControl.MaxDailyTopicsPerUser < 0 {
 		config.TextControl.MaxDailyTopicsPerUser = 0
 	}
+	kept, dropped := imagepolicy.FilterConfiguredList(config.UploadControl.AuthorizedExtensions)
+	if len(dropped) > 0 {
+		slog.Warn("pageConfig: dropping unauthorized image extensions on load",
+			"page_type", PostingSettings, "dropped", dropped)
+		config.UploadControl.AuthorizedExtensions = kept
+	}
 	return config
 }
 
-const AppMigrationVersion uint32 = 26
+const AppMigrationVersion uint32 = 28
 
 func GetMigrationVersion() uint32 {
 	configEntity := GetByPageType(Migration)

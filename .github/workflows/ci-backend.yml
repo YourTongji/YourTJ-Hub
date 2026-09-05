@@ -79,6 +79,22 @@ jobs:
         if: steps.filter.outputs.backend == 'true'
         with:
           go-version: "1.26"
+      # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.6 + toolchain go1.26.8,
+      # 但 setup-go 的 go-version "1.26"(check-latest) 只保证取最新 1.26.x patch。
+      # 显式断言解析到的实际工具链 >= 1.26.6, 防止缓存/回退导致旧 patch
+      # (go1.26.5 及更早的 7 个 stdlib CVE, 修复于 go1.26.6) 静默编译产物。
+      - name: Assert Go toolchain >= 1.26.6 (issue #447)
+        if: steps.filter.outputs.backend == 'true'
+        working-directory: apps/gooseforum
+        run: |
+          set -euo pipefail
+          min="1.26.6"
+          cur="$(go env GOVERSION | sed 's/^go//')"
+          if [[ "$(printf '%s\n%s\n' "$min" "$cur" | sort -V | head -n1)" != "$min" ]]; then
+            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.6, issue #447)"
+            exit 1
+          fi
+          echo "Go toolchain ${cur} >= ${min}: OK"
       - name: Vet
         if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum

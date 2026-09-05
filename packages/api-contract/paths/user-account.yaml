@@ -75,8 +75,12 @@ setUserInfo:
       externalInformation; every field is optional in the request, and bio/signature
       accept an empty string to clear the stored value. locale is applied only when
       non-empty after trimming. JSON binding is lenient: a malformed body binds to
-      zero values and still succeeds as an all-empty overwrite. Business failures:
-      `user.fetchFailed`, `user.updateFailed`.
+      zero values and still succeeds as an all-empty overwrite. A nickname hitting
+      the reserved/banned lists fails with `auth.nickname.reserved` /
+      `auth.nickname.banned`; profile free text (bio/signature/website/websiteName)
+      hitting the sensitive-word list fails with `content.sensitive.blocked`
+      (params carries the matched word). Business failures: `user.fetchFailed`,
+      `user.updateFailed`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -88,7 +92,10 @@ setUserInfo:
             $ref: ../components/schemas.yaml#/SetUserInfoRequest
     responses:
       '200':
-        description: Profile updated, or a legacy business failure envelope.
+        description: |
+          Profile updated, or a legacy business failure envelope
+          (`auth.nickname.reserved` / `auth.nickname.banned` /
+          `content.sensitive.blocked`).
         content:
           application/json:
             schema:
@@ -96,6 +103,15 @@ setUserInfo:
             examples:
               success:
                 externalValue: ../fixtures/set-user-email-success.json
+              nicknameReserved:
+                summary: Nickname hits the reserved list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/user-info-nickname-reserved.json
+              nicknameBanned:
+                summary: Nickname hits the banned list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/user-info-nickname-banned.json
+              sensitiveBlocked:
+                summary: Profile free text hits the sensitive-word list (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/user-info-sensitive-blocked.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -106,7 +122,11 @@ setUserInfo:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -114,6 +134,8 @@ setUserInfo:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 setUserProfileCover:
   post:
@@ -155,7 +177,11 @@ setUserProfileCover:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -163,6 +189,8 @@ setUserProfileCover:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 setUserEmail:
   post:
@@ -211,7 +239,11 @@ setUserEmail:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -219,6 +251,8 @@ setUserEmail:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Email-change rate limit (action `email.change`) exceeded.
         headers:
@@ -273,7 +307,11 @@ resendActivationEmail:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -281,6 +319,8 @@ resendActivationEmail:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 setUserName:
   post:
@@ -326,7 +366,11 @@ setUserName:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -334,6 +378,8 @@ setUserName:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 setPresetAvatar:
   post:
@@ -378,7 +424,11 @@ setPresetAvatar:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -386,6 +436,8 @@ setPresetAvatar:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 wearBadge:
   post:
@@ -429,7 +481,11 @@ wearBadge:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -437,6 +493,8 @@ wearBadge:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
 
 uploadAvatar:
   post:
@@ -489,7 +547,11 @@ uploadAvatar:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`).
+        description: >-
+          Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`).
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -497,6 +559,8 @@ uploadAvatar:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Upload rate limit (action `upload`) exceeded.
         headers:
@@ -561,7 +625,11 @@ changePassword:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -569,6 +637,8 @@ changePassword:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
       '429':
         description: Password-change rate limit (action `password.change`) exceeded.
         headers:
@@ -662,7 +732,11 @@ unbindOAuth:
               unauthenticated:
                 externalValue: ../fixtures/auth-required.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
         content:
           application/json:
             schema:
@@ -670,3 +744,5 @@ unbindOAuth:
             examples:
               frozenAccount:
                 externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
