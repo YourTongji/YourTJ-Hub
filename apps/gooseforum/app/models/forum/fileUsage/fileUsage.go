@@ -28,7 +28,7 @@ const (
 
 type Entity struct {
 	Id         uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	FileName   string     `gorm:"column:file_name;type:varchar(512);not null;default:'';uniqueIndex:idx_file_usage_target_file,priority:4;" json:"fileName"`
+	FileName   string     `gorm:"column:file_name;type:varchar(512);not null;default:'';index:idx_file_usage_file_name;uniqueIndex:idx_file_usage_target_file,priority:4;" json:"fileName"` // 公开图片读取路径按 file_name 检查附件引用（/file/img/*），独立索引避免全表扫描
 	TargetType string     `gorm:"column:target_type;type:varchar(32);not null;default:'';uniqueIndex:idx_file_usage_target_file,priority:1;" json:"targetType"`
 	TargetId   uint64     `gorm:"column:target_id;not null;default:0;uniqueIndex:idx_file_usage_target_file,priority:2;" json:"targetId"`
 	UsageType  string     `gorm:"column:usage_type;type:varchar(32);not null;default:'';uniqueIndex:idx_file_usage_target_file,priority:3;" json:"usageType"`
