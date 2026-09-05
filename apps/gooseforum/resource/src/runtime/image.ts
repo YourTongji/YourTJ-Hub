@@ -23,6 +23,11 @@ export function validateImageFile(file: File, maxSize = 10 * 1024 * 1024): strin
 
 export async function processImageFile(file: File, quality = 0.85): Promise<ImageProcessResult> {
   const originalSize = file.size
+  // GIF 不进压缩管线：canvas 无法编码 GIF（Safari 静默回退导出静态 PNG，
+  // Chrome 成功时也会丢掉动画帧），原样上传保留动图。
+  if (file.type === 'image/gif') {
+    return { file, converted: false, originalSize, newSize: originalSize }
+  }
   const targetType = supportsWebP() ? 'image/webp' : file.type || 'image/jpeg'
   const shouldConvert = targetType === 'image/webp' && !file.type.includes('webp')
 
@@ -81,6 +86,23 @@ export async function canvasToImageFile(
   })
 }
 
+// imageTypeExtension 把图片 MIME 映射为后端上传白名单内的扩展名；
+// canvas 实际只会产出 png/jpeg/webp，其余条目仅为完备性。
+function imageTypeExtension(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/png':
+      return '.png'
+    case 'image/gif':
+      return '.gif'
+    case 'image/webp':
+      return '.webp'
+    case 'image/bmp':
+      return '.bmp'
+    default:
+      return '.jpg'
+  }
+}
+
 async function compressImage(file: File, mimeType: string, quality: number): Promise<File> {
   const { default: Compressor } = await import('compressorjs') as { default: typeof CompressorType }
   return new Promise((resolve, reject) => {
@@ -90,13 +112,18 @@ async function compressImage(file: File, mimeType: string, quality: number): Pro
       checkOrientation: true,
       convertSize: 0,
       success: (result) => {
-        const extension = mimeType === 'image/webp' ? '.webp' : '.jpg'
-        if (result instanceof File && result.type === mimeType) {
+        // 输出以压缩器实际产物为准：convertTypes 改道（PNG→JPEG）或目标
+        // 编码不被 canvas 支持时（如 Safari 的 WebP/GIF），实际字节类型可能
+        // 与请求的 mimeType 不同。文件名扩展名与 File.type 必须跟随实际
+        // 产物，否则上传 init 的 filename↔contentType 严格校验会拒绝。
+        const actualType = result.type || mimeType
+        if (result instanceof File && result.type === actualType) {
           resolve(result)
           return
         }
-        resolve(new File([result], file.name.replace(/\.[^/.]+$/, extension), {
-          type: mimeType,
+        const baseName = file.name.replace(/\.[^/.]+$/, '')
+        resolve(new File([result], `${baseName}${imageTypeExtension(actualType)}`, {
+          type: actualType,
           lastModified: Date.now(),
         }))
       },
