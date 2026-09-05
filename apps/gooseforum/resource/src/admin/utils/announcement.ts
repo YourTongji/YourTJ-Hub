@@ -22,14 +22,16 @@ export function normalizeAnnouncement(settings: Partial<AnnouncementConfig> = {}
 }
 
 export function serializeAnnouncement(
-  form: Pick<AnnouncementConfig, 'enabled' | 'content'> & { items?: AnnouncementItemConfig[] },
+  form: Pick<AnnouncementConfig, 'enabled'> & { items?: AnnouncementItemConfig[] },
 ): AnnouncementConfig {
   const items = (form.items ?? []).filter((item) => item.content.trim())
-  // 单则公告（含迁移自旧版的条目）时同步 content：服务端 items 非空时优先展示，
-  // content 仅作单则回退（GetHtmlContent），同步可保持单则语义一致（issue #465）
+  // content 仅作单则回退（服务端 items 非空时展示优先级更高，content 走
+  // GetHtmlContent），只在「单则且启用」时同步条目正文，其余一律清空——
+  // 否则已删除或已停用的公告会经 content 回退继续展示（issue #465 review P2）
+  const sole = items.length === 1 && items[0].enabled ? items[0] : null
   return {
     enabled: form.enabled,
-    content: items.length === 1 ? items[0].content : form.content,
+    content: sole ? sole.content : '',
     items,
   }
 }

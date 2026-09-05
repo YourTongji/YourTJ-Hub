@@ -11,6 +11,7 @@ import { Bot, CheckCircle2, ClipboardPaste, Clock, Code, FileText, Globe, GripVe
 import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
 import type { BulkImportPreview } from '@/admin/bulkImport'
 import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
+import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { normalizeAnnouncement, serializeAnnouncement } from '@/admin/utils/announcement'
 import { toBool } from '@/admin/utils/toBool'
 import { BasicPage } from '@/admin/components/global-layout'

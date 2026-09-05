@@ -6,6 +6,8 @@ import { normalizeAnnouncement, serializeAnnouncement } from '../src/admin/utils
 // serializeAnnouncement 在唯一 legacy 项时无条件序列化回 content-only 结构
 // （items: []），而标题只存在于 items[].title，于是被静默丢弃。
 // 修复：加载时 legacy 条目换常规 id 并始终走 items 模式，序列化不再回退 content-only。
+// PR review 收紧：content 仅在「单则且启用」时同步条目正文，其余清空——
+// 已删除或已停用的公告不得经服务端 GetHtmlContent 单则回退继续展示。
 describe('announcement serialize round-trip (issue #465)', () => {
   test('legacy 单则公告编辑标题后保存，title 必须进 payload', () => {
     const form = normalizeAnnouncement({ enabled: true, content: '欢迎来到 YourTJHub' })
@@ -27,19 +29,31 @@ describe('announcement serialize round-trip (issue #465)', () => {
     expect(payload.items![0].title).toBe('')
   })
 
-  test('单则条目时 content 与条目正文同步（保持单则回退语义）', () => {
+  test('单则且启用的条目：content 与条目正文同步（保持单则回退语义）', () => {
     const payload = serializeAnnouncement({
       enabled: true,
-      content: '旧版遗留正文',
       items: [{ id: 'ann-x', title: '新标题', content: '编辑后的正文', enabled: true }],
     })
     expect(payload.content).toBe('编辑后的正文')
   })
 
-  test('多则公告 items 模式保存保持不变（content 透传表单值）', () => {
+  test('唯一条目停用时 content 清空（停用公告不得经 content 回退展示）', () => {
     const payload = serializeAnnouncement({
       enabled: true,
-      content: '',
+      items: [{ id: 'ann-x', title: '停用', content: '停用的正文', enabled: false }],
+    })
+    expect(payload.content).toBe('')
+    expect(payload.items).toHaveLength(1)
+  })
+
+  test('清空全部条目后 content 同步清空（已删除公告不得经 content 回退展示）', () => {
+    const payload = serializeAnnouncement({ enabled: true, items: [] })
+    expect(payload).toEqual({ enabled: true, content: '', items: [] })
+  })
+
+  test('多则公告保存保持 items 原样，content 不透传表单值（置空）', () => {
+    const payload = serializeAnnouncement({
+      enabled: true,
       items: [
         { id: 'ann-a', title: '第一条', content: '内容一', enabled: true },
         { id: 'ann-b', title: '第二条', content: '内容二', enabled: false },
@@ -58,7 +72,6 @@ describe('announcement serialize round-trip (issue #465)', () => {
   test('空正文项被过滤，与既有行为一致', () => {
     const payload = serializeAnnouncement({
       enabled: true,
-      content: '',
       items: [
         { id: 'ann-a', title: '有内容', content: '正文', enabled: true },
         { id: 'ann-b', title: '空条目', content: '   ', enabled: true },
@@ -69,7 +82,7 @@ describe('announcement serialize round-trip (issue #465)', () => {
   })
 
   test('全部清空后保存为空配置', () => {
-    const payload = serializeAnnouncement({ enabled: false, content: '', items: [] })
+    const payload = serializeAnnouncement({ enabled: false, items: [] })
     expect(payload).toEqual({ enabled: false, content: '', items: [] })
   })
 
