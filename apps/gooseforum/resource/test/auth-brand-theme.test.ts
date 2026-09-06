@@ -7,6 +7,9 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { i18n } from '../src/runtime/i18n'
+import { register } from '../src/runtime/api'
+import { resolveApiMessage } from '../src/runtime/api-message'
+import SiteSelect from '../src/site/components/SiteSelect.vue'
 import { setThemePreference } from '../src/runtime/site-theme'
 import type { LayoutPayload } from '@gooseforum/client'
 
@@ -62,6 +65,7 @@ const loginProps = {
   googleReady: false,
   termsOfServiceEnabled: true,
   privacyPolicyEnabled: true,
+  allowedDomains: [],
 }
 
 function brandSrcs(wrapper: VueWrapper): string[] {
@@ -72,6 +76,11 @@ function brandSrcs(wrapper: VueWrapper): string[] {
 }
 
 describe('LoginPage default brand wordmark theme switch', () => {
+  test('daily signup quota message code resolves to a friendly registration error', () => {
+    const fallback = 'Registration failed'
+    expect(resolveApiMessage({ messageCode: 'auth.register.dailyQuota' }, fallback)).not.toBe(fallback)
+  })
+
   afterEach(() => {
     setThemePreference('light')
   })
@@ -165,6 +174,70 @@ describe('LoginPage default brand wordmark theme switch', () => {
     expect(wrapper.find('a[href="/privacy"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('I have read and agree to the privacy policy')
     expect(wrapper.text()).not.toContain('I have read and agree to the terms and privacy policy')
+    wrapper.unmount()
+  })
+
+  test('single allowed email domain is rendered as a fixed suffix', async () => {
+    const wrapper = mount(LoginPage, {
+      props: {
+        layout: layout('default', ''),
+        props: { ...loginProps, initialMode: 'register', allowedDomains: ['tongji.edu.cn'] },
+      },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect(wrapper.find('#register-email').attributes('type')).toBe('text')
+    expect(wrapper.text()).toContain('@tongji.edu.cn')
+    expect(wrapper.findComponent(SiteSelect).exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('multiple allowed domains compose the selected suffix before registering', async () => {
+    const registerMock = vi.mocked(register)
+    registerMock.mockResolvedValue('ok')
+    const wrapper = mount(LoginPage, {
+      props: {
+        layout: layout('default', ''),
+        props: {
+          ...loginProps,
+          initialMode: 'register',
+          termsOfServiceEnabled: false,
+          privacyPolicyEnabled: false,
+          allowedDomains: ['tongji.edu.cn', 'alumni.tongji.edu.cn'],
+        },
+      },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.find('input[autocomplete="username"]').setValue('walker')
+    await wrapper.find('#register-email').setValue('student')
+    wrapper.findComponent(SiteSelect).vm.$emit('update:modelValue', 'alumni.tongji.edu.cn')
+    await wrapper.vm.$nextTick()
+    const passwords = wrapper.findAll('input[autocomplete="new-password"]')
+    await passwords[0].setValue('secret123')
+    await passwords[1].setValue('secret123')
+    await wrapper.find('input[placeholder="Captcha"]').setValue('abcd')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(registerMock).toHaveBeenCalledWith('walker', 'student@alumni.tongji.edu.cn', 'secret123', 'test', 'abcd', expect.any(String), '')
+    wrapper.unmount()
+  })
+
+  test('empty allowed domain list keeps the normal email input', async () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout: layout('default', ''), props: { ...loginProps, initialMode: 'register' } },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect(wrapper.find('#register-email').attributes('type')).toBe('email')
+    expect(wrapper.findComponent(SiteSelect).exists()).toBe(false)
     wrapper.unmount()
   })
 })

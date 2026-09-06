@@ -52,6 +52,28 @@ func GetConfigByPageType[T any](pageType string, defaultValue T) T {
 	return decoded
 }
 
+// GetSecuritySettingsConfig 读取安全配置并兼容旧配置缺少每日注册上限字段。
+func GetSecuritySettingsConfig(defaultValue SecurityAndRegistration) SecurityAndRegistration {
+	entity := GetByPageType(SecuritySettings)
+	if entity.Id == 0 {
+		return defaultValue
+	}
+	config, err := jsonopt.DecodeE[SecurityAndRegistration](entity.Config)
+	if err != nil {
+		slog.Warn("pageConfig: stored config JSON corrupted, falling back to default",
+			"page_type", SecuritySettings, "err", err)
+		return defaultValue
+	}
+	var raw struct {
+		MaxDailySignups *int `json:"maxDailySignups"`
+	}
+	if json.Unmarshal([]byte(entity.Config), &raw) == nil && raw.MaxDailySignups == nil {
+		config.MaxDailySignups = defaultValue.MaxDailySignups
+	}
+	config.MaxDailySignups = max(config.MaxDailySignups, -1)
+	return config
+}
+
 // GetPostingSettingsConfig 读取发布内容设置（issue #369，上游 c47cff94）。
 // 与 GetConfigByPageType 的区别：
 //   - 升级前的存量配置缺少 textControl.maxDailyTopicsPerUser 时用默认值补齐

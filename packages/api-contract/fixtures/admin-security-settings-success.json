@@ -2,6 +2,7 @@
   "result": {
     "enableSignup": true,
     "enableEmailVerification": false,
+    "maxDailySignups": -1,
     "allowedDomains": [
       "tongji.edu.cn"
     ],

@@ -1,6 +1,7 @@
 {
   "enableSignup": true,
   "enableEmailVerification": false,
+  "maxDailySignups": -1,
   "allowedDomains": [],
   "reservedUsernames": ["admin", "administrator", "root", "system", "support", "help", "info", "contact", "security", "moderator", "mod", "staff", "team", "official", "verify", "verified", "verification", "misskey", "misskeyhq", "misskeyio", "instance", "server", "webmaster", "api", "oauth", "auth", "login", "logout", "signup", "register", "settings", "account", "user", "users", "profile", "notification", "notifications", "timeline", "home", "explore", "search", "about", "terms", "privacy", "rules", "status", "health", "metrics", "bot", "bots", "robot", "null", "undefined", "anonymous", "guest", "test", "demo", "www", "mail", "ftp", "smtp", "imap", "pop", "cdn", "static", "assets", "owner", "operator", "manager", "maintainer", "developer", "dev", "rootuser"],
   "bannedUsernames": [],

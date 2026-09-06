@@ -324,6 +324,8 @@ export default {
   "k008z": "When disabled, the public site will not allow creating new accounts.",
   "k0090": "Require email verification",
   "k0091": "New users must verify their email before the account is activated and usable.",
+  "k00lk": "Maximum new users per day",
+  "k00ll": "Registration pauses after the limit is reached and resumes the next day. -1 means unlimited.",
   "k0092": "Allowed registration email domains",
   "k0093": "Leave empty for no restriction. When configured, only these email domains can register.",
   "k0094": "Add",

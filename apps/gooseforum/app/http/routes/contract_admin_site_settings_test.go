@@ -396,6 +396,7 @@ func TestAdminGetSecuritySettingsHTTPContract(t *testing.T) {
 		persistContractPageConfig(t, conn, pageConfig.SecuritySettings, pageConfig.SecurityAndRegistration{
 			EnableSignup:            true,
 			EnableEmailVerification: false,
+			MaxDailySignups:         -1,
 			AllowedDomains:          []string{"tongji.edu.cn"},
 			ReservedUsernames:       []string{"admin", "administrator", "root", "system", "moderator", "developer", "api", "oauth", "settings", "misskey"},
 			BannedUsernames:         []string{},
@@ -415,10 +416,10 @@ func TestAdminSaveSecuritySettingsHTTPContract(t *testing.T) {
 	t.Run("success replaces the stored security settings", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enableSignup":false,"enableEmailVerification":true,"allowedDomains":[],"reservedUsernames":[],"bannedUsernames":["banned-contract-new"],"sensitiveWords":[],"sensitiveAction":"block","captchaRequired":true}}`,
+			`{"settings":{"enableSignup":false,"enableEmailVerification":true,"maxDailySignups":7,"allowedDomains":[],"reservedUsernames":[],"bannedUsernames":["banned-contract-new"],"sensitiveWords":[],"sensitiveAction":"block","captchaRequired":true}}`,
 			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.SecuritySettings, pageConfig.SecurityAndRegistration{})
-		if stored.EnableSignup || !stored.CaptchaRequired || stored.SensitiveAction != "block" {
+		if stored.EnableSignup || !stored.CaptchaRequired || stored.SensitiveAction != "block" || stored.MaxDailySignups != 7 {
 			t.Fatalf("stored security settings = %#v, want submitted values", stored)
 		}
 		if len(stored.BannedUsernames) != 1 || stored.BannedUsernames[0] != "banned-contract-new" {

@@ -150,6 +150,8 @@ export default {
     usernameOrEmail: 'Username or email',
     username: 'Username',
     email: 'Email',
+    emailPrefix: 'Email prefix',
+    emailDomain: 'Email domain',
     registeredEmail: 'Registered email',
     password: 'Password',
     newPassword: 'New password',
@@ -1918,6 +1920,7 @@ export default {
         invalid: 'Captcha is incorrect or expired',
       },
       register: {
+        dailyQuota: 'Today\'s registration quota is full. Please try again tomorrow.',
         failed: 'Registration failed',
         retryLogin: 'Registration had an issue; please try signing in',
         emailVerify: 'Registration successful. Please verify your email',

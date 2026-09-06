@@ -51,6 +51,7 @@ export interface LoginPageProps {
   googleReady: boolean
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean
+  allowedDomains: string[]
 }
 
 export interface ResetPasswordPageProps {

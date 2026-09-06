@@ -150,6 +150,8 @@ export default {
     usernameOrEmail: 'ユーザー名またはメール',
     username: 'ユーザー名',
     email: 'メール',
+    emailPrefix: 'メールの前半',
+    emailDomain: 'メールドメイン',
     registeredEmail: '登録メール',
     password: 'パスワード',
     newPassword: '新しいパスワード',
@@ -1918,6 +1920,7 @@ export default {
         invalid: '認証コードが正しくないか期限切れです',
       },
       register: {
+        dailyQuota: '本日の登録枠がいっぱいです。明日もう一度お試しください。',
         failed: '登録に失敗しました',
         retryLogin: '登録に問題が発生しました。ログインを試してください',
         emailVerify: '登録が完了しました。メールを確認してください',

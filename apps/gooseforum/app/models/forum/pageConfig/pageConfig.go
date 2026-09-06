@@ -322,6 +322,7 @@ func (itself AnnouncementConfig) GetActiveItems() []AnnouncementItem {
 type SecurityAndRegistration struct {
 	EnableSignup            bool     `json:"enableSignup"`
 	EnableEmailVerification bool     `json:"enableEmailVerification"`
+	MaxDailySignups         int      `json:"maxDailySignups"` // 每日新用户上限（-1 = 不限；0 = 当天禁止注册）
 	AllowedDomains          []string `json:"allowedDomains"`
 	ReservedUsernames       []string `json:"reservedUsernames"` // 保留用户名：注册/改名拒绝
 	BannedUsernames         []string `json:"bannedUsernames"`   // 禁用用户名：注册/改名拒绝，存量账号自动冻结

@@ -7114,12 +7114,17 @@ AdminSaveSiteThemeRequest:
 
 AdminSecuritySettingsConfig:
   type: object
-  required: [enableSignup, enableEmailVerification, allowedDomains, reservedUsernames, bannedUsernames, sensitiveWords, sensitiveAction, captchaRequired]
+  required: [enableSignup, enableEmailVerification, maxDailySignups, allowedDomains, reservedUsernames, bannedUsernames, sensitiveWords, sensitiveAction, captchaRequired]
   properties:
     enableSignup:
       type: boolean
     enableEmailVerification:
       type: boolean
+    maxDailySignups:
+      type: integer
+      minimum: -1
+      default: -1
+      description: Maximum new users created per server-local day. `-1` means unlimited and `0` disables registration for the day.
     allowedDomains:
       type: array
       items:

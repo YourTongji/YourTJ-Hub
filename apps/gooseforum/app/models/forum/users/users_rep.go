@@ -216,6 +216,15 @@ func ExistEmail(email string) bool {
 	return builder().Select("1").Where("email = ?", email).Limit(1).Scan(&id).RowsAffected > 0
 }
 
+// CountCreatedToday 返回当天新建用户数量，用于注册软限额。
+func CountCreatedToday() int64 {
+	var count int64
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	builder().Where("created_at >= ?", start).Count(&count)
+	return count
+}
+
 // IncrementTokenVersionWithDB increments token_version through the supplied database handle.
 // A missing user is an error so callers can roll back any coupled changes.
 func IncrementTokenVersionWithDB(conn *gorm.DB, userId uint64) error {

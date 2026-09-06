@@ -57,11 +57,14 @@ func Register(c *gin.Context) {
 		c.JSON(200, component.FailDataCode(component.MessageAuthSignupDisabled, nil))
 		return
 	}
-
 	// 蜜罐字段：正常用户不可见，填了即机器，静默拒绝（返回成功但不创建账号）。
 	if strings.TrimSpace(r.Website) != "" {
 		slog.Warn("honeypot_hit", "action", "register", "ip", c.ClientIP(), "userId", uint64(0))
 		c.JSON(http.StatusOK, component.SuccessDataCode("登录成功", component.MessageAuthLoginSuccess, nil))
+		return
+	}
+	if securityConfig.MaxDailySignups >= 0 && users.CountCreatedToday() >= int64(securityConfig.MaxDailySignups) {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterDailyQuota, nil))
 		return
 	}
 

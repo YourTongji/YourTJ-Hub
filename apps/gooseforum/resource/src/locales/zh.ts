@@ -150,6 +150,8 @@ export default {
     usernameOrEmail: '用户名或邮箱',
     username: '用户名',
     email: '邮箱',
+    emailPrefix: '邮箱前缀',
+    emailDomain: '邮箱域名',
     registeredEmail: '注册邮箱',
     password: '密码',
     newPassword: '新密码',
@@ -1920,6 +1922,7 @@ export default {
         invalid: '验证码错误或已过期',
       },
       register: {
+        dailyQuota: '今日注册用户名额已满，请明天再来吧~',
         failed: '注册失败',
         retryLogin: '注册异常，请尝试登录',
         emailVerify: '注册成功，请前往邮箱验证您的账号',

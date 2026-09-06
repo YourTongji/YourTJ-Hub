@@ -45,6 +45,7 @@ const (
 const (
 	MessageAuthRequired                  MessageCode = "auth.required"                   // 需要登录后才能继续操作。
 	MessageAuthSignupDisabled            MessageCode = "auth.signupDisabled"             // 当前站点关闭了注册。
+	MessageAuthRegisterDailyQuota        MessageCode = "auth.register.dailyQuota"        // 今日注册额度已用完。
 	MessageAuthEmailDomainInvalid        MessageCode = "auth.emailDomain.invalid"        // 邮箱格式不正确或无法提取域名。
 	MessageAuthEmailDomainNotAllowed     MessageCode = "auth.emailDomain.notAllowed"     // 邮箱域名不在注册白名单。
 	MessageAuthUsernameInvalid           MessageCode = "auth.username.invalid"           // 用户名格式不符合规则。

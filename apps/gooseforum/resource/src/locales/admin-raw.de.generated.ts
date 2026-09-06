@@ -324,6 +324,8 @@ export default {
   "k008z": "Wenn deaktiviert, erlaubt die öffentliche Website keine Erstellung neuer Konten.",
   "k0090": "E-Mail-Verifizierung verlangen",
   "k0091": "Neue Benutzer müssen ihre E-Mail verifizieren, bevor das Konto aktiviert und nutzbar ist.",
+  "k00lk": "Maximale neue Benutzer pro Tag",
+  "k00ll": "Nach Erreichen des Limits wird die Registrierung für den Tag pausiert und am nächsten Tag automatisch fortgesetzt. -1 bedeutet unbegrenzt.",
   "k0092": "Erlaubte E-Mail-Domains für die Registrierung",
   "k0093": "Leer lassen für keine Einschränkung. Wenn konfiguriert, können sich nur diese E-Mail-Domains registrieren.",
   "k0094": "Hinzufügen",

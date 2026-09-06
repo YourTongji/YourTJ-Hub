@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import PasswordInput from '@/site/components/PasswordInput.vue'
+import SiteSelect from '@/site/components/SiteSelect.vue'
 import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
@@ -20,6 +21,8 @@ type Mode = 'login' | 'register' | 'forgot'
 const { t, locale } = useI18n()
 const { isDark } = useSiteTheme()
 const mode = ref<Mode>(page.props.initialMode || 'login')
+const selectedEmailDomain = ref(page.props.allowedDomains[0] || '')
+const emailDomainOptions = page.props.allowedDomains.map((domain) => ({ value: domain, label: `@${domain}` }))
 const langMenuOpen = ref(false)
 let langCloseTimer: number | undefined
 const twoFactorPending = ref(false)
@@ -168,6 +171,7 @@ async function handleRegister() {
     error.value = t('auth.validation.registerRequired')
     return
   }
+  const email = page.props.allowedDomains.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
   if (registerForm.password !== registerForm.confirmPassword) {
     error.value = t('auth.validation.passwordMismatch')
     return
@@ -183,7 +187,7 @@ async function handleRegister() {
   loading.register = true
   error.value = ''
   try {
-    const message = await register(registerForm.username, registerForm.email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value), registerForm.website)
+    const message = await register(registerForm.username, email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value), registerForm.website)
     queueFlashMessage(message || t('auth.validation.registerSuccess'), 'success')
     window.location.href = homeUrl.value
   } catch (err) {
@@ -394,13 +398,30 @@ function onToggleTheme() {
                 <input v-model.trim="registerForm.username" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
               </span>
             </label>
-            <label class="block">
-              <span class="sr-only">{{ t('auth.email') }}</span>
-              <span class="relative block">
-                <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model.trim="registerForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.email')" autocomplete="email" />
+            <div>
+              <label for="register-email" class="sr-only">{{ t('auth.email') }}</label>
+              <span v-if="page.props.allowedDomains.length > 0" class="gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
+                <span class="relative min-w-0 flex-1">
+                  <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
+                  <input id="register-email" v-model.trim="registerForm.email" type="text" inputmode="email" class="h-full w-full bg-transparent pl-10 pr-2 text-base outline-none sm:text-sm" :placeholder="t('auth.emailPrefix')" />
+                </span>
+                <span v-if="page.props.allowedDomains.length === 1" class="flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
+                  @{{ page.props.allowedDomains[0] }}
+                </span>
+                <SiteSelect
+                  v-else
+                  v-model="selectedEmailDomain"
+                  :options="emailDomainOptions"
+                  :label="t('auth.emailDomain')"
+                  align="end"
+                  class="!h-full !w-auto min-w-[8.5rem] max-w-[55%] shrink-0 !rounded-none !border-0 !border-l !bg-base-200/70 !px-2.5 font-medium !ring-0"
+                />
               </span>
-            </label>
+              <span v-else class="relative block">
+                <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
+                <input id="register-email" v-model.trim="registerForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.email')" autocomplete="email" />
+              </span>
+            </div>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
               <PasswordInput v-model="registerForm.password" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />

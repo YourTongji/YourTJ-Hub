@@ -241,6 +241,7 @@ export interface MailSettings {
 export interface SecuritySettings {
   enableSignup: boolean
   enableEmailVerification: boolean
+  maxDailySignups: number
   allowedDomains: string[]
   reservedUsernames: string[]
   bannedUsernames: string[]
