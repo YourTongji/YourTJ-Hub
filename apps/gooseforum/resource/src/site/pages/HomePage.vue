@@ -105,7 +105,7 @@ function startAnnouncementRotation() {
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   announcementTimer = window.setInterval(() => {
     activeAnnouncementIndex.value = (activeAnnouncementIndex.value + 1) % announcementItems.value.length
-  }, 10000) // 10秒轮换，减少重渲染频率
+  }, 6000)
 }
 
 function stopAnnouncementRotation() {
