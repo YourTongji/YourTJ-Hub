@@ -105,7 +105,7 @@ function startAnnouncementRotation() {
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   announcementTimer = window.setInterval(() => {
     activeAnnouncementIndex.value = (activeAnnouncementIndex.value + 1) % announcementItems.value.length
-  }, 6000)
+  }, 10000) // 10秒轮换，减少重渲染频率
 }
 
 function stopAnnouncementRotation() {
@@ -441,8 +441,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .announcement-unread-bell {
-  /* 未读提醒：持续摇铃标识运动状态；点击后移除该类进入静止态 */
-  animation: announcement-bell-ring 2s ease-in-out infinite;
+  /* 未读提醒：摇铃3次（6秒）后静止，给予视觉反馈而不持续占用 GPU */
+  animation: announcement-bell-ring 2s ease-in-out 3;
   transform-origin: 50% 15%;
 }
 
