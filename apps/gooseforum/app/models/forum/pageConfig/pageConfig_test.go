@@ -4,7 +4,47 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
+
+func TestGetSecuritySettingsConfigCompatibility(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate page config: %v", err)
+	}
+	conn.Where("page_type = ?", SecuritySettings).Delete(&Entity{})
+	entity := Entity{PageType: SecuritySettings, Config: `{}`}
+	if err := conn.Create(&entity).Error; err != nil {
+		t.Fatalf("create security config: %v", err)
+	}
+	t.Cleanup(func() { conn.Where("page_type = ?", SecuritySettings).Delete(&Entity{}) })
+
+	defaults := SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1}
+	tests := []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{name: "missing field", raw: `{"enableSignup":true}`, want: -1},
+		{name: "null field", raw: `{"enableSignup":true,"maxDailySignups":null}`, want: -1},
+		{name: "invalid negative", raw: `{"enableSignup":true,"maxDailySignups":-9}`, want: -1},
+		{name: "explicit limit", raw: `{"enableSignup":true,"maxDailySignups":7}`, want: 7},
+		{name: "bad json", raw: `{`, want: -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := conn.Model(&entity).Update("config", tt.raw).Error; err != nil {
+				t.Fatalf("update security config: %v", err)
+			}
+
+			if got := GetSecuritySettingsConfig(defaults).MaxDailySignups; got != tt.want {
+				t.Fatalf("MaxDailySignups = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestRateLimitActionIndexPreservesFirstDuplicate(t *testing.T) {
 	cfg := RateLimitConfig{Actions: []RateLimitRule{

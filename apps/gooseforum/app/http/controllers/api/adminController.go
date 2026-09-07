@@ -1449,7 +1449,7 @@ func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) 
 	// 归一化匹配（大小写/NFKC 全半角/零宽/leet）与策略层同规则，见
 	// moderationservice.FreezeUsersByBannedUsernames；批量收集后一次扫描，避免
 	// 逐个词全表扫描。
-	current := pageConfig.GetConfigByPageType(pageConfig.SecuritySettings, defaultconfig.GetDefaultSecuritySettingsConfig())
+	current := pageConfig.GetSecuritySettingsConfig(defaultconfig.GetDefaultSecuritySettingsConfig())
 	var addedBanned []string
 	for _, username := range req.Params.Settings.BannedUsernames {
 		normalized := strings.ToLower(strings.TrimSpace(username))

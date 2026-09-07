@@ -5,10 +5,34 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
+
+func TestCountCreatedToday(t *testing.T) {
+	setupUserIsolationTestDB(t)
+
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	yesterday := MakeUser("quota-yesterday", "secret123", "quota-yesterday@example.com")
+	yesterday.CreatedAt = start.Add(-time.Minute)
+	if err := Create(yesterday); err != nil {
+		t.Fatalf("create yesterday user: %v", err)
+	}
+
+	today := MakeUser("quota-today", "secret123", "quota-today@example.com")
+	today.CreatedAt = start.Add(time.Minute)
+	if err := Create(today); err != nil {
+		t.Fatalf("create today user: %v", err)
+	}
+
+	if got := CountCreatedToday(); got != 1 {
+		t.Fatalf("CountCreatedToday = %d, want 1", got)
+	}
+}
 
 func setupUserIsolationTestDB(t *testing.T) {
 	t.Helper()

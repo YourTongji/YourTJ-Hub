@@ -404,10 +404,15 @@ function mailPayload() {
 }
 
 function normalizeSecurity(settings: Partial<SecuritySettings> = {}) {
+  const maxDailySignupsValue = Number(settings.maxDailySignups)
+  const maxDailySignups = String(settings.maxDailySignups ?? '').trim() === '' || !Number.isFinite(maxDailySignupsValue)
+    ? -1
+    : Math.max(-1, Math.trunc(maxDailySignupsValue))
+
   return {
     enableSignup: toBool(settings.enableSignup, true),
     enableEmailVerification: toBool(settings.enableEmailVerification, false),
-    maxDailySignups: Number(settings.maxDailySignups ?? -1),
+    maxDailySignups,
     allowedDomains: Array.isArray(settings.allowedDomains)
       ? settings.allowedDomains.map(item => String(item).trim().toLowerCase()).filter(Boolean)
       : [],

@@ -150,7 +150,7 @@ export default {
     usernameOrEmail: 'ユーザー名またはメール',
     username: 'ユーザー名',
     email: 'メール',
-    emailPrefix: 'メールの前半',
+    emailPrefix: '@より前の部分',
     emailDomain: 'メールドメイン',
     registeredEmail: '登録メール',
     password: 'パスワード',

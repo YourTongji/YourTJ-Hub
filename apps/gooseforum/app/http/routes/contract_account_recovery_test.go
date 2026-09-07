@@ -10,6 +10,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -181,6 +182,55 @@ func TestRegisterHTTPContractSignupDisabled(t *testing.T) {
 	body := `{"email":"newuser@example.com","userName":"brandnewuser","passWord":"password123"}`
 	recorder := serveAccountRecoveryJSON(router, "/api/register", body)
 	assertRegisterResponseCode(t, recorder, "register-signup-disabled.json")
+}
+
+func TestRegisterHTTPContractDailySignupQuota(t *testing.T) {
+	t.Run("zero blocks registration", func(t *testing.T) {
+		conn, router := setupAccountRecoveryContractTest(t)
+		t.Cleanup(func() { cleanAccountRecoveryTables(t, conn) })
+
+		security := defaultRecoverySecurity()
+		security.MaxDailySignups = 0
+		persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
+		hotdataserve.ClearSecuritySettingsConfigCache()
+
+		recorder := serveAccountRecoveryJSON(router, "/api/register",
+			`{"email":"quota-zero@example.com","userName":"quotazero","passWord":"password123"}`)
+		response := decodeContractEnvelope(t, recorder)
+		if response.MessageCode != string(component.MessageAuthRegisterDailyQuota) {
+			t.Fatalf("messageCode = %q, want %q", response.MessageCode, component.MessageAuthRegisterDailyQuota)
+		}
+		if users.ExistUsername("quotazero") {
+			t.Fatal("quota rejection must not create a user")
+		}
+	})
+
+	t.Run("positive limit blocks at boundary", func(t *testing.T) {
+		conn, router := setupAccountRecoveryContractTest(t)
+		t.Cleanup(func() { cleanAccountRecoveryTables(t, conn) })
+
+		security := defaultRecoverySecurity()
+		security.MaxDailySignups = 1
+		persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
+		hotdataserve.ClearSecuritySettingsConfigCache()
+
+		existing := users.MakeUser("quota-existing", "secret123", "quota-existing@example.com")
+		existing.IsActivated = users.ActivationSuccess
+		existing.CreatedAt = time.Now()
+		if err := conn.Create(existing).Error; err != nil {
+			t.Fatalf("create today's user: %v", err)
+		}
+
+		recorder := serveAccountRecoveryJSON(router, "/api/register",
+			`{"email":"quota-next@example.com","userName":"quotanext","passWord":"password123"}`)
+		response := decodeContractEnvelope(t, recorder)
+		if response.MessageCode != string(component.MessageAuthRegisterDailyQuota) {
+			t.Fatalf("messageCode = %q, want %q", response.MessageCode, component.MessageAuthRegisterDailyQuota)
+		}
+		if users.ExistUsername("quotanext") {
+			t.Fatal("quota rejection must not create a user")
+		}
+	})
 }
 
 // TestRegisterHTTPContractRateLimit 验证注册限流：默认 20 次/小时/IP，
@@ -459,6 +509,7 @@ func defaultRecoverySecurity() pageConfig.SecurityAndRegistration {
 	return pageConfig.SecurityAndRegistration{
 		EnableSignup:            true,
 		EnableEmailVerification: false,
+		MaxDailySignups:         -1,
 		CaptchaRequired:         false,
 	}
 }
