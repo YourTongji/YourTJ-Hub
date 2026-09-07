@@ -4,9 +4,9 @@ import (
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/gin-gonic/gin"
