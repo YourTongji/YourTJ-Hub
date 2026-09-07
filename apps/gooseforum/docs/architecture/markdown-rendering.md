@@ -102,7 +102,7 @@ attribute order does not.
 Current checks:
 
 ```bash
-go test ./app/http/controllers/markdown2html
+go test ./app/bundles/markdown2html
 cd resource && pnpm exec vitest run test/markdown-compat.test.ts
 ```
 
@@ -118,7 +118,7 @@ Server rendering owns:
 - SEO and no-JavaScript output
 
 The current server renderer is `goldmark` in
-`app/http/controllers/markdown2html`.
+`app/bundles/markdown2html`.
 
 ## Client Responsibilities
 

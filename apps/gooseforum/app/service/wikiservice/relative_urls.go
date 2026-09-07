@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 	nethtml "golang.org/x/net/html"

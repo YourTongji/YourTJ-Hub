@@ -289,7 +289,7 @@ func loadMarkdownCompatFixtures(t *testing.T) []markdownCompatCase {
 	if !ok {
 		t.Fatal("failed to locate markdown test file")
 	}
-	root := filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "testdata", "markdown-compat")
+	root := filepath.Join(filepath.Dir(file), "..", "..", "..", "testdata", "markdown-compat")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
