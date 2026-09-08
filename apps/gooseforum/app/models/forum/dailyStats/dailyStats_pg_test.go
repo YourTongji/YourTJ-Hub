@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func TestIncrementPostgreSQLExistingRow(t *testing.T) {
+func TestIncrementExistingRowPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {
 		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL daily stats test")
@@ -34,12 +34,14 @@ func TestIncrementPostgreSQLExistingRow(t *testing.T) {
 	})
 
 	for _, key := range []StatType{StatTypeRegCount, StatTypeTopicCount, StatTypeReplyCount} {
-		if err := db.Table(tableName).Clauses(clause.OnConflict{DoNothing: true}).Create(map[string]any{
-			"stat_date":  dayString,
-			"stat_key":   string(key),
-			"stat_value": int64(0),
-		}).Error; err != nil {
-			t.Fatalf("preinitialize %s: %v", key, err)
+		if key != StatTypeReplyCount {
+			if err := db.Table(tableName).Clauses(clause.OnConflict{DoNothing: true}).Create(map[string]any{
+				"stat_date":  dayString,
+				"stat_key":   string(key),
+				"stat_value": int64(0),
+			}).Error; err != nil {
+				t.Fatalf("preinitialize %s: %v", key, err)
+			}
 		}
 		if err := increment(db.Table(tableName), day, key, 1); err != nil {
 			t.Fatalf("first increment(%s): %v", key, err)
