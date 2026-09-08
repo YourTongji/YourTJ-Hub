@@ -76,7 +76,7 @@ func migrateDailyStatsTopicCount(conn *gorm.DB, result *TopicCountNamingResult) 
 		if err := conn.Table("daily_stats").Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "stat_date"}, {Name: "stat_key"}},
 			DoUpdates: clause.Assignments(map[string]any{
-				"stat_value": gorm.Expr("stat_value + ?", row.StatValue),
+				"stat_value": gorm.Expr("daily_stats.stat_value + ?", row.StatValue),
 			}),
 		}).Create(map[string]any{
 			"stat_date":  row.StatDate,

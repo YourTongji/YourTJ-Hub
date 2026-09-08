@@ -18,12 +18,16 @@ const (
 
 // Increment 增加统计值 (Upsert)
 func Increment(date time.Time, key StatType, delta int64) error {
+	return increment(builder(), date, key, delta)
+}
+
+func increment(db *gorm.DB, date time.Time, key StatType, delta int64) error {
 	dateStr := date.Format("2006-01-02")
 
-	return builder().Clauses(clause.OnConflict{
+	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "stat_date"}, {Name: "stat_key"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"stat_value": gorm.Expr("stat_value + ?", delta),
+			"stat_value": gorm.Expr(tableName+".stat_value + ?", delta),
 		}),
 	}).Create(map[string]any{
 		"stat_date":  dateStr,
