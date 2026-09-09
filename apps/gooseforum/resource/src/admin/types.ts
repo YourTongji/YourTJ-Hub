@@ -449,6 +449,7 @@ export interface DailyTraffic {
   regCount: number
   topicCount: number
   replyCount: number
+  courseReviewCount: number
 }
 
 export interface ServerVersion {

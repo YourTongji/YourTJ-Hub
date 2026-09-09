@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
@@ -183,6 +184,9 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 	if err != nil {
 		return ReviewPayload{}, err
 	}
+	// 流量概览课评统计（issue #582）：新建与恢复重写两条成功路径都会走到这里，
+	// 事务提交后计数；统计写入失败不影响写评结果（与事件统计的最终一致语义相同）。
+	_ = dailyStats.Increment(time.Now(), dailyStats.StatTypeCourseReviewCount, 1)
 	// 事务已提交后再回填 member 作者名：users.Get 需要独立连接，
 	// 在事务内调用会在单连接 SQLite 测试环境下死锁。
 	fillReviewAuthorLabel(&payload, userId)

@@ -10220,6 +10220,11 @@ export interface components {
              * @description Published replies that day; 0 when no stat row exists.
              */
             replyCount: number;
+            /**
+             * Format: int64
+             * @description Published course reviews that day; 0 when no stat row exists.
+             */
+            courseReviewCount: number;
         };
         AdminOptRecordItem: {
             /** Format: uint64 */

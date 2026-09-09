@@ -63,7 +63,7 @@ export default {
   "k001q": "New posts",
   "k001r": "New replies",
   "k001s": "Traffic overview",
-  "k001t": "Growth trend of registered users, posts, and replies",
+  "k001t": "Growth trend of registered users, posts, replies, and course reviews",
   "k001u": "Operation failed",
   "k001v": "Special sponsors",
   "k001w": "Gold sponsors",
@@ -884,4 +884,5 @@ export default {
   "k00un": "センシティブワードはスペースを含む複数語のフレーズに対応：改行・カンマ・読点・セミコロンでのみ区切り、エントリ内のスペースは保持されます（例：credit card cash out は 1 つのフレーズとして取り込まれます）。",
   "k00uo": "サポートされていない拡張子: {extensions}。利用可能なのは JPG、JPEG、PNG、GIF、WebP、BMP のみです",
   "k00up": "リンクには http(s) の絶対 URL またはサイト内の相対パスのみ使用できます（お問い合わせボタンは mailto: も可）。javascript:/data: などのプロトコルは許可されません。",
+  "k00uq": "Course reviews",
 } as const

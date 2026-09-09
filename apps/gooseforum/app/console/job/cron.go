@@ -73,6 +73,7 @@ func registerJobs() {
 			dailyStats.StatTypeRegCount,
 			dailyStats.StatTypeTopicCount,
 			dailyStats.StatTypeReplyCount,
+			dailyStats.StatTypeCourseReviewCount,
 		}
 		for i := range 7 {
 			date := now.AddDate(0, 0, i)

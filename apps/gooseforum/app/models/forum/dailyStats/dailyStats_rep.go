@@ -11,9 +11,10 @@ import (
 type StatType string
 
 const (
-	StatTypeRegCount   StatType = "reg_count"   // 注册用户数
-	StatTypeTopicCount StatType = "topic_count" // 主题发布数
-	StatTypeReplyCount StatType = "reply_count" // 回复发布数
+	StatTypeRegCount          StatType = "reg_count"           // 注册用户数
+	StatTypeTopicCount        StatType = "topic_count"         // 主题发布数
+	StatTypeReplyCount        StatType = "reply_count"         // 回复发布数
+	StatTypeCourseReviewCount StatType = "course_review_count" // 课评发布数
 )
 
 // Increment 增加统计值 (Upsert)
