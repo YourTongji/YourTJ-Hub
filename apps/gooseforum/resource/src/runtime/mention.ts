@@ -26,10 +26,10 @@ export interface MentionToken {
  * @ 触发边界：@ 前一个字符不能是单词字符/数字/下划线。
  * "a@b" / "foo@bar"（邮箱、标识符）不触发；"谢谢@张三"（CJK 前）触发。
  */
-const MENTION_TRIGGER_BOUNDARY = /[^A-Za-z0-9_]/
+const MENTION_TRIGGER_BOUNDARY = /[^A-Za-z0-9_@/\\-]/
 
 /** token 内终止字符：空白与常见（中英文）终止标点 */
-const TOKEN_TERMINATOR = /[\s，。！？；：、（）【】「」『』“”‘’…,.!?;:()<>"'/\\|{}\[\]-]/
+const TOKEN_TERMINATOR = /[\s，。！？；：、（）【】「」『』“”‘’…,.!?;:()<>"'/\\|{}\[\]]/
 
 /**
  * 从光标前文本中提取最近的 @mention token。

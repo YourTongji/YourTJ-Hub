@@ -110,3 +110,9 @@ describe('rankMentionCandidates（候选排序/去重/排除自己，issue #564�
     expect(result).toHaveLength(8)
   })
 })
+
+test('mention query supports hyphens and excludes escaped or doubled at signs', () => {
+ expect(extractMentionToken('@alice-sm')).toMatchObject({query:'alice-sm'})
+ expect(extractMentionToken('\\@alice')).toBeNull()
+ expect(extractMentionToken('@@alice')).toBeNull()
+})

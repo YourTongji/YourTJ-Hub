@@ -111,6 +111,9 @@ function refreshMentionSession() {
   }
   // 至少 1 字符：300ms debounce 后查服务端；query 变化即废弃在途旧响应（防 debounce 窗口内旧结果覆盖）
   if (token.query !== lastScheduledQuery) {
+    mentionCandidates.value = rankMentionCandidates({ local, server: [], query: token.query, currentUserId })
+    mentionActiveIndex.value = 0
+    mentionFailed.value = false
     lastScheduledQuery = token.query
     mentionSearchSeq++
     mentionAbort?.abort()
@@ -156,7 +159,14 @@ function cancelMentionSearch() {
   mentionLoading.value = false
 }
 
+function clearMentionAria(element: HTMLElement | null) {
+  for (const name of ['role', 'aria-autocomplete', 'aria-expanded', 'aria-controls', 'aria-activedescendant']) {
+    element?.removeAttribute(name)
+  }
+}
+
 function closeMention() {
+  clearMentionAria(mentionEditorElement.value)
   cancelMentionSearch()
   lastScheduledQuery = ''
   mentionOpen.value = false
@@ -196,10 +206,11 @@ function onEditorInput() {
 }
 
 function onEditorAreaKeydown(event: KeyboardEvent) {
-  if (event.isComposing) return
+  if (!(event.target instanceof Node) || !editorArea.value?.contains(event.target) || event.isComposing) return
   if (!mentionOpen.value || !mentionCandidates.value.length) {
     if (mentionOpen.value && event.key === 'Escape') {
       event.preventDefault()
+      event.stopPropagation()
       closeMention()
     }
     return
@@ -207,18 +218,22 @@ function onEditorAreaKeydown(event: KeyboardEvent) {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
+      event.stopPropagation()
       moveMentionActive(1)
       break
     case 'ArrowUp':
       event.preventDefault()
+      event.stopPropagation()
       moveMentionActive(-1)
       break
     case 'Enter':
       event.preventDefault()
+      event.stopPropagation()
       selectMention(mentionCandidates.value[mentionActiveIndex.value])
       break
     case 'Escape':
       event.preventDefault()
+      event.stopPropagation()
       closeMention()
       break
     // Tab 不做补全键：保持正常焦点导航
@@ -294,33 +309,25 @@ function mentionTagLabel(tag: MentionUser['tag']) {
   return ''
 }
 
-watch(mentionActiveIndex, (index) => {
-  const optionId = mentionOpen.value && mentionCandidates.value[index]
-    ? mentionOptionId(mentionCandidates.value[index])
-    : ''
-  mentionEditorElement.value?.setAttribute('aria-activedescendant', optionId)
-  mentionEditorElement.value?.setAttribute('aria-expanded', mentionOpen.value ? 'true' : 'false')
-})
-
-watch(mentionOpen, (open) => {
+watch([mentionOpen, mentionActiveIndex, mentionCandidates, mentionEditorElement], () => {
   const element = mentionEditorElement.value
   if (!element) return
-  if (open) {
-    element.setAttribute('role', 'combobox')
-    element.setAttribute('aria-autocomplete', 'list')
-    element.setAttribute('aria-expanded', 'true')
-    element.setAttribute('aria-controls', 'gf-mention-listbox')
-    element.setAttribute('aria-activedescendant', mentionCandidates.value[mentionActiveIndex.value]
-      ? mentionOptionId(mentionCandidates.value[mentionActiveIndex.value])
-      : '')
-  } else {
-    element.removeAttribute('role')
-    element.removeAttribute('aria-autocomplete')
-    element.removeAttribute('aria-expanded')
-    element.removeAttribute('aria-controls')
-    element.removeAttribute('aria-activedescendant')
+  if (!mentionOpen.value) {
+    clearMentionAria(element)
+    return
   }
+  element.setAttribute('role', 'combobox')
+  element.setAttribute('aria-autocomplete', 'list')
+  element.setAttribute('aria-expanded', 'true')
+  element.setAttribute('aria-controls', 'gf-mention-listbox')
+  const candidate = mentionCandidates.value[mentionActiveIndex.value]
+  if (candidate) element.setAttribute('aria-activedescendant', mentionOptionId(candidate))
+  else element.removeAttribute('aria-activedescendant')
 })
+
+function updateMentionPosition() {
+  if (mentionOpen.value) mentionRect.value = editor.value?.getMentionContext()?.rect ?? null
+}
 
 /** 浮动面板高度：支持桌面端与移动端顶部手柄拖拽调整 */
 const MOBILE_VIEWPORT_QUERY = '(max-width: 520px)'
@@ -340,6 +347,7 @@ onMounted(() => {
   }
   updateMentionLayout()
   window.addEventListener('resize', updateMentionLayout)
+  document.addEventListener('scroll', updateMentionPosition, true)
   // capture 阶段监听：editorArea 可能随 authenticated 翻转晚挂载，故挂 document 上按目标过滤
   document.addEventListener('keydown', onEditorAreaKeydown, true)
   document.addEventListener('click', onDocumentClickCapture, true)
@@ -423,6 +431,7 @@ onBeforeUnmount(() => {
   clearTimeout(mentionDebounceTimer)
   mentionAbort?.abort()
   window.removeEventListener('resize', updateMentionLayout)
+  document.removeEventListener('scroll', updateMentionPosition, true)
   document.removeEventListener('keydown', onEditorAreaKeydown, true)
   document.removeEventListener('click', onDocumentClickCapture, true)
   document.removeEventListener('focusout', onDocumentFocusOutCapture, true)

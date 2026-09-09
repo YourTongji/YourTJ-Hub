@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } from "@/runtime/mention-dom"
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
@@ -1643,41 +1644,6 @@ function currentModeElement(): HTMLElement | null {
 }
 
 /** 从 caret 所在节点向前回溯至多 max 字符的纯文本（跨内联节点，忽略元素边界） */
-function textBeforeCaret(container: Node, offset: number, max: number, element: HTMLElement): string {
-  const parts: string[] = []
-  let remaining = max
-  let node: Node | null = container
-  let nodeOffset = offset
-  // 容器是元素且 offset > 0：先回溯其第 offset-1 个子树末尾文本（caret 位于元素边界时）
-  if (node.nodeType !== Node.TEXT_NODE && offset > 0) {
-    const child = node.childNodes[offset - 1]
-    if (child) {
-      node = child
-      while (node.lastChild) node = node.lastChild
-      nodeOffset = (node.textContent ?? '').length
-    }
-  }
-  while (node && remaining > 0) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? ''
-      const take = Math.min(remaining, nodeOffset)
-      if (take > 0) parts.unshift(text.slice(nodeOffset - take, nodeOffset))
-      remaining -= take
-      nodeOffset = 0
-    }
-    let prev = node.previousSibling
-    if (!prev) {
-      if (node === element) break
-      node = node.parentNode
-      continue
-    }
-    node = prev
-    while (node.lastChild) node = node.lastChild
-    nodeOffset = (node.textContent ?? '').length
-  }
-  return parts.join('')
-}
-
 /** wysiwyg/ir：光标是否位于渲染后的 code/pre/a 内（排除编辑元素根节点自身是 pre 的情况） */
 function isInsideRenderedCode(node: Node, element: HTMLElement): boolean {
   const el = node instanceof Element ? node : node.parentElement
@@ -1687,12 +1653,6 @@ function isInsideRenderedCode(node: Node, element: HTMLElement): boolean {
 }
 
 /** sv：光标前的围栏（```/~~~）或行内反引号成对，奇数对则位于代码内 */
-function isInsideFencedCode(prefix: string): boolean {
-  const fences = (prefix.match(/```|~~~/g) ?? []).length
-  if (fences % 2 === 1) return true
-  return (prefix.match(/`/g) ?? []).length % 2 === 1
-}
-
 /** 当前光标处的 mention 上下文；caret 不在编辑器内或选区非折叠时返回 null */
 function getMentionContext(): MentionCaretContext | null {
   const element = currentModeElement()
@@ -1701,11 +1661,11 @@ function getMentionContext(): MentionCaretContext | null {
   if (!selection || selection.rangeCount === 0) return null
   const range = selection.getRangeAt(0)
   if (!range.collapsed || !element.contains(range.startContainer)) return null
-  const prefix = textBeforeCaret(range.startContainer, range.startOffset, MENTION_PREFIX_LIMIT, element)
+  const prefix = textBeforeCaret(range.startContainer, range.startOffset, Number.MAX_SAFE_INTEGER, element)
   const mode = editor!.vditor.currentMode
   const inCode = mode === 'sv' ? isInsideFencedCode(prefix) : isInsideRenderedCode(range.startContainer, element)
   const rect = range.getBoundingClientRect()
-  return { prefix, rect: rect.width === 0 && rect.height === 0 ? null : rect, inCode, element }
+  return { prefix: prefix.slice(-MENTION_PREFIX_LIMIT), rect: rect.width === 0 && rect.height === 0 ? null : rect, inCode, element }
 }
 
 /**
@@ -1716,49 +1676,7 @@ function getMentionContext(): MentionCaretContext | null {
  */
 function replaceMentionToken(queryLength: number, replacement: string): boolean {
   const element = currentModeElement()
-  if (!element) return false
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return false
-  const range = selection.getRangeAt(0)
-  if (!range.collapsed || !element.contains(range.startContainer)) return false
-
-  let node: Node = range.startContainer
-  let offset = range.startOffset
-  if (node.nodeType !== Node.TEXT_NODE && offset > 0) {
-    const child = node.childNodes[offset - 1]
-    if (child) {
-      node = child
-      while (node.lastChild) node = node.lastChild
-      offset = (node.textContent ?? '').length
-    }
-  }
-  let remaining = queryLength
-  while (remaining > 0) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? ''
-      const take = Math.min(remaining, offset)
-      offset -= take
-      remaining -= take
-      if (remaining === 0) break
-    }
-    const prev = node.previousSibling
-    if (prev) {
-      node = prev
-      while (node.lastChild) node = node.lastChild
-      offset = (node.textContent ?? '').length
-    } else {
-      const parent = node.parentNode
-      if (!parent || parent === element) return false
-      node = parent
-    }
-  }
-
-  const tokenRange = document.createRange()
-  tokenRange.setStart(node, offset)
-  tokenRange.setEnd(range.startContainer, range.startOffset)
-  selection.removeAllRanges()
-  selection.addRange(tokenRange)
-  return document.execCommand('insertText', false, `${replacement} `)
+  return element ? replaceMentionTokenInElement(element, queryLength, replacement) : false
 }
 
 function getValue() {

@@ -91,7 +91,7 @@ function searchUser(id: number, username: string, nickname?: string) {
 const searchPending = new Map<string, Deferred<ReturnType<typeof searchUser>[]>>()
 
 function typePrefix(wrapper: VueWrapper, prefix: string) {
-  currentStubApi?.setMentionContext({ prefix })
+  currentStubApi?.setMentionContext({ prefix, element: wrapper.findComponent({ name: 'VditorOfficialStub' }).element as HTMLElement })
   const stub = wrapper.findComponent({ name: 'VditorOfficialStub' })
   stub.vm.$emit('input')
 }
@@ -260,21 +260,17 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     expect(panel.querySelectorAll('[role="option"]')).toHaveLength(2)
     expect(panel.querySelector('[data-active="true"]')!.getAttribute('aria-label')).toContain('@wavery')
 
-    const rawHandler = () => console.log('[debug] raw document keydown fired')
-    document.addEventListener('keydown', rawHandler)
     const arrowDown = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
-    document.dispatchEvent(arrowDown)
-    document.removeEventListener('keydown', rawHandler)
-    console.log('[debug] arrowDown defaultPrevented:', arrowDown.defaultPrevented)
+    wrapper.findComponent({ name: 'VditorOfficialStub' }).element.dispatchEvent(arrowDown)
     await flushPromises()
     expect(panel.querySelector('[data-active="true"]')!.getAttribute('aria-label')).toContain('@wangwu')
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    wrapper.findComponent({ name: 'VditorOfficialStub' }).element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
     await flushPromises()
     expect(panel.querySelector('[data-active="true"]')!.getAttribute('aria-label')).toContain('@wavery')
 
     const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
-    document.dispatchEvent(enterEvent)
+    wrapper.findComponent({ name: 'VditorOfficialStub' }).element.dispatchEvent(enterEvent)
     expect(enterEvent.defaultPrevented).toBe(true)
     // "@wa" token 长度 3，替换为 @wavery 并补空格；插入后会话关闭
     const inserted = currentStubApi!.getInserted()
@@ -288,12 +284,12 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     const { wrapper } = mountComposer({})
     await openMentionWithSearch(wrapper, '@wa', [searchUser(21, 'wavery')])
     const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
-    document.dispatchEvent(tabEvent)
+    wrapper.findComponent({ name: 'VditorOfficialStub' }).element.dispatchEvent(tabEvent)
     expect(tabEvent.defaultPrevented).toBe(false)
     expect(currentStubApi!.getInserted()).toHaveLength(0)
 
     const escEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
-    document.dispatchEvent(escEvent)
+    wrapper.findComponent({ name: 'VditorOfficialStub' }).element.dispatchEvent(escEvent)
     expect(escEvent.defaultPrevented).toBe(true)
     await flushPromises()
     expect(mentionPanel()).toBeNull()
@@ -318,4 +314,37 @@ describe('PostComposer @mention 会话（issue #564）', () => {
     expect(panel.getAttribute('style') || '').not.toContain('position: absolute')
     wrapper.unmount()
   })
+})
+
+test('keyboard events outside the editor do not select a mention', async () => {
+ const { wrapper }=mountComposer({})
+ await openMentionWithSearch(wrapper,'@wa',[searchUser(21,'wavery')])
+ const outside=document.createElement('input');document.body.append(outside)
+ const event=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})
+ outside.dispatchEvent(event)
+ expect(event.defaultPrevented).toBe(false)
+ expect(currentStubApi!.getInserted()).toEqual([])
+ wrapper.unmount()
+})
+test('closing mention clears editor ARIA references', async () => {
+ const { wrapper }=mountComposer({})
+ await openMentionWithSearch(wrapper,'@wa',[searchUser(21,'wavery')])
+ const el=wrapper.findComponent({ name: 'VditorOfficialStub' }).element
+ expect(el.getAttribute('aria-expanded')).toBe('true')
+ typePrefix(wrapper,'hello ')
+ await flushPromises()
+ expect(el.hasAttribute('aria-controls')).toBe(false)
+ expect(el.hasAttribute('aria-activedescendant')).toBe(false)
+ wrapper.unmount()
+})
+test('search failures are visible and never leave stale selectable results',async()=>{
+ const {wrapper}=mountComposer({})
+ await openMentionWithSearch(wrapper,'@wa',[searchUser(21,'wavery')])
+ vi.mocked(searchForumUsers).mockRejectedValueOnce(new Error('offline'))
+ typePrefix(wrapper,'@different')
+ await vi.advanceTimersByTimeAsync(300)
+ await flushPromises()
+ expect(mentionPanel()!.textContent).toContain(i18n.global.t('mention.searchFailed'))
+ expect(mentionPanel()!.querySelectorAll('[role="option"]')).toHaveLength(0)
+ wrapper.unmount()
 })
