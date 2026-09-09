@@ -947,6 +947,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleConflictBadge => '時間重複';
 
   @override
+  String scheduleConflictWith(String course) {
+    return '「$course」と時間重複';
+  }
+
+  @override
+  String scheduleConflictsWith(String course, int count) {
+    return '「$course」など$count件と時間重複';
+  }
+
+  @override
+  String get scheduleConflictCanAdd => '追加可能';
+
+  @override
   String get scheduleAddCustomEvent => '予定枠を追加';
 
   @override

@@ -958,6 +958,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleConflictBadge => 'Conflict';
 
   @override
+  String scheduleConflictWith(String course) {
+    return 'Conflicts with \"$course\"';
+  }
+
+  @override
+  String scheduleConflictsWith(String course, int count) {
+    return 'Conflicts with \"$course\" and $count other courses';
+  }
+
+  @override
+  String get scheduleConflictCanAdd => 'Can still add';
+
+  @override
   String get scheduleAddCustomEvent => 'Add placeholder';
 
   @override

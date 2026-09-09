@@ -533,6 +533,26 @@
   "scheduleStatsHours": "Hours",
   "scheduleStatsConflicts": "Conflicts",
   "scheduleConflictBadge": "Conflict",
+  "scheduleConflictWith": "Conflicts with \"{course}\"",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "Conflicts with \"{course}\" and {count} other courses",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "Can still add",
   "scheduleAddCustomEvent": "Add placeholder",
   "scheduleCustomEventLabel": "Busy",
   "scheduleExportPng": "Export image",

@@ -13,6 +13,8 @@ analyzer:
   exclude:
     # iOS/Android 构建产物（flutter run 的 SPM checkout 源码不在分析范围）。
     - build/**
+    - android/**
+    - ios/**
 
 linter:
   # The lint rules applied to this project can be customized in the

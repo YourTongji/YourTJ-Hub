@@ -134,7 +134,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: Campus previews real reviewed courses and links to the course catalog, scheduler and
   Wiki. It does not display an official personal calendar or claim an enrollment integration.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning grid,
-  with week filters, conflicts, custom blocks and existing plan operations. A prominent tip opens
+  with week filters, conflicts, custom blocks and existing plan operations. Web and mobile warn
+  about time conflicts before a teaching class is selected, while keeping the add action
+  non-blocking. A prominent tip opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;

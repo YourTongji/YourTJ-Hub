@@ -945,6 +945,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleConflictBadge => '冲突';
 
   @override
+  String scheduleConflictWith(String course) {
+    return '与「$course」时间冲突';
+  }
+
+  @override
+  String scheduleConflictsWith(String course, int count) {
+    return '与「$course」等$count门课程冲突';
+  }
+
+  @override
+  String get scheduleConflictCanAdd => '仍可加入';
+
+  @override
   String get scheduleAddCustomEvent => '添加占位';
 
   @override

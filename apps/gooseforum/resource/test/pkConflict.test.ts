@@ -3,9 +3,11 @@ import {
   canAddCourse,
   createEmptyOccupied,
   deleteOccupied,
+  findClassConflicts,
   findConflicts,
   getCourseBaseCode,
   insertOccupied,
+  isArrangementConflicted,
   isClassOfCourse,
   isSameCourse,
   type PkConflictItem,
@@ -129,5 +131,58 @@ describe('findConflicts', () => {
     const occupied = createEmptyOccupied()
     const candidate = detail('122006.01', [arr(1, [3], [1, 8])])
     expect(findConflicts(candidate, occupied)).toEqual([])
+  })
+})
+
+describe('findClassConflicts (候选班级冲突预检)', () => {
+  test('同时间同周次检出外部课程冲突', () => {
+    let occupied = createEmptyOccupied()
+    occupied = insertOccupied(occupied, [arr(1, [3], makeWeeks(1, 8))], '122004.01', '高数')
+    const candidate = detail('122005.01', [arr(1, [3], makeWeeks(3, 4))])
+    const conflicts = findClassConflicts(candidate, occupied)
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].code).toBe('122004.01')
+    expect(conflicts[0].courseName).toBe('高数')
+  })
+
+  test('同门课程换班隐式替换不视为冲突', () => {
+    let occupied = createEmptyOccupied()
+    occupied = insertOccupied(occupied, [arr(1, [3], makeWeeks(1, 8))], '122004.01', '高数')
+    // 候选为同一门课程的另一个班级 122004.02，即使时段重叠也不应当作外部冲突
+    const candidate = detail('122004.02', [arr(1, [3], makeWeeks(1, 8))])
+    const conflicts = findClassConflicts(candidate, occupied)
+    expect(conflicts).toHaveLength(0)
+  })
+
+  test('自定义事件占位符 custom: 正常参与冲突计算且不与同自定义项冲突', () => {
+    let occupied = createEmptyOccupied()
+    occupied = insertOccupied(occupied, [arr(2, [1, 2], makeWeeks(1, 10))], 'custom:team_meeting', '组会')
+    const candidate = detail('122008.01', [arr(2, [1], makeWeeks(2, 4))])
+    const conflicts = findClassConflicts(candidate, occupied)
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].code).toBe('custom:team_meeting')
+    expect(conflicts[0].courseName).toBe('组会')
+  })
+})
+
+describe('isArrangementConflicted (单时段冲突判断)', () => {
+  test('重叠时段返回 true，无交集时段返回 false', () => {
+    let occupied = createEmptyOccupied()
+    occupied = insertOccupied(occupied, [arr(1, [3, 4], makeWeeks(1, 8))], '122004.01', '高数')
+
+    const slot1 = arr(1, [3], makeWeeks(2, 4))
+    const slot2 = arr(1, [5], makeWeeks(1, 8))
+    const slot3 = arr(2, [3], makeWeeks(1, 8))
+
+    expect(isArrangementConflicted(slot1, '122005.01', occupied)).toBe(true)
+    expect(isArrangementConflicted(slot2, '122005.01', occupied)).toBe(false)
+    expect(isArrangementConflicted(slot3, '122005.01', occupied)).toBe(false)
+  })
+
+  test('与自身课程的时段重叠不判定为冲突', () => {
+    let occupied = createEmptyOccupied()
+    occupied = insertOccupied(occupied, [arr(1, [3], makeWeeks(1, 8))], '122004.01', '高数')
+    const selfSlot = arr(1, [3], makeWeeks(1, 8))
+    expect(isArrangementConflicted(selfSlot, '122004.02', occupied)).toBe(false)
   })
 })

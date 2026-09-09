@@ -287,6 +287,26 @@
   "scheduleStatsHours": "合計時限",
   "scheduleStatsConflicts": "重複",
   "scheduleConflictBadge": "時間重複",
+  "scheduleConflictWith": "「{course}」と時間重複",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "「{course}」など{count}件と時間重複",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "追加可能",
   "scheduleAddCustomEvent": "予定枠を追加",
   "scheduleCustomEventLabel": "予定あり",
   "scheduleExportPng": "画像を出力",

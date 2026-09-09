@@ -14,6 +14,8 @@ analyzer:
     # freezed 私有构造器参数上的 @JsonKey 会触发该警告，为 freezed 官方
     # 已知误报（freezed 文档建议忽略）；defaultValue 容错注解依赖它生效。
     invalid_annotation_target: ignore
+  exclude:
+    - build/**
 
 linter:
   # The lint rules applied to this project can be customized in the

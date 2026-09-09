@@ -276,6 +276,82 @@ void main() {
       );
     });
 
+    test('findClassConflicts 候选班级冲突预检（同门换班不互斥，保留外部冲突）', () {
+      var occ = insertOccupied(
+        createEmptyOccupied(),
+        [
+          arr(1, [3, 4], [1, 2, 3, 4]),
+        ],
+        '122004.01',
+        '高等数学',
+      );
+      occ = insertOccupied(
+        occ,
+        [
+          arr(2, [5, 6], [1, 2, 3, 4]),
+        ],
+        '123005.01',
+        '大学英语',
+      );
+
+      // 同门课程换班（122004.02），时间与 122004.01 重叠，但不应判定为与自己冲突
+      final candidateSameCourse = det('122004.02', [
+        arr(1, [3, 4], [1, 2]),
+      ]);
+      final sameConflicts = findClassConflicts(candidateSameCourse, occ);
+      expect(sameConflicts, isEmpty);
+
+      // 与外部课程冲突（123005.01）
+      final candidateDiffCourse = det('125007.01', [
+        arr(2, [5, 6], [2]),
+      ]);
+      final diffConflicts = findClassConflicts(candidateDiffCourse, occ);
+      expect(diffConflicts, hasLength(1));
+      expect(diffConflicts.single.code, '123005.01');
+      expect(diffConflicts.single.courseName, '大学英语');
+
+      // 自定义占位符 custom: 正常参与冲突
+      var occWithCustom = insertOccupied(
+        createEmptyOccupied(),
+        [
+          arr(3, [1, 2], [1, 2]),
+        ],
+        'custom:meeting',
+        '组会',
+      );
+      final candidateCustomConflict = det('129009.01', [
+        arr(3, [1], [1]),
+      ]);
+      final customConflicts = findClassConflicts(
+        candidateCustomConflict,
+        occWithCustom,
+      );
+      expect(customConflicts, hasLength(1));
+      expect(customConflicts.single.code, 'custom:meeting');
+    });
+
+    test('isArrangementConflicted 单时段颗粒度预检', () {
+      final occ = insertOccupied(
+        createEmptyOccupied(),
+        [
+          arr(1, [3, 4], [1, 2, 3, 4]),
+        ],
+        '122004.01',
+        '高等数学',
+      );
+
+      // 与 122004 冲突的时段
+      final clashSlot = arr(1, [3], [2]);
+      expect(isArrangementConflicted(clashSlot, '125007.01', occ), isTrue);
+
+      // 无冲突时段
+      final freeSlot = arr(1, [5], [2]);
+      expect(isArrangementConflicted(freeSlot, '125007.01', occ), isFalse);
+
+      // 同课换班的时段重叠不判定为冲突
+      expect(isArrangementConflicted(clashSlot, '122004.02', occ), isFalse);
+    });
+
     test('deriveConflicts：双向 + custom 事件 + 同课不互斥', () {
       var occ = insertOccupied(
         createEmptyOccupied(),

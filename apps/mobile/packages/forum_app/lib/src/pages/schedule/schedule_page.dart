@@ -2059,7 +2059,11 @@ class _PickTabState extends ConsumerState<_PickTab> {
                   credit: course.credit,
                   faculty: course.faculty,
                   teacherText: _majorTeacherText(course),
-                  onTap: () => _openClasses(context, course.courseCode),
+                  onTap: () => _openClasses(
+                    context,
+                    course.courseCode,
+                    courseName: course.courseName,
+                  ),
                 ),
             ],
           )
@@ -2090,7 +2094,11 @@ class _PickTabState extends ConsumerState<_PickTab> {
                     credit: course.credit,
                     faculty: course.faculty,
                     teacherText: '',
-                    onTap: () => _openClasses(context, course.courseCode),
+                    onTap: () => _openClasses(
+                      context,
+                      course.courseCode,
+                      courseName: course.courseName,
+                    ),
                   ),
               ],
             ],
@@ -2122,7 +2130,11 @@ class _PickTabState extends ConsumerState<_PickTab> {
     return names.toSet().join('、');
   }
 
-  Future<void> _openClasses(BuildContext context, String courseCode) async {
+  Future<void> _openClasses(
+    BuildContext context,
+    String courseCode, {
+    String? courseName,
+  }) async {
     final ScheduleState state = ref.read(scheduleStoreProvider);
     final int calendarId = state.majorSelected.calendarId!;
     final List<PkCourseDetailBrief> briefs;
@@ -2144,7 +2156,7 @@ class _PickTabState extends ConsumerState<_PickTab> {
     await showGfBottomSheet<void>(
       context,
       builder: (BuildContext sheetContext) =>
-          _ClassListSheet(briefs: briefs, courseName: courseCode),
+          _ClassListSheet(briefs: briefs, courseName: courseName ?? courseCode),
     );
   }
 
@@ -2167,24 +2179,11 @@ class _PickTabState extends ConsumerState<_PickTab> {
       return;
     }
     if (!mounted || briefs.isEmpty) return;
-    _selectBrief(briefs.first, course.courseName);
-  }
-
-  void _selectBrief(PkCourseDetailBrief brief, String courseName) {
-    final ScheduleStoreNotifier notifier = ref.read(
-      scheduleStoreProvider.notifier,
+    await showGfBottomSheet<void>(
+      context,
+      builder: (BuildContext sheetContext) =>
+          _ClassListSheet(briefs: briefs, courseName: course.courseName),
     );
-    final StageCourseResult result = notifier.selectClass(
-      detailFromBrief(brief),
-      courseName,
-    );
-    if (!mounted) return;
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    if (result.conflicts.isNotEmpty) {
-      showGfToast(context, l10n.scheduleConflictBadge);
-    } else {
-      showGfToast(context, l10n.scheduleSelected);
-    }
   }
 }
 
@@ -2438,6 +2437,10 @@ class _ClassListSheet extends ConsumerWidget {
                   _ClassRow(
                     brief: brief,
                     selected: active.selectedCourses.contains(brief.code),
+                    conflicts: findClassConflicts(
+                      detailFromBrief(brief),
+                      state.occupied,
+                    ),
                     onTap: () {
                       final StageCourseResult result = notifier.selectClass(
                         detailFromBrief(brief),
@@ -2464,17 +2467,20 @@ class _ClassRow extends StatelessWidget {
   const _ClassRow({
     required this.brief,
     required this.selected,
+    required this.conflicts,
     required this.onTap,
   });
 
   final PkCourseDetailBrief brief;
   final bool selected;
+  final List<PkConflictItem> conflicts;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
+    final bool hasConflict = !selected && conflicts.isNotEmpty;
     final List<String> teachers = brief.teachers
         .map((PkTeacherRef t) => t.teacherName)
         .where((String s) => s.isNotEmpty)
@@ -2484,7 +2490,14 @@ class _ClassRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
+          color: hasConflict ? colors.error.withValues(alpha: 0.04) : null,
           border: Border(
+            left: hasConflict
+                ? BorderSide(
+                    color: colors.error.withValues(alpha: 0.8),
+                    width: 3,
+                  )
+                : BorderSide.none,
             bottom: BorderSide(color: colors.line.withValues(alpha: 0.7)),
           ),
         ),
@@ -2530,6 +2543,65 @@ class _ClassRow extends StatelessWidget {
                       ],
                     ],
                   ),
+                  if (hasConflict) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.error.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: colors.error.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 13,
+                            color: colors.error,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              conflicts.length == 1
+                                  ? l10n.scheduleConflictWith(
+                                      conflicts.first.courseName.isNotEmpty
+                                          ? conflicts.first.courseName
+                                          : conflicts.first.code,
+                                    )
+                                  : l10n.scheduleConflictsWith(
+                                      conflicts.first.courseName.isNotEmpty
+                                          ? conflicts.first.courseName
+                                          : conflicts.first.code,
+                                      conflicts.length,
+                                    ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: colors.error,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.scheduleConflictCanAdd,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: colors.error.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 3),
                   Text(
                     _timeSummary(context, brief),
@@ -2538,7 +2610,9 @@ class _ClassRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       height: 1.3,
-                      color: colors.baseContent.withValues(alpha: 0.55),
+                      color: hasConflict
+                          ? colors.error.withValues(alpha: 0.85)
+                          : colors.baseContent.withValues(alpha: 0.55),
                     ),
                   ),
                   if (teachers.isNotEmpty)
@@ -2558,7 +2632,9 @@ class _ClassRow extends StatelessWidget {
             Icon(
               selected ? Icons.check_circle : Icons.add_circle_outline,
               size: 20,
-              color: colors.primary,
+              color: selected
+                  ? colors.primary
+                  : (hasConflict ? colors.error : colors.primary),
             ),
           ],
         ),

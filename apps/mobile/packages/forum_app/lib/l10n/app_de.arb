@@ -287,6 +287,26 @@
   "scheduleStatsHours": "Stunden",
   "scheduleStatsConflicts": "Konflikte",
   "scheduleConflictBadge": "Konflikt",
+  "scheduleConflictWith": "Zeitkonflikt mit \"{course}\"",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "Zeitkonflikt mit \"{course}\" und {count} weiteren Kursen",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "Kann trotzdem hinzugefügt werden",
   "scheduleAddCustomEvent": "Platzhalter hinzufügen",
   "scheduleCustomEventLabel": "Beschäftigt",
   "scheduleExportPng": "Bild exportieren",

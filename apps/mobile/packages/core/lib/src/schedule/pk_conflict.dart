@@ -149,6 +149,13 @@ class PkConflictItem {
   final String courseName;
 }
 
+/// 自定义占位事件在占用表中的伪课号前缀（避免与真实课号碰撞）。
+const String kCustomEventCodePrefix = 'custom:';
+
+/// 冲突派生用的基础标识：custom 伪课号原样保留（getCourseBaseCode 会误裁尾部字符）。
+String conflictBaseOf(String code) =>
+    code.startsWith(kCustomEventCodePrefix) ? code : getCourseBaseCode(code);
+
 /// 找出候选课程与占用表的所有冲突课程（按基础课号去重）。
 /// 与 [canAddCourse] 不同：这里列举全部冲突项而非只报第一个。
 List<PkConflictItem> findConflicts(
@@ -164,7 +171,7 @@ List<PkConflictItem> findConflicts(
       final cell = occupied[time - 1][dayIdx];
       for (final item in cell) {
         if (weeksOverlap(arr.occupyWeek, item.occupyWeek)) {
-          final base = getCourseBaseCode(item.code);
+          final base = conflictBaseOf(item.code);
           conflicts.putIfAbsent(
             base,
             () => PkConflictItem(code: item.code, courseName: item.courseName),
@@ -176,12 +183,39 @@ List<PkConflictItem> findConflicts(
   return conflicts.values.toList();
 }
 
-/// 自定义占位事件在占用表中的伪课号前缀（避免与真实课号碰撞）。
-const String kCustomEventCodePrefix = 'custom:';
+/// 找出候选教学班与当前占用表的冲突课程列表（排除同门课程自身）：
+/// 用于在选择教学班前进行前置提示（不阻塞选择）。
+List<PkConflictItem> findClassConflicts(
+  PkCourseDetail candidate,
+  List<List<List<PkOccupyCell>>> occupied,
+) {
+  final String candidateBase = conflictBaseOf(candidate.code);
+  return findConflicts(candidate, occupied)
+      .where((c) => conflictBaseOf(c.code) != candidateBase)
+      .toList();
+}
 
-/// 冲突派生用的基础标识：custom 伪课号原样保留（getCourseBaseCode 会误裁尾部字符）。
-String conflictBaseOf(String code) =>
-    code.startsWith(kCustomEventCodePrefix) ? code : getCourseBaseCode(code);
+/// 判断某个排课时间段是否与占用表中的已有课程冲突（排除同门课程自身）。
+bool isArrangementConflicted(
+  PkArrangement arr,
+  String candidateCode,
+  List<List<List<PkOccupyCell>>> occupied,
+) {
+  final String candidateBase = conflictBaseOf(candidateCode);
+  for (final int time in arr.occupyTime) {
+    if (time - 1 < 0 || time - 1 >= occupied.length) continue;
+    final int dayIdx = arr.occupyDay - 1;
+    if (dayIdx < 0 || dayIdx >= kOccupyCols) continue;
+    final List<PkOccupyCell> cell = occupied[time - 1][dayIdx];
+    for (final PkOccupyCell item in cell) {
+      if (conflictBaseOf(item.code) != candidateBase &&
+          weeksOverlap(arr.occupyWeek, item.occupyWeek)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 /// 从占用表派生当前课表的全部冲突（容忍式冲突模型）：
 /// 同一格子（天+节次）内周次有交集的两个不同基础课号互为冲突。
