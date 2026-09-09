@@ -25,8 +25,13 @@ func SaveOrCreateById(entity *Entity) int64 {
 }
 
 func IncrementUserPost(topicId, userId uint64) error {
+	return IncrementUserPostTx(builder(), topicId, userId)
+}
+
+// IncrementUserPostTx keeps participant counts in the post write transaction.
+func IncrementUserPostTx(tx *gorm.DB, topicId, userId uint64) error {
 	now := time.Now()
-	return builder().Clauses(clause.OnConflict{
+	return tx.Table(tableName).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "topic_id"}, {Name: "user_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
 			"reply_count":   gorm.Expr("reply_count + 1"),
@@ -78,8 +83,8 @@ func DeleteByTopicIDTx(tx *gorm.DB, topicID uint64) error {
 	return tx.Where("topic_id = ?", topicID).Delete(&Entity{}).Error
 }
 
-// BulkUpsertRepliersTx 集合化写入全部回复者统计：单条多值 INSERT（每话题
-// 固定一次往返，取代逐回复 upsert，PR #575 review P2）。last_reply_at 用
+// BulkUpsertRepliersTx 集合化写入全部回复者统计：每批最多 500 行的多值 INSERT，
+// 控制 PostgreSQL/SQLite 参数数量并避免逐回复 upsert。last_reply_at 用
 // 调用方聚合的历史值显式写入，冲突时同样覆盖——重建路径绝不把历史时间
 // 戳替换为部署时间。
 func BulkUpsertRepliersTx(tx *gorm.DB, topicID uint64, repliers []ReplierStat) error {
@@ -98,5 +103,5 @@ func BulkUpsertRepliersTx(tx *gorm.DB, topicID uint64, repliers []ReplierStat) e
 	return tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "topic_id"}, {Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"reply_count", "last_reply_at"}),
-	}).Create(&rows).Error
+	}).CreateInBatches(&rows, 500).Error
 }

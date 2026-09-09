@@ -11,7 +11,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
-	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -27,24 +26,35 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 	lock.Lock()
 	defer lock.Unlock()
 
-	postNo, err := topics.ReservePostSequence(entity.TopicId)
-	if err != nil {
-		return err
-	}
-
-	entity.PostNo = postNo
-	// 帖子行 + 版本 v1（editor = 作者）同事务：播种失败则帖子不落库，
-	// 避免出现无初始版本的楼层。
-	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+	// Sequence reservation locks the topic before the post becomes visible. All
+	// derived writes share that transaction, so rebuilds see either side in full.
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		postNo, err := topics.ReservePostSequenceTx(tx, entity.TopicId)
+		if err != nil {
+			return err
+		}
+		entity.PostNo = postNo
 		if err := posts.CreateTx(tx, entity); err != nil {
 			return err
 		}
-		return SeedPostRevision(tx, entity)
-	}); err != nil {
-		return err
-	}
-	SyncTopicPostStats(topicEntity, *entity, false)
-	return nil
+		if err := SeedPostRevision(tx, entity); err != nil {
+			return err
+		}
+		if !entity.IsAnonymous {
+			if err := topicUserStat.IncrementUserPostTx(tx, entity.TopicId, entity.UserId); err != nil {
+				return err
+			}
+		}
+		ids, err := topicUserStat.SyncTopicPostersTx(tx, entity.TopicId, topicEntity.UserId)
+		if err != nil {
+			return err
+		}
+		posters := []topics.Poster{{UserID: topicEntity.UserId}}
+		for _, id := range ids {
+			posters = append(posters, topics.Poster{UserID: id})
+		}
+		return topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt)
+	})
 }
 
 func DeleteTopicPost(postID, userID uint64) (posts.Entity, error) {
@@ -77,42 +87,12 @@ func deleteTopicPost(conn *gorm.DB, postID, userID uint64) (postEntity posts.Ent
 	return postEntity, err
 }
 
-func SyncTopicPostStats(topicEntity topics.Entity, postEntity posts.Entity, isDelete bool) {
-	userId := postEntity.UserId
-	// 匿名楼层（wiki 评论区，issue #524）不进入 topic_user_stat：
-	// 避免匿名作者出现在「参与过的话题」/ Posters 等身份表面，泄露匿名身份。
-	if !postEntity.IsAnonymous {
-		if isDelete {
-			if err := topicUserStat.DecrementUserPost(topicEntity.Id, userId); err != nil {
-				slog.Error("failed to decrement topic user post stat", "topicId", topicEntity.Id, "userId", userId, "err", err)
-			}
-		} else {
-			if err := topicUserStat.IncrementUserPost(topicEntity.Id, userId); err != nil {
-				slog.Error("failed to increment topic user post stat", "topicId", topicEntity.Id, "userId", userId, "err", err)
-			}
-		}
-	}
-
-	// 作者在 SQL 内先排除再取 top-3（第二参数）：楼主高频回复不得挤占
-	// 他人参与人名额（PR #575 review P2）。
-	list := topicUserStat.SyncTopicPosters(topicEntity.Id, topicEntity.UserId)
-	finalList := append([]uint64{topicEntity.UserId}, list...)
-
-	pList := lo.Map(finalList, func(userID uint64, _ int) topics.Poster {
-		return topics.Poster{
-			UserID: userID,
-		}
-	})
-
-	if isDelete {
-		lastPost, _ := posts.GetLastByTopicID(topicEntity.Id)
-		if err := topics.DecrementPostFast(topicEntity.Id, pList, lastPost.Id, lastPost.CreatedAt); err != nil {
-			slog.Error("failed to decrement topic post count", "topicId", topicEntity.Id, "err", err)
-		}
-	} else {
-		if err := topics.IncrementPostFast(topicEntity.Id, pList, postEntity.Id, postEntity.CreatedAt); err != nil {
-			slog.Error("failed to increment topic post count", "topicId", topicEntity.Id, "err", err)
-		}
+// SyncTopicPostStats refreshes projections after committed lifecycle changes.
+// An absolute rebuild is idempotent when another writer already included the
+// deletion or restoration; a delayed decrement would corrupt those counters.
+func SyncTopicPostStats(topicEntity topics.Entity) {
+	if err := RebuildTopicPostStats(topicEntity); err != nil {
+		slog.Error("failed to rebuild topic post stats", "topicId", topicEntity.Id, "err", err)
 	}
 }
 
@@ -133,10 +113,10 @@ func RebuildTopicPostStats(topicEntity topics.Entity) error {
 // P1-atomicity). The topics row is locked (FOR UPDATE; SQLite serializes
 // writers so the clause is accepted and inert) BEFORE the posts snapshot is
 // taken and the lock is held through the replace: a concurrent
-// CreateTopicPost blocks at ReservePostSequence (it updates the same row),
+// CreateTopicPost holds the same lock from ReservePostSequenceTx through commit,
 // so its post insert and follow-up stats sync cannot interleave with the
 // snapshot→replace window (PR #575 review P1-concurrency). Aggregation is
-// set-based — one multi-row upsert per topic instead of one upsert per reply
+// set-based — bounded multi-row upserts instead of one upsert per reply
 // — and last_reply_at comes from the replies' own MAX(created_at); replaying
 // the live increment API would stamp deployment time over the historical
 // participant ordering (PR #575 review P2).

@@ -564,7 +564,12 @@ func IncrementViews(counts map[uint64]uint64) error {
 }
 
 func IncrementPostFast(topicId uint64, posters []Poster, lastPostID uint64, lastPostedAt time.Time) error {
-	return builder().Where("id = ?", topicId).Updates(map[string]any{
+	return IncrementPostFastTx(builder(), topicId, posters, lastPostID, lastPostedAt)
+}
+
+// IncrementPostFastTx updates counters while the post transaction holds the topic lock.
+func IncrementPostFastTx(tx *gorm.DB, topicId uint64, posters []Poster, lastPostID uint64, lastPostedAt time.Time) error {
+	return tx.Model(&Entity{}).Where("id = ?", topicId).Updates(map[string]any{
 		"post_count":  gorm.Expr("post_count + 1"),
 		"reply_count": gorm.Expr("reply_count + 1"),
 		"posters":     jsonopt.Encode(posters),
@@ -610,7 +615,12 @@ func ReplacePostStatsTx(tx *gorm.DB, topicID uint64, postCount uint64, replyCoun
 }
 
 func ReservePostSequence(topicId uint64) (uint64, error) {
-	result := builder().
+	return ReservePostSequenceTx(builder(), topicId)
+}
+
+// ReservePostSequenceTx holds the topic write lock until the caller commits.
+func ReservePostSequenceTx(tx *gorm.DB, topicId uint64) (uint64, error) {
+	result := tx.Model(&Entity{}).
 		Where("id = ?", topicId).
 		Update("post_seq", gorm.Expr("post_seq + 1"))
 	if result.Error != nil {
@@ -621,7 +631,7 @@ func ReservePostSequence(topicId uint64) (uint64, error) {
 	}
 
 	var postSeq uint64
-	err := builder().
+	err := tx.Model(&Entity{}).
 		Select("post_seq").
 		Where("id = ?", topicId).
 		Scan(&postSeq).Error

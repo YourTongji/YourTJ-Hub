@@ -3,6 +3,7 @@ package topicUserStat
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
@@ -41,5 +42,26 @@ func TestTopicUserStatRepositoryParity(t *testing.T) {
 	conn.Where("topic_id = ? AND user_id = ?", 10, 1).First(&row)
 	if row.ReplyCount != 1 {
 		t.Fatalf("ReplyCount after decrement=%d, want 1", row.ReplyCount)
+	}
+}
+
+func TestBulkUpsertRepliersLargeTopic(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	const topicID = 991234
+	t.Cleanup(func() { conn.Where("topic_id = ?", topicID).Delete(&Entity{}) })
+	rows := make([]ReplierStat, 12000)
+	for i := range rows {
+		rows[i] = ReplierStat{UserID: uint64(i + 1), ReplyCount: 2, LastReplyAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}
+	}
+	if err := BulkUpsertRepliersTx(conn, topicID, rows); err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	conn.Model(&Entity{}).Where("topic_id = ?", topicID).Count(&count)
+	if count != int64(len(rows)) {
+		t.Fatalf("got %d rows, want %d", count, len(rows))
 	}
 }

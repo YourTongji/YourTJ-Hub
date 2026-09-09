@@ -147,11 +147,11 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 			}
 		}
 		deletedCount := posts.SoftDeleteByIDs(activePostIDs, operatorID, cascadeReason, visibility)
+		postservice.SyncTopicPostStats(topic)
 		for _, post := range activePosts {
 			if post == nil || post.UserId == 0 {
 				continue
 			}
-			postservice.SyncTopicPostStats(topic, *post, true)
 			fileusageservice.HardenTargetFiles(postsTarget(post.Id), time.Now().Add(RecoveryWindow))
 		}
 		slog.Info("topic deleted without replies, cascade posts", "topicId", topic.Id, "posts", deletedCount)
@@ -274,7 +274,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, post, true)
+		postservice.SyncTopicPostStats(topicEntity)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
@@ -338,7 +338,7 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, post, true)
+		postservice.SyncTopicPostStats(topicEntity)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
