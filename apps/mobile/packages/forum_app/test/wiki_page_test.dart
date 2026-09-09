@@ -80,6 +80,7 @@ PagePayload _detailPayload({
   required String title,
   bool canEdit = true,
   String editUrl = 'https://github.com/yourtj/wiki/edit/main/guide/start.md',
+  String? content,
 }) {
   return PagePayload.fromJson(
     _pageJson(<String, dynamic>{
@@ -89,6 +90,7 @@ PagePayload _detailPayload({
       'path': path,
       'title': title,
       'content':
+          content ??
           '<h2 id="intro">介绍</h2><p>欢迎阅读 wiki 正文。</p><h3 id="details">细节说明</h3>',
       'toc': <Map<String, dynamic>>[
         <String, dynamic>{'level': 2, 'id': 'intro', 'text': '介绍'},
@@ -136,6 +138,13 @@ GfApiClient _client() => GfApiClient(
   baseUrl: 'http://fake.local',
 );
 
+/// 点击正文链接文字字形处:fwfh 的块级 RichText 占满整行宽度,链接文字
+/// 靠左,tap 中心点落在文字右侧空白处不会命中识别器,须点文字起始处。
+Future<void> _tapLinkText(WidgetTester tester, Finder finder) async {
+  final Rect rect = tester.getRect(finder);
+  await tester.tapAt(Offset(rect.left + 12, rect.center.dy));
+}
+
 Future<GoRouter> _pumpApp(
   WidgetTester tester, {
   required _FakePageRepository pages,
@@ -156,9 +165,12 @@ Future<GoRouter> _pumpApp(
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (_, _) => const WikiHomePage()),
       GoRoute(
-        path: '/wiki/:path(.*)',
-        builder: (BuildContext context, GoRouterState state) =>
-            WikiPage(wikiPath: state.pathParameters['path'] ?? ''),
+        // 与生产 router.dart 对齐:参数名 wikiPath、锚点经 state.uri.fragment 传入。
+        path: '/wiki/:wikiPath(.*)',
+        builder: (BuildContext context, GoRouterState state) => WikiPage(
+          wikiPath: state.pathParameters['wikiPath'] ?? '',
+          initialAnchor: state.uri.fragment,
+        ),
       ),
     ],
   );
@@ -345,5 +357,161 @@ void main() {
     );
 
     expect(find.text('在 GitHub 编辑'), findsOneWidget);
+  });
+  testWidgets('正文内相对站内链接:中文路径单次编码跳转(issue #560)', (tester) async {
+    const String encodedTarget =
+        '/wiki/guide/%E9%80%89%E8%AF%BE%E6%8C%87%E5%8D%97';
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/getting-started': _detailPayload(
+          path: 'guide/getting-started',
+          title: '快速开始',
+          content: '<p><a href="$encodedTarget">选课指南</a></p>',
+        ),
+        encodedTarget: _detailPayload(path: 'guide/选课指南', title: '选课指南'),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/getting-started',
+    );
+
+    // 服务端渲染的 href 处于 percent-encoded 态(relative_urls.go 契约)。
+    await _tapLinkText(tester, find.textContaining('选课指南', findRichText: true));
+    await tester.pumpAndSettle();
+
+    // 页面通道按段编码后单次编码请求;go_router 单次解码还原目标页。
+    expect(pages.fetchedPaths, <String>[
+      '/wiki/guide/getting-started',
+      encodedTarget,
+    ]);
+    expect(router.state.uri.path, encodedTarget);
+    expect(find.text('选课指南'), findsOneWidget);
+  });
+
+  testWidgets('正文内相对站内链接:纯 ASCII 路径不回归', (tester) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/getting-started': _detailPayload(
+          path: 'guide/getting-started',
+          title: '快速开始',
+          content: '<p><a href="/wiki/guide/faq">常见问题</a></p>',
+        ),
+        '/wiki/guide/faq': _detailPayload(path: 'guide/faq', title: '常见问题'),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/getting-started',
+    );
+
+    await _tapLinkText(tester, find.textContaining('常见问题', findRichText: true));
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/wiki/guide/faq');
+    expect(router.state.uri.fragment, isEmpty);
+    expect(pages.fetchedPaths, <String>[
+      '/wiki/guide/getting-started',
+      '/wiki/guide/faq',
+    ]);
+  });
+
+  testWidgets('正文内绝对站内链接:中文路径同样单次编码跳转', (tester) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/getting-started': _detailPayload(
+          path: 'guide/getting-started',
+          title: '快速开始',
+          content:
+              '<p><a href="http://fake.local/wiki/guide/%E9%80%89%E8%AF%BE%E6%8C%87%E5%8D%97">选课指南</a></p>',
+        ),
+        '/wiki/guide/%E9%80%89%E8%AF%BE%E6%8C%87%E5%8D%97': _detailPayload(
+          path: 'guide/选课指南',
+          title: '选课指南',
+        ),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/getting-started',
+    );
+
+    await _tapLinkText(tester, find.textContaining('选课指南', findRichText: true));
+    await tester.pumpAndSettle();
+
+    expect(
+      router.state.uri.path,
+      '/wiki/guide/%E9%80%89%E8%AF%BE%E6%8C%87%E5%8D%97',
+    );
+    expect(
+      pages.fetchedPaths.last,
+      '/wiki/guide/%E9%80%89%E8%AF%BE%E6%8C%87%E5%8D%97',
+    );
+  });
+
+  testWidgets('正文内跨页锚点链接:锚点经 initialAnchor 传入不丢', (tester) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/getting-started': _detailPayload(
+          path: 'guide/getting-started',
+          title: '快速开始',
+          content: '<p><a href="/wiki/guide/details#intro">跳到细节</a></p>',
+        ),
+        '/wiki/guide/details': _detailPayload(
+          path: 'guide/details',
+          title: '细节',
+          content: '<h2 id="intro">介绍</h2><p>细节正文。</p>',
+        ),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/getting-started',
+    );
+
+    await _tapLinkText(tester, find.textContaining('跳到细节', findRichText: true));
+    await tester.pumpAndSettle();
+
+    // 锚点不卷入路径(%23),路由 fragment 收到锚点。
+    expect(router.state.uri.path, '/wiki/guide/details');
+    expect(router.state.uri.fragment, 'intro');
+    expect(pages.fetchedPaths, <String>[
+      '/wiki/guide/getting-started',
+      '/wiki/guide/details',
+    ]);
+  });
+
+  testWidgets('正文内页内锚点链接:不触发页面跳转', (tester) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/getting-started': _detailPayload(
+          path: 'guide/getting-started',
+          title: '快速开始',
+          content:
+              '<h2 id="intro">介绍</h2><p>欢迎阅读 wiki 正文。</p>'
+              '<p><a href="#intro">回看介绍</a></p>',
+        ),
+      },
+    );
+    await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/getting-started',
+    );
+
+    await _tapLinkText(tester, find.textContaining('回看介绍', findRichText: true));
+    await tester.pumpAndSettle();
+
+    // 页内锚点交还 fwfh 内部滚动,不产生新的页面请求。
+    expect(pages.fetchedPaths, <String>['/wiki/guide/getting-started']);
   });
 }
