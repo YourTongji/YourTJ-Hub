@@ -1,7 +1,7 @@
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -373,6 +373,19 @@ export async function getPostWindow(input: PostWindowInput): Promise<PostWindowP
     },
   })
   return readApiResponse<PostWindowPayload>(response, t('api.repliesLoadFailed'))
+}
+
+/** 用户搜索（@mention 候选，issue #564）：复用公开聚合搜索 users scope，支持 AbortSignal 丢弃过期请求。 */
+export async function searchForumUsers(query: string, signal?: AbortSignal): Promise<UserSearchPayload[]> {
+  const params = new URLSearchParams({ q: query, scope: 'users', page: '1' })
+  const response = await fetch(`/api/forum/search?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+  const result = await readApiResponse<{ users?: UserSearchPayload[] }>(response, t('api.searchUsersFailed'))
+  return result.users ?? []
 }
 
 export async function likeTopic(id: number, action: 1 | 2): Promise<boolean> {

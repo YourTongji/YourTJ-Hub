@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { textBeforeCaret, isInsideFencedCode, replaceMentionTokenInElement } from "@/runtime/mention-dom"
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
@@ -1618,6 +1619,66 @@ function insertMarkdown(markdown: string) {
   emit('update:modelValue', editor.getValue())
 }
 
+/**
+ * @mention 最小 caret/input hook（issue #564）：宿主不感知 Vditor 内部结构。
+ * 三种编辑模式（wysiwyg/ir/sv）的编辑元素均为 contenteditable，统一走 DOM Selection API。
+ */
+export interface MentionCaretContext {
+  /** 光标前原始文本（最多回溯 200 字符；token 以空白/终止标点结尾，足够识别） */
+  prefix: string
+  /** caret 视口矩形：桌面弹层定位用；选区非折叠/不可测时为 null */
+  rect: DOMRect | null
+  /** 光标是否位于 code/pre/a 内（wysiwyg/ir）或围栏/行内代码内（sv）——不弹候选 */
+  inCode: boolean
+  /** 当前编辑元素（contenteditable），宿主用于绑定 aria-activedescendant 等 */
+  element: HTMLElement | null
+}
+
+const MENTION_PREFIX_LIMIT = 200
+
+function currentModeElement(): HTMLElement | null {
+  if (!editor || !ready || destroyed) return null
+  const mode = editor.vditor.currentMode
+  const el = mode === 'wysiwyg' ? editor.vditor.wysiwyg?.element : mode === 'ir' ? editor.vditor.ir?.element : editor.vditor.sv?.element
+  return el ?? null
+}
+
+/** 从 caret 所在节点向前回溯至多 max 字符的纯文本（跨内联节点，忽略元素边界） */
+/** wysiwyg/ir：光标是否位于渲染后的 code/pre/a 内（排除编辑元素根节点自身是 pre 的情况） */
+function isInsideRenderedCode(node: Node, element: HTMLElement): boolean {
+  const el = node instanceof Element ? node : node.parentElement
+  if (!el) return false
+  const hit = el.closest('code, pre, a')
+  return hit !== null && hit !== element
+}
+
+/** sv：光标前的围栏（```/~~~）或行内反引号成对，奇数对则位于代码内 */
+/** 当前光标处的 mention 上下文；caret 不在编辑器内或选区非折叠时返回 null */
+function getMentionContext(): MentionCaretContext | null {
+  const element = currentModeElement()
+  if (!element) return null
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return null
+  const range = selection.getRangeAt(0)
+  if (!range.collapsed || !element.contains(range.startContainer)) return null
+  const prefix = textBeforeCaret(range.startContainer, range.startOffset, Number.MAX_SAFE_INTEGER, element)
+  const mode = editor!.vditor.currentMode
+  const inCode = mode === 'sv' ? isInsideFencedCode(prefix) : isInsideRenderedCode(range.startContainer, element)
+  const rect = range.getBoundingClientRect()
+  return { prefix: prefix.slice(-MENTION_PREFIX_LIMIT), rect: rect.width === 0 && rect.height === 0 ? null : rect, inCode, element }
+}
+
+/**
+ * 以光标为终点向前删除 queryLength 个字符（即 "@query" token）并插入 replacement。
+ * 始终补尾部空格（对齐 GitHub/Slack 等主流 mention 交互）：保证插入后 token 立即被
+ * 空白终止，会话不会因重新识别到 "@username" 而重开。execCommand 走原生
+ * contenteditable 路径：触发 input 事件，Vditor 重渲染并同步 modelValue。
+ */
+function replaceMentionToken(queryLength: number, replacement: string): boolean {
+  const element = currentModeElement()
+  return element ? replaceMentionTokenInElement(element, queryLength, replacement) : false
+}
+
 function getValue() {
   return editor && ready ? editor.getValue() : props.modelValue
 }
@@ -1635,7 +1696,7 @@ function syncValue() {
   return value
 }
 
-defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue })
+defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue, getMentionContext, replaceMentionToken })
 </script>
 
 <template>

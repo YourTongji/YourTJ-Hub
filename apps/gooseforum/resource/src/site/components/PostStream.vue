@@ -149,6 +149,22 @@ const replyTargets = ref<ReplyTargetPayload[]>([...(initialPostStream.replyTarge
 const replyTargetMap = computed(() => new Map(replyTargets.value.map((target) => [target.id, target])))
 const topicProcessStatus = ref(props.topicActions?.processStatus ?? 0)
 const targetPost = computed(() => posts.value.find((post) => post.id === targetPostId.value))
+// @mention 本地上下文（issue #564）：回复目标 > 主题作者 > 参与者，按此优先级传入 composer
+const mentionUsers = computed(() => {
+  const list: Array<import('@/runtime/mention').MentionUser> = []
+  const targetAuthor = targetPost.value?.author
+  if (targetAuthor && !targetPost.value?.isAnonymous && targetAuthor.id > 0) {
+    list.push({ ...targetAuthor, tag: 'reply-target' })
+  }
+  const topicAuthor = props.topicActions?.author
+  if (topicAuthor && topicAuthor.id > 0) {
+    list.push({ ...topicAuthor, tag: 'topic-author' })
+  }
+  for (const participant of props.topicActions?.participants ?? []) {
+    if (participant.id > 0) list.push({ ...participant, tag: 'participant' })
+  }
+  return list
+})
 const postHasBefore = ref(initialPostStream.hasBefore)
 const postHasAfter = ref(initialPostStream.hasAfter)
 const postBeforePostNo = ref(initialPostStream.beforePostNo || firstPostNo(initialPosts))
@@ -2678,7 +2694,9 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     :captcha-img="captchaImg"
     :captcha-loading="captchaLoading"
     :captcha-required="captchaRequired"
+    :current-user-id="viewer.id"
     :error-message="errorMessage"
+    :mention-users="mentionUsers"
     :mode="composerMode"
     :submitting="editingPostId ? savingEditPostId > 0 : submitting"
     :success-message="successMessage"

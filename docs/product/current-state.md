@@ -65,14 +65,6 @@
 PK 改码处理（issue #475）：`newCourseCode` / `newCode` 是排课公开查询与课程目录物化的
 当前有效编号；一系统原始 `courseCode` / `code` 留作沿革证据及历史方案输入兼容。
 
-## Correctness first
-
-Before expanding features, close these baselines (avoid building on a wrong foundation):
-
-1. Decide MFA policy for built-in OIDC / GitHub OAuth login paths (forum TOTP reuse is a `Decision needed`).
-2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
-   become a new source of contract drift.
-
 ### Forum mention notifications
 
 `Current`: Public first posts and replies notify eligible users mentioned by exact, case-sensitive
@@ -83,4 +75,22 @@ edit paths notify only users added relative to the previous content. The recipie
 `post_reply > mention > comment > topic_post`, with at most 20 mention recipients per event.
 Additional mentioned topic watchers may still receive their ordinary `topic_post` notification.
 Web and mobile render the mention template using their selected locale; existing unread and
-push delivery paths are reused.
+push delivery paths are reused. Republication skips recipients with an existing mention
+notification for that first post. Pending reply edits do not backfill mention notifications
+on moderation approval because that path does not retain the prior content snapshot.
+
+### Web editor mentions
+
+`Current`: The forum reply editor suggests users after `@`, combining reply targets, topic authors
+and participants with debounced server search. Keyboard selection stays inside the editor;
+errors discard stale candidates, caret operations stay within the editable root, and popup
+position and accessible option references follow the current session. Code and links suppress
+suggestions; insertion preserves plain `@username` Markdown with a trailing space.
+
+## Correctness first
+
+Before expanding features, close these baselines (avoid building on a wrong foundation):
+
+1. Decide MFA policy for built-in OIDC / GitHub OAuth login paths (forum TOTP reuse is a `Decision needed`).
+2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
+   become a new source of contract drift.
