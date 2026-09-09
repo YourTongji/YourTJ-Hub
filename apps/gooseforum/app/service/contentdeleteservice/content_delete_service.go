@@ -147,11 +147,11 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 			}
 		}
 		deletedCount := posts.SoftDeleteByIDs(activePostIDs, operatorID, cascadeReason, visibility)
+		postservice.SyncTopicPostStats(topic)
 		for _, post := range activePosts {
 			if post == nil || post.UserId == 0 {
 				continue
 			}
-			postservice.SyncTopicPostStats(topic, *post, true)
 			fileusageservice.HardenTargetFiles(postsTarget(post.Id), time.Now().Add(RecoveryWindow))
 		}
 		slog.Info("topic deleted without replies, cascade posts", "topicId", topic.Id, "posts", deletedCount)
@@ -274,7 +274,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, post, true)
+		postservice.SyncTopicPostStats(topicEntity)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
@@ -338,7 +338,7 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, post, true)
+		postservice.SyncTopicPostStats(topicEntity)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
@@ -408,9 +408,10 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		reapplyPostReward(post.UserId, post.Id)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
-			var activePosts []*posts.Entity
-			if err := posts.ListByTopicID(topicEntity.Id, &activePosts); err == nil {
-				_ = postservice.RebuildTopicPostStats(topicEntity, activePosts)
+			// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写
+			// 原子提交（PR #575 review P1）。
+			if err := postservice.RebuildTopicPostStats(topicEntity); err != nil {
+				slog.Error("failed to rebuild topic stats after post restore", "topicId", topicEntity.Id, "error", err)
 			}
 			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 			llmsservice.ClearCache()
@@ -460,7 +461,9 @@ func restoreTopicPosts(topicID uint64, operatorID uint64) {
 		slog.Error("failed to load posts for topic stats rebuild", "topicId", topicID, "error", err)
 		return
 	}
-	if err := postservice.RebuildTopicPostStats(topic, activePosts); err != nil {
+	// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写原子提交
+	// （PR #575 review P1）。activePosts 仅用于下方的附件引用恢复。
+	if err := postservice.RebuildTopicPostStats(topic); err != nil {
 		slog.Error("failed to rebuild topic stats", "topicId", topicID, "error", err)
 	}
 	for _, post := range activePosts {
@@ -551,7 +554,9 @@ func restoreModeratorRemovedTopicPosts(topic topics.Entity, moderatorID uint64) 
 		slog.Error("failed to load posts for moderator restore stats rebuild", "topicId", topic.Id, "error", err)
 		return
 	}
-	if err := postservice.RebuildTopicPostStats(topic, activePosts); err != nil {
+	// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写原子提交
+	// （PR #575 review P1）。activePosts 仅用于下方的附件引用恢复。
+	if err := postservice.RebuildTopicPostStats(topic); err != nil {
 		slog.Error("failed to rebuild topic stats after moderator restore", "topicId", topic.Id, "error", err)
 	}
 	for _, post := range activePosts {
