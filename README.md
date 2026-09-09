@@ -169,6 +169,7 @@ docs/               产品、架构、开发和运维文档
 - [本地开发](./docs/development/local-development.md)
 - [测试策略](./docs/development/testing.md)
 - [部署与发布](./docs/operations/deployment.md)
+- [Oryn 仓库维护机器人](./docs/operations/oryn.md)（Partial：待 App 配置与接入验证）
 
 ## 参与贡献
 

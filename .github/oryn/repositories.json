@@ -1,0 +1,43 @@
+{
+  "repositories": [
+    {
+      "name": "YourTongji/YourTJ-Hub",
+      "enabled": true,
+      "maxItems": 20,
+      "cooldownHours": 168,
+      "allowRepair": true,
+      "allowAdopt": true,
+      "allowRebase": true,
+      "autoImplement": true,
+      "allowClusters": true,
+      "syncLabels": true,
+      "maxJobAttempts": 3,
+      "maxShepherdCycles": 6,
+      "retryMinutes": 15,
+      "scanPages": 10,
+      "allowCommands": true,
+      "allowClose": true,
+      "allowMerge": true,
+      "requiredChecks": [
+        "ci-backend",
+        "ci-frontend",
+        "ci-contract"
+      ],
+      "selection": "balanced",
+      "maxRepairAttempts": 2,
+      "validation": [
+        "node /opt/oryn-validation/validate.mjs governance",
+        "node /opt/oryn-validation/validate.mjs backend",
+        "node /opt/oryn-validation/validate.mjs postgres",
+        "node /opt/oryn-validation/validate.mjs frontend",
+        "node /opt/oryn-validation/validate.mjs contract",
+        "node /opt/oryn-validation/validate.mjs mobile"
+      ],
+      "protectedLabels": [
+        "security",
+        "do-not-bot",
+        "oryn:hold"
+      ]
+    }
+  ]
+}
