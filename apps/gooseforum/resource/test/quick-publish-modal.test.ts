@@ -46,12 +46,58 @@ describe('QuickPublishModal 组件', () => {
     const dialog = document.body.querySelector('[role="dialog"]')
     expect(dialog).not.toBeNull()
 
-    // 检查分类标签
+    // 打开分类选择器后检查分类选项
+    const categoryTrigger = document.body.querySelector(
+      `button[aria-label="${i18n.global.t('publish.modal.addCategoryAndTopic')}"]`,
+    ) as HTMLButtonElement | null
+    expect(categoryTrigger).not.toBeNull()
+    categoryTrigger?.click()
+    await flushPromises()
     const categoryButtons = document.body.querySelectorAll('button')
     const categoryTexts = Array.from(categoryButtons).map((b) => b.textContent)
     expect(categoryTexts.some((t) => t?.includes('学术讨论'))).toBe(true)
 
     // 关闭弹层
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('新建短文不默认分类，未选分类提交时提示并定位分类选择器', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    const dialog = document.body.querySelector('[role="dialog"]')
+    const categoryTrigger = dialog?.querySelector(
+      `button[aria-label="${i18n.global.t('publish.modal.addCategoryAndTopic')}"]`,
+    ) as HTMLButtonElement | null
+    const titleInput = dialog?.querySelector('input[type="text"]') as HTMLInputElement | null
+
+    expect(vm.categoryIds).toEqual([])
+    expect(categoryTrigger).not.toBeNull()
+    expect(titleInput).not.toBeNull()
+    expect(categoryTrigger!.compareDocumentPosition(titleInput!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    vm.title = '测试标题'
+    vm.content = '测试正文'
+    await vm.handleSubmit()
+    await flushPromises()
+
+    expect(vm.categoryMissing).toBe(true)
+    expect(vm.errorMessage).toBe(i18n.global.t('publish.validation.categoryRequired'))
+    expect(categoryTrigger?.getAttribute('aria-invalid')).toBe('true')
+    expect(categoryTrigger?.className).toContain('border-error')
+    expect(document.activeElement).toBe(categoryTrigger)
+
     closeQuickPublish()
     await flushPromises()
     wrapper.unmount()

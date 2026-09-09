@@ -67,11 +67,13 @@ const errorMessage = ref('')
 const sensitiveWords = ref<string[]>([])
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
+const categoryPickerTrigger = ref<HTMLButtonElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 const uploadedImages = ref<UploadedImageItem[]>([])
 
 const categories = computed(() => props.layout?.sidebar?.categories || [])
+const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
 
 const selectedCategory = computed(() => {
   if (categoryIds.value.length === 0) return null
@@ -134,9 +136,6 @@ watch(
         content.value = ''
         categoryIds.value = []
         uploadedImages.value = []
-        if (categories.value.length > 0) {
-          categoryIds.value = [categories.value[0].id]
-        }
       }
 
       void nextTick(() => {
@@ -286,7 +285,14 @@ async function handleSubmit() {
     finalContent = t('publish.modal.imageOnlyContent')
   }
 
-  if (!finalTitle || !finalContent || categoryIds.value.length === 0) {
+  if (categoryIds.value.length === 0) {
+    errorMessage.value = t('publish.validation.categoryRequired')
+    categoryPickerOpen.value = true
+    void nextTick(() => categoryPickerTrigger.value?.focus())
+    return
+  }
+
+  if (!finalTitle || !finalContent) {
     errorMessage.value = t('publish.validation.requiredFields')
     return
   }
@@ -380,7 +386,7 @@ async function handleSubmit() {
           </DialogClose>
         </div>
 
-        <!-- 弹层主体：参考用户截图（首行快捷传图 -> 填写标题 -> 添加正文铺满 -> 底部工具栏与添加分区） -->
+        <!-- 弹层主体：首行快捷传图 -> 选择分类 -> 填写标题 -> 添加正文铺满 -> 底部工具栏 -->
         <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-2.5 sm:py-3 gap-2.5 sm:gap-3 overflow-hidden sm:overflow-y-auto">
           <!-- 首行入口：快捷传图与已上传图片预览横向滑动流（支持滑动预览与拖拽重排，移动端比例适度放大） -->
           <div class="gf-image-scroll-track shrink-0 flex items-center gap-3 overflow-x-auto pb-2 pt-0.5">
@@ -487,56 +493,18 @@ async function handleSubmit() {
             />
           </div>
 
-          <!-- 第二行：标题输入与字数计数器（如 0/30） -->
-          <div class="shrink-0 pt-0.5">
-            <div class="relative flex items-center justify-between gap-3">
-              <input
-                ref="titleInput"
-                v-model="title"
-                type="text"
-                class="w-full text-base sm:text-lg font-bold placeholder:text-base-content/35 border-none bg-transparent outline-none focus:outline-none focus:ring-0 px-0 text-base-content transition"
-                :class="{ 'gf-sensitive-field': containsSensitiveText(title, sensitiveWords) }"
-                :placeholder="quickPublishType === 2 ? t('publish.modal.thoughtTitlePlaceholder') : typeMeta.placeholder"
-                @input="handleTitleInput"
-                @focus="titleFocused = true"
-                @blur="titleFocused = false"
-                @keydown.enter.prevent="handleTitleEnter"
-              />
-              <span class="shrink-0 text-xs font-mono text-base-content/40 select-none">
-                {{ titleLength }}/{{ titleMaxLength }}
-              </span>
-            </div>
-          </div>
-
-          <!-- 极轻细微过渡线：聚焦时柔和过渡到主色调 -->
-          <div
-            class="shrink-0 h-px w-full transition-all duration-300"
-            :class="titleFocused ? 'bg-primary/50 ring-1 ring-primary/20' : 'bg-line/40'"
-          />
-
-          <!-- 第三行：正文编辑器（弹性填满剩余空间，工具栏移到底部大拇指触控区，隐去传图按钮） -->
-          <div class="gf-modal-editor relative flex-1 min-h-0 flex flex-col">
-            <VditorOfficial
-              ref="editor"
-              v-model="content"
-              :simple="true"
-              :hide-upload="true"
-              :sensitive-words="sensitiveWords"
-              :placeholder="t('publish.modal.contentPlaceholder')"
-              @input="clearSensitiveHighlight"
-              @upload="uploadImageFiles"
-              @error="handleEditorError"
-            />
-          </div>
-
-          <!-- 第四行：参考截图放置在正文/工具栏下方的“+ 添加分区及话题”药丸胶囊 -->
-          <div class="shrink-0 flex items-center gap-2 pt-0.5">
+          <!-- 第二行：分类选择器，先于标题明确发布归属 -->
+          <div class="shrink-0 flex flex-col items-start gap-1 pt-0.5">
             <PopoverRoot v-model:open="categoryPickerOpen">
               <PopoverTrigger as-child>
                 <button
+                  ref="categoryPickerTrigger"
                   type="button"
                   class="group inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-line/80 bg-base-200/50 hover:bg-base-200/80 hover:border-primary/40 px-3 py-1.5 text-xs font-medium text-base-content/85 transition-all duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"
+                  :class="{ 'border-error bg-error/5 text-error focus-visible:ring-error/40': categoryMissing }"
                   :aria-label="t('publish.modal.addCategoryAndTopic')"
+                  :aria-invalid="categoryMissing"
+                  :aria-describedby="categoryMissing ? 'quick-publish-category-hint' : undefined"
                 >
                   <Plus v-if="!selectedCategory" class="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
                   <span
@@ -581,6 +549,56 @@ async function handleSubmit() {
                 </PopoverContent>
               </PopoverPortal>
             </PopoverRoot>
+            <p
+              v-if="categoryMissing"
+              id="quick-publish-category-hint"
+              role="alert"
+              class="px-1 text-xs font-medium text-error animate-in fade-in-0 slide-in-from-top-1 duration-150"
+            >
+              {{ t('publish.validation.categoryRequired') }}
+            </p>
+          </div>
+
+          <!-- 第三行：标题输入与字数计数器（如 0/30） -->
+          <div class="shrink-0 pt-0.5">
+            <div class="relative flex items-center justify-between gap-3">
+              <input
+                ref="titleInput"
+                v-model="title"
+                type="text"
+                class="w-full text-base sm:text-lg font-bold placeholder:text-base-content/35 border-none bg-transparent outline-none focus:outline-none focus:ring-0 px-0 text-base-content transition"
+                :class="{ 'gf-sensitive-field': containsSensitiveText(title, sensitiveWords) }"
+                :placeholder="quickPublishType === 2 ? t('publish.modal.thoughtTitlePlaceholder') : typeMeta.placeholder"
+                @input="handleTitleInput"
+                @focus="titleFocused = true"
+                @blur="titleFocused = false"
+                @keydown.enter.prevent="handleTitleEnter"
+              />
+              <span class="shrink-0 text-xs font-mono text-base-content/40 select-none">
+                {{ titleLength }}/{{ titleMaxLength }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 极轻细微过渡线：聚焦时柔和过渡到主色调 -->
+          <div
+            class="shrink-0 h-px w-full transition-all duration-300"
+            :class="titleFocused ? 'bg-primary/50 ring-1 ring-primary/20' : 'bg-line/40'"
+          />
+
+          <!-- 第四行：正文编辑器（弹性填满剩余空间，工具栏移到底部大拇指触控区，隐去传图按钮） -->
+          <div class="gf-modal-editor relative flex-1 min-h-0 flex flex-col">
+            <VditorOfficial
+              ref="editor"
+              v-model="content"
+              :simple="true"
+              :hide-upload="true"
+              :sensitive-words="sensitiveWords"
+              :placeholder="t('publish.modal.contentPlaceholder')"
+              @input="clearSensitiveHighlight"
+              @upload="uploadImageFiles"
+              @error="handleEditorError"
+            />
           </div>
 
           <!-- 验证码卡片（触发风控时展示） -->
@@ -608,7 +626,7 @@ async function handleSubmit() {
           </div>
 
           <!-- 错误状态反馈 -->
-          <p v-if="errorMessage" class="shrink-0 text-xs text-error font-medium px-1 animate-in fade-in-0 slide-in-from-top-1 duration-150">
+          <p v-if="errorMessage && !categoryMissing" class="shrink-0 text-xs text-error font-medium px-1 animate-in fade-in-0 slide-in-from-top-1 duration-150">
             {{ errorMessage }}
           </p>
         </div>
