@@ -46,6 +46,14 @@ describe('CheckWritableAccount 403 envelope parsing (issue #404/#415)', () => {
     })
   })
 
+  test('submitTopic maps fetch rejection to the localized save failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('NetworkError when attempting to fetch resource.')))
+
+    await expect(
+      submitTopic({ topicId: 0, title: 't', content: 'c', categoryId: [1], topicStatus: 0 }),
+    ).rejects.toThrow('api.topicSaveFailed')
+  })
+
   test('followUser surfaces permission.emailRequired instead of a generic HTTP 403', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(emailRequired403, 403))
     vi.stubGlobal('fetch', fetchMock)

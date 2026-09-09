@@ -26,6 +26,7 @@ const mockLayout: LayoutPayload = {
   },
   footer: { links: [], primary: [] },
   unread: { notifications: 0, messages: 0 },
+  posting: { maxTitleLength: 100 },
   theme: { enabled: true, current: 'gf-light', themeColor: '#3b82f6' },
   insightFlareEnabled: false,
 }
@@ -51,6 +52,46 @@ describe('QuickPublishModal 组件', () => {
     expect(categoryTexts.some((t) => t?.includes('学术讨论'))).toBe(true)
 
     // 关闭弹层
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('标题长度使用服务端配置并按 Unicode code point 计数', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(1)
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    const input = dialog?.querySelector('input[type="text"]') as HTMLInputElement | null
+    expect(input).not.toBeNull()
+    expect(input?.hasAttribute('maxlength')).toBe(false)
+
+    input!.value = 'a'.repeat(100)
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(input!.value).toBe('a'.repeat(100))
+
+    const mixed = `${'汉'.repeat(99)}😀`
+    input!.value = mixed
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(input!.value).toBe(mixed)
+    expect(dialog?.textContent).toContain('100/100')
+
+    input!.value = `${mixed}A`
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(input!.value).toBe(mixed)
+    expect(dialog?.textContent).toContain('100/100')
+
     closeQuickPublish()
     await flushPromises()
     wrapper.unmount()

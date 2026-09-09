@@ -446,6 +446,65 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("unicode title limit counts code points", func(t *testing.T) {
+		conn, router := setupHTTPContractTest(t)
+		posting := defaultconfig.GetDefaultPostingSettingsConfig()
+		posting.TextControl.MinTitleLength = 1
+		posting.TextControl.MaxTitleLength = 4
+		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
+		hotdataserve.ClearPostingSettingsConfigCache()
+
+		user := createHTTPContractUser(t, conn, contractTestID())
+		categoryID := contractTestID()
+		if err := conn.Create(&category.Entity{Id: categoryID, Name: "Unicode", Slug: fmt.Sprintf("unicode-%d", categoryID)}).Error; err != nil {
+			t.Fatalf("create unicode category: %v", err)
+		}
+		token := contractSessionToken(t, user)
+		for _, title := range []string{"aaaa", "汉汉汉汉", "😀😀😀😀", "a汉😀b"} {
+			body := fmt.Sprintf(`{"title":%q,"content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, title, categoryID)
+			recorder := serveJSON(router, "/api/forum/topics/write", body, token)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("title %q status = %d, want 200: %s", title, recorder.Code, recorder.Body.String())
+			}
+			if response := decodeContractEnvelope(t, recorder); response.MessageCode == "topic.title.tooLong" || response.MessageCode == "topic.title.tooShort" {
+				t.Fatalf("title %q response = %#v, must pass title length validation", title, response)
+			}
+		}
+
+		body := fmt.Sprintf(`{"title":"汉汉汉汉汉","content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, categoryID)
+		recorder := serveJSON(router, "/api/forum/topics/write", body, token)
+		response := decodeContractEnvelope(t, recorder)
+		if response.MessageCode != "topic.title.tooLong" || response.Params["maxLength"] != float64(4) {
+			t.Fatalf("too-long title response = %#v, want topic.title.tooLong maxLength=4", response)
+		}
+	})
+
+	t.Run("unicode topic content limit counts code points", func(t *testing.T) {
+		conn, router := setupHTTPContractTest(t)
+		posting := defaultconfig.GetDefaultPostingSettingsConfig()
+		posting.TextControl.MinPostLength = 1
+		posting.TextControl.MaxPostLength = 4
+		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
+		hotdataserve.ClearPostingSettingsConfigCache()
+
+		user := createHTTPContractUser(t, conn, contractTestID())
+		categoryID := contractTestID()
+		if err := conn.Create(&category.Entity{Id: categoryID, Name: "Unicode Content", Slug: fmt.Sprintf("unicode-content-%d", categoryID)}).Error; err != nil {
+			t.Fatalf("create unicode content category: %v", err)
+		}
+		token := contractSessionToken(t, user)
+		body := fmt.Sprintf(`{"title":"Valid title","content":"汉😀ab","categoryId":[%d],"topicStatus":1}`, categoryID)
+		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, token)); response.MessageCode == "topic.content.tooLong" || response.MessageCode == "topic.content.tooShort" {
+			t.Fatalf("four-rune content response = %#v, must pass content length validation", response)
+		}
+
+		body = fmt.Sprintf(`{"title":"Valid title","content":"汉汉汉汉汉","categoryId":[%d],"topicStatus":1}`, categoryID)
+		response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, token))
+		if response.MessageCode != "topic.content.tooLong" || response.Params["maxLength"] != float64(4) {
+			t.Fatalf("too-long content response = %#v, want topic.content.tooLong maxLength=4", response)
+		}
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupHTTPContractTest(t)
 		recorder := serveJSON(router, "/api/forum/topics/write", `{}`, "")

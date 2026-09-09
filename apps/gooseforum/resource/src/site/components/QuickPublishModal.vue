@@ -78,7 +78,9 @@ const selectedCategory = computed(() => {
   return categories.value.find((c) => c.id === categoryIds.value[0]) || null
 })
 
-const titleMaxLength = computed(() => (quickPublishType.value === 2 ? 30 : 120))
+const configuredTitleMaxLength = computed(() => Math.max(0, props.layout.posting.maxTitleLength))
+const titleMaxLength = computed(() => (quickPublishType.value === 2 ? Math.min(30, configuredTitleMaxLength.value) : configuredTitleMaxLength.value))
+const titleLength = computed(() => Array.from(title.value).length)
 
 const typeMeta = computed(() => {
   const isEdit = isEditing.value
@@ -166,6 +168,14 @@ function handleTitleEnter() {
 
 function clearSensitiveHighlight() {
   sensitiveWords.value = []
+}
+
+function handleTitleInput() {
+  clearSensitiveHighlight()
+  const runes = Array.from(title.value)
+  if (runes.length > titleMaxLength.value) {
+    title.value = runes.slice(0, titleMaxLength.value).join('')
+  }
 }
 
 function imageAlt(filename: string) {
@@ -487,14 +497,13 @@ async function handleSubmit() {
                 class="w-full text-base sm:text-lg font-bold placeholder:text-base-content/35 border-none bg-transparent outline-none focus:outline-none focus:ring-0 px-0 text-base-content transition"
                 :class="{ 'gf-sensitive-field': containsSensitiveText(title, sensitiveWords) }"
                 :placeholder="quickPublishType === 2 ? t('publish.modal.thoughtTitlePlaceholder') : typeMeta.placeholder"
-                :maxlength="titleMaxLength"
-                @input="clearSensitiveHighlight"
+                @input="handleTitleInput"
                 @focus="titleFocused = true"
                 @blur="titleFocused = false"
                 @keydown.enter.prevent="handleTitleEnter"
               />
               <span class="shrink-0 text-xs font-mono text-base-content/40 select-none">
-                {{ title.length }}/{{ titleMaxLength }}
+                {{ titleLength }}/{{ titleMaxLength }}
               </span>
             </div>
           </div>

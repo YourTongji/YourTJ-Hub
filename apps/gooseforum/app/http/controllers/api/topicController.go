@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
@@ -164,7 +165,8 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 
-	if len(req.Params.Title) < postingConfig.TextControl.MinTitleLength {
+	titleLength := utf8.RuneCountInString(req.Params.Title)
+	if titleLength < postingConfig.TextControl.MinTitleLength {
 		minLength := postingConfig.TextControl.MinTitleLength
 		return component.FailResponseCode(
 			component.MessageTopicTitleTooShort,
@@ -173,7 +175,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 	}
 
-	if len(req.Params.Title) > postingConfig.TextControl.MaxTitleLength {
+	if titleLength > postingConfig.TextControl.MaxTitleLength {
 		maxLength := postingConfig.TextControl.MaxTitleLength
 		return component.FailResponseCode(
 			component.MessageTopicTitleTooLong,
@@ -182,7 +184,8 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 	}
 
-	if len(req.Params.Content) < postingConfig.TextControl.MinPostLength {
+	contentLength := utf8.RuneCountInString(req.Params.Content)
+	if contentLength < postingConfig.TextControl.MinPostLength {
 		minLength := postingConfig.TextControl.MinPostLength
 		return component.FailResponseCode(
 			component.MessageTopicContentTooShort,
@@ -191,7 +194,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 	}
 
-	if len(req.Params.Content) > postingConfig.TextControl.MaxPostLength {
+	if contentLength > postingConfig.TextControl.MaxPostLength {
 		maxLength := postingConfig.TextControl.MaxPostLength
 		return component.FailResponseCode(
 			component.MessageTopicContentTooLong,
@@ -508,7 +511,8 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	}
 
 	content := strings.TrimSpace(req.Params.Content)
-	if len(content) < postingConfig.TextControl.MinPostLength {
+	contentLength := utf8.RuneCountInString(content)
+	if contentLength < postingConfig.TextControl.MinPostLength {
 		minLength := postingConfig.TextControl.MinPostLength
 		return component.FailResponseCode(
 			component.MessageCommentContentTooShort,
@@ -517,7 +521,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 
 	}
 
-	if len(content) > postingConfig.TextControl.MaxPostLength {
+	if contentLength > postingConfig.TextControl.MaxPostLength {
 		maxLength := postingConfig.TextControl.MaxPostLength
 		return component.FailResponseCode(
 			component.MessageCommentContentTooLong,
@@ -671,7 +675,8 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	}
 
 	content := strings.TrimSpace(req.Params.Content)
-	if len(content) < postingConfig.TextControl.MinPostLength {
+	contentLength := utf8.RuneCountInString(content)
+	if contentLength < postingConfig.TextControl.MinPostLength {
 		minLength := postingConfig.TextControl.MinPostLength
 		return component.FailResponseCode(
 			component.MessageCommentContentTooShort,
@@ -680,7 +685,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 
-	if len(content) > postingConfig.TextControl.MaxPostLength {
+	if contentLength > postingConfig.TextControl.MaxPostLength {
 		maxLength := postingConfig.TextControl.MaxPostLength
 		return component.FailResponseCode(
 			component.MessageCommentContentTooLong,

@@ -142,8 +142,13 @@ type LayoutPayload struct {
 	Sidebar             SidebarPayload      `json:"sidebar"`
 	Footer              FooterPayload       `json:"footer"`
 	Unread              UnreadStatusPayload `json:"unread"`
+	Posting             PostingPayload      `json:"posting"`
 	Theme               ThemePayload        `json:"theme"`
 	InsightFlareEnabled bool                `json:"insightFlareEnabled"`
+}
+
+type PostingPayload struct {
+	MaxTitleLength int `json:"maxTitleLength"`
 }
 
 type ThemePayload struct {
@@ -739,7 +744,10 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			Primary: footerPrimary,
 		},
 		Unread: unread,
-		Theme:  buildThemePayload(c),
+		Posting: PostingPayload{
+			MaxTitleLength: hotdataserve.GetPostingSettingsConfigCache().TextControl.MaxTitleLength,
+		},
+		Theme: buildThemePayload(c),
 	}
 }
 

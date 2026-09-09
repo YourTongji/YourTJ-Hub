@@ -656,13 +656,18 @@ export interface SubmitTopicInput {
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
-  const response = await fetch('/api/forum/topics/write', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(topic),
-  })
+  let response: Response
+  try {
+    response = await fetch('/api/forum/topics/write', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(topic),
+    })
+  } catch {
+    throw new Error(t('api.topicSaveFailed'))
+  }
   if (response.status === 429) {
     return readApiResponse<number>(response, t('api.topicSaveFailed'))
   }

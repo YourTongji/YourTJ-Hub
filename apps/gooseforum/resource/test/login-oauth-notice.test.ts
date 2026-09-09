@@ -51,6 +51,7 @@ const layout: LayoutPayload = {
   sidebar: { categories: [], activeKey: '' },
   footer: { links: [], primary: [] },
   unread: { notifications: false, messages: false },
+  posting: { maxTitleLength: 100 },
   theme: { enabled: false, current: 'gf-light', themeColor: '' },
   insightFlareEnabled: false,
 }

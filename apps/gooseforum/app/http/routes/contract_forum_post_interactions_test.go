@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
@@ -232,6 +233,31 @@ func TestCreatePostHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("unicode comment limit counts code points", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		posting := defaultconfig.GetDefaultPostingSettingsConfig()
+		posting.TextControl.MinPostLength = 1
+		posting.TextControl.MaxPostLength = 4
+		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
+		hotdataserve.ClearPostingSettingsConfigCache()
+
+		user := createHTTPContractUser(t, conn, contractTestID())
+		base := contractTestID()
+		topicID, firstPostID := base, base+1
+		createContractPublishedTopic(t, conn, topicID, firstPostID, user.Id)
+		token := contractSessionToken(t, user)
+		body := fmt.Sprintf(`{"topicId":%d,"content":"汉😀ab"}`, topicID)
+		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", body, token)); response.Code != 0 {
+			t.Fatalf("four-rune comment response = %#v, want success", response)
+		}
+
+		body = fmt.Sprintf(`{"topicId":%d,"content":"汉汉汉汉汉"}`, topicID)
+		response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", body, token))
+		if response.MessageCode != "comment.content.tooLong" || response.Params["maxLength"] != float64(4) {
+			t.Fatalf("too-long comment response = %#v, want comment.content.tooLong maxLength=4", response)
+		}
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
 		assertInteractionUnauthenticated(t, router, "/api/forum/posts/create", `{}`, "auth-required.json")
@@ -312,6 +338,32 @@ func TestUpdatePostHTTPContract(t *testing.T) {
 		}
 		if _, err := time.Parse(time.RFC3339, updated.LastEditedAt); err != nil {
 			t.Fatalf("lastEditedAt = %q, want RFC3339: %v", updated.LastEditedAt, err)
+		}
+	})
+
+	t.Run("unicode updated comment limit counts code points", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		posting := defaultconfig.GetDefaultPostingSettingsConfig()
+		posting.TextControl.MinPostLength = 1
+		posting.TextControl.MaxPostLength = 4
+		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
+		hotdataserve.ClearPostingSettingsConfigCache()
+
+		user := createHTTPContractUser(t, conn, contractTestID())
+		base := contractTestID()
+		topicID, firstPostID, replyID := base, base+1, base+2
+		createContractPublishedTopic(t, conn, topicID, firstPostID, user.Id)
+		createContractReplyPost(t, conn, replyID, topicID, user.Id)
+		token := contractSessionToken(t, user)
+		body := fmt.Sprintf(`{"postId":%d,"content":"😀汉ab"}`, replyID)
+		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", body, token)); response.Code != 0 {
+			t.Fatalf("four-rune updated comment response = %#v, want success", response)
+		}
+
+		body = fmt.Sprintf(`{"postId":%d,"content":"😀😀😀😀😀"}`, replyID)
+		response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", body, token))
+		if response.MessageCode != "comment.content.tooLong" || response.Params["maxLength"] != float64(4) {
+			t.Fatalf("too-long updated comment response = %#v, want comment.content.tooLong maxLength=4", response)
 		}
 	})
 

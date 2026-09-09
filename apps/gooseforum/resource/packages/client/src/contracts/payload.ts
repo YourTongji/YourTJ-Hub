@@ -66,8 +66,13 @@ export interface LayoutPayload {
   sidebar: SidebarPayload
   footer: FooterPayload
   unread: UnreadStatusPayload
+  posting: PostingPayload
   theme: ThemePayload
   insightFlareEnabled: boolean
+}
+
+export interface PostingPayload {
+  maxTitleLength: number
 }
 
 export interface ThemePayload {
