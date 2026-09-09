@@ -137,6 +137,11 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
 				return err
 			}
+			// 流量概览课评统计（issue #582 review）：与评价写同事务，计数失败则
+			// 整体回滚，避免评价可见而流量统计静默丢失。
+			if err := dailyStats.IncrementTx(tx, time.Now(), dailyStats.StatTypeCourseReviewCount, 1); err != nil {
+				return err
+			}
 			// 恢复重写改变了 summary 输入 → 失效 AI 总结缓存。
 			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
 				return err
@@ -174,6 +179,10 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 		if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
 			return err
 		}
+		// 流量概览课评统计（issue #582 review）：与评价写同事务，语义同上。
+		if err := dailyStats.IncrementTx(tx, time.Now(), dailyStats.StatTypeCourseReviewCount, 1); err != nil {
+			return err
+		}
 		// 新评价进入 summary 输入 → 失效 AI 总结缓存。
 		if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
 			return err
@@ -184,9 +193,6 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 	if err != nil {
 		return ReviewPayload{}, err
 	}
-	// 流量概览课评统计（issue #582）：新建与恢复重写两条成功路径都会走到这里，
-	// 事务提交后计数；统计写入失败不影响写评结果（与事件统计的最终一致语义相同）。
-	_ = dailyStats.Increment(time.Now(), dailyStats.StatTypeCourseReviewCount, 1)
 	// 事务已提交后再回填 member 作者名：users.Get 需要独立连接，
 	// 在事务内调用会在单连接 SQLite 测试环境下死锁。
 	fillReviewAuthorLabel(&payload, userId)
