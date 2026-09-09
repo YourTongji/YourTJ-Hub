@@ -18,6 +18,8 @@ import {
   UserPlus,
 } from '@lucide/vue'
 import { followUser } from '@/runtime/api'
+// 与 UserCard 共享关注状态事实源：本页关注/取关要广播出去，卡片上的变更也要同步回来（issue #593）
+import { broadcastFollowChange, onFollowChange } from '@/runtime/follow-state'
 import { formatDate, formatDateTime, formatNumber, timeAgo } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { topicDescription } from '@/runtime/topic-description'
@@ -134,6 +136,7 @@ async function toggleFollow() {
   try {
     await followUser(page.props.user.userId, isFollowing.value)
     isFollowing.value = !isFollowing.value
+    broadcastFollowChange(page.props.user.userId, isFollowing.value)
   } catch (error) {
     followError.value = error instanceof Error ? error.message : t('api.followFailed')
   } finally {
@@ -233,7 +236,15 @@ function observeSentinel() {
   observer.observe(loadMoreSentinel.value)
 }
 
-onMounted(observeSentinel)
+let offFollowChange: (() => void) | undefined
+
+onMounted(() => {
+  observeSentinel()
+  // 用户卡片上的关注/取关广播回来时，同步本页按钮状态
+  offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
+    if (userId === page.props.user.userId) isFollowing.value = following
+  })
+})
 onActivated(() => {
   void nextTick(observeSentinel)
 })
@@ -242,6 +253,7 @@ onDeactivated(() => {
 })
 onBeforeUnmount(() => {
   observer?.disconnect()
+  offFollowChange?.()
 })
 
 function safeProfileUrl(value?: string) {

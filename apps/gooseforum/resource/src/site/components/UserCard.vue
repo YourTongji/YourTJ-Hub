@@ -11,6 +11,8 @@ import {
   UserX,
 } from '@lucide/vue'
 import { getUserCard, followUser } from '@/runtime/api'
+// 关注状态单一事实源：卡片缓存的可变状态必须经它登记/广播，跨 surface 才能一致（issue #593）
+import { broadcastFollowChange, getFollowChangeSeq, getKnownFollowState, onFollowChange, recordFollowState } from '@/runtime/follow-state'
 import { formatDate, formatNumber, timeAgo } from '@/runtime/format'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import type { UserCardPayload } from '@gooseforum/client'
@@ -28,6 +30,10 @@ const position = ref({ left: 0, top: 0 })
 const cardEl = ref<HTMLElement | null>(null)
 const activeBadgeCode = ref('')
 const cache = new Map<number, UserCardPayload>()
+const cacheFetchedAt = new Map<number, number>()
+// 缓存命中后超过该时长触发后台重验（stale-while-revalidate）：
+// 卡片组件与应用同生命周期，缓存一旦永不失效，跨 surface 的关注变更永远不可见
+const CACHE_REVALIDATE_TTL_MS = 60_000
 let requestToken = 0
 let preferredSide: 'top' | 'bottom' | null = null
 
@@ -47,6 +53,7 @@ const coverStyle = computed(() => {
 })
 const isFollowing = ref(false)
 const followLoading = ref(false)
+const followError = ref('')
 const externalLinks = computed(() => {
   const links: Array<{ key: string; label: string; url: string; icon?: SimpleIcon }> = []
   const primaryUrl = normalizeWebsiteURL(card.value?.website || '')
@@ -111,6 +118,40 @@ function placeCard(target: HTMLElement) {
   }
 }
 
+function storeInCache(userId: number, payload: UserCardPayload) {
+  cache.set(userId, payload)
+  cacheFetchedAt.set(userId, Date.now())
+  recordFollowState(userId, payload.isFollowing)
+}
+
+// 回源落地（PR #600 review 2）：若请求飞行期间发生了同 tab 关注变更广播，
+// 响应里的 isFollowing 是变更前的旧快照，关注状态以广播为准，其余字段照常采纳。
+function adoptFreshCard(userId: number, fresh: UserCardPayload, seqAtRequest: number) {
+  if (getFollowChangeSeq(userId) !== seqAtRequest) {
+    const known = getKnownFollowState(userId)
+    if (known !== undefined) fresh.isFollowing = known
+  }
+  storeInCache(userId, fresh)
+}
+
+// stale-while-revalidate：立即展示缓存，后台向 /api/user-card 回源。
+// 命中缓存不再意味着「本会话内永远正确」——用户主页取关、其他标签页变更都要靠这里收敛。
+async function revalidateCard(userId: number, token: number) {
+  const seqAtRequest = getFollowChangeSeq(userId)
+  try {
+    const result = await getUserCard(userId)
+    adoptFreshCard(userId, result, seqAtRequest)
+    // 仅当仍在展示同一用户时才刷新 UI；token 过期说明已切换到别的卡片，只更新缓存
+    if (token !== requestToken) return
+    if (card.value?.userId === userId) {
+      card.value = result
+      isFollowing.value = result.isFollowing
+    }
+  } catch {
+    // 重验失败保留缓存展示，下次打开再试
+  }
+}
+
 async function show(event: Event) {
   const detail = (event as CustomEvent<UserCardShowDetail>).detail
   if (!detail?.user?.id || !detail.target) return
@@ -118,24 +159,30 @@ async function show(event: Event) {
   fallbackUser.value = detail.user
   visible.value = true
   error.value = ''
-  isFollowing.value = Boolean(detail.user.isFollowing)
+  followError.value = ''
+  isFollowing.value = getKnownFollowState(detail.user.id) ?? Boolean(detail.user.isFollowing)
   requestAnimationFrame(() => placeCard(detail.target))
 
   const cached = cache.get(detail.user.id)
   if (cached) {
     card.value = cached
-    isFollowing.value = cached.isFollowing
+    isFollowing.value = getKnownFollowState(detail.user.id) ?? cached.isFollowing
     loading.value = false
+    const fetchedAt = cacheFetchedAt.get(detail.user.id) || 0
+    if (Date.now() - fetchedAt >= CACHE_REVALIDATE_TTL_MS) {
+      void revalidateCard(detail.user.id, ++requestToken)
+    }
     return
   }
 
   const token = ++requestToken
   loading.value = true
   card.value = null
+  const seqAtRequest = getFollowChangeSeq(detail.user.id)
   try {
     const result = await getUserCard(detail.user.id)
+    adoptFreshCard(detail.user.id, result, seqAtRequest)
     if (token !== requestToken) return
-    cache.set(detail.user.id, result)
     card.value = result
     isFollowing.value = result.isFollowing
     requestAnimationFrame(() => placeCard(detail.target))
@@ -151,15 +198,34 @@ async function toggleFollow() {
   const userCard = card.value
   if (!userCard || userCard.isSelf || followLoading.value) return
   followLoading.value = true
+  followError.value = ''
   try {
     await followUser(userCard.userId, isFollowing.value)
-    isFollowing.value = !isFollowing.value
-    userCard.isFollowing = isFollowing.value
-  } catch {
-    // 关注失败保持原状态，静默处理（API 错误已由后端提示）
-  } finally {
+  } catch (e) {
+    // 只有关注操作本身的失败才算「关注失败」，保持原状态并内联提示
+    followError.value = e instanceof Error ? e.message : t('api.followFailed')
     followLoading.value = false
+    return
   }
+  // 以下不再有「关注失败」：POST 已成功，翻转与广播是本地的即时反馈
+  const target = !isFollowing.value
+  isFollowing.value = target
+  userCard.isFollowing = target
+  broadcastFollowChange(userCard.userId, target)
+  // 回源拿权威结果与粉丝数；失败只代表资料未刷新，不算关注失败（PR #600 review 1），
+  // 计数等字段由 SWR/TTL 下次重验兜底。loading 保持到回源结束，避免飞行期间再次点击发出反向 action
+  const seqAtRequest = getFollowChangeSeq(userCard.userId)
+  try {
+    const fresh = await getUserCard(userCard.userId)
+    adoptFreshCard(userCard.userId, fresh, seqAtRequest)
+    if (card.value?.userId === userCard.userId) {
+      card.value = fresh
+      isFollowing.value = fresh.isFollowing
+    }
+  } catch {
+    // 回源失败保留乐观状态，静默等待下次重验
+  }
+  followLoading.value = false
 }
 
 function onDocumentPointerDown(event: PointerEvent) {
@@ -173,6 +239,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') hideNow()
 }
 
+let offFollowChange: (() => void) | undefined
+
 onMounted(() => {
   window.addEventListener('goose:user-card-show', show)
   document.addEventListener('pointerdown', onDocumentPointerDown)
@@ -180,6 +248,12 @@ onMounted(() => {
   window.addEventListener('scroll', hideNow, { passive: true })
   window.addEventListener('resize', hideNow)
   window.addEventListener('goose:page', hideNow)
+  // 用户主页等处关注/取关后，同步纠正打开中的卡片与缓存条目
+  offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
+    const cached = cache.get(userId)
+    if (cached) cached.isFollowing = following
+    if (card.value?.userId === userId) isFollowing.value = following
+  })
 })
 
 onBeforeUnmount(() => {
@@ -189,6 +263,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', hideNow)
   window.removeEventListener('resize', hideNow)
   window.removeEventListener('goose:page', hideNow)
+  offFollowChange?.()
 })
 
 </script>
@@ -395,6 +470,8 @@ onBeforeUnmount(() => {
             </a>
           </div>
         </div>
+        <!-- 关注失败内联提示（issue #593）：失败保持原状态并给出可操作文案，不再静默吞错 -->
+        <p v-if="followError" role="alert" class="mt-2 text-xs text-error">{{ followError }}</p>
           </div>
         </Transition>
       </div>
