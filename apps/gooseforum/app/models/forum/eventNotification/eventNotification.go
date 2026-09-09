@@ -16,6 +16,7 @@ const (
 	EventTypeBadge       = "badge"        // 徽章通知
 	EventTypeLike        = "like"         // 楼层点赞通知
 	EventTypeWikiUpdated = "wiki_updated" // wiki 页面审核通过后的更新通知
+	EventTypeMention     = "mention"      // @mention 通知（issue #563）
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 	TemplateBadge       = "notifications.templates.badge"
 	TemplateLike        = "notifications.templates.like"
 	TemplateWikiUpdated = "notifications.templates.wikiUpdated"
+	TemplateMention     = "notifications.templates.mention"
 )
 
 // Future unread-scope design:

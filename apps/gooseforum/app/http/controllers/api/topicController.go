@@ -759,6 +759,20 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
 		llmsservice.ClearCache()
 	}
+	// 编辑后 mention 增量通知（issue #563）：正文已上线（非待审）才发布，
+	// 处理器按旧/新内容集合差只通知新增 mention。待审编辑批准后不补发
+	// （与创建路径相反：创建时未发事件、批准时补发；编辑批准走下方）。
+	if !pendingReview {
+		eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostUpdatedEvent{
+			TopicId:     postEntity.TopicId,
+			PostId:      postEntity.Id,
+			PostNo:      postEntity.PostNo,
+			UserId:      req.UserId,
+			OldContent:  oldContent,
+			NewContent:  postEntity.Content,
+			IsAnonymous: postEntity.IsAnonymous,
+		})
+	}
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,

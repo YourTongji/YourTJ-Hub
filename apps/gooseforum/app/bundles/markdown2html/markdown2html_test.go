@@ -321,3 +321,39 @@ func loadMarkdownCompatFixtures(t *testing.T) []markdownCompatCase {
 	})
 	return fixtures
 }
+
+func TestExtractMentions(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{name: "plain mention", content: "@alice 你好", want: []string{"alice"}},
+		{name: "multiple mentions", content: "@alice @bob 讨论", want: []string{"alice", "bob"}},
+		{name: "repeated mention dedup", content: "@alice @alice @bob", want: []string{"alice", "bob"}},
+		{name: "fenced code excluded", content: "```\n@alice\n```\n@bob", want: []string{"bob"}},
+		{name: "inline code excluded", content: "`@alice` @bob", want: []string{"bob"}},
+		{name: "link label excluded", content: "[@alice](/u/1) @bob", want: []string{"bob"}},
+		{name: "url excluded", content: "https://x.com/@alice 见 @bob", want: []string{"bob"}},
+		{name: "email excluded", content: "foo@example.com @bob", want: []string{"bob"}},
+		{name: "midword at not mention", content: "x@alice", want: nil},
+		{name: "double at not mention", content: "@@alice", want: nil},
+		{name: "underscore username", content: "@user_name 好", want: []string{"user_name"}},
+		{name: "hyphen username", content: "@a-b-c 好", want: []string{"a-b-c"}},
+		{name: "punctuation before at", content: "（@alice）", want: []string{"alice"}},
+		{name: "cjk text before at", content: "请@alice 看一下", want: []string{"alice"}},
+		{name: "no at", content: "没有提及", want: nil},
+		{name: "image alt excluded", content: "![@alice](/img.png) @bob", want: []string{"bob"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractMentions(tt.content)
+			if len(got) == 0 && len(tt.want) == 0 {
+				return
+			}
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Fatalf("ExtractMentions(%q) = %v, want %v", tt.content, got, tt.want)
+			}
+		})
+	}
+}

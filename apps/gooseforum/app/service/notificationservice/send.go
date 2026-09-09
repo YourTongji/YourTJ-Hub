@@ -115,6 +115,48 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 	return err
 }
 
+// SendMentionNotifications 批量发送 @mention 通知（issue #563）。
+// 调用方已按优先级去重并限制 fan-out 上限，这里只做 0 值过滤。
+func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, postNo uint64, preview string, mentionerId uint64) error {
+	if len(userIds) == 0 {
+		return nil
+	}
+
+	notifications := make([]*eventNotification.Entity, 0, len(userIds))
+	for _, userId := range userIds {
+		if userId == 0 {
+			continue
+		}
+		notifications = append(notifications, &eventNotification.Entity{
+			UserId:    userId,
+			EventType: eventNotification.EventTypeMention,
+			TopicID:   topicId,
+			Payload: eventNotification.NotificationPayload{
+				Content:     preview,
+				TemplateKey: eventNotification.TemplateMention,
+				TemplateParams: eventNotification.NotificationTemplateParams{
+					Preview: preview,
+				},
+				ActorId: mentionerId,
+				TopicId: topicId,
+				PostId:  postId,
+				PostNo:  postNo,
+			},
+		})
+	}
+	if len(notifications) == 0 {
+		return nil
+	}
+
+	err := eventNotification.CreateBatch(notifications, 100)
+	if err == nil {
+		for _, userId := range userIds {
+			unreadservice.Invalidate(userId)
+		}
+	}
+	return err
+}
+
 func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, badgeIconURL string) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateBadge,

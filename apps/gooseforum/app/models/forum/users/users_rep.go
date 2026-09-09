@@ -90,6 +90,18 @@ func GetByUsername(username string) (entity EntityComplete, err error) {
 	return
 }
 
+// GetMapByUsernames 按用户名批量查询用户（mention 解析用，issue #563）。
+func GetMapByUsernames(usernames []string) map[string]*EntityComplete {
+	if len(usernames) == 0 {
+		return nil
+	}
+	var entities []*EntityComplete
+	builder().Where(queryopt.In("username", usernames)).Find(&entities)
+	return lo.KeyBy(entities, func(v *EntityComplete) string {
+		return v.Username
+	})
+}
+
 func MakeUser(name string, password string, email string) *EntityComplete {
 	user := EntityComplete{Username: name, Email: email}
 	user.SetPassword(password)

@@ -406,7 +406,8 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 			title = truncateTitle(actorName(payload))
 		}
 	case eventNotification.EventTypeComment, eventNotification.EventTypePostReply,
-		eventNotification.EventTypeTopicPost, eventNotification.EventTypeLike:
+		eventNotification.EventTypeTopicPost, eventNotification.EventTypeMention,
+		eventNotification.EventTypeLike:
 		url = topicURL(payload)
 		title = truncateTitle(topicTitle(payload))
 	default:

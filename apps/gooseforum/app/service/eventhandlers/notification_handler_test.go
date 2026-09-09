@@ -1,8 +1,13 @@
 package eventhandlers
 
 import (
+	"context"
+	"strconv"
 	"strings"
 	"testing"
+
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 func TestCommentNotificationExcludeUserIds(t *testing.T) {
@@ -169,4 +174,151 @@ func TestTakeUpTo64CharsRemovesMarkdownImageSyntax(t *testing.T) {
 	if got != "[图片]" {
 		t.Fatalf("TakeUpTo64Chars() = %q, want [图片]", got)
 	}
+}
+
+func TestPriorityRecipients(t *testing.T) {
+	tests := []struct {
+		name           string
+		event          *CommentCreatedEvent
+		mentionIDs     []uint64
+		wantRecipients map[uint64]string
+	}{
+		{
+			name:           "root comment notifies topic author",
+			event:          &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2},
+			wantRecipients: map[uint64]string{2: "comment"},
+		},
+		{
+			name:           "reply notifies parent with post_reply",
+			event:          &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2, ReplyToPostId: 10, ReplyToPostAuthorId: 3},
+			wantRecipients: map[uint64]string{2: "comment", 3: "post_reply"},
+		},
+		{
+			name:           "reply to topic author only gets post_reply",
+			event:          &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2, ReplyToPostId: 10, ReplyToPostAuthorId: 2},
+			wantRecipients: map[uint64]string{2: "post_reply"},
+		},
+		{
+			name:           "mention beats comment",
+			event:          &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2},
+			mentionIDs:     []uint64{2},
+			wantRecipients: map[uint64]string{2: "mention"},
+		},
+		{
+			name:           "post_reply beats mention",
+			event:          &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2, ReplyToPostId: 10, ReplyToPostAuthorId: 3},
+			mentionIDs:     []uint64{3},
+			wantRecipients: map[uint64]string{2: "comment", 3: "post_reply"},
+		},
+		{
+			name:           "mention wins over topic watch candidate",
+			event:          &CommentCreatedEvent{UserId: 1, TopicAuthorId: 2},
+			mentionIDs:     []uint64{3},
+			wantRecipients: map[uint64]string{2: "comment", 3: "mention"},
+		},
+		{
+			name:           "zero ids skipped",
+			event:          &CommentCreatedEvent{UserId: 1},
+			mentionIDs:     []uint64{0, 2},
+			wantRecipients: map[uint64]string{2: "mention"},
+		},
+		{
+			name:           "own comment no self notification",
+			event:          &CommentCreatedEvent{UserId: 2, TopicAuthorId: 2, ReplyToPostId: 10, ReplyToPostAuthorId: 2},
+			wantRecipients: map[uint64]string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := priorityRecipients(tt.event, tt.mentionIDs)
+			if len(got) != len(tt.wantRecipients) {
+				t.Fatalf("priorityRecipients() = %v, want %v", got, tt.wantRecipients)
+			}
+			for _, recipient := range got {
+				if want, ok := tt.wantRecipients[recipient.userID]; !ok || recipient.eventType != want {
+					t.Fatalf("priorityRecipients() = %v, want %v", got, tt.wantRecipients)
+				}
+			}
+		})
+	}
+}
+
+func TestMentionDiff(t *testing.T) {
+	tests := []struct {
+		name string
+		old  []uint64
+		new  []uint64
+		want []uint64
+	}{
+		{name: "added mention notifies", old: []uint64{1}, new: []uint64{1, 2}, want: []uint64{2}},
+		{name: "kept mention no re-notify", old: []uint64{1, 2}, new: []uint64{1, 2}, want: nil},
+		{name: "removed mention no notify", old: []uint64{1, 2}, new: []uint64{1}, want: nil},
+		{name: "text only change no notify", old: []uint64{1}, new: []uint64{1}, want: nil},
+		{name: "empty old all new notify", old: nil, new: []uint64{1, 2}, want: []uint64{1, 2}},
+		{name: "fanout capped at 20", old: nil, new: makeRange(1, 25), want: makeRange(1, 20)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mentionDiff(tt.old, tt.new)
+			if strings.Join(loMap(got), ",") != strings.Join(loMap(tt.want), ",") {
+				t.Fatalf("mentionDiff(%v, %v) = %v, want %v", tt.old, tt.new, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandleCommentCreatedAnonymousSkipsNotifications(t *testing.T) {
+	// 匿名楼层直接返回，不触达数据库（issue #524 边界，issue #563 要求保持）。
+	if err := handleCommentCreated(context.Background(), &CommentCreatedEvent{IsAnonymous: true, Content: "@alice"}); err != nil {
+		t.Fatalf("handleCommentCreated(anonymous) err=%v", err)
+	}
+}
+
+func makeRange(from, to int) []uint64 {
+	out := make([]uint64, 0, to-from+1)
+	for i := from; i <= to; i++ {
+		out = append(out, uint64(i))
+	}
+	return out
+}
+
+func loMap(ids []uint64) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, strconv.FormatUint(id, 10))
+	}
+	return out
+}
+
+func TestResolveMentionUserIDs(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
+		t.Fatalf("migrate users: %v", err)
+	}
+	alice := users.MakeUser("alice", "pass1234", "alice@example.com")
+	bob := users.MakeUser("bob", "pass1234", "bob@example.com")
+	if err := users.Create(alice); err != nil {
+		t.Fatalf("create alice: %v", err)
+	}
+	if err := users.Create(bob); err != nil {
+		t.Fatalf("create bob: %v", err)
+	}
+
+	t.Run("resolves dedup skips unknown and self", func(t *testing.T) {
+		got := resolveMentionUserIDs("你好 @alice @bob @alice @nobody", alice.Id, 0)
+		if len(got) != 1 || got[0] != bob.Id {
+			t.Fatalf("resolveMentionUserIDs() = %v, want [%d]", got, bob.Id)
+		}
+	})
+	t.Run("limit caps fanout", func(t *testing.T) {
+		got := resolveMentionUserIDs("@alice @bob", 0, 1)
+		if len(got) != 1 {
+			t.Fatalf("resolveMentionUserIDs(limit=1) = %v, want 1 id", got)
+		}
+	})
+	t.Run("no mentions returns nil", func(t *testing.T) {
+		if got := resolveMentionUserIDs("无提及", 0, 0); got != nil {
+			t.Fatalf("resolveMentionUserIDs() = %v, want nil", got)
+		}
+	})
 }
