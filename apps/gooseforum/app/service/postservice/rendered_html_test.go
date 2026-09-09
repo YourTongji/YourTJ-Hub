@@ -66,6 +66,13 @@ func TestRenderPostHTMLWithMention(t *testing.T) {
 		t.Fatalf("RenderPostHTML() = %q, unknown mention must stay plain", html)
 	}
 
+	post := &posts.Entity{Id: 1, Content: "@render-target", RenderedHTML: "<p>@render-target</p>", RenderedVersion: 5}
+	saved := false
+	rebuilt, err := ensureRenderedHTML(post, func(*posts.Entity) error { saved = true; return nil })
+	if err != nil || !saved || !strings.Contains(rebuilt, `href="/u/`) {
+		t.Fatalf("pre-mention cache not rebuilt: %s saved=%v err=%v", rebuilt, saved, err)
+	}
+
 	plain := RenderPostHTML("no mentions here")
 	if strings.Contains(plain, `<a href="/u/`) {
 		t.Fatalf("RenderPostHTML() = %q, no mentions must not link", plain)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
-	nethtml "golang.org/x/net/html"
 )
 
 // maxMentionUsernameLen 与 users.username 字段上限一致（varchar(64)）。
@@ -32,7 +32,7 @@ var mentionUsernameRe = regexp.MustCompile("(^|[^\\w@/\\\\\\[\\]<>!.`-])@")
 // 字段一致（64）。扫描结果为空或超长（>64，非合法用户名）时返回空。
 func scanMentionUsername(source []byte, at int) string {
 	end := at + 1
-	for end < len(source) && end-at-1 < maxMentionUsernameLen && isMentionUsernameChar(source[end]) {
+	for end < len(source) && end-at-1 <= maxMentionUsernameLen && isMentionUsernameChar(source[end]) {
 		end++
 	}
 	if end-at-1 == 0 || end-at-1 > maxMentionUsernameLen {
@@ -50,17 +50,16 @@ func isMentionUsernameChar(c byte) bool {
 // 基于 Goldmark AST：只识别真实文本节点；inline/fenced code、链接文本与目标、
 // autolink（URL/邮箱）、图片 alt、原始 HTML 与数学内容不识别；
 // @ 前须为文本开头或空白/常见标点。结果可直接批量解析用户。
-func ExtractUsernames(markdown string) []string {
-	if markdown == "" || !strings.Contains(markdown, "@") {
-		return nil
-	}
-	protected, _ := protectMathSegments(markdown)
-	reader := text.NewReader([]byte(protected))
-	doc := GetParser().Parser().Parse(reader)
-	source := reader.Source()
+type mentionRange struct {
+	start, end int
+	username   string
+}
 
-	seen := make(map[string]struct{}, 8)
-	usernames := make([]string, 0, 8)
+// mentionRanges retains source offsets so escaped text and existing links can
+// never turn into mentions merely because HTML rendering removed their syntax.
+func mentionRanges(source []byte) []mentionRange {
+	doc := GetParser().Parser().Parse(text.NewReader(source))
+	var ranges []mentionRange
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
@@ -73,138 +72,94 @@ func ExtractUsernames(markdown string) []string {
 			segment := node.Segment
 			value := string(segment.Value(source))
 			for _, match := range mentionUsernameRe.FindAllStringSubmatchIndex(value, -1) {
-				// match: [fullStart fullEnd group1Start group1End]；@ 位于 match[3]。
 				at := segment.Start + match[3]
+				slashes := 0
+				for i := at - 1; i >= 0 && source[i] == '\\'; i-- {
+					slashes++
+				}
+				if slashes%2 != 0 {
+					continue
+				}
 				username := scanMentionUsername(source, at)
-				if username == "" {
-					continue
+				if username != "" {
+					ranges = append(ranges, mentionRange{at, at + 1 + len(username), username})
 				}
-				if _, ok := seen[username]; ok {
-					continue
-				}
-				seen[username] = struct{}{}
-				usernames = append(usernames, username)
 			}
-			return ast.WalkContinue, nil
-		case *ast.CodeSpan, *ast.Link, *ast.AutoLink, *ast.Image,
-			*ast.CodeBlock, *ast.FencedCodeBlock, *ast.HTMLBlock, *ast.RawHTML:
+		case *ast.CodeSpan, *ast.Link, *ast.AutoLink, *ast.Image, *ast.CodeBlock, *ast.FencedCodeBlock, *ast.HTMLBlock, *ast.RawHTML:
 			return ast.WalkSkipChildren, nil
 		}
 		return ast.WalkContinue, nil
 	})
-	return usernames
+	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
+	return ranges
 }
 
-// PostMarkdownToHTMLWithMentions 渲染帖子正文，并把 targets（username → userId）
-// 中解析到有效用户的 @mention 包裹为指向 /u/{id} 的普通链接；未解析到用户的
-// mention 保持普通文本。渲染走既有 goldmark 管线后仅对 HTML 文本节点后处理，
-// 不重解析 Markdown，因此标题锚点、数学保护与转义等既有渲染结果不受影响；
-// 包裹的 href 为服务端解析出的数值 userId，XSS 边界保持不变。
+func ExtractUsernames(markdown string) []string {
+	if !strings.Contains(markdown, "@") {
+		return nil
+	}
+	protected, _ := protectMathSegments(markdown)
+	seen := map[string]bool{}
+	var names []string
+	for _, mention := range mentionRanges([]byte(protected)) {
+		if !seen[mention.username] {
+			seen[mention.username] = true
+			names = append(names, mention.username)
+		}
+	}
+	return names
+}
+
+// PostMarkdownToHTMLWithMentions links only source tokens accepted by the same
+// parser used for notification recipients. Ordinary Markdown links preserve the
+// existing heading, sanitization and math pipeline; numeric targets are resolved
+// by the server and underscore labels are escaped to remain literal usernames.
 func PostMarkdownToHTMLWithMentions(markdown string, targets map[string]uint64) string {
 	if len(targets) == 0 || !strings.Contains(markdown, "@") {
 		return PostMarkdownToHTML(markdown)
 	}
 	protected, placeholders := protectMathSegments(markdown)
-	var buf bytes.Buffer
-	ctx := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
-	if err := md.Convert([]byte(protected), &buf, parser.WithContext(ctx)); err != nil {
-		slog.Error("转化失败", "err", err)
-	}
-	// 在恢复数学片段之前包裹 mention：数学内容此时仍是占位符
-	// （@@YOURTJ_MATH_0@@），不会命中 mention 正则，避免 $@alice$ 误识别。
-	html := wrapMentionLinks(buf.String(), targets)
-	html = restoreMathSegments(html, placeholders)
-	return normalizePostHTML(html)
-}
-
-// wrapMentionLinks 遍历渲染后 HTML，把文本节点中的有效 mention 包裹为
-// <a href="/u/{id}">@username</a>。code/pre/既有链接/脚本等元素内的
-// 文本不处理（与 AST 提取的排除规则一致）。
-func wrapMentionLinks(html string, targets map[string]uint64) string {
-	root, err := nethtml.Parse(strings.NewReader("<div>" + html + "</div>"))
-	if err != nil {
-		return html
-	}
-	wrapMentionTextNodes(root, targets)
-
-	container := findFirstElement(root, "div")
-	if container == nil {
-		return html
-	}
-	var buf bytes.Buffer
-	for child := container.FirstChild; child != nil; child = child.NextSibling {
-		if err := nethtml.Render(&buf, child); err != nil {
-			return html
-		}
-	}
-	return buf.String()
-}
-
-// wrapMentionTextNodes 深度优先处理文本节点；进入 code/pre/链接/脚本等
-// 元素时整棵跳过，避免把代码或已有链接文本误包裹。
-func wrapMentionTextNodes(node *nethtml.Node, targets map[string]uint64) {
-	if node.Type == nethtml.ElementNode {
-		switch node.Data {
-		case "code", "pre", "a", "script", "style", "kbd", "samp", "textarea", "title":
-			return
-		}
-	}
-	if node.Type == nethtml.TextNode {
-		wrapMentionsInTextNode(node, targets)
-	}
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		wrapMentionTextNodes(child, targets)
-	}
-}
-
-// wrapMentionsInTextNode 把单个文本节点中命中 targets 的 mention 拆分为
-// 文本+链接+文本节点序列。mention 文本来自已转义 HTML 的原始字节
-// （@username 不含 HTML 特殊字符），href 为数值 userId，直接输出安全。
-func wrapMentionsInTextNode(node *nethtml.Node, targets map[string]uint64) {
-	parent := node.Parent
-	if parent == nil {
-		return
-	}
-	text := node.Data
-	var splits []struct{ start, end int }
-	for _, match := range mentionUsernameRe.FindAllStringSubmatchIndex(text, -1) {
-		username := scanMentionUsername([]byte(text), match[3])
-		if username == "" {
-			continue
-		}
-		if _, ok := targets[username]; !ok {
-			continue
-		}
-		splits = append(splits, struct{ start, end int }{match[3], match[3] + 1 + len(username)})
-	}
-	if len(splits) == 0 {
-		return
-	}
-
-	// 按正序逐个 InsertBefore(node) 插入：每个新节点都落在 node 之前、
-	// 已插入节点之后，最终顺序与 splits 一致。
+	var rewritten strings.Builder
 	cursor := 0
-	for _, split := range splits {
-		if cursor < split.start {
-			parent.InsertBefore(
-				&nethtml.Node{Type: nethtml.TextNode, Data: text[cursor:split.start]},
-				node,
-			)
+	for _, mention := range mentionRanges([]byte(protected)) {
+		id := targets[mention.username]
+		if id == 0 || mention.start < cursor {
+			continue
 		}
-		link := &nethtml.Node{
-			Type: nethtml.ElementNode,
-			Data: "a",
-			Attr: []nethtml.Attribute{{Key: "href", Val: "/u/" + strconv.FormatUint(targets[text[split.start+1:split.end]], 10)}},
+		rewritten.WriteString(protected[cursor:mention.start])
+		rewritten.WriteString("[@" + strings.ReplaceAll(mention.username, "_", "\\_") + "](/u/" + strconv.FormatUint(id, 10) + ")")
+		cursor = mention.end
+	}
+	rewritten.WriteString(protected[cursor:])
+
+	// Preserve heading IDs from the original source: the headingid extension
+	// includes Markdown link destinations when deriving IDs from rewritten text.
+	var headingIDs []any
+	originalContext := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
+	original := md.Parser().Parse(text.NewReader([]byte(protected)), parser.WithContext(originalContext))
+	_ = ast.Walk(original, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if _, ok := n.(*ast.Heading); ok && entering {
+			id, _ := n.AttributeString("id")
+			headingIDs = append(headingIDs, id)
 		}
-		link.AppendChild(&nethtml.Node{Type: nethtml.TextNode, Data: text[split.start:split.end]})
-		parent.InsertBefore(link, node)
-		cursor = split.end
+		return ast.WalkContinue, nil
+	})
+	source := []byte(rewritten.String())
+	ctx := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
+	doc := md.Parser().Parse(text.NewReader(source), parser.WithContext(ctx))
+	headingIndex := 0
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if _, ok := n.(*ast.Heading); ok && entering {
+			if headingIndex < len(headingIDs) && headingIDs[headingIndex] != nil {
+				n.SetAttributeString("id", headingIDs[headingIndex])
+			}
+			headingIndex++
+		}
+		return ast.WalkContinue, nil
+	})
+	var buf bytes.Buffer
+	if err := md.Renderer().Render(&buf, source, doc); err != nil {
+		slog.Error("render mention markdown failed", "err", err)
 	}
-	if cursor < len(text) {
-		parent.InsertBefore(
-			&nethtml.Node{Type: nethtml.TextNode, Data: text[cursor:]},
-			node,
-		)
-	}
-	parent.RemoveChild(node)
+	return normalizePostHTML(restoreMathSegments(buf.String(), placeholders))
 }

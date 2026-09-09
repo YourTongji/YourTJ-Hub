@@ -213,3 +213,18 @@ func TestPostMarkdownToHTMLWithMentionsXSS(t *testing.T) {
 		t.Fatalf("mention must link, got %s", html)
 	}
 }
+func TestMentionReviewBoundaries(t *testing.T) {
+	long := strings.Repeat("a", 65)
+	if got := ExtractUsernames("@" + long); len(got) != 0 {
+		t.Errorf("overlong token truncated: %v", got)
+	}
+	targets := map[string]uint64{"alice": 42, "bob": 7}
+	html := PostMarkdownToHTMLWithMentions("@alice **middle** @bob", targets)
+	if !strings.Contains(html, `href="/u/7"`) {
+		t.Errorf("mention after inline sibling lost: %s", html)
+	}
+	html = PostMarkdownToHTMLWithMentions(`@alice and \@alice`, targets)
+	if n := strings.Count(html, `href="/u/42"`); n != 1 {
+		t.Errorf("escaped mention linked: %s", html)
+	}
+}
