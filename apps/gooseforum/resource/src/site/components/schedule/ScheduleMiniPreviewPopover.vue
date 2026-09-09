@@ -53,7 +53,8 @@ let autoCloseTimer: ReturnType<typeof setTimeout> | undefined
 let rafId: number | null = null
 
 /** 周几缩写（对应 1..7）。 */
-const WEEKDAY_SHORT = ['一', '二', '三', '四', '五', '六', '日'] as const
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+const weekdayNames = computed(() => WEEKDAY_KEYS.map(day => t(`schedule.weekdays.${day}`)))
 
 /** 课表总行数（通常 11 或 12 行）。 */
 const maxRows = computed(() => store.readTimeTableRows())
@@ -112,9 +113,9 @@ const arrangementSummary = computed(() => {
   if (!props.stagedDetail?.arrangementInfo?.length) return ''
   return props.stagedDetail.arrangementInfo
     .map((arr) => {
-      const day = WEEKDAY_SHORT[arr.occupyDay - 1] ? `周${WEEKDAY_SHORT[arr.occupyDay - 1]}` : ''
+      const day = weekdayNames.value[arr.occupyDay - 1] ?? ''
       const sections = arr.occupyTime?.length
-        ? (arr.occupyTime.length === 1 ? `第${arr.occupyTime[0]}节` : `第${arr.occupyTime[0]}-${arr.occupyTime[arr.occupyTime.length - 1]}节`)
+        ? t('schedule.previewPeriods', { periods: arr.occupyTime.join(', ') })
         : ''
       return `${day} ${sections}`.trim()
     })
@@ -407,7 +408,7 @@ onBeforeUnmount(() => {
           <div class="grid grid-cols-[14px_repeat(7,1fr)] gap-1 text-center mb-1">
             <span class="text-[9px] text-base-content/30">#</span>
             <span
-              v-for="(dayName, idx) in WEEKDAY_SHORT"
+              v-for="(dayName, idx) in weekdayNames"
               :key="idx"
               class="text-[10px] font-medium transition-colors"
               :class="stagedDays.has(idx + 1) ? 'font-bold text-primary' : 'text-base-content/50'"
@@ -444,10 +445,10 @@ onBeforeUnmount(() => {
                 ]"
                 :title="
                   stagedSlotSet.has(`${day}_${period}`)
-                    ? `周${WEEKDAY_SHORT[day - 1]} 第${period}节: ${t('schedule.previewPopoverNew')}`
+                    ? `${weekdayNames[day - 1]} ${t('schedule.previewPeriods', { periods: period })}: ${t('schedule.previewPopoverNew')}`
                     : existingSlotSet.has(`${day}_${period}`)
-                      ? `周${WEEKDAY_SHORT[day - 1]} 第${period}节: ${t('schedule.previewPopoverExisting')}`
-                      : `周${WEEKDAY_SHORT[day - 1]} 第${period}节`
+                      ? `${weekdayNames[day - 1]} ${t('schedule.previewPeriods', { periods: period })}: ${t('schedule.previewPopoverExisting')}`
+                      : `${weekdayNames[day - 1]} ${t('schedule.previewPeriods', { periods: period })}`
                 "
               />
             </div>

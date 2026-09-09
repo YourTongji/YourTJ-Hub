@@ -669,6 +669,7 @@ export default {
     viewAllCourseReviews: 'Alle Bewertungen anzeigen',
     noClassReviewsYet: 'Noch keine spezifischen Bewertungen für diese Klasse',
     previewing: 'Vorschau',
+    previewPeriods: 'Stunden {periods}',
     previewPopoverTitle: 'Stundenplan-Vorschau',
     previewPopoverNew: 'Neu hinzugefügt',
     previewPopoverExisting: 'Bestehend',

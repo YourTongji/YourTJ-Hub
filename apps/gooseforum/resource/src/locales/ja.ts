@@ -670,6 +670,7 @@ export default {
     viewAllCourseReviews: '全講義のレビューを見る',
     noClassReviewsYet: 'このクラス専用のレビューはまだありません',
     previewing: 'プレビュー中',
+    previewPeriods: '{periods} 時限',
     previewPopoverTitle: '時間割プレビュー',
     previewPopoverNew: '今回追加',
     previewPopoverExisting: '登録済み',

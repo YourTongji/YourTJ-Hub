@@ -672,6 +672,7 @@ export default {
     viewAllCourseReviews: '查看全课评价',
     noClassReviewsYet: '该教学班暂无专属文字评价',
     previewing: '预览中',
+    previewPeriods: '第 {periods} 节',
     previewPopoverTitle: '已加入课表预览',
     previewPopoverNew: '本次加入',
     previewPopoverExisting: '已有排课',

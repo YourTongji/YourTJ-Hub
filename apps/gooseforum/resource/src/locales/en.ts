@@ -670,6 +670,7 @@ export default {
     viewAllCourseReviews: 'View all reviews',
     noClassReviewsYet: 'No specific reviews for this class yet',
     previewing: 'Previewing',
+    previewPeriods: 'Periods {periods}',
     previewPopoverTitle: 'Schedule Preview',
     previewPopoverNew: 'Newly added',
     previewPopoverExisting: 'Existing',
