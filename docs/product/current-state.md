@@ -72,3 +72,5 @@ Before expanding features, close these baselines (avoid building on a wrong foun
 1. Decide MFA policy for built-in OIDC / GitHub OAuth login paths (forum TOTP reuse is a `Decision needed`).
 2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
    become a new source of contract drift.
+
+论坛正文的 @mention 链接为 `Current`：服务端按 Markdown 源文本识别有效人类账号，排除代码、链接、数学和转义内容，使用数字用户 ID 生成站内链接，旧正文缓存按渲染版本重建。

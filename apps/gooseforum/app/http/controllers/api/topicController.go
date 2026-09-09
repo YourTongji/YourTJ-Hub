@@ -8,9 +8,9 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -286,7 +286,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		firstPost.Content = req.Params.Content
-		firstPost.RenderedHTML = markdown2html.PostMarkdownToHTML(req.Params.Content)
+		firstPost.RenderedHTML = postservice.RenderPostHTML(req.Params.Content)
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ContentType = req.Params.ContentType
 		if pendingReview {
@@ -332,7 +332,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				PostNo:          1,
 				UserId:          req.UserId,
 				Content:         req.Params.Content,
-				RenderedHTML:    markdown2html.PostMarkdownToHTML(req.Params.Content),
+				RenderedHTML:    postservice.RenderPostHTML(req.Params.Content),
 				RenderedVersion: markdown2html.GetPostVersion(),
 				ProcessStatus:   posts.ProcessStatusNormal,
 				ContentType:     req.Params.ContentType,
@@ -445,7 +445,7 @@ type CreatePostReq struct {
 	TopicId       uint64 `json:"topicId"`
 	Content       string `json:"content"`
 	ReplyToPostId uint64 `json:"replyToPostId"`
-	IsAnonymous   bool   `json:"isAnonymous"` // 匿名发布（仅 wiki 评论区，issue #524）
+	IsAnonymous   bool   `json:"isAnonymous"`       // 匿名发布（仅 wiki 评论区，issue #524）
 	Website       string `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
 	CaptchaId     string `json:"captchaId,omitempty"`
 	CaptchaCode   string `json:"captchaCode,omitempty"`
@@ -559,7 +559,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	postEntity := &posts.Entity{
 		TopicId:         req.Params.TopicId,
 		Content:         content,
-		RenderedHTML:    markdown2html.PostMarkdownToHTML(content),
+		RenderedHTML:    postservice.RenderPostHTML(content),
 		RenderedVersion: markdown2html.GetPostVersion(),
 		UserId:          req.UserId,
 		ReplyToPostId:   req.Params.ReplyToPostId,
@@ -701,7 +701,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	// v1 = 旧正文，避免原始正文永久丢失（已有 v1 的帖子走正常追加）。
 	oldContent := postEntity.Content
 	postEntity.Content = content
-	postEntity.RenderedHTML = markdown2html.PostMarkdownToHTML(content)
+	postEntity.RenderedHTML = postservice.RenderPostHTML(content)
 	postEntity.RenderedVersion = markdown2html.GetPostVersion()
 
 	isFirstPost := postEntity.PostNo == 1

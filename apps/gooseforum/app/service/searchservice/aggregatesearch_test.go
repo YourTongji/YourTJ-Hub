@@ -2,6 +2,8 @@ package searchservice
 
 import (
 	"encoding/json"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -245,4 +247,37 @@ func TestCollectScopeResultsCoursesFillsStats(t *testing.T) {
 	if resp.Courses[1].ID != 11 || resp.Courses[1].RatingAvg != nil || resp.Courses[1].ReviewCount != 0 {
 		t.Fatalf("course 11 should omit stats, got ratingAvg=%#v reviewCount=%d", resp.Courses[1].RatingAvg, resp.Courses[1].ReviewCount)
 	}
+}
+
+// TestUserSearchResultContractKeys 钉住 scope=users 候选契约字段（issue #562）：
+// 与 openapi.yaml UserSearchPayload 的 id/username/nickname/avatarUrl/bio 一致。
+func TestUserSearchResultContractKeys(t *testing.T) {
+	raw, err := json.Marshal(UserSearchResult{
+		ID:        1,
+		Username:  "alice",
+		Nickname:  "Alice",
+		AvatarURL: "/static/pic/1.webp",
+		Bio:       "hi",
+	})
+	if err != nil {
+		t.Fatalf("marshal UserSearchResult: %v", err)
+	}
+	var keys []string
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("unmarshal UserSearchResult: %v", err)
+	}
+	for key := range payload {
+		keys = append(keys, key)
+	}
+	want := sortedStrings([]string{"id", "username", "nickname", "avatarUrl", "bio"})
+	got := strings.Join(sortedStrings(keys), ",")
+	if got != strings.Join(want, ",") {
+		t.Fatalf("UserSearchResult keys = %q, want %q (contract UserSearchPayload)", got, strings.Join(want, ","))
+	}
+}
+
+func sortedStrings(values []string) []string {
+	sort.Strings(values)
+	return values
 }

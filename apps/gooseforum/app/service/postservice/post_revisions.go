@@ -3,7 +3,6 @@ package postservice
 import (
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"gorm.io/gorm"
@@ -53,7 +52,7 @@ func appendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, proces
 			Version:       1,
 			EditorId:      post.UserId,
 			Content:       oldContent,
-			RenderedHTML:  markdown2html.PostMarkdownToHTML(oldContent),
+			RenderedHTML:  RenderPostHTML(oldContent),
 			ProcessStatus: oldProcessStatus,
 		}); err != nil {
 			return err
