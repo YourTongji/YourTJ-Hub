@@ -28,7 +28,7 @@ func TestCreateTopicPostStatsFailureRollsBackWholeWrite(t *testing.T) {
 	failure := errors.New("stats unavailable")
 	if err := conn.Callback().Create().Before("gorm:create").Register("review:fail_stats", func(tx *gorm.DB) {
 		if tx.Statement.Table == "topic_user_stat" {
-			tx.AddError(failure)
+			_ = tx.AddError(failure)
 		}
 	}); err != nil {
 		t.Fatal(err)
