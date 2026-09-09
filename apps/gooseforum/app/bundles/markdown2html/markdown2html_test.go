@@ -357,3 +357,11 @@ func TestExtractMentions(t *testing.T) {
 		})
 	}
 }
+
+func TestNotificationMentionParsingUsesSourceBoundaries(t *testing.T) {
+	for _, content := range []string{`\@alice`, `$@alice$`, "@" + strings.Repeat("a", 65)} {
+		if got := ExtractMentions(content); len(got) != 0 {
+			t.Errorf("%q: unexpected mentions %v", content, got)
+		}
+	}
+}

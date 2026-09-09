@@ -779,6 +779,8 @@
       }
     }
   },
+  "notificationMention": "{actor} 提到了你",
+  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
   "notificationPostReply": "{actor} 回复了你",
   "@notificationPostReply": {
     "placeholders": {

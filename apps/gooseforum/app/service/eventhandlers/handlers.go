@@ -9,6 +9,7 @@ func Handlers() []cqrs.EventHandler {
 	return []cqrs.EventHandler{
 		cqrs.NewEventHandler("CommentCreatedHandler", handleCommentCreated),
 		cqrs.NewEventHandler("PostUpdatedHandler", handlePostUpdated),
+		cqrs.NewEventHandler("TopicMentionPublishedHandler", handleTopicMentionPublished),
 		cqrs.NewEventHandler("UserFollowedHandler", handleUserFollowed),
 		cqrs.NewEventHandler("PostLikedHandler", handlePostLiked),
 		cqrs.NewEventHandler("TopicPublishedHandler", handleTopicPublished),

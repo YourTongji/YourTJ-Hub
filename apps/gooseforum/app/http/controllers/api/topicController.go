@@ -378,6 +378,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
 		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostUpdatedEvent{
+				TopicId: topic.Id, PostId: firstPost.Id, PostNo: firstPost.PostNo, UserId: req.UserId,
+				OldContent: oldContent, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous,
+			})
 		}
 	} else {
 		if topic.Status == 1 && !pendingReview {
@@ -762,7 +766,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	// 编辑后 mention 增量通知（issue #563）：正文已上线（非待审）才发布，
 	// 处理器按旧/新内容集合差只通知新增 mention。待审编辑批准后不补发
 	// （与创建路径相反：创建时未发事件、批准时补发；编辑批准走下方）。
-	if !pendingReview {
+	if !pendingReview && topicEntity.Status == 1 && topicEntity.ProcessStatus == topics.ProcessStatusNormal {
 		eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.PostUpdatedEvent{
 			TopicId:     postEntity.TopicId,
 			PostId:      postEntity.Id,

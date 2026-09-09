@@ -102,6 +102,7 @@ void main() {
       for (final key in [
         'comment',
         'postReply',
+        'mention',
         'topicPost',
         'follow',
         'like',

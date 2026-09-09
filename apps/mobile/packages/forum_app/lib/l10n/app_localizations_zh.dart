@@ -1523,6 +1523,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String notificationMention(String actor) {
+    return '$actor 提到了你';
+  }
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor 回复了你';
   }

@@ -491,6 +491,8 @@
   "wikiSearchHint": "キャンパスの知識を検索",
   "wikiExploreTitle": "キャンパスの案内役",
   "notificationComment": "{actor}があなたのトピックにコメントしました",
+  "notificationMention": "{actor}があなたにメンションしました",
+  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
   "notificationPostReply": "{actor}があなたに返信しました",
   "notificationTopicPost": "{actor}がフォロー中のトピックに投稿しました",
   "notificationFollow": "{actor} さんがあなたをフォローしました",

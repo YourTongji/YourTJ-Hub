@@ -301,66 +301,9 @@ func ExtractDescription(content string, maxLength int) string {
 	return description
 }
 
-// mentionTokenRe 匹配 @username 提及 token。用户名规则与注册校验一致
-// （component.ValidateUsername：^[a-zA-Z0-9_-]{6,32}$）；上限放宽到 64
-// 与 username 字段（varchar(64)）一致，最终以用户表解析结果为准。
-var mentionTokenRe = regexp.MustCompile(`@[a-zA-Z0-9_-]{1,64}`)
-
-// ExtractMentions 从 Markdown 正文提取 @username 提及（去重、按出现顺序），
-// 供服务端计算 mention 通知收件人。基于最终可见文本识别（先渲染再取纯文本），
-// 排除链接/自动链接（URL、email）、代码块与 inline code 内的文本，避免误触发
-// （issue #563）。渲染后提取还能正确处理 goldmark 在 _ 等内联分隔符处切分
-// 文本节点导致的 token 断裂（如 @user_name）。
+// ExtractMentions shares the source-aware parser used by rendered post links.
 func ExtractMentions(content string) []string {
-	if !strings.Contains(content, "@") {
-		return nil
-	}
-
-	root, err := nethtml.Parse(strings.NewReader(MarkdownToHTML(content)))
-	if err != nil {
-		return nil
-	}
-	seen := make(map[string]struct{}, 8)
-	mentions := make([]string, 0, 8)
-	var walk func(*nethtml.Node)
-	walk = func(node *nethtml.Node) {
-		if node.Type == nethtml.ElementNode {
-			switch node.Data {
-			case "a", "code", "pre":
-				return
-			}
-		}
-		if node.Type == nethtml.TextNode {
-			data := node.Data
-			for _, loc := range mentionTokenRe.FindAllIndex([]byte(data), -1) {
-				if loc[0] > 0 && !isMentionBoundary(data[loc[0]-1]) {
-					continue
-				}
-				username := data[loc[0]+1 : loc[1]]
-				if _, ok := seen[username]; ok {
-					continue
-				}
-				seen[username] = struct{}{}
-				mentions = append(mentions, username)
-			}
-		}
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-		}
-	}
-	walk(root)
-	return mentions
-}
-
-// isMentionBoundary 判断 @ 前一字节是否构成 mention 起点：用户名构成字符
-// （字母/数字/下划线）与另一个 @（@@ 双 at 不触发）视为同一 token 内，
-// 其余（空白/常见标点/行首）才可能是 @username 的开头。
-func isMentionBoundary(prev byte) bool {
-	switch {
-	case prev >= 'a' && prev <= 'z', prev >= 'A' && prev <= 'Z', prev >= '0' && prev <= '9', prev == '_', prev == '@':
-		return false
-	}
-	return true
+	return ExtractUsernames(content)
 }
 
 // ExtractPreview converts Markdown into compact readable text for notifications and activity lists.

@@ -245,6 +245,7 @@ export default {
     viewProfile: 'View profile',
     templates: {
       comment: 'commented on your topic',
+      mention: 'mentioned you',
       postReply: 'replied to you',
       topicPost: 'posted in a topic you watch',
       follow: 'followed you',

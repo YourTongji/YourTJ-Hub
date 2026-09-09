@@ -2946,6 +2946,12 @@ abstract class AppLocalizations {
   /// **'{actor} commented on your topic'**
   String notificationComment(String actor);
 
+  /// No description provided for @notificationMention.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you'**
+  String notificationMention(String actor);
+
   /// No description provided for @notificationPostReply.
   ///
   /// In en, this message translates to:

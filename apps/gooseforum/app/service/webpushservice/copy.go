@@ -16,7 +16,7 @@ var bodyByLangType = map[string]map[string]string{
 		"badge":        "获得了「{badge}」徽章",
 		"like":         "赞了你的回复",
 		"wiki_updated": "更新了你订阅的 wiki 页面",
-		"mention":       "提到了你",
+		"mention":      "提到了你",
 	},
 	"en": {
 		"comment":      "commented on your topic",
@@ -26,7 +26,7 @@ var bodyByLangType = map[string]map[string]string{
 		"badge":        "earned the \"{badge}\" badge",
 		"like":         "liked your reply",
 		"wiki_updated": "updated a wiki page you are watching",
-		"mention":       "mentioned you",
+		"mention":      "mentioned you",
 	},
 	"ja": {
 		"comment":      "あなたのトピックにコメントしました",
@@ -36,7 +36,7 @@ var bodyByLangType = map[string]map[string]string{
 		"badge":        "「{badge}」バッジを獲得しました",
 		"like":         "あなたの返信にいいねしました",
 		"wiki_updated": "ウォッチ中の wiki ページが更新されました",
-		"mention":       "あなたをメンションしました",
+		"mention":      "あなたをメンションしました",
 	},
 	"de": {
 		"comment":      "hat dein Thema kommentiert",
@@ -46,7 +46,7 @@ var bodyByLangType = map[string]map[string]string{
 		"badge":        "hat das Abzeichen \"{badge}\" erhalten",
 		"like":         "hat deine Antwort mit \"Gefällt mir\" markiert",
 		"wiki_updated": "hat eine Wiki-Seite aktualisiert, der du folgst",
-		"mention":       "hat dich erwähnt",
+		"mention":      "hat dich erwähnt",
 	},
 }
 

@@ -207,6 +207,8 @@ function notificationTemplateText(item: NotificationPayload) {
   switch (templateKey) {
     case 'notifications.templates.comment':
       return t('notifications.templates.comment')
+    case 'notifications.templates.mention':
+      return t('notifications.templates.mention')
     case 'notifications.templates.postReply':
       return t('notifications.templates.postReply')
     case 'notifications.templates.topicPost':
@@ -231,6 +233,7 @@ function notificationVerb(item: NotificationPayload) {
   if (templateText && item.eventType !== 'badge') return templateText
   if (item.eventType === 'follow') return t('notifications.verb.follow')
   if (item.eventType === 'badge') return ''
+  if (item.eventType === 'mention') return t('notifications.templates.mention')
   if (item.eventType === 'post_reply') return t('notifications.verb.reply')
   if (item.eventType === 'comment' || item.eventType === 'topic_post') return t('notifications.verb.comment')
   return notificationTitleText(item)

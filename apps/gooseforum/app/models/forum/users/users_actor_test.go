@@ -259,6 +259,14 @@ func TestGetMentionTargetIds(t *testing.T) {
 		}
 	}
 
+	// Even a very large name list must not exceed SQLite/PostgreSQL bind limits.
+	names := make([]string, 35000)
+	for i := range names {
+		names[i] = "mention-normal"
+	}
+	if got := GetMentionTargetIds(names)["mention-normal"]; got != normal.Id {
+		t.Fatalf("large mention lookup = %d, want %d", got, normal.Id)
+	}
 	if got := GetMentionTargetIds(nil); len(got) != 0 {
 		t.Fatalf("empty usernames should return empty map, got %+v", got)
 	}

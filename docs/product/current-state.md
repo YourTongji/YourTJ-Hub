@@ -72,3 +72,15 @@ Before expanding features, close these baselines (avoid building on a wrong foun
 1. Decide MFA policy for built-in OIDC / GitHub OAuth login paths (forum TOTP reuse is a `Decision needed`).
 2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
    become a new source of contract drift.
+
+### Forum mention notifications
+
+`Current`: Public first posts and replies notify eligible users mentioned by exact, case-sensitive
+username. Rendering and notification recipients share the source parser: escaped text, code,
+links and math are excluded. Self mentions, anonymous posts, unavailable accounts, drafts,
+pending moderation and deleted content do not send mention notifications. Both topic and reply
+edit paths notify only users added relative to the previous content. The recipient priority is
+`post_reply > mention > comment > topic_post`, with at most 20 mention recipients per event.
+Additional mentioned topic watchers may still receive their ordinary `topic_post` notification.
+Web and mobile render the mention template using their selected locale; existing unread and
+push delivery paths are reused.

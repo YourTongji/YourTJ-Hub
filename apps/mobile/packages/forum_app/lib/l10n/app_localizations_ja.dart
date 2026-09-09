@@ -1526,6 +1526,11 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String notificationMention(String actor) {
+    return '$actorがあなたにメンションしました';
+  }
+
+  @override
   String notificationPostReply(String actor) {
     return '$actorがあなたに返信しました';
   }

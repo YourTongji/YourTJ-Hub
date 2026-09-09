@@ -245,6 +245,7 @@ export default {
     viewProfile: '查看主页',
     templates: {
       comment: '评论了你的内容',
+      mention: '提到了你',
       postReply: '回复了你',
       topicPost: '在你关注的内容下发表了新回复',
       follow: '关注了你',

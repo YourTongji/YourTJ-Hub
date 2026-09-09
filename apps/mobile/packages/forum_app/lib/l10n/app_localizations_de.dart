@@ -1575,6 +1575,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String notificationMention(String actor) {
+    return '$actor hat dich erwähnt';
+  }
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor hat dir geantwortet';
   }

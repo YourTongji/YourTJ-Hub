@@ -245,6 +245,7 @@ export default {
     viewProfile: 'Profil anzeigen',
     templates: {
       comment: 'hat dein Thema kommentiert',
+      mention: 'hat dich erwähnt',
       postReply: 'hat dir geantwortet',
       topicPost: 'hat in einem Thema gepostet, dem du folgst',
       follow: 'folgt dir jetzt',

@@ -491,6 +491,8 @@
   "wikiSearchHint": "Campuswissen suchen",
   "wikiExploreTitle": "Dein Campusbegleiter",
   "notificationComment": "{actor} hat dein Thema kommentiert",
+  "notificationMention": "{actor} hat dich erwähnt",
+  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
   "notificationPostReply": "{actor} hat dir geantwortet",
   "notificationTopicPost": "{actor} hat in einem von dir verfolgten Thema geschrieben",
   "notificationFollow": "{actor} folgt dir jetzt",

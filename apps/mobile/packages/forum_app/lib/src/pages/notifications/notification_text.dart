@@ -29,6 +29,7 @@ import '../../../l10n/app_localizations.dart';
   final key = item.payload.templateKey ?? '';
   final event = switch (key) {
     'notifications.templates.comment' => 'comment',
+    'notifications.templates.mention' => 'mention',
     'notifications.templates.postReply' => 'post_reply',
     'notifications.templates.topicPost' => 'topic_post',
     'notifications.templates.follow' => 'follow',
@@ -46,6 +47,7 @@ import '../../../l10n/app_localizations.dart';
       ? legacyTitle
       : switch (event) {
           'comment' => l10n.notificationComment(actor),
+          'mention' => l10n.notificationMention(actor),
           'post_reply' => l10n.notificationPostReply(actor),
           'topic_post' => l10n.notificationTopicPost(actor),
           'follow' => l10n.notificationFollow(actor),

@@ -2,13 +2,17 @@ package eventhandlers
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
+	"gorm.io/gorm"
 )
 
 const (
@@ -57,8 +61,12 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 	// ActorName 在读取时按 ActorId 回填真实用户名，会向他人泄露匿名身份。
 	// 匿名作者收到「他人回复其楼层」的通知不在此事件内——那是另一条以真实
 	// 回复者为 Actor 的 CommentCreatedEvent，走下方非匿名分支正常发送。
-	if event.IsAnonymous {
+	if event == nil || event.IsAnonymous {
 		return nil
+	}
+	visible, err := mentionPostIsPublic(ctx, event.TopicId, event.PostId)
+	if err != nil || !visible {
+		return err
 	}
 	contentPreview := TakeUpTo64Chars(event.Content)
 	// 收件人/类型在同一流程内计算并去重：被提及者若同时是回复目标/主题作者/
@@ -88,19 +96,19 @@ func resolveMentionUserIDs(content string, excludeUserID uint64, limit int) []ui
 	if len(usernames) == 0 {
 		return nil
 	}
-	userMap := users.GetMapByUsernames(usernames)
+	userMap := users.GetMentionTargetIds(usernames)
 	userIDs := make([]uint64, 0, len(usernames))
 	seen := make(map[uint64]struct{}, len(usernames))
 	for _, username := range usernames {
-		user, ok := userMap[username]
-		if !ok || user == nil || user.Id == 0 || user.Id == excludeUserID {
+		userID, ok := userMap[username]
+		if !ok || userID == 0 || userID == excludeUserID {
 			continue
 		}
-		if _, dup := seen[user.Id]; dup {
+		if _, dup := seen[userID]; dup {
 			continue
 		}
-		seen[user.Id] = struct{}{}
-		userIDs = append(userIDs, user.Id)
+		seen[userID] = struct{}{}
+		userIDs = append(userIDs, userID)
 		if limit > 0 && len(userIDs) >= limit {
 			break
 		}
@@ -218,11 +226,47 @@ func handlePostUpdated(ctx context.Context, event *PostUpdatedEvent) error {
 	if event.OldContent == event.NewContent {
 		return nil
 	}
+	visible, err := mentionPostIsPublic(ctx, event.TopicId, event.PostId)
+	if err != nil || !visible {
+		return err
+	}
 	addedUserIDs := newMentionUserIDs(event.OldContent, event.NewContent, event.UserId)
 	if len(addedUserIDs) == 0 {
 		return nil
 	}
 	return notificationservice.SendMentionNotifications(addedUserIDs, event.TopicId, event.PostId, event.PostNo, TakeUpTo64Chars(event.NewContent), event.UserId)
+}
+
+// Recheck current visibility because publication/edit events are asynchronous.
+func mentionPostIsPublic(ctx context.Context, topicID, postID uint64) (bool, error) {
+	topic, err := topics.GetWithContext(ctx, topicID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if topic.Status != 1 || topic.ProcessStatus != topics.ProcessStatusNormal || topic.VisibilityStatus != topics.VisibilityActive {
+		return false, nil
+	}
+	post, err := posts.GetWithContext(ctx, postID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return post.TopicId == topicID && !post.IsAnonymous && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive, nil
+}
+
+func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent) error {
+	if event == nil || event.Topic == nil || event.FirstPost == nil {
+		return nil
+	}
+	return handlePostUpdated(ctx, &PostUpdatedEvent{
+		TopicId: event.Topic.Id, PostId: event.FirstPost.Id, PostNo: event.FirstPost.PostNo,
+		UserId: event.FirstPost.UserId, NewContent: event.FirstPost.Content, IsAnonymous: event.FirstPost.IsAnonymous,
+	})
 }
 
 // newMentionUserIDs 返回编辑后新增的 mention 用户（最多 maxMentionFanOut 个）。

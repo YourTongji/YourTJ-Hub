@@ -245,6 +245,7 @@ export default {
     viewProfile: 'プロフィールを見る',
     templates: {
       comment: 'あなたのトピックにコメントしました',
+      mention: 'あなたにメンションしました',
       postReply: 'あなたに返信しました',
       topicPost: 'ウォッチ中のトピックに投稿しました',
       follow: 'あなたをフォローしました',
