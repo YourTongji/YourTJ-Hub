@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/e36e678fae9a4d3e173750d9ce583c9140235b10)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/3cbdccc7d7b05e6027e8965ed89f19f4e807c081)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -31,7 +31,10 @@ seconds, manually overridable within 10–3000 seconds.
 All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
 merge. A scan selects at most 20 eligible items; later scans pick up the remaining items after cooldown
-receipts exclude completed work. Two model jobs run concurrently. Close/merge still require a current
+receipts exclude completed work. Two item workflows run concurrently. Each item publishes immediately after its own execution,
+without waiting for other items in the batch; [the item workflow](../../.github/workflows/oryn-item.yml)
+keeps model and publisher credentials in separate jobs. All jobs use the trusted workflow commit
+recorded by the planner. Stale admissions are deferred individually, and aborted reservations are released. Close/merge still require a current
 maintainer command and live evidence; merge additionally requires independent approval and successful
 `ci-backend`, `ci-frontend`, and `ci-contract` checks. Generated fixes remain draft PRs for human review.
 

@@ -29,6 +29,10 @@ would create a second maintenance burden; running centrally would require event 
 Choose option 1. The local workflow checks out trusted policy from the default branch for native events,
 loads an immutable private Oryn revision using a source-only read token, and separates planning,
 read-only model execution and publication into jobs with independently narrowed target tokens.
+A reusable per-item workflow publishes each result as soon as its execution completes; a slow item
+does not hold every other report behind a batch-wide barrier. The planner records one trusted
+workflow commit for all children. Admission dispatches only successfully reserved jobs, defers stale
+sources independently and releases reservations on abort. Source freshness remains mandatory.
 The App is installed only on the target and runtime repositories. Native events replace webhooks.
 Manual preflight exercises read access and planning without inference or publication.
 
@@ -52,5 +56,5 @@ A successful live App preflight and model run establish access; local checks alo
 ## Links
 
 - [Operations guide](../operations/oryn.md)
-- [Pinned Oryn runtime](https://github.com/yzxoi/oryn-mini/tree/e36e678fae9a4d3e173750d9ce583c9140235b10)
+- [Pinned Oryn runtime](https://github.com/yzxoi/oryn-mini/tree/3cbdccc7d7b05e6027e8965ed89f19f4e807c081)
 - [GitHub App token action](https://github.com/actions/create-github-app-token/tree/bcd2ba49218906704ab6c1aa796996da409d3eb1)
