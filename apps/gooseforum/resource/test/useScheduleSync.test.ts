@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   createScheduleSyncController,
+  PK_SYNC_AUTOSAVE_MS,
   PK_SYNC_DEBOUNCE_MS,
   PkSyncError,
   type PkSyncPayload,
@@ -9,10 +10,23 @@ import {
   type ScheduleSyncController,
 } from '../src/site/composables/useScheduleSync'
 import { setSolidifyHook, useScheduleStore } from '../src/site/composables/useScheduleStore'
+import { i18n } from '../src/runtime/i18n'
+
+/** 默认方案名（跟随当前 locale，构造云端方案名用）。 */
+function defaultPlanName(n: number): string {
+  return i18n.global.t('schedule.planDefaultName', { n })
+}
+
+/** 自动恢复方案名（跟随当前 locale）。 */
+function autoRestoreName(n: number): string {
+  return i18n.global.t('schedule.planAutoRestoreName', { n })
+}
 
 // 云同步状态机（useScheduleSync）单测：传输层注入 fake，vi.useFakeTimers 驱动
-// 防抖/停摆语义。覆盖：进页 GET 四分支、防抖合并上传、applyingRemote 防回灌、
-// 400/401 停止、登出停止、visibility 冲刷、未登录零网络。
+// 防抖/心跳语义。覆盖（#573）：进页总是上传本地、云端分歧自动恢复（保留本地为
+// 「[本地自动恢复]方案x」）、网络错误心跳自动补传、手动保存 saveNow、账号切换
+// 不自动上传上一账号方案、applyingRemote 防回灌、400/401 停止、登出停止、
+// visibility 冲刷、未登录零网络。
 
 function makeStorage(initial: Record<string, string> = {}) {
   const storage = new Map<string, string>(Object.entries(initial))
@@ -34,7 +48,7 @@ function makeSnapshot(overrides: Partial<PkSyncRemoteSnapshot> = {}): PkSyncRemo
     plans: [
       {
         id: 'plan_cloud',
-        name: '方案 1',
+        name: defaultPlanName(1),
         createdAt: 1725000000000,
         stagedCourses: [],
         selectedCourses: [],
@@ -107,9 +121,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('useScheduleSync（排课方案云同步状态机）', () => {
-  test('进页分支①：云端空 + 本机空 → 不动（零 PUT）', async () => {
-    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
+  test('进页：云端空 + 本机空 → 不动（零 PUT）', async () => {
+    const { controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     fetchCloudSnapshot.mockResolvedValue(null)
 
@@ -117,10 +131,10 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
 
     expect(fetchCloudSnapshot).toHaveBeenCalledTimes(1)
     expect(putCloudSnapshot).not.toHaveBeenCalled()
-    expect(store.getSyncedAt()).toBe('')
+    expect(controller.isDirty()).toBe(false)
   })
 
-  test('进页分支②：云端空 + 本机非空 → 首登自动上传本机快照', async () => {
+  test('进页：云端空 + 本机非空 → 自动上传本机快照', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     seedLocalContent(store)
@@ -138,7 +152,7 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(controller.isDirty()).toBe(false)
   })
 
-  test('进页分支③：云端快照 + 本机空 → 整包采用（云端）且不回灌上传', async () => {
+  test('进页：云端有快照 + 本机空 → 整包采用（云端）且不回灌上传', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
@@ -154,7 +168,7 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(putCloudSnapshot).not.toHaveBeenCalled()
   })
 
-  test('进页分支④a：本机非空 + syncedAt 一致且非 dirty → 不动', async () => {
+  test('进页：本机非空 + syncedAt 一致且非 dirty → 不动', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({
       'pk.syncedAt': JSON.stringify(UPDATED_AT),
     })
@@ -164,32 +178,12 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
 
     await controller.syncOnPageEnter()
 
-    expect(controller.conflict.value).toBeNull()
+    expect(controller.notice.value).toBeNull()
     expect(putCloudSnapshot).not.toHaveBeenCalled()
     expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
   })
 
-  test('进页分支④b：本机非空 + syncedAt 不一致 → 弹窗二选一；「使用云端」整包采用', async () => {
-    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
-    controller.start()
-    seedLocalContent(store)
-    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
-
-    await controller.syncOnPageEnter()
-    expect(controller.conflict.value?.updatedAt).toBe(UPDATED_AT)
-
-    controller.useCloud()
-
-    expect(controller.conflict.value).toBeNull()
-    expect(store.state.plans[0]?.id).toBe('plan_cloud')
-    expect(store.getSyncedAt()).toBe(UPDATED_AT)
-    expect(controller.isDirty()).toBe(false)
-    // 「使用云端」不得回灌上传。
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
-    expect(putCloudSnapshot).not.toHaveBeenCalled()
-  })
-
-  test('弹窗选「保留本地」→ 立即 PUT 本机快照覆盖云端', async () => {
+  test('进页：本机非空 + syncedAt 不一致 → 默认总是上传本机（不再弹冲突窗）', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     seedLocalContent(store)
@@ -197,35 +191,33 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
 
     await controller.syncOnPageEnter()
-    controller.keepLocal()
-    await vi.advanceTimersByTimeAsync(0)
 
-    expect(controller.conflict.value).toBeNull()
+    expect(controller.notice.value).toBeNull()
     expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
-    expect(putCloudSnapshot.mock.calls[0][0].plans[0]?.stagedCourses[0]?.courseCode).toBe('122004')
+    const payload = putCloudSnapshot.mock.calls[0][0]
+    expect(payload.plans[0]?.stagedCourses[0]?.courseCode).toBe('122004')
+    expect(payload.baseUpdatedAt).toBe(UPDATED_AT)
     expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
     expect(controller.isDirty()).toBe(false)
   })
 
-  test('本会话 dirty（有未上传变更）时即使 syncedAt 一致也弹窗；关闭后下次进页再提示', async () => {
-    const { store, controller, fetchCloudSnapshot } = setup({
+  test('进页：本机 dirty（有未上传变更）时即使 syncedAt 一致也总是上传；同一云端版本直接上传', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({
       'pk.syncedAt': JSON.stringify(UPDATED_AT),
     })
     controller.start()
     seedLocalContent(store)
     fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
 
     controller.onLocalChange()
     await controller.syncOnPageEnter()
-    expect(controller.conflict.value).not.toBeNull()
 
-    // 关闭弹窗 = 暂缓，本轮不再问。
-    controller.dismissConflict()
-    expect(controller.conflict.value).toBeNull()
-
-    // 下次进页仍分歧 → 再提示。
-    await controller.syncOnPageEnter()
-    expect(controller.conflict.value).not.toBeNull()
+    // 云端版本没有前进，本地修改直接上传，不产生重复恢复方案。
+    expect(controller.notice.value).toBeNull()
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
   })
 
   test('本地变更经 solidify 钩子防抖 3s 合并：多次变更只 PUT 一次', async () => {
@@ -277,8 +269,8 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
     expect(controller.isDirty()).toBe(true)
 
-    // 无自动重试。
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS * 5)
+    // 心跳不重试 400（rejected 标志）。
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
     expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
 
     // 新的本地方案变更开新一轮（允许再次尝试）。
@@ -300,9 +292,9 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
     expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
 
-    // 401 停摆：本地再变更不再上传。
+    // 401 停摆：本地再变更不再上传（心跳也不重试）。
     store.solidify()
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS * 2)
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
     expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
 
     // 下次进页解除停摆：云端空 + 本机非空 → 自动上传成功。
@@ -313,14 +305,14 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(store.getSyncedAt()).toBe(UPDATED_AT)
   })
 
-  test('登出停止：stop 后取消防抖不再上传，本地数据原样保留', async () => {
+  test('登出停止：stop 后取消防抖与心跳，不再上传，本地数据原样保留', async () => {
     const { store, controller, putCloudSnapshot } = setup()
     controller.start()
     seedLocalContent(store)
 
     store.solidify()
     controller.stop()
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS * 2)
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
 
     expect(putCloudSnapshot).not.toHaveBeenCalled()
     expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
@@ -348,7 +340,7 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     seedLocalContent(store)
 
     store.solidify()
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS * 2)
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
     expect(putCloudSnapshot).not.toHaveBeenCalled()
     expect(controller.isDirty()).toBe(false)
 
@@ -356,14 +348,19 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(fetchCloudSnapshot).not.toHaveBeenCalled()
   })
 
-  test('进页 GET 失败（网络错误/401 探测）静默不作为', async () => {
-    const { controller, fetchCloudSnapshot } = setup()
+  test('进页 GET 失败（网络错误/401 探测）静默不作为，心跳重试对账', async () => {
+    const { controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     fetchCloudSnapshot.mockRejectedValue(new PkSyncError('未登录', 401, 'unauthenticated'))
 
     await expect(controller.syncOnPageEnter()).resolves.toBeUndefined()
-    expect(controller.conflict.value).toBeNull()
+    expect(controller.notice.value).toBeNull()
+    // 401 停摆：心跳不再重试对账。
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
+    expect(fetchCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
   })
+
   test('failed entry GET never permits a blind upload', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
@@ -375,24 +372,125 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(putCloudSnapshot).not.toHaveBeenCalled()
   })
 
-  test('entry GET and unresolved conflict suspend all uploads', async () => {
+  test('网络错误 PUT：dirty 保持，心跳自动补传成功', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
-    let resolve!: (value: PkSyncRemoteSnapshot) => void
-    fetchCloudSnapshot.mockReturnValue(new Promise(r => { resolve = r }))
-    const entering = controller.syncOnPageEnter()
+    fetchCloudSnapshot.mockResolvedValue(null)
+    await controller.syncOnPageEnter()
     seedLocalContent(store)
+    putCloudSnapshot.mockRejectedValueOnce(new PkSyncError('offline', 0, 'network'))
+
     store.solidify()
     await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
-    expect(putCloudSnapshot).not.toHaveBeenCalled()
-    resolve(makeSnapshot())
-    await entering
-    controller.flushPendingUpload()
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
-    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(controller.isDirty()).toBe(true)
+
+    // 心跳窗口到 → 自动重试补传成功。
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS)
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(store.getSyncedAt()).toBe(UPDATED_AT)
+    expect(controller.isDirty()).toBe(false)
   })
 
-  test('a stopped controller ignores late entry results', async () => {
+  test('saveNow 手动保存：立即 PUT 本地方案', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    fetchCloudSnapshot.mockResolvedValue(null)
+    await controller.syncOnPageEnter()
+    seedLocalContent(store)
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+
+    store.solidify()
+    const ok = await controller.saveNow()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(ok).toBe(true)
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(store.getSyncedAt()).toBe(UPDATED_AT)
+  })
+
+  test('saveNow 网络失败：返回 false，dirty 保持待心跳补传', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    fetchCloudSnapshot.mockResolvedValue(null)
+    await controller.syncOnPageEnter()
+    seedLocalContent(store)
+    putCloudSnapshot.mockRejectedValue(new PkSyncError('offline', 0, 'network'))
+
+    store.solidify()
+    const ok = await controller.saveNow()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(ok).toBe(false)
+    expect(controller.isDirty()).toBe(true)
+
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS)
+    expect(controller.isDirty()).toBe(false)
+  })
+
+  test('云端分歧自动恢复（#573）：网络恢复补传时本地与云端全部不同 → 保留本地为恢复方案并上传合并', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+
+    // 本机有未上传变更（网络异常期间编辑）→ 进页发现与云端分歧。
+    store.solidify()
+    await controller.syncOnPageEnter()
+
+    expect(controller.notice.value).not.toBeNull()
+    expect(controller.notice.value).toBe(store.state.plans[1]?.name ?? null)
+    // 云端为主 + 本地方案克隆为恢复方案追加保留。
+    expect(store.state.plans).toHaveLength(2)
+    expect(store.state.plans[0]?.id).toBe('plan_cloud')
+    expect(store.state.plans[1]?.name).toBe(autoRestoreName(2))
+    expect(store.state.plans[1]?.stagedCourses[0]?.courseCode).toBe('122004')
+    // 合并快照上传（云端 + 恢复方案）。
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(putCloudSnapshot.mock.calls[0][0].plans).toHaveLength(2)
+    expect(controller.isDirty()).toBe(false)
+  })
+
+  test('云端分歧但本地与云端内容一致 → 不产生恢复方案，直接推进同步时钟', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+
+    store.applyRemoteSnapshot(makeSnapshot())
+    store.markSynced(UPDATED_AT)
+    await controller.syncOnPageEnter()
+
+    expect(controller.notice.value).toBeNull()
+    expect(store.state.plans).toHaveLength(1)
+  })
+
+  test('409 云端版本前进：重对账后默认上传本地（无恢复方案，无弹窗）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    fetchCloudSnapshot.mockResolvedValueOnce(makeSnapshot())
+    await controller.syncOnPageEnter()
+    // 本地周次变更（未上传），云端被其他端推进。
+    store.setWeekView({ week: 2, useCurrent: false })
+    putCloudSnapshot.mockRejectedValueOnce(new PkSyncError('conflict', 409, 'rejected'))
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({ updatedAt: UPDATED_AT_2 }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+
+    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
+    await vi.advanceTimersByTimeAsync(0)
+
+    // 409 后重对账 → 总是上传本地（内容一致不产生恢复方案）。
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(putCloudSnapshot.mock.calls[0][0].baseUpdatedAt).toBe(UPDATED_AT)
+    expect(putCloudSnapshot.mock.calls[1][0].baseUpdatedAt).toBe(UPDATED_AT_2)
+    expect(controller.notice.value).toBeNull()
+    expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
+  })
+
+  test('一个已停止的 controller 忽略迟到的进页结果', async () => {
     const { store, controller, fetchCloudSnapshot } = setup()
     controller.start()
     let resolve!: (value: PkSyncRemoteSnapshot) => void
@@ -402,23 +500,7 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     resolve(makeSnapshot())
     await entering
     expect(store.state.activePlanId).not.toBe('plan_cloud')
-    expect(controller.conflict.value).toBeNull()
-  })
-
-  test('keep-local remains pending after a transient error', async () => {
-    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
-    controller.start()
-    seedLocalContent(store)
-    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
-    await controller.syncOnPageEnter()
-    putCloudSnapshot.mockRejectedValueOnce(new PkSyncError('offline', 0, 'network'))
-    controller.keepLocal()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(controller.isDirty()).toBe(true)
-    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
-    controller.flushPendingUpload()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(controller.notice.value).toBeNull()
   })
 
   test('edits made during PUT remain pending and upload the newer snapshot', async () => {
@@ -443,17 +525,31 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(putCloudSnapshot.mock.calls[1][0].plans).toHaveLength(2)
   })
 
-  test('account changes require a choice even when the next cloud is empty', async () => {
+  test('账号切换：云端非空 → 采用云端，不自动上传上一账号本地方案', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({ 'pk.syncOwner': '1' })
+    seedLocalContent(store)
+    controller.start(2)
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+    await controller.syncOnPageEnter()
+
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(controller.notice.value).toBeNull()
+    expect(store.state.plans[0]?.id).toBe('plan_cloud')
+    expect(store.state.plans[0]?.stagedCourses).toHaveLength(0)
+    expect(store.getSyncOwner()).toBe(2)
+  })
+
+  test('账号切换：云端空 → 保留本地方案但不上传（不污染新账号云端）', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({ 'pk.syncOwner': '1' })
     seedLocalContent(store)
     controller.start(2)
     fetchCloudSnapshot.mockResolvedValue(null)
     await controller.syncOnPageEnter()
+
     expect(putCloudSnapshot).not.toHaveBeenCalled()
-    expect(controller.conflict.value).not.toBeNull()
-    controller.useCloud()
-    expect(store.getSyncOwner()).toBe(2)
-    expect(store.state.plans[0].stagedCourses).toHaveLength(0)
+    expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
+    expect(store.getSyncOwner()).toBe(1)
+    expect(controller.isDirty()).toBe(false)
   })
 
   test('catalog persistence without snapshot changes does not upload', async () => {
@@ -481,30 +577,138 @@ describe('useScheduleSync（排课方案云同步状态机）', () => {
     expect(controller.isDirty()).toBe(true)
   })
 
-  test('409 re-fetches cloud and suspends the stale upload', async () => {
-    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
-    controller.start()
-    fetchCloudSnapshot.mockResolvedValueOnce(makeSnapshot())
-    await controller.syncOnPageEnter()
-    store.setWeekView({ week: 2, useCurrent: false })
-    putCloudSnapshot.mockRejectedValue(new PkSyncError('conflict', 409, 'rejected'))
-    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({ updatedAt: UPDATED_AT_2 }))
-    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
-    expect(putCloudSnapshot.mock.calls[0][0].baseUpdatedAt).toBe(UPDATED_AT)
-    expect(controller.conflict.value?.updatedAt).toBe(UPDATED_AT_2)
-    controller.flushPendingUpload()
-    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
-  })
-
-  test('an initial create conflict fetches the winning cloud snapshot', async () => {
+  test('恢复方案命名接续云端方案序号（[本地自动恢复]方案 {n}）', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     seedLocalContent(store)
-    fetchCloudSnapshot.mockResolvedValueOnce(null).mockResolvedValue(makeSnapshot())
-    putCloudSnapshot.mockRejectedValue(new PkSyncError('conflict', 409, 'rejected'))
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: [
+        { id: 'cloud_1', name: defaultPlanName(1), createdAt: 1, stagedCourses: [], selectedCourses: [], customEvents: [] },
+        { id: 'cloud_2', name: defaultPlanName(2), createdAt: 2, stagedCourses: [], selectedCourses: [], customEvents: [] },
+      ],
+      activePlanId: 'cloud_1',
+    }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+
+    store.solidify()
     await controller.syncOnPageEnter()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(controller.conflict.value).not.toBeNull()
+
+    expect(store.state.plans).toHaveLength(3)
+    expect(store.state.plans[2]?.name).toBe(autoRestoreName(3))
+    expect(controller.notice.value).toContain(autoRestoreName(3))
   })
 
+  test('进页 GET 挂起期间不上传；对账完成后按策略上传', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    let resolve!: (value: PkSyncRemoteSnapshot) => void
+    fetchCloudSnapshot.mockReturnValue(new Promise(r => { resolve = r }))
+    const entering = controller.syncOnPageEnter()
+    seedLocalContent(store)
+    store.solidify()
+    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    resolve(makeSnapshot())
+    await entering
+    // 对账完成：本机 dirty + 内容分歧 → 恢复方案 + 合并上传。
+    expect(controller.notice.value).not.toBeNull()
+    expect(store.state.plans).toHaveLength(2)
+  })
+})
+
+describe('sync review regressions', () => {
+  test('clean local snapshot adopts a newer cloud revision without PUT', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({
+      'pk.syncedAt': JSON.stringify(UPDATED_AT),
+    })
+    seedLocalContent(store)
+    controller.start()
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({ updatedAt: UPDATED_AT_2 }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+    await controller.syncOnPageEnter()
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(store.state.activePlanId).toBe('plan_cloud')
+    expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
+  })
+
+  test('dirty local state retries entry GET after a network failure', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    store.solidify()
+    fetchCloudSnapshot.mockRejectedValueOnce(new PkSyncError('offline', 0, 'network'))
+    fetchCloudSnapshot.mockResolvedValue(null)
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+    await controller.syncOnPageEnter()
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS)
+    expect(fetchCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(controller.isDirty()).toBe(false)
+  })
+
+  test('switching to an empty account never reassigns or auto-uploads previous owner data', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({ 'pk.syncOwner': '1' })
+    seedLocalContent(store)
+    controller.start(2)
+    fetchCloudSnapshot.mockResolvedValue(null)
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+    await controller.syncOnPageEnter()
+    store.setWeekView({ week: 2, useCurrent: false })
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
+    controller.stop()
+    controller.start(2)
+    await controller.syncOnPageEnter()
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(store.getSyncOwner()).toBe(1)
+    expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
+  })
+})
+
+
+test('offline edits against an unchanged cloud revision do not duplicate plans', async () => {
+  const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({
+    'pk.syncedAt': JSON.stringify(UPDATED_AT),
+  })
+  seedLocalContent(store)
+  controller.start()
+  controller.onLocalChange()
+  fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+  putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+  await controller.syncOnPageEnter()
+  expect(store.state.plans).toHaveLength(1)
+  expect(putCloudSnapshot.mock.calls[0][0].plans).toHaveLength(1)
+  expect(controller.notice.value).toBeNull()
+})
+
+test('account transfer requires explicit consent before saving', async () => {
+  const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({ 'pk.syncOwner': '1' })
+  seedLocalContent(store)
+  controller.start(2)
+  fetchCloudSnapshot.mockResolvedValue(null)
+  putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+  await controller.syncOnPageEnter()
+  expect(await controller.saveNow()).toBe(false)
+  expect(putCloudSnapshot).not.toHaveBeenCalled()
+  expect(await controller.saveNow(true)).toBe(true)
+  expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+  expect(store.getSyncOwner()).toBe(2)
+})
+
+test('oversized conflict recovery keeps both local and cloud sources intact', async () => {
+  const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+  seedLocalContent(store)
+  controller.start()
+  store.solidify()
+  const local = store.snapshotForSync()
+  const cloud = makeSnapshot({ plans: Array.from({ length: 10 }, (_, i) => ({
+    id: `cloud_${i}`, name: `Cloud ${i}`, createdAt: i,
+    selectedCourses: [], stagedCourses: [], customEvents: [],
+  })) })
+  fetchCloudSnapshot.mockResolvedValue(cloud)
+  await controller.syncOnPageEnter()
+  await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
+  expect(store.snapshotForSync()).toEqual(local)
+  expect(controller.mergeBlocked.value).toBe(true)
+  expect(putCloudSnapshot).not.toHaveBeenCalled()
+  expect(controller.isDirty()).toBe(true)
 })

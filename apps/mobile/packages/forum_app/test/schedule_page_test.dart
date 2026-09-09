@@ -67,12 +67,16 @@ class FakePkRepository extends PkRepository {
         PkMajor(code: 'm2', name: '土木工程'),
       ];
 
+  List<PkCourseByMajorItem> coursesByMajorFixture =
+      const <PkCourseByMajorItem>[];
+  List<PkCourseDetailBrief> Function(String courseCode)? onCourseDetails;
+
   @override
   Future<List<PkCourseByMajorItem>> coursesByMajor({
     required int grade,
     required String code,
     required int calendarId,
-  }) async => const <PkCourseByMajorItem>[];
+  }) async => coursesByMajorFixture;
 
   @override
   Future<List<PkOptionalType>> optionalTypes({required int calendarId}) async =>
@@ -88,7 +92,10 @@ class FakePkRepository extends PkRepository {
   Future<List<PkCourseDetailBrief>> courseDetails({
     required int calendarId,
     required String courseCode,
-  }) async => const <PkCourseDetailBrief>[];
+  }) async {
+    if (onCourseDetails != null) return onCourseDetails!(courseCode);
+    return const <PkCourseDetailBrief>[];
+  }
 
   @override
   Future<Map<String, List<PkCourseDetailBrief>>> courseDetailsBatch({
@@ -259,17 +266,21 @@ Future<ScheduleStoreNotifier> seededNotifier({
   return notifier;
 }
 
-ProviderContainer makeContainer(ScheduleStoreNotifier notifier) {
+ProviderContainer makeContainer(
+  ScheduleStoreNotifier notifier, {
+  FakePkRepository? repository,
+}) {
   final MemoryTokenStorage storage = MemoryTokenStorage();
   final GfApiClient client = GfApiClient(
     dio: Dio(),
     tokenStorage: storage,
     baseUrl: 'http://fake.local',
   );
+  final FakePkRepository repo = repository ?? FakePkRepository(client);
   return ProviderContainer(
     overrides: <Override>[
       tokenStorageProvider.overrideWithValue(storage),
-      pkRepositoryProvider.overrideWithValue(FakePkRepository(client)),
+      pkRepositoryProvider.overrideWithValue(repo),
       scheduleStoreProvider.overrideWith((ref) => notifier),
     ],
   );
@@ -615,6 +626,109 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('有事'), findsWidgets);
+    });
+
+    testWidgets('选班列表呈现预选冲突提示且非阻塞加课', (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final ScheduleStoreNotifier notifier = ScheduleStoreNotifier();
+      await notifier.ready;
+
+      // 设置专业信息使得选课 tab 处于就绪状态
+      notifier.setMajorSelection(
+        PkMajorSelection(
+          calendarId: 119,
+          grade: 2025,
+          major: 'm1',
+          majorName: '软件工程',
+        ),
+      );
+      // 预先加入一门占用周一 1-2 节的已选课程
+      notifier.selectClass(
+        detail('110099.01', day: 1, sections: const <int>[1, 2]),
+        '大学物理',
+      );
+      await notifier.flush;
+
+      final MemoryTokenStorage storage = MemoryTokenStorage();
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final FakePkRepository repo = FakePkRepository(client);
+      repo.coursesByMajorFixture = <PkCourseByMajorItem>[
+        const PkCourseByMajorItem(
+          courseCode: '110001',
+          courseName: '高等数学',
+          faculty: '数学系',
+          facultyI18n: '',
+          credit: 3.0,
+          grade: 2025,
+          courseNature: <String>['必修'],
+          courses: <PkCourseClassItem>[],
+        ),
+      ];
+      repo.onCourseDetails = (String courseCode) => <PkCourseDetailBrief>[
+        const PkCourseDetailBrief(
+          code: '110001.01',
+          teachers: <PkTeacherRef>[PkTeacherRef(teacherName: '张老师', teacherCode: 'T1')],
+          campus: '四平路校区',
+          teachingLanguage: '中文',
+          arrangementInfo: <PkArrangementInfo>[
+            PkArrangementInfo(
+              arrangementText: '周一 1-2节',
+              occupyDay: 1,
+              occupyTime: <int>[1, 2],
+              occupyWeek: <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            ),
+          ],
+        ),
+        const PkCourseDetailBrief(
+          code: '110001.02',
+          teachers: <PkTeacherRef>[PkTeacherRef(teacherName: '王老师', teacherCode: 'T2')],
+          campus: '四平路校区',
+          teachingLanguage: '中文',
+          arrangementInfo: <PkArrangementInfo>[
+            PkArrangementInfo(
+              arrangementText: '周二 3-4节',
+              occupyDay: 2,
+              occupyTime: <int>[3, 4],
+              occupyWeek: <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            ),
+          ],
+        ),
+      ];
+
+      final ProviderContainer container = makeContainer(notifier, repository: repo);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(wrapApp(container));
+      await tester.pumpAndSettle();
+
+      // 点击切换到「选课」tab
+      await tester.tap(find.text('选课'));
+      await tester.pumpAndSettle();
+
+      // 在必修课列表看见「高等数学」，点击唤起教学班 sheet
+      expect(find.text('高等数学'), findsOneWidget);
+      await tester.tap(find.text('高等数学'));
+      await tester.pumpAndSettle();
+
+      // 验证冲突标记：110001.01 与「大学物理」冲突，显示警示文案与「仍可加入」胶囊
+      expect(find.text('110001.01'), findsOneWidget);
+      expect(find.text('与「大学物理」时间冲突'), findsOneWidget);
+      expect(find.text('仍可加入'), findsOneWidget);
+
+      // 验证 110001.02 属于正常班级，无冲突
+      expect(find.text('110001.02'), findsOneWidget);
+
+      // 非阻塞测试：点击冲突班级 110001.01
+      await tester.tap(find.text('110001.01'));
+      await tester.pumpAndSettle();
+
+      // 验证已被成功加入方案中（非阻塞加入）
+      final PkPlan activePlan = notifier.activePlan;
+      expect(activePlan.selectedCourses.contains('110001.01'), isTrue);
     });
   });
 }

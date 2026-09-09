@@ -626,3 +626,187 @@ describe('ScheduleDetailList 课评摘要与跳转', () => {
     expect(clampedEls.length).toBe(0)
   })
 })
+
+describe('ScheduleDetailList 选班前时间冲突提示', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    listCourseReviews.mockResolvedValue({ total: 0, list: [] })
+    getCourseSummary.mockResolvedValue({ status: 'insufficient_data' })
+    const store = useScheduleStore()
+    store.clearStagedAndSelectedCourses()
+  })
+
+  test('教学班存在时间冲突时展示冲突标记、遮罩与时段警示，且点击仍可加入课表（非阻塞）', async () => {
+    const store = useScheduleStore()
+
+    // 已加入一门占用 周一第1-2节 的现有课程
+    const existingDetail: PkCourseDetail = {
+      code: '110099.01',
+      campus: '四平路校区',
+      teachers: [{ teacherCode: 'T99', teacherName: '李老师' }],
+      teachingLanguage: '中文',
+      arrangementInfo: [
+        {
+          arrangementText: '星期一1-2节[1-16周]',
+          occupyDay: 1,
+          occupyTime: [1, 2],
+          occupyWeek: [1, 16],
+          occupyRoom: 'A101',
+          teacherAndCode: '李老师',
+        },
+      ],
+    }
+    store.setClickedCourseInfo({ courseCode: '110099', courseName: '已选大学物理' })
+    store.pushStagedCourse({
+      courseCode: '110099',
+      courseName: '已选大学物理',
+      courseNameReserved: '已选大学物理',
+      credit: 4,
+      courseType: '必',
+      teacher: [],
+      status: 1,
+      courseDetail: [existingDetail],
+    })
+    store.stageCourse(existingDetail)
+    store.solidify()
+
+    // 待选课程 110001 包含两个班级：
+    // 01 班占用周一 1-2 节（与 110099.01 冲突）
+    // 02 班占用周二 3-4 节（无冲突）
+    const conflictingDetail: PkCourseDetail = {
+      code: '110001.01',
+      campus: '四平路校区',
+      teachers: [{ teacherCode: 'T1', teacherName: '张老师' }],
+      teachingLanguage: '中文',
+      arrangementInfo: [
+        {
+          arrangementText: '星期一1-2节[1-16周]',
+          occupyDay: 1,
+          occupyTime: [1, 2],
+          occupyWeek: [1, 16],
+          occupyRoom: 'B202',
+          teacherAndCode: '张老师',
+        },
+      ],
+    }
+    const nonConflictingDetail: PkCourseDetail = {
+      code: '110001.02',
+      campus: '四平路校区',
+      teachers: [{ teacherCode: 'T2', teacherName: '王老师' }],
+      teachingLanguage: '中文',
+      arrangementInfo: [
+        {
+          arrangementText: '星期二3-4节[1-16周]',
+          occupyDay: 2,
+          occupyTime: [3, 4],
+          occupyWeek: [1, 16],
+          occupyRoom: 'B203',
+          teacherAndCode: '王老师',
+        },
+      ],
+    }
+
+    store.setClickedCourseInfo({ courseCode: '110001', courseName: '高等数学' })
+    store.pushStagedCourse({
+      courseCode: '110001',
+      courseName: '高等数学',
+      courseNameReserved: '高等数学',
+      credit: 3,
+      courseType: '必',
+      teacher: [],
+      status: 0,
+      courseDetail: [conflictingDetail, nonConflictingDetail],
+    })
+
+    const wrapper = mountList()
+    await flushPromises()
+
+    const cards = wrapper.findAll('div.group.relative.rounded-xl.border')
+    expect(cards.length).toBe(2)
+
+    // 第一个卡片（110001.01）应有冲突类与冲突遮罩
+    const firstCard = cards[0]
+    expect(firstCard.classes()).toContain('border-error/45')
+    const overlay = firstCard.find('.pointer-events-none.absolute.inset-0')
+    expect(overlay.exists()).toBe(true)
+
+    // 冲突条提示文案与「仍可加入」胶囊
+    expect(firstCard.text()).toContain('已选大学物理')
+    expect(firstCard.text()).toContain('Can still add') // i18n happy-dom 默认为 en
+
+    // 第二个卡片（110001.02）无冲突
+    const secondCard = cards[1]
+    expect(secondCard.classes()).not.toContain('border-error/45')
+    expect(secondCard.find('.pointer-events-none.absolute.inset-0').exists()).toBe(false)
+
+    // 非阻塞测试：点击冲突班级的加入按钮
+    const stageBtn = firstCard.find('button.gf-button-xs')
+    expect(stageBtn.exists()).toBe(true)
+    await stageBtn.trigger('click')
+    await flushPromises()
+
+    // 确认已成功加入（触发 conflict 事件，且状态转为已加）
+    expect(wrapper.emitted('conflict')).toBeTruthy()
+    expect(store.state.timeTableData.some((c) => c.code === '110001.01')).toBe(true)
+  })
+
+  test('同门课程换班隐式替换不产生自身冲突提示', async () => {
+    const store = useScheduleStore()
+
+    const class01: PkCourseDetail = {
+      code: '110001.01',
+      campus: '四平路校区',
+      teachers: [],
+      teachingLanguage: '中文',
+      arrangementInfo: [
+        {
+          arrangementText: '星期一1-2节[1-16周]',
+          occupyDay: 1,
+          occupyTime: [1, 2],
+          occupyWeek: [1, 16],
+          occupyRoom: 'A101',
+          teacherAndCode: '',
+        },
+      ],
+    }
+    const class02: PkCourseDetail = {
+      code: '110001.02',
+      campus: '四平路校区',
+      teachers: [],
+      teachingLanguage: '中文',
+      arrangementInfo: [
+        {
+          arrangementText: '星期一1-2节[1-16周]',
+          occupyDay: 1,
+          occupyTime: [1, 2],
+          occupyWeek: [1, 16],
+          occupyRoom: 'A102',
+          teacherAndCode: '',
+        },
+      ],
+    }
+
+    // 已选 110001.01
+    store.pushStagedCourse({
+      courseCode: '110001',
+      courseName: '高等数学',
+      courseNameReserved: '高等数学',
+      credit: 3,
+      courseType: '必',
+      teacher: [],
+      status: 1,
+      courseDetail: [class01, class02],
+    })
+    store.stageCourse(class01)
+    store.solidify()
+
+    store.setClickedCourseInfo({ courseCode: '110001', courseName: '高等数学' })
+    const wrapper = mountList()
+    await flushPromises()
+
+    // class02 虽然也是周一 1-2 节，但属于同门课程的换班，不应标注为冲突
+    const cards = wrapper.findAll('div.group.relative.rounded-xl.border')
+    expect(cards[1].classes()).not.toContain('border-error/45')
+    expect(cards[1].find('.pointer-events-none.absolute.inset-0').exists()).toBe(false)
+  })
+})

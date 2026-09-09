@@ -207,7 +207,6 @@ const (
 	MessageContentPurgeSuccess         MessageCode = "content.purge.success"               // 内容已永久删除。
 	MessageContentRecoveryExpired      MessageCode = "content.recovery.expired"            // 已超出恢复窗口，无法恢复。
 	MessageContentNotRecoverable       MessageCode = "content.notRecoverable"              // 该内容不可由作者恢复。
-	MessageContentPrivacyErased        MessageCode = "content.privacy.erased"              // 隐私内容已彻底删除。
 	MessageContentBatchConfirmRequired MessageCode = "content.batchDelete.confirmRequired" // 短时间内删除过多，需要二次确认，params.count。
 )
 

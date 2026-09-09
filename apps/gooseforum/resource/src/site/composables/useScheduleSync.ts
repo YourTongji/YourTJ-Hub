@@ -1,9 +1,10 @@
-// Schedule cloud synchronization: reconcile before writes, serialize uploads, and
-// require a choice for divergent snapshots or account changes. Server revisions
+// Schedule cloud synchronization: upload local edits against their server revision,
+// auto-resume after network failures, and preserve divergent local plans as
+// "[本地自动恢复]方案x" instead of blocking on a conflict dialog. Server revisions
 // guard every PUT; dirty local state survives page exit and transient failures.
 
 import { shallowRef, type ShallowRef } from 'vue'
-import { setSolidifyHook, useScheduleStore } from './useScheduleStore'
+import { clonePlansAsAutoRestore, MAX_PLANS, setSolidifyHook, useScheduleStore } from './useScheduleStore'
 
 import type { components } from '@gooseforum/client/openapi'
 
@@ -96,25 +97,27 @@ function createFetchTransport(): PkSyncTransport {
 
 /** 本地变更 → 上传的防抖窗口（ms）。 */
 export const PK_SYNC_DEBOUNCE_MS = 3000
+/** 定时自动保存/网络恢复重试心跳（ms）。 */
+export const PK_SYNC_AUTOSAVE_MS = 10000
 
 export interface ScheduleSyncController {
-  /** 冲突弹窗状态：非空 = 云端快照待二选一（只读消费，写走下方方法）。 */
-  readonly conflict: ShallowRef<PkSyncRemoteSnapshot | null>
-  /** 进页同步：GET + 四分支决策（自动上传 / 整包采用 / 弹窗 / 不动）。失败静默。 */
+  /** 自动恢复提示：非空 = 云端分歧时本地方案已保留为恢复方案（页面 flash 后清空）。 */
+  readonly notice: ShallowRef<string | null>
+  /** 进页同步：GET 对账，干净本地采用新云端，有本地修改时上传或保留分歧。网络失败静默，由心跳重试。 */
   syncOnPageEnter(): Promise<void>
   /** 本地方案变更入口（store.solidify 尾部钩子）：标脏 + 防抖 PUT。 */
   onLocalChange(): void
   /** best-effort 冲刷未落盘的防抖 PUT（visibilitychange hidden / 离页）。 */
   flushPendingUpload(): void
-  /** 弹窗选择「使用云端」：整包采用云端快照（不回灌上传）。 */
-  useCloud(): void
-  /** 弹窗选择「保留本机」：立即 PUT 本机快照覆盖云端。 */
-  keepLocal(): void
-  /** 关闭弹窗（暂缓决策）：本轮不再询问，下次进页若仍分歧再提示。 */
-  dismissConflict(): void
-  /** 启用同步（已登录进页时调用）。 */
+  /** 手动保存（「保存课表」按钮）：立即 PUT 本地方案，返回是否上传成功。 */
+  saveNow(adoptPreviousOwner?: boolean): Promise<boolean>
+  needsOwnerConfirmation(): boolean
+  readonly mergeBlocked: ShallowRef<boolean>
+  /** 清空自动恢复提示（页面 flash 后调用）。 */
+  clearNotice(): void
+  /** 启用同步（已登录进页时调用）：启动防抖 + 定时心跳（自动保存/网络恢复）。 */
   start(userId?: number): void
-  /** 停止同步（登出/离页）：取消防抖与弹窗，本地数据不动。 */
+  /** 停止同步（登出/离页）：取消防抖、心跳与提示，本地数据不动。 */
   stop(): void
   /** 是否有未上传的本地变更（诊断/测试）。 */
   isDirty(): boolean
@@ -122,14 +125,17 @@ export interface ScheduleSyncController {
 
 export function createScheduleSyncController(deps: { transport: PkSyncTransport }): ScheduleSyncController {
   const store = useScheduleStore()
-  const conflict = shallowRef<PkSyncRemoteSnapshot | null>(null)
+  const notice = shallowRef<string | null>(null)
+  const mergeBlocked = shallowRef(false)
   let enabled = false
   let dirty = false
   let reconciled = false
   let authStopped = false
   let entering = false
-  let recheckAfterEntry = false
-  let putting: Promise<void> | null = null
+  let rejected = false
+  let recovering = false
+  let putting: Promise<boolean> | null = null
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
   let generation = 0
   let seq = 0
   let owner = 0
@@ -156,43 +162,129 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     }, PK_SYNC_DEBOUNCE_MS)
   }
 
-  async function pushSnapshot(): Promise<void> {
-    if (!enabled || !reconciled || putting || authStopped || !dirty) return
+  /** 本地与云端方案内容是否完全不同（JSON 比较；空/缺失任一侧不算分歧）。 */
+  function plansDiverge(snapshot: PkSyncRemoteSnapshot): boolean {
+    const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
+    if (cloudPlans.length === 0) return false
+    if (isLocalEmpty()) return false
+    return JSON.stringify(store.state.plans) !== JSON.stringify(cloudPlans)
+  }
+
+  /** 云端分歧合并（#573）：云端为主，本地方案克隆为「[本地自动恢复]方案x」追加保留，
+   *  然后上传合并快照。仅在本地有未上传变更（dirty）时调用，避免本地数据被覆盖丢失。 */
+  async function mergeAndUpload(snapshot: PkSyncRemoteSnapshot): Promise<boolean> {
+    const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
+    const recoveryPlans = clonePlansAsAutoRestore(store.state.plans, cloudPlans)
+    const merged = {
+      ...snapshot,
+      plans: [...cloudPlans, ...recoveryPlans],
+    }
+    // Never replace the local draft with a snapshot the server cannot accept.
+    if (merged.plans.length > MAX_PLANS || new TextEncoder().encode(JSON.stringify(merged)).length > 1024 * 1024) {
+      mergeBlocked.value = true
+      rejected = true
+      reconciled = false
+      return false
+    }
+    baseUpdatedAt = snapshot.updatedAt
+    store.applyRemoteSnapshot({
+      plans: [...cloudPlans, ...recoveryPlans],
+      activePlanId: snapshot.activePlanId,
+      majorSelected: snapshot.majorSelected,
+      weekView: snapshot.weekView,
+    })
+    notice.value = recoveryPlans.map((plan) => plan.name).join('、')
+    reconciled = true
+    dirty = true
+    store.markSyncDirty()
+    return pushSnapshot()
+  }
+
+  async function pushSnapshot(): Promise<boolean> {
+    if (!enabled || !reconciled || putting || authStopped || !dirty) return false
     const run = generation
     const revision = seq
-    let retryConflict = false
+    let conflict = false
     putting = (async () => {
       try {
         const payload = { ...store.snapshotForSync(), baseUpdatedAt } as PkSyncPayload
         const { updatedAt } = await deps.transport.putCloudSnapshot(payload)
-        if (!enabled || generation !== run) return
+        if (!enabled || generation !== run) return false
         if (!updatedAt) throw new Error('Missing sync revision')
         baseUpdatedAt = updatedAt
         if (revision === seq) dirty = !store.markSynced(updatedAt)
         else scheduleUpload()
+        return true
       } catch (err) {
-        if (!enabled || generation !== run) return
+        if (!enabled || generation !== run) return false
         if (err instanceof PkSyncError) {
-          if (err.status === 409) {
-            reconciled = false
-            retryConflict = true
-          } else if (err.kind === 'unauthenticated') authStopped = true
+          if (err.status === 409) conflict = true
+          else if (err.kind === 'unauthenticated') authStopped = true
           else if (err.status === 400 || err.status === 403) {
             console.warn('[pk-sync] 上传被拒绝：', err.message)
+            rejected = true
           }
+          // 网络错误（kind==='network'）：dirty 保持，心跳自动重试。
         }
+        return false
       }
     })()
-    await putting
+    const uploaded = await putting
     putting = null
-    if (retryConflict) {
-      if (entering) recheckAfterEntry = true
-      else await syncOnPageEnter()
+    if (conflict) {
+      // 云端版本已前进（其他端写入）：重对账，分歧则合并保留本地。
+      await reconcileDivergence()
+    }
+    return uploaded
+  }
+
+  /** 409 / 网络恢复后的重对账：拉取最新云端；本地有未上传变更且内容分歧时合并保留。 */
+  async function reconcileDivergence(): Promise<void> {
+    if (!enabled || recovering) return
+    const run = generation
+    recovering = true
+    try {
+      const snapshot = await deps.transport.fetchCloudSnapshot()
+      if (!enabled || generation !== run) return
+      baseUpdatedAt = snapshot?.updatedAt ?? ''
+      if (snapshot === null) {
+        reconciled = true
+        dirty = true
+        store.markSyncDirty()
+        await pushSnapshot()
+        return
+      }
+      if (!dirty && !store.isSyncDirty() && store.getSyncedAt() === snapshot.updatedAt) {
+        reconciled = true
+        return
+      }
+      if (dirty && store.getSyncedAt() !== snapshot.updatedAt && plansDiverge(snapshot)) {
+        await mergeAndUpload(snapshot)
+        return
+      }
+      if (isLocalEmpty() && !dirty && !store.isSyncDirty()) {
+        store.applyRemoteSnapshot(snapshot)
+        dirty = !store.markSynced(snapshot.updatedAt)
+        reconciled = true
+        return
+      }
+      // 默认总是上传本地方案（以最近修改为准）。
+      reconciled = true
+      dirty = true
+      store.markSyncDirty()
+      await pushSnapshot()
+    } catch (err) {
+      if (generation === run && err instanceof PkSyncError && err.status === 401) authStopped = true
+      // 网络错误：dirty 保持，心跳自动重试。
+    } finally {
+      if (generation === run) recovering = false
     }
   }
 
   function onLocalChange(): void {
     if (!enabled) return
+    rejected = false
+    mergeBlocked.value = false
     dirty = true
     store.markSyncDirty()
     seq++
@@ -201,14 +293,33 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
 
   function flushPendingUpload(): void {
     clearDebounce()
-    void pushSnapshot()
+    if (!reconciled && !authStopped && !rejected) void syncOnPageEnter()
+    else void pushSnapshot()
   }
 
-  function emptyCloud(): PkSyncRemoteSnapshot {
-    return {
-      plans: [{ id: 'empty', name: store.state.plans[0].name, createdAt: Date.now(), stagedCourses: [], selectedCourses: [], customEvents: [] }],
-      activePlanId: 'empty', majorSelected: {}, weekView: { week: null, useCurrent: false }, updatedAt: '',
+  function needsOwnerConfirmation(): boolean {
+    const previousOwner = store.getSyncOwner()
+    return previousOwner !== 0 && previousOwner !== owner
+  }
+
+  async function saveNow(adoptPreviousOwner = false): Promise<boolean> {
+    if (!enabled || authStopped) return false
+    if (needsOwnerConfirmation()) {
+      if (!adoptPreviousOwner || !store.setSyncOwner(owner)) return false
+      dirty = true
+      store.markSyncDirty()
     }
+    clearDebounce()
+    if (!reconciled) {
+      await syncOnPageEnter()
+      return reconciled && !dirty
+    }
+    rejected = false
+    mergeBlocked.value = false
+    dirty = true
+    store.markSyncDirty()
+    await pushSnapshot()
+    return !dirty
   }
 
   async function syncOnPageEnter(): Promise<void> {
@@ -216,6 +327,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     const run = generation
     entering = true
     reconciled = false
+    rejected = false
     clearDebounce()
     authStopped = false
     try {
@@ -227,7 +339,17 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
       baseUpdatedAt = snapshot?.updatedAt ?? ''
       const previousOwner = store.getSyncOwner()
       if (previousOwner && previousOwner !== owner) {
-        conflict.value = snapshot ?? emptyCloud()
+        // 账号切换：不自动上传上一账号的本地方案；云端非空则采用云端，云端空则保留本地。
+        if (snapshot) {
+          store.applyRemoteSnapshot(snapshot)
+          dirty = !store.markSynced(snapshot.updatedAt)
+        } else {
+          // Retain ownership across reloads and edits until the user explicitly
+          // chooses to save these local plans to the currently signed-in account.
+          return
+        }
+        store.setSyncOwner(owner)
+        reconciled = true
         return
       }
       if (!store.setSyncOwner(owner)) return
@@ -250,44 +372,32 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         reconciled = true
         return
       }
-      conflict.value = snapshot
+      // A known, clean local revision is a cache. Adopt newer cloud data instead
+      // of publishing stale content over another device's edits.
+      if (!dirty && !store.isSyncDirty() && store.getSyncedAt()) {
+        store.applyRemoteSnapshot(snapshot)
+        dirty = !store.markSynced(snapshot.updatedAt)
+        reconciled = true
+        return
+      }
+      // Unsynced local edits are preserved when the cloud has diverged.
+      if (dirty && store.getSyncedAt() !== snapshot.updatedAt && plansDiverge(snapshot)) {
+        await mergeAndUpload(snapshot)
+        return
+      }
+      reconciled = true
+      dirty = true
+      store.markSyncDirty()
+      await pushSnapshot()
     } catch (err) {
       if (generation === run && err instanceof PkSyncError && err.status === 401) authStopped = true
     } finally {
-      if (generation === run) {
-        entering = false
-        if (recheckAfterEntry) {
-          recheckAfterEntry = false
-          void syncOnPageEnter()
-        }
-      }
+      if (generation === run) entering = false
     }
   }
 
-  function useCloud(): void {
-    const snapshot = conflict.value
-    if (!enabled || !snapshot || putting || !store.setSyncOwner(owner)) return
-    conflict.value = null
-    clearDebounce()
-    store.applyRemoteSnapshot(snapshot)
-    dirty = !store.markSynced(snapshot.updatedAt)
-    reconciled = true
-  }
-
-  function keepLocal(): void {
-    if (!enabled || !conflict.value || !store.setSyncOwner(owner)) return
-    conflict.value = null
-    clearDebounce()
-    dirty = true
-    store.markSyncDirty()
-    reconciled = true
-    void pushSnapshot()
-  }
-
-  function dismissConflict(): void {
-    conflict.value = null
-    // Dismissal postpones a decision; subsequent edits must not overwrite the cloud.
-    reconciled = false
+  function clearNotice(): void {
+    notice.value = null
   }
 
   function start(userId = 0): void {
@@ -296,8 +406,17 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     enabled = true
     entering = false
     reconciled = false
+    rejected = false
     dirty = store.isSyncDirty()
     authStopped = false
+    if (heartbeatTimer === null) {
+      // 定时自动保存 + 网络恢复自动补传：心跳推进未落盘上传。
+      heartbeatTimer = setInterval(() => {
+        if (!enabled || putting || authStopped || rejected) return
+        if (!reconciled) void syncOnPageEnter()
+        else if (dirty) void pushSnapshot()
+      }, PK_SYNC_AUTOSAVE_MS)
+    }
   }
 
   function stop(): void {
@@ -306,11 +425,15 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     entering = false
     reconciled = false
     clearDebounce()
-    conflict.value = null
+    if (heartbeatTimer !== null) {
+      clearInterval(heartbeatTimer)
+      heartbeatTimer = null
+    }
+    notice.value = null
   }
 
-  return { conflict, syncOnPageEnter, onLocalChange, flushPendingUpload, useCloud,
-    keepLocal, dismissConflict, start, stop, isDirty: () => dirty }
+  return { notice, mergeBlocked, needsOwnerConfirmation, syncOnPageEnter, onLocalChange, flushPendingUpload, saveNow, clearNotice,
+    start, stop, isDirty: () => dirty }
 }
 
 // ---- 单例接线（排课页生命周期驱动；未登录不 start 即零网络）----
@@ -328,6 +451,8 @@ function wireOnce(): void {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') scheduleSync.flushPendingUpload()
     })
+    // 网络恢复立即补传（心跳兜底）。
+    window.addEventListener('online', () => scheduleSync.flushPendingUpload())
   }
 }
 
@@ -337,7 +462,7 @@ export function startScheduleSync(userId: number): void {
   scheduleSync.start(userId)
 }
 
-/** 停止云同步（离开排课页/登出后调用）：取消防抖与弹窗，本地数据原样保留。 */
+/** 停止云同步（离开排课页/登出后调用）：取消防抖、心跳与提示，本地数据原样保留。 */
 export function stopScheduleSync(): void {
   scheduleSync.stop()
 }

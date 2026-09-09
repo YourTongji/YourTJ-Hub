@@ -43,7 +43,6 @@ func setupUserContentContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/user/content-batch-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BatchDeleteContent))
 	loginAPI.POST("/user/content-restore", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RestoreContent))
 	loginAPI.POST("/user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
-	loginAPI.POST("/user/content-privacy-erase", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
 	loginAPI.POST("/user/content-event", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.ReportContentEvent))
 	loginAPI.POST("/user/account-close", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
 	return conn, router
@@ -308,68 +307,6 @@ func TestPurgeContentHTTPContract(t *testing.T) {
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
 		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-purge", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
-	})
-}
-
-func TestPrivacyEraseContentHTTPContract(t *testing.T) {
-	t.Run("success on active own topic", func(t *testing.T) {
-		conn, router := setupUserContentContractTest(t)
-		user := createHTTPContractUser(t, conn, contractTestID())
-		createContractPublishedTopic(t, conn, 8810701, 8810702, user.Id)
-		recorder := serveJSON(router, "/api/forum/user/content-privacy-erase", `{"contentType":"topic","contentId":8810701}`, contractSessionToken(t, user))
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("privacy-erase status = %d, want 200: %s", recorder.Code, recorder.Body.String())
-		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-privacy-erase-success.json"))
-	})
-
-	// issue #415 review P2：pending 用户（未验证邮箱）仍可对自己的内容执行
-	// 紧急隐私擦除自救——路由挂 CheckWritableAccountAllowPendingActivation，
-	// 控制器内 ownership/密码/限流校验保持不变；普通写（topics/write）仍被拦。
-	t.Run("pending user can privacy-erase own content when verification enabled", func(t *testing.T) {
-		conn, router := setupUserContentContractTest(t)
-		enableContractEmailVerification(t, conn)
-		user := createPendingContractUser(t, conn)
-		createContractPublishedTopic(t, conn, 8810901, 8810902, user.Id)
-		recorder := serveJSON(router, "/api/forum/user/content-privacy-erase", `{"contentType":"topic","contentId":8810901}`, contractSessionToken(t, user))
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("pending privacy-erase status = %d, want 200: %s", recorder.Code, recorder.Body.String())
-		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-privacy-erase-success.json"))
-		// 自救路径放行不扩大普通写权限：同一 pending 会话写 topics/write 仍被拒。
-		blocked := serveJSON(router, "/api/forum/topics/write", `{}`, contractSessionToken(t, user))
-		if blocked.Code != http.StatusForbidden {
-			t.Fatalf("pending topics/write status = %d, want 403", blocked.Code)
-		}
-	})
-
-	t.Run("privacy-erase does not touch another user's content for pending callers", func(t *testing.T) {
-		conn, router := setupUserContentContractTest(t)
-		enableContractEmailVerification(t, conn)
-		owner := createHTTPContractUser(t, conn, contractTestID())
-		createContractPublishedTopic(t, conn, 8810903, 8810904, owner.Id)
-		user := createPendingContractUser(t, conn)
-		recorder := serveJSON(router, "/api/forum/user/content-privacy-erase", `{"contentType":"topic","contentId":8810903}`, contractSessionToken(t, user))
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("non-owner privacy-erase status = %d, want 200: %s", recorder.Code, recorder.Body.String())
-		}
-		// 非本人内容 → 业务失败（topic.notFound），不是误删他人内容。
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
-	})
-
-	t.Run("missing session returns 401", func(t *testing.T) {
-		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-privacy-erase", `{}`, "auth-required.json")
-	})
-
-	t.Run("frozen account returns 403", func(t *testing.T) {
-		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-privacy-erase", `{}`, "account-frozen.json")
-	})
-
-	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
-		conn, router := setupUserContentContractTest(t)
-		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-privacy-erase", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 }
 

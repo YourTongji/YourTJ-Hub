@@ -959,6 +959,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleConflictBadge => '時間重複';
 
   @override
+  String scheduleConflictWith(String course) {
+    return '「$course」と時間重複';
+  }
+
+  @override
+  String scheduleConflictsWith(String course, int count) {
+    return '「$course」など$count件と時間重複';
+  }
+
+  @override
+  String get scheduleConflictCanAdd => '追加可能';
+
+  @override
   String get scheduleAddCustomEvent => '予定枠を追加';
 
   @override
@@ -1236,9 +1249,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get contentPurge => '完全削除';
-
-  @override
-  String get contentPrivacyErase => '個人の投稿を消去';
 
   @override
   String get contentDeleteConfirm => 'ごみ箱に移動します。対象のコンテンツは30日以内であれば復元できます。';

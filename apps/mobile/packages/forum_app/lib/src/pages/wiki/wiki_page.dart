@@ -19,6 +19,19 @@ import '../../widgets/status_views.dart';
 String encodeWikiPath(String path) =>
     path.split('/').map(Uri.encodeComponent).join('/');
 
+/// 容错解码 wiki 锚点:`Uri.fragment` 保留 percent-encoded 态(裸 Unicode
+/// 也会被 SDK 归一化为编码态),scrollToAnchor 需要解码后的真实标题 id;
+/// `Uri.decodeComponent` 对非法转义(如 `%zz`)抛 ArgumentError,此处
+/// 解码失败时原样返回,交由滚动找不到 id 时静默降级。
+String decodeWikiAnchor(String anchor) {
+  if (!anchor.contains('%')) return anchor;
+  try {
+    return Uri.decodeComponent(anchor);
+  } on ArgumentError {
+    return anchor;
+  }
+}
+
 /// wiki 页面详情(web WikiPage.vue 的移动端形态)。
 ///
 /// 正文经页面级数据通道返回的是**服务端渲染的 HTML**(goldmark →
@@ -153,29 +166,44 @@ class _WikiPageState extends ConsumerState<WikiPage> {
 
   /// 正文链接策略:站内 wiki 链接推入详情页;`#锚点` 交还 [HtmlWidget]
   /// 内部滚动;其余绝对链接交给系统浏览器。
+  ///
+  /// 服务端渲染的 href 处于 percent-encoded 态(issue #560):统一起
+  /// [Uri.pathSegments](逐段解码)提取目标路径、[Uri.fragment](保留编码
+  /// 态,须经 [decodeWikiAnchor] 解码)提取锚点,再经 [encodeWikiPath]
+  /// 单出口编码推送。不得用 `Uri.path`——它保留编码态,再编码会把 `%`
+  /// 变成 `%25`(二次编码)。
   Future<bool> _handleLinkTap(String url) async {
     final Uri? uri = Uri.tryParse(url);
     if (uri == null) return false;
-    if (uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) {
-      final String path = uri.path;
-      if (path.startsWith('/wiki/')) {
-        final String target = path.substring('/wiki/'.length);
-        if (context.mounted && target.isNotEmpty) {
-          context.push('/wiki/${encodeWikiPath(target)}');
-        }
-        return true;
+    final bool isHttp =
+        uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https');
+    // 站内判定:相对链接须 /wiki/ 前缀;绝对链接保留既有 path 前缀语义
+    //(host 校验超出本修复范围)。`/wiki` 裸路径、`/wiki/` 空 target
+    // 维持现状:不跳转。
+    final List<String> segments = uri.pathSegments;
+    final bool isInternalWiki =
+        segments.isNotEmpty &&
+        segments.first == 'wiki' &&
+        segments.length > 1 &&
+        (isHttp || url.startsWith('/wiki/'));
+    if (isInternalWiki) {
+      // decoded 域目标;锚点不卷入路径(%23)。`Uri.fragment` 保留编码态
+      //(review P2),先解码再重新编码,避免二次编码 %25E7...。
+      final String target = segments.sublist(1).join('/');
+      if (context.mounted && target.isNotEmpty) {
+        final String? fragment = uri.hasFragment ? uri.fragment : null;
+        final String anchor = (fragment != null && fragment.isNotEmpty)
+            ? '#${Uri.encodeComponent(decodeWikiAnchor(fragment))}'
+            : '';
+        context.push('/wiki/${encodeWikiPath(target)}$anchor');
       }
+      return true;
+    }
+    if (isHttp) {
       try {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } catch (_) {
         // 外部链接打开失败不阻塞阅读。
-      }
-      return true;
-    }
-    if (url.startsWith('/wiki/')) {
-      final String target = url.substring('/wiki/'.length);
-      if (context.mounted && target.isNotEmpty) {
-        context.push('/wiki/${encodeWikiPath(target)}');
       }
       return true;
     }

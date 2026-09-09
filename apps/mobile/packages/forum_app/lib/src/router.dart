@@ -403,7 +403,8 @@ final GoRouter appRouter = GoRouter(
       path: '/wiki/:wikiPath(.*)',
       builder: (BuildContext context, GoRouterState state) => WikiPage(
         wikiPath: state.pathParameters['wikiPath']!,
-        initialAnchor: state.uri.fragment,
+        // state.uri.fragment 保留 percent-encoded 态;解码后再传给 scrollToAnchor。
+        initialAnchor: decodeWikiAnchor(state.uri.fragment),
       ),
     ),
   ],

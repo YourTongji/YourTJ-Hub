@@ -2,11 +2,14 @@ package courseservice
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 )
 
@@ -21,6 +24,7 @@ var reviewTestModels = []any{
 	&course.CourseStatsEntity{},
 	&course.OfferingStatsEntity{},
 	&course.CourseAiSummaryEntity{},
+	&dailyStats.Entity{},
 	&taskQueue.Entity{},
 }
 
@@ -113,6 +117,67 @@ func TestCreateReviewDuplicate(t *testing.T) {
 	}
 	if _, err := CreateReview(1001, input); err != ErrReviewDuplicate {
 		t.Fatalf("expected ErrReviewDuplicate, got %v", err)
+	}
+}
+
+// TestCreateReviewTrafficStats 流量概览课评统计口径（issue #582）：写评成功
+// 当日 +1；重复评价、编辑与删除不改变计数；删除后的恢复重写计为新课评。
+func TestCreateReviewTrafficStats(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	day := time.Now().Format("2006-01-02")
+	statToday := func() int64 {
+		stats, err := dailyStats.GetStatsInRange([]dailyStats.StatType{dailyStats.StatTypeCourseReviewCount}, day, day)
+		if err != nil {
+			t.Fatalf("get course review stat: %v", err)
+		}
+		if len(stats) == 0 {
+			return 0
+		}
+		return stats[0].StatValue
+	}
+	t.Cleanup(func() {
+		dbconnect.Connect().
+			Where("stat_date >= ?", day).
+			Where("stat_date <= ?", day).
+			Where("stat_key = ?", string(dailyStats.StatTypeCourseReviewCount)).
+			Delete(&dailyStats.Entity{})
+	})
+
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "讲得很好"})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if got := statToday(); got != 1 {
+		t.Fatalf("course_review_count after create = %d, want 1", got)
+	}
+	// 重复评价不计数。
+	if _, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "重复"}); !errors.Is(err, ErrReviewDuplicate) {
+		t.Fatalf("expected ErrReviewDuplicate, got %v", err)
+	}
+	if got := statToday(); got != 1 {
+		t.Fatalf("course_review_count after duplicate = %d, want 1", got)
+	}
+	// 编辑不计数。
+	keep := "改写正文"
+	if _, err := UpdateReview(1001, payload.Id, UpdateReviewInput{Content: &keep}); err != nil {
+		t.Fatalf("update review: %v", err)
+	}
+	if got := statToday(); got != 1 {
+		t.Fatalf("course_review_count after update = %d, want 1", got)
+	}
+	// 删除不回拨计数。
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	if got := statToday(); got != 1 {
+		t.Fatalf("course_review_count after delete = %d, want 1", got)
+	}
+	// 恢复重写计为新课评。
+	if _, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 3, Content: "恢复重写"}); err != nil {
+		t.Fatalf("reactivate review: %v", err)
+	}
+	if got := statToday(); got != 2 {
+		t.Fatalf("course_review_count after reactivate = %d, want 2", got)
 	}
 }
 

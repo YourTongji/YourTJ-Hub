@@ -70,10 +70,11 @@ type TrafficOverviewReq struct {
 }
 
 type DailyTraffic struct {
-	Date       string `json:"date"`
-	RegCount   int64  `json:"regCount"`
-	TopicCount int64  `json:"topicCount"`
-	ReplyCount int64  `json:"replyCount"`
+	Date              string `json:"date"`
+	RegCount          int64  `json:"regCount"`
+	TopicCount        int64  `json:"topicCount"`
+	ReplyCount        int64  `json:"replyCount"`
+	CourseReviewCount int64  `json:"courseReviewCount"`
 }
 
 func GetTrafficOverview(req component.BetterRequest[TrafficOverviewReq]) component.Response {
@@ -91,6 +92,7 @@ func GetTrafficOverview(req component.BetterRequest[TrafficOverviewReq]) compone
 		dailyStats.StatTypeRegCount,
 		dailyStats.StatTypeTopicCount,
 		dailyStats.StatTypeReplyCount,
+		dailyStats.StatTypeCourseReviewCount,
 	}
 
 	stats, err := dailyStats.GetStatsInRange(keys, startDate, endDate)
@@ -120,6 +122,8 @@ func GetTrafficOverview(req component.BetterRequest[TrafficOverviewReq]) compone
 				item.TopicCount = s.StatValue
 			case dailyStats.StatTypeReplyCount:
 				item.ReplyCount = s.StatValue
+			case dailyStats.StatTypeCourseReviewCount:
+				item.CourseReviewCount = s.StatValue
 			}
 		}
 	}

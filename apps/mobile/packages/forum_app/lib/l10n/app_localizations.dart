@@ -1848,6 +1848,24 @@ abstract class AppLocalizations {
   /// **'Conflict'**
   String get scheduleConflictBadge;
 
+  /// No description provided for @scheduleConflictWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflicts with \"{course}\"'**
+  String scheduleConflictWith(String course);
+
+  /// No description provided for @scheduleConflictsWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflicts with \"{course}\" and {count} other courses'**
+  String scheduleConflictsWith(String course, int count);
+
+  /// No description provided for @scheduleConflictCanAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Can still add'**
+  String get scheduleConflictCanAdd;
+
   /// No description provided for @scheduleAddCustomEvent.
   ///
   /// In en, this message translates to:
@@ -2393,12 +2411,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete permanently'**
   String get contentPurge;
-
-  /// No description provided for @contentPrivacyErase.
-  ///
-  /// In en, this message translates to:
-  /// **'Erase personal content'**
-  String get contentPrivacyErase;
 
   /// No description provided for @contentDeleteConfirm.
   ///

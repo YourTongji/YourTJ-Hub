@@ -413,6 +413,9 @@ func TestAdminTrafficOverviewHTTPContract(t *testing.T) {
 		if err := dailyStats.Increment(time.Date(2020, 1, 2, 0, 0, 0, 0, time.UTC), dailyStats.StatTypeTopicCount, 5); err != nil {
 			t.Fatalf("seed topic_count stat: %v", err)
 		}
+		if err := dailyStats.Increment(time.Date(2020, 1, 3, 0, 0, 0, 0, time.UTC), dailyStats.StatTypeCourseReviewCount, 3); err != nil {
+			t.Fatalf("seed course_review_count stat: %v", err)
+		}
 		t.Cleanup(func() {
 			conn.Where("stat_date >= ?", "2020-01-01").Where("stat_date <= ?", "2020-01-03").Delete(&dailyStats.Entity{})
 		})

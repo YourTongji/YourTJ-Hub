@@ -52,7 +52,7 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   courses-by-major/optional-types/courses-by-nature/course-details/course-search/courses-by-time/
   latest-update/course-info-sync/course-review-brief),
   the user content lifecycle (my-content/deleted-content lists, content-restore/batch-delete/
-  purge/privacy-erase/event, account-close), aggregate search (`/api/forum/search`) and public
+  purge/event, account-close), aggregate search (`/api/forum/search`) and public
   site statistics,
   with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
   paths are split per domain under `paths/`. Route coverage (issue #277) is complete:

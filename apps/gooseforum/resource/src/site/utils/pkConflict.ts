@@ -98,6 +98,14 @@ export function canAddCourse(
   return { canAdd: true }
 }
 
+/** 自定义占位事件在占用表中的伪课号前缀（避免与真实课号碰撞）。 */
+export const CUSTOM_EVENT_CODE_PREFIX = 'custom:'
+
+/** 冲突派生用的基础标识：custom 伪课号原样保留（getCourseBaseCode 会误裁尾部字符）。 */
+export function conflictBaseOf(code: string): string {
+  return code.startsWith(CUSTOM_EVENT_CODE_PREFIX) ? code : getCourseBaseCode(code)
+}
+
 /** 与候选课程冲突的已占课程（供「强制替换/放弃」弹窗展示）。 */
 export interface PkConflictItem {
   /** 班级课号 */
@@ -120,7 +128,7 @@ export function findConflicts(
       if (!cell) continue
       for (const item of cell) {
         if (weeksOverlap(arr.occupyWeek, item.occupyWeek)) {
-          const base = getCourseBaseCode(item.code)
+          const base = conflictBaseOf(item.code)
           conflicts.set(base, { code: item.code, courseName: item.courseName })
         }
       }
@@ -129,12 +137,40 @@ export function findConflicts(
   return [...conflicts.values()]
 }
 
-/** 自定义占位事件在占用表中的伪课号前缀（避免与真实课号碰撞）。 */
-export const CUSTOM_EVENT_CODE_PREFIX = 'custom:'
+/**
+ * 找出候选教学班与当前占用表的冲突课程列表（排除同门课程自身）：
+ * 用于在选择教学班前进行前置提示（不阻塞选择）。
+ */
+export function findClassConflicts(
+  candidate: PkCourseDetail,
+  occupied: PkOccupyCell[][][],
+): PkConflictItem[] {
+  const candidateBase = conflictBaseOf(candidate.code)
+  return findConflicts(candidate, occupied).filter(
+    (conflict) => conflictBaseOf(conflict.code) !== candidateBase,
+  )
+}
 
-/** 冲突派生用的基础标识：custom 伪课号原样保留（getCourseBaseCode 会误裁尾部字符）。 */
-export function conflictBaseOf(code: string): string {
-  return code.startsWith(CUSTOM_EVENT_CODE_PREFIX) ? code : getCourseBaseCode(code)
+/**
+ * 判断某个排课时间段是否与占用表中的已有课程冲突（排除同门课程自身）。
+ */
+export function isArrangementConflicted(
+  arr: PkArrangement,
+  candidateCode: string,
+  occupied: PkOccupyCell[][][],
+): boolean {
+  const candidateBase = conflictBaseOf(candidateCode)
+  for (const time of arr.occupyTime) {
+    if (time < 1 || time > OCCUPY_ROWS || arr.occupyDay < 1 || arr.occupyDay > OCCUPY_COLS) continue
+    const cell = occupied[time - 1]?.[arr.occupyDay - 1]
+    if (!cell) continue
+    for (const item of cell) {
+      if (conflictBaseOf(item.code) !== candidateBase && weeksOverlap(arr.occupyWeek, item.occupyWeek)) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 /**

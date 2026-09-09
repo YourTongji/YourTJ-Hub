@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
@@ -136,6 +137,11 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
 				return err
 			}
+			// 流量概览课评统计（issue #582 review）：与评价写同事务，计数失败则
+			// 整体回滚，避免评价可见而流量统计静默丢失。
+			if err := dailyStats.IncrementTx(tx, time.Now(), dailyStats.StatTypeCourseReviewCount, 1); err != nil {
+				return err
+			}
 			// 恢复重写改变了 summary 输入 → 失效 AI 总结缓存。
 			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
 				return err
@@ -171,6 +177,10 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			return err
 		}
 		if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
+			return err
+		}
+		// 流量概览课评统计（issue #582 review）：与评价写同事务，语义同上。
+		if err := dailyStats.IncrementTx(tx, time.Now(), dailyStats.StatTypeCourseReviewCount, 1); err != nil {
 			return err
 		}
 		// 新评价进入 summary 输入 → 失效 AI 总结缓存。

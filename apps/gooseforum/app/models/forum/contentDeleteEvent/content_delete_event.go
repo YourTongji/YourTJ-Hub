@@ -5,7 +5,7 @@ import "time"
 const tableName = "content_delete_events"
 
 // EventType 删除生命周期埋点事件（PRD R14）。
-// 前端点击/确认类事件由站点上报，后端删除/恢复/永久删除/隐私删除在状态
+// 前端点击/确认类事件由站点上报，后端删除/恢复/永久删除/级联下架在状态
 // 变更成功后记录，管理端证据查看由 R7 记录。
 type EventType string
 
@@ -15,7 +15,7 @@ const (
 	EventDeleted          EventType = "content_deleted"                   // 后端：删除完成
 	EventRestored         EventType = "content_restored"                  // 后端：恢复完成
 	EventPermanentDelete  EventType = "content_permanent_delete"          // 后端：永久删除完成
-	EventPrivacyDelete    EventType = "privacy_delete_requested"          // 后端：隐私紧急删除
+	EventPrivacyDelete    EventType = "privacy_delete_requested"          // 后端：级联下架话题（issue #492）
 	EventModerationViewed EventType = "moderation_deleted_content_viewed" // 管理端：查看已删内容
 )
 

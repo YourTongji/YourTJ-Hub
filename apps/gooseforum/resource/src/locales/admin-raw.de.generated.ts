@@ -63,7 +63,7 @@ export default {
   "k001q": "Neue Beiträge",
   "k001r": "Neue Antworten",
   "k001s": "Traffic-Übersicht",
-  "k001t": "Wachstumstrend der registrierten Benutzer, Beiträge und Antworten",
+  "k001t": "Wachstumstrend der registrierten Benutzer, Beiträge, Antworten und Kursbewertungen",
   "k001u": "Vorgang fehlgeschlagen",
   "k001v": "Besondere Sponsoren",
   "k001w": "Gold-Sponsoren",
@@ -884,4 +884,5 @@ export default {
   "k00un": "Sensible Begriffe können Sätze mit Leerzeichen sein: Die Einträge werden nur durch Zeilenumbrüche, Kommas oder Semikolons getrennt, und interne Leerzeichen bleiben erhalten (z. B. wird credit card cash out als eine einzige Phrase importiert).",
   "k00uo": "Nicht unterstützte Erweiterung: {extensions}. Nur JPG, JPEG, PNG, GIF, WebP und BMP sind erlaubt",
   "k00up": "Links unterstützen nur absolute http(s)-URLs oder relative Pfade innerhalb der Website (mailto: für Kontakt-Buttons). Protokolle wie javascript:/data: sind nicht erlaubt.",
+  "k00uq": "Kursbewertungen",
 } as const
