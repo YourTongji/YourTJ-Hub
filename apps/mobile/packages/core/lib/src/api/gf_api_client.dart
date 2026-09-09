@@ -120,6 +120,22 @@ class GfApiClient {
     return _resolvePk(response, parser);
   }
 
+  /// [getPk] 的 PUT 形态（方案快照整体替换等 PK 域登录写操作）。
+  Future<T> putPk<T>(
+    String path, {
+    Object? body,
+    required JsonParser<T> parser,
+  }) async {
+    final response = await _request(() => dio.put(path, data: body));
+    return _resolvePk(response, parser);
+  }
+
+  /// [getPk] 的 DELETE 形态。
+  Future<T> deletePk<T>(String path, {required JsonParser<T> parser}) async {
+    final response = await _request(() => dio.delete(path));
+    return _resolvePk(response, parser);
+  }
+
   Future<T> put<T>(
     String path, {
     Object? body,

@@ -900,6 +900,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get scheduleSyncConflictTitle => '排课方案同步冲突';
+
+  @override
+  String get scheduleSyncConflictBody => '本地与云端的排课方案不一致，保留哪一份？';
+
+  @override
+  String get scheduleSyncUseCloud => '使用云端';
+
+  @override
+  String get scheduleSyncKeepLocal => '保留本地';
+
+  @override
   String get scheduleWeekAll => '全部周次';
 
   @override

@@ -44,7 +44,10 @@ func (r Response) HTTPStatus() int {
 }
 
 // Request PK handler 请求包装（对齐 component.BetterRequest 的角色）。
+// UserId 仅由 routes 包的 pkAuth* 包装填充（JWTAuthCheck 写入的 gin 上下文
+// "userId"）；公开端点包装不填充、保持零值。
 type Request[T any] struct {
 	Params     T
+	UserId     uint64
 	GinContext *gin.Context
 }

@@ -603,6 +603,10 @@
     @apply bg-success/10 text-success;
   }
 
+  .gf-status-message-info {
+    @apply bg-info/10 text-info;
+  }
+
   .gf-tooltip {
     border-radius: var(--gf-radius-field);
     background: var(--gf-color-neutral);

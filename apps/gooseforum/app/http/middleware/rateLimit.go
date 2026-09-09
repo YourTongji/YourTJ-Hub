@@ -69,6 +69,10 @@ const (
 	// RateLimitCourseBookmark 课程收藏端点（issue #331）：低频写操作，
 	// 独立配额防脚本高频切换收藏（与交互类动作区分，便于管理面板分别调优）。
 	RateLimitCourseBookmark = "course.bookmark"
+	// RateLimitPkPlans 排课方案云端同步端点（issue #537）：GET/PUT/DELETE
+	// /api/pk/plans 共用独立配额——写操作不与目录读（course.catalog）抢配额，
+	// 60s 窗口 per-IP 60 / per-User 30（方案编辑低频，防脚本高频刷写）。
+	RateLimitPkPlans = "pk.plans"
 )
 
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。

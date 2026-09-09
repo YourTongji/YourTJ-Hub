@@ -29,6 +29,9 @@ mixin _$LoginPageProps {
   bool get privacyPolicyEnabled => throw _privateConstructorUsedError;
   List<String> get allowedDomains => throw _privateConstructorUsedError;
 
+  /// issue #531：OAuth 回调无本地账号时跳转注册页的提示标记。
+  bool get oauthNotice => throw _privateConstructorUsedError;
+
   /// Serializes this LoginPageProps to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -54,6 +57,7 @@ abstract class $LoginPagePropsCopyWith<$Res> {
     bool termsOfServiceEnabled,
     bool privacyPolicyEnabled,
     List<String> allowedDomains,
+    bool oauthNotice,
   });
 }
 
@@ -79,6 +83,7 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
     Object? termsOfServiceEnabled = null,
     Object? privacyPolicyEnabled = null,
     Object? allowedDomains = null,
+    Object? oauthNotice = null,
   }) {
     return _then(
       _value.copyWith(
@@ -110,6 +115,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
                 ? _value.allowedDomains
                 : allowedDomains // ignore: cast_nullable_to_non_nullable
                       as List<String>,
+            oauthNotice: null == oauthNotice
+                ? _value.oauthNotice
+                : oauthNotice // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -133,6 +142,7 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
     bool termsOfServiceEnabled,
     bool privacyPolicyEnabled,
     List<String> allowedDomains,
+    bool oauthNotice,
   });
 }
 
@@ -157,6 +167,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
     Object? termsOfServiceEnabled = null,
     Object? privacyPolicyEnabled = null,
     Object? allowedDomains = null,
+    Object? oauthNotice = null,
   }) {
     return _then(
       _$LoginPagePropsImpl(
@@ -188,6 +199,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
             ? _value._allowedDomains
             : allowedDomains // ignore: cast_nullable_to_non_nullable
                   as List<String>,
+        oauthNotice: null == oauthNotice
+            ? _value.oauthNotice
+            : oauthNotice // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -204,6 +219,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     this.termsOfServiceEnabled = false,
     this.privacyPolicyEnabled = false,
     final List<String> allowedDomains = const <String>[],
+    this.oauthNotice = false,
   }) : _allowedDomains = allowedDomains;
 
   factory _$LoginPagePropsImpl.fromJson(Map<String, dynamic> json) =>
@@ -232,9 +248,14 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     return EqualUnmodifiableListView(_allowedDomains);
   }
 
+  /// issue #531：OAuth 回调无本地账号时跳转注册页的提示标记。
+  @override
+  @JsonKey()
+  final bool oauthNotice;
+
   @override
   String toString() {
-    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains)';
+    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -257,7 +278,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
             const DeepCollectionEquality().equals(
               other._allowedDomains,
               _allowedDomains,
-            ));
+            ) &&
+            (identical(other.oauthNotice, oauthNotice) ||
+                other.oauthNotice == oauthNotice));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -271,6 +294,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     termsOfServiceEnabled,
     privacyPolicyEnabled,
     const DeepCollectionEquality().hash(_allowedDomains),
+    oauthNotice,
   );
 
   /// Create a copy of LoginPageProps
@@ -299,6 +323,7 @@ abstract class _LoginPageProps implements LoginPageProps {
     final bool termsOfServiceEnabled,
     final bool privacyPolicyEnabled,
     final List<String> allowedDomains,
+    final bool oauthNotice,
   }) = _$LoginPagePropsImpl;
 
   factory _LoginPageProps.fromJson(Map<String, dynamic> json) =
@@ -318,6 +343,10 @@ abstract class _LoginPageProps implements LoginPageProps {
   bool get privacyPolicyEnabled;
   @override
   List<String> get allowedDomains;
+
+  /// issue #531：OAuth 回调无本地账号时跳转注册页的提示标记。
+  @override
+  bool get oauthNotice;
 
   /// Create a copy of LoginPageProps
   /// with the given fields replaced by the non-null parameter values.

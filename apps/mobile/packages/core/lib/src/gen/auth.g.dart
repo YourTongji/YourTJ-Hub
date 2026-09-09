@@ -19,6 +19,7 @@ _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      oauthNotice: json['oauthNotice'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$LoginPagePropsImplToJson(
@@ -31,6 +32,7 @@ Map<String, dynamic> _$$LoginPagePropsImplToJson(
   'termsOfServiceEnabled': instance.termsOfServiceEnabled,
   'privacyPolicyEnabled': instance.privacyPolicyEnabled,
   'allowedDomains': instance.allowedDomains,
+  'oauthNotice': instance.oauthNotice,
 };
 
 _$ResetPasswordPagePropsImpl _$$ResetPasswordPagePropsImplFromJson(

@@ -69,6 +69,7 @@ const (
 	MessageAuthPasswordOAuthRequired     MessageCode = "auth.password.oauthRequired"     // 无邮箱的 OAuth 账号密码校验失败，需通过 OAuth 恢复。
 	MessageAuthPasswordUpdateFailed      MessageCode = "auth.password.updateFailed"      // 修改密码失败。
 	MessageAuthPasswordUpdateSuccess     MessageCode = "auth.password.updateSuccess"     // 修改密码成功。
+	MessageAuthPasswordSetNotAllowed     MessageCode = "auth.password.setNotAllowed"     // 当前账号不满足设置密码条件（已有密码可用或无第三方绑定），请使用修改密码。
 	MessageAuthResetMailQueued           MessageCode = "auth.passwordReset.mailQueued"   // 如邮箱存在，将收到密码重置邮件。
 	MessageAuthResetTokenCreateFailed    MessageCode = "auth.passwordReset.tokenFailed"  // 生成重置令牌失败。
 	MessageAuthResetMailSendFailed       MessageCode = "auth.passwordReset.mailFailed"   // 发送重置邮件失败。

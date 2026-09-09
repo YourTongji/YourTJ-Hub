@@ -26,6 +26,20 @@ func GetByTopicId(userId, topicId any) (entity Entity) {
 	return
 }
 
+// GetByTopicIDs loads one viewer's interaction state in a single bounded page query.
+func GetByTopicIDs(userID uint64, topicIDs []uint64) (map[uint64]Entity, error) {
+	result := make(map[uint64]Entity)
+	if userID == 0 || len(topicIDs) == 0 {
+		return result, nil
+	}
+	var rows []Entity
+	err := builder().Select("topic_id", "liked_at", "bookmarked_at").Where("user_id = ? AND topic_id IN ?", userID, topicIDs).Find(&rows).Error
+	for _, row := range rows {
+		result[row.TopicId] = row
+	}
+	return result, err
+}
+
 // SetLiked 设置主题点赞状态，返回是否发生了状态迁移（false = 状态未变化或写入失败）。
 func SetLiked(userId, topicId uint64, liked bool) bool {
 	return setAt(userId, topicId, "liked_at", timeForState(liked))

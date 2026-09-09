@@ -3,16 +3,14 @@ package oauthservice
 import (
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
+	"strings"
 	"testing"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/markbates/goth"
@@ -22,14 +20,8 @@ import (
 func setSecurityConfigForTest(t *testing.T, config pageConfig.SecurityAndRegistration) {
 	t.Helper()
 	conn := db.Connect()
-	// CreateUser 依赖 user_points / user_statistics / points_record，迁移避免缺表。
-	if err := conn.AutoMigrate(
-		&pageConfig.Entity{},
-		&userPoints.Entity{},
-		&pointsRecord.Entity{},
-		&userStatistics.Entity{},
-	); err != nil {
-		t.Fatalf("migrate config/points tables: %v", err)
+	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate page_config: %v", err)
 	}
 	encoded, err := json.Marshal(config)
 	if err != nil {
@@ -43,19 +35,22 @@ func setSecurityConfigForTest(t *testing.T, config pageConfig.SecurityAndRegistr
 	t.Cleanup(hotdataserve.ClearSecuritySettingsConfigCache)
 }
 
-// verifiedGithubUser 构造带 verified 邮箱的 GitHub goth 用户（token 触发 API 调用）。
+// stubGitHubEmailFetch 注入 verified 邮箱接缝（fetchGitHubVerifiedEmailFn）并
+// 在测试结束后还原。不经回环 HTTP：受限环境（禁止回环 TCP）里 httptest
+// server 不可达，接缝注入使测试在沙箱与 CI 下行为一致且意图确定。
+func stubGitHubEmailFetch(t *testing.T, fetch func(token string) string) {
+	t.Helper()
+	oldFn := fetchGitHubVerifiedEmailFn
+	fetchGitHubVerifiedEmailFn = fetch
+	t.Cleanup(func() { fetchGitHubVerifiedEmailFn = oldFn })
+}
+
+// verifiedGithubUser 构造带 verified 邮箱的 GitHub goth 用户（接缝返回该邮箱，
+// 与生产 fetchGitHubVerifiedEmail 同样做小写归一）。
 func verifiedGithubUser(t *testing.T, uid, login, email string) goth.User {
 	t.Helper()
-	// 用 mock server 返回 verified primary 邮箱，避免真实网络调用。
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"email": email, "primary": true, "verified": true},
-		})
-	}))
-	t.Cleanup(server.Close)
-	oldURL := gitHubEmailAPIURL
-	gitHubEmailAPIURL = server.URL
-	t.Cleanup(func() { gitHubEmailAPIURL = oldURL })
+	verified := strings.ToLower(email)
+	stubGitHubEmailFetch(t, func(string) string { return verified })
 
 	return goth.User{
 		Provider:    ProviderGitHub,
@@ -65,16 +60,10 @@ func verifiedGithubUser(t *testing.T, uid, login, email string) goth.User {
 	}
 }
 
-// unverifiedGithubUser 构造无 verified 邮箱的 GitHub 用户（API 返回空列表）。
+// unverifiedGithubUser 构造无 verified 邮箱的 GitHub 用户（接缝返回空）。
 func unverifiedGithubUser(t *testing.T, uid, login string) goth.User {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`[]`))
-	}))
-	t.Cleanup(server.Close)
-	oldURL := gitHubEmailAPIURL
-	gitHubEmailAPIURL = server.URL
-	t.Cleanup(func() { gitHubEmailAPIURL = oldURL })
+	stubGitHubEmailFetch(t, func(string) string { return "" })
 
 	return goth.User{
 		Provider:    ProviderGitHub,
@@ -84,143 +73,128 @@ func unverifiedGithubUser(t *testing.T, uid, login string) goth.User {
 	}
 }
 
-// TestCreateUserFromOAuthTrustedDomainAutoActivates 域名命中信任列表 → 直接激活。
-func TestCreateUserFromOAuthTrustedDomainAutoActivates(t *testing.T) {
+// prepareNoSignupExpectations 迁移并清空 task_queue，使「无邮件入队」断言可靠。
+func prepareNoSignupExpectations(t *testing.T) {
+	t.Helper()
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&taskQueue.Entity{}); err != nil {
+		t.Fatalf("migrate task_queue: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
+}
+
+// assertNoLocalAccountCreated（issue #531 验收核心）：回调后不产生 users 行、
+// user_oauth 行、邮件队列任务。UserSignUpEvent 只在建号成功后发布且发布代码已
+// 随建号路径整体移除，无建号即无事件（另有全仓引用检查兜底）。
+func assertNoLocalAccountCreated(t *testing.T) {
+	t.Helper()
+	conn := db.Connect()
+	var userCount int64
+	if err := conn.Model(&users.EntityComplete{}).Count(&userCount).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if userCount != 0 {
+		t.Fatalf("user rows = %d, want 0 (OAuth callback must not create accounts)", userCount)
+	}
+	var bindingCount int64
+	if err := conn.Model(&userOAuth.Entity{}).Count(&bindingCount).Error; err != nil {
+		t.Fatalf("count user_oauth: %v", err)
+	}
+	if bindingCount != 0 {
+		t.Fatalf("user_oauth rows = %d, want 0", bindingCount)
+	}
+	var taskCount int64
+	if err := conn.Model(&taskQueue.Entity{}).Count(&taskCount).Error; err != nil {
+		t.Fatalf("count task_queue: %v", err)
+	}
+	if taskCount != 0 {
+		t.Fatalf("task_queue rows = %d, want 0 (no activation email may be enqueued)", taskCount)
+	}
+}
+
+// TestProcessOAuthCallbackNoLocalAccountTrustedEmail（issue #531）：
+// 信任域名 verified 邮箱但站内无同邮箱账号 → 返回 ErrOAuthNoLocalAccount。
+// 旧版在此路径直接建号（tongji.edu.cn 一键建号），现注册单点收敛到
+// /api/register（allowedDomains 白名单门禁），OAuth 侧不建号、不发激活邮件。
+func TestProcessOAuthCallbackNoLocalAccountTrustedEmail(t *testing.T) {
 	setupOAuthTestDB(t)
 	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
 		AllowedDomains: []string{"tongji.edu.cn"},
 	})
+	prepareNoSignupExpectations(t)
 
-	user, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "1", Login: "trusted-user", Provider: ProviderGitHub,
-		VerifiedEmail: "alice@tongji.edu.cn", EmailVerified: true,
-	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
+	_, err := ProcessOAuthCallback(verifiedGithubUser(t, "uid-new-trusted", "alice", "alice@tongji.edu.cn"))
+	if !errors.Is(err, ErrOAuthNoLocalAccount) {
+		t.Fatalf("ProcessOAuthCallback() error = %v, want ErrOAuthNoLocalAccount", err)
 	}
-	if user.IsActivated != users.ActivationSuccess {
-		t.Fatalf("trusted domain user activation = %v, want %v", user.IsActivated, users.ActivationSuccess)
-	}
-	if user.Email != "alice@tongji.edu.cn" {
-		t.Fatalf("stored email = %q, want alice@tongji.edu.cn", user.Email)
+	assertNoLocalAccountCreated(t)
+}
+
+// TestProcessOAuthCallbackNoLocalAccountOutsideDomain（issue #531 验收矩阵）：
+// allowedDomains 非空 × verified 邮箱未命中白名单 × EnableEmailVerification
+// 开/关——两种配置下纯新号一律拒绝建号。旧版关闭开关时直接激活（白名单绕过）、
+// 开启时向站外邮箱补发激活邮件后仍可激活，两条旁路均已消除。
+func TestProcessOAuthCallbackNoLocalAccountOutsideDomain(t *testing.T) {
+	for _, enableVerification := range []bool{false, true} {
+		t.Run(fmt.Sprintf("verification=%v", enableVerification), func(t *testing.T) {
+			setupOAuthTestDB(t)
+			setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
+				EnableEmailVerification: enableVerification,
+				AllowedDomains:          []string{"tongji.edu.cn"},
+			})
+			prepareNoSignupExpectations(t)
+
+			_, err := ProcessOAuthCallback(verifiedGithubUser(t, "uid-outside", "bob", "bob@gmail.com"))
+			if !errors.Is(err, ErrOAuthNoLocalAccount) {
+				t.Fatalf("ProcessOAuthCallback() error = %v, want ErrOAuthNoLocalAccount", err)
+			}
+			assertNoLocalAccountCreated(t)
+		})
 	}
 }
 
-// TestCreateUserFromOAuthEmptyDomainsTrustsAll 空 allowedDomains = 全信任 → 直接激活。
-func TestCreateUserFromOAuthEmptyDomainsTrustsAll(t *testing.T) {
-	setupOAuthTestDB(t)
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: true,
-		AllowedDomains:          []string{},
-	})
+// TestProcessOAuthCallbackNoLocalAccountNoVerifiedEmail（issue #531 验收矩阵）：
+// 无 verified 邮箱的 GitHub 身份 × 邮箱验证开关开/关 → 一律拒绝建号。
+func TestProcessOAuthCallbackNoLocalAccountNoVerifiedEmail(t *testing.T) {
+	for _, enableVerification := range []bool{false, true} {
+		t.Run(fmt.Sprintf("verification=%v", enableVerification), func(t *testing.T) {
+			setupOAuthTestDB(t)
+			setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
+				EnableEmailVerification: enableVerification,
+				AllowedDomains:          []string{"tongji.edu.cn"},
+			})
+			prepareNoSignupExpectations(t)
 
-	user, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "1", Login: "any-domain", Provider: ProviderGitHub,
-		VerifiedEmail: "alice@example.com", EmailVerified: true,
-	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
-	}
-	if user.IsActivated != users.ActivationSuccess {
-		t.Fatalf("empty domains should trust all, activation = %v, want %v", user.IsActivated, users.ActivationSuccess)
+			_, err := ProcessOAuthCallback(unverifiedGithubUser(t, "uid-noemail", "noemail"))
+			if !errors.Is(err, ErrOAuthNoLocalAccount) {
+				t.Fatalf("ProcessOAuthCallback() error = %v, want ErrOAuthNoLocalAccount", err)
+			}
+			assertNoLocalAccountCreated(t)
+		})
 	}
 }
 
-// TestCreateUserFromOAuthUnmatchedDomainFollowsSwitch 未命中域名跟随开关：
-// 开关开 → ActivationPending；开关关（默认）→ 免验证激活。
-func TestCreateUserFromOAuthUnmatchedDomainFollowsSwitch(t *testing.T) {
+// TestProcessOAuthCallbackNoLocalAccountGoogleNewUser Google 侧新号口径与 GitHub
+// 一致：verified_email=true 的站外邮箱在白名单下同样不建号。
+func TestProcessOAuthCallbackNoLocalAccountGoogleNewUser(t *testing.T) {
 	setupOAuthTestDB(t)
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: true,
-		AllowedDomains:          []string{"tongji.edu.cn"},
-	})
-
-	// 开关开 + 未命中 → pending
-	user, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "1", Login: "outside-user", Provider: ProviderGitHub,
-		VerifiedEmail: "bob@gmail.com", EmailVerified: true,
-	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
-	}
-	if user.IsActivated != users.ActivationPending {
-		t.Fatalf("unmatched domain with verification on: activation = %v, want pending", user.IsActivated)
-	}
-
-	// 开关关（默认）→ 免验证（不回归）
 	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
 		EnableEmailVerification: false,
 		AllowedDomains:          []string{"tongji.edu.cn"},
 	})
-	user2, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "2", Login: "outside-user2", Provider: ProviderGitHub,
-		VerifiedEmail: "bob2@gmail.com", EmailVerified: true,
-	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
-	}
-	if user2.IsActivated != users.ActivationSuccess {
-		t.Fatalf("unmatched domain with verification off should activate: %v", user2.IsActivated)
-	}
-}
+	prepareNoSignupExpectations(t)
 
-// TestCreateUserFromOAuthNoEmailFollowsSwitch 无 verified 邮箱时，关闭邮箱验证开关
-// 仍保持免验证；开启时拒绝 OAuth 快捷注册，避免未验证身份绕过全站验证策略。
-func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
-	setupOAuthTestDB(t)
-
-	// 开关关（默认）→ 免验证（不回归）
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: false,
-		AllowedDomains:          []string{"tongji.edu.cn"},
+	_, err := ProcessOAuthCallback(goth.User{
+		Provider: ProviderGoogle,
+		UserID:   "google-new",
+		NickName: "gnew",
+		Email:    "gnew@gmail.com",
+		RawData:  map[string]any{"verified_email": true},
 	})
-	user, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "1", Login: "no-email", Provider: ProviderGitHub,
-		EmailVerified: false,
-	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
+	if !errors.Is(err, ErrOAuthNoLocalAccount) {
+		t.Fatalf("ProcessOAuthCallback() error = %v, want ErrOAuthNoLocalAccount", err)
 	}
-	if user.IsActivated != users.ActivationSuccess {
-		t.Fatalf("no email with verification off should activate: %v", user.IsActivated)
-	}
-
-	// 开关开 + 无 verified 邮箱 → 拒绝创建，避免未验证身份绕过全站验证策略
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: true,
-		AllowedDomains:          []string{"tongji.edu.cn"},
-	})
-	user2, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "2", Login: "no-email2", Provider: ProviderGitHub,
-		EmailVerified: false,
-	})
-	if !errors.Is(err, ErrOAuthEmailUnverified) {
-		t.Fatalf("createUserFromOAuth() error = %v, want ErrOAuthEmailUnverified", err)
-	}
-	if user2 != nil {
-		t.Fatalf("createUserFromOAuth() user = %#v, want nil on unverified email", user2)
-	}
-	if users.ExistUsername("no-email2") {
-		t.Fatal("unverified OAuth user was created despite email verification being enabled")
-	}
-
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: false,
-		AllowedDomains:          []string{"tongji.edu.cn"},
-	})
-	// 无 verified 邮箱时不降级存 goth 公开邮箱（PR #167 review, medium：
-	// 未验证邮箱经 OIDC 会被推导为 email_verified=true，造成信任越界）。
-	user3, err := createUserFromOAuth(OAuthUserInfo{
-		ID: "3", Login: "public-only", Provider: ProviderGitHub,
-		Email:         "public@example.com", // goth 公开邮箱，未验证
-		EmailVerified: false,
-	})
-	if err != nil {
-		t.Fatalf("createUserFromOAuth() error = %v", err)
-	}
-	if user3.Email != "" {
-		t.Fatalf("unverified goth public email should NOT be stored, got %q", user3.Email)
-	}
+	assertNoLocalAccountCreated(t)
 }
 
 // TestBindOAuthByTrustedEmailBindsExisting 信任域名内 verified 邮箱已有账号 → 直接绑定。
@@ -287,8 +261,10 @@ func TestBindOAuthByTrustedEmailPropagatesDatabaseError(t *testing.T) {
 	}
 }
 
-// TestBindOAuthByTrustedEmailSkipsUnmatchedDomain 信任域名外 verified 邮箱 → 不绑定，走注册。
-func TestBindOAuthByTrustedEmailSkipsUnmatchedDomain(t *testing.T) {
+// TestBindOAuthByTrustedEmailSkipsUnmatchedDomainUnbound（issue #531 改写）：
+// 同邮箱账号存在但域名未命中 → 不绑定；整个身份无本地账号 → 返回
+// ErrOAuthNoLocalAccount（旧版在此降级为「另建一个同邮箱账号」，已删除）。
+func TestBindOAuthByTrustedEmailSkipsUnmatchedDomainUnbound(t *testing.T) {
 	setupOAuthTestDB(t)
 	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
 		AllowedDomains: []string{"tongji.edu.cn"},
@@ -299,16 +275,15 @@ func TestBindOAuthByTrustedEmailSkipsUnmatchedDomain(t *testing.T) {
 		t.Fatalf("create existing user: %v", err)
 	}
 
-	// 同邮箱但域名未命中 → 不绑定
-	user, err := ProcessOAuthCallback(verifiedGithubUser(t, "uid-nobind", "someone", "someone@outlook.com"))
-	if err != nil {
-		t.Fatalf("ProcessOAuthCallback() error = %v", err)
+	_, err := ProcessOAuthCallback(verifiedGithubUser(t, "uid-nobind", "someone", "someone@outlook.com"))
+	if !errors.Is(err, ErrOAuthNoLocalAccount) {
+		t.Fatalf("ProcessOAuthCallback() error = %v, want ErrOAuthNoLocalAccount", err)
 	}
-	if user.Id == existing.Id {
-		t.Fatalf("unmatched domain should not bind existing user")
+	if userOAuth.GetByProviderAndUID(ProviderGitHub, "uid-nobind") != nil {
+		t.Fatal("unmatched-domain identity must not be bound to the existing account")
 	}
-	if userOAuth.GetByProviderAndUID(ProviderGitHub, "uid-nobind") == nil {
-		t.Fatal("new user oauth binding missing")
+	if users.ExistEmail("someone@outlook.com") {
+		t.Fatal("duplicate-email account was created for unmatched domain (issue #531)")
 	}
 }
 
@@ -334,64 +309,46 @@ func TestBindOAuthByTrustedEmailRejectsFrozen(t *testing.T) {
 	}
 }
 
-// TestFetchGitHubVerifiedEmailParsing 验证 GitHub API 响应解析：取 verified+primary，
-// 无 primary 时取任一 verified。
-func TestFetchGitHubVerifiedEmailParsing(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"email": "secondary@tongji.edu.cn", "primary": false, "verified": true},
-			{"email": "primary@tongji.edu.cn", "primary": true, "verified": true},
-			{"email": "unverified@example.com", "primary": false, "verified": false},
+// TestParseGitHubEmailsPrefersVerifiedPrimary 验证 /user/emails 响应解析：
+// 取 verified+primary，无 primary 时取任一 verified。纯函数直测，无网络依赖
+// （原 httptest 回环实现在禁止回环 TCP 的受限环境不可达，行为口径不变）。
+func TestParseGitHubEmailsPrefersVerifiedPrimary(t *testing.T) {
+	cases := []struct {
+		name string
+		list []gitHubEmailEntry
+		want string
+	}{
+		{
+			name: "verified primary wins",
+			list: []gitHubEmailEntry{
+				{Email: "secondary@tongji.edu.cn", Primary: false, Verified: true},
+				{Email: "Primary@Tongji.edu.cn", Primary: true, Verified: true},
+				{Email: "unverified@example.com", Primary: false, Verified: false},
+			},
+			want: "primary@tongji.edu.cn",
+		},
+		{
+			name: "falls back to any verified",
+			list: []gitHubEmailEntry{{Email: "only@tongji.edu.cn", Primary: false, Verified: true}},
+			want: "only@tongji.edu.cn",
+		},
+		{
+			name: "unverified ignored",
+			list: []gitHubEmailEntry{{Email: "x@example.com", Primary: true, Verified: false}},
+			want: "",
+		},
+		{
+			name: "empty list",
+			list: nil,
+			want: "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseGitHubEmails(tc.list); got != tc.want {
+				t.Fatalf("parseGitHubEmails() = %q, want %q", got, tc.want)
+			}
 		})
-	}))
-	defer server.Close()
-	oldURL := gitHubEmailAPIURL
-	gitHubEmailAPIURL = server.URL
-	defer func() { gitHubEmailAPIURL = oldURL }()
-
-	if got := fetchGitHubVerifiedEmail("token"); got != "primary@tongji.edu.cn" {
-		t.Fatalf("fetchGitHubVerifiedEmail() = %q, want primary@tongji.edu.cn", got)
-	}
-
-	// 无 primary：取任一 verified
-	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"email": "only@tongji.edu.cn", "primary": false, "verified": true},
-		})
-	}))
-	defer server2.Close()
-	gitHubEmailAPIURL = server2.URL
-	if got := fetchGitHubVerifiedEmail("token"); got != "only@tongji.edu.cn" {
-		t.Fatalf("fetchGitHubVerifiedEmail() fallback = %q, want only@tongji.edu.cn", got)
-	}
-}
-
-// TestProcessOAuthCallbackNoAccessToken 无 token（非 GitHub provider）降级旧行为：免验证。
-func TestProcessOAuthCallbackNoAccessToken(t *testing.T) {
-	setupOAuthTestDB(t)
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: true,
-		AllowedDomains:          []string{"tongji.edu.cn"},
-	})
-
-	// 无 token、无 verified 邮箱的 GitHub 用户：开关开 → pending（不回归：开关关则激活）
-	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
-		EnableEmailVerification: false,
-		AllowedDomains:          []string{"tongji.edu.cn"},
-	})
-	user, err := ProcessOAuthCallback(goth.User{
-		Provider: ProviderGitHub,
-		UserID:   "uid-notoken",
-		NickName: "notoken",
-	})
-	if err != nil {
-		t.Fatalf("ProcessOAuthCallback() error = %v", err)
-	}
-	if user.IsActivated != users.ActivationSuccess {
-		t.Fatalf("no token + verification off should activate, got %v", user.IsActivated)
-	}
-	if user.Email != "" {
-		t.Fatalf("no verified email should not store email, got %q", user.Email)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
@@ -245,6 +246,15 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		}
 	}
 
+	// 清空排课方案云端快照（issue #537）：方案含用户自选课程与自定义占位等
+	// 个人数据（anonymize 与 delete 两 mode 共用；与 pushDevice 同语义）。
+	// 注销前置**必需**步骤（issue #557 review P1）：瞬时失败中止注销并返回
+	// 失败——账号仍有效、用户可立即重试；若放在 CloseAccount 之后 best-effort，
+	// 一旦失败快照将永久残留（会话已吊销、用户无法再认证删除、无补偿路径）。
+	if err := pk.DeleteScheduleSnapshotByUser(req.UserId); err != nil {
+		slog.Error("delete pk schedule snapshot on account close failed", "userId", req.UserId, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	if err := users.CloseAccount(req.UserId); err != nil {
 		slog.Error("close account failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)

@@ -39,7 +39,7 @@ func TestAppTemplateInsightFlareRendering(t *testing.T) {
 			if err := reg.render(&buf, "home.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
 				t.Fatalf("render home template: %v", err)
 			}
-			got := strings.Contains(buf.String(), "https://ana.yourtj.de/script.js?siteId=")
+			got := strings.Contains(buf.String(), "https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1")
 			if got != tc.want {
 				t.Fatalf("InsightFlare script rendered with enabled=%t, want %t", tc.enabled, tc.want)
 			}

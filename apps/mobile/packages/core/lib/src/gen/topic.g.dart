@@ -147,6 +147,8 @@ _$TopicPayloadImpl _$$TopicPayloadImplFromJson(Map<String, dynamic> json) =>
       activityText: json['activityText'] as String,
       lastUpdateTime: json['lastUpdateTime'] as String,
       unseen: json['unseen'] as bool?,
+      liked: json['liked'] as bool?,
+      bookmarked: json['bookmarked'] as bool?,
     );
 
 Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
@@ -168,6 +170,8 @@ Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
       'activityText': instance.activityText,
       'lastUpdateTime': instance.lastUpdateTime,
       'unseen': instance.unseen,
+      'liked': instance.liked,
+      'bookmarked': instance.bookmarked,
     };
 
 _$TopicDetailPayloadImpl _$$TopicDetailPayloadImplFromJson(

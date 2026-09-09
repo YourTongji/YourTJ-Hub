@@ -570,6 +570,42 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 	return component.SuccessResponseCode("密码修改成功", component.MessageAuthPasswordUpdateSuccess, nil)
 }
 
+// SetPasswordReq is the first-time password setup request (no old password).
+type SetPasswordReq struct {
+	NewPassword string `json:"newPassword" validate:"required"`
+}
+
+// SetPassword 为无本地可用密码的 OAuth 账号首次设置密码（issue #530）。
+// 资格门禁：无邮箱 + 至少一个 OAuth 绑定 + 非 bot。有邮箱的 OAuth 绑定用户
+// 走 forgot-password 邮件重置（旧密码校验保留作为会话劫持防线）。设置成功即
+// SetPassword（TokenVersion++ 全端吊销），客户端需引导重新登录。设密后重复
+// 调用仍允许（登录态本人操作 + password.change 限流），语义为再次改密。
+func SetPassword(req component.BetterRequest[SetPasswordReq]) component.Response {
+	userEntity, err := req.GetUser()
+	if err != nil {
+		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+	// 机器人（Agent）账号没有可用密码，也不允许设置。
+	if userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+	}
+	// 资格门禁：仅无邮箱的 OAuth 绑定账号可免旧密码设密。
+	if userEntity.Email != "" || !oauthservice.HasOAuthBinding(userEntity.Id) {
+		return component.FailResponseCode(component.MessageAuthPasswordSetNotAllowed, nil)
+	}
+	if err = component.ValidatePassword(req.Params.NewPassword, 6); err != nil {
+		return component.FailResponseError(err)
+	}
+
+	userEntity.SetPassword(req.Params.NewPassword)
+	err = userservice.SaveUser(&userEntity)
+	if err != nil {
+		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
+	}
+
+	return component.SuccessResponseCode("密码设置成功，请使用新密码重新登录", component.MessageAuthPasswordUpdateSuccess, nil)
+}
+
 // ForgotPasswordReq is the password reset email request.
 type ForgotPasswordReq struct {
 	Email       string `json:"email" validate:"required,email"`

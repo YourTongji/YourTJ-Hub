@@ -30,6 +30,32 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   AsyncValue<HomeProps> _page = const AsyncValue.loading();
   String _sort = '';
+  int _loadSequence = 0;
+  int _interactionRevision = 0;
+  final _pendingInteractions = <(int, bool)>{};
+  final _interactionOverrides =
+      <int, ({int revision, bool? liked, bool? bookmarked})>{};
+
+  // Only writes completed after a read started override that response. A later
+  // refresh (including returning from topic detail) remains authoritative.
+  List<TopicPayload> _mergeInteractions(
+    List<TopicPayload> incoming,
+    int readRevision,
+  ) => [for (final topic in incoming) _mergeInteraction(topic, readRevision)];
+
+  TopicPayload _mergeInteraction(TopicPayload topic, int readRevision) {
+    final update = _interactionOverrides[topic.id];
+    if (update == null) return topic;
+    if (update.revision <= readRevision) {
+      _interactionOverrides.remove(topic.id);
+      return topic;
+    }
+    return topic.copyWith(
+      liked: update.liked ?? topic.liked,
+      bookmarked: update.bookmarked ?? topic.bookmarked,
+    );
+  }
+
   final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
   GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
@@ -85,12 +111,21 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    if (!mounted) return;
+    final sequence = ++_loadSequence;
+    final revision = _interactionRevision;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    _loadingMore = false;
     if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .home(sort: _sort);
-      if (!mounted) return;
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       final HomeProps? props = parsePageProps<HomeProps>(payload);
       if (props == null) {
         setState(
@@ -104,10 +139,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       setState(() {
         _page = AsyncValue.data(props);
         _topics.clear();
-        _topics.addAll(props.topics);
+        _topics.addAll(_mergeInteractions(props.topics, revision));
       });
     } catch (e, st) {
-      if (!mounted) return;
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() => _page = AsyncValue.error(e, st));
     }
   }
@@ -117,24 +156,89 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (props == null || !props.pagination.hasNext || _loadingMore) return;
     final String nextUrl = props.pagination.nextUrl;
     if (nextUrl.isEmpty) return;
+    final sequence = _loadSequence;
+    final revision = _interactionRevision;
+    final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingMore = true);
     try {
       // 真实分页:按后端 nextUrl 请求下一页(页面级数据通道)。
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .fetch(nextUrl);
-      if (!mounted) return;
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       final HomeProps? next = parsePageProps<HomeProps>(payload);
       if (next != null && next.topics.isNotEmpty) {
         setState(() {
-          _topics.addAll(next.topics);
+          _topics.addAll(_mergeInteractions(next.topics, revision));
           _page = AsyncValue.data(next);
         });
       }
     } catch (_) {
       // 加载更多失败静默(用户可再次点击)。
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted && sequence == _loadSequence) {
+        setState(() => _loadingMore = false);
+      }
+    }
+  }
+
+  Future<bool> _toggleTopicInteraction(
+    TopicPayload topic,
+    bool target, {
+    bool bookmark = false,
+  }) async {
+    final key = (topic.id, bookmark);
+    if (!_pendingInteractions.add(key)) return false;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    try {
+      final repository = ref.read(topicRepositoryProvider);
+      final success = bookmark
+          ? await repository.bookmarkTopic(
+              topicId: topic.id,
+              action: target ? 1 : 2,
+            )
+          : await repository.likeTopic(
+              topicId: topic.id,
+              action: target ? 1 : 2,
+            );
+      if (!success ||
+          !mounted ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return false;
+      }
+      final previous = _interactionOverrides[topic.id];
+      final update = (
+        revision: ++_interactionRevision,
+        liked: bookmark ? previous?.liked : target,
+        bookmarked: bookmark ? target : previous?.bookmarked,
+      );
+      setState(() {
+        _interactionOverrides[topic.id] = update;
+        for (var i = 0; i < _topics.length; i++) {
+          if (_topics[i].id == topic.id) {
+            _topics[i] = _topics[i].copyWith(
+              liked: bookmark ? _topics[i].liked : target,
+              bookmarked: bookmark ? target : _topics[i].bookmarked,
+            );
+          }
+        }
+      });
+      return true;
+    } catch (error) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+      return false;
+    } finally {
+      _pendingInteractions.remove(key);
     }
   }
 
@@ -187,6 +291,10 @@ class _HomePageState extends ConsumerState<HomePage> {
               loading: _loadingMore,
               topics: _topics,
               feedMode: _feedMode,
+              onLikeTopic: _toggleTopicInteraction,
+              onBookmarkTopic: (topic, target) =>
+                  _toggleTopicInteraction(topic, target, bookmark: true),
+              onReturnFromTopic: () => _load(silent: true),
               hasMore: props.pagination.hasNext,
               onLoadMore: _loadMore,
             ),

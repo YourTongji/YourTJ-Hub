@@ -45,7 +45,7 @@ tags:
   - name: Wiki Admin
     description: Wiki administration operations restricted to PageManager or Admin accounts.
   - name: PK
-    description: 排课模拟器（PK）公开只读端点，统一 {code,msg,data} 信封。
+    description: 排课器（PK）端点，统一 {code,msg,data} 信封；字典/目录/详情类为公开只读，/api/pk/plans 方案云同步为登录读写（issue #537）。
   - name: Files
     description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
@@ -145,6 +145,8 @@ paths:
     $ref: ./paths/user-account.yaml#/uploadAvatar
   /api/change-password:
     $ref: ./paths/user-account.yaml#/changePassword
+  /api/set-password:
+    $ref: ./paths/user-account.yaml#/setPassword
   /api/oauth/bindings:
     $ref: ./paths/user-account.yaml#/getOAuthBindings
   /api/auth/{provider}/unbind:
@@ -528,6 +530,13 @@ paths:
   /api/pk/section-times:
     get:
       $ref: ./paths/pk.yaml#/getSectionTimes/get
+  /api/pk/plans:
+    get:
+      $ref: ./paths/pk.yaml#/getPlans/get
+    put:
+      $ref: ./paths/pk.yaml#/putPlans/put
+    delete:
+      $ref: ./paths/pk.yaml#/deletePlans/delete
   /api/forum/moderation/course-list:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseList/post
@@ -800,6 +809,12 @@ components:
       $ref: ./components/schemas.yaml#/ChangePasswordSuccess
     ChangePasswordResponse:
       $ref: ./components/schemas.yaml#/ChangePasswordResponse
+    SetPasswordRequest:
+      $ref: ./components/schemas.yaml#/SetPasswordRequest
+    SetPasswordSuccess:
+      $ref: ./components/schemas.yaml#/SetPasswordSuccess
+    SetPasswordResponse:
+      $ref: ./components/schemas.yaml#/SetPasswordResponse
     OAuthBinding:
       $ref: ./components/schemas.yaml#/OAuthBinding
     OAuthBindingsResult:
@@ -1560,6 +1575,36 @@ components:
       $ref: ./components/schemas.yaml#/PkSectionTimesResult
     PkSectionTimesResponse:
       $ref: ./components/schemas.yaml#/PkSectionTimesResponse
+    PkTeacherPayload:
+      $ref: ./components/schemas.yaml#/PkTeacherPayload
+    PkArrangementPayload:
+      $ref: ./components/schemas.yaml#/PkArrangementPayload
+    PkCourseDetailPayload:
+      $ref: ./components/schemas.yaml#/PkCourseDetailPayload
+    PkStagedCoursePayload:
+      $ref: ./components/schemas.yaml#/PkStagedCoursePayload
+    PkCustomEventPayload:
+      $ref: ./components/schemas.yaml#/PkCustomEventPayload
+    PkPlanPayload:
+      $ref: ./components/schemas.yaml#/PkPlanPayload
+    PkMajorSelectionPayload:
+      $ref: ./components/schemas.yaml#/PkMajorSelectionPayload
+    PkWeekViewPayload:
+      $ref: ./components/schemas.yaml#/PkWeekViewPayload
+    PkPlansSnapshotData:
+      $ref: ./components/schemas.yaml#/PkPlansSnapshotData
+    PkPlansPutRequest:
+      $ref: ./components/schemas.yaml#/PkPlansPutRequest
+    PkPlansPutResult:
+      $ref: ./components/schemas.yaml#/PkPlansPutResult
+    PkPlansDeleteResult:
+      $ref: ./components/schemas.yaml#/PkPlansDeleteResult
+    PkPlansGetResponse:
+      $ref: ./components/schemas.yaml#/PkPlansGetResponse
+    PkPlansPutResponse:
+      $ref: ./components/schemas.yaml#/PkPlansPutResponse
+    PkPlansDeleteResponse:
+      $ref: ./components/schemas.yaml#/PkPlansDeleteResponse
     MyContentItem:
       $ref: ./components/schemas.yaml#/MyContentItem
     MyContentListResult:

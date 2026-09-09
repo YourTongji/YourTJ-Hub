@@ -1,6 +1,7 @@
 // 排课器（PK 课表）状态：v2 多方案 + 容忍式冲突（web useScheduleStore.ts 的
 // 移动端移植）。持久化键与 web 完全一致（pk.plans / pk.activePlanId /
-// pk.majorSelected / pk.weekView / pk.updateTime / goose:scheduleConfigCollapsed），
+// pk.majorSelected / pk.weekView / pk.updateTime / goose:scheduleConfigCollapsed；
+// 另有 pk.syncedAt 方案云同步时钟，issue #537），
 // schema 与 web localStorage 可互相携带。派生数据（occupied / 网格 / 冲突 /
 // 统计）一律不持久化，每次变更由纯函数重建。
 //
@@ -24,6 +25,9 @@ abstract final class ScheduleStorageKeys {
   static const String majorSelected = 'pk.majorSelected';
   static const String weekView = 'pk.weekView';
   static const String updateTime = 'pk.updateTime';
+
+  /// 云端方案快照同步时钟（服务端 updatedAt 原文；issue #537）。
+  static const String syncedAt = 'pk.syncedAt';
   static const String configCollapsed = kScheduleConfigCollapsedKey;
 }
 
@@ -38,6 +42,11 @@ abstract final class CourseStatus {
 
 /// 方案数量上限（web MAX_PLANS）。
 const int kMaxPlans = 10;
+
+/// 本地方案数据变更回调（模块级注入：schedule_sync 控制器在创建时绑定，
+/// store 因此不直接依赖网络层，测试亦可替换）。
+/// 仅本地写入路径触发；云端整包采用（applyingRemote 守卫）绝不触发。
+void Function()? scheduleLocalPlansChanged;
 
 /// 课程卡片配色槽位数（web courseColorSlots 8 槽；种子 hash 取模）。
 const int kCourseColorSlotCount = 8;
@@ -203,6 +212,10 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   Future<void> _writeQueue = Future<void>.value();
   int _planSeq = 0;
   int _eventSeq = 0;
+  bool _applyingRemote = false;
+  String _syncedAt = '';
+  bool _syncDirty = false;
+  int _syncSeq = 0;
   int _nowMs() => DateTime.now().millisecondsSinceEpoch;
 
   /// 初始化完成（恢复持久化状态后 resolve）。
@@ -223,6 +236,9 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       _prefs = null; // 存储不可用：保持内存态，写入静默跳过。
     }
     _loadFrom(_prefs);
+    final String? syncedRaw = _prefs?.getString(ScheduleStorageKeys.syncedAt);
+    if (syncedRaw != null && syncedRaw.isNotEmpty) _syncedAt = syncedRaw;
+    _syncDirty = _prefs?.getString('pk.syncDirty') == '1';
     _rebuild();
   }
 
@@ -246,6 +262,10 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       jsonEncode(state.plans.map((p) => p.toJson()).toList()),
     );
     _persist(ScheduleStorageKeys.activePlanId, jsonEncode(state.activePlanId));
+    // 云端同步钩子：本地变更（非整包采用路径）→ dirty + 防抖上行。
+    if (!_applyingRemote) {
+      scheduleLocalPlansChanged?.call();
+    }
   }
 
   // ---- 加载 / 消毒 ----
@@ -653,6 +673,10 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       ScheduleStorageKeys.weekView,
       jsonEncode({'week': sanitized.week, 'useCurrent': sanitized.useCurrent}),
     );
+    // weekView 属云同步快照字段：本地变更同样通知上行钩子。
+    if (!_applyingRemote) {
+      scheduleLocalPlansChanged?.call();
+    }
     _rebuild();
   }
 
@@ -665,6 +689,132 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   void setLatestUpdateTime(String date) {
     state = state.copyWith(latestUpdateTime: date);
+  }
+
+  // ---- 云端方案同步（issue #537）----
+
+  /// 本地方案是否为空壳（仅一个方案且无课程/已选/占位；云同步 localEmpty）。
+  bool get isLocalEmpty {
+    if (state.plans.length != 1) return false;
+    final PkPlan plan = state.plans.first;
+    return plan.stagedCourses.isEmpty &&
+        plan.selectedCourses.isEmpty &&
+        plan.customEvents.isEmpty;
+  }
+
+  /// 服务端同步时钟（PUT 成功 / 整包采用后推进；持久化 pk.syncedAt）。
+  String get syncedAt => _syncedAt;
+
+  bool get syncDirty => _syncDirty;
+  int? get syncOwner => int.tryParse(_prefs?.getString('pk.syncOwner') ?? '');
+
+  Future<bool> setSyncOwner(int id) async {
+    await flush;
+    try {
+      return await _prefs?.setString('pk.syncOwner', '$id') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void markSyncDirty() {
+    _syncDirty = true;
+    _syncSeq++;
+    _persist('pk.syncDirty', '1');
+  }
+
+  /// Persist a complete local snapshot before advancing its synchronization clock.
+  Future<bool> markSyncedAt(String updatedAt) {
+    final seq = _syncSeq;
+    final payload = buildSnapshotPayload().toJson();
+    var saved = false;
+    _writeQueue = _writeQueue.then((_) async {
+      final prefs = _prefs;
+      if (prefs == null) return;
+      try {
+        for (final key in [
+          'plans',
+          'activePlanId',
+          'majorSelected',
+          'weekView',
+        ]) {
+          if (!await prefs.setString('pk.$key', jsonEncode(payload[key]))) {
+            return;
+          }
+        }
+        if (seq != _syncSeq) return;
+        if (!await prefs.setString(ScheduleStorageKeys.syncedAt, updatedAt)) {
+          return;
+        }
+        if (!await prefs.setString('pk.syncDirty', '0')) return;
+        if (seq != _syncSeq) return;
+        _syncedAt = updatedAt;
+        _syncDirty = false;
+        saved = true;
+      } catch (_) {
+        /* A failed write leaves reconciliation pending. */
+      }
+    });
+    return _writeQueue.then((_) => saved);
+  }
+
+  /// Snapshot upload with an optional observed server revision.
+  PkPlanSnapshotPayload buildSnapshotPayload({String? baseUpdatedAt}) =>
+      PkPlanSnapshotPayload(
+        plans: state.plans,
+        activePlanId: state.activePlanId,
+        majorSelected: state.majorSelected,
+        weekView: state.weekView,
+        baseUpdatedAt: baseUpdatedAt,
+      );
+
+  /// 云端快照整包采用：applyingRemote 守卫下原子替换四字段并重建派生，
+  /// 绝不触发本地变更钩子（防回灌），也不走 [setMajorSelection] 的
+  /// 「换专业清空」语义。深度消毒与本地加载路径同源（_sanitize*）。
+  void applyRemoteSnapshot(PkPlansSnapshot snapshot) {
+    _applyingRemote = true;
+    try {
+      List<PkPlan> plans = snapshot.plans
+          .map((plan) => _sanitizePlan(plan.toJson()))
+          .whereType<PkPlan>()
+          .toList();
+      if (plans.isEmpty) {
+        plans = <PkPlan>[_createEmptyPlan(_planNameOf(1))];
+      }
+      _planSeq = plans.fold<int>(0, (max, plan) {
+        final int index = _defaultNameIndexOf(plan.name);
+        return index > max ? index : max;
+      });
+      String activePlanId = snapshot.activePlanId;
+      if (!plans.any((plan) => plan.id == activePlanId)) {
+        activePlanId = plans.first.id;
+      }
+      final PkWeekView weekView =
+          _sanitizeWeekView({
+            'week': snapshot.weekView.week,
+            'useCurrent': snapshot.weekView.useCurrent,
+          }) ??
+          PkWeekView();
+      state = state.copyWith(
+        majorSelected: snapshot.majorSelected,
+        plans: plans,
+        activePlanId: activePlanId,
+        weekView: weekView,
+      );
+      _persistPlanData();
+      _persist(
+        ScheduleStorageKeys.majorSelected,
+        jsonEncode(snapshot.majorSelected.toJson()),
+      );
+      _persist(
+        ScheduleStorageKeys.weekView,
+        jsonEncode({'week': weekView.week, 'useCurrent': weekView.useCurrent}),
+      );
+
+      _rebuild();
+    } finally {
+      _applyingRemote = false;
+    }
   }
 
   /// 方案是否已过期（P11 > 本地 updateTime；页面据此展示陈旧横幅）。
@@ -761,6 +911,10 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     if (_findPlan(planId) == null) return;
     state = state.copyWith(activePlanId: planId);
     _persist(ScheduleStorageKeys.activePlanId, jsonEncode(planId));
+    // activePlanId 属云同步快照字段：本地切换方案也通知上行钩子。
+    if (!_applyingRemote) {
+      scheduleLocalPlansChanged?.call();
+    }
     _rebuild();
   }
 

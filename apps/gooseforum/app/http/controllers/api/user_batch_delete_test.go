@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -28,6 +30,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 		&moderationLog.Entity{},
 		&contentDeleteEvent.Entity{},
 		&pushSubscription.Entity{},
+		&pk.ScheduleSnapshotEntity{},
 	); err != nil {
 		t.Fatalf("migrate batch delete tables: %v", err)
 	}
@@ -183,6 +186,14 @@ func TestAccountCloseAnonymizeKeepsContent(t *testing.T) {
 	}
 	userID := user.Id
 	ids := seedBatchTopics(t, conn, userID, 9_900_000_500, 2)
+	if err := pk.UpsertScheduleSnapshot(&pk.ScheduleSnapshotEntity{UserId: userID, Plans: pk.PlanList{{Id: "p", Name: "private"}}, ActivePlanId: "p"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := pk.GetScheduleSnapshotByUser(userID); !errors.Is(err, gorm.ErrRecordNotFound) {
+			t.Errorf("closed user's cloud snapshot remains: %v", err)
+		}
+	})
 
 	res := AccountClose(component.BetterRequest[AccountCloseReq]{
 		UserId: userID,
@@ -218,6 +229,14 @@ func TestAccountCloseDeleteRemovesContent(t *testing.T) {
 	}
 	userID := user.Id
 	ids := seedBatchTopics(t, conn, userID, 9_900_000_600, 2)
+	if err := pk.UpsertScheduleSnapshot(&pk.ScheduleSnapshotEntity{UserId: userID, Plans: pk.PlanList{{Id: "p", Name: "private"}}, ActivePlanId: "p"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := pk.GetScheduleSnapshotByUser(userID); !errors.Is(err, gorm.ErrRecordNotFound) {
+			t.Errorf("closed user's cloud snapshot remains: %v", err)
+		}
+	})
 
 	res := AccountClose(component.BetterRequest[AccountCloseReq]{
 		UserId: userID,

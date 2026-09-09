@@ -3,10 +3,13 @@ import '../../gen/schedule_settings.dart';
 import '../api_error.dart';
 import '../gf_api_client.dart';
 
-/// PK 排课器域（14 个 `/api/pk/*` 公开操作 + section-times）。
+/// PK 排课器域（14 个匿名公开操作 + section-times + 登录方案云同步
+/// GET/PUT/DELETE `/api/pk/plans`，issue #537）。
 ///
-/// 全部走 [GfApiClient.getPk]/[postPk] 的 `{code,msg,data}` 信封分支；
-/// 均为匿名公开只读（服务端统一 RateLimitCourseCatalog）。
+/// 全部走 [GfApiClient.getPk]/[postPk]/[putPk]/[deletePk] 的
+/// `{code,msg,data}` 信封分支；公开操作匿名只读（服务端统一
+/// RateLimitCourseCatalog），plans 三端点需登录（读写受独立 pk.plans 配额，
+/// 401 由客户端统一触发会话失效）。
 class PkRepository {
   PkRepository(this._client);
 
@@ -55,10 +58,7 @@ class PkRepository {
   Future<List<PkMajor>> majors({required int grade, int? calendarId}) =>
       _client.postPk<List<PkMajor>>(
         '$_base/majors',
-        body: {
-          'grade': grade,
-          'calendarId': ?calendarId,
-        },
+        body: {'grade': grade, 'calendarId': ?calendarId},
         parser: (json) => (json as List<dynamic>? ?? const [])
             .map((e) => PkMajor.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
@@ -251,4 +251,30 @@ class PkRepository {
       return null;
     }
   }
+
+  /// 云端方案快照读取（登录；data=null 表示云端尚无快照）。
+  Future<PkPlansSnapshot?> getPlans() => _client.getPk<PkPlansSnapshot?>(
+    '$_base/plans',
+    parser: (json) => json == null
+        ? null
+        : PkPlansSnapshot.fromJson(Map<String, dynamic>.from(json as Map)),
+  );
+
+  /// 云端方案快照整体替换（登录）；返回新的服务端同步时钟 updatedAt。
+  Future<PkPlansPutResult> putPlans(PkPlanSnapshotPayload payload) =>
+      _client.putPk<PkPlansPutResult>(
+        '$_base/plans',
+        body: payload.toJson(),
+        parser: (json) =>
+            PkPlansPutResult.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+
+  /// 删除云端快照（登录、幂等；本地数据不动）。
+  Future<PkPlansDeleteResult> deletePlans() =>
+      _client.deletePk<PkPlansDeleteResult>(
+        '$_base/plans',
+        parser: (json) => PkPlansDeleteResult.fromJson(
+          Map<String, dynamic>.from(json as Map),
+        ),
+      );
 }

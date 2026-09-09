@@ -499,6 +499,10 @@
       }
     }
   },
+  "scheduleSyncConflictTitle": "排课方案同步冲突",
+  "scheduleSyncConflictBody": "本地与云端的排课方案不一致，保留哪一份？",
+  "scheduleSyncUseCloud": "使用云端",
+  "scheduleSyncKeepLocal": "保留本地",
   "scheduleWeekAll": "全部周次",
   "scheduleWeekN": "第 {week} 周",
   "@scheduleWeekN": {

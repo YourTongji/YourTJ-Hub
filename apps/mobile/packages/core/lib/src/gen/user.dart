@@ -194,6 +194,9 @@ abstract class SettingsPageProps with _$SettingsPageProps {
   const factory SettingsPageProps({
     required SettingsUserPayload user,
     @Default(false) bool googleOAuthReady,
+
+    /// issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。
+    @Default(false) bool canSetPassword,
     required SettingsStatsPayload stats,
     required List<TabItemPayload> tabs,
   }) = _SettingsPageProps;

@@ -4,17 +4,18 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：296
-- /api JSON 路由：233，已入契约：234（100%），已知未覆盖：0
+- 快照路由总数：300
+- /api JSON 路由：237，已入契约：238（100%），已知未覆盖：0
 - 非 API 排除路由：62
 
-## 已覆盖（234）
+## 已覆盖（238）
 
 | Method | Path | operationId |
 | --- | --- | --- |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
 | DELETE | `/api/forum/course-reviews/:reviewId/dislike` | `unmarkReviewDislike` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
+| DELETE | `/api/pk/plans` | `pkDeletePlans` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
 | GET | `/api/admin/badges` | `adminListBadges` |
@@ -70,6 +71,7 @@
 | GET | `/api/pk/course-review-brief` | `pkGetCourseReviewBrief` |
 | GET | `/api/pk/faculties` | `pkListFaculties` |
 | GET | `/api/pk/latest-update` | `pkGetLatestUpdate` |
+| GET | `/api/pk/plans` | `pkGetPlans` |
 | GET | `/api/pk/section-times` | `pkGetSectionTimes` |
 | GET | `/api/site-theme/tokens` | `getPublicSiteThemeTokens` |
 | GET | `/api/user-card` | `getUserCard` |
@@ -226,6 +228,7 @@
 | POST | `/api/register` | `register` |
 | POST | `/api/resend-activation-email` | `resendActivationEmail` |
 | POST | `/api/reset-password` | `resetPassword` |
+| POST | `/api/set-password` | `setPassword` |
 | POST | `/api/set-preset-avatar` | `setPresetAvatar` |
 | POST | `/api/set-user-email` | `setUserEmail` |
 | POST | `/api/set-user-info` | `setUserInfo` |
@@ -246,6 +249,7 @@
 | POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
+| PUT | `/api/pk/plans` | `pkPutPlans` |
 
 ## 已知未覆盖（0）
 

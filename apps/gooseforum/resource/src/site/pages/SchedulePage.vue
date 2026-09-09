@@ -23,7 +23,9 @@ import ScheduleCoursePicker from '@/site/components/schedule/ScheduleCoursePicke
 import ScheduleCellPicker from '@/site/components/schedule/ScheduleCellPicker.vue'
 import ScheduleCustomEventDialog from '@/site/components/schedule/ScheduleCustomEventDialog.vue'
 import ScheduleDetailCard from '@/site/components/schedule/ScheduleDetailCard.vue'
+import ScheduleSyncConflictDialog from '@/site/components/schedule/ScheduleSyncConflictDialog.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { scheduleSync, startScheduleSync, stopScheduleSync } from '@/site/composables/useScheduleSync'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { codesToCsvRows, codesToXlsRows, downloadCsv, downloadXls, jsonToCsv, xlsRowsToXml } from '@/site/utils/pkExport'
@@ -272,12 +274,21 @@ onMounted(() => {
   window.addEventListener('pageshow', handlePageShow)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   void checkDataOutdated()
+  // 云同步（#537）：SSR layout.viewer 判定登录态；未登录不 start（零网络请求）。
+  // viewer 可为 undefined（e2e fixture / 轻量宿主传空 layout），视为未登录。
+  if (pageProps.layout.viewer?.isAuthenticated) {
+    startScheduleSync(pageProps.layout.viewer.id)
+    // loadSolidify 完成后进页同步：云端空自动上传 / 本地空整包采用 / 分歧弹窗二选一。
+    void scheduleSync.syncOnPageEnter()
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pageshow', handlePageShow)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   sectionTimesRefresher.dispose()
+  scheduleSync.flushPendingUpload()
+  stopScheduleSync()
 })
 </script>
 
@@ -408,6 +419,9 @@ onBeforeUnmount(() => {
     />
     <ScheduleCustomEventDialog :open="customizeOpen" @close="customizeOpen = false" />
     <ScheduleDetailCard :course="detailCourse" @close="detailCourse = null" @replace="handleReplaceCourse" />
+
+    <!-- 云同步冲突弹窗：本地与云端方案分歧时二选一（状态源 scheduleSync 单例） -->
+    <ScheduleSyncConflictDialog />
 
     <!-- 选择教学班弹窗：点击已选课程弹出（浮动，取代内联班级列） -->
     <DialogRoot :open="classPickOpen" @update:open="classPickOpen = $event">

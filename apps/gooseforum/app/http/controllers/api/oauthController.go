@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -11,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 )
@@ -75,9 +77,23 @@ func ProviderCallback(c *gin.Context) {
 				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOAuthAccountFrozen)
 				return
 			}
-			if errors.Is(err, oauthservice.ErrOAuthEmailUnverified) {
-				slog.Warn("OAuth callback rejected unverified email", "provider", gothUser.Provider)
-				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageAuthEmailUnverified)
+			if errors.Is(err, oauthservice.ErrOAuthNoLocalAccount) {
+				// 纯新号（issue #531）：OAuth 回调不再建号，注册统一走
+				// /api/register（allowedDomains 白名单在注册单点把关）。
+				// 302 回注册页并携带提示参数。回跳目标优先级（PR #552 review P1）：
+				// ① OIDC 续跳 continuation——内置 OIDC 桥接用户的注册完成页必须
+				//   回到 /api/oauth/authorize/callback?id=…，移动端才能拿到授权码；
+				//   该值已由 oidcResumeTarget 校验为站内桥接回调单参数形态；
+				// ② 普通 Web 登录透传回调查询串 redirect（IsSafeRedirect 校验，
+				//   不安全值静默丢弃，与登录页 props 同规则）。
+				target := urlconfig.Register() + "?register=true&oauthNotice=1"
+				if continuation != "" {
+					target += "&redirect=" + url.QueryEscape(continuation)
+				} else if redirect := c.Query("redirect"); forum.IsSafeRedirect(redirect) {
+					target += "&redirect=" + url.QueryEscape(redirect)
+				}
+				slog.Info("OAuth callback without local account, redirecting to register", "provider", gothUser.Provider)
+				c.Redirect(http.StatusFound, target)
 				return
 			}
 			slog.Error("Process OAuth callback failed", "error", err)

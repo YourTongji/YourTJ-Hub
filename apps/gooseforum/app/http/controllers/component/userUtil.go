@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -36,19 +37,23 @@ func ValidateUsername(username string) bool {
 	return usernameRegex.MatchString(username)
 }
 
-// ValidatePassword 验证密码复杂度
+// ValidatePassword 验证密码复杂度。
+// 长度按 Unicode 字符（rune）计而不是 UTF-8 字节：契约与用户文案承诺的
+// 「6-64 位」是字符数，字节计数会让中文等多字节密码的最小长度被稀释、
+// 纯中文长密码被误拒为超长（PR #552 review P2）。
 func ValidatePassword(password string, minLength int) error {
 	if minLength <= 0 {
 		minLength = 8
 	}
-	if len(password) < minLength {
+	length := utf8.RuneCountInString(password)
+	if length < minLength {
 		return NewMessageError(
 			MessageAuthPasswordTooShort,
 			fmt.Sprintf("密码长度不能少于%d位", minLength),
 			MessageParams{"minLength": minLength},
 		)
 	}
-	if len(password) > 64 {
+	if length > 64 {
 		return NewMessageError(MessageAuthPasswordTooLong, "密码长度不能超过64位", nil)
 	}
 

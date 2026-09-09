@@ -54,6 +54,7 @@ import {
   saveUserProfileCover,
   sensitiveWordsFromError,
   unbindOAuth,
+  setPassword,
   wearBadge,
   type OAuthBindingsPayload,
   type DeletedContentItem,
@@ -1000,6 +1001,13 @@ async function submitPassword() {
 
   savingPassword.value = true
   try {
+    if (page.props.canSetPassword) {
+      // set-password（issue #530）成功即 TokenVersion++ 全端吊销（含当前会话），
+      // 必须跳转登录页用新密码重新登录，不能再发任何已失效会话的请求。
+      await setPassword(passwordForm.newPassword)
+      window.location.href = '/login'
+      return
+    }
     await changePassword(passwordForm.oldPassword, passwordForm.newPassword)
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''
@@ -1967,7 +1975,8 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'account'">
             <SectionHeader :icon="KeyRound" :title="t('settings.account.title')" />
             <form class="max-w-xl space-y-4 p-4" @submit.prevent="submitPassword">
-              <label class="block">
+              <p v-if="page.props.canSetPassword" class="gf-status-message gf-status-message-info">{{ t('settings.account.setPasswordHint') }}</p>
+              <label v-else class="block">
                 <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.currentPassword') }}</span>
                 <input v-model="passwordForm.oldPassword" required type="password" class="gf-input mt-1" />
               </label>
@@ -1982,7 +1991,7 @@ async function toggleBinding(provider: string) {
               </label>
               <button type="submit" class="gf-button gf-button-lg gf-button-primary disabled:cursor-wait" :disabled="savingPassword">
                 <Loader2 v-if="savingPassword" class="h-4 w-4 animate-spin" />
-                {{ t('settings.account.changePassword') }}
+                {{ page.props.canSetPassword ? t('settings.account.setPassword') : t('settings.account.changePassword') }}
               </button>
             </form>
 

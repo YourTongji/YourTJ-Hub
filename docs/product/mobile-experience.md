@@ -33,6 +33,13 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
   up to three previews with a total count. Tapping opens the full gallery with zoom.
+- `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
+  reply/view metrics. A successful action updates its selected icon immediately; failed actions
+  preserve the previous state and show the localized error. Home summaries batch-load the viewer's
+  like/bookmark state; absent state (anonymous, unavailable or older servers) suppresses the
+  shortcuts. Selected states survive offscreen card recycling, and returning from detail refreshes
+  them. In-flight reads cannot overwrite newer successful actions. Metrics and actions wrap at
+  narrow widths and enlarged text sizes. Like totals are not part of the home summary.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
   same gallery is used in the publishing preview.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
@@ -133,12 +140,22 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: Campus previews real reviewed courses and links to the course catalog, scheduler and
   Wiki. It does not display an official personal calendar or claim an enrollment integration.
-- `Current`: the scheduler opens in course selection. Plan preview remains a local planning grid,
-  with week filters, conflicts, custom blocks and existing plan operations. Web and mobile warn
-  about time conflicts before a teaching class is selected, while keeping the add action
+- `Current`: the scheduler opens in course selection. Plan preview remains a local planning
+  grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
+  warn about time conflicts before a teaching class is selected, while keeping the add action
   non-blocking. A prominent tip opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
+- `Current`: signed-in plans cloud-sync with the Web scheduler (`GET/PUT/DELETE /api/pk/plans`,
+  issue #537): local changes upload after a 3s debounce, entering the scheduler reconciles against
+  the cloud snapshot (empty cloud auto-uploads local; conflicting edits show a one-time
+  use-cloud / keep-local dialog), and the server's `updatedAt` clock is the only sync authority.
+  Uploads carry the observed server revision; HTTP 409 triggers another read and a conflict
+  dialog. Initial read failures and unresolved conflicts block writes. Pending local changes
+  survive page exit and transient failures, and the sync clock advances only after local
+  persistence succeeds. Switching accounts requires choosing the cloud copy or explicitly
+  keeping the retained local plans, including when the new account has no cloud snapshot.
+  Signed-out use stays purely local with zero requests; account closure deletes the cloud copy.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear

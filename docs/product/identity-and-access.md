@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-09-07
+> Last verified: 2026-09-08
 
 ## Identity model
 
@@ -32,10 +32,13 @@
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
-  binding only when the Google userinfo response contains `verified_email=true`. When site-wide email
-  verification is enabled, OAuth registration without a usable verified email is rejected. Provider
-  credential changes require a process restart; saving a new site callback URL in the admin console
-  refreshes the providers immediately.
+  binding only when the Google userinfo response contains `verified_email=true`. OAuth callbacks
+  never create accounts (issue #531): an identity without an existing provider binding or a
+  bindable same-email account is redirected to the register page with an explanatory notice
+  (`/login?register=true&oauthNotice=1`), and account creation happens only through password
+  registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
+  require a process restart; saving a new site callback URL in the admin console refreshes the
+  providers immediately.
 
 ### Built-in OIDC Provider (first-party clients)
 
@@ -89,9 +92,9 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 
 ## Account lifecycle
 
-- Registration: forum self-service password registration (with email verification when enabled);
-  GitHub OAuth can auto-provision accounts. The built-in OIDC provider never creates accounts — it
-  authenticates existing users.
+- Registration: forum self-service password registration (with email verification when enabled) is
+  the only account-creation path — social OAuth never provisions accounts (issue #531). The built-in
+  OIDC provider also never creates accounts — it authenticates existing users.
 - Email verification (`enableEmailVerification`): password registration stores the account as
   `pending` but still issues a session. While the setting is on, authenticated **write**
   endpoints reject pending accounts before the controller runs with HTTP 403 and the
@@ -110,14 +113,14 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
   refresh path, so the admin console cannot lock itself out; ordinary pending users are left
   untouched and must still complete the activation email.
 - Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
-  registration/rename and at OAuth/Agent account creation with **normalized whole-string
+  password registration/rename and at Agent account creation with **normalized whole-string
   equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
   `Admin`, `ａｄｍｉｎ`, `adm1n` all collide with a reserved `admin` while `myadmin` does not.
   Nicknames edited through the profile share the same lists and equality rule. Reserved entries
   only block new/renamed accounts and never freeze existing ones; banned entries additionally
-  freeze matching existing accounts (idempotent) when first added by an admin. GitHub OAuth
-  auto-provision backs a matching login off to `<name>_<n>` and re-checks every backoff candidate
-  against both lists; Agent creation rejects reserved/banned usernames outright. Course reviews
+  freeze matching existing accounts (idempotent) when first added by an admin. Agent creation
+  rejects reserved/banned usernames outright; OAuth never provisions accounts (issue #531),
+  so the former GitHub username backoff has no remaining caller. Course reviews
   and profile free text (bio/signature/website/websiteName) are scanned against `sensitiveWords`
   (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
   message for reviews). Built-in defaults ship with an empty banned list and a curated
@@ -144,11 +147,29 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
   hot-reloadable: the signing key is captured at different points across surfaces, so
   rotating it **requires a process restart** for the invalidation to apply consistently
   (see `docs/operations/deployment.md`).
+- Password setup for OAuth-linked accounts (`POST /api/set-password`): `Current`
+  (issue #530). An account with no stored email address and at least one OAuth
+  provider binding can set an initial password without the old-password check;
+  every other caller (email-bound OAuth accounts, password accounts, accounts
+  without bindings, bots) fails with `auth.password.setNotAllowed`. Email-bound
+  OAuth accounts keep the forgot-password email flow deliberately — the old
+  password verification there remains the session-hijack defense line. Setup
+  reuses the password-change rate limit (`password.change`), bumps
+  `TokenVersion` on success (all sessions revoked, including the current one),
+  and unlocks the password-gated operations that previously dead-locked
+  email-less OAuth accounts (email change, account close, batch delete, TOTP).
+  The settings page exposes the branch through a server-computed
+  `canSetPassword` prop (same gate, no password-state disclosure); the contract,
+  generated TS types, and the Dart mirror shipped in the same change.
 - Email change: `Current` for password accounts; the current password is verified before any write,
   the old address receives a notification, and password reset is suppressed for 24 hours after the
-  change. OAuth-only self-service email change is `Partial`: the API and Web/Mobile clients return a
-  dedicated re-authentication-required message, but the OAuth re-authentication channel is not yet
-  implemented; administrators retain the console command for recovery.
+  change. OAuth-only self-service email change is `Partial`: the API and the Web client return
+  a dedicated re-authentication-required message pointing at `POST /api/set-password`
+  (issue #530), and the Web settings page offers that recovery branch through the
+  `canSetPassword` prop. The mobile settings flow does not yet expose set-password (its
+  change-password form still requires the old password), so email-less OAuth users on mobile
+  need the Web settings page or an administrator; administrators retain the console command
+  for recovery.
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,

@@ -499,6 +499,10 @@
       }
     }
   },
+  "scheduleSyncConflictTitle": "Plan sync conflict",
+  "scheduleSyncConflictBody": "Your local schedule plans differ from the cloud copy. Which one should be kept?",
+  "scheduleSyncUseCloud": "Use cloud",
+  "scheduleSyncKeepLocal": "Keep local",
   "scheduleWeekAll": "All weeks",
   "scheduleWeekN": "Week {week}",
   "@scheduleWeekN": {

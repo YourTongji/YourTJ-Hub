@@ -71,6 +71,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"pk_teacher_timeslot",
 		"pk_fetch_log",
 		"pk_setting",
+		"pk_schedule_snapshot",
 		"push_subscriptions",
 		"push_device",
 	} {
@@ -182,6 +183,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"pk_teacher",
 		"pk_teacher_timeslot",
 		"pk_fetch_log",
+		"pk_schedule_snapshot",
 		"push_subscriptions",
 		"push_device",
 	} {

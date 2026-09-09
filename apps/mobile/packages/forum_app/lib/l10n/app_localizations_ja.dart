@@ -902,6 +902,18 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get scheduleSyncConflictTitle => 'プラン同期の競合';
+
+  @override
+  String get scheduleSyncConflictBody => 'クラウドとローカルのプランが一致しません。残す方を選択してください。';
+
+  @override
+  String get scheduleSyncUseCloud => 'クラウドを使用';
+
+  @override
+  String get scheduleSyncKeepLocal => 'ローカルを保持';
+
+  @override
   String get scheduleWeekAll => '全週';
 
   @override

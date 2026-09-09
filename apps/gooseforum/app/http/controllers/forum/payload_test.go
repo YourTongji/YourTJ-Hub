@@ -20,8 +20,8 @@ func TestIsSafeRedirect(t *testing.T) {
 		"http://evil.com/path",
 	}
 	for _, input := range unsafe {
-		if isSafeRedirect(input) {
-			t.Errorf("isSafeRedirect(%q) = true, want false", input)
+		if IsSafeRedirect(input) {
+			t.Errorf("IsSafeRedirect(%q) = true, want false", input)
 		}
 	}
 
@@ -33,8 +33,8 @@ func TestIsSafeRedirect(t *testing.T) {
 		"/u/1?tab=topics",
 	}
 	for _, input := range safe {
-		if !isSafeRedirect(input) {
-			t.Errorf("isSafeRedirect(%q) = false, want true", input)
+		if !IsSafeRedirect(input) {
+			t.Errorf("IsSafeRedirect(%q) = false, want true", input)
 		}
 	}
 }
@@ -97,6 +97,21 @@ func TestSettingsPagePropsSerializesGoogleOAuthReady(t *testing.T) {
 	}
 	if ready, ok := payload["googleOAuthReady"].(bool); !ok || !ready {
 		t.Fatalf("googleOAuthReady = %#v, want true", payload["googleOAuthReady"])
+	}
+}
+
+func TestSettingsPagePropsSerializesCanSetPassword(t *testing.T) {
+	encoded, err := json.Marshal(SettingsPageProps{CanSetPassword: true})
+	if err != nil {
+		t.Fatalf("marshal SettingsPageProps: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal SettingsPageProps: %v", err)
+	}
+	if can, ok := payload["canSetPassword"].(bool); !ok || !can {
+		t.Fatalf("canSetPassword = %#v, want true", payload["canSetPassword"])
 	}
 }
 

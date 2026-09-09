@@ -138,7 +138,7 @@ const summaryTooltip = computed(() => {
       <!-- 展开态：包含完整方案条与专业选择器 -->
       <div v-else key="expanded" class="flex flex-col gap-3" data-testid="schedule-config-expanded-wrap">
         <SchedulePlanBar :collapsible="true" @toggle-collapse="collapse" />
-        <ScheduleMajorSelector :collapsible="true" @toggle-collapse="collapse" />
+        <ScheduleMajorSelector :key="store.state.remoteRevision ?? 0" :collapsible="true" @toggle-collapse="collapse" />
       </div>
     </Transition>
   </div>

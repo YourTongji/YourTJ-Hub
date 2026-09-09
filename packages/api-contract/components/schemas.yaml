@@ -871,6 +871,12 @@ TopicPayload:
       type: string
     lastUpdateTime:
       type: string
+    liked:
+      type: boolean
+      description: Authenticated viewer's like state; absent when unavailable.
+    bookmarked:
+      type: boolean
+      description: Authenticated viewer's bookmark state; absent when unavailable.
     unseen:
       type: boolean
       description: Present only for authenticated viewers with unseen tracking.
@@ -3342,6 +3348,290 @@ PkSectionTimesResponse:
       properties:
         data:
           $ref: '#/PkSectionTimesResult'
+PkTeacherPayload:
+  type: object
+  description: 排课方案快照中的教师（镜像前端 PkTeacher）。
+  required: [teacherName, teacherCode]
+  properties:
+    teacherName:
+      type: string
+    teacherCode:
+      type: string
+  additionalProperties: false
+
+PkArrangementPayload:
+  type: object
+  description: 排课方案快照中的一次上课安排（镜像前端 PkArrangement）。
+  required: [arrangementText, occupyDay, occupyTime, occupyWeek, occupyRoom, teacherAndCode]
+  properties:
+    arrangementText:
+      type: string
+    occupyDay:
+      type: integer
+      minimum: 0
+      maximum: 7
+    occupyTime:
+      type: array
+      items:
+        type: integer
+    occupyWeek:
+      type: array
+      items:
+        type: integer
+    occupyRoom:
+      type: string
+    teacherAndCode:
+      type: string
+  additionalProperties: false
+
+PkCourseDetailPayload:
+  type: object
+  description: 排课方案快照中的一个教学班（镜像前端 PkCourseDetail；status 为前端持久化字段）。
+  required: [arrangementInfo, campus, code, teachers, teachingLanguage]
+  properties:
+    arrangementInfo:
+      type: array
+      items:
+        $ref: '#/PkArrangementPayload'
+    campus:
+      type: string
+    code:
+      type: string
+      minLength: 1
+    teachingClassId:
+      type: integer
+      format: uint64
+      description: 可选；P13 by-offering 直查键。
+    isExclusive:
+      type: boolean
+    status:
+      type: integer
+      description: 0 未选 / 1 备选 / 2 已选（前端持久化状态）。
+    teachers:
+      type: array
+      items:
+        $ref: '#/PkTeacherPayload'
+    teachingLanguage:
+      type: string
+  additionalProperties: false
+
+PkStagedCoursePayload:
+  type: object
+  description: 排课方案快照中的备选/已选课程（镜像前端 PkStagedCourse）。
+  required: [courseCode, courseName, courseNameReserved, credit, courseType, courseNature, teacher, status, courseDetail]
+  properties:
+    courseCode:
+      type: string
+      minLength: 1
+    courseName:
+      type: string
+    courseNameReserved:
+      type: string
+    credit:
+      type: number
+    courseType:
+      type: string
+    courseNature:
+      type: array
+      items:
+        type: string
+    teacher:
+      type: array
+      items:
+        $ref: '#/PkTeacherPayload'
+    status:
+      type: integer
+    courseDetail:
+      type: array
+      items:
+        $ref: '#/PkCourseDetailPayload'
+  additionalProperties: false
+
+PkCustomEventPayload:
+  type: object
+  description: 排课方案快照中的自定义占位事件（镜像前端 PkCustomEvent；label 为用户自由文本）。
+  required: [id, label, day, sections, weeks]
+  properties:
+    id:
+      type: string
+      minLength: 1
+    label:
+      type: string
+    day:
+      type: integer
+      minimum: 0
+      maximum: 7
+    sections:
+      type: array
+      items:
+        type: integer
+        minimum: 1
+        maximum: 12
+    weeks:
+      type: array
+      items:
+        type: integer
+        minimum: 1
+        maximum: 16
+  additionalProperties: false
+
+PkPlanPayload:
+  type: object
+  description: 一套排课方案（镜像前端 PkPlan；与 web localStorage pk.plans 元素逐字段一致）。
+  required: [id, name, createdAt, stagedCourses, selectedCourses, customEvents]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 客户端生成的方案 id（≤64 字符，与服务端 active_plan_id 列约束一致）。
+    name:
+      type: string
+      minLength: 1
+    createdAt:
+      type: integer
+      description: 客户端生成时间（epoch 毫秒）。
+    stagedCourses:
+      type: array
+      items:
+        $ref: '#/PkStagedCoursePayload'
+    selectedCourses:
+      type: array
+      items:
+        type: string
+    customEvents:
+      type: array
+      items:
+        $ref: '#/PkCustomEventPayload'
+  additionalProperties: false
+
+PkMajorSelectionPayload:
+  type: object
+  description: 学期/年级/专业选择三元组（镜像前端 PkMajorSelection；缺省字段为 null/省略）。
+  properties:
+    calendarId:
+      type: [integer, 'null']
+    grade:
+      type: [integer, 'null']
+    major:
+      type: [string, 'null']
+    majorName:
+      type: [string, 'null']
+  additionalProperties: false
+
+PkWeekViewPayload:
+  type: object
+  description: 周次视图状态（镜像前端 PkWeekView；week 为 null 表示全部周次堆叠视图）。
+  required: [useCurrent]
+  properties:
+    week:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 16
+    useCurrent:
+      type: boolean
+  additionalProperties: false
+
+PkPlansSnapshotData:
+  type: object
+  description: 排课方案云端快照（issue #537）：plans/activePlanId/majorSelected/weekView 整体存储，updatedAt 为服务端权威同步时钟。
+  required: [plans, activePlanId, majorSelected, weekView, updatedAt]
+  properties:
+    plans:
+      type: array
+      minItems: 1
+      maxItems: 10
+      items:
+        $ref: '#/PkPlanPayload'
+    activePlanId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 当前激活方案 id，必须命中 plans 之一（≤64 字符，受服务端列约束）。
+    majorSelected:
+      $ref: '#/PkMajorSelectionPayload'
+    weekView:
+      $ref: '#/PkWeekViewPayload'
+    updatedAt:
+      type: string
+      format: date-time
+      description: 服务端权威同步时钟（RFC3339 UTC）；客户端存为 pk.syncedAt 用于冲突判定，并以 baseUpdatedAt 回传作为写入条件。
+  additionalProperties: false
+
+PkPlansPutRequest:
+  type: object
+  description: PUT /api/pk/plans 请求体：快照四字段整体替换（服务端浅校验 1..10 套、id/name 非空、activePlanId 引用、≤1MB）。
+  required: [plans, activePlanId, majorSelected, weekView]
+  properties:
+    baseUpdatedAt:
+      type: string
+      description: Observed server updatedAt; empty string requires an absent snapshot. Stale writes return 409. Omission preserves unconditional replacement for compatibility; sync clients always supply this field.
+    plans:
+      type: array
+      minItems: 1
+      maxItems: 10
+      items:
+        $ref: '#/PkPlanPayload'
+    activePlanId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 当前激活方案 id，必须命中 plans 之一（≤64 字符，受服务端列约束）。
+    majorSelected:
+      $ref: '#/PkMajorSelectionPayload'
+    weekView:
+      $ref: '#/PkWeekViewPayload'
+  additionalProperties: false
+
+PkPlansPutResult:
+  type: object
+  required: [updatedAt]
+  properties:
+    updatedAt:
+      type: string
+      format: date-time
+      description: 本次写入的服务端时钟（RFC3339 UTC），客户端据此更新 pk.syncedAt。
+  additionalProperties: false
+
+PkPlansDeleteResult:
+  type: object
+  required: [deleted]
+  properties:
+    deleted:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+PkPlansGetResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - $ref: '#/PkPlansSnapshotData'
+            - type: 'null'
+          description: 云端快照；用户从未上传过时为 null（客户端据此判定首登自动上传）。
+
+PkPlansPutResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkPlansPutResult'
+
+PkPlansDeleteResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkPlansDeleteResult'
+
 RegisterRequest:
   type: object
   description: |
@@ -4329,6 +4619,35 @@ ChangePasswordSuccess:
 ChangePasswordResponse:
   oneOf:
     - $ref: '#/ChangePasswordSuccess'
+    - $ref: '#/ApiFailure'
+
+SetPasswordRequest:
+  type: object
+  required: [newPassword]
+  properties:
+    newPassword:
+      type: string
+      minLength: 1
+      description: 6-64 characters containing at least one letter and one digit; violations fail with `auth.password.tooShort` (params minLength) / `auth.password.tooLong` / `auth.password.needsLetterNumber` (HTTP 200).
+  additionalProperties: false
+
+SetPasswordSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 密码设置成功，请使用新密码重新登录
+          description: Human-readable success message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: auth.password.updateSuccess
+
+SetPasswordResponse:
+  oneOf:
+    - $ref: '#/SetPasswordSuccess'
     - $ref: '#/ApiFailure'
 
 OAuthBinding:

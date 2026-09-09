@@ -913,6 +913,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get scheduleSyncConflictTitle => 'Plan sync conflict';
+
+  @override
+  String get scheduleSyncConflictBody =>
+      'Your local schedule plans differ from the cloud copy. Which one should be kept?';
+
+  @override
+  String get scheduleSyncUseCloud => 'Use cloud';
+
+  @override
+  String get scheduleSyncKeepLocal => 'Keep local';
+
+  @override
   String get scheduleWeekAll => 'All weeks';
 
   @override

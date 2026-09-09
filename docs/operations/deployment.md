@@ -116,8 +116,10 @@ Cloudflare 或 InsightFlare 管理面完成，不要把 Wrangler 本地认证文
 ```bash
 curl -fsSL https://ana.yourtj.de/healthz
 curl -fsSL -o /dev/null -w '%{http_code}\n' \
-  'https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def'
+  'https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1'
 ```
+
+脚本 URL 的 `v` 参数用于在观测脚本缓存策略变更后强制浏览器重新获取动态脚本；如果脚本缓存契约再次发生不兼容变化，应递增该版本号。
 
 ### 旧 VitePress wiki 内容迁移（GitHub 唯一真实源）
 

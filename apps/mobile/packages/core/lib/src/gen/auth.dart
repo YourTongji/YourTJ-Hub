@@ -13,6 +13,9 @@ abstract class LoginPageProps with _$LoginPageProps {
     @Default(false) bool termsOfServiceEnabled,
     @Default(false) bool privacyPolicyEnabled,
     @Default(<String>[]) List<String> allowedDomains,
+
+    /// issue #531：OAuth 回调无本地账号时跳转注册页的提示标记。
+    @Default(false) bool oauthNotice,
   }) = _LoginPageProps;
 
   factory LoginPageProps.fromJson(Map<String, dynamic> json) =>

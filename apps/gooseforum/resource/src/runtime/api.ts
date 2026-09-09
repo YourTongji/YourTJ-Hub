@@ -992,6 +992,20 @@ export async function changePassword(oldPassword: string, newPassword: string): 
   return true
 }
 
+// setPassword 为无邮箱 OAuth 绑定账号首次设置密码（issue #530，免旧密码）。
+// 成功即全端会话吊销，调用方必须引导重新登录。
+export async function setPassword(newPassword: string): Promise<boolean> {
+  const response = await fetch('/api/set-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ newPassword }),
+  })
+  await readApiResponse<unknown>(response, t('api.passwordChangeFailed'))
+  return true
+}
+
 export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
   const formData = new FormData()
   const avatars = Array.isArray(avatar) ? avatar : [avatar]

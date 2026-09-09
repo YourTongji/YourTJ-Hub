@@ -31,6 +31,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../schedule/schedule_store.dart';
+import '../../schedule/schedule_sync.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
@@ -76,7 +77,8 @@ class SchedulePage extends ConsumerStatefulWidget {
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
 }
 
-class _SchedulePageState extends ConsumerState<SchedulePage> {
+class _SchedulePageState extends ConsumerState<SchedulePage>
+    with WidgetsBindingObserver {
   bool _ready = false;
   bool _tabTimetable = false;
   bool _syncing = false;
@@ -84,6 +86,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   List<PkCalendarItem> _calendars = const <PkCalendarItem>[];
   List<SectionTime> _sectionOverrides = const <SectionTime>[];
   final GlobalKey _gridBoundaryKey = GlobalKey();
+
+  // Capture the application controller; page exit flushes pending local edits.
+  late final ScheduleSyncController _syncController;
+  bool _showingSyncConflict = false;
 
   ScheduleState get _state => ref.read(scheduleStoreProvider);
 
@@ -93,11 +99,99 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   @override
   void initState() {
     super.initState();
+    _syncController = ref.read(scheduleSyncControllerProvider);
+    _syncController.conflict.addListener(_onSyncConflict);
+    WidgetsBinding.instance.addObserver(this);
     ref.read(scheduleStoreProvider.notifier).ready.then((_) {
       if (!mounted) return;
       setState(() => _ready = true);
       _loadSessionMeta();
+      _syncPlansOnEnter();
     });
+  }
+
+  @override
+  void dispose() {
+    _syncController.conflict.removeListener(_onSyncConflict);
+    unawaited(_syncController.flushPendingUpload());
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // paused 尽力冲刷未上行的本地方案（issue #537；best-effort）。
+    if (state == AppLifecycleState.paused) {
+      unawaited(ref.read(scheduleSyncControllerProvider).flushPendingUpload());
+    }
+  }
+
+  /// 进页方案云同步对账（issue #537）：未登录零请求；冲突时弹窗二选一。
+  Future<void> _syncPlansOnEnter() async {
+    await _syncController.syncOnEnter();
+  }
+
+  void _onSyncConflict() {
+    final snapshot = _syncController.conflict.value;
+    if (!mounted || snapshot == null || _showingSyncConflict) return;
+    _showingSyncConflict = true;
+    unawaited(
+      _showPlanSyncConflictDialog(snapshot).whenComplete(() {
+        _showingSyncConflict = false;
+      }),
+    );
+  }
+
+  /// 冲突弹窗（一次性）：「使用云端」整包采用 / 「保留本地」立即上行。
+  Future<void> _showPlanSyncConflictDialog(PkPlansSnapshot snapshot) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ScheduleSyncController sync = ref.read(
+      scheduleSyncControllerProvider,
+    );
+    await showGfAlertDialog<void>(
+      context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              l10n.scheduleSyncConflictTitle,
+              style: GfTheme.typographyOf(dialogContext).heading,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.scheduleSyncConflictBody,
+              style: GfTheme.typographyOf(dialogContext).body,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                GfButton(
+                  label: l10n.scheduleSyncKeepLocal,
+                  variant: GfButtonVariant.ghost,
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    unawaited(sync.keepLocal());
+                  },
+                ),
+                const SizedBox(width: 8),
+                GfButton(
+                  label: l10n.scheduleSyncUseCloud,
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    unawaited(sync.adoptRemote(snapshot));
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override

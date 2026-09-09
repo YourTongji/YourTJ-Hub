@@ -5,29 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/sessionstore"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/markbates/goth"
@@ -49,8 +38,10 @@ const (
 // controller 依据该 sentinel error 渲染 403 冻结错误页（与 OIDC exchange 的冻结语义一致）。
 var ErrAccountFrozen = errors.New("账号已冻结，禁止 OAuth 登录")
 
-// ErrOAuthEmailUnverified 表示 OAuth provider 未提供可用于站点验证的邮箱。
-var ErrOAuthEmailUnverified = errors.New("OAuth 邮箱未验证或不可用")
+// ErrOAuthNoLocalAccount 表示 OAuth 身份在站内没有对应账号（无既有绑定，
+// verified 邮箱也无既有账号可绑定）。OAuth 回调不再承担建号（issue #531，
+// 注册统一走 /api/register 单点白名单门禁），controller 层据此 302 跳转注册页。
+var ErrOAuthNoLocalAccount = errors.New("OAuth 身份无对应本地账号")
 
 type oauthCredentials struct {
 	clientID     string
@@ -241,7 +232,11 @@ type OAuthUserInfo struct {
 	EmailVerified bool   `json:"emailVerified,omitempty"`
 }
 
-// ProcessOAuthCallback logs in an existing OAuth user or creates a new one.
+// ProcessOAuthCallback 只处理「既有绑定登录」或「verified 邮箱绑定既有账号」，
+// 不再创建新账号（issue #531）：注册入口统一收敛到 /api/register，注册域名
+// 白名单（allowedDomains）由 ValidateEmailDomain 在注册单点把关，OAuth 侧
+// 不再存在「未命中白名单仍建号 / 向站外域名补发激活邮件」的旁路。
+// 无对应本地账号时返回 ErrOAuthNoLocalAccount，由 controller 跳转注册页。
 func ProcessOAuthCallback(gothUser goth.User) (*users.EntityComplete, error) {
 	userInfo := parseOAuthUserInfo(gothUser)
 
@@ -268,22 +263,7 @@ func ProcessOAuthCallback(gothUser goth.User) (*users.EntityComplete, error) {
 		return bound, err
 	}
 
-	newUser, err := createUserFromOAuth(userInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	eventbus.Publish(context.Background(), &eventhandlers.UserSignUpEvent{
-		UserId:   newUser.Id,
-		Username: newUser.Username,
-	})
-
-	err = createOAuthRecord(newUser.Id, userInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	return newUser, nil
+	return nil, ErrOAuthNoLocalAccount
 }
 
 // bindOAuthByTrustedEmail 尝试把 OAuth 身份绑定到 verified 邮箱命中的已有账号。
@@ -373,7 +353,7 @@ func parseOAuthUserInfo(gothUser goth.User) OAuthUserInfo {
 	// GitHub：通过 /user/emails 获取 verified 邮箱。goth 的 Email 字段可能来自
 	// 公开 profile（不保证 verified），不能直接作为信任依据。
 	if userInfo.Provider == ProviderGitHub {
-		if verified := fetchGitHubVerifiedEmail(gothUser.AccessToken); verified != "" {
+		if verified := fetchGitHubVerifiedEmailFn(gothUser.AccessToken); verified != "" {
 			userInfo.VerifiedEmail = verified
 			userInfo.EmailVerified = true
 		}
@@ -429,6 +409,27 @@ func oauthFlagIsTrue(value any) bool {
 // gitHubEmailAPIURL 为 GitHub 邮箱列表 API（var 便于测试覆盖）。
 var gitHubEmailAPIURL = "https://api.github.com/user/emails"
 
+// fetchGitHubVerifiedEmailFn 是 verified 邮箱拉取接缝（var 便于测试注入）：
+// 生产路径走 fetchGitHubVerifiedEmail 的真实 HTTP 拉取；受限环境（禁止回环
+// TCP，httptest server 不可达）的测试可直接注入内存实现。
+var fetchGitHubVerifiedEmailFn = fetchGitHubVerifiedEmail
+
+// parseGitHubEmails 从 /user/emails 响应中解析 verified 邮箱（纯函数）：
+// 优先 verified && primary；无 primary 时退而取任一 verified 邮箱。
+func parseGitHubEmails(list []gitHubEmailEntry) string {
+	for _, e := range list {
+		if e.Verified && e.Primary && e.Email != "" {
+			return strings.ToLower(e.Email)
+		}
+	}
+	for _, e := range list {
+		if e.Verified && e.Email != "" {
+			return strings.ToLower(e.Email)
+		}
+	}
+	return ""
+}
+
 // gitHubEmailEntry 是 GET /user/emails 的返回项。
 type gitHubEmailEntry struct {
 	Email    string `json:"email"`
@@ -468,131 +469,7 @@ func fetchGitHubVerifiedEmail(accessToken string) string {
 		slog.Warn("解析 GitHub 邮箱列表失败", "err", err)
 		return ""
 	}
-	for _, e := range list {
-		if e.Verified && e.Primary && e.Email != "" {
-			return strings.ToLower(e.Email)
-		}
-	}
-	for _, e := range list {
-		if e.Verified && e.Email != "" {
-			return strings.ToLower(e.Email)
-		}
-	}
-	return ""
-}
-
-// maxOAuthUsernameAttempts 限制 OAuth 建号用户名退避（重名/命中名单）尝试次数。
-const maxOAuthUsernameAttempts = 100
-
-// usernameReservedOrBanned 报告候选用户名是否命中保留/禁用名单（注册入口同规则）。
-func usernameReservedOrBanned(username string, cfg pageConfig.SecurityAndRegistration) bool {
-	code, _ := moderationservice.CheckUsernameAllowedWithConfig(username, cfg)
-	return code != ""
-}
-
-// createUserFromOAuth creates a local account from OAuth user data.
-// 激活策略（issue #155）：
-//   - verified 邮箱命中信任域名（allowedDomains 空 = 全信任）→ needValid=false 直接激活；
-//   - verified 邮箱未命中信任域名 → EnableEmailVerification 开启时进入
-//     ActivationPending 并补发激活邮件；
-//   - 未获取到可用 verified 邮箱 → EnableEmailVerification 开启时拒绝 OAuth 建号，
-//     关闭时保持免验证兼容行为。
-func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) {
-	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
-	email := strings.ToLower(strings.TrimSpace(userInfo.VerifiedEmail))
-	hasVerifiedEmail := userInfo.EmailVerified && email != ""
-	if securityConfig.EnableEmailVerification && !hasVerifiedEmail {
-		// 没有可发激活邮件的可信地址时直接拒绝，不能将未验证的 OAuth 身份
-		// 当作已激活账号放行，也不能创建无法恢复的 pending 账号。
-		return nil, ErrOAuthEmailUnverified
-	}
-
-	username := userInfo.Login
-	originalUsername := username
-	counter := 1
-	// 候选名必须既不与存量用户重名，也不命中保留/禁用名单（社交登录对
-	// 保留/禁用名做退避建号而非拒绝登录，最小惊讶）。退避候选同样过名单，
-	// 上限 100 防死循环（超限属异常，报错回滚）。
-	for users.ExistUsername(username) || usernameReservedOrBanned(username, securityConfig) {
-		username = fmt.Sprintf("%s_%d", originalUsername, counter)
-		counter++
-		if counter > maxOAuthUsernameAttempts {
-			return nil, fmt.Errorf("无法为 OAuth 登录名 %q 分配可用用户名（重名或命中保留/禁用名单）", originalUsername)
-		}
-	}
-
-	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱或 Google
-	// verified_email=true 的邮箱）。
-	// 无 verified 邮箱时保持存 ""（与旧行为一致），不降级存 goth 公开邮箱——
-	// 未验证邮箱若被 OIDC userinfo 推导为 verified_email=true 会造成信任越界
-	// （PR #167 review, medium）。
-
-	// 信任判定：仅 verified 邮箱命中信任域名才免验证。
-	trusted := hasVerifiedEmail && emailInTrustedDomains(email)
-	needValid := !trusted && securityConfig.EnableEmailVerification
-
-	userEntity, err := userservice.CreateUser(username, randopt.RandomString(32), email, needValid)
-	if err != nil {
-		return nil, fmt.Errorf("创建用户失败: %w", err)
-	}
-
-	// 需要邮箱激活（开关开且未命中信任域名、且有 verified 邮箱）：
-	// 补发激活邮件（OAuth 路径原本不发）。needValid=true 时 email 必非空。
-	if needValid {
-		if err := emailactivationservice.SendActivationEmail(userEntity); err != nil {
-			slog.Warn("OAuth 用户激活邮件入队失败", "userId", userEntity.Id, "email", email, "err", err)
-		} else {
-			slog.Info("OAuth 用户激活邮件已入队", "userId", userEntity.Id, "email", email)
-		}
-	}
-
-	if userInfo.AvatarURL != "" {
-		localAvatarPath, err := downloadAndSaveAvatar(userEntity.Id, userInfo.AvatarURL)
-		if err != nil {
-			slog.Warn("下载头像失败，使用默认头像", "error", err, "avatarURL", userInfo.AvatarURL)
-			userEntity.AvatarUrl = users.RandAvatarUrl()
-		} else {
-			userEntity.AvatarUrl = localAvatarPath
-		}
-	} else {
-		userEntity.AvatarUrl = users.RandAvatarUrl()
-	}
-
-	userEntity.Nickname = username
-	userEntity.Bio = userInfo.Bio
-	userEntity.Website = userInfo.Blog
-	// 第三方资料自由文本（GitHub bio/blog）与 EditUserInfo 同规则过内容敏感词检查：
-	// 命中即清空对应字段并写审核日志（subject=user_profile）。社交登录建号不应被
-	// 第三方简介文本阻断（最小惊讶），但落库资料必须与站内资料拦截口径一致，否则
-	// GitHub 简介可绕过 /api/set-user-info 的敏感词拦截直接进入资料。
-	if hit, word := moderationservice.CheckContentAllowed(userEntity.Bio); hit {
-		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Bio))
-		slog.Warn("OAuth 导入 bio 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
-		userEntity.Bio = ""
-	}
-	if hit, word := moderationservice.CheckContentAllowed(userEntity.Website); hit {
-		moderationservice.SensitiveContentBlocked(userEntity.Id, moderationLog.SubjectUserProfile, userEntity.Id, word, oauthProfileExcerpt(userEntity.Website))
-		slog.Warn("OAuth 导入 blog 命中敏感词已清空", "provider", userInfo.Provider, "login", username, "word", word)
-		userEntity.Website = ""
-	}
-	if err := userservice.SaveUser(userEntity); err != nil {
-		return nil, err
-	}
-
-	return userEntity, nil
-}
-
-// oauthProfileExcerpt 截断 OAuth 资料字段为审核日志摘要（100 个 rune，rune 边界安全）。
-func oauthProfileExcerpt(s string) string {
-	const maxRunes = 100
-	n := 0
-	for i := range s {
-		if n >= maxRunes {
-			return s[:i]
-		}
-		n++
-	}
-	return s
+	return parseGitHubEmails(list)
 }
 
 // createOAuthRecord stores a provider account binding. Only the identity
@@ -700,71 +577,4 @@ func GetUserOAuthBindings(userID uint64) map[string]*userOAuth.Entity {
 // HasOAuthBinding reports whether the user can authenticate through an external provider.
 func HasOAuthBinding(userID uint64) bool {
 	return len(GetUserOAuthBindings(userID)) > 0
-}
-
-// downloadAndSaveAvatar stores an external OAuth avatar locally.
-func downloadAndSaveAvatar(userID uint64, avatarURL string) (string, error) {
-	if avatarURL == "" {
-		return "", nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, avatarURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("创建请求失败: %w", err)
-	}
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("下载头像失败: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("下载头像失败，状态码: %d", resp.StatusCode)
-	}
-
-	const maxFileSize = 2 * 1024 * 1024
-	limitedReader := io.LimitReader(resp.Body, maxFileSize+1)
-
-	avatarData, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return "", fmt.Errorf("读取头像数据失败: %w", err)
-	}
-
-	if len(avatarData) > maxFileSize {
-		return "", errors.New("头像文件过大，最大允许2MB")
-	}
-
-	filename := "avatar"
-	if urlPath := resp.Request.URL.Path; urlPath != "" {
-		ext := path.Ext(urlPath)
-		if ext != "" {
-			filename = "avatar" + ext
-		} else {
-			contentType := resp.Header.Get("Content-Type")
-			switch {
-			case strings.Contains(contentType, "jpeg"):
-				filename = "avatar.jpg"
-			case strings.Contains(contentType, "png"):
-				filename = "avatar.png"
-			case strings.Contains(contentType, "gif"):
-				filename = "avatar.gif"
-			case strings.Contains(contentType, "webp"):
-				filename = "avatar.webp"
-			default:
-				filename = "avatar.jpg"
-			}
-		}
-	}
-
-	fileEntity, err := filedata.SaveAvatar(userID, avatarData, filename)
-	if err != nil {
-		return "", fmt.Errorf("保存头像失败: %w", err)
-	}
-
-	return fileEntity.Name, nil
 }

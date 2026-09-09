@@ -1443,7 +1443,10 @@ mixin _$TopicPayload {
   int get processStatus => throw _privateConstructorUsedError;
   String get activityText => throw _privateConstructorUsedError;
   String get lastUpdateTime => throw _privateConstructorUsedError;
-  bool? get unseen => throw _privateConstructorUsedError;
+  bool? get unseen =>
+      throw _privateConstructorUsedError; // Absent when the server cannot provide authenticated interaction state.
+  bool? get liked => throw _privateConstructorUsedError;
+  bool? get bookmarked => throw _privateConstructorUsedError;
 
   /// Serializes this TopicPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -1480,6 +1483,8 @@ abstract class $TopicPayloadCopyWith<$Res> {
     String activityText,
     String lastUpdateTime,
     bool? unseen,
+    bool? liked,
+    bool? bookmarked,
   });
 
   $UserBriefPayloadCopyWith<$Res> get author;
@@ -1517,6 +1522,8 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
     Object? activityText = null,
     Object? lastUpdateTime = null,
     Object? unseen = freezed,
+    Object? liked = freezed,
+    Object? bookmarked = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -1588,6 +1595,14 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
                 ? _value.unseen
                 : unseen // ignore: cast_nullable_to_non_nullable
                       as bool?,
+            liked: freezed == liked
+                ? _value.liked
+                : liked // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            bookmarked: freezed == bookmarked
+                ? _value.bookmarked
+                : bookmarked // ignore: cast_nullable_to_non_nullable
+                      as bool?,
           )
           as $Val,
     );
@@ -1631,6 +1646,8 @@ abstract class _$$TopicPayloadImplCopyWith<$Res>
     String activityText,
     String lastUpdateTime,
     bool? unseen,
+    bool? liked,
+    bool? bookmarked,
   });
 
   @override
@@ -1668,6 +1685,8 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
     Object? activityText = null,
     Object? lastUpdateTime = null,
     Object? unseen = freezed,
+    Object? liked = freezed,
+    Object? bookmarked = freezed,
   }) {
     return _then(
       _$TopicPayloadImpl(
@@ -1739,6 +1758,14 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
             ? _value.unseen
             : unseen // ignore: cast_nullable_to_non_nullable
                   as bool?,
+        liked: freezed == liked
+            ? _value.liked
+            : liked // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        bookmarked: freezed == bookmarked
+            ? _value.bookmarked
+            : bookmarked // ignore: cast_nullable_to_non_nullable
+                  as bool?,
       ),
     );
   }
@@ -1765,6 +1792,8 @@ class _$TopicPayloadImpl implements _TopicPayload {
     required this.activityText,
     required this.lastUpdateTime,
     this.unseen,
+    this.liked,
+    this.bookmarked,
   }) : _images = images,
        _participants = participants,
        _categories = categories;
@@ -1827,10 +1856,15 @@ class _$TopicPayloadImpl implements _TopicPayload {
   final String lastUpdateTime;
   @override
   final bool? unseen;
+  // Absent when the server cannot provide authenticated interaction state.
+  @override
+  final bool? liked;
+  @override
+  final bool? bookmarked;
 
   @override
   String toString() {
-    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen)';
+    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
   }
 
   @override
@@ -1869,12 +1903,15 @@ class _$TopicPayloadImpl implements _TopicPayload {
                 other.activityText == activityText) &&
             (identical(other.lastUpdateTime, lastUpdateTime) ||
                 other.lastUpdateTime == lastUpdateTime) &&
-            (identical(other.unseen, unseen) || other.unseen == unseen));
+            (identical(other.unseen, unseen) || other.unseen == unseen) &&
+            (identical(other.liked, liked) || other.liked == liked) &&
+            (identical(other.bookmarked, bookmarked) ||
+                other.bookmarked == bookmarked));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     title,
@@ -1893,7 +1930,9 @@ class _$TopicPayloadImpl implements _TopicPayload {
     activityText,
     lastUpdateTime,
     unseen,
-  );
+    liked,
+    bookmarked,
+  ]);
 
   /// Create a copy of TopicPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -1928,6 +1967,8 @@ abstract class _TopicPayload implements TopicPayload {
     required final String activityText,
     required final String lastUpdateTime,
     final bool? unseen,
+    final bool? liked,
+    final bool? bookmarked,
   }) = _$TopicPayloadImpl;
 
   factory _TopicPayload.fromJson(Map<String, dynamic> json) =
@@ -1966,7 +2007,11 @@ abstract class _TopicPayload implements TopicPayload {
   @override
   String get lastUpdateTime;
   @override
-  bool? get unseen;
+  bool? get unseen; // Absent when the server cannot provide authenticated interaction state.
+  @override
+  bool? get liked;
+  @override
+  bool? get bookmarked;
 
   /// Create a copy of TopicPayload
   /// with the given fields replaced by the non-null parameter values.

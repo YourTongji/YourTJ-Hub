@@ -28,7 +28,10 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   agent administration, operation records, traffic overview, page settings, site settings, and
   data import/export;
 - Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
-  scheduler;
+  scheduler (`/api/pk/*`: public read-only dictionaries/catalog/details plus the login-gated
+  `/api/pk/plans` schedule-plan cloud sync GET/PUT/DELETE — whole-snapshot replace with a
+  server-authoritative `updatedAt` clock, shallow 1..10-plans/1MB validation, deleted on
+  account close; issue #537);
 - Wiki 域（`paths/wiki.yaml` + `paths/wiki-sync.yaml`，GitHub 唯一真实源模型）：公开读
   `GET /api/wiki/{tree,namespaces,home}`；管理端 `/api/admin/wiki/*`（PageManager：只读树 +
   `sync/status` / `sync` / `sync/runs` / `sync/webhook-secret` 读写 + asset CDN 设置）与公开
@@ -397,3 +400,5 @@ and per-topic documents preserve the stored Markdown source.
 - Automated Dart generation remains Planned; route coverage is a current contract gate as described
   above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).
+
+PK plan uploads support an observed `baseUpdatedAt` revision: an empty string creates only if no snapshot exists, and a stale revision returns HTTP 409 without changing data. Sync clients must send this condition and fetch again before resolving a conflict. The server remains the sole clock source; omission retains unconditional replacement for existing API consumers.

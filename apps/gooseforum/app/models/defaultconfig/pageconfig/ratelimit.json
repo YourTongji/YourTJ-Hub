@@ -36,7 +36,8 @@
     { "action": "course.summary", "windowSeconds": 60, "limitPerIp": 30, "limitPerUser": 10 },
     { "action": "course.summary.check", "windowSeconds": 60, "limitPerIp": 120, "limitPerUser": 60 },
     { "action": "post.reveal", "windowSeconds": 3600, "limitPerIp": 60, "limitPerUser": 20 },
-    { "action": "wiki.webhook", "windowSeconds": 60, "limitPerIp": 30, "limitPerUser": 0 }
+    { "action": "wiki.webhook", "windowSeconds": 60, "limitPerIp": 30, "limitPerUser": 0 },
+    { "action": "pk.plans", "windowSeconds": 60, "limitPerIp": 60, "limitPerUser": 30 }
   ],
   "newUserCaptchaAfterPosts": 3,
   "newUserCaptchaDays": 7,

@@ -1746,6 +1746,30 @@ abstract class AppLocalizations {
   /// **'Synced to {date}'**
   String scheduleSyncedTo(String date);
 
+  /// No description provided for @scheduleSyncConflictTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan sync conflict'**
+  String get scheduleSyncConflictTitle;
+
+  /// No description provided for @scheduleSyncConflictBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your local schedule plans differ from the cloud copy. Which one should be kept?'**
+  String get scheduleSyncConflictBody;
+
+  /// No description provided for @scheduleSyncUseCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Use cloud'**
+  String get scheduleSyncUseCloud;
+
+  /// No description provided for @scheduleSyncKeepLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep local'**
+  String get scheduleSyncKeepLocal;
+
   /// No description provided for @scheduleWeekAll.
   ///
   /// In en, this message translates to:

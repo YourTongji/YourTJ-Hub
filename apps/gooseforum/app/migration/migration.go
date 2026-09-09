@@ -511,6 +511,7 @@ func SchemaModels() []any {
 		&pk.TeacherTimeslotEntity{},
 		&pk.FetchLogEntity{},
 		&pk.SettingEntity{},
+		&pk.ScheduleSnapshotEntity{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},

@@ -654,3 +654,192 @@ getSectionTimes:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/PkFailure
+
+getPlans:
+  get:
+    tags: [PK]
+    summary: Fetch the caller's cloud schedule plan snapshot
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    operationId: pkGetPlans
+    description: |
+      Login-required read of the caller's PK scheduler plan snapshot (issue #537).
+      Returns the four persisted fields (plans/activePlanId/majorSelected/weekView)
+      plus the server-side authoritative updatedAt clock (RFC3339Nano UTC) that
+      clients store as pk.syncedAt for load-time conflict detection. When the user
+      has never uploaded a snapshot data is null. Frozen accounts may still read
+      (no writable-account check, aligned with the myContentList precedent).
+      Rate limited under the dedicated pk.plans quota (independent from the
+      course.catalog read quota).
+    responses:
+      '200':
+        description: Cloud snapshot, or null data when the user has no snapshot yet.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlansGetResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-plans-get-success.json
+              empty:
+                externalValue: ../fixtures/pk-plans-get-empty.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '429':
+        description: Rate limit exceeded (pk.plans quota).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '500':
+        description: Internal error.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+
+putPlans:
+  put:
+    tags: [PK]
+    summary: Replace the caller's cloud schedule plan snapshot wholesale
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    operationId: pkPutPlans
+    description: |
+      Login-required whole-snapshot upsert (issue #537): plans/activePlanId/
+      majorSelected/weekView are replaced atomically; created_at stays fixed and
+      the server-side updated_at clock is refreshed. Server-side shallow
+      validation only (1..10 plans, non-blank id/name per plan, activePlanId must
+      reference one of the plans, whole payload <= 1MB) — deep sanitize remains the
+      client's load-path responsibility. Writes require a writable account
+      (frozen/pending activation rejected). The response carries the new
+      updatedAt for the client's pk.syncedAt.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PkPlansPutRequest
+    responses:
+      '200':
+        description: Snapshot stored; returns the server-side sync clock.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlansPutResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-plans-put-success.json
+      '400':
+        description: Structural validation failed (count/limit/identity/activePlanId/size).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+            examples:
+              badRequest:
+                externalValue: ../fixtures/pk-plans-bad-request.json
+              tooManyPlans:
+                externalValue: ../fixtures/pk-plans-too-many.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen (or pending-activation) account.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozen:
+                externalValue: ../fixtures/account-frozen.json
+      '409':
+        description: The observed baseUpdatedAt is stale; fetch and resolve before retrying.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+            examples:
+              conflict:
+                externalValue: ../fixtures/pk-plans-conflict.json
+      '429':
+        description: Rate limit exceeded (pk.plans quota).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '500':
+        description: Internal error.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+
+deletePlans:
+  delete:
+    tags: [PK]
+    summary: Delete the caller's cloud schedule plan snapshot
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    operationId: pkDeletePlans
+    description: |
+      Login-required idempotent delete of the caller's cloud snapshot (issue #537);
+      local data is untouched. Same account-close semantics as the push device
+      cleanup (anonymize and delete modes both erase the row). Writes require a
+      writable account.
+    responses:
+      '200':
+        description: Snapshot removed (or was already absent).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlansDeleteResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-plans-delete-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen (or pending-activation) account.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozen:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Rate limit exceeded (pk.plans quota).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '500':
+        description: Internal error.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure

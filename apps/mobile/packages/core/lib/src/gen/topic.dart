@@ -97,6 +97,9 @@ abstract class TopicPayload with _$TopicPayload {
     required String activityText,
     required String lastUpdateTime,
     bool? unseen,
+    // Absent when the server cannot provide authenticated interaction state.
+    bool? liked,
+    bool? bookmarked,
   }) = _TopicPayload;
 
   factory TopicPayload.fromJson(Map<String, dynamic> json) =>

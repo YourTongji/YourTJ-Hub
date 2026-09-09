@@ -1,10 +1,13 @@
-/// PK 排课器域契约镜像（对应 packages/api-contract 的 pk 域，14 操作）。
+/// PK 排课器域契约镜像（对应 packages/api-contract 的 pk 域：14 个匿名
+/// 公开操作 + 登录方案云同步 GET/PUT/DELETE /api/pk/plans，issue #537）。
 ///
 /// 手写维护（wiki.dart 同风格），字段名与 `pk.yaml` / `components/schemas.yaml`
 /// 的 Pk* 块逐一对应；统一 `{code,msg,data}` 信封由 `GfApiClient.getPk/postPk`
 /// 解包后交本文件模型解析。所有列表字段后端保证非 null（contract required），
 /// 解析侧仍做容错默认值。
 library;
+
+import '../schedule/pk_models.dart';
 
 /// P1 GET /api/pk/calendars：学期条目（startDate/endDate 未配置时为 null）。
 class PkCalendarItem {
@@ -489,4 +492,92 @@ class PkReviewBrief {
         )
         .toList(),
   );
+}
+
+/// GET /api/pk/plans 的 data：云端方案快照（issue #537；云端无数据时整个
+/// data 为 null，不出现本类）。plans 条目与本地持久化 schema 完全同构
+/// （Route A 已与 web 逐字段对齐），因此直接复用 pk_models 领域模型解析，
+/// 深度消毒仍由客户端加载路径（store.applyRemoteSnapshot）负责。
+class PkPlansSnapshot {
+  PkPlansSnapshot({
+    required this.plans,
+    required this.activePlanId,
+    required this.majorSelected,
+    required this.weekView,
+    required this.updatedAt,
+  });
+
+  final List<PkPlan> plans;
+  final String activePlanId;
+  final PkMajorSelection majorSelected;
+  final PkWeekView weekView;
+
+  /// 服务端权威同步时钟（RFC3339Nano UTC）；客户端落为 pk.syncedAt。
+  final String updatedAt;
+
+  factory PkPlansSnapshot.fromJson(Map<String, dynamic> json) =>
+      PkPlansSnapshot(
+        plans: (json['plans'] as List<dynamic>? ?? const [])
+            .map((e) => PkPlan.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        activePlanId: json['activePlanId'] as String? ?? '',
+        majorSelected: json['majorSelected'] is Map
+            ? PkMajorSelection.fromJson(
+                Map<String, dynamic>.from(json['majorSelected'] as Map),
+              )
+            : PkMajorSelection(),
+        weekView: json['weekView'] is Map
+            ? PkWeekView.fromJson(
+                Map<String, dynamic>.from(json['weekView'] as Map),
+              )
+            : PkWeekView(),
+        updatedAt: json['updatedAt'] as String? ?? '',
+      );
+}
+
+/// PUT /api/pk/plans 请求体：快照四字段整体替换（服务端仅浅校验方案数
+/// 1..10、id/name 非空、activePlanId 引用、载荷 ≤1MB）。
+class PkPlanSnapshotPayload {
+  PkPlanSnapshotPayload({
+    required this.plans,
+    required this.activePlanId,
+    required this.majorSelected,
+    required this.weekView,
+    this.baseUpdatedAt,
+  });
+
+  /// Observed server revision; empty means create only when absent.
+  final String? baseUpdatedAt;
+  final List<PkPlan> plans;
+  final String activePlanId;
+  final PkMajorSelection majorSelected;
+  final PkWeekView weekView;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    if (baseUpdatedAt != null) 'baseUpdatedAt': baseUpdatedAt,
+    'plans': plans.map((plan) => plan.toJson()).toList(),
+    'activePlanId': activePlanId,
+    'majorSelected': majorSelected.toJson(),
+    'weekView': weekView.toJson(),
+  };
+}
+
+/// PUT /api/pk/plans 的 data：新的服务端同步时钟（客户端更新 pk.syncedAt）。
+class PkPlansPutResult {
+  const PkPlansPutResult({required this.updatedAt});
+
+  final String updatedAt;
+
+  factory PkPlansPutResult.fromJson(Map<String, dynamic> json) =>
+      PkPlansPutResult(updatedAt: json['updatedAt'] as String? ?? '');
+}
+
+/// DELETE /api/pk/plans 的 data（幂等删除云端副本；本地数据不动）。
+class PkPlansDeleteResult {
+  const PkPlansDeleteResult({required this.deleted});
+
+  final bool deleted;
+
+  factory PkPlansDeleteResult.fromJson(Map<String, dynamic> json) =>
+      PkPlansDeleteResult(deleted: json['deleted'] as bool? ?? false);
 }

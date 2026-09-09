@@ -57,7 +57,8 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	// baseApi 组：公开只读，无 middleware。
 	router.GET("/api/get-captcha", UpQueryReq(api.GetCaptcha))
 	router.GET("/api/user-card", UpQueryReq(api.GetUserCard))
-
+	// /api/login 已由基座 setupHTTPContractTest 注册（与 route4api.go 一致），
+	// set-password 成功标准（issue #530）的「新密码可登录」子用例直接复用。
 	// loginApi 组：JWTAuthCheck 挂在组上。
 	loginAPI := router.Group("/api").Use(middleware.JWTAuthCheck)
 	loginAPI.POST("/set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
@@ -69,6 +70,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginAPI.POST("/upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginAPI.POST("/change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))
+	loginAPI.POST("/set-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.SetPassword))
 	loginAPI.POST("/auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
 	loginAPI.GET("/oauth/bindings", UpButterReq(api.GetOAuthBindings))
 	return conn, router
@@ -589,6 +591,145 @@ func TestChangePasswordHTTPContract(t *testing.T) {
 			t.Fatalf("old-invalid status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "change-password-old-invalid.json"))
+	})
+}
+
+func TestSetPasswordHTTPContract(t *testing.T) {
+	qualifyingUser := func(t *testing.T, conn *gorm.DB) *users.EntityComplete {
+		t.Helper()
+		// 资格门禁（issue #530）：无邮箱 + 至少一个 OAuth 绑定。
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Model(user).Update("email", "").Error; err != nil {
+			t.Fatalf("clear contract user email: %v", err)
+		}
+		if err := conn.Create(&userOAuth.Entity{UserId: user.Id, Provider: "github", ProviderUid: fmt.Sprintf("github-uid-sp-%d", user.Id)}).Error; err != nil {
+			t.Fatalf("create oauth binding: %v", err)
+		}
+		return user
+	}
+
+	t.Run("success invalidates the old session token", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		user := qualifyingUser(t, conn)
+		token := contractSessionToken(t, user)
+		recorder := serveJSON(router, "/api/set-password", `{"newPassword":"newsecret456"}`, token)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("set password status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-password-success.json"))
+		// TokenVersion 自增语义：设密成功后旧 session token 访问任意登录接口应 401。
+		stale := serveAuthSecurityJSON(router, http.MethodGet, "/api/oauth/bindings", "", token)
+		if stale.Code != http.StatusUnauthorized {
+			t.Fatalf("stale token status = %d, want 401: %s", stale.Code, stale.Body.String())
+		}
+	})
+
+	t.Run("repeated call re-sets the password and revokes sessions again", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		user := qualifyingUser(t, conn)
+		first := serveJSON(router, "/api/set-password", `{"newPassword":"newsecret456"}`, contractSessionToken(t, user))
+		if first.Code != http.StatusOK {
+			t.Fatalf("first set password status = %d, want 200: %s", first.Code, first.Body.String())
+		}
+		// 第一次设密 TokenVersion++：按 DB 最新版本号重新签发会话再设一次。
+		var refreshed users.EntityComplete
+		if err := conn.First(&refreshed, user.Id).Error; err != nil {
+			t.Fatalf("reload contract user: %v", err)
+		}
+		secondToken := contractSessionToken(t, &refreshed)
+		second := serveJSON(router, "/api/set-password", `{"newPassword":"newsecret789"}`, secondToken)
+		if second.Code != http.StatusOK {
+			t.Fatalf("second set password status = %d, want 200: %s", second.Code, second.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, second), contractFixture(t, "set-password-success.json"))
+		stale := serveAuthSecurityJSON(router, http.MethodGet, "/api/oauth/bindings", "", secondToken)
+		if stale.Code != http.StatusUnauthorized {
+			t.Fatalf("stale token after re-set status = %d, want 401: %s", stale.Code, stale.Body.String())
+		}
+	})
+
+	t.Run("new password can then log in and old password fails", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		user := qualifyingUser(t, conn)
+		setup := serveJSON(router, "/api/set-password", `{"newPassword":"newsecret456"}`, contractSessionToken(t, user))
+		if setup.Code != http.StatusOK {
+			t.Fatalf("set password status = %d, want 200: %s", setup.Code, setup.Body.String())
+		}
+		// #530 成功标准：设密成功后账号可凭新密码走密码登录（验证密码哈希确已更新）。
+		body, err := json.Marshal(map[string]string{
+			"username":          user.Username,
+			"encryptedPassword": encryptLoginPassword(t, "newsecret456"),
+		})
+		if err != nil {
+			t.Fatalf("marshal new-password login request: %v", err)
+		}
+		login := serveJSON(router, "/api/login", string(body), "")
+		if login.Code != http.StatusOK {
+			t.Fatalf("login with new password status = %d, want 200: %s", login.Code, login.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, login), contractFixture(t, "login-success.json"))
+		if login.Header().Get("New-Token") == "" {
+			t.Fatal("login with new password missing New-Token header")
+		}
+		// 设密前的旧密码（测试账户初始 secret123）不得再登录。
+		oldBody, err := json.Marshal(map[string]string{
+			"username":          user.Username,
+			"encryptedPassword": encryptLoginPassword(t, "secret123"),
+		})
+		if err != nil {
+			t.Fatalf("marshal old-password login request: %v", err)
+		}
+		stale := serveJSON(router, "/api/login", string(oldBody), "")
+		if stale.Code != http.StatusOK {
+			t.Fatalf("old-password login status = %d, want 200 envelope: %s", stale.Code, stale.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, stale), contractFixture(t, "account-close-invalid-credentials.json"))
+	})
+
+	t.Run("email-bound account returns business failure", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		// 有邮箱的 OAuth 绑定账号走 forgot-password 邮件重置，set-password 有意拒绝。
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Create(&userOAuth.Entity{UserId: user.Id, Provider: "github", ProviderUid: fmt.Sprintf("github-uid-sp-email-%d", user.Id)}).Error; err != nil {
+			t.Fatalf("create oauth binding: %v", err)
+		}
+		recorder := serveJSON(router, "/api/set-password", `{"newPassword":"newsecret456"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("email-bound status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-password-not-allowed.json"))
+	})
+
+	t.Run("account without oauth binding returns business failure", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Model(user).Update("email", "").Error; err != nil {
+			t.Fatalf("clear contract user email: %v", err)
+		}
+		recorder := serveJSON(router, "/api/set-password", `{"newPassword":"newsecret456"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("no-binding status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-password-not-allowed.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupAccountContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/set-password", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/set-password", `{}`, "account-frozen.json")
+	})
+
+	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		// 配额用户带邮箱：每次请求都命中 setNotAllowed（HTTP 200 信封），
+		// 第 6 次触发 password.change 限流 429。
+		assertInteractionRateLimited(t, conn, router, "/api/set-password",
+			`{"newPassword":"newsecret456"}`,
+			"set-password-rate-limited.json", middleware.RateLimitPasswordChange)
 	})
 }
 

@@ -397,6 +397,40 @@ void main() {
     });
   });
 
+  test('topic interactions distinguish unknown from false', () {
+    final raw = <String, dynamic>{
+      'id': 1,
+      'title': 'Topic',
+      'description': '',
+      'url': '/p/1',
+      'author': {'id': 1, 'username': 'alice', 'avatarUrl': ''},
+      'participants': [],
+      'categories': [],
+      'replyCount': 0,
+      'viewCount': 0,
+      'pinWeight': 0,
+      'processStatus': 0,
+      'activityText': '',
+      'lastUpdateTime': '',
+    };
+    final legacy = TopicPayload.fromJson(raw);
+    expect(legacy.liked, isNull);
+    expect(legacy.bookmarked, isNull);
+    final known = TopicPayload.fromJson({
+      ...raw,
+      'liked': true,
+      'bookmarked': false,
+    });
+    expect(known.liked, isTrue);
+    expect(known.bookmarked, isFalse);
+    expect(
+      TopicPayload.fromJson(
+        jsonDecode(jsonEncode(known)) as Map<String, dynamic>,
+      ).liked,
+      isTrue,
+    );
+  });
+
   group('会话 UserSessionPayload', () {
     // 与 packages/api-contract/fixtures/sessions-list-success.json 对齐。
     final response = _contractFixture('sessions-list-success.json');

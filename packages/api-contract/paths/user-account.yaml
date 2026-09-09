@@ -655,6 +655,89 @@ changePassword:
               rateLimited:
                 externalValue: ../fixtures/change-password-rate-limited.json
 
+setPassword:
+  post:
+    tags: [User]
+    summary: Set the initial password for an OAuth-linked account
+    operationId: setPassword
+    description: |
+      First-time password setup without an old password (issue #530). Only accounts
+      with no stored email address AND at least one OAuth provider binding qualify;
+      every other caller fails with `auth.password.setNotAllowed` (HTTP 200):
+      accounts with an email must use the password-reset email flow, and accounts
+      without an OAuth binding use changePassword. Bot (Agent) accounts are rejected
+      with `auth.password.oldInvalid`. On success the account TokenVersion
+      increments, so every previously issued JWT — including the one used for this
+      request — is immediately invalid and no replacement token is minted; the
+      client must log in again. The new password must be 6-64 characters and
+      contain at least one letter and one digit (`auth.password.tooShort` params
+      minLength=6, `auth.password.tooLong`, `auth.password.needsLetterNumber`).
+      Repeated calls by a qualifying account are allowed (rate-limited by
+      `password.change`) and behave as a re-set. JSON binding is lenient: a
+      malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200). Other business failures:
+      `auth.password.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SetPasswordRequest
+    responses:
+      '200':
+        description: Password set (all existing sessions invalidated), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SetPasswordResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-password-success.json
+              setNotAllowed:
+                externalValue: ../fixtures/set-password-not-allowed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '429':
+        description: Password-change rate limit (action `password.change`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/set-password-rate-limited.json
+
 getOAuthBindings:
   get:
     tags: [User]
