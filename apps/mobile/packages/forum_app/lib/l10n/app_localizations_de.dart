@@ -1269,9 +1269,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contentPurge => 'Endgültig löschen';
 
   @override
-  String get contentPrivacyErase => 'Eigene Inhalte löschen';
-
-  @override
   String get contentDeleteConfirm =>
       'Der Inhalt wird in den Papierkorb verschoben und kann, sofern zulässig, innerhalb von 30 Tagen wiederhergestellt werden.';
 

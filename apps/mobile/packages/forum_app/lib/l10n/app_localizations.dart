@@ -2394,12 +2394,6 @@ abstract class AppLocalizations {
   /// **'Delete permanently'**
   String get contentPurge;
 
-  /// No description provided for @contentPrivacyErase.
-  ///
-  /// In en, this message translates to:
-  /// **'Erase personal content'**
-  String get contentPrivacyErase;
-
   /// No description provided for @contentDeleteConfirm.
   ///
   /// In en, this message translates to:

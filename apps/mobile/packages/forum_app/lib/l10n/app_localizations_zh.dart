@@ -1236,9 +1236,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contentPurge => '永久删除';
 
   @override
-  String get contentPrivacyErase => '隐私清除';
-
-  @override
   String get contentDeleteConfirm => '内容会移入回收站，符合恢复条件时可在 30 天内恢复。';
 
   @override

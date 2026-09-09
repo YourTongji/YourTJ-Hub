@@ -192,9 +192,8 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     if (action == 'restore') {
       await _run((_) => ref.read(contentRepositoryProvider).restore(item));
     } else {
-      final privacy = action == 'privacy';
       if (!await _confirm(
-            privacy ? l10n.contentPrivacyErase : l10n.contentPurge,
+            l10n.contentPurge,
             l10n.contentPurgeConfirm,
           ) ||
           !mounted ||
@@ -204,7 +203,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       await _run(
         (password) => ref
             .read(contentRepositoryProvider)
-            .purge(item, privacy: privacy, password: password),
+            .purge(item, password: password),
       );
     }
   }
@@ -366,11 +365,6 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                       PopupMenuItem(
                                         value: 'purge',
                                         child: Text(l10n.contentPurge),
-                                      ),
-                                    if (!widget.deleted)
-                                      PopupMenuItem(
-                                        value: 'privacy',
-                                        child: Text(l10n.contentPrivacyErase),
                                       ),
                                   ],
                                 ),

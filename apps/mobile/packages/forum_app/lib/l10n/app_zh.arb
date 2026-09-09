@@ -649,7 +649,6 @@
   "contentRestore": "恢复",
   "contentDelete": "删除",
   "contentPurge": "永久删除",
-  "contentPrivacyErase": "隐私清除",
   "contentDeleteConfirm": "内容会移入回收站，符合恢复条件时可在 30 天内恢复。",
   "contentPurgeConfirm": "此操作不可撤销。正文和图片将被永久清除。",
   "contentPassword": "请输入当前密码以确认操作",

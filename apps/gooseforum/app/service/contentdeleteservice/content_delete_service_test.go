@@ -512,19 +512,6 @@ func TestContentDeleteEventsRecorded(t *testing.T) {
 	if got := countEvents(string(contentDeleteEvent.EventPermanentDelete)); got != 1 {
 		t.Fatalf("content_permanent_delete events = %d, want 1", got)
 	}
-
-	// 隐私删除话题应记录 privacy_delete_requested。
-	privacyAuthorID, _ := seedTopicWithOptionalReply(t, conn, 940011, false)
-	if err := PrivacyEraseContent(privacyAuthorID, ContentTypeTopic, 940011); err != nil {
-		t.Fatalf("PrivacyEraseContent: %v", err)
-	}
-	var privacyCount int64
-	conn.Model(&contentDeleteEvent.Entity{}).
-		Where("event_type = ? AND content_id = ?", string(contentDeleteEvent.EventPrivacyDelete), 940011).
-		Count(&privacyCount)
-	if privacyCount != 1 {
-		t.Fatalf("privacy_delete_requested events = %d, want 1", privacyCount)
-	}
 }
 
 // wiki 分站页面话题：作者删除 wiki 话题时级联物理删除 wiki_pages 与全部修订，
@@ -760,4 +747,41 @@ func TestDeleteAllUserContentRemovesWikiRevisionsByEditorOnOthersPages(t *testin
 	if reply := posts.UnscopedGet(fReply); reply.VisibilityStatus != posts.VisibilityUserDeleted {
 		t.Fatalf("userB forum reply visibility = %s, want USER_DELETED", reply.VisibilityStatus)
 	}
+}
+
+// 回归 #492：首楼经用户删除（USER_DELETED，不可见）后，最后一条可见回复被
+// 永久删除——话题必须联动下架，不得以「有标题无正文」的孤儿形态继续公开出现。
+func TestPurgeLastVisibleReplyCascadesTopicVisibility(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	// id 段全局唯一：包内测试共享一个库文件且 users 行不做清理（949200 已被占用）。
+	const topicID = uint64(949700)
+	authorID, replyAuthorID := seedTopicWithOptionalReply(t, conn, topicID, true)
+	zzCleanupContent(t, conn, []uint64{topicID, topicID + 100, topicID + 200, topicID + 300})
+
+	// 首楼标记为用户删除（不可见）——即级联所需的「唯一可见楼层消失」前置条件。
+	if err := posts.MarkUserDeleted(topicID+100, authorID, "test setup"); err != nil {
+		t.Fatalf("MarkUserDeleted(first post): %v", err)
+	}
+	if _, err := DeletePostByUser(replyAuthorID, topicID+200); err != nil {
+		t.Fatalf("DeletePostByUser(reply): %v", err)
+	}
+	if err := PurgeContent(replyAuthorID, ContentTypePost, topicID+200, "purge last visible reply"); err != nil {
+		t.Fatalf("PurgeContent(reply): %v", err)
+	}
+
+	topic := topics.UnscopedGet(topicID)
+	if topic.VisibilityStatus == topics.VisibilityActive {
+		t.Fatalf("topic still ACTIVE after its last visible reply was purged (issue #492)")
+	}
+	if topic.RetentionStatus != topics.RetentionPurged {
+		t.Fatalf("topic retention = %s, want PURGED after cascade", topic.RetentionStatus)
+	}
+}
+
+func zzCleanupContent(t *testing.T, conn *gorm.DB, ids []uint64) {
+	t.Helper()
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id IN ?", ids).Delete(&posts.Entity{})
+		conn.Unscoped().Where("id IN ?", ids).Delete(&topics.Entity{})
+	})
 }

@@ -24,7 +24,6 @@ vi.mock('../src/runtime/api', () => ({
   getTotpStatus: vi.fn(async () => ({ enabled: false })),
   listSessions: vi.fn(async () => []),
   logout: vi.fn(async () => true),
-  privacyEraseContent: vi.fn(async () => true),
   purgeDeletedContent: vi.fn(async () => true),
   resendActivationEmail: vi.fn(async () => ''),
   restoreDeletedContent: vi.fn(async () => true),

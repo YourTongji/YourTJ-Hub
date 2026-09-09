@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：300
-- /api JSON 路由：237，已入契约：238（100%），已知未覆盖：0
+- 快照路由总数：299
+- /api JSON 路由：236，已入契约：237（100%），已知未覆盖：0
 - 非 API 排除路由：62
 
-## 已覆盖（238）
+## 已覆盖（237）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -211,7 +211,6 @@
 | POST | `/api/forum/user/account-close` | `closeAccount` |
 | POST | `/api/forum/user/content-batch-delete` | `batchDeleteContent` |
 | POST | `/api/forum/user/content-event` | `reportContentEvent` |
-| POST | `/api/forum/user/content-privacy-erase` | `privacyEraseContent` |
 | POST | `/api/forum/user/content-purge` | `purgeContent` |
 | POST | `/api/forum/user/content-restore` | `restoreContent` |
 | POST | `/api/login` | `login` |

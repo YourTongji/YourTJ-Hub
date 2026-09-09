@@ -20,7 +20,7 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   registration/password recovery, mobile OIDC exchange, session management, captcha, user-card,
   profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
   bindings/unbind, and the user content lifecycle (my-content, deleted-content, restore,
-  batch-delete, purge, privacy-erase, content-event, account-close);
+  batch-delete, purge, content-event, account-close);
 - forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);

@@ -649,7 +649,6 @@
   "contentRestore": "Restore",
   "contentDelete": "Delete",
   "contentPurge": "Delete permanently",
-  "contentPrivacyErase": "Erase personal content",
   "contentDeleteConfirm": "Content moves to the recycle bin and can be restored within 30 days when eligible.",
   "contentPurgeConfirm": "This cannot be undone. Text and images will be permanently erased.",
   "contentPassword": "Enter your current password to confirm",

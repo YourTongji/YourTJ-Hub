@@ -9140,25 +9140,6 @@ PurgeContentRequest:
       description: Current account password; mandatory when force=true.
   additionalProperties: false
 
-PrivacyEraseRequest:
-  type: object
-  required: [contentType, contentId]
-  properties:
-    contentType:
-      type: string
-      enum: [topic, post]
-    contentId:
-      type: integer
-      format: uint64
-      minimum: 1
-    force:
-      type: boolean
-      description: Second-confirmation flag required once the deletion rate gate trips.
-    password:
-      type: string
-      description: Current account password; mandatory when force=true.
-  additionalProperties: false
-
 ContentEventRequest:
   type: object
   required: [eventType, contentType, contentId]

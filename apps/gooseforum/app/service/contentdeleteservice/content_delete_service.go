@@ -619,7 +619,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		// 对 ACTIVE 话题的首楼不可达：checkPurgeable 要求先进入
 		// USER_DELETED+RECOVERABLE，而首楼受 DeletePostByUser 的 PostNo<=1
 		// 守卫无法单独软删。可达的是收尾场景——首楼早已不可见、最后一条
-		// 可见回复被永久删除后联动下架（首楼场景由 PrivacyEraseContent 覆盖）。
+		// 可见回复被永久删除后联动下架。
 		cascadeHidePostlessTopic(post.TopicId, userID, reason)
 		fileusageservice.PurgeTargetFiles(postsTarget(contentID))
 		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
@@ -648,77 +648,6 @@ func checkPurgeable(visibility string, retention string) error {
 		return component.NewMessageError(component.MessageContentNotRecoverable, "该内容不允许由作者永久删除", nil)
 	}
 	return nil
-}
-
-// PrivacyEraseContent is the explicit privacy path. Unlike ordinary purge it
-// can process active user-owned content, but it always makes the row hidden,
-// unrecoverable, and clears reply body fields before downstream cleanup.
-func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint64) error {
-	const reason = "privacy_erase"
-	switch contentType {
-	case ContentTypeTopic:
-		topic := topics.UnscopedGet(contentID)
-		if topic.Id == 0 || topic.UserId != userID {
-			return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
-		}
-		if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
-		}
-		// 级联前预检：话题内同作者回复若存在治理删除（MODERATOR_REMOVED），
-		// 整体拒绝——否则作者可保留 ACTIVE 话题、让版主治理删除其一条自回复后，
-		// 再对父话题隐私擦除，级联路径会把治理删除回复改写为
-		// ACCOUNT_ANONYMIZED/PURGED 并清空正文，绕过治理证据留存（review）。
-		var topicPosts []*posts.Entity
-		if err := posts.ListUnscopedByTopicID(contentID, &topicPosts); err != nil {
-			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
-		}
-		for _, post := range topicPosts {
-			if post == nil || post.UserId != userID {
-				continue
-			}
-			if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
-				return component.NewMessageError(component.MessageContentNotRecoverable, "话题内存在治理删除的回复，不能通过隐私删除绕过审核", nil)
-			}
-		}
-		if err := topics.MarkPrivacyErased(contentID, userID, reason); err != nil {
-			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
-		}
-		for _, post := range topicPosts {
-			if post == nil || post.UserId != userID {
-				continue
-			}
-			_ = posts.MarkPrivacyErased(post.Id, userID, reason)
-			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
-		}
-		fileusageservice.PurgeTargetFiles(topicsTarget(contentID))
-		notificationservice.NullifyContentPreviews(contentID, 0)
-		clearTopicCaches(contentID)
-		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{ContentType: string(ContentTypeTopic), TopicId: contentID, DeletedBy: userID, DeleteReason: reason})
-		moderationservice.ContentPurged(userID, "topic", contentID, topic.Title, reason)
-		recordEvent(contentDeleteEvent.EventPrivacyDelete, ContentTypeTopic, contentID, contentID, userID)
-		return nil
-	case ContentTypePost:
-		post := posts.UnscopedGet(contentID)
-		if post.Id == 0 || post.UserId != userID {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
-		}
-		if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
-		}
-		if err := posts.MarkPrivacyErased(contentID, userID, reason); err != nil {
-			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
-		}
-		cascadeHidePostlessTopic(post.TopicId, userID, reason)
-		fileusageservice.PurgeTargetFiles(postsTarget(contentID))
-		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
-		clearTopicCaches(post.TopicId)
-		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{ContentType: string(ContentTypePost), TopicId: post.TopicId, PostId: contentID, DeletedBy: userID, DeleteReason: reason})
-		moderationservice.ContentPurged(userID, "post", contentID, "", reason)
-		recordEvent(contentDeleteEvent.EventPrivacyDelete, ContentTypePost, contentID, post.TopicId, userID)
-		return nil
-	default:
-		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
-	}
 }
 
 // cascadeHidePostlessTopic 在帖子被擦除/永久删除后联动下架话题（issue #492）：

@@ -1238,9 +1238,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contentPurge => '完全削除';
 
   @override
-  String get contentPrivacyErase => '個人の投稿を消去';
-
-  @override
   String get contentDeleteConfirm => 'ごみ箱に移動します。対象のコンテンツは30日以内であれば復元できます。';
 
   @override

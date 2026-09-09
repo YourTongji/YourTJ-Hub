@@ -1029,10 +1029,6 @@
   },
   {
     "method": "POST",
-    "path": "/api/forum/user/content-privacy-erase"
-  },
-  {
-    "method": "POST",
     "path": "/api/forum/user/content-purge"
   },
   {

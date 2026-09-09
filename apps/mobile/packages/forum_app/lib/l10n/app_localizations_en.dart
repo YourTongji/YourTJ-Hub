@@ -1253,9 +1253,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contentPurge => 'Delete permanently';
 
   @override
-  String get contentPrivacyErase => 'Erase personal content';
-
-  @override
   String get contentDeleteConfirm =>
       'Content moves to the recycle bin and can be restored within 30 days when eligible.';
 

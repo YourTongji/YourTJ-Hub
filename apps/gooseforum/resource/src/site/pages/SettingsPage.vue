@@ -42,7 +42,6 @@ import {
   getDeletedContent,
   purgeDeletedContent,
   restoreDeletedContent,
-  privacyEraseContent,
   getMyContent,
   batchDeleteContent,
   closeAccount,
@@ -432,7 +431,7 @@ function deletedContentTitle(item: DeletedContentItem) {
   return item.title || item.excerpt || t('settings.deleted.untitled')
 }
 
-function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge' | 'privacy') {
+function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge') {
   return `${action}:${item.contentType}:${item.id}`
 }
 
@@ -639,22 +638,6 @@ async function purgeDeletedItem(item: DeletedContentItem) {
   try {
     await purgeDeletedContent(item.contentType as DeletedContentType, item.id)
     pushFlash(t('settings.deleted.purgeSuccess'), 'success')
-    await loadDeletedContent()
-  } catch (err) {
-    pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
-  } finally {
-    deletedContentAction.value = ''
-  }
-}
-
-/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
-async function privacyEraseDeletedItem(item: DeletedContentItem) {
-  if (deletedContentAction.value) return
-  if (!window.confirm(t('settings.deleted.privacyEraseConfirm'))) return
-  deletedContentAction.value = deletedContentActionKey(item, 'privacy')
-  try {
-    await privacyEraseContent(item.contentType as DeletedContentType, item.id)
-    pushFlash(t('settings.deleted.privacyEraseSuccess'), 'success')
     await loadDeletedContent()
   } catch (err) {
     pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
@@ -2584,17 +2567,6 @@ async function toggleBinding(provider: string) {
                       <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'purge')" class="h-3.5 w-3.5 animate-spin" />
                       <Trash2 v-else class="h-3.5 w-3.5" />
                       {{ t('settings.deleted.purge') }}
-                    </button>
-                    <button
-                      type="button"
-                      class="gf-tip gf-button gf-button-sm gf-button-secondary"
-                      :data-tip="t('settings.deleted.privacyEraseHint')"
-                      :disabled="Boolean(deletedContentAction)"
-                      @click="privacyEraseDeletedItem(item)"
-                    >
-                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'privacy')" class="h-3.5 w-3.5 animate-spin" />
-                      <Shield v-else class="h-3.5 w-3.5" />
-                      {{ t('settings.deleted.privacyErase') }}
                     </button>
                   </div>
                 </div>

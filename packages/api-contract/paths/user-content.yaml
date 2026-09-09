@@ -384,88 +384,6 @@ purgeContent:
               rateLimited:
                 externalValue: ../fixtures/account-close-rate-limited.json
 
-privacyEraseContent:
-  post:
-    tags: [User]
-    summary: Privacy emergency-erase an own topic or reply
-    operationId: privacyEraseContent
-    description: |
-      Privacy emergency deletion (R8). Unlike purgeContent this also accepts
-      still-ACTIVE caller-owned content; the row is immediately hidden, made
-      unrecoverable (retention PURGED) and reply body fields are cleared across
-      all channels. Erasing a topic cascades to the caller's own replies under
-      it. The operation is refused with `content.notRecoverable` when the target
-      — or any of the caller's replies under a target topic — is
-      moderator-removed, so privacy erasure cannot destroy governance evidence.
-      It counts into the shared deletion rate window (see content-batch-delete;
-      `content.batchDelete.confirmRequired` / `auth.credentials.invalid` on the
-      force+password path). Other business failures: `topic.notFound` /
-      `post.notFound`, `content.purge.failed`, `common.request.invalidParams`.
-    security:
-      - bearerAuth: []
-      - accessTokenCookie: []
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: ../components/schemas.yaml#/PrivacyEraseRequest
-    responses:
-      '200':
-        description: Erased (messageCode `content.privacy.erased`), or a legacy business failure envelope.
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/ContentLifecycleResponse
-            examples:
-              success:
-                externalValue: ../fixtures/content-privacy-erase-success.json
-      '401':
-        description: Missing, invalid, expired, or revoked access token.
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/ApiFailure
-            examples:
-              unauthenticated:
-                externalValue: ../fixtures/auth-required.json
-      '403':
-        description: |
-          Authenticated account is frozen (`permission.userFrozen`) or its account
-          information cannot be resolved. Pending-activation accounts are
-          intentionally allowed on this endpoint (self-service escape hatch): the
-          route uses the allow-pending variant of the write gate so users who
-          cannot or will not verify their email can still emergency-erase their
-          own content. Ownership checks and the shared deletion rate window are
-          unchanged. A cross-site cookie-authenticated request (missing or
-          mismatched Origin/Referer) is rejected by the CSRF gate before the
-          handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not
-          cleared (issue #406).
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/ApiFailure
-            examples:
-              frozenAccount:
-                externalValue: ../fixtures/account-frozen.json
-              csrfRejected:
-                externalValue: ../fixtures/csrf-rejected.json
-      '429':
-        description: Interaction rate limit (action `interact`) exceeded.
-        headers:
-          Retry-After:
-            required: true
-            schema:
-              type: integer
-              minimum: 1
-        content:
-          application/json:
-            schema:
-              $ref: ../components/schemas.yaml#/RateLimitedFailure
-            examples:
-              rateLimited:
-                externalValue: ../fixtures/account-close-rate-limited.json
-
 reportContentEvent:
   post:
     tags: [User]
@@ -477,7 +395,7 @@ reportContentEvent:
       `content_delete_confirmed` are accepted; any other eventType — including
       the backend-owned lifecycle events — fails with
       `common.request.invalidParams` (HTTP 200). contentId is not checked for
-      existence. Backend state changes (delete/restore/purge/privacy-erase) are
+      existence. Backend state changes (delete/restore/purge) are
       recorded by the server itself and must not be reported here. JSON binding
       is lenient: a malformed body binds to zero values and fails validation as
       `common.request.invalidParams`.

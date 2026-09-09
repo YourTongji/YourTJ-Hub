@@ -382,7 +382,6 @@
   "contentRestore": "復元",
   "contentDelete": "削除",
   "contentPurge": "完全削除",
-  "contentPrivacyErase": "個人の投稿を消去",
   "contentDeleteConfirm": "ごみ箱に移動します。対象のコンテンツは30日以内であれば復元できます。",
   "contentPurgeConfirm": "取り消せません。文章と画像は完全に消去されます。",
   "contentPassword": "確認のため現在のパスワードを入力",
