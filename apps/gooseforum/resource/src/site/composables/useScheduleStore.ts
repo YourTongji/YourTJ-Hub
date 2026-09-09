@@ -179,6 +179,24 @@ function planNameIndex(name: string): number {
 }
 
 /**
+ * 云端分歧自动恢复（#573）：把本地方案克隆为「[本地自动恢复]方案 {n}」追加保留，
+ * 避免网络恢复补传时本地数据被云端整包覆盖丢失。克隆生成新 id；序号接续现存方案。
+ */
+export function clonePlansAsAutoRestore(source: PkPlan[], existing: PkPlan[]): PkPlan[] {
+  let max = 0
+  for (const plan of existing) {
+    const index = planNameIndex(plan.name)
+    if (index > max) max = index
+  }
+  return source.map((plan, index) => {
+    const clone = JSON.parse(JSON.stringify(plan)) as PkPlan
+    clone.id = genId('plan')
+    clone.name = i18n.global.t('schedule.planAutoRestoreName', { n: max + index + 1 })
+    return clone
+  })
+}
+
+/**
  * 推导下一个方案名：取现存方案序号最大值 +1（无匹配序号时从 1 开始）。
  * plans 传「保留后」的方案集合：删最后一个时传空数组 → 新方案回到「方案 1」，
  * 避免历史实现「方案数 +1」在删除后持续自增，以及删除中间方案后与现存方案重名。

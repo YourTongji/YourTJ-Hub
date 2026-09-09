@@ -213,3 +213,53 @@ func TestIsBotFlag(t *testing.T) {
 		t.Fatal("zero ActorType should not report IsBot")
 	}
 }
+
+func TestGetMentionTargetIds(t *testing.T) {
+	setupUserIsolationTestDB(t)
+
+	normal := MakeUser("mention-normal", "secret123", "mention-normal@example.com")
+	if err := Create(normal); err != nil {
+		t.Fatalf("create normal user: %v", err)
+	}
+
+	frozen := MakeUser("mention-frozen", "secret123", "mention-frozen@example.com")
+	frozen.IsFrozen = StatusFrozen
+	if err := Create(frozen); err != nil {
+		t.Fatalf("create frozen user: %v", err)
+	}
+
+	bot := MakeUser("mention-bot", "secret123", "mention-bot@example.com")
+	bot.ActorType = ActorTypeBot
+	if err := Create(bot); err != nil {
+		t.Fatalf("create bot user: %v", err)
+	}
+
+	deleted := MakeUser("mention-deleted", "secret123", "mention-deleted@example.com")
+	if err := Create(deleted); err != nil {
+		t.Fatalf("create deleted user: %v", err)
+	}
+	if err := builder().Delete(&EntityComplete{}, "id = ?", deleted.Id).Error; err != nil {
+		t.Fatalf("soft delete user: %v", err)
+	}
+
+	targets := GetMentionTargetIds([]string{
+		"mention-normal",
+		"mention-frozen",
+		"mention-bot",
+		"mention-deleted",
+		"mention-unknown",
+	})
+
+	if got := targets["mention-normal"]; got != normal.Id {
+		t.Fatalf("normal user id = %d, want %d", got, normal.Id)
+	}
+	for _, username := range []string{"mention-frozen", "mention-bot", "mention-deleted", "mention-unknown"} {
+		if _, ok := targets[username]; ok {
+			t.Fatalf("mention target %q must be excluded, got %+v", username, targets)
+		}
+	}
+
+	if got := GetMentionTargetIds(nil); len(got) != 0 {
+		t.Fatalf("empty usernames should return empty map, got %+v", got)
+	}
+}

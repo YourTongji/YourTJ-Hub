@@ -191,8 +191,6 @@ paths:
     $ref: ./paths/user-content.yaml#/batchDeleteContent
   /api/forum/user/content-purge:
     $ref: ./paths/user-content.yaml#/purgeContent
-  /api/forum/user/content-privacy-erase:
-    $ref: ./paths/user-content.yaml#/privacyEraseContent
   /api/forum/user/content-event:
     $ref: ./paths/user-content.yaml#/reportContentEvent
   /api/forum/user/account-close:
@@ -1639,8 +1637,6 @@ components:
       $ref: ./components/schemas.yaml#/BatchDeleteContentResponse
     PurgeContentRequest:
       $ref: ./components/schemas.yaml#/PurgeContentRequest
-    PrivacyEraseRequest:
-      $ref: ./components/schemas.yaml#/PrivacyEraseRequest
     ContentEventRequest:
       $ref: ./components/schemas.yaml#/ContentEventRequest
     AccountCloseRequest:

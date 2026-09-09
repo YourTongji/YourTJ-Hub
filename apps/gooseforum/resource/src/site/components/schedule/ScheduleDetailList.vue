@@ -6,9 +6,11 @@
 // 点击「查看课评」或班级评分胶囊时，以伴随浮动面板展开（复用 RatingSummaryCard 与
 // CoursePreviewPane 交互语言），双栏独立滚动且避免任何容器裁切与屏幕溢出；
 // 移动端（<lg）：采用轻量抽屉图层覆盖展示，提供「返回班级列表」导航，不挤压窄屏宽度。
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ScheduleMiniPreviewPopover from './ScheduleMiniPreviewPopover.vue'
 import {
+  AlertTriangle,
   BookOpen,
   CalendarDays,
   Check,
@@ -33,7 +35,12 @@ import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import { listCourseReviews, type ReviewPage, type ReviewPayload } from '@/runtime/api'
 import { reviewAvatarSrc } from '@/site/utils/course-review-share'
-import { getCourseBaseCode, type PkConflictItem } from '@/site/utils/pkConflict'
+import {
+  findClassConflicts,
+  getCourseBaseCode,
+  isArrangementConflicted,
+  type PkConflictItem,
+} from '@/site/utils/pkConflict'
 import { sortPlannedFirst } from '@/site/utils/pkCourseOrder'
 import type { PkArrangement, PkCourseDetail, PkCourseReviewBrief, PkReviewBriefClass } from '@/site/types/pk'
 
@@ -345,10 +352,21 @@ async function loadBrief(courseCode: string) {
   }
 }
 
+const miniPreviewOpen = ref(false)
+const previewAnchorEl = ref<HTMLElement | null>(null)
+const previewStagedDetail = ref<PkCourseDetail | null>(null)
+let previewTimer: ReturnType<typeof setTimeout> | undefined
+
+onBeforeUnmount(() => {
+  if (previewTimer) clearTimeout(previewTimer)
+})
+
 watch(
   () => store.state.clickedCourseInfo.courseCode,
   (code) => {
     activeClassCode.value = null
+    if (previewTimer) clearTimeout(previewTimer)
+    miniPreviewOpen.value = false
     if (code) void loadBrief(code)
   },
   { immediate: true },
@@ -397,17 +415,63 @@ function isClassAdded(detail: PkCourseDetail): boolean {
   return store.state.timeTableData.some((c) => normalizeClassCode(c.code) === target)
 }
 
-function tryStage(detail: PkCourseDetail) {
+/** 当前教学班列表冲突映射表（缓存计算结果，消除多处模板调用引起的重复计算与布局抖动）。 */
+const detailConflictsMap = computed(() => {
+  const map = new Map<string, PkConflictItem[]>()
+  for (const d of orderedCourseDetails.value) {
+    map.set(d.code, findClassConflicts(d, store.state.occupied))
+  }
+  return map
+})
+
+/** 计算某个教学班与当前课表的冲突列表（排除同门课程自身的换班替换）。 */
+function classConflicts(detail: PkCourseDetail): PkConflictItem[] {
+  return detailConflictsMap.value.get(detail.code) ?? []
+}
+
+/** 判断某个教学时段是否与课表中已有课程冲突（排除同门课程自身）。 */
+function isArrSlotConflicted(arr: PkArrangement, detailCode: string): boolean {
+  return isArrangementConflicted(arr, detailCode, store.state.occupied)
+}
+
+/** 格式化冲突摘要提示文本。 */
+function formatConflictText(conflicts: PkConflictItem[]): string {
+  if (!conflicts.length) return ''
+  const first = conflicts[0].courseName || conflicts[0].code
+  if (conflicts.length === 1) {
+    return t('schedule.conflictBanner', { course: first })
+  }
+  return t('schedule.conflictsBanner', { course: first, count: conflicts.length })
+}
+
+/** 冲突课程完整列表（用于 tooltip hover title）。 */
+function conflictTitle(conflicts: PkConflictItem[]): string {
+  return conflicts.map((c) => c.courseName || c.code).join('、')
+}
+
+function tryStage(detail: PkCourseDetail, event?: MouseEvent) {
   // 若该班已加入课表，再次点击触发退选当前班，提供双向便捷反选
   if (isClassAdded(detail)) {
     const courseCode = currentCourse.value?.courseCode || getCourseBaseCode(detail.code)
     store.clearStagedCourseClass(courseCode)
     store.solidify()
+    if (previewTimer) clearTimeout(previewTimer)
+    miniPreviewOpen.value = false
     return
   }
   // 容忍式：总是入表；冲突仅作 flash 提示（deriveConflicts 负责课表/列表/统计标注）。
   const result = store.stageCourse(detail)
   store.solidify()
+
+  // 延迟响应预览气泡：捕获点击按钮元素，弹出缩略课表预览
+  const buttonEl = (event?.currentTarget as HTMLElement) ?? null
+  if (previewTimer) clearTimeout(previewTimer)
+  previewStagedDetail.value = detail
+  previewAnchorEl.value = buttonEl
+  previewTimer = setTimeout(() => {
+    miniPreviewOpen.value = true
+  }, 180)
+
   if (result.conflicts && result.conflicts.length > 0) {
     emit('conflict', detail, result.conflicts)
     return
@@ -483,15 +547,26 @@ function tryStage(detail: PkCourseDetail) {
           class="group relative rounded-xl border p-3.5 sm:p-4 shadow-xs transition-all cursor-pointer select-none"
           :class="[
             activeClassCode && normalizeClassCode(detail.code) === normalizeClassCode(activeClassCode)
-              ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04] shadow-sm'
+              ? (!isClassAdded(detail) && classConflicts(detail).length > 0
+                  ? 'border-error ring-2 ring-error/40 bg-error/[0.04] shadow-sm'
+                  : 'border-primary ring-2 ring-primary/40 bg-primary/[0.04] shadow-sm')
               : isClassAdded(detail)
                 ? 'border-primary/60 bg-primary/[0.03] ring-1 ring-primary/20 hover:border-primary'
-                : 'border-line/70 bg-base-100 hover:border-primary/50 hover:bg-base-200/40 hover:shadow-xs'
+                : classConflicts(detail).length > 0
+                  ? 'border-error/45 bg-error/[0.02] ring-1 ring-error/20 hover:border-error/70 hover:bg-error/[0.04]'
+                  : 'border-line/70 bg-base-100 hover:border-primary/50 hover:bg-base-200/40 hover:shadow-xs'
           ]"
           @click="onSelectClassCard(detail)"
         >
+          <!-- 冲突遮罩层：轻量红晕渐变，pointer-events-none 保证非阻塞交互 -->
+          <div
+            v-if="!isClassAdded(detail) && classConflicts(detail).length > 0"
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-error/[0.06] via-error/[0.02] to-transparent transition-opacity"
+          />
+
           <!-- 卡片顶栏：班级代码 + 状态 Badge + 预览指示器 + 课评小胶囊 + 选课主操作 -->
-          <div class="flex items-center justify-between gap-2.5">
+          <div class="relative z-10 flex items-center justify-between gap-2.5">
             <div class="flex min-w-0 flex-wrap items-center gap-2">
               <span class="font-bold tabular-nums text-sm text-base-content">
                 {{ detail.code }}
@@ -507,7 +582,10 @@ function tryStage(detail: PkCourseDetail) {
               </span>
               <span
                 v-if="activeClassCode && normalizeClassCode(detail.code) === normalizeClassCode(activeClassCode)"
-                class="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary"
+                class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
+                :class="!isClassAdded(detail) && classConflicts(detail).length > 0
+                  ? 'bg-error/15 text-error'
+                  : 'bg-primary/10 text-primary'"
               >
                 <Eye class="h-3 w-3" />
                 <span>{{ t('schedule.previewing') }}</span>
@@ -543,25 +621,49 @@ function tryStage(detail: PkCourseDetail) {
                 </a>
               </template>
 
-              <!-- 选班核心操作按钮（已加入：深色/Primary + Check 强调稳固态；未加入：Secondary + Plus 引导交互） -->
+              <!-- 选班核心操作按钮（已加入：深色/Primary + Check 强调稳固态；未加入且冲突：轻量红警示；未加入正常：Secondary + Plus） -->
               <button
                 type="button"
                 class="gf-button gf-button-xs shrink-0 whitespace-nowrap px-3 text-xs font-semibold transition-all duration-150 active:scale-[0.96]"
                 :class="isClassAdded(detail)
                   ? 'gf-button-primary shadow-xs'
-                  : 'gf-button-secondary border border-line/80 hover:border-primary/50 hover:bg-base-200/70 text-base-content/90'"
-                :title="isClassAdded(detail) ? t('schedule.statusAdded') : t('schedule.clickToStage')"
-                @click.stop="tryStage(detail)"
+                  : classConflicts(detail).length > 0
+                    ? 'border border-error/45 bg-error/10 text-error hover:bg-error/20 hover:border-error active:bg-error/25'
+                    : 'gf-button-secondary border border-line/80 hover:border-primary/50 hover:bg-base-200/70 text-base-content/90'"
+                :title="isClassAdded(detail)
+                  ? t('schedule.statusAdded')
+                  : classConflicts(detail).length > 0
+                    ? t('schedule.clickToStageConflictHint')
+                    : t('schedule.clickToStage')"
+                @click.stop="tryStage(detail, $event)"
               >
                 <Check v-if="isClassAdded(detail)" class="h-3.5 w-3.5 shrink-0 stroke-[2.2]" />
+                <AlertTriangle v-else-if="classConflicts(detail).length > 0" class="h-3.5 w-3.5 shrink-0 stroke-[2.2]" />
                 <Plus v-else class="h-3.5 w-3.5 shrink-0 stroke-[2.2]" />
                 <span>{{ isClassAdded(detail) ? t('schedule.statusAdded') : t('schedule.clickToStage') }}</span>
               </button>
             </div>
           </div>
 
+          <!-- 预选冲突醒目克制提示条 -->
+          <div
+            v-if="!isClassAdded(detail) && classConflicts(detail).length > 0"
+            class="relative z-10 mt-2 flex items-center justify-between gap-2 rounded-lg border border-error/25 bg-error/10 px-2.5 py-1.5 text-xs text-error transition-colors"
+            :title="conflictTitle(classConflicts(detail))"
+          >
+            <div class="flex min-w-0 items-center gap-1.5">
+              <AlertTriangle class="h-3.5 w-3.5 shrink-0 stroke-[2.2] text-error" />
+              <span class="truncate font-medium">
+                {{ formatConflictText(classConflicts(detail)) }}
+              </span>
+            </div>
+            <span class="shrink-0 rounded bg-error/15 px-1.5 py-0.5 text-[11px] font-semibold text-error/90 tabular-nums">
+              {{ t('schedule.conflictCanAdd') }}
+            </span>
+          </div>
+
           <!-- 教师与授课校区/语言信息 -->
-          <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/70">
+          <div class="relative z-10 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/70">
             <span v-if="teacherText(detail)" class="flex items-center gap-1 font-medium text-base-content/90">
               <Users class="h-3.5 w-3.5 text-base-content/45 shrink-0" />
               {{ t('schedule.teacherWith', { value: teacherText(detail) }) }}
@@ -575,19 +677,40 @@ function tryStage(detail: PkCourseDetail) {
             </span>
           </div>
 
-          <!-- 排课时间胶囊（独立分词展示，告别生硬分号字符串） -->
-          <div v-if="detail.arrangementInfo.length" class="mt-2.5 flex flex-wrap gap-1.5">
+          <!-- 排课时间胶囊（独立分词展示，冲突时段呈现专属微警示视觉） -->
+          <div v-if="detail.arrangementInfo.length" class="relative z-10 mt-2.5 flex flex-wrap gap-1.5">
             <div
               v-for="(arr, idx) in detail.arrangementInfo"
               :key="idx"
-              class="inline-flex items-center gap-1.5 rounded-lg border border-line/60 bg-base-200/50 px-2 py-1 text-xs text-base-content/85"
+              class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors"
+              :class="!isClassAdded(detail) && isArrSlotConflicted(arr, detail.code)
+                ? 'border-error/35 bg-error/10 text-error font-medium'
+                : 'border-line/60 bg-base-200/50 text-base-content/85'"
             >
-              <CalendarDays class="h-3.5 w-3.5 text-primary/70 shrink-0" />
+              <AlertTriangle
+                v-if="!isClassAdded(detail) && isArrSlotConflicted(arr, detail.code)"
+                class="h-3.5 w-3.5 text-error shrink-0"
+              />
+              <CalendarDays
+                v-else
+                class="h-3.5 w-3.5 text-primary/70 shrink-0"
+              />
               <span class="font-medium">{{ formatArrSlot(arr).day }} {{ formatArrSlot(arr).sections }}</span>
-              <span v-if="formatArrSlot(arr).weeks" class="rounded bg-base-300/60 px-1 py-0.5 text-[11px] tabular-nums text-base-content/60">
+              <span
+                v-if="formatArrSlot(arr).weeks"
+                class="rounded px-1 py-0.5 text-[11px] tabular-nums"
+                :class="!isClassAdded(detail) && isArrSlotConflicted(arr, detail.code)
+                  ? 'bg-error/20 text-error'
+                  : 'bg-base-300/60 text-base-content/60'"
+              >
                 {{ formatArrSlot(arr).weeks }}
               </span>
-              <span v-if="formatArrSlot(arr).room" class="text-base-content/65">
+              <span
+                v-if="formatArrSlot(arr).room"
+                :class="!isClassAdded(detail) && isArrSlotConflicted(arr, detail.code)
+                  ? 'text-error/80'
+                  : 'text-base-content/65'"
+              >
                 {{ formatArrSlot(arr).room }}
               </span>
             </div>
@@ -966,5 +1089,15 @@ function tryStage(detail: PkCourseDetail) {
         </template>
       </div>
     </aside>
+
+    <!-- 教学班加入课表后的缩略课表预览气泡（延迟响应 + 防裁切 + 闪烁高亮 + 智能避让） -->
+    <ScheduleMiniPreviewPopover
+      :open="miniPreviewOpen"
+      :anchor-el="previewAnchorEl"
+      :staged-detail="previewStagedDetail"
+      :course-name="currentCourse?.courseNameReserved || store.state.clickedCourseInfo.courseName"
+      :is-review-open="isReviewOpen"
+      @close="miniPreviewOpen = false"
+    />
   </div>
 </template>

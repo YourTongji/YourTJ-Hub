@@ -957,6 +957,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleConflictBadge => '冲突';
 
   @override
+  String scheduleConflictWith(String course) {
+    return '与「$course」时间冲突';
+  }
+
+  @override
+  String scheduleConflictsWith(String course, int count) {
+    return '与「$course」等$count门课程冲突';
+  }
+
+  @override
+  String get scheduleConflictCanAdd => '仍可加入';
+
+  @override
   String get scheduleAddCustomEvent => '添加占位';
 
   @override
@@ -1234,9 +1247,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contentPurge => '永久删除';
-
-  @override
-  String get contentPrivacyErase => '隐私清除';
 
   @override
   String get contentDeleteConfirm => '内容会移入回收站，符合恢复条件时可在 30 天内恢复。';

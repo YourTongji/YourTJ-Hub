@@ -537,6 +537,26 @@
   "scheduleStatsHours": "学时",
   "scheduleStatsConflicts": "冲突",
   "scheduleConflictBadge": "冲突",
+  "scheduleConflictWith": "与「{course}」时间冲突",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "与「{course}」等{count}门课程冲突",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "仍可加入",
   "scheduleAddCustomEvent": "添加占位",
   "scheduleCustomEventLabel": "有事",
   "scheduleExportPng": "导出图片",
@@ -649,7 +669,6 @@
   "contentRestore": "恢复",
   "contentDelete": "删除",
   "contentPurge": "永久删除",
-  "contentPrivacyErase": "隐私清除",
   "contentDeleteConfirm": "内容会移入回收站，符合恢复条件时可在 30 天内恢复。",
   "contentPurgeConfirm": "此操作不可撤销。正文和图片将被永久清除。",
   "contentPassword": "请输入当前密码以确认操作",

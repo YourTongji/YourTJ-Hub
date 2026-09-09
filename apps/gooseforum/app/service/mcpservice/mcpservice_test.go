@@ -19,6 +19,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -39,6 +40,7 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 		&userStatistics.Entity{},
 		&agents.Entity{},
 		&topics.Entity{},
+		&topicUserStat.Entity{},
 		&postRevisions.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
@@ -60,6 +62,7 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 }
 
 func cleanMCPServiceTables(conn *gorm.DB) {
+	conn.Where("1 = 1").Delete(&topicUserStat.Entity{})
 	conn.Where("1 = 1").Delete(&posts.Entity{})
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 	conn.Where("1 = 1").Delete(&postRevisions.Entity{})
@@ -297,7 +300,7 @@ func TestCreatePostTool(t *testing.T) {
 		t.Fatalf("call create_post: %v", err)
 	}
 	if res.IsError {
-		t.Fatalf("create_post returned error: %+v", res.Content)
+		t.Fatalf("create_post returned error: %s", mustJSON(res.Content))
 	}
 	out := res.StructuredContent.(map[string]any)
 	if id := asUint(out["id"]); id == 0 {

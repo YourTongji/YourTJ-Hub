@@ -971,6 +971,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleConflictBadge => 'Conflict';
 
   @override
+  String scheduleConflictWith(String course) {
+    return 'Conflicts with \"$course\"';
+  }
+
+  @override
+  String scheduleConflictsWith(String course, int count) {
+    return 'Conflicts with \"$course\" and $count other courses';
+  }
+
+  @override
+  String get scheduleConflictCanAdd => 'Can still add';
+
+  @override
   String get scheduleAddCustomEvent => 'Add placeholder';
 
   @override
@@ -1251,9 +1264,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get contentPurge => 'Delete permanently';
-
-  @override
-  String get contentPrivacyErase => 'Erase personal content';
 
   @override
   String get contentDeleteConfirm =>

@@ -161,12 +161,12 @@ const (
 
 // BatchDeleteContent 批量删除本人内容（R9）。
 // 10 分钟内删除超过 20 条时要求二次确认：force=true 且校验当前用户密码
-// （防止账号被盗后无脑清空）。单条删除端点与隐私擦除同样计入该窗口。
+// （防止账号被盗后无脑清空）。单条删除端点同样计入该窗口。
 func BatchDeleteContent(req component.BetterRequest[BatchDeleteContentReq]) component.Response {
 	if len(req.Params.ContentIDs) == 0 {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	// 频率窗口同时计入普通删除与隐私紧急删除（PRD R9），避免通过隐私删除绕过限速。
+	// 频率窗口计入普通删除与级联下架事件（PRD R9），避免删除动作绕过限速。
 	if err := contentdeleteservice.CheckDeleteRate(req.UserId, len(req.Params.ContentIDs), req.Params.Force, req.Params.Password); err != nil {
 		return component.FailResponseError(err)
 	}
@@ -411,25 +411,6 @@ func PurgeContent(req component.BetterRequest[PurgeContentReq]) component.Respon
 		return component.FailResponseError(err)
 	}
 	return component.SuccessResponseCode("操作成功", component.MessageContentPurgeSuccess, nil)
-}
-
-// PrivacyEraseReq 隐私紧急删除请求（R8，跳过恢复窗口立即彻底删除）。
-type PrivacyEraseReq struct {
-	ContentType string `json:"contentType" validate:"required,oneof=topic post"`
-	ContentID   uint64 `json:"contentId" validate:"required"`
-	Force       bool   `json:"force"`
-	Password    string `json:"password"`
-}
-
-// PrivacyErase 隐私紧急删除（R8）：与永久删除等价，但更强调全渠道立即清除。
-func PrivacyErase(req component.BetterRequest[PrivacyEraseReq]) component.Response {
-	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
-		return component.FailResponseError(err)
-	}
-	if err := contentdeleteservice.PrivacyEraseContent(req.UserId, contentdeleteservice.ContentType(req.Params.ContentType), req.Params.ContentID); err != nil {
-		return component.FailResponseError(err)
-	}
-	return component.SuccessResponseCode("操作成功", component.MessageContentPrivacyErased, nil)
 }
 
 func formatDeletedAt(t time.Time) string {

@@ -1930,36 +1930,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/forum/user/content-privacy-erase": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Privacy emergency-erase an own topic or reply
-         * @description Privacy emergency deletion (R8). Unlike purgeContent this also accepts
-         *     still-ACTIVE caller-owned content; the row is immediately hidden, made
-         *     unrecoverable (retention PURGED) and reply body fields are cleared across
-         *     all channels. Erasing a topic cascades to the caller's own replies under
-         *     it. The operation is refused with `content.notRecoverable` when the target
-         *     — or any of the caller's replies under a target topic — is
-         *     moderator-removed, so privacy erasure cannot destroy governance evidence.
-         *     It counts into the shared deletion rate window (see content-batch-delete;
-         *     `content.batchDelete.confirmRequired` / `auth.credentials.invalid` on the
-         *     force+password path). Other business failures: `topic.notFound` /
-         *     `post.notFound`, `content.purge.failed`, `common.request.invalidParams`.
-         */
-        post: operations["privacyEraseContent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/forum/user/content-event": {
         parameters: {
             query?: never;
@@ -1976,7 +1946,7 @@ export interface paths {
          *     `content_delete_confirmed` are accepted; any other eventType — including
          *     the backend-owned lifecycle events — fails with
          *     `common.request.invalidParams` (HTTP 200). contentId is not checked for
-         *     existence. Backend state changes (delete/restore/purge/privacy-erase) are
+         *     existence. Backend state changes (delete/restore/purge) are
          *     recorded by the server itself and must not be reported here. JSON binding
          *     is lenient: a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams`.
@@ -10009,16 +9979,6 @@ export interface components {
             /** @description Current account password; mandatory when force=true. */
             password?: string;
         };
-        PrivacyEraseRequest: {
-            /** @enum {string} */
-            contentType: "topic" | "post";
-            /** Format: uint64 */
-            contentId: number;
-            /** @description Second-confirmation flag required once the deletion rate gate trips. */
-            force?: boolean;
-            /** @description Current account password; mandatory when force=true. */
-            password?: string;
-        };
         ContentEventRequest: {
             /**
              * @description Frontend telemetry event; backend-owned lifecycle events are rejected with `common.request.invalidParams`.
@@ -10220,6 +10180,11 @@ export interface components {
              * @description Published replies that day; 0 when no stat row exists.
              */
             replyCount: number;
+            /**
+             * Format: int64
+             * @description Published course reviews that day; 0 when no stat row exists.
+             */
+            courseReviewCount: number;
         };
         AdminOptRecordItem: {
             /** Format: uint64 */
@@ -13848,69 +13813,6 @@ export interface operations {
                 };
             };
             /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Interaction rate limit (action `interact`) exceeded. */
-            429: {
-                headers: {
-                    "Retry-After": number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimitedFailure"];
-                };
-            };
-        };
-    };
-    privacyEraseContent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PrivacyEraseRequest"];
-            };
-        };
-        responses: {
-            /** @description Erased (messageCode `content.privacy.erased`), or a legacy business failure envelope. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContentLifecycleResponse"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /**
-             * @description Authenticated account is frozen (`permission.userFrozen`) or its account
-             *     information cannot be resolved. Pending-activation accounts are
-             *     intentionally allowed on this endpoint (self-service escape hatch): the
-             *     route uses the allow-pending variant of the write gate so users who
-             *     cannot or will not verify their email can still emergency-erase their
-             *     own content. Ownership checks and the shared deletion rate window are
-             *     unchanged. A cross-site cookie-authenticated request (missing or
-             *     mismatched Origin/Referer) is rejected by the CSRF gate before the
-             *     handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not
-             *     cleared (issue #406).
-             */
             403: {
                 headers: {
                     [name: string]: unknown;

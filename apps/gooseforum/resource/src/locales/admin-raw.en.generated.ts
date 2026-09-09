@@ -63,7 +63,7 @@ export default {
   "k001q": "New posts",
   "k001r": "New replies",
   "k001s": "Traffic overview",
-  "k001t": "Growth trend of registered users, posts, and replies",
+  "k001t": "Growth trend of registered users, posts, replies, and course reviews",
   "k001u": "Operation failed",
   "k001v": "Special sponsors",
   "k001w": "Gold sponsors",
@@ -884,4 +884,5 @@ export default {
   "k00un": "Sensitive words may be multi-word phrases: entries are split only by newlines, commas or semicolons, and spaces inside an entry are preserved (e.g. credit card cash out imports as one phrase).",
   "k00uo": "Unsupported extension: {extensions}. Only JPG, JPEG, PNG, GIF, WebP and BMP are allowed",
   "k00up": "Links support only absolute http(s) URLs or in-site relative paths (mailto: for contact buttons). Protocols like javascript:/data: are not allowed.",
+  "k00uq": "Course reviews",
 } as const

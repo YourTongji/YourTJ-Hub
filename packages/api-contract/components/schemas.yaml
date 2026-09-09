@@ -6149,7 +6149,7 @@ AdminTrafficOverviewRequest:
 
 AdminDailyTraffic:
   type: object
-  required: [date, regCount, topicCount, replyCount]
+  required: [date, regCount, topicCount, replyCount, courseReviewCount]
   properties:
     date:
       type: string
@@ -6169,6 +6169,11 @@ AdminDailyTraffic:
       format: int64
       minimum: 0
       description: Published replies that day; 0 when no stat row exists.
+    courseReviewCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Published course reviews that day; 0 when no stat row exists.
   additionalProperties: false
 
 AdminTrafficOverviewResponse:
@@ -9132,25 +9137,6 @@ PurgeContentRequest:
     reason:
       type: string
       description: Optional audit text recorded with the purge.
-    force:
-      type: boolean
-      description: Second-confirmation flag required once the deletion rate gate trips.
-    password:
-      type: string
-      description: Current account password; mandatory when force=true.
-  additionalProperties: false
-
-PrivacyEraseRequest:
-  type: object
-  required: [contentType, contentId]
-  properties:
-    contentType:
-      type: string
-      enum: [topic, post]
-    contentId:
-      type: integer
-      format: uint64
-      minimum: 1
     force:
       type: boolean
       description: Second-confirmation flag required once the deletion rate gate trips.

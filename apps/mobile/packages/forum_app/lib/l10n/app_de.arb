@@ -291,6 +291,26 @@
   "scheduleStatsHours": "Stunden",
   "scheduleStatsConflicts": "Konflikte",
   "scheduleConflictBadge": "Konflikt",
+  "scheduleConflictWith": "Zeitkonflikt mit \"{course}\"",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "Zeitkonflikt mit \"{course}\" und {count} weiteren Kursen",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "Kann trotzdem hinzugefügt werden",
   "scheduleAddCustomEvent": "Platzhalter hinzufügen",
   "scheduleCustomEventLabel": "Beschäftigt",
   "scheduleExportPng": "Bild exportieren",
@@ -382,7 +402,6 @@
   "contentRestore": "Wiederherstellen",
   "contentDelete": "Löschen",
   "contentPurge": "Endgültig löschen",
-  "contentPrivacyErase": "Eigene Inhalte löschen",
   "contentDeleteConfirm": "Der Inhalt wird in den Papierkorb verschoben und kann, sofern zulässig, innerhalb von 30 Tagen wiederhergestellt werden.",
   "contentPurgeConfirm": "Dies kann nicht rückgängig gemacht werden. Text und Bilder werden endgültig gelöscht.",
   "contentPassword": "Zur Bestätigung aktuelles Passwort eingeben",

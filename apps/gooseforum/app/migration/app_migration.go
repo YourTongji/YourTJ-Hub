@@ -383,6 +383,29 @@ func runVersionedDataMigrations() error {
 		}
 		currentVersion = 28
 	}
+	if currentVersion < 29 {
+		// 存量话题派生统计回填 v29（issue #554）：legacy articles.posters 只存
+		// 楼主，v5 迁移原样拷入 topics.posters；增量路径只在新回复/删回复时
+		// 修复，存量多回复话题首页参与人列长期只显示楼主。从 active posts
+		// 绝对重建 topic_user_stat + posters（复用 postservice.RebuildTopicPostStats
+		// 口径：楼主置前 + 非匿名回复者 top-3，匿名/治理删除楼层排除）。
+		// 幂等：逐话题绝对写，posters 未变化的话题不计为修复。
+		statsResult := datamigration.BackfillTopicPostStats()
+		slog.Info("app migration topic post stats backfill done",
+			"topicsScanned", statsResult.TopicsScanned,
+			"postersRepaired", statsResult.PostersRepaired,
+			"failed", statsResult.Failed,
+			"lastFailed", statsResult.LastFailed)
+		if statsResult.Failed > 0 {
+			slog.Error("app migration topic post stats backfill has failures", "failed", statsResult.Failed, "lastFailed", statsResult.LastFailed)
+			return dataMigrationError("topic post stats backfill", 29, statsResult.Failed, statsResult.LastFailed)
+		}
+		if err := pageConfig.SyncMigrationVersion(29); err != nil {
+			slog.Error("app migration sync migration version failed", "version", 29, "err", err)
+			return fmt.Errorf("app migration v29 sync migration version: %w", err)
+		}
+		currentVersion = 29
+	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil
 }

@@ -12,7 +12,7 @@ import {
   DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger,
 } from 'reka-ui'
-import { Download, Loader2, RefreshCw, Star, X } from '@lucide/vue'
+import { CloudUpload, Download, Loader2, RefreshCw, Star, X } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import ScheduleConfigSection from '@/site/components/schedule/ScheduleConfigSection.vue'
 import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
@@ -23,7 +23,6 @@ import ScheduleCoursePicker from '@/site/components/schedule/ScheduleCoursePicke
 import ScheduleCellPicker from '@/site/components/schedule/ScheduleCellPicker.vue'
 import ScheduleCustomEventDialog from '@/site/components/schedule/ScheduleCustomEventDialog.vue'
 import ScheduleDetailCard from '@/site/components/schedule/ScheduleDetailCard.vue'
-import ScheduleSyncConflictDialog from '@/site/components/schedule/ScheduleSyncConflictDialog.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { scheduleSync, startScheduleSync, stopScheduleSync } from '@/site/composables/useScheduleSync'
 import { getPkLatestUpdate, syncPkCourseInfo } from '@/runtime/pk-api'
@@ -85,10 +84,29 @@ const cellPick = ref<{ day: number; section: number } | null>(null)
 /** 同时段替换目标课程（从 ScheduleDetailCard 点击「同时段替换」发起） */
 const replacingCourse = ref<PkCourseOnTable | null>(null)
 
-const dataOutdated = computed(() => store.state.flags.isDataOutdated)
+const syncing = ref(false)
 
 function flash(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
   queueFlashMessage(message, type)
+}
+
+/** 自动恢复提示（#573）：云端分歧时本地方案已保留为恢复方案 → 非阻塞 toast。 */
+watch(scheduleSync.notice, (message) => {
+  if (!message) return
+  flash(t('schedule.syncAutoRestored', { name: message }), 'info')
+  scheduleSync.clearNotice()
+})
+
+watch(scheduleSync.mergeBlocked, (blocked) => {
+  if (blocked) flash(t('schedule.syncMergeLimit'), 'error')
+})
+
+/** 手动保存（「保存课表」按钮）：立即上传本地方案到云端。 */
+async function saveTimetableNow() {
+  const adoptPreviousOwner = scheduleSync.needsOwnerConfirmation()
+  if (adoptPreviousOwner && !window.confirm(t('schedule.syncAdoptPreviousOwner'))) return
+  const ok = await scheduleSync.saveNow(adoptPreviousOwner)
+  flash(ok ? t('schedule.syncSaved') : t('schedule.syncSaveFailed'), ok ? 'success' : 'error')
 }
 
 /** 学期字典由 MajorSelector 的 loadCalendars 回填 store（P1 含起止日期），
@@ -117,8 +135,6 @@ async function checkDataOutdated() {
   }
 }
 
-const syncing = ref(false)
-
 /** 全方案课程并集（同步请求用）。 */
 function allPlansCourseCodes(): { majorCodes: string[]; otherCodes: string[] } {
   const major = new Set<string>()
@@ -135,6 +151,9 @@ function allPlansCourseCodes(): { majorCodes: string[]; otherCodes: string[] } {
 
 async function syncLatest() {
   if (syncing.value) return // 防重入
+  // 同步最新（#573）：按钮常驻可见，点击后重跑云端方案同步（GET + 总是上传本地），
+  // 再刷新课程信息；两者互不阻塞。
+  void scheduleSync.syncOnPageEnter()
   const calendarId = store.state.majorSelected.calendarId
   const { majorCodes, otherCodes } = allPlansCourseCodes()
   if (calendarId === undefined || (majorCodes.length === 0 && otherCodes.length === 0)) {
@@ -298,15 +317,22 @@ onBeforeUnmount(() => {
       <template #actions>
         <div class="flex flex-wrap items-center gap-2">
           <button
-            v-if="dataOutdated"
             type="button"
-            class="gf-button gf-button-md gf-button-primary"
+            class="gf-button gf-button-md gf-button-outline"
             :disabled="syncing"
             @click="syncLatest"
           >
             <Loader2 v-if="syncing" class="h-4 w-4 animate-spin" />
             <RefreshCw v-else class="h-4 w-4" />
             {{ syncing ? t('schedule.syncSyncing') : t('schedule.syncLatest') }}
+          </button>
+          <button
+            type="button"
+            class="gf-button gf-button-md gf-button-primary"
+            @click="saveTimetableNow"
+          >
+            <CloudUpload class="h-4 w-4" />
+            {{ t('schedule.saveTimetable') }}
           </button>
           <DropdownMenuRoot :modal="false">
             <DropdownMenuTrigger as-child>
@@ -419,9 +445,6 @@ onBeforeUnmount(() => {
     />
     <ScheduleCustomEventDialog :open="customizeOpen" @close="customizeOpen = false" />
     <ScheduleDetailCard :course="detailCourse" @close="detailCourse = null" @replace="handleReplaceCourse" />
-
-    <!-- 云同步冲突弹窗：本地与云端方案分歧时二选一（状态源 scheduleSync 单例） -->
-    <ScheduleSyncConflictDialog />
 
     <!-- 选择教学班弹窗：点击已选课程弹出（浮动，取代内联班级列） -->
     <DialogRoot :open="classPickOpen" @update:open="classPickOpen = $event">

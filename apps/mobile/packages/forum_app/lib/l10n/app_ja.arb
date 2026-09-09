@@ -291,6 +291,26 @@
   "scheduleStatsHours": "合計時限",
   "scheduleStatsConflicts": "重複",
   "scheduleConflictBadge": "時間重複",
+  "scheduleConflictWith": "「{course}」と時間重複",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "「{course}」など{count}件と時間重複",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "追加可能",
   "scheduleAddCustomEvent": "予定枠を追加",
   "scheduleCustomEventLabel": "予定あり",
   "scheduleExportPng": "画像を出力",
@@ -382,7 +402,6 @@
   "contentRestore": "復元",
   "contentDelete": "削除",
   "contentPurge": "完全削除",
-  "contentPrivacyErase": "個人の投稿を消去",
   "contentDeleteConfirm": "ごみ箱に移動します。対象のコンテンツは30日以内であれば復元できます。",
   "contentPurgeConfirm": "取り消せません。文章と画像は完全に消去されます。",
   "contentPassword": "確認のため現在のパスワードを入力",

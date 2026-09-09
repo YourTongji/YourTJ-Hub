@@ -48,11 +48,10 @@ class ContentRepository {
 
   Future<void> purge(
     UserContentItem item, {
-    bool privacy = false,
     String? password,
   }) async {
     await _client.post<Object?>(
-      '$_base/${privacy ? 'content-privacy-erase' : 'content-purge'}',
+      '$_base/content-purge',
       body: {
         'contentType': item.contentType,
         'contentId': item.id,

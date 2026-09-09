@@ -147,11 +147,11 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 			}
 		}
 		deletedCount := posts.SoftDeleteByIDs(activePostIDs, operatorID, cascadeReason, visibility)
+		postservice.SyncTopicPostStats(topic)
 		for _, post := range activePosts {
 			if post == nil || post.UserId == 0 {
 				continue
 			}
-			postservice.SyncTopicPostStats(topic, *post, true)
 			fileusageservice.HardenTargetFiles(postsTarget(post.Id), time.Now().Add(RecoveryWindow))
 		}
 		slog.Info("topic deleted without replies, cascade posts", "topicId", topic.Id, "posts", deletedCount)
@@ -274,7 +274,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, post, true)
+		postservice.SyncTopicPostStats(topicEntity)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
@@ -338,7 +338,7 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, post, true)
+		postservice.SyncTopicPostStats(topicEntity)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 	}
@@ -408,9 +408,10 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		reapplyPostReward(post.UserId, post.Id)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
-			var activePosts []*posts.Entity
-			if err := posts.ListByTopicID(topicEntity.Id, &activePosts); err == nil {
-				_ = postservice.RebuildTopicPostStats(topicEntity, activePosts)
+			// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写
+			// 原子提交（PR #575 review P1）。
+			if err := postservice.RebuildTopicPostStats(topicEntity); err != nil {
+				slog.Error("failed to rebuild topic stats after post restore", "topicId", topicEntity.Id, "error", err)
 			}
 			hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 			llmsservice.ClearCache()
@@ -460,7 +461,9 @@ func restoreTopicPosts(topicID uint64, operatorID uint64) {
 		slog.Error("failed to load posts for topic stats rebuild", "topicId", topicID, "error", err)
 		return
 	}
-	if err := postservice.RebuildTopicPostStats(topic, activePosts); err != nil {
+	// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写原子提交
+	// （PR #575 review P1）。activePosts 仅用于下方的附件引用恢复。
+	if err := postservice.RebuildTopicPostStats(topic); err != nil {
 		slog.Error("failed to rebuild topic stats", "topicId", topicID, "error", err)
 	}
 	for _, post := range activePosts {
@@ -551,7 +554,9 @@ func restoreModeratorRemovedTopicPosts(topic topics.Entity, moderatorID uint64) 
 		slog.Error("failed to load posts for moderator restore stats rebuild", "topicId", topic.Id, "error", err)
 		return
 	}
-	if err := postservice.RebuildTopicPostStats(topic, activePosts); err != nil {
+	// 重建在函数内自载入 posts 并以独立事务执行：话题行锁 + 绝对写原子提交
+	// （PR #575 review P1）。activePosts 仅用于下方的附件引用恢复。
+	if err := postservice.RebuildTopicPostStats(topic); err != nil {
 		slog.Error("failed to rebuild topic stats after moderator restore", "topicId", topic.Id, "error", err)
 	}
 	for _, post := range activePosts {
@@ -619,7 +624,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		// 对 ACTIVE 话题的首楼不可达：checkPurgeable 要求先进入
 		// USER_DELETED+RECOVERABLE，而首楼受 DeletePostByUser 的 PostNo<=1
 		// 守卫无法单独软删。可达的是收尾场景——首楼早已不可见、最后一条
-		// 可见回复被永久删除后联动下架（首楼场景由 PrivacyEraseContent 覆盖）。
+		// 可见回复被永久删除后联动下架。
 		cascadeHidePostlessTopic(post.TopicId, userID, reason)
 		fileusageservice.PurgeTargetFiles(postsTarget(contentID))
 		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
@@ -648,77 +653,6 @@ func checkPurgeable(visibility string, retention string) error {
 		return component.NewMessageError(component.MessageContentNotRecoverable, "该内容不允许由作者永久删除", nil)
 	}
 	return nil
-}
-
-// PrivacyEraseContent is the explicit privacy path. Unlike ordinary purge it
-// can process active user-owned content, but it always makes the row hidden,
-// unrecoverable, and clears reply body fields before downstream cleanup.
-func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint64) error {
-	const reason = "privacy_erase"
-	switch contentType {
-	case ContentTypeTopic:
-		topic := topics.UnscopedGet(contentID)
-		if topic.Id == 0 || topic.UserId != userID {
-			return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
-		}
-		if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
-		}
-		// 级联前预检：话题内同作者回复若存在治理删除（MODERATOR_REMOVED），
-		// 整体拒绝——否则作者可保留 ACTIVE 话题、让版主治理删除其一条自回复后，
-		// 再对父话题隐私擦除，级联路径会把治理删除回复改写为
-		// ACCOUNT_ANONYMIZED/PURGED 并清空正文，绕过治理证据留存（review）。
-		var topicPosts []*posts.Entity
-		if err := posts.ListUnscopedByTopicID(contentID, &topicPosts); err != nil {
-			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
-		}
-		for _, post := range topicPosts {
-			if post == nil || post.UserId != userID {
-				continue
-			}
-			if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
-				return component.NewMessageError(component.MessageContentNotRecoverable, "话题内存在治理删除的回复，不能通过隐私删除绕过审核", nil)
-			}
-		}
-		if err := topics.MarkPrivacyErased(contentID, userID, reason); err != nil {
-			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
-		}
-		for _, post := range topicPosts {
-			if post == nil || post.UserId != userID {
-				continue
-			}
-			_ = posts.MarkPrivacyErased(post.Id, userID, reason)
-			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
-		}
-		fileusageservice.PurgeTargetFiles(topicsTarget(contentID))
-		notificationservice.NullifyContentPreviews(contentID, 0)
-		clearTopicCaches(contentID)
-		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{ContentType: string(ContentTypeTopic), TopicId: contentID, DeletedBy: userID, DeleteReason: reason})
-		moderationservice.ContentPurged(userID, "topic", contentID, topic.Title, reason)
-		recordEvent(contentDeleteEvent.EventPrivacyDelete, ContentTypeTopic, contentID, contentID, userID)
-		return nil
-	case ContentTypePost:
-		post := posts.UnscopedGet(contentID)
-		if post.Id == 0 || post.UserId != userID {
-			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
-		}
-		if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
-			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
-		}
-		if err := posts.MarkPrivacyErased(contentID, userID, reason); err != nil {
-			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
-		}
-		cascadeHidePostlessTopic(post.TopicId, userID, reason)
-		fileusageservice.PurgeTargetFiles(postsTarget(contentID))
-		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
-		clearTopicCaches(post.TopicId)
-		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{ContentType: string(ContentTypePost), TopicId: post.TopicId, PostId: contentID, DeletedBy: userID, DeleteReason: reason})
-		moderationservice.ContentPurged(userID, "post", contentID, "", reason)
-		recordEvent(contentDeleteEvent.EventPrivacyDelete, ContentTypePost, contentID, post.TopicId, userID)
-		return nil
-	default:
-		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
-	}
 }
 
 // cascadeHidePostlessTopic 在帖子被擦除/永久删除后联动下架话题（issue #492）：

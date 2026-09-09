@@ -103,7 +103,7 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
   web client into an actionable activation message. The gate covers content writes and
   account-security writes (profile, password, OAuth unbind, TOTP setup/enable/disable);
   recovery writes (resend-activation-email, set-user-email) stay allowed, as do the
-  self-service account-close and content privacy-erase lifecycle endpoints (the controllers
+  self-service account-close lifecycle endpoints (the controllers
   keep their ownership, password, and rate-limit checks) and unread cleanup
   (notification/chat mark-read only mutates the user's own read state, no content write).
   Pending accounts can re-login by password or OAuth — a session itself grants no write
@@ -173,7 +173,7 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
-  restore, batch-delete, purge, and privacy-erase their own content; account closure applies the
+  restore, batch-delete, and purge their own content; account closure applies the
   content lifecycle rules, and administrators can export/import supported forum data. Retention,
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
