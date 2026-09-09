@@ -114,10 +114,17 @@ Automatic triggers require the workflow on the default branch. Enable only the d
 
 Manual publication defaults off; the deployment enables all four automatic execution/publication variables. `@oryn-mini review`, `@oryn-mini ask …`, `@oryn-mini stop` and
 `@oryn-mini resume` use Oryn's fixed command prefix even when the App has a different display name.
-`@oryn-mini repair`, `implement`, `assist`, `rebase`, `cluster`, `close` and `merge` are also available to authorized maintainers.
+`@oryn-mini fix`, `implement issue`, `rebase`, `cluster #N #M`, `autoclose` and `automerge` are also available to authorized maintainers.
+Slash aliases such as `/review`, `/autofix`, `/rebase`, `/autoclose` and `/automerge` are supported.
+Bot-authored comments skip planning and do not occupy the sweep queue; human commands retain runtime parsing and authority checks.
 The operator controls token grants and policy; text in issues/PRs cannot enable repair or merge.
 Disable the event/schedule execution variables to stop new automatic work; use the item's stop command
 for an active task. Preserve receipts when rotating keys or upgrading the runtime.
+
+The deployed App passed [live preflight](https://github.com/YourTongji/YourTJ-Hub/actions/runs/34367999977).
+A [real GLM review and publication](https://github.com/YourTongji/YourTJ-Hub/actions/runs/34368176030)
+completed with 20 tool calls and explicit max reasoning, producing a Chinese source review, Mermaid
+and four advisory labels on issue #594. This review did not execute repair validation.
 
 ## Maintenance and verification
 

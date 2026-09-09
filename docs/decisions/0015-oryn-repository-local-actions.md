@@ -38,6 +38,7 @@ independent review and required CI gates. Install a trusted validation entry out
 checkout; select Go/Vue/Flutter/contract/PostgreSQL checks from changes relative to the exact job base.
 A disposable PostgreSQL service and temporary Flutter cache support isolated repair validation.
 Enable native event publication and six-hour sweeps; bounded batches and cooldown receipts cover backlog.
+Bot comments skip intake and use a separate concurrency group so Oryn reports cannot occupy the work queue.
 A successful live App preflight and model run establish access; local checks alone do not prove deployment.
 
 ## Pros and Cons of the Options

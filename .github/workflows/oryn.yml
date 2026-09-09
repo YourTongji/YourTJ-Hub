@@ -38,12 +38,12 @@ defaults:
   run:
     working-directory: .oryn-runtime
 concurrency:
-  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ORYN_ENABLED == 'true') || (github.event_name != 'schedule' && vars.ORYN_EVENT_ENABLED == 'true')) && 'oryn-sweep' || format('oryn-disabled-{0}', github.run_id) }}
+  group: ${{ (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot') && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ORYN_ENABLED == 'true') || (github.event_name != 'schedule' && vars.ORYN_EVENT_ENABLED == 'true')) && 'oryn-sweep' || format('oryn-disabled-{0}', github.run_id) }}
   cancel-in-progress: false
   queue: max
 jobs:
   plan:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ORYN_ENABLED == 'true') || (github.event_name != 'schedule' && vars.ORYN_EVENT_ENABLED == 'true')
+    if: (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot') && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ORYN_ENABLED == 'true') || (github.event_name != 'schedule' && vars.ORYN_EVENT_ENABLED == 'true'))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     outputs:
