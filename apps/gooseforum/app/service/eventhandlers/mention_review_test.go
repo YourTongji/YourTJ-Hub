@@ -80,6 +80,10 @@ func TestPublishedTopicMentionsAndUnchangedEdits(t *testing.T) {
 	if err := handleTopicMentionPublished(context.Background(), &TopicPublishedEvent{Topic: &topic, FirstPost: &post}); err != nil {
 		t.Fatal(err)
 	}
+	// TopicPublished also fires when an author republishes an existing topic.
+	if err := handleTopicMentionPublished(context.Background(), &TopicPublishedEvent{Topic: &topic, FirstPost: &post}); err != nil {
+		t.Fatal(err)
+	}
 	if err := handlePostUpdated(context.Background(), &PostUpdatedEvent{TopicId: topic.Id, PostId: post.Id, PostNo: 1, UserId: 9999, OldContent: post.Content, NewContent: post.Content + " text"}); err != nil {
 		t.Fatal(err)
 	}
@@ -103,5 +107,34 @@ func TestPublishedTopicMentionsAndUnchangedEdits(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("private post must not notify: %v count=%d", update, count)
 		}
+	}
+}
+
+func TestReplyMentionRequiresPublicFirstPost(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	topic := topics.Entity{Status: 1, Title: "blocked first post"}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	first := posts.Entity{TopicId: topic.Id, PostNo: 1, ProcessStatus: posts.ProcessStatusBlocked}
+	if err := conn.Create(&first).Error; err != nil {
+		t.Fatal(err)
+	}
+	reply := posts.Entity{TopicId: topic.Id, PostNo: 2, Content: "reply"}
+	if err := conn.Create(&reply).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&topic).Update("first_post_id", first.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	visible, err := mentionPostIsPublic(context.Background(), topic.Id, reply.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if visible {
+		t.Fatal("reply in a topic with blocked first post must not notify")
 	}
 }

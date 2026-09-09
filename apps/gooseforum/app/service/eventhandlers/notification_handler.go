@@ -249,6 +249,18 @@ func mentionPostIsPublic(ctx context.Context, topicID, postID uint64) (bool, err
 	if topic.Status != 1 || topic.ProcessStatus != topics.ProcessStatusNormal || topic.VisibilityStatus != topics.VisibilityActive {
 		return false, nil
 	}
+	if topic.FirstPostId != 0 && topic.FirstPostId != postID {
+		first, err := posts.GetWithContext(ctx, topic.FirstPostId)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if first.ProcessStatus != posts.ProcessStatusNormal || first.VisibilityStatus != posts.VisibilityActive {
+			return false, nil
+		}
+	}
 	post, err := posts.GetWithContext(ctx, postID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
@@ -263,10 +275,23 @@ func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent
 	if event == nil || event.Topic == nil || event.FirstPost == nil {
 		return nil
 	}
-	return handlePostUpdated(ctx, &PostUpdatedEvent{
-		TopicId: event.Topic.Id, PostId: event.FirstPost.Id, PostNo: event.FirstPost.PostNo,
-		UserId: event.FirstPost.UserId, NewContent: event.FirstPost.Content, IsAnonymous: event.FirstPost.IsAnonymous,
-	})
+	visible, err := mentionPostIsPublic(ctx, event.Topic.Id, event.FirstPost.Id)
+	if err != nil || !visible || event.FirstPost.IsAnonymous {
+		return err
+	}
+	targets := resolveMentionUserIDs(event.FirstPost.Content, event.FirstPost.UserId, maxMentionFanOut)
+	seen, err := eventNotification.MentionRecipientsForPost(event.Topic.Id, event.FirstPost.Id, targets)
+	if err != nil {
+		return err
+	}
+	remaining := make([]uint64, 0, len(targets))
+	for _, id := range targets {
+		if !seen[id] {
+			remaining = append(remaining, id)
+		}
+	}
+	return notificationservice.SendMentionNotifications(remaining, event.Topic.Id, event.FirstPost.Id, event.FirstPost.PostNo, TakeUpTo64Chars(event.FirstPost.Content), event.FirstPost.UserId)
+
 }
 
 // newMentionUserIDs 返回编辑后新增的 mention 用户（最多 maxMentionFanOut 个）。

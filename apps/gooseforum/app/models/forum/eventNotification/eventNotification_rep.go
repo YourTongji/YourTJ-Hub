@@ -2,6 +2,7 @@ package eventNotification
 
 import (
 	"encoding/json"
+	"gorm.io/gorm"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -147,4 +148,24 @@ func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
 			}
 		}
 	}
+}
+
+// MentionRecipientsForPost reads prior delivery facts for republication without
+// introducing a relation table or depending on database-specific JSON syntax.
+func MentionRecipientsForPost(topicID, postID uint64, userIDs []uint64) (map[uint64]bool, error) {
+	seen := make(map[uint64]bool)
+	if len(userIDs) == 0 {
+		return seen, nil
+	}
+	var rows []Entity
+	err := builder().Where("topic_id = ? AND event_type = ?", topicID, EventTypeMention).
+		Where("user_id IN ?", userIDs).FindInBatches(&rows, 500, func(_ *gorm.DB, _ int) error {
+		for _, row := range rows {
+			if row.Payload.PostId == postID {
+				seen[row.UserId] = true
+			}
+		}
+		return nil
+	}).Error
+	return seen, err
 }
