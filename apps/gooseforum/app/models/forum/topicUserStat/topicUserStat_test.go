@@ -29,8 +29,11 @@ func TestTopicUserStatRepositoryParity(t *testing.T) {
 	if row.ReplyCount != 2 {
 		t.Fatalf("ReplyCount=%d, want 2", row.ReplyCount)
 	}
-	if got := SyncTopicPosters(10); !reflect.DeepEqual(got, []uint64{1, 2}) {
+	if got := SyncTopicPosters(10, 0); !reflect.DeepEqual(got, []uint64{1, 2}) {
 		t.Fatalf("SyncTopicPosters()=%#v, want [1 2]", got)
+	}
+	if got := SyncTopicPosters(10, 1); !reflect.DeepEqual(got, []uint64{2}) {
+		t.Fatalf("SyncTopicPosters(exclude 1)=%#v, want [2]", got)
 	}
 	if err := DecrementUserPost(10, 1); err != nil {
 		t.Fatalf("DecrementUserPost err=%v", err)

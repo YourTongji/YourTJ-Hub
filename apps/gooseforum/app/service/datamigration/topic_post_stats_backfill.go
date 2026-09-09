@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"gorm.io/gorm"
@@ -88,37 +87,21 @@ func BackfillTopicPostStatsWithDB(conn *gorm.DB) TopicPostStatsBackfillResult {
 }
 
 // backfillTopicPostStatsForOne 对单个话题执行绝对重建，返回 posters 是否
-// 发生修复。回填不得扰动 topics.updated_at（首页默认排序键）：派生写路径
-// ReplacePostStats 走 GORM Updates 会自动触碰 updated_at，这里以快照恢复。
+// 发生修复。重建在注入连接的事务内执行（话题行锁 + 绝对写原子提交，
+// PR #575 review P1）；updated_at 由 ReplacePostStatsTx 的 UpdateColumns
+// 天然保护，派生写永不触碰首页排序键。
 func backfillTopicPostStatsForOne(conn *gorm.DB, topic topics.Entity) (bool, error) {
-	// 与 contentdeleteservice 的重建载入一致：Unscoped + post_no/id 升序，
-	// 由 RebuildTopicPostStats 按 visibility=ACTIVE 过滤。
-	var activePosts []*posts.Entity
-	if err := conn.Unscoped().
-		Where("topic_id = ?", topic.Id).
-		Order("post_no asc").
-		Order("id asc").
-		Find(&activePosts).Error; err != nil {
-		return false, fmt.Errorf("load posts: %w", err)
-	}
-
 	postersBefore := postersJSON(topic.Posters)
-	updatedAtBefore := topic.UpdatedAt
 
-	if err := postservice.RebuildTopicPostStats(topic, activePosts); err != nil {
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return postservice.RebuildTopicPostStatsTx(tx, topic)
+	}); err != nil {
 		return false, fmt.Errorf("rebuild stats: %w", err)
 	}
 
 	var after topics.Entity
 	if err := conn.Unscoped().Where("id = ?", topic.Id).First(&after).Error; err != nil {
 		return false, fmt.Errorf("reload topic: %w", err)
-	}
-	if !updatedAtBefore.IsZero() && !after.UpdatedAt.Equal(updatedAtBefore) {
-		if err := conn.Model(&topics.Entity{}).Unscoped().
-			Where("id = ?", topic.Id).
-			UpdateColumn("updated_at", updatedAtBefore).Error; err != nil {
-			return false, fmt.Errorf("restore updated_at: %w", err)
-		}
 	}
 	return postersJSON(after.Posters) != postersBefore, nil
 }

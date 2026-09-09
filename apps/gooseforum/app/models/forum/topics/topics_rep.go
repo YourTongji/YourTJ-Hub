@@ -590,17 +590,23 @@ func DecrementPostFast(topicId uint64, posters []Poster, lastPostID uint64, last
 	}).Error
 }
 
-// ReplacePostStats writes the exact derived post counters for a topic.
-// Recovery must use this instead of increment/decrement helpers because those
-// helpers intentionally model a single state transition, not a full rebuild.
-func ReplacePostStats(topicID uint64, postCount uint64, replyCount uint64, posters []Poster, lastPostID uint64, lastPostedAt time.Time) error {
-	return builder().Where("id = ?", topicID).Updates(map[string]any{
-		"post_count":     postCount,
-		"reply_count":    replyCount,
-		"posters":        jsonopt.Encode(posters),
-		"last_post_id":   lastPostID,
-		"last_posted_at": lastPostedAt,
-	}).Error
+// ReplacePostStatsTx writes the exact derived post counters for a topic
+// inside the caller's transaction. UpdateColumns keeps the write
+// column-exact: derived rebuilds must never touch topics.updated_at
+// (home list sort key); Unscoped keeps soft-deleted rows repairable.
+// Recovery must use this instead of increment/decrement helpers because
+// those helpers intentionally model a single state transition, not a
+// full rebuild.
+func ReplacePostStatsTx(tx *gorm.DB, topicID uint64, postCount uint64, replyCount uint64, posters []Poster, lastPostID uint64, lastPostedAt time.Time) error {
+	return tx.Unscoped().Model(&Entity{}).
+		Where("id = ?", topicID).
+		UpdateColumns(map[string]any{
+			"post_count":     postCount,
+			"reply_count":    replyCount,
+			"posters":        jsonopt.Encode(posters),
+			"last_post_id":   lastPostID,
+			"last_posted_at": lastPostedAt,
+		}).Error
 }
 
 func ReservePostSequence(topicId uint64) (uint64, error) {
