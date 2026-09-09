@@ -165,11 +165,12 @@ Future<GoRouter> _pumpApp(
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (_, _) => const WikiHomePage()),
       GoRoute(
-        // 与生产 router.dart 对齐:参数名 wikiPath、锚点经 state.uri.fragment 传入。
+        // 与生产 router.dart 对齐:参数名 wikiPath、锚点经 state.uri.fragment
+        // 解码后传入(URI fragment 保留 percent-encoded 态)。
         path: '/wiki/:wikiPath(.*)',
         builder: (BuildContext context, GoRouterState state) => WikiPage(
           wikiPath: state.pathParameters['wikiPath'] ?? '',
-          initialAnchor: state.uri.fragment,
+          initialAnchor: decodeWikiAnchor(state.uri.fragment),
         ),
       ),
     ],
@@ -487,6 +488,93 @@ void main() {
       '/wiki/guide/getting-started',
       '/wiki/guide/details',
     ]);
+  });
+
+  testWidgets('正文内跨页锚点链接:非 ASCII 编码态锚点保持单次编码(review P2)', (tester) async {
+    const String escAnchor = '%E7%94%B3%E8%AF%B7%E6%9D%A1%E4%BB%B6'; // 申请条件
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/details': _detailPayload(
+          path: 'guide/details',
+          title: '细节',
+          content: '<p><a href="/wiki/guide/apply#$escAnchor">查看申请条件</a></p>',
+        ),
+        '/wiki/guide/apply': _detailPayload(path: 'guide/apply', title: '申请'),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/details',
+    );
+
+    await _tapLinkText(
+      tester,
+      find.textContaining('查看申请条件', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+
+    // push URL 的 fragment 必须仍是单次编码;二次编码会退化为 %25E7...。
+    expect(router.state.uri.path, '/wiki/guide/apply');
+    expect(router.state.uri.fragment, escAnchor);
+  });
+
+  testWidgets('正文内跨页锚点链接:裸 Unicode 锚点解析后单次编码', (tester) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/details': _detailPayload(
+          path: 'guide/details',
+          title: '细节',
+          content: '<p><a href="/wiki/guide/apply#申请条件">查看申请条件</a></p>',
+        ),
+        '/wiki/guide/apply': _detailPayload(path: 'guide/apply', title: '申请'),
+      },
+    );
+    final GoRouter router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/details',
+    );
+
+    await _tapLinkText(
+      tester,
+      find.textContaining('查看申请条件', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+
+    // Uri.parse 把裸 Unicode fragment 归一化为编码态;解码后再编码回到单次。
+    expect(router.state.uri.fragment, '%E7%94%B3%E8%AF%B7%E6%9D%A1%E4%BB%B6');
+  });
+
+  testWidgets('深链入口:编码态锚点经路由边界解码后滚动到目标标题', (tester) async {
+    final _FakePageRepository pages = _FakePageRepository(
+      _client(),
+      payloads: <String, PagePayload>{
+        '/wiki/guide/apply': _detailPayload(
+          path: 'guide/apply',
+          title: '申请',
+          content:
+              '${List<String>.filled(30, '<p>占位段落,用于撑长页面。</p>').join()}'
+              '<h2 id="申请条件">申请条件标题</h2>',
+        ),
+      },
+    );
+    await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/apply#%E7%94%B3%E8%AF%B7%E6%9D%A1%E4%BB%B6',
+    );
+
+    // 编码态 fragment 若未经解码直达 scrollToAnchor,将找不到渲染的
+    // Unicode 标题 id 而不产生滚动。
+    final ListView view = tester.widget<ListView>(
+      find.byKey(const Key('wiki-page-scroll')),
+    );
+    expect(view.controller, isNotNull);
+    expect(view.controller!.offset, greaterThan(0));
+    expect(find.textContaining('申请条件标题', findRichText: true), findsOneWidget);
   });
 
   testWidgets('正文内页内锚点链接:不触发页面跳转', (tester) async {
