@@ -1618,6 +1618,149 @@ function insertMarkdown(markdown: string) {
   emit('update:modelValue', editor.getValue())
 }
 
+/**
+ * @mention 最小 caret/input hook（issue #564）：宿主不感知 Vditor 内部结构。
+ * 三种编辑模式（wysiwyg/ir/sv）的编辑元素均为 contenteditable，统一走 DOM Selection API。
+ */
+export interface MentionCaretContext {
+  /** 光标前原始文本（最多回溯 200 字符；token 以空白/终止标点结尾，足够识别） */
+  prefix: string
+  /** caret 视口矩形：桌面弹层定位用；选区非折叠/不可测时为 null */
+  rect: DOMRect | null
+  /** 光标是否位于 code/pre/a 内（wysiwyg/ir）或围栏/行内代码内（sv）——不弹候选 */
+  inCode: boolean
+  /** 当前编辑元素（contenteditable），宿主用于绑定 aria-activedescendant 等 */
+  element: HTMLElement | null
+}
+
+const MENTION_PREFIX_LIMIT = 200
+
+function currentModeElement(): HTMLElement | null {
+  if (!editor || !ready || destroyed) return null
+  const mode = editor.vditor.currentMode
+  const el = mode === 'wysiwyg' ? editor.vditor.wysiwyg?.element : mode === 'ir' ? editor.vditor.ir?.element : editor.vditor.sv?.element
+  return el ?? null
+}
+
+/** 从 caret 所在节点向前回溯至多 max 字符的纯文本（跨内联节点，忽略元素边界） */
+function textBeforeCaret(container: Node, offset: number, max: number, element: HTMLElement): string {
+  const parts: string[] = []
+  let remaining = max
+  let node: Node | null = container
+  let nodeOffset = offset
+  // 容器是元素且 offset > 0：先回溯其第 offset-1 个子树末尾文本（caret 位于元素边界时）
+  if (node.nodeType !== Node.TEXT_NODE && offset > 0) {
+    const child = node.childNodes[offset - 1]
+    if (child) {
+      node = child
+      while (node.lastChild) node = node.lastChild
+      nodeOffset = (node.textContent ?? '').length
+    }
+  }
+  while (node && remaining > 0) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? ''
+      const take = Math.min(remaining, nodeOffset)
+      if (take > 0) parts.unshift(text.slice(nodeOffset - take, nodeOffset))
+      remaining -= take
+      nodeOffset = 0
+    }
+    let prev = node.previousSibling
+    if (!prev) {
+      if (node === element) break
+      node = node.parentNode
+      continue
+    }
+    node = prev
+    while (node.lastChild) node = node.lastChild
+    nodeOffset = (node.textContent ?? '').length
+  }
+  return parts.join('')
+}
+
+/** wysiwyg/ir：光标是否位于渲染后的 code/pre/a 内（排除编辑元素根节点自身是 pre 的情况） */
+function isInsideRenderedCode(node: Node, element: HTMLElement): boolean {
+  const el = node instanceof Element ? node : node.parentElement
+  if (!el) return false
+  const hit = el.closest('code, pre, a')
+  return hit !== null && hit !== element
+}
+
+/** sv：光标前的围栏（```/~~~）或行内反引号成对，奇数对则位于代码内 */
+function isInsideFencedCode(prefix: string): boolean {
+  const fences = (prefix.match(/```|~~~/g) ?? []).length
+  if (fences % 2 === 1) return true
+  return (prefix.match(/`/g) ?? []).length % 2 === 1
+}
+
+/** 当前光标处的 mention 上下文；caret 不在编辑器内或选区非折叠时返回 null */
+function getMentionContext(): MentionCaretContext | null {
+  const element = currentModeElement()
+  if (!element) return null
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return null
+  const range = selection.getRangeAt(0)
+  if (!range.collapsed || !element.contains(range.startContainer)) return null
+  const prefix = textBeforeCaret(range.startContainer, range.startOffset, MENTION_PREFIX_LIMIT, element)
+  const mode = editor!.vditor.currentMode
+  const inCode = mode === 'sv' ? isInsideFencedCode(prefix) : isInsideRenderedCode(range.startContainer, element)
+  const rect = range.getBoundingClientRect()
+  return { prefix, rect: rect.width === 0 && rect.height === 0 ? null : rect, inCode, element }
+}
+
+/**
+ * 以光标为终点向前删除 queryLength 个字符（即 "@query" token）并插入 replacement。
+ * 始终补尾部空格（对齐 GitHub/Slack 等主流 mention 交互）：保证插入后 token 立即被
+ * 空白终止，会话不会因重新识别到 "@username" 而重开。execCommand 走原生
+ * contenteditable 路径：触发 input 事件，Vditor 重渲染并同步 modelValue。
+ */
+function replaceMentionToken(queryLength: number, replacement: string): boolean {
+  const element = currentModeElement()
+  if (!element) return false
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return false
+  const range = selection.getRangeAt(0)
+  if (!range.collapsed || !element.contains(range.startContainer)) return false
+
+  let node: Node = range.startContainer
+  let offset = range.startOffset
+  if (node.nodeType !== Node.TEXT_NODE && offset > 0) {
+    const child = node.childNodes[offset - 1]
+    if (child) {
+      node = child
+      while (node.lastChild) node = node.lastChild
+      offset = (node.textContent ?? '').length
+    }
+  }
+  let remaining = queryLength
+  while (remaining > 0) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? ''
+      const take = Math.min(remaining, offset)
+      offset -= take
+      remaining -= take
+      if (remaining === 0) break
+    }
+    const prev = node.previousSibling
+    if (prev) {
+      node = prev
+      while (node.lastChild) node = node.lastChild
+      offset = (node.textContent ?? '').length
+    } else {
+      const parent = node.parentNode
+      if (!parent || parent === element) return false
+      node = parent
+    }
+  }
+
+  const tokenRange = document.createRange()
+  tokenRange.setStart(node, offset)
+  tokenRange.setEnd(range.startContainer, range.startOffset)
+  selection.removeAllRanges()
+  selection.addRange(tokenRange)
+  return document.execCommand('insertText', false, `${replacement} `)
+}
+
 function getValue() {
   return editor && ready ? editor.getValue() : props.modelValue
 }
@@ -1635,7 +1778,7 @@ function syncValue() {
   return value
 }
 
-defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue })
+defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue, getMentionContext, replaceMentionToken })
 </script>
 
 <template>

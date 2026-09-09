@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
-import { uploadImage } from '@/runtime/api'
+import { uploadImage, searchForumUsers } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
+import { extractMentionToken, rankMentionCandidates, type MentionUser } from '@/runtime/mention'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import { useKeyboardVisualViewportOffset } from '@/runtime/visual-viewport'
 import type { PostPayload } from '@gooseforum/client'
@@ -22,6 +23,10 @@ const props = defineProps<{
   sensitiveWords?: string[]
   /** 是否允许匿名发布（wiki 评论区，issue #524）；true 时显示匿名勾选项。 */
   allowAnonymous?: boolean
+  /** @mention 本地上下文候选（issue #564）：回复目标 > 主题作者 > 参与者，按此顺序传入 */
+  mentionUsers?: MentionUser[]
+  /** 当前登录用户 id：mention 候选排除自己（0/缺省表示未知） */
+  currentUserId?: number
 }>()
 
 const emit = defineEmits<{
@@ -57,6 +62,266 @@ watch(
 )
 const composerBusy = computed(() => props.submitting || uploadingImage.value)
 
+// ---- @mention 会话（issue #564）----
+// 检测/排序为纯逻辑（@/runtime/mention），这里只做 DOM 采集、服务端查询与键盘/布局编排。
+const MENTION_DEBOUNCE_MS = 300
+const mentionOpen = ref(false)
+const mentionQuery = ref('')
+const mentionTokenLength = ref(0)
+const mentionCandidates = ref<MentionUser[]>([])
+const mentionActiveIndex = ref(0)
+const mentionLoading = ref(false)
+const mentionFailed = ref(false)
+const mentionRect = ref<DOMRect | null>(null)
+const mentionDocked = ref(false)
+const mentionEditorElement = ref<HTMLElement | null>(null)
+const mentionPanelRef = ref<HTMLElement | null>(null)
+let mentionSearchSeq = 0
+let mentionDebounceTimer: ReturnType<typeof setTimeout> | undefined
+let mentionAbort: AbortController | null = null
+/** 上次进入 debounce 的 query：query 变化时立即废弃在途旧 query 的响应 */
+let lastScheduledQuery = ''
+
+function refreshMentionSession() {
+  const ctx = editor.value?.getMentionContext()
+  if (!ctx || ctx.inCode) {
+    closeMention()
+    return
+  }
+  const token = extractMentionToken(ctx.prefix)
+  if (!token) {
+    closeMention()
+    return
+  }
+  mentionOpen.value = true
+  mentionTokenLength.value = token.length
+  mentionQuery.value = token.query
+  mentionRect.value = ctx.rect
+  mentionEditorElement.value = ctx.element
+  const local = props.mentionUsers ?? []
+  const currentUserId = props.currentUserId ?? 0
+  if (!token.query.trim()) {
+    // 仅输入 @：本地上下文（最多 5），无上下文时展示「继续输入」提示而非全站空查询
+    cancelMentionSearch()
+    mentionLoading.value = false
+    mentionFailed.value = false
+    mentionCandidates.value = rankMentionCandidates({ local, server: [], query: '', currentUserId })
+    mentionActiveIndex.value = 0
+    return
+  }
+  // 至少 1 字符：300ms debounce 后查服务端；query 变化即废弃在途旧响应（防 debounce 窗口内旧结果覆盖）
+  if (token.query !== lastScheduledQuery) {
+    lastScheduledQuery = token.query
+    mentionSearchSeq++
+    mentionAbort?.abort()
+    mentionAbort = null
+  }
+  clearTimeout(mentionDebounceTimer)
+  mentionDebounceTimer = setTimeout(() => {
+    void runMentionSearch(local, currentUserId)
+  }, MENTION_DEBOUNCE_MS)
+}
+
+async function runMentionSearch(local: MentionUser[], currentUserId: number) {
+  const seq = ++mentionSearchSeq
+  mentionAbort?.abort()
+  const controller = new AbortController()
+  mentionAbort = controller
+  mentionLoading.value = true
+  mentionFailed.value = false
+  try {
+    const users = await searchForumUsers(mentionQuery.value, controller.signal)
+    if (seq !== mentionSearchSeq) return
+    mentionCandidates.value = rankMentionCandidates({
+      local,
+      server: users,
+      query: mentionQuery.value,
+      currentUserId,
+    })
+    mentionActiveIndex.value = 0
+  } catch (error) {
+    if (seq !== mentionSearchSeq) return
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    mentionFailed.value = true
+  } finally {
+    if (seq === mentionSearchSeq) mentionLoading.value = false
+  }
+}
+
+function cancelMentionSearch() {
+  clearTimeout(mentionDebounceTimer)
+  mentionSearchSeq++
+  mentionAbort?.abort()
+  mentionAbort = null
+  mentionLoading.value = false
+}
+
+function closeMention() {
+  cancelMentionSearch()
+  lastScheduledQuery = ''
+  mentionOpen.value = false
+  mentionQuery.value = ''
+  mentionTokenLength.value = 0
+  mentionCandidates.value = []
+  mentionActiveIndex.value = 0
+  mentionFailed.value = false
+  mentionRect.value = null
+  mentionEditorElement.value = null
+}
+
+function selectMention(user: MentionUser) {
+  if (!mentionOpen.value) return
+  const tokenLength = mentionTokenLength.value
+  closeMention()
+  editor.value?.replaceMentionToken(tokenLength, `@${user.username}`)
+  emit('clearValidation')
+}
+
+function moveMentionActive(delta: number) {
+  const count = mentionCandidates.value.length
+  if (!count) return
+  mentionActiveIndex.value = (mentionActiveIndex.value + delta + count) % count
+  const list = mentionPanelRef.value
+  const item = list?.querySelector<HTMLElement>('[data-active="true"]')
+  if (!list || !item) return
+  const itemTop = item.offsetTop
+  const itemBottom = itemTop + item.offsetHeight
+  if (itemTop < list.scrollTop) list.scrollTop = itemTop
+  else if (itemBottom > list.scrollTop + list.clientHeight) list.scrollTop = itemBottom - list.clientHeight
+}
+
+function onEditorInput() {
+  emit('clearValidation')
+  refreshMentionSession()
+}
+
+function onEditorAreaKeydown(event: KeyboardEvent) {
+  if (event.isComposing) return
+  if (!mentionOpen.value || !mentionCandidates.value.length) {
+    if (mentionOpen.value && event.key === 'Escape') {
+      event.preventDefault()
+      closeMention()
+    }
+    return
+  }
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault()
+      moveMentionActive(1)
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      moveMentionActive(-1)
+      break
+    case 'Enter':
+      event.preventDefault()
+      selectMention(mentionCandidates.value[mentionActiveIndex.value])
+      break
+    case 'Escape':
+      event.preventDefault()
+      closeMention()
+      break
+    // Tab 不做补全键：保持正常焦点导航
+    case 'ArrowLeft':
+    case 'ArrowRight':
+    case 'Home':
+    case 'End':
+      // caret 移动不触发 input 事件，这里主动重检；setTimeout 保证默认动作（光标移动）已生效
+      setTimeout(() => refreshMentionSession(), 0)
+      break
+  }
+}
+
+function onDocumentClickCapture(event: MouseEvent) {
+  // 会话开启或点击发生在编辑区内时重检（点击会移动 caret，不触发 input 事件）
+  const target = event.target
+  if (!mentionOpen.value && !(target instanceof Node && editorArea.value?.contains(target))) return
+  setTimeout(() => refreshMentionSession(), 0)
+}
+
+function onDocumentFocusOutCapture(event: FocusEvent) {
+  const target = event.target
+  if (!(target instanceof Node) || !editorArea.value?.contains(target)) return
+  const next = event.relatedTarget as Node | null
+  if (next && editorArea.value.contains(next)) return
+  closeMention()
+}
+
+function onMentionOptionPointerDown(event: PointerEvent) {
+  // 阻止失焦：editor 保持唯一主要 focus（issue #564 a11y）
+  event.preventDefault()
+}
+
+function updateMentionLayout() {
+  mentionDocked.value = window.matchMedia('(max-width: 640px)').matches
+}
+
+/** 桌面弹层：贴近 caret、宽度 352px、空间不足向上翻转、不越出编辑区水平边界 */
+const mentionPanelStyle = computed(() => {
+  if (mentionDocked.value || !mentionRect.value || !editorArea.value) return {}
+  const surfaceRect = editorArea.value.getBoundingClientRect()
+  const rect = mentionRect.value
+  const PANEL_WIDTH = 352
+  const GAP = 6
+  const rowHeight = 52
+  const panelHeight = Math.min(Math.max(mentionCandidates.value.length, 1), 8) * rowHeight + 8
+  const left = Math.min(Math.max(rect.left - surfaceRect.left, 8), Math.max(surfaceRect.width - PANEL_WIDTH - 8, 8))
+  const spaceBelow = surfaceRect.bottom - rect.bottom
+  const spaceAbove = rect.top - surfaceRect.top
+  const top = spaceBelow < panelHeight + GAP && spaceAbove > panelHeight + GAP
+    ? rect.top - surfaceRect.top - panelHeight - GAP
+    : rect.bottom - surfaceRect.top + GAP
+  return { left: `${left}px`, top: `${top}px`, width: `${PANEL_WIDTH}px` }
+})
+
+const mentionStatusText = computed(() => {
+  if (mentionLoading.value) return t('mention.loading')
+  if (mentionFailed.value) return t('mention.searchFailed')
+  if (!mentionCandidates.value.length) {
+    return mentionQuery.value.trim() ? t('mention.noResults') : t('mention.keepTyping')
+  }
+  return t('mention.resultCount', { count: mentionCandidates.value.length })
+})
+
+function mentionOptionId(user: MentionUser) {
+  return `gf-mention-option-${user.id}`
+}
+
+function mentionTagLabel(tag: MentionUser['tag']) {
+  if (tag === 'reply-target') return t('mention.replyTarget')
+  if (tag === 'topic-author') return t('mention.topicAuthor')
+  if (tag === 'participant') return t('mention.participant')
+  return ''
+}
+
+watch(mentionActiveIndex, (index) => {
+  const optionId = mentionOpen.value && mentionCandidates.value[index]
+    ? mentionOptionId(mentionCandidates.value[index])
+    : ''
+  mentionEditorElement.value?.setAttribute('aria-activedescendant', optionId)
+  mentionEditorElement.value?.setAttribute('aria-expanded', mentionOpen.value ? 'true' : 'false')
+})
+
+watch(mentionOpen, (open) => {
+  const element = mentionEditorElement.value
+  if (!element) return
+  if (open) {
+    element.setAttribute('role', 'combobox')
+    element.setAttribute('aria-autocomplete', 'list')
+    element.setAttribute('aria-expanded', 'true')
+    element.setAttribute('aria-controls', 'gf-mention-listbox')
+    element.setAttribute('aria-activedescendant', mentionCandidates.value[mentionActiveIndex.value]
+      ? mentionOptionId(mentionCandidates.value[mentionActiveIndex.value])
+      : '')
+  } else {
+    element.removeAttribute('role')
+    element.removeAttribute('aria-autocomplete')
+    element.removeAttribute('aria-expanded')
+    element.removeAttribute('aria-controls')
+    element.removeAttribute('aria-activedescendant')
+  }
+})
+
 /** 浮动面板高度：支持桌面端与移动端顶部手柄拖拽调整 */
 const MOBILE_VIEWPORT_QUERY = '(max-width: 520px)'
 const DESKTOP_COMPOSER_HEIGHT = 480
@@ -73,6 +338,12 @@ onMounted(() => {
   if (isMobileComposer()) {
     composerHeight.value = Math.min(380, Math.max(MIN_COMPOSER_HEIGHT, Math.floor(window.innerHeight * 0.6)))
   }
+  updateMentionLayout()
+  window.addEventListener('resize', updateMentionLayout)
+  // capture 阶段监听：editorArea 可能随 authenticated 翻转晚挂载，故挂 document 上按目标过滤
+  document.addEventListener('keydown', onEditorAreaKeydown, true)
+  document.addEventListener('click', onDocumentClickCapture, true)
+  document.addEventListener('focusout', onDocumentFocusOutCapture, true)
 })
 
 function startHeightDrag(event: PointerEvent) {
@@ -149,7 +420,23 @@ watch(
 
 onBeforeUnmount(() => {
   clearTimeout(lockSettleTimer)
+  clearTimeout(mentionDebounceTimer)
+  mentionAbort?.abort()
+  window.removeEventListener('resize', updateMentionLayout)
+  document.removeEventListener('keydown', onEditorAreaKeydown, true)
+  document.removeEventListener('click', onDocumentClickCapture, true)
+  document.removeEventListener('focusout', onDocumentFocusOutCapture, true)
 })
+
+// 面板关闭/重开：关闭时结束 mention 会话；打开时重算 dock/popover 布局
+watch(
+  () => props.open,
+  (open) => {
+    if (open) updateMentionLayout()
+    else closeMention()
+  },
+  { immediate: true },
+)
 
 // 登录后回跳当前内容页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
 const loginHref = computed(() => {
@@ -290,11 +577,54 @@ function submit() {
                 :compact="true"
                 :placeholder="composerPlaceholder"
                 :sensitive-words="sensitiveWords"
-                @input="emit('clearValidation')"
+                @input="onEditorInput"
                 @upload="uploadImageFiles"
                 @error="handleEditorError"
               />
+              <!-- @mention 候选（issue #564）：桌面贴近 caret 浮层（空间不足向上翻转/不越界），
+                   移动端（≤640px / 200% zoom 窄空间）停靠在编辑区与工具/发送区之间 -->
+              <Transition name="mention">
+                <div
+                  v-if="mentionOpen"
+                  id="gf-mention-listbox"
+                  ref="mentionPanelRef"
+                  role="listbox"
+                  :aria-label="t('mention.listboxLabel')"
+                  class="gf-mention-panel"
+                  :class="{ 'is-docked': mentionDocked }"
+                  :style="mentionPanelStyle"
+                >
+                  <div v-if="mentionLoading && !mentionCandidates.length" class="gf-mention-status">{{ t('mention.loading') }}</div>
+                  <template v-else-if="mentionCandidates.length">
+                    <div
+                      v-for="(user, index) in mentionCandidates"
+                      :id="mentionOptionId(user)"
+                      :key="user.id"
+                      role="option"
+                      :aria-selected="index === mentionActiveIndex"
+                      :aria-label="`${user.nickname || user.username} @${user.username}`"
+                      class="gf-mention-option"
+                      :class="{ 'is-active': index === mentionActiveIndex }"
+                      :data-active="index === mentionActiveIndex || undefined"
+                      @pointerdown="onMentionOptionPointerDown"
+                      @click="selectMention(user)"
+                    >
+                      <img :src="user.avatarUrl" alt="" class="gf-mention-avatar" loading="lazy" />
+                      <span class="min-w-0 flex-1">
+                        <span class="gf-mention-nickname">{{ user.nickname || user.username }}</span>
+                        <span class="gf-mention-username">@{{ user.username }}</span>
+                      </span>
+                      <span v-if="user.tag" class="gf-mention-tag">{{ mentionTagLabel(user.tag) }}</span>
+                    </div>
+                  </template>
+                  <div v-else class="gf-mention-status" :class="{ 'is-error': mentionFailed }">
+                    {{ mentionFailed ? t('mention.searchFailed') : (mentionQuery.trim() ? t('mention.noResults') : t('mention.keepTyping')) }}
+                  </div>
+                </div>
+              </Transition>
             </div>
+            <!-- mention 会话状态（loading/empty/error/result count）polite live region，面板外常驻以稳定播报 -->
+            <div aria-live="polite" class="sr-only">{{ mentionOpen ? mentionStatusText : '' }}</div>
 
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
             <p v-if="successMessage" class="mt-2 text-sm text-success">{{ successMessage }}</p>
@@ -579,5 +909,133 @@ function submit() {
 .gf-composer-surface .vditor-toolbar__item:last-child > .vditor-panel {
   right: 0 !important;
   left: auto !important;
+}
+
+/*
+ * @mention 候选面板（issue #564；design-taste：浮动工具语言，VARIANCE 4 / MOTION 2）。
+ * 桌面：absolute 贴近 caret 的浮层（352px）；移动/窄空间：is-docked 停靠编辑区底部。
+ * 行高 48px 起（touch target ≥44px）；自身滚动不带动页面（overscroll-behavior: contain）。
+ */
+.gf-mention-panel {
+  position: absolute;
+  z-index: 30;
+  width: 352px;
+  max-width: calc(100vw - 2rem);
+  max-height: min(416px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid color-mix(in oklch, var(--gf-color-base-content) 14%, transparent);
+  border-radius: 12px;
+  background: var(--color-base-100, #fff);
+  box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.12);
+  scrollbar-width: thin;
+}
+
+.gf-mention-panel.is-docked {
+  position: static;
+  width: 100%;
+  margin-top: 8px;
+  max-height: 234px;
+}
+
+.gf-mention-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 10px 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* active 不只靠颜色：左侧 3px 强调条 + aria-selected + 背景 */
+.gf-mention-option.is-active {
+  background: color-mix(in oklch, var(--gf-color-primary) 12%, transparent);
+}
+
+.gf-mention-option.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--gf-color-primary);
+}
+
+.gf-mention-avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  object-fit: cover;
+  background: color-mix(in oklch, var(--gf-color-base-content) 10%, transparent);
+}
+
+.gf-mention-nickname,
+.gf-mention-username {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gf-mention-nickname {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gf-color-base-content);
+}
+
+.gf-mention-username {
+  font-size: 12px;
+  color: color-mix(in oklch, var(--gf-color-base-content) 55%, transparent);
+}
+
+.gf-mention-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: color-mix(in oklch, var(--gf-color-base-content) 60%, transparent);
+  background: color-mix(in oklch, var(--gf-color-base-content) 8%, transparent);
+}
+
+.gf-mention-status {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: color-mix(in oklch, var(--gf-color-base-content) 55%, transparent);
+}
+
+.gf-mention-status.is-error {
+  color: var(--gf-color-error, #e5484d);
+}
+
+/* 进场：轻微上浮淡入；prefers-reduced-motion 下无动画 */
+.mention-enter-active {
+  transition:
+    opacity 0.15s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.mention-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mention-enter-active {
+    transition: none;
+  }
+
+  .mention-enter-from {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>
