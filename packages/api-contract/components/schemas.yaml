@@ -360,9 +360,11 @@ WriteTopicRequest:
     content:
       type: string
       minLength: 1
+      description: Markdown content; configurable minimum and maximum lengths count Unicode code points.
     title:
       type: string
       minLength: 1
+      description: Title; configurable minimum and maximum lengths count Unicode code points.
     categoryId:
       type: array
       minItems: 1
@@ -2470,7 +2472,7 @@ CreatePostRequest:
     content:
       type: string
       minLength: 1
-      description: Markdown reply content. The server trims whitespace and enforces configurable length bounds (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength).
+      description: Markdown reply content. The server trims whitespace and enforces configurable length bounds in Unicode code points (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength).
     replyToPostId:
       type: integer
       format: uint64
@@ -2541,7 +2543,7 @@ UpdatePostRequest:
     content:
       type: string
       minLength: 1
-      description: Replacement markdown content; trimmed and length-checked like posts/create.
+      description: Replacement markdown content; trimmed and length-checked in Unicode code points like posts/create.
   additionalProperties: false
 
 UpdatePostResult:

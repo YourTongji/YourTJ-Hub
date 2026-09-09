@@ -35,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
@@ -79,6 +80,7 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&userSessions.Entity{},
 		&topics.Entity{},
 		&postRevisions.Entity{},
+		&taskQueue.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
@@ -449,7 +451,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 	t.Run("unicode title limit counts code points", func(t *testing.T) {
 		conn, router := setupHTTPContractTest(t)
 		posting := defaultconfig.GetDefaultPostingSettingsConfig()
-		posting.TextControl.MinTitleLength = 1
+		posting.TextControl.MinTitleLength = 3
 		posting.TextControl.MaxTitleLength = 4
 		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
 		hotdataserve.ClearPostingSettingsConfigCache()
@@ -466,9 +468,17 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("title %q status = %d, want 200: %s", title, recorder.Code, recorder.Body.String())
 			}
-			if response := decodeContractEnvelope(t, recorder); response.MessageCode == "topic.title.tooLong" || response.MessageCode == "topic.title.tooShort" {
+			if response := decodeContractEnvelope(t, recorder); response.Code != 0 {
 				t.Fatalf("title %q response = %#v, must pass title length validation", title, response)
 			}
+		}
+
+		// Keep length boundary requests independent from the five-write rate limit.
+		ratelimit.Default().ResetAll()
+		shortBody := fmt.Sprintf(`{"title":"汉😀","content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, categoryID)
+		shortResponse := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", shortBody, token))
+		if shortResponse.MessageCode != "topic.title.tooShort" || shortResponse.Params["minLength"] != float64(3) {
+			t.Fatalf("short Unicode title response = %#v", shortResponse)
 		}
 
 		body := fmt.Sprintf(`{"title":"汉汉汉汉汉","content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, categoryID)
@@ -482,7 +492,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 	t.Run("unicode topic content limit counts code points", func(t *testing.T) {
 		conn, router := setupHTTPContractTest(t)
 		posting := defaultconfig.GetDefaultPostingSettingsConfig()
-		posting.TextControl.MinPostLength = 1
+		posting.TextControl.MinPostLength = 3
 		posting.TextControl.MaxPostLength = 4
 		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
 		hotdataserve.ClearPostingSettingsConfigCache()
@@ -494,8 +504,14 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		}
 		token := contractSessionToken(t, user)
 		body := fmt.Sprintf(`{"title":"Valid title","content":"汉😀ab","categoryId":[%d],"topicStatus":1}`, categoryID)
-		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, token)); response.MessageCode == "topic.content.tooLong" || response.MessageCode == "topic.content.tooShort" {
+		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, token)); response.Code != 0 {
 			t.Fatalf("four-rune content response = %#v, must pass content length validation", response)
+		}
+
+		shortBody := fmt.Sprintf(`{"title":"Valid title","content":"汉😀","categoryId":[%d],"topicStatus":1}`, categoryID)
+		shortResponse := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", shortBody, token))
+		if shortResponse.MessageCode != "topic.content.tooShort" || shortResponse.Params["minLength"] != float64(3) {
+			t.Fatalf("short Unicode body response = %#v", shortResponse)
 		}
 
 		body = fmt.Sprintf(`{"title":"Valid title","content":"汉汉汉汉汉","categoryId":[%d],"topicStatus":1}`, categoryID)

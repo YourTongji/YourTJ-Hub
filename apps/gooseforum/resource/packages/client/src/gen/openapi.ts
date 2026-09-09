@@ -6215,7 +6215,9 @@ export interface components {
              * @description Existing topic ID when updating; omit or send 0 when creating.
              */
             topicId?: number;
+            /** @description Markdown content; configurable minimum and maximum lengths count Unicode code points. */
             content: string;
+            /** @description Title; configurable minimum and maximum lengths count Unicode code points. */
             title: string;
             categoryId: number[];
             /**
@@ -6307,7 +6309,7 @@ export interface components {
              * @description Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
              */
             topicId: number;
-            /** @description Markdown reply content. The server trims whitespace and enforces configurable length bounds (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength). */
+            /** @description Markdown reply content. The server trims whitespace and enforces configurable length bounds in Unicode code points (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength). */
             content: string;
             /**
              * Format: uint64
@@ -6346,7 +6348,7 @@ export interface components {
              * @description Post owned by the caller; someone else's post fails with `topic.operationDenied` (HTTP 200).
              */
             postId: number;
-            /** @description Replacement markdown content; trimmed and length-checked like posts/create. */
+            /** @description Replacement markdown content; trimmed and length-checked in Unicode code points like posts/create. */
             content: string;
         };
         UpdatePostResult: {

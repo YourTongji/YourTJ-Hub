@@ -236,7 +236,7 @@ func TestCreatePostHTTPContract(t *testing.T) {
 	t.Run("unicode comment limit counts code points", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
 		posting := defaultconfig.GetDefaultPostingSettingsConfig()
-		posting.TextControl.MinPostLength = 1
+		posting.TextControl.MinPostLength = 3
 		posting.TextControl.MaxPostLength = 4
 		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
 		hotdataserve.ClearPostingSettingsConfigCache()
@@ -249,6 +249,12 @@ func TestCreatePostHTTPContract(t *testing.T) {
 		body := fmt.Sprintf(`{"topicId":%d,"content":"汉😀ab"}`, topicID)
 		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", body, token)); response.Code != 0 {
 			t.Fatalf("four-rune comment response = %#v, want success", response)
+		}
+
+		shortBody := fmt.Sprintf(`{"topicId":%d,"content":"汉😀"}`, topicID)
+		shortResponse := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", shortBody, token))
+		if shortResponse.MessageCode != "comment.content.tooShort" || shortResponse.Params["minLength"] != float64(3) {
+			t.Fatalf("short Unicode reply response = %#v", shortResponse)
 		}
 
 		body = fmt.Sprintf(`{"topicId":%d,"content":"汉汉汉汉汉"}`, topicID)
@@ -344,7 +350,7 @@ func TestUpdatePostHTTPContract(t *testing.T) {
 	t.Run("unicode updated comment limit counts code points", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
 		posting := defaultconfig.GetDefaultPostingSettingsConfig()
-		posting.TextControl.MinPostLength = 1
+		posting.TextControl.MinPostLength = 3
 		posting.TextControl.MaxPostLength = 4
 		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
 		hotdataserve.ClearPostingSettingsConfigCache()
@@ -358,6 +364,12 @@ func TestUpdatePostHTTPContract(t *testing.T) {
 		body := fmt.Sprintf(`{"postId":%d,"content":"😀汉ab"}`, replyID)
 		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", body, token)); response.Code != 0 {
 			t.Fatalf("four-rune updated comment response = %#v, want success", response)
+		}
+
+		shortBody := fmt.Sprintf(`{"postId":%d,"content":"汉😀"}`, replyID)
+		shortResponse := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", shortBody, token))
+		if shortResponse.MessageCode != "comment.content.tooShort" || shortResponse.Params["minLength"] != float64(3) {
+			t.Fatalf("short Unicode reply response = %#v", shortResponse)
 		}
 
 		body = fmt.Sprintf(`{"postId":%d,"content":"😀😀😀😀😀"}`, replyID)

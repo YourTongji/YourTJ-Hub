@@ -28,6 +28,7 @@ mixin _$LayoutPayload {
   FooterPayload get footer => throw _privateConstructorUsedError;
   UnreadStatusPayload get unread => throw _privateConstructorUsedError;
   ThemePayload get theme => throw _privateConstructorUsedError;
+  PostingPayload? get posting => throw _privateConstructorUsedError;
 
   /// Serializes this LayoutPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -54,6 +55,7 @@ abstract class $LayoutPayloadCopyWith<$Res> {
     FooterPayload footer,
     UnreadStatusPayload unread,
     ThemePayload theme,
+    PostingPayload? posting,
   });
 
   $SitePayloadCopyWith<$Res> get site;
@@ -62,6 +64,7 @@ abstract class $LayoutPayloadCopyWith<$Res> {
   $FooterPayloadCopyWith<$Res> get footer;
   $UnreadStatusPayloadCopyWith<$Res> get unread;
   $ThemePayloadCopyWith<$Res> get theme;
+  $PostingPayloadCopyWith<$Res>? get posting;
 }
 
 /// @nodoc
@@ -86,6 +89,7 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
     Object? footer = null,
     Object? unread = null,
     Object? theme = null,
+    Object? posting = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -117,6 +121,10 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
                 ? _value.theme
                 : theme // ignore: cast_nullable_to_non_nullable
                       as ThemePayload,
+            posting: freezed == posting
+                ? _value.posting
+                : posting // ignore: cast_nullable_to_non_nullable
+                      as PostingPayload?,
           )
           as $Val,
     );
@@ -181,6 +189,20 @@ class _$LayoutPayloadCopyWithImpl<$Res, $Val extends LayoutPayload>
       return _then(_value.copyWith(theme: value) as $Val);
     });
   }
+
+  /// Create a copy of LayoutPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $PostingPayloadCopyWith<$Res>? get posting {
+    if (_value.posting == null) {
+      return null;
+    }
+
+    return $PostingPayloadCopyWith<$Res>(_value.posting!, (value) {
+      return _then(_value.copyWith(posting: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -200,6 +222,7 @@ abstract class _$$LayoutPayloadImplCopyWith<$Res>
     FooterPayload footer,
     UnreadStatusPayload unread,
     ThemePayload theme,
+    PostingPayload? posting,
   });
 
   @override
@@ -214,6 +237,8 @@ abstract class _$$LayoutPayloadImplCopyWith<$Res>
   $UnreadStatusPayloadCopyWith<$Res> get unread;
   @override
   $ThemePayloadCopyWith<$Res> get theme;
+  @override
+  $PostingPayloadCopyWith<$Res>? get posting;
 }
 
 /// @nodoc
@@ -237,6 +262,7 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
     Object? footer = null,
     Object? unread = null,
     Object? theme = null,
+    Object? posting = freezed,
   }) {
     return _then(
       _$LayoutPayloadImpl(
@@ -268,6 +294,10 @@ class __$$LayoutPayloadImplCopyWithImpl<$Res>
             ? _value.theme
             : theme // ignore: cast_nullable_to_non_nullable
                   as ThemePayload,
+        posting: freezed == posting
+            ? _value.posting
+            : posting // ignore: cast_nullable_to_non_nullable
+                  as PostingPayload?,
       ),
     );
   }
@@ -284,6 +314,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
     required this.footer,
     required this.unread,
     required this.theme,
+    this.posting,
   }) : _header = header;
 
   factory _$LayoutPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -311,10 +342,12 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
   final UnreadStatusPayload unread;
   @override
   final ThemePayload theme;
+  @override
+  final PostingPayload? posting;
 
   @override
   String toString() {
-    return 'LayoutPayload(site: $site, viewer: $viewer, header: $header, sidebar: $sidebar, footer: $footer, unread: $unread, theme: $theme)';
+    return 'LayoutPayload(site: $site, viewer: $viewer, header: $header, sidebar: $sidebar, footer: $footer, unread: $unread, theme: $theme, posting: $posting)';
   }
 
   @override
@@ -328,7 +361,8 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
             (identical(other.sidebar, sidebar) || other.sidebar == sidebar) &&
             (identical(other.footer, footer) || other.footer == footer) &&
             (identical(other.unread, unread) || other.unread == unread) &&
-            (identical(other.theme, theme) || other.theme == theme));
+            (identical(other.theme, theme) || other.theme == theme) &&
+            (identical(other.posting, posting) || other.posting == posting));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -342,6 +376,7 @@ class _$LayoutPayloadImpl implements _LayoutPayload {
     footer,
     unread,
     theme,
+    posting,
   );
 
   /// Create a copy of LayoutPayload
@@ -367,6 +402,7 @@ abstract class _LayoutPayload implements LayoutPayload {
     required final FooterPayload footer,
     required final UnreadStatusPayload unread,
     required final ThemePayload theme,
+    final PostingPayload? posting,
   }) = _$LayoutPayloadImpl;
 
   factory _LayoutPayload.fromJson(Map<String, dynamic> json) =
@@ -386,12 +422,170 @@ abstract class _LayoutPayload implements LayoutPayload {
   UnreadStatusPayload get unread;
   @override
   ThemePayload get theme;
+  @override
+  PostingPayload? get posting;
 
   /// Create a copy of LayoutPayload
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$LayoutPayloadImplCopyWith<_$LayoutPayloadImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+PostingPayload _$PostingPayloadFromJson(Map<String, dynamic> json) {
+  return _PostingPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$PostingPayload {
+  int get maxTitleLength => throw _privateConstructorUsedError;
+
+  /// Serializes this PostingPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of PostingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $PostingPayloadCopyWith<PostingPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $PostingPayloadCopyWith<$Res> {
+  factory $PostingPayloadCopyWith(
+    PostingPayload value,
+    $Res Function(PostingPayload) then,
+  ) = _$PostingPayloadCopyWithImpl<$Res, PostingPayload>;
+  @useResult
+  $Res call({int maxTitleLength});
+}
+
+/// @nodoc
+class _$PostingPayloadCopyWithImpl<$Res, $Val extends PostingPayload>
+    implements $PostingPayloadCopyWith<$Res> {
+  _$PostingPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of PostingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? maxTitleLength = null}) {
+    return _then(
+      _value.copyWith(
+            maxTitleLength: null == maxTitleLength
+                ? _value.maxTitleLength
+                : maxTitleLength // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$PostingPayloadImplCopyWith<$Res>
+    implements $PostingPayloadCopyWith<$Res> {
+  factory _$$PostingPayloadImplCopyWith(
+    _$PostingPayloadImpl value,
+    $Res Function(_$PostingPayloadImpl) then,
+  ) = __$$PostingPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({int maxTitleLength});
+}
+
+/// @nodoc
+class __$$PostingPayloadImplCopyWithImpl<$Res>
+    extends _$PostingPayloadCopyWithImpl<$Res, _$PostingPayloadImpl>
+    implements _$$PostingPayloadImplCopyWith<$Res> {
+  __$$PostingPayloadImplCopyWithImpl(
+    _$PostingPayloadImpl _value,
+    $Res Function(_$PostingPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of PostingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? maxTitleLength = null}) {
+    return _then(
+      _$PostingPayloadImpl(
+        maxTitleLength: null == maxTitleLength
+            ? _value.maxTitleLength
+            : maxTitleLength // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$PostingPayloadImpl implements _PostingPayload {
+  const _$PostingPayloadImpl({required this.maxTitleLength});
+
+  factory _$PostingPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$PostingPayloadImplFromJson(json);
+
+  @override
+  final int maxTitleLength;
+
+  @override
+  String toString() {
+    return 'PostingPayload(maxTitleLength: $maxTitleLength)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$PostingPayloadImpl &&
+            (identical(other.maxTitleLength, maxTitleLength) ||
+                other.maxTitleLength == maxTitleLength));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, maxTitleLength);
+
+  /// Create a copy of PostingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$PostingPayloadImplCopyWith<_$PostingPayloadImpl> get copyWith =>
+      __$$PostingPayloadImplCopyWithImpl<_$PostingPayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$PostingPayloadImplToJson(this);
+  }
+}
+
+abstract class _PostingPayload implements PostingPayload {
+  const factory _PostingPayload({required final int maxTitleLength}) =
+      _$PostingPayloadImpl;
+
+  factory _PostingPayload.fromJson(Map<String, dynamic> json) =
+      _$PostingPayloadImpl.fromJson;
+
+  @override
+  int get maxTitleLength;
+
+  /// Create a copy of PostingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$PostingPayloadImplCopyWith<_$PostingPayloadImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

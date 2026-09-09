@@ -277,7 +277,8 @@ async function handleSubmit() {
   let finalTitle = title.value.trim()
   if (quickPublishType.value === 2 && !finalTitle) {
     const cleanContent = content.value.replace(/[#*`~>[\]()\n]/g, ' ').trim()
-    finalTitle = cleanContent.slice(0, 30) || (uploadedImages.value.length > 0 ? t('publish.modal.imageOnlyTitle') : t('publish.contentTypesAction.thought'))
+    const fallbackTitle = cleanContent || (uploadedImages.value.length > 0 ? t('publish.modal.imageOnlyTitle') : t('publish.contentTypesAction.thought'))
+    finalTitle = Array.from(fallbackTitle).slice(0, titleMaxLength.value).join('')
   }
 
   let finalContent = content.value.trim()

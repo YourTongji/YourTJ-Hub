@@ -87,6 +87,15 @@ errors discard stale candidates, caret operations stay within the editable root,
 position and accessible option references follow the current session. Code and links suppress
 suggestions; insertion preserves plain `@username` Markdown with a trailing space.
 
+### Posting length limits
+
+`Current`: Forum topic titles, topic bodies and reply creation/editing enforce configured
+minimum and maximum lengths in Unicode code points. A basic Chinese character or a single-code-point
+emoji counts as one; combining sequences and joined emoji may contain multiple code points.
+The Web quick publisher reads the title maximum from the server layout payload. Moment titles
+retain the shorter 30-code-point cap within that configured maximum, including automatic titles.
+Network failures during topic submission use localized save-failure copy.
+
 ## Correctness first
 
 Before expanding features, close these baselines (avoid building on a wrong foundation):

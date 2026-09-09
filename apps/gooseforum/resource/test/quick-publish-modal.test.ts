@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '../src/site/composables/useQuickPublish'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
+import * as api from '../src/runtime/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import Draggable from 'vuedraggable'
@@ -377,4 +378,36 @@ describe('QuickPublish 懒加载与首开锁存', () => {
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(everOpened.value).toBe(true)
   })
+})
+
+test.each([
+  { limit: 4, body: '汉😀abc', expected: '汉😀ab' },
+  { limit: 30, body: 'a'.repeat(29) + '😀tail', expected: 'a'.repeat(29) + '😀' },
+  { limit: 4, body: '', expected: '' },
+])('automatic moment title respects code points and server limit: $limit / $body', async ({ limit, body, expected }) => {
+  i18n.global.locale.value = 'zh'
+  const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+  openQuickPublish(2)
+  const submit = vi.spyOn(api, 'submitTopic').mockRejectedValue(new Error('stop after capture'))
+  const wrapper = mount(QuickPublishModal, {
+    props: { layout: { ...mockLayout, posting: { maxTitleLength: limit } } },
+    global: { plugins: [i18n, router] },
+    attachTo: document.body,
+  })
+  try {
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.categoryIds = [101]
+    vm.content = body
+    vm.editor = { syncValue: () => body }
+    if (!body) vm.uploadedImages = [{ id: 'image', url: '/file/img/test.png', uploading: false }]
+    await vm.handleSubmit()
+    const expectedTitle = body ? expected : Array.from(i18n.global.t('publish.modal.imageOnlyTitle')).slice(0, limit).join('')
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: expectedTitle }))
+  } finally {
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+    submit.mockRestore()
+  }
 })

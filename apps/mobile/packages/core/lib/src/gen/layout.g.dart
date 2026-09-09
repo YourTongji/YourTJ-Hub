@@ -19,6 +19,9 @@ _$LayoutPayloadImpl _$$LayoutPayloadImplFromJson(Map<String, dynamic> json) =>
         json['unread'] as Map<String, dynamic>,
       ),
       theme: ThemePayload.fromJson(json['theme'] as Map<String, dynamic>),
+      posting: json['posting'] == null
+          ? null
+          : PostingPayload.fromJson(json['posting'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$$LayoutPayloadImplToJson(_$LayoutPayloadImpl instance) =>
@@ -30,7 +33,17 @@ Map<String, dynamic> _$$LayoutPayloadImplToJson(_$LayoutPayloadImpl instance) =>
       'footer': instance.footer,
       'unread': instance.unread,
       'theme': instance.theme,
+      'posting': instance.posting,
     };
+
+_$PostingPayloadImpl _$$PostingPayloadImplFromJson(Map<String, dynamic> json) =>
+    _$PostingPayloadImpl(
+      maxTitleLength: (json['maxTitleLength'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$$PostingPayloadImplToJson(
+  _$PostingPayloadImpl instance,
+) => <String, dynamic>{'maxTitleLength': instance.maxTitleLength};
 
 _$SitePayloadImpl _$$SitePayloadImplFromJson(Map<String, dynamic> json) =>
     _$SitePayloadImpl(

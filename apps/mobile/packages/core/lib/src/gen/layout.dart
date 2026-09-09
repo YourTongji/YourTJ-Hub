@@ -13,10 +13,21 @@ abstract class LayoutPayload with _$LayoutPayload {
     required FooterPayload footer,
     required UnreadStatusPayload unread,
     required ThemePayload theme,
+    PostingPayload? posting,
   }) = _LayoutPayload;
 
   factory LayoutPayload.fromJson(Map<String, dynamic> json) =>
       _$LayoutPayloadFromJson(json);
+}
+
+/// Public posting limits, measured in Unicode code points. Nullable on layout
+/// for responses from servers that predate the posting payload.
+@freezed
+abstract class PostingPayload with _$PostingPayload {
+  const factory PostingPayload({required int maxTitleLength}) = _PostingPayload;
+
+  factory PostingPayload.fromJson(Map<String, dynamic> json) =>
+      _$PostingPayloadFromJson(json);
 }
 
 @freezed
