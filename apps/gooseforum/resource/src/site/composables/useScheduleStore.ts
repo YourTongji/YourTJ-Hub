@@ -773,6 +773,38 @@ export function useScheduleStore() {
     solidify()
   }
 
+  /**
+   * 重命名方案：trim 后为空拒绝、与现名相同不动作（对齐移动端 renamePlan 语义）。
+   * 返回是否实际发生变更（false = 无效名 / 同名 / 方案不存在）。
+   */
+  function renamePlan(planId: string, name: string): boolean {
+    const plan = state.plans.find((item) => item.id === planId)
+    if (!plan) return false
+    const trimmed = name.trim()
+    if (!trimmed || trimmed === plan.name) return false
+    plan.name = trimmed
+    solidify()
+    return true
+  }
+
+  /**
+   * 复制方案：达到 MAX_PLANS 上限或方案不存在返回 null（UI 禁用入口兜底）。
+   * JSON 深拷贝（同 clonePlansAsAutoRestore 模式）避免副本与原方案共享数组引用；
+   * 换新 id、续号命名（nextPlanName 取现存最大序号 +1，避免与现有方案重名），追加到列表。
+   * 激活副本由调用方（UI）走 switchPlan，与 createPlan 保持一致。
+   */
+  function duplicatePlan(planId: string): PkPlan | null {
+    if (state.plans.length >= MAX_PLANS) return null
+    const source = state.plans.find((item) => item.id === planId)
+    if (!source) return null
+    const clone = JSON.parse(JSON.stringify(source)) as PkPlan
+    clone.id = genId('plan')
+    clone.name = nextPlanName()
+    clone.createdAt = Date.now()
+    state.plans = [...state.plans, clone]
+    return clone
+  }
+
   // ---- 自定义占位事件 ----
 
   function addCustomEvent(input: { label: string; day: number; sections: number[]; weeks: number[] }): PkCustomEvent | null {
@@ -1090,6 +1122,8 @@ export function useScheduleStore() {
     switchPlan,
     deletePlan,
     clearActivePlan,
+    renamePlan,
+    duplicatePlan,
     addCustomEvent,
     updateCustomEvent,
     removeCustomEvent,

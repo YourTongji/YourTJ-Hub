@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -22,6 +23,149 @@ func TestUsersEmailSchema(t *testing.T) {
 		t.Fatalf("migrate users schema: %v", err)
 	}
 	assertUniqueUserEmailSchema(t, db)
+}
+
+func TestUpgradePkAudienceSchemaPreservesLegacyDictionary(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:migration-pk-audience?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	assertPkAudienceLegacyDictionaryUpgrade(t, db)
+}
+
+func assertPkAudienceLegacyDictionaryUpgrade(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := db.Exec(legacyPkDDL(db, `CREATE TABLE pk_campus (
+		campus TEXT PRIMARY KEY NOT NULL,
+		campus_i18n TEXT NOT NULL DEFAULT '',
+		calendar_id INTEGER NOT NULL DEFAULT 0,
+		schema_version TEXT NOT NULL DEFAULT '',
+		synced_at DATETIME,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME
+	)`)).Error; err != nil {
+		t.Fatalf("create legacy pk_campus: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO pk_campus (campus, campus_i18n, calendar_id) VALUES (?, ?, ?)`, "四平路校区", "Siping", 121).Error; err != nil {
+		t.Fatalf("insert legacy pk_campus: %v", err)
+	}
+
+	if err := upgradePkAudienceSchema(db); err != nil {
+		t.Fatalf("upgradePkAudienceSchema: %v", err)
+	}
+	if !db.Migrator().HasColumn(&pk.CampusEntity{}, "audience") {
+		t.Fatal("pk_campus.audience missing after legacy upgrade")
+	}
+	var undergraduate pk.CampusEntity
+	if err := db.Where("campus = ?", "四平路校区").First(&undergraduate).Error; err != nil {
+		t.Fatalf("read migrated campus: %v", err)
+	}
+	if undergraduate.Audience != string(pk.AudienceUndergraduate) {
+		t.Fatalf("migrated audience = %q, want %q", undergraduate.Audience, pk.AudienceUndergraduate)
+	}
+	if err := db.AutoMigrate(&pk.CampusEntity{}); err != nil {
+		t.Fatalf("automigrate upgraded pk_campus: %v", err)
+	}
+	if err := upgradePkAudienceSchema(db); err != nil {
+		t.Fatalf("rerun upgradePkAudienceSchema: %v", err)
+	}
+	if err := db.Create(&pk.CampusEntity{
+		Audience:   string(pk.AudienceGraduate),
+		Campus:     "四平路校区",
+		CampusI18n: "Siping graduate",
+		CalendarId: 221,
+	}).Error; err != nil {
+		t.Fatalf("insert same dictionary key for graduate audience: %v", err)
+	}
+	var count int64
+	if err := db.Model(&pk.CampusEntity{}).Where("campus = ?", "四平路校区").Count(&count).Error; err != nil {
+		t.Fatalf("count audience-scoped campuses: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("audience-scoped campus count = %d, want 2", count)
+	}
+}
+
+func TestUpgradePkAudienceSchemaAddsAudienceConflictKeys(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:migration-pk-audience-conflict-keys?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	assertPkAudienceLegacyConflictKeysUpgrade(t, db)
+}
+
+func assertPkAudienceLegacyConflictKeysUpgrade(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := db.Exec(legacyPkDDL(db, `CREATE TABLE pk_teacher_timeslot (
+		calendar_id INTEGER NOT NULL,
+		teaching_class_id INTEGER NOT NULL,
+		occupy_day INTEGER NOT NULL,
+		occupy_section INTEGER NOT NULL,
+		teacher_code TEXT NOT NULL DEFAULT '',
+		teacher_name TEXT NOT NULL DEFAULT '',
+		schema_version TEXT NOT NULL DEFAULT '',
+		synced_at DATETIME,
+		PRIMARY KEY (calendar_id, teaching_class_id, occupy_day, occupy_section, teacher_code, teacher_name)
+	)`)).Error; err != nil {
+		t.Fatalf("create legacy pk_teacher_timeslot: %v", err)
+	}
+	if err := db.Exec(legacyPkDDL(db, `CREATE TABLE pk_major_course (
+		major_id INTEGER NOT NULL,
+		course_id INTEGER NOT NULL,
+		schema_version TEXT NOT NULL DEFAULT '',
+		synced_at DATETIME,
+		created_at DATETIME,
+		updated_at DATETIME,
+		PRIMARY KEY (major_id, course_id)
+	)`)).Error; err != nil {
+		t.Fatalf("create legacy pk_major_course: %v", err)
+	}
+	if err := db.Exec(`CREATE INDEX idx_pk_timeslot_class ON pk_teacher_timeslot (teaching_class_id);
+		CREATE INDEX idx_pk_timeslot_slot ON pk_teacher_timeslot (calendar_id, occupy_day, occupy_section);
+		CREATE INDEX idx_pk_major_course_course ON pk_major_course (course_id);`).Error; err != nil {
+		t.Fatalf("create legacy PK indexes: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO pk_teacher_timeslot (calendar_id, teaching_class_id, occupy_day, occupy_section, teacher_code, teacher_name) VALUES (121, 1, 1, 2, 'T-UG', '本科教师')`).Error; err != nil {
+		t.Fatalf("insert legacy pk_teacher_timeslot: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO pk_major_course (major_id, course_id) VALUES (11, 1)`).Error; err != nil {
+		t.Fatalf("insert legacy pk_major_course: %v", err)
+	}
+	if err := upgradePkAudienceSchema(db); err != nil {
+		t.Fatalf("upgradePkAudienceSchema: %v", err)
+	}
+	if err := db.AutoMigrate(&pk.TeacherTimeslotEntity{}, &pk.MajorCourseEntity{}); err != nil {
+		t.Fatalf("automigrate audience conflict keys: %v", err)
+	}
+	graduateTimeslot := pk.TeacherTimeslotEntity{
+		Audience:        string(pk.AudienceGraduate),
+		CalendarId:      pk.ScopeID(pk.AudienceGraduate, 121),
+		TeachingClassId: pk.ScopeID(pk.AudienceGraduate, 1),
+		OccupyDay:       1,
+		OccupySection:   2,
+		TeacherCode:     "T-GRAD",
+		TeacherName:     "研究生教师",
+	}
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return pk.ReplaceTeacherTimeslotsForAudienceTx(tx, pk.AudienceGraduate, []uint64{121}, []pk.TeacherTimeslotEntity{graduateTimeslot})
+	}); err != nil {
+		t.Fatalf("upsert graduate timeslot: %v", err)
+	}
+	graduateMajorCourse := pk.MajorCourseEntity{
+		Audience: string(pk.AudienceGraduate), MajorId: 22, CourseId: pk.ScopeID(pk.AudienceGraduate, 1),
+	}
+	if err := pk.UpsertMajorCoursesTx(db, []pk.MajorCourseEntity{graduateMajorCourse}); err != nil {
+		t.Fatalf("upsert graduate major course: %v", err)
+	}
+	var undergraduateTimeslot pk.TeacherTimeslotEntity
+	if err := db.Where("audience = ? AND calendar_id = ?", pk.AudienceUndergraduate, 121).First(&undergraduateTimeslot).Error; err != nil {
+		t.Fatalf("read migrated undergraduate timeslot: %v", err)
+	}
+	var undergraduateMajorCourse pk.MajorCourseEntity
+	if err := db.Where("audience = ? AND major_id = ? AND course_id = ?", pk.AudienceUndergraduate, 11, 1).First(&undergraduateMajorCourse).Error; err != nil {
+		t.Fatalf("read migrated undergraduate major course: %v", err)
+	}
 }
 
 func TestValidateUniqueUserEmails(t *testing.T) {
@@ -209,4 +353,49 @@ func TestActiveRuntimeDoesNotImportOldArticleReplyModels(t *testing.T) {
 			t.Fatalf("scan %s: %v", root, err)
 		}
 	}
+}
+
+func TestUpgradePkAudienceSchemaRollsBackBeforeRetry(t *testing.T) {
+	conn, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "retry.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec("CREATE TABLE pk_major (id INTEGER PRIMARY KEY, code TEXT, grade INTEGER, name TEXT)").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec("CREATE UNIQUE INDEX uniq_pk_major_name ON pk_major (name)").Error; err != nil {
+		t.Fatal(err)
+	}
+	const cb = "test:pk-index-failure"
+	if err := conn.Callback().Raw().Before("gorm:raw").Register(cb, func(tx *gorm.DB) {
+		if strings.HasPrefix(tx.Statement.SQL.String(), "DROP INDEX") {
+			_ = tx.AddError(errors.New("injected index failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err = upgradePkAudienceSchema(conn)
+	if removeErr := conn.Callback().Raw().Remove(cb); removeErr != nil {
+		t.Fatal(removeErr)
+	}
+	if err == nil {
+		t.Fatal("expected upgrade failure")
+	}
+	if conn.Migrator().HasColumn(&pk.MajorEntity{}, "audience") {
+		t.Error("failed upgrade committed the column used to skip legacy index cleanup")
+	}
+	if err := upgradePkAudienceSchema(conn); err != nil {
+		t.Fatal(err)
+	}
+	if conn.Migrator().HasIndex(&pk.MajorEntity{}, "uniq_pk_major_name") {
+		t.Fatal("retry left the legacy unique index in place")
+	}
+}
+
+// PostgreSQL uses a timezone-aware timestamp for the historical datetime columns.
+func legacyPkDDL(db *gorm.DB, ddl string) string {
+	if db.Name() == "postgres" {
+		return strings.ReplaceAll(ddl, "DATETIME", "TIMESTAMPTZ")
+	}
+	return ddl
 }

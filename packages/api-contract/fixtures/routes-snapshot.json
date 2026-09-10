@@ -621,6 +621,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/pk/materialize-calendar"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/pk/sync-calendar"
   },
   {

@@ -2,6 +2,7 @@ package courseservice
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -41,6 +42,7 @@ type pkTeacherRef struct {
 type pkOfferingAgg struct {
 	TeachingClassId uint64
 	CalendarId      uint64
+	ClassAliases    []string
 	ClassCode       string
 	ClassName       string
 	Campus          string
@@ -54,44 +56,60 @@ type pkOfferingAgg struct {
 // （否则会漏卡，且选中教师依赖查询顺序）。身份键 = teacher_code（身份主锚），
 // 缺失时回退自然键 (normalized_name, department)（review Should）。
 type pkCourseAgg struct {
-	CourseCode        string
-	SourceCourseCodes []string // 一系统原始课号；改码升级时用于复用旧课程卡
-	IdentityTeacher   string   // 该组身份教师名（教学班首位教师）；无教师为空串
-	Name              string
-	Credit            float64
-	Department        string
-	TeacherRefs       []pkTeacherRef
-	Aliases           []string
-	ClassOfferings    []*pkOfferingAgg // 该组课程下全部教学班（offering 物化输入）
+	CourseCode          string
+	SourceCourseCodes   []string // 一系统原始课号；改码升级时用于复用旧课程卡
+	IdentityTeacherCode string
+	IdentityTeacher     string // 该组身份教师名（教学班首位教师）；无教师为空串
+	Name                string
+	Credit              float64
+	Department          string
+	TeacherRefs         []pkTeacherRef
+	Aliases             []string
+	ClassOfferings      []*pkOfferingAgg // 该组课程下全部教学班（offering 物化输入）
 }
 
 // MaterializeFromPk 将指定学期的一系统（PK）课程物化到课程目录：缺教师按名创建、缺课程按
 // courseCode 创建、别名（courseCode/code/newCourseCode/newCode）映射到课程行，并按教学班
 // 补写 offering（offering 权威写入源 = 本物化链）。幂等且保守：不复活管理员隐藏课程、
-// 不抢占已被其它课程占用的别名、不写 offering.status（防止复活管理员隐藏的 offering）。
+// 保留人工别名；班号别名跟随真实教学班迁移。不写 offering.status（不复活隐藏班）。
 //
 // 边界规则：课程域 owner（本包）读取 PK 域数据（只读），写入本域表。
 func MaterializeFromPk(ctx context.Context, calendarIds []uint64) (*MaterializeReport, error) {
+	return MaterializeFromPkForAudience(ctx, pk.AudienceUndergraduate, calendarIds)
+}
+
+// MaterializeFromPkForAudience 将指定受众的统一 PK 表数据物化到课程目录。
+// 受众只影响 PK 源快照；课程目录继续复用 canonical course，并按 scoped
+// teaching class id 生成互不覆盖的 offering。
+func MaterializeFromPkForAudience(ctx context.Context, audience pk.Audience, calendarIds []uint64) (*MaterializeReport, error) {
 	report := &MaterializeReport{}
 	if len(calendarIds) == 0 {
 		return report, nil
 	}
 
-	aggs, err := aggregatePkCourses(calendarIds)
-	if err != nil {
-		return nil, err
-	}
-	if len(aggs) == 0 {
-		return report, nil
-	}
+	return materializeFromPk(ctx, audience, calendarIds, nil)
+}
 
-	conn := db.Connect()
-	// termCache 物化单次运行内的 calendarId → term_id 解析缓存：整学期数万教学班
-	// 共用同一 calendar，避免每班重复 GetCalendarByIDTx + getOrCreateTermTx
-	// （review Should：逐班 3×N 查询、长事务持锁）。term_id=0 表示无学期码（合法），
-	// 同样缓存避免重复查询。
+// MaterializeFromPkWithLease keeps the sync lease fenced until catalog writes commit.
+func MaterializeFromPkWithLease(ctx context.Context, calendarIds []uint64, claim *pk.FetchLogEntity) (*MaterializeReport, error) {
+	audience := pk.AudienceUndergraduate
+	if claim != nil {
+		audience = pk.DefaultAudience(claim.Audience)
+	}
+	return materializeFromPk(ctx, audience, calendarIds, claim)
+}
+
+func materializeFromPk(ctx context.Context, audience pk.Audience, calendarIds []uint64, claim *pk.FetchLogEntity) (*MaterializeReport, error) {
+	report := &MaterializeReport{}
 	termCache := map[uint64]uint64{}
-	err = conn.Transaction(func(tx *gorm.DB) error {
+	err := db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := pk.ValidateMaterializeSnapshotTx(tx, audience, calendarIds, claim); err != nil {
+			return err
+		}
+		aggs, err := aggregatePkCourses(tx, audience, calendarIds)
+		if err != nil {
+			return err
+		}
 		instructorCache := map[string]uint64{}
 		for _, agg := range aggs {
 			courseEntity, _, err := upsertPkCourseTx(tx, agg, instructorCache, report)
@@ -111,13 +129,17 @@ func MaterializeFromPk(ctx context.Context, calendarIds []uint64) (*MaterializeR
 				}
 			}
 			for _, offering := range agg.ClassOfferings {
-				if err := upsertPkOfferingTx(tx, offeringCourseId, offering, instructorCache, termCache, report); err != nil {
+				if err := upsertPkOfferingForAudienceTx(tx, audience, offeringCourseId, offering, instructorCache, termCache, report); err != nil {
 					return err
 				}
 			}
 		}
+		// Rebuild once even when an earlier materializer already moved the offering.
+		if len(aggs) > 0 {
+			return EnqueueCourseStatsRebuildTaskTx(tx)
+		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 	if err != nil {
 		return nil, err
 	}
@@ -127,15 +149,15 @@ func MaterializeFromPk(ctx context.Context, calendarIds []uint64) (*MaterializeR
 // aggregatePkCourses 读取指定学期的一系统教学班并按 (courseCode, 身份教师) 聚合
 // （名称取非空最优、学分取最大、院系取 facultyI18n、教师/别名去重收集），并保留
 // 教学班粒度（ClassOfferings）供 offering 物化。
-// 身份教师 = 教学班首位教师（合班课其余教师保留在 TeacherNames 供 offering 名单）。
+// 身份教师优先保留仍在授课的原教师；新班按工号/姓名稳定选择，全体教师保留在 offering。
 // 聚合键含院系消歧：无工号身份教师按 (归一姓名, 院系) 分组，跨院系同名教师
 // 不会被并入同组（review Should）；offering 的 Faculty 取该班自身院系。
 // 无教师教学班归入 (code, "") 组（teacher_id=0 卡）。
-func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
+func aggregatePkCourses(tx *gorm.DB, audience pk.Audience, calendarIds []uint64) ([]*pkCourseAgg, error) {
 	var details []pk.CourseDetailEntity
 	var allTeachers []pk.TeacherEntity
 	for _, cid := range calendarIds {
-		rows, err := pk.ListCourseDetailsByCalendar(cid)
+		rows, err := pk.ListCourseDetailsByAudienceCalendarTx(tx, audience, cid)
 		if err != nil {
 			return nil, err
 		}
@@ -147,14 +169,14 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 			classIds = append(classIds, d.Id)
 		}
 		if len(classIds) > 0 {
-			teachers, err := pk.ListTeachersByClassIds(classIds)
+			teachers, err := pk.ListTeachersByAudienceClassIdsTx(tx, audience, classIds)
 			if err != nil {
 				return nil, err
 			}
 			allTeachers = teachers
 		}
 	}
-	faculties, err := pk.ListFacultiesTx(db.Connect())
+	faculties, err := pk.ListFacultiesForAudienceTx(tx, audience)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +184,7 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	for _, f := range faculties {
 		facultyI18n[f.Faculty] = f.FacultyI18n
 	}
-	campuses, err := pk.ListCampuses()
+	campuses, err := pk.ListCampusesForAudienceTx(tx, audience)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +203,12 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 		})
 	}
 
+	// Keep the existing identity while that teacher still teaches the class. New
+	// classes use the stable teacher-code order supplied by the PK repository.
+	identities, err := existingPkIdentitiesTx(tx, details)
+	if err != nil {
+		return nil, err
+	}
 	order := make([]string, 0, len(details))
 	byKey := map[string]*pkCourseAgg{}
 	for _, d := range details {
@@ -188,7 +216,15 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 		if code == "" {
 			continue
 		}
-		classTeachers := teachersByClass[d.Id]
+		classTeachers := append([]pkTeacherRef(nil), teachersByClass[d.Id]...)
+		if old, ok := identities[d.Id]; ok {
+			for i, ref := range classTeachers {
+				if (old.Code != "" && old.Code == ref.Code) || (old.Code == "" && Normalize(old.Name) == Normalize(ref.Name)) {
+					classTeachers[0], classTeachers[i] = classTeachers[i], classTeachers[0]
+					break
+				}
+			}
+		}
 		// 该班自身院系（offering 级 Faculty 用本班院系，不继承组内其它班写入值）。
 		dept := strings.TrimSpace(d.Faculty)
 		if v, ok := facultyI18n[d.Faculty]; ok && v != "" {
@@ -204,6 +240,9 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 		agg, ok := byKey[key]
 		if !ok {
 			agg = &pkCourseAgg{CourseCode: code, IdentityTeacher: identity, Department: dept}
+			if len(classTeachers) > 0 {
+				agg.IdentityTeacherCode = classTeachers[0].Code
+			}
 			order = append(order, key)
 			byKey[key] = agg
 		}
@@ -238,6 +277,7 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 			TeachingClassId: d.Id,
 			CalendarId:      d.CalendarId,
 			ClassCode:       d.EffectiveClassCode(),
+			ClassAliases:    []string{strings.TrimSpace(d.Code), d.EffectiveClassCode()},
 			ClassName:       strings.TrimSpace(d.Name),
 			Campus:          campusI18n[d.Campus],
 			Faculty:         dept,
@@ -253,7 +293,7 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	return out, nil
 }
 
-// appendTeacherRefs 批量追加教师引用（按姓名去重）。
+// appendTeacherRefs 批量追加教师引用（工号优先，无工号时回退姓名）。
 func appendTeacherRefs(slice []pkTeacherRef, refs ...pkTeacherRef) []pkTeacherRef {
 	for _, ref := range refs {
 		slice = appendTeacherRef(slice, ref)
@@ -261,10 +301,17 @@ func appendTeacherRefs(slice []pkTeacherRef, refs ...pkTeacherRef) []pkTeacherRe
 	return slice
 }
 
-// appendTeacherRef 追加单个教师引用（姓名+工号）去重（按姓名）。
+// appendTeacherRef 保留同名不同工号的教师。
 func appendTeacherRef(slice []pkTeacherRef, ref pkTeacherRef) []pkTeacherRef {
-	for _, r := range slice {
-		if r.Name == ref.Name {
+	for i, r := range slice {
+		if r.Code != "" && ref.Code != "" {
+			if r.Code == ref.Code {
+				return slice
+			}
+		} else if Normalize(r.Name) == Normalize(ref.Name) {
+			if r.Code == "" {
+				slice[i].Code = ref.Code
+			}
 			return slice
 		}
 	}
@@ -295,13 +342,7 @@ func upsertPkCourseTx(tx *gorm.DB, agg *pkCourseAgg, instructorCache map[string]
 	}
 	var teacherId uint64
 	if agg.IdentityTeacher != "" {
-		identity := pkTeacherRef{Name: agg.IdentityTeacher}
-		for _, ref := range agg.TeacherRefs {
-			if ref.Name == agg.IdentityTeacher {
-				identity.Code = ref.Code
-				break
-			}
-		}
+		identity := pkTeacherRef{Name: agg.IdentityTeacher, Code: agg.IdentityTeacherCode}
 		teacherId = instructorCache[pkTeacherCacheKey(identity, agg.Department)]
 	}
 	pinyin, initials := searchservice.PinyinFields(agg.Name)
@@ -432,6 +473,15 @@ func upsertPkInstructorTx(tx *gorm.DB, ref pkTeacherRef, department string, repo
 		entity, err := course.FindInstructorByCodeTx(tx, ref.Code)
 		switch {
 		case err == nil:
+			pinyin, initials := searchservice.PinyinFields(ref.Name)
+			if entity.Name != ref.Name {
+				if err := tx.Model(&course.InstructorEntity{}).Where("id = ?", entity.Id).Updates(map[string]any{"name": ref.Name, "normalized_name": norm, "name_pinyin": pinyin, "name_initials": initials}).Error; err != nil {
+					return 0, err
+				}
+				if err := enqueueRenamedInstructorCoursesTx(tx, entity.Id); err != nil {
+					return 0, err
+				}
+			}
 			return entity.Id, nil
 		case !errors.Is(err, gorm.ErrRecordNotFound):
 			return 0, fmt.Errorf("materialize: lookup instructor by code %s: %w", ref.Code, err)
@@ -488,13 +538,17 @@ func createPkInstructorTx(tx *gorm.DB, ref pkTeacherRef, department string, repo
 // 缓存——物化单次运行内同一 calendar 只解析一次（review Should：逐班重复查询在
 // 整学期数万教学班量级下拉长事务持锁时间）。
 func resolveOfferingTermIdTx(tx *gorm.DB, calendarId uint64, termCache map[uint64]uint64) (uint64, error) {
+	return resolveOfferingTermIdForAudienceTx(tx, pk.AudienceUndergraduate, calendarId, termCache)
+}
+
+func resolveOfferingTermIdForAudienceTx(tx *gorm.DB, audience pk.Audience, calendarId uint64, termCache map[uint64]uint64) (uint64, error) {
 	if calendarId == 0 {
 		return 0, nil
 	}
 	if termId, ok := termCache[calendarId]; ok {
 		return termId, nil
 	}
-	cal, err := pk.GetCalendarByIDTx(tx, calendarId)
+	cal, err := pk.GetCalendarByAudienceIDTx(tx, audience, calendarId)
 	if err != nil {
 		// calendar 行缺失/查询失败视为数据不一致：显式报错，不静默写 term_id=0。
 		return 0, fmt.Errorf("materialize: lookup calendar %d: %w", calendarId, err)
@@ -527,6 +581,10 @@ func resolveOfferingTermIdTx(tx *gorm.DB, calendarId uint64, termCache map[uint6
 // resolveOfferingTermIdTx）；不写 status（防止复活管理员隐藏的 offering）。教师 = 该班
 // 全量教师（offering_instructor 全量替换，复用 importer 的 replaceOfferingInstructorsTx）。
 func upsertPkOfferingTx(tx *gorm.DB, courseId uint64, offering *pkOfferingAgg, instructorCache map[string]uint64, termCache map[uint64]uint64, report *MaterializeReport) error {
+	return upsertPkOfferingForAudienceTx(tx, pk.AudienceUndergraduate, courseId, offering, instructorCache, termCache, report)
+}
+
+func upsertPkOfferingForAudienceTx(tx *gorm.DB, audience pk.Audience, courseId uint64, offering *pkOfferingAgg, instructorCache map[string]uint64, termCache map[uint64]uint64, report *MaterializeReport) error {
 	// 先对齐该班教师（填充 instructorCache），再解析教师本地 id。
 	if err := upsertPkInstructorsTx(tx, offering.TeacherRefs, offering.Faculty, instructorCache, report); err != nil {
 		return err
@@ -541,7 +599,7 @@ func upsertPkOfferingTx(tx *gorm.DB, courseId uint64, offering *pkOfferingAgg, i
 	}
 	// term 映射：calendarId → calendar_id_i18n → course_term.code → term id。
 	// 解析结果按 calendarId 缓存（termCache），错误显式上抛。
-	termId, err := resolveOfferingTermIdTx(tx, offering.CalendarId, termCache)
+	termId, err := resolveOfferingTermIdForAudienceTx(tx, audience, offering.CalendarId, termCache)
 	if err != nil {
 		return err
 	}
@@ -561,6 +619,9 @@ func upsertPkOfferingTx(tx *gorm.DB, courseId uint64, offering *pkOfferingAgg, i
 			return fmt.Errorf("materialize: update offering %d: %w", existing.Id, err)
 		}
 		report.OfferingsUpdated++
+		if err := reconcilePkClassAliasesTx(tx, courseId, offering); err != nil {
+			return err
+		}
 		if err := replaceOfferingInstructorsTx(tx, existing.Id, instructorIDs); err != nil {
 			return err
 		}
@@ -585,6 +646,9 @@ func upsertPkOfferingTx(tx *gorm.DB, courseId uint64, offering *pkOfferingAgg, i
 			return fmt.Errorf("materialize: create offering %d: %w", offering.TeachingClassId, err)
 		}
 		report.OfferingsInserted++
+		if err := reconcilePkClassAliasesTx(tx, courseId, offering); err != nil {
+			return err
+		}
 		return replaceOfferingInstructorsTx(tx, entity.Id, instructorIDs)
 	default:
 		return fmt.Errorf("materialize: lookup offering by teaching_class_id %d: %w", offering.TeachingClassId, err)

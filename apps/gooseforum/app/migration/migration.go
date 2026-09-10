@@ -111,6 +111,9 @@ func migrateSchema() error {
 	if err = upgradeCourseAiSummaryStatusIndex(db); err != nil {
 		return fmt.Errorf("dbconnect course_ai_summary status index upgrade failed: %w", err)
 	}
+	if err = upgradePkAudienceSchema(db); err != nil {
+		return fmt.Errorf("dbconnect pk audience schema upgrade failed: %w", err)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -126,6 +129,158 @@ func migrateSchema() error {
 		return fmt.Errorf("db4fileconnect migration err: %w", err)
 	}
 	slog.Info("db4fileconnect migration end")
+	return nil
+}
+
+// upgradePkAudienceSchema upgrades the original undergraduate-only PK tables
+// without changing the shared table layout. Calendar/course/teacher IDs are
+// scoped by pk.ScopeID at write time, while external_id keeps the upstream
+// value for cross-audience reconciliation. Natural-key dictionaries need a
+// table rebuild because SQLite cannot alter a primary key and PostgreSQL's
+// AutoMigrate does not replace an existing primary-key constraint. This applies
+// to natural-key dictionaries and the audience-scoped relation/projection tables.
+func upgradePkAudienceSchema(db *gorm.DB) error {
+	// Columns and index cleanup form one upgrade: a failed attempt must not leave
+	// the audience column behind and make a retry skip the legacy index removal.
+	return db.Transaction(upgradePkAudienceSchemaTx)
+}
+func upgradePkAudienceSchemaTx(db *gorm.DB) error {
+	legacyMajorSchema := db.Migrator().HasTable("pk_major") && !db.Migrator().HasColumn(&pk.MajorEntity{}, "audience")
+	legacyFetchLogSchema := db.Migrator().HasTable("pk_fetch_log") && !db.Migrator().HasColumn(&pk.FetchLogEntity{}, "audience")
+
+	dictionaryTables := []struct {
+		name    string
+		model   any
+		columns []string
+	}{
+		{name: "pk_campus", model: &pk.CampusEntity{}, columns: []string{"campus", "campus_i18n", "calendar_id", "schema_version", "synced_at", "created_at", "updated_at", "deleted_at"}},
+		{name: "pk_faculty", model: &pk.FacultyEntity{}, columns: []string{"faculty", "faculty_i18n", "calendar_id", "schema_version", "synced_at", "created_at", "updated_at", "deleted_at"}},
+		{name: "pk_language", model: &pk.LanguageEntity{}, columns: []string{"teaching_language", "teaching_language_i18n", "calendar_id", "schema_version", "synced_at", "created_at", "updated_at", "deleted_at"}},
+		{name: "pk_assessment", model: &pk.AssessmentEntity{}, columns: []string{"assessment_mode", "assessment_mode_i18n", "calendar_id", "schema_version", "synced_at", "created_at", "updated_at", "deleted_at"}},
+		{name: "pk_course_nature", model: &pk.CourseNatureEntity{}, columns: []string{"course_label_id", "course_label_name", "calendar_id", "schema_version", "synced_at", "created_at", "updated_at", "deleted_at"}},
+		{name: "pk_course_nature_by_calendar", model: &pk.CourseNatureByCalendarEntity{}, columns: []string{"calendar_id", "course_label_id", "course_label_name", "schema_version", "synced_at", "created_at", "updated_at"}},
+		{name: "pk_teacher_timeslot", model: &pk.TeacherTimeslotEntity{}, columns: []string{"calendar_id", "teaching_class_id", "occupy_day", "occupy_section", "teacher_code", "teacher_name", "schema_version", "synced_at"}},
+		{name: "pk_major_course", model: &pk.MajorCourseEntity{}, columns: []string{"major_id", "course_id", "schema_version", "synced_at", "created_at", "updated_at"}},
+	}
+	for _, table := range dictionaryTables {
+		if !db.Migrator().HasTable(table.name) || db.Migrator().HasColumn(table.model, "audience") {
+			continue
+		}
+		if err := rebuildPkAudienceDictionary(db, table.name, table.model, table.columns); err != nil {
+			return err
+		}
+	}
+
+	columns := []struct {
+		table  string
+		model  any
+		column string
+	}{
+		{table: "pk_calendar", model: &pk.CalendarEntity{}, column: "audience"},
+		{table: "pk_calendar", model: &pk.CalendarEntity{}, column: "external_id"},
+		{table: "pk_course_detail", model: &pk.CourseDetailEntity{}, column: "audience"},
+		{table: "pk_course_detail", model: &pk.CourseDetailEntity{}, column: "external_id"},
+		{table: "pk_teacher", model: &pk.TeacherEntity{}, column: "audience"},
+		{table: "pk_teacher", model: &pk.TeacherEntity{}, column: "external_id"},
+		{table: "pk_teacher_timeslot", model: &pk.TeacherTimeslotEntity{}, column: "audience"},
+		{table: "pk_fetch_log", model: &pk.FetchLogEntity{}, column: "audience"},
+		{table: "pk_major", model: &pk.MajorEntity{}, column: "audience"},
+		{table: "pk_major_course", model: &pk.MajorCourseEntity{}, column: "audience"},
+	}
+	for _, column := range columns {
+		if !db.Migrator().HasTable(column.table) || db.Migrator().HasColumn(column.model, column.column) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(column.model, column.column); err != nil {
+			return fmt.Errorf("add %s.%s: %w", column.table, column.column, err)
+		}
+	}
+
+	// These indexes used to enforce an undergraduate-only natural key. Drop
+	// them before AutoMigrate recreates the audience-aware definitions.
+	for _, index := range []struct {
+		model  any
+		name   string
+		legacy bool
+	}{
+		{model: &pk.MajorEntity{}, name: "uniq_pk_major_name", legacy: legacyMajorSchema},
+		{model: &pk.FetchLogEntity{}, name: "uniq_pk_fetch_log_running_key", legacy: legacyFetchLogSchema},
+		{model: &pk.FetchLogEntity{}, name: "idx_pk_fetch_log_running", legacy: legacyFetchLogSchema},
+	} {
+		if index.legacy && db.Migrator().HasIndex(index.model, index.name) {
+			if err := db.Migrator().DropIndex(index.model, index.name); err != nil {
+				return fmt.Errorf("drop legacy %s: %w", index.name, err)
+			}
+		}
+	}
+
+	for _, update := range []struct {
+		table string
+		id    string
+	}{
+		{table: "pk_calendar", id: "calendar_id"},
+		{table: "pk_course_detail", id: "id"},
+		{table: "pk_teacher", id: "id"},
+	} {
+		if !db.Migrator().HasTable(update.table) {
+			continue
+		}
+		if err := db.Table(update.table).Where("external_id = 0").Update("external_id", gorm.Expr(update.id)).Error; err != nil {
+			return fmt.Errorf("backfill %s.external_id: %w", update.table, err)
+		}
+	}
+	return nil
+}
+
+func rebuildPkAudienceDictionary(db *gorm.DB, tableName string, model any, columns []string) error {
+	tempTable := tableName + "__audience_upgrade"
+	return db.Transaction(func(tx *gorm.DB) error {
+		if tx.Migrator().HasTable(tempTable) {
+			if err := tx.Migrator().DropTable(tempTable); err != nil {
+				return fmt.Errorf("drop stale %s: %w", tempTable, err)
+			}
+		}
+		// SQLite and PostgreSQL keep index names at schema scope, so the
+		// indexes on the legacy table would collide with the model-driven
+		// indexes created on the temporary table. Drop only the legacy
+		// indexes; the recreated table will get the same definitions back.
+		if err := dropLegacyPkIndexes(tx, tableName, model); err != nil {
+			return err
+		}
+		if err := tx.Table(tempTable).Migrator().CreateTable(model); err != nil {
+			return fmt.Errorf("create %s: %w", tempTable, err)
+		}
+		columnList := strings.Join(columns, ", ")
+		query := fmt.Sprintf(
+			"INSERT INTO %s (audience, %s) SELECT ?, %s FROM %s",
+			tempTable, columnList, columnList, tableName,
+		)
+		if err := tx.Exec(query, pk.AudienceUndergraduate).Error; err != nil {
+			return fmt.Errorf("copy %s: %w", tableName, err)
+		}
+		if err := tx.Migrator().DropTable(tableName); err != nil {
+			return fmt.Errorf("drop %s: %w", tableName, err)
+		}
+		if err := tx.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", tempTable, tableName)).Error; err != nil {
+			return fmt.Errorf("rename %s to %s: %w", tempTable, tableName, err)
+		}
+		return nil
+	})
+}
+
+func dropLegacyPkIndexes(db *gorm.DB, tableName string, model any) error {
+	indexes, err := db.Migrator().GetIndexes(model)
+	if err != nil {
+		return fmt.Errorf("list legacy %s indexes: %w", tableName, err)
+	}
+	for _, index := range indexes {
+		if primary, ok := index.PrimaryKey(); ok && primary {
+			continue
+		}
+		if err := db.Migrator().DropIndex(model, index.Name()); err != nil {
+			return fmt.Errorf("drop legacy %s index %s: %w", tableName, index.Name(), err)
+		}
+	}
 	return nil
 }
 

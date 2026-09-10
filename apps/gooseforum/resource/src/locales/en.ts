@@ -588,6 +588,19 @@ export default {
     planMore: 'More actions',
     planClearCurrent: 'Clear current plan',
     planClearConfirm: 'Clear all courses and custom placeholders in the current plan?',
+    planRename: 'Rename plan',
+    planRenamePlaceholder: 'Enter plan name',
+    planRenameConfirm: 'Save',
+    planDuplicate: 'Duplicate plan',
+    planCompare: 'Compare plans',
+    planCompareTitle: 'Compare plans',
+    planCompareHint: 'Select two or more plans to compare courses, time slots and custom placeholders.',
+    planCompareSelectHint: 'Select at least two plans',
+    planCompareSame: 'Selected plans are identical',
+    planCompareDiffCount: '{count} differences',
+    planCompareCourse: 'Course',
+    planComparePlaceholder: 'Custom placeholder',
+    planCompareNoEntry: '—',
     statsCourses: 'Courses',
     statsCourseCount: '{count}',
     statsCredit: 'Credits',
@@ -1391,6 +1404,7 @@ export default {
     },
     modal: {
       quickPublish: 'Quick Publish',
+      draftRestored: 'Restored your unsaved draft',
       questionTitlePlaceholder: 'Ask your question clearly...',
       thoughtTitlePlaceholder: 'Moment title (optional, auto-extracted if empty)...',
       contentPlaceholder: 'Add content',
@@ -2287,6 +2301,7 @@ export default {
   },
   adminOptLog: {
     optType: {
+      materializePk: 'Materialize course catalog',
       editUser: 'User operation',
       editTopic: 'Edit topic',
       editCategory: 'Edit category',
@@ -2305,6 +2320,7 @@ export default {
       post: 'Post',
     },
     messages: {
+      pkMaterialized: 'Materialized course catalog: {coursesInserted} courses added, {coursesUpdated} updated; {offeringsInserted} classes added, {offeringsUpdated} updated',
       userUpdated: 'Updated user {userId}: {changedFields}',
       topicStatusChanged: 'Topic "{title}" status changed to {status}',
       topicPinWeightChanged: 'Topic "{title}" pin weight {oldPinWeight} -> {pinWeight}',

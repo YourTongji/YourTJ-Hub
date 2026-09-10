@@ -7835,11 +7835,17 @@ AdminSaveHttpNotifySettingsRequest:
 
 AdminOnesystemSettingsResult:
   type: object
-  required: [cookieConfigured]
+  required: [cookieConfigured, cookieConfiguredUndergraduate, cookieConfiguredGraduate]
   properties:
     cookieConfigured:
       type: boolean
-      description: Whether an encrypted 一系统 cookie is stored. Exposure boundary — this is the only field returned; the stored ciphertext and the plaintext cookie are never exposed (the domain struct tags the ciphertext `json:"-"`).
+      description: Legacy alias for cookieConfiguredUndergraduate.
+    cookieConfiguredUndergraduate:
+      type: boolean
+      description: Whether the encrypted undergraduate 一系统 cookie is stored.
+    cookieConfiguredGraduate:
+      type: boolean
+      description: Whether the encrypted graduate 一系统 cookie is stored.
   additionalProperties: false
 
 AdminOnesystemSettingsResponse:
@@ -7854,10 +7860,19 @@ AdminOnesystemSettingsResponse:
 AdminSaveOnesystemSettingsRequest:
   type: object
   properties:
+    undergraduateCookie:
+      type: string
+      maxLength: 4096
+      description: Plaintext undergraduate 一系统 Cookie; omitted keeps the current value, blank clears only the undergraduate credential.
+    graduateCookie:
+      type: string
+      maxLength: 4096
+      description: Plaintext graduate 一系统 Cookie; omitted keeps the current value, blank clears only the graduate credential.
     cookie:
       type: string
       maxLength: 4096
-      description: "Plaintext 一系统 Cookie header; encrypted with a purpose-scoped key (AES-256-GCM) before persistence and never stored in plaintext. An empty/blank value clears the stored credential. Longer than 4096 characters fails request validation with `common.request.invalidParams` (HTTP 200). When encryption itself fails (signingKey misconfigured) the response is a generic HTTP 200 `code: 1` failure with no `messageCode`."
+      deprecated: true
+      description: "Legacy alias for undergraduateCookie. Used only when neither audience-specific field is supplied."
   additionalProperties: false
 
 AdminAiSummarySettingsConfig:
@@ -8702,7 +8717,7 @@ AdminExportTaskListResponse:
 
 PkSyncStatusItem:
   type: object
-  required: [calendarId, calendarName, status, rowsWritten, totalPages, lastCommittedPage, errorMsg, startedAt, finishedAt]
+  required: [calendarId, calendarName, audience, status, rowsWritten, totalPages, lastCommittedPage, errorMsg, startedAt, finishedAt]
   properties:
     calendarId:
       type: integer
@@ -8712,6 +8727,10 @@ PkSyncStatusItem:
     calendarName:
       type: string
       description: 学期显示名（calendar_id_i18n）；首次同步失败等尚未写入 calendar 的学期可能为空字符串。
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      description: 课程数据来源范围；同一外部 calendarId 在不同范围内相互隔离。
     status:
       type: string
       enum: [running, completed, failed]
@@ -8770,6 +8789,11 @@ PkSyncCalendarRequest:
       type: integer
       minimum: 1
       description: 可向前回溯的学期数上限（默认 1；管理端上限 8）。小于 1 按 1 处理，超过上限按上限处理。
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      default: undergraduate
+      description: 课程数据来源范围；省略时使用本科生数据。
   additionalProperties: false
 
 PkSyncCalendarSuccess:
@@ -8780,7 +8804,7 @@ PkSyncCalendarSuccess:
       properties:
         result:
           type: object
-          required: [started, calendarId, term]
+          required: [started, calendarId, term, audience]
           additionalProperties: false
           properties:
             started:
@@ -8795,6 +8819,10 @@ PkSyncCalendarSuccess:
             term:
               type: string
               description: 归一化后的学期参数。
+            audience:
+              type: string
+              enum: [undergraduate, graduate]
+              description: 本次同步使用的课程数据来源范围。
 
 PkSyncCalendarResponse:
   oneOf:
@@ -9541,3 +9569,60 @@ OwnCourseReviewResponse:
           type: string
       additionalProperties: false
   additionalProperties: false
+
+PkMaterializeRequest:
+  type: object
+  required: [term]
+  additionalProperties: false
+  properties:
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      default: undergraduate
+      description: Source audience; omitted values retain undergraduate behavior.
+    term:
+      type: string
+      minLength: 1
+      description: Already synced calendar ID, canonical term code or Chinese term label.
+
+PkMaterializeResult:
+  type: object
+  additionalProperties: false
+  required: [calendarId, coursesInserted, coursesUpdated, instructorsInserted, aliasesInserted, aliasesSkipped, offeringsInserted, offeringsUpdated]
+  properties:
+    calendarId:
+      type: integer
+      format: uint64
+      minimum: 1
+    coursesInserted:
+      type: integer
+      minimum: 0
+    coursesUpdated:
+      type: integer
+      minimum: 0
+    instructorsInserted:
+      type: integer
+      minimum: 0
+    aliasesInserted:
+      type: integer
+      minimum: 0
+    aliasesSkipped:
+      type: integer
+      minimum: 0
+    offeringsInserted:
+      type: integer
+      minimum: 0
+    offeringsUpdated:
+      type: integer
+      minimum: 0
+
+PkMaterializeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/PkMaterializeResult'
+    - $ref: '#/ApiFailure'

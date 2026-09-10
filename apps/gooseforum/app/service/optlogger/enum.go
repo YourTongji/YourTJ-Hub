@@ -46,6 +46,7 @@ const (
 	ExportData
 	// RevealPostAuthor 匿名楼层作者揭示（issue #524）：追加在末尾避免改动枚举序列。
 	RevealPostAuthor
+	MaterializePk
 )
 
 type TargetTypeEnum int

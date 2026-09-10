@@ -4056,11 +4056,11 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
-         *     `站点管理` in zh). Exposure boundary: the response is exactly
-         *     `{cookieConfigured: boolean}` — the stored ciphertext and the
-         *     plaintext cookie are never returned (the domain struct tags the
-         *     ciphertext `json:"-"`, and the handler builds the response map by
-         *     hand). JSON binding is lenient: query string and body are ignored.
+         *     `站点管理` in zh). Exposure boundary: the response contains only
+         *     configured-state booleans — the stored ciphertext and plaintext cookies
+         *     are never returned. `cookieConfigured` remains the legacy alias for the
+         *     undergraduate credential. JSON binding is lenient: query string and
+         *     body are ignored.
          */
         get: operations["adminGetOnesystemSettings"];
         put?: never;
@@ -4084,15 +4084,18 @@ export interface paths {
          * Store or clear the 一系统 sync credential
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. The
-         *     submitted plaintext cookie is trimmed, encrypted with a
-         *     purpose-scoped AES-256-GCM key derived from `app.signingKey`, and
-         *     only the ciphertext is persisted (the plaintext exists only for the
-         *     duration of the request). An empty/blank cookie clears the stored
-         *     credential. A cookie longer than 4096 characters fails request
-         *     validation with HTTP 200 and `common.request.invalidParams`. If
-         *     encryption itself fails (signingKey misconfigured) the response is a
-         *     generic HTTP 200 `code: 1` failure with no `messageCode` — the
-         *     internal error detail is not exposed.
+         *     submitted plaintext cookies are trimmed, encrypted with
+         *     purpose-scoped AES-256-GCM keys derived from `app.signingKey`, and only
+         *     ciphertext is persisted (plaintext exists only for the duration of the
+         *     request). Omitted audience-specific fields retain their current values;
+         *     an empty/blank audience-specific field clears only that credential.
+         *     The deprecated `cookie` field is accepted as the undergraduate value
+         *     only when neither audience-specific field is supplied. A cookie longer
+         *     than 4096 characters fails request validation with HTTP 200 and
+         *     `common.request.invalidParams`. If encryption itself fails
+         *     (signingKey misconfigured) the response is a generic HTTP 200 `code: 1`
+         *     failure with no `messageCode` — the internal error detail is not
+         *     exposed.
          */
         post: operations["adminSaveOnesystemSettings"];
         delete?: never;
@@ -5171,6 +5174,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/pk/materialize-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Materialize a local calendar into the course review catalog
+         * @description Requires SiteManager (Admin is a superset). Reads one already synced local
+         *     calendar in the requested audience (undergraduate by default) and updates course cards, instructors and class offerings in one
+         *     transaction without a OneSystem cookie or network fetch. Returns counts
+         *     only after commit; request cancellation rolls back. Requests for a missing
+         *     calendar, a running sync, or a partially fetched calendar fail without
+         *     catalog writes. A complete fetch whose later materialization failed may
+         *     be materialized independently. Repeating the request preserves offering
+         *     IDs, reviews, manually hidden records and confirmed merges. An audit
+         *     record admin.opt.pk.materialized records a successful update.
+         */
+        post: operations["adminMaterializePkCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/pk/sync-calendar": {
         parameters: {
             query?: never;
@@ -5186,13 +5217,16 @@ export interface paths {
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Triggers the 一系统 (onesystem) schedule-data sync
-         *     for a term (issue #248 self-healing entry): the credential resolves via
+         *     for a term and audience (issue #248 self-healing entry): the credential resolves via
          *     the same cookie priority as the CLI (admin-stored securestore setting,
-         *     then `ONESYSTEM_COOKIE` env), and the sync runs asynchronously in a
+         *     then the audience-specific `ONESYSTEM_*_COOKIE` env), and the sync runs asynchronously in a
          *     background goroutine (paged fetch can take tens of seconds to minutes).
          *     The response returns `started: true` immediately; progress and outcome
-         *     are queried via `adminGetPkSyncStatus`. Resume-from-crash paging keeps
-         *     a retried trigger idempotent. A missing/blank/unparseable `term`
+         *     are queried via `adminGetPkSyncStatus`. Status rows include the audience. Resume-from-crash paging keeps
+         *     a retried trigger idempotent. After fetching each calendar, the job rebuilds
+         *     schedule timeslots and materializes the review catalog before reporting
+         *     completed. A materialization failure is reported as failed; retrying
+         *     resumes from the committed fetch cursor without refetching completed pages. A missing/blank/unparseable `term`
          *     (neither a numeric calendarId nor a known term name) fails request
          *     validation as `common.request.invalidParams` (HTTP 200). An audit
          *     record (`admin.opt.pk.synced`) is written for the requesting operator.
@@ -5217,7 +5251,7 @@ export interface paths {
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Summarizes the latest sync status per term
-         *     (calendarId descending): the current `pk_calendar` terms form the
+         *     (audience and calendarId descending): the current `pk_calendar` terms form the
          *     skeleton, each augmented with its most recent fetch-log state; terms
          *     with a fetch log but no calendar row yet (e.g. a first-sync failure)
          *     are also listed so failed attempts stay visible. With no terms or logs
@@ -5559,6 +5593,7 @@ export interface paths {
          * List courses for management (CourseManager/Admin)
          * @description CourseManager-scoped course list including hidden courses. Permission failures are a legacy
          *     HTTP 200 business failure (`permission.denied`).
+         *     Keyword search also matches class codes from visible offerings, including classes without aliases.
          */
         post: operations["adminCourseList"];
         delete?: never;
@@ -8809,14 +8844,25 @@ export interface components {
             settings?: components["schemas"]["AdminHttpNotifySettingsConfig"];
         };
         AdminOnesystemSettingsResult: {
-            /** @description Whether an encrypted 一系统 cookie is stored. Exposure boundary — this is the only field returned; the stored ciphertext and the plaintext cookie are never exposed (the domain struct tags the ciphertext `json:"-"`). */
+            /** @description Legacy alias for cookieConfiguredUndergraduate. */
             cookieConfigured: boolean;
+            /** @description Whether the encrypted undergraduate 一系统 cookie is stored. */
+            cookieConfiguredUndergraduate: boolean;
+            /** @description Whether the encrypted graduate 一系统 cookie is stored. */
+            cookieConfiguredGraduate: boolean;
         };
         AdminOnesystemSettingsResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminOnesystemSettingsResult"];
         };
         AdminSaveOnesystemSettingsRequest: {
-            /** @description Plaintext 一系统 Cookie header; encrypted with a purpose-scoped key (AES-256-GCM) before persistence and never stored in plaintext. An empty/blank value clears the stored credential. Longer than 4096 characters fails request validation with `common.request.invalidParams` (HTTP 200). When encryption itself fails (signingKey misconfigured) the response is a generic HTTP 200 `code: 1` failure with no `messageCode`. */
+            /** @description Plaintext undergraduate 一系统 Cookie; omitted keeps the current value, blank clears only the undergraduate credential. */
+            undergraduateCookie?: string;
+            /** @description Plaintext graduate 一系统 Cookie; omitted keeps the current value, blank clears only the graduate credential. */
+            graduateCookie?: string;
+            /**
+             * @deprecated
+             * @description Legacy alias for undergraduateCookie. Used only when neither audience-specific field is supplied.
+             */
             cookie?: string;
         };
         AdminAiSummarySettingsConfig: {
@@ -10311,6 +10357,12 @@ export interface components {
             term: string;
             /** @description 可向前回溯的学期数上限（默认 1；管理端上限 8）。小于 1 按 1 处理，超过上限按上限处理。 */
             depth?: number;
+            /**
+             * @description 课程数据来源范围；省略时使用本科生数据。
+             * @default undergraduate
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
         };
         PkSyncCalendarResponse: components["schemas"]["PkSyncCalendarSuccess"] | components["schemas"]["ApiFailure"] | {
             /** @description Up to 20 most recent export tasks, newest id first. */
@@ -10330,6 +10382,11 @@ export interface components {
                 calendarId: number;
                 /** @description 归一化后的学期参数。 */
                 term: string;
+                /**
+                 * @description 本次同步使用的课程数据来源范围。
+                 * @enum {string}
+                 */
+                audience: "undergraduate" | "graduate";
             };
         };
         PkSyncStatusItem: {
@@ -10340,6 +10397,11 @@ export interface components {
             calendarId: number;
             /** @description 学期显示名（calendar_id_i18n）；首次同步失败等尚未写入 calendar 的学期可能为空字符串。 */
             calendarName: string;
+            /**
+             * @description 课程数据来源范围；同一外部 calendarId 在不同范围内相互隔离。
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
             /**
              * @description 最近一次同步状态；超过断点续跑窗口（1 小时）的 running 会被判定为 failed。
              * @enum {string}
@@ -10744,6 +10806,30 @@ export interface components {
         };
         WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiSearchResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PkMaterializeRequest: {
+            /**
+             * @description Source audience; omitted values retain undergraduate behavior.
+             * @default undergraduate
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
+            /** @description Already synced calendar ID, canonical term code or Chinese term label. */
+            term: string;
+        };
+        PkMaterializeResult: {
+            /** Format: uint64 */
+            calendarId: number;
+            coursesInserted: number;
+            coursesUpdated: number;
+            instructorsInserted: number;
+            aliasesInserted: number;
+            aliasesSkipped: number;
+            offeringsInserted: number;
+            offeringsUpdated: number;
+        };
+        PkMaterializeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PkMaterializeResult"];
         }) | components["schemas"]["ApiFailure"];
         PkReviewBriefClass: {
             /** @description 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
@@ -17635,7 +17721,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Configuration state only (`cookieConfigured`), never the credential itself. */
+            /** @description Configuration state only, never either credential itself. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19534,6 +19620,48 @@ export interface operations {
                 };
             };
             /** @description The account is not a PageManager or Admin (or it is frozen). A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminMaterializePkCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkMaterializeRequest"];
+            };
+        };
+        responses: {
+            /** @description Completed materialization report, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkMaterializeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -14,6 +14,7 @@ import (
 
 // runPkSync 可注入的排课同步执行函数（测试替换为 stub，避免真实抓取一系统）。
 var runPkSync = pkservice.SyncFromClaim
+var runPkSyncForAudience = pkservice.SyncFromClaimForAudience
 
 // maxPkSyncDepth 管理端单次同步可向前回溯的学期数上限（对齐 ListCalendars 默认窗口）。
 // depth 过大意味着从学期 1 到目标的破坏性全量重写 + 全量抓取，且后台 goroutine 不可取消。
@@ -21,8 +22,9 @@ const maxPkSyncDepth = 8
 
 // SyncPkCalendarReq 排课数据同步请求参数。
 type SyncPkCalendarReq struct {
-	Term  string `json:"term" validate:"required"`
-	Depth int    `json:"depth"`
+	Term     string `json:"term" validate:"required"`
+	Depth    int    `json:"depth"`
+	Audience string `json:"audience"`
 }
 
 // SyncPkCalendar 管理端触发一系统排课数据同步（issue #248 自愈入口）。
@@ -31,11 +33,15 @@ type SyncPkCalendarReq struct {
 // 进度与结果经 PkSyncStatus（fetchlog 游标）查询，断点续跑保证幂等。
 func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Response {
 	term := strings.TrimSpace(req.Params.Term)
-	calendarId, _, err := pkservice.ResolveSyncTerm(term)
+	audience, ok := pk.ParseAudience(req.Params.Audience)
+	if !ok {
+		return component.FailResponseError(fmt.Errorf("同步数据来源无效：%q，请使用 undergraduate 或 graduate", req.Params.Audience))
+	}
+	calendarId, _, err := pkservice.ResolveSyncTermForAudience(audience, term)
 	if err != nil {
 		return component.FailResponseError(fmt.Errorf("同步参数错误：%w", err))
 	}
-	cookie, err := pkservice.ResolveCookie("")
+	cookie, err := pkservice.ResolveCookieForAudience("", audience)
 	if err != nil {
 		return component.FailResponseError(err)
 	}
@@ -46,15 +52,16 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 	if depth > maxPkSyncDepth {
 		depth = maxPkSyncDepth
 	}
-	claim, resume, err := pkservice.ClaimSyncCalendar(calendarId)
+	claim, resume, err := pkservice.ClaimSyncCalendarForAudience(audience, calendarId)
 	if err != nil {
 		return component.FailResponseError(err)
 	}
 
 	// 仅真正取得租约的请求记审计并确认开始，避免并发请求被误报为成功。
 	optlogger.UserOptCode(req.UserId, optlogger.SyncPk, calendarId, "admin.opt.pk.synced", optlogger.MessageParams{
-		"term":  term,
-		"depth": depth,
+		"term":     term,
+		"depth":    depth,
+		"audience": audience,
 	})
 
 	jobCtx, cancel := detachedJobContext(req.GinContext)
@@ -68,7 +75,13 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 				}
 			}
 		}()
-		report, syncErr := runPkSync(jobCtx, cookie, calendarId, depth, false, claim, resume)
+		var report *pkservice.SyncReport
+		var syncErr error
+		if audience == pk.AudienceGraduate {
+			report, syncErr = runPkSyncForAudience(jobCtx, cookie, audience, calendarId, depth, true, claim, resume)
+		} else {
+			report, syncErr = runPkSync(jobCtx, cookie, calendarId, depth, true, claim, resume)
+		}
 		if syncErr != nil {
 			slog.Error("pk sync failed", "calendarId", calendarId, "term", term, "err", syncErr)
 			return
@@ -81,6 +94,7 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 		"started":    true,
 		"calendarId": calendarId,
 		"term":       term,
+		"audience":   audience,
 	})
 }
 

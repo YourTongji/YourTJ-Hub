@@ -19,8 +19,9 @@ import (
 	nethtml "golang.org/x/net/html"
 )
 
+// Increment when persisted HTML rendering changes so existing posts are refreshed.
 func GetPostVersion() uint32 {
-	return 6
+	return 7
 }
 
 var md = goldmark.New(

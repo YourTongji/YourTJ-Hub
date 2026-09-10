@@ -44,6 +44,27 @@ describe('extractMathSegments', () => {
     expect(segment.text).toContain('\n')
   })
 
+  test('detects LaTeX inline delimiters', () => {
+    const segments = extractMathSegments('\\(x+y\\)')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toMatchObject({ text: 'x+y', display: false })
+  })
+
+  test('detects LaTeX display delimiters', () => {
+    const segments = extractMathSegments('\\[x+y\\]')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toMatchObject({ text: 'x+y', display: true })
+  })
+
+  test('detects begin/end math environments', () => {
+    const segments = extractMathSegments('\\begin{equation}E=mc^2\\end{equation}')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]).toMatchObject({ text: String.raw`\begin{equation}E=mc^2\end{equation}`, display: true })
+
+    const align = extractMathSegments('\\begin{align}a&=b\\end{align}')
+    expect(align).toHaveLength(1)
+    expect(align[0]).toMatchObject({ text: String.raw`\begin{align}a&=b\end{align}`, display: true })
+  })
   test('ignores an escaped opening dollar sign', () => {
     expect(extractMathSegments('\\$x$')).toEqual([])
   })
@@ -253,5 +274,22 @@ describe('inline math across element boundaries on legacy HTML', () => {
     expect(changed).toBe(false)
     expect(loader).not.toHaveBeenCalled()
     expect(nodes.every((node) => node.replaceWith.mock.calls.length === 0)).toBe(true)
+  })
+})
+
+
+describe('LaTeX environment rendering regressions', () => {
+  test.each([
+    String.raw`\begin{align}a&=b\end{align}`,
+    String.raw`\begin{pmatrix}a&b\\c&d\end{pmatrix}`,
+    String.raw`\begin{cases}x&x>0\\0&x=0\end{cases}`,
+  ])('renders the full environment %s without a KaTeX parse error', (source) => {
+    const parts = splitIntoMathParts(source)
+    expect(parts).toHaveLength(1)
+    expect(parts[0].type).toBe('math')
+    if (parts[0].type === 'math') expect(parts[0].html).not.toContain('katex-error')
+  })
+  test.each([String.raw`\\(x\\)`, String.raw`\\[x\\]`, String.raw`\(x`, String.raw`\[x`, String.raw`\begin{align}x`, String.raw`\(\)`, String.raw`\[ \]`, String.raw`\begin{multline}x\end{multline}`])('keeps escaped, empty or unclosed input literal: %s', (source) => {
+    expect(extractMathSegments(source)).toEqual([])
   })
 })

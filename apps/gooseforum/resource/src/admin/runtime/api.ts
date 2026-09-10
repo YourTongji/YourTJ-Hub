@@ -32,6 +32,7 @@ import type {
   OnesystemSettings,
   ScheduleSettings,
   PkSyncStatusItem,
+  PkMaterializeResult,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -405,14 +406,14 @@ export function getOnesystemSettings() {
   return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
 }
 
-export function saveOnesystemSettings(cookie: string) {
-  return postJson<unknown>('/api/admin/save-onesystem-settings', { cookie }, adminText('k00s1'))
+export function saveOnesystemSettings(settings: { undergraduateCookie?: string, graduateCookie?: string }) {
+  return postJson<unknown>('/api/admin/save-onesystem-settings', settings, adminText('k00s1'))
 }
 
-export function syncPkCalendar(term: string, depth = 1) {
-  return postJson<{ started: boolean, calendarId: number, term: string }>(
+export function syncPkCalendar(term: string, depth = 1, audience: 'undergraduate' | 'graduate' = 'undergraduate') {
+  return postJson<{ started: boolean, calendarId: number, term: string, audience: 'undergraduate' | 'graduate' }>(
     '/api/admin/pk/sync-calendar',
-    { term, depth },
+    { term, depth, audience },
     adminText('k00s2'),
   )
 }
@@ -608,4 +609,8 @@ export function getWikiAssetCDN() {
 
 export function saveWikiAssetCDN(cdn: string) {
   return postJson<unknown>('/api/admin/wiki/sync/cdn', { cdn }, adminText('k00n0'))
+}
+
+export function materializePkCalendar(term: string, audience: 'undergraduate' | 'graduate' = 'undergraduate') {
+  return postJson<PkMaterializeResult>('/api/admin/pk/materialize-calendar', { term, audience }, adminText('materializeFailed'))
 }

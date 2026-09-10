@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Draggable from 'vuedraggable'
-import { Check, ChevronDown, ChevronLeft, ChevronRight, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
 import {
-  DialogClose,
   DialogContent,
   DialogOverlay,
   DialogPortal,
@@ -22,7 +21,10 @@ import { processImageFile, validateImageFile } from '@/runtime/image'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import { useQuickPublish } from '@/site/composables/useQuickPublish'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
+import MentionCandidates from '@/site/components/MentionCandidates.vue'
+import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
+import { clearQuickPublishDraft, readQuickPublishDraft, writeQuickPublishDraft, type QuickPublishDraftStash } from '@/site/utils/quick-publish-draft'
 
 interface UploadedImageItem {
   id: string
@@ -70,7 +72,43 @@ const titleInput = ref<HTMLInputElement | null>(null)
 const categoryPickerTrigger = ref<HTMLButtonElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const editorHost = ref<HTMLElement | null>(null)
+const {
+  mentionOpen,
+  mentionQuery,
+  mentionCandidates,
+  mentionActiveIndex,
+  mentionLoading,
+  mentionFailed,
+  mentionDocked,
+  mentionPanelStyle,
+  refreshMentionSession,
+  closeMention,
+  selectMention,
+} = useMentionAutocomplete({
+  editor: () => editor.value,
+  // 瞬间/提问快速发布无本地上下文；服务端搜索提供全部候选（issue #590）
+  localUsers: () => [],
+  currentUserId: () => (props.layout.viewer.isAuthenticated ? props.layout.viewer.id : 0),
+  surface: () => editorHost.value,
+})
 const uploadedImages = ref<UploadedImageItem[]>([])
+
+// —— 草稿与离开保护（issue #583）——
+// 弹层首次打开后常驻挂载（everOpenedQuickPublish），守卫必须在调用时检查打开状态，
+// 不能依赖组件生命周期（onMounted 只注册一次，回调内实时判断）。
+const leavePromptOpen = ref(false)
+const savingDraft = ref(false)
+const draftRestored = ref(false)
+const forcedNav = ref(false)
+const baselineSnapshot = ref('')
+const draftUserId = ref(0)
+const continueEditingButton = ref<HTMLButtonElement | null>(null)
+let previousFocus: HTMLElement | null = null
+const viewerId = computed(() => props.layout.viewer.isAuthenticated ? props.layout.viewer.id : 0)
+let pendingNavResolve: ((allow: boolean) => void) | undefined
+let removeRouteGuard: (() => void) | undefined
+let stashTimer = 0
 
 const categories = computed(() => props.layout?.sidebar?.categories || [])
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
@@ -107,6 +145,154 @@ const typeMeta = computed(() => {
   }
 })
 
+// 快照序列化与 PublishPage editorSnapshot 同构：标题/正文 trim、分类排序、图片取已上传 URL。
+function editorSnapshot() {
+  return JSON.stringify({
+    title: title.value.trim(),
+    content: content.value.trim(),
+    categoryIds: [...categoryIds.value].sort((a, b) => a - b),
+    images: uploadedImages.value.filter((i) => !i.uploading).map((i) => i.url),
+  })
+}
+
+const uploadedImageUrls = computed(() => uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url))
+const dirty = computed(() => uploading.value || editorSnapshot() !== baselineSnapshot.value)
+const hasContent = computed(() => Boolean(title.value.trim() || content.value.trim() || categoryIds.value.length > 0 || uploadedImageUrls.value.length > 0))
+// 服务端草稿需要标题/正文/分类（与 PublishPage draftRequirement 同规则）；编辑模式不提供
+// 保存草稿（把已发布话题降级为 topicStatus:0 草稿是错误语义）。
+const canSaveDraft = computed(() => !isEditing.value && Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0) && !submitting.value && !savingDraft.value && !uploading.value)
+
+function stashHasContent(stash: QuickPublishDraftStash): boolean {
+  return Boolean(stash.title.trim() || stash.content.trim() || stash.categoryIds.length > 0 || stash.images.length > 0)
+}
+
+function resolvePendingNav(allow: boolean) {
+  const resolve = pendingNavResolve
+  pendingNavResolve = undefined
+  resolve?.(allow)
+}
+
+function closeLeavePrompt() {
+  leavePromptOpen.value = false
+  resolvePendingNav(false)
+}
+
+function doClose() {
+  closeQuickPublish()
+}
+
+function requestClose() {
+  if (!dirty.value) {
+    doClose()
+  } else {
+    leavePromptOpen.value = true
+  }
+}
+
+function handleDialogOpenChange(val: boolean) {
+  if (val) return
+  // 遮罩点击 / Esc 触发的关闭请求：若离开确认已打开，仅取消确认（并取消挂起的导航）。
+  if (leavePromptOpen.value) {
+    closeLeavePrompt()
+    return
+  }
+  requestClose()
+}
+
+function discardAndClose() {
+  clearQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
+  leavePromptOpen.value = false
+  doClose()
+  resolvePendingNav(true)
+}
+
+async function saveDraftAndClose() {
+  if (!canSaveDraft.value) return
+  savingDraft.value = true
+  errorMessage.value = ''
+  content.value = editor.value?.syncValue() ?? content.value
+  clearSensitiveHighlight()
+
+  try {
+    await submitTopic({
+      topicId: 0,
+      title: title.value.trim(),
+      content: content.value.trim(),
+      categoryId: [...categoryIds.value],
+      topicStatus: 0,
+      contentType: quickPublishType.value,
+      images: uploadedImageUrls.value,
+      captchaId: captchaRequired.value ? (captchaId.value || undefined) : undefined,
+      captchaCode: captchaRequired.value ? (captchaCode.value || undefined) : undefined,
+    })
+    clearQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
+    leavePromptOpen.value = false
+    doClose()
+    resolvePendingNav(true)
+    forcedNav.value = true
+    try {
+      await router.push('/drafts')
+    } catch {
+      if (typeof window !== 'undefined') window.location.href = '/drafts'
+    } finally {
+      forcedNav.value = false
+    }
+  } catch (err) {
+    if (challengeFromError(err)) {
+      clearSensitiveHighlight()
+      errorMessage.value = t('server.auth.captcha.invalid')
+      void loadCaptcha()
+    } else {
+      sensitiveWords.value = sensitiveWordsFromError(err)
+      errorMessage.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+    }
+  } finally {
+    savingDraft.value = false
+  }
+}
+
+function saveDraftFromFooter() {
+  validationAttempted.value = true
+  content.value = editor.value?.syncValue() ?? content.value
+  if (categoryIds.value.length === 0) {
+    errorMessage.value = t('publish.validation.categoryRequired')
+    categoryPickerOpen.value = true
+    void nextTick(() => categoryPickerTrigger.value?.focus())
+    return
+  }
+  if (!title.value.trim() || !content.value.trim()) {
+    errorMessage.value = t('publish.validation.requiredFields')
+    return
+  }
+  void saveDraftAndClose()
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (!quickPublishOpen.value || !dirty.value || forcedNav.value) return
+  stashCurrentDraft()
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  removeRouteGuard = router.beforeEach(() => {
+    if (!quickPublishOpen.value || !dirty.value || forcedNav.value) return true
+    resolvePendingNav(false)
+    leavePromptOpen.value = true
+    return new Promise<boolean>((resolve) => {
+      pendingNavResolve = resolve
+    })
+  })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  removeRouteGuard?.()
+  resolvePendingNav(true)
+  if (stashTimer) window.clearTimeout(stashTimer)
+})
+
 watch(
   quickPublishOpen,
   (open) => {
@@ -116,9 +302,25 @@ watch(
       validationAttempted.value = false
       categoryPickerOpen.value = false
       titleFocused.value = false
+      leavePromptOpen.value = false
+      savingDraft.value = false
+      draftRestored.value = false
       clearCaptcha()
+      draftUserId.value = viewerId.value
 
-      if (quickPublishEditPayload.value) {
+      const stash = readQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
+      if (stash && stashHasContent(stash)) {
+        // 本地暂存优先：恢复上次未保存的内容并提示
+        title.value = stash.title
+        content.value = stash.content
+        categoryIds.value = [...stash.categoryIds]
+        uploadedImages.value = stash.images.map((url, idx) => ({
+          id: `stash-${idx}-${Date.now()}`,
+          url,
+          alt: '',
+        }))
+        draftRestored.value = true
+      } else if (quickPublishEditPayload.value) {
         // 编辑模式：回显原话题标题、正文、分类与图片
         title.value = quickPublishEditPayload.value.title || ''
         content.value = quickPublishEditPayload.value.content || ''
@@ -138,6 +340,11 @@ watch(
         uploadedImages.value = []
       }
 
+      // 基线快照在字段填充完成后捕获：此后任何偏离都视为未保存改动
+      baselineSnapshot.value = stash && stashHasContent(stash)
+        ? JSON.stringify({ title: '', content: '', categoryIds: [], images: [] })
+        : editorSnapshot()
+
       void nextTick(() => {
         titleInput.value?.focus()
         if (editor.value && content.value) {
@@ -150,10 +357,68 @@ watch(
       categoryIds.value = []
       uploadedImages.value = []
       sensitiveWords.value = []
+      closeMention()
+      leavePromptOpen.value = false
+      savingDraft.value = false
+      draftRestored.value = false
+      if (stashTimer) {
+        window.clearTimeout(stashTimer)
+        stashTimer = 0
+      }
     }
   },
   { immediate: true },
 )
+
+// Flush on page exit as well as the debounce; clearing all fields must not
+// resurrect the last nonempty stash. Capture ownership when the modal opens.
+function stashCurrentDraft() {
+  if (!quickPublishOpen.value || viewerId.value !== draftUserId.value) return
+  if (stashTimer) window.clearTimeout(stashTimer)
+  stashTimer = 0
+  if (!hasContent.value) {
+    clearQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
+    return
+  }
+  writeQuickPublishDraft(draftUserId.value, quickPublishType.value, {
+    title: title.value,
+    content: content.value,
+    categoryIds: [...categoryIds.value],
+    images: uploadedImageUrls.value,
+  }, quickPublishEditPayload.value?.topicId)
+}
+
+watch([title, content, categoryIds, uploadedImages, quickPublishOpen], () => {
+  if (!quickPublishOpen.value) return
+  if (stashTimer) window.clearTimeout(stashTimer)
+  stashTimer = window.setTimeout(stashCurrentDraft, 500)
+}, { deep: true })
+
+watch(viewerId, () => {
+  if (quickPublishOpen.value && viewerId.value !== draftUserId.value) {
+    resolvePendingNav(false)
+    doClose()
+  }
+}, { flush: 'sync' })
+
+watch(leavePromptOpen, async open => {
+  if (open) {
+    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    await nextTick()
+    continueEditingButton.value?.focus()
+  } else if (quickPublishOpen.value) {
+    previousFocus?.focus()
+  }
+})
+
+function trapLeavePromptFocus(event: KeyboardEvent) {
+  if (event.key !== 'Tab') return
+  const buttons = Array.from((event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
+  if (!buttons.length) return
+  const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+  event.preventDefault()
+  buttons[(index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length]?.focus()
+}
 
 function selectCategory(catId: number) {
   categoryIds.value = [catId]
@@ -167,6 +432,11 @@ function handleTitleEnter() {
 
 function clearSensitiveHighlight() {
   sensitiveWords.value = []
+}
+
+function handleBodyInput() {
+  clearSensitiveHighlight()
+  refreshMentionSession()
 }
 
 function handleTitleInput() {
@@ -298,7 +568,7 @@ async function handleSubmit() {
     return
   }
 
-  if (submitting.value || uploading.value) return
+  if (submitting.value || savingDraft.value || uploading.value) return
   submitting.value = true
   errorMessage.value = ''
   clearSensitiveHighlight()
@@ -318,23 +588,30 @@ async function handleSubmit() {
     })
 
     closeQuickPublish()
+    clearQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
     if (targetTopicId > 0) {
       if (typeof window !== 'undefined') {
         if (window.location.pathname.includes(`/p/post/${targetTopicId}`)) {
           window.location.reload()
         } else {
+          forcedNav.value = true
           try {
             await router.push(`/p/post/${targetTopicId}`)
           } catch {
             window.location.href = `/p/post/${targetTopicId}`
+          } finally {
+            forcedNav.value = false
           }
         }
       }
     } else if (topicId) {
+      forcedNav.value = true
       try {
         await router.push(`/p/post/${topicId}`)
       } catch {
         window.location.href = `/p/post/${topicId}`
+      } finally {
+        forcedNav.value = false
       }
     }
   } catch (err) {
@@ -352,7 +629,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <DialogRoot :open="quickPublishOpen" @update:open="(val) => !val && closeQuickPublish()">
+  <DialogRoot :open="quickPublishOpen" @update:open="handleDialogOpenChange">
     <DialogPortal>
       <DialogOverlay class="fixed inset-0 z-[80] bg-black/50 backdrop-blur-xs duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
       <DialogContent
@@ -379,16 +656,27 @@ async function handleSubmit() {
             </span>
           </div>
 
-          <DialogClose
+          <button
+            type="button"
             class="rounded-full p-1.5 text-base-content/40 hover:bg-base-200 hover:text-base-content hover:rotate-90 transition-all duration-200 active:scale-[0.92] focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
             :aria-label="t('publish.modal.close')"
+            @click="requestClose"
           >
             <X class="h-5 w-5 transition-transform duration-200" />
-          </DialogClose>
+          </button>
         </div>
 
         <!-- 弹层主体：首行快捷传图 -> 选择分类 -> 填写标题 -> 添加正文铺满 -> 底部工具栏 -->
         <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-2.5 sm:py-3 gap-2.5 sm:gap-3 overflow-hidden sm:overflow-y-auto">
+          <!-- 本地暂存恢复提示（issue #583） -->
+          <p
+            v-if="draftRestored"
+            data-test="quick-publish-draft-restored"
+            class="shrink-0 flex items-center gap-1.5 text-xs font-medium text-primary/85 animate-in fade-in-0 slide-in-from-top-1 duration-150"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-primary/70 shrink-0" />
+            {{ t('publish.modal.draftRestored') }}
+          </p>
           <!-- 首行入口：快捷传图与已上传图片预览横向滑动流（支持滑动预览与拖拽重排，移动端比例适度放大） -->
           <div class="gf-image-scroll-track shrink-0 flex items-center gap-3 overflow-x-auto pb-2 pt-0.5">
             <!-- 已上传/正在上传的图片缩略图卡片列表（支持桌面拖拽与移动端触控拖拽排序）
@@ -588,7 +876,7 @@ async function handleSubmit() {
           />
 
           <!-- 第四行：正文编辑器（弹性填满剩余空间，工具栏移到底部大拇指触控区，隐去传图按钮） -->
-          <div class="gf-modal-editor relative flex-1 min-h-0 flex flex-col">
+          <div ref="editorHost" class="gf-modal-editor relative flex-1 min-h-0 flex flex-col" :class="{ 'is-mention-picking': mentionOpen && mentionDocked }">
             <VditorOfficial
               ref="editor"
               v-model="content"
@@ -596,9 +884,21 @@ async function handleSubmit() {
               :hide-upload="true"
               :sensitive-words="sensitiveWords"
               :placeholder="t('publish.modal.contentPlaceholder')"
-              @input="clearSensitiveHighlight"
+              @input="handleBodyInput"
               @upload="uploadImageFiles"
               @error="handleEditorError"
+            />
+            <!-- @mention 候选面板（issue #590）：与回复编辑器共享会话引擎与面板组件 -->
+            <MentionCandidates
+              :open="mentionOpen"
+              :query="mentionQuery"
+              :candidates="mentionCandidates"
+              :active-index="mentionActiveIndex"
+              :loading="mentionLoading"
+              :failed="mentionFailed"
+              :docked="mentionDocked"
+              :panel-style="mentionPanelStyle"
+              @select="selectMention"
             />
           </div>
 
@@ -648,24 +948,84 @@ async function handleSubmit() {
             </kbd>
           </div>
 
-          <!-- 右侧：取消与立即发布按钮（严格遵循 active:scale-[0.96] 微反馈） -->
+          <!-- 右侧：取消 / 保存草稿（新建模式）/ 立即发布（严格遵循 active:scale-[0.96] 微反馈） -->
           <div class="flex items-center gap-2">
             <button
               type="button"
               class="gf-button gf-button-secondary rounded-xl text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all duration-150 hover:bg-base-200/80 active:scale-[0.96]"
-              @click="closeQuickPublish()"
+              @click="requestClose"
             >
               {{ t('publish.modal.cancel') }}
             </button>
             <button
+              v-if="!isEditing"
+              type="button"
+              class="gf-button gf-button-secondary rounded-xl text-xs px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all duration-150 hover:bg-base-200/80 active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              :disabled="submitting || uploading || savingDraft"
+              @click="saveDraftFromFooter"
+            >
+              <Loader2 v-if="savingDraft" class="h-3.5 w-3.5 animate-spin" />
+              <span>{{ savingDraft ? t('common.saving') : t('publish.saveDraft') }}</span>
+            </button>
+            <button
               type="button"
               class="gf-button gf-button-primary rounded-xl text-xs px-4 py-1.5 sm:px-5 sm:py-2 inline-flex items-center gap-1.5 shadow-sm hover:shadow-md hover:brightness-105 active:scale-[0.96] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              :disabled="submitting || uploading"
+              :disabled="submitting || uploading || savingDraft"
               @click="handleSubmit"
             >
               <Loader2 v-if="submitting || uploading" class="h-3.5 w-3.5 animate-spin" />
               <span>{{ submitting ? t('common.saving') : (isEditing ? t('common.save') : t('publish.modal.submit')) }}</span>
             </button>
+          </div>
+        </div>
+
+        <!-- 离开确认面板（issue #583）：内联覆盖层，避免嵌套 DialogRoot 的焦点/aria 冲突 -->
+        <div
+          v-if="leavePromptOpen"
+          role="alertdialog"
+          @keydown="trapLeavePromptFocus"
+          aria-modal="true"
+          aria-labelledby="quick-publish-leave-title"
+          class="absolute inset-0 z-20 bg-base-100/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in-0 duration-150"
+        >
+          <div class="w-full max-w-sm rounded-2xl border border-line/80 bg-base-100 p-4 sm:p-5 shadow-xl">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                <FileText class="h-5 w-5" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h2 id="quick-publish-leave-title" class="text-base font-bold text-base-content">{{ t('publish.leaveTitle') }}</h2>
+                <p class="mt-1 text-sm leading-6 text-base-content/55">{{ t('publish.leaveDescription') }}</p>
+              </div>
+            </div>
+
+            <div
+              v-if="!isEditing && !canSaveDraft"
+              class="mt-4 flex items-start gap-2.5 rounded-xl border border-warning/20 bg-warning/10 px-3.5 py-3 text-sm leading-5 text-warning/90"
+            >
+              <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{{ t('publish.draftRequirement') }}</span>
+            </div>
+
+            <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button ref="continueEditingButton" type="button" class="gf-button gf-button-secondary rounded-xl text-xs px-3.5 py-2 transition-all duration-150 hover:bg-base-200/80 active:scale-[0.96]" @click="closeLeavePrompt">
+                {{ t('publish.continueEditing') }}
+              </button>
+              <button
+                v-if="!isEditing && canSaveDraft"
+                type="button"
+                class="gf-button gf-button-primary rounded-xl text-xs px-3.5 py-2 inline-flex items-center gap-1.5 shadow-sm hover:shadow-md hover:brightness-105 active:scale-[0.96] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                :disabled="savingDraft"
+                @click="saveDraftAndClose"
+              >
+                <Loader2 v-if="savingDraft" class="h-3.5 w-3.5 animate-spin" />
+                <FileText v-else class="h-3.5 w-3.5" />
+                {{ savingDraft ? t('common.saving') : t('publish.saveDraft') }}
+              </button>
+              <button type="button" class="gf-button gf-button-error rounded-xl text-xs px-3.5 py-2 transition-all duration-150 hover:brightness-105 active:scale-[0.96]" @click="discardAndClose">
+                {{ t('publish.leaveWithoutSaving') }}
+              </button>
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -855,5 +1215,17 @@ async function handleSubmit() {
 
 .gf-image-scroll-track::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+}
+
+/* @mention 挑选态（issue #590 review）：停靠候选面板参与弹层内 flex 布局时，
+ * 压缩编辑器最小高度并钉住面板不收缩，保证候选列表完整落在弹层可视区内可点
+ * （弹层主体移动端 overflow-hidden，static 面板此前会被裁切至不可触达） */
+.gf-modal-editor.is-mention-picking .vditor-content {
+  min-height: 0 !important;
+}
+
+.gf-modal-editor.is-mention-picking .gf-mention-panel.is-docked {
+  flex-shrink: 0;
+  max-height: min(234px, 38vh);
 }
 </style>

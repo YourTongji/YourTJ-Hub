@@ -589,13 +589,26 @@ instance:
 > **管理端入口（推荐，issue #248）**：部署实例的排课器学期下拉为空，通常是因为
 > `pk_calendar` 尚无数据且未同步。无需登录服务器，在**管理端 → 设置 → 一系统同步**
 > 页面即可：
-> 1. 配置一系统 Cookie（加密落库，不存明文）；
-> 2. 输入一系统数字学期 ID（如 `121`）或已同步过的学期名（如 `2025-2026-1`）点「立即同步」；
+> 1. 分别配置本科生/研究生一系统 Cookie（加密落库，不存明文）；
+> 2. 选择数据范围（本科生或研究生），输入一系统数字学期 ID（如 `121`）或已同步过的学期名（如 `2025-2026-1`）点「立即同步」；
 > 3. 同步在后台执行（`POST /api/admin/pk/sync-calendar`），页面「同步状态」列表每 3s 轮询
 >    `GET /api/admin/pk/sync-status`（`pk_fetch_log` 游标）直至结束，可看到行数/进度/失败原因。
 >
-> 未配置任何 Cookie 来源（管理端设置/`ONESYSTEM_COOKIE` 环境变量）时入口会拒绝触发。
-> 同一学期同步中的并发仍受 fetchlog 1 小时 running 窗口保护（见下）。
+> 未配置所选范围的 Cookie 来源（管理端设置/对应环境变量）时入口会拒绝触发。
+> 本科生与研究生共用 PK 表，但通过 `audience` 与作用域 ID 隔离；同一外部
+> `calendarId`、教学班或字典键可以在两个范围内同时存在。旧的单 Cookie 配置按本科生处理。
+> 同一范围、同一学期同步中的并发仍受 fetchlog 1 小时 running 窗口保护（见下）。
+
+**后台物化入口（Current）**：管理端 → 设置 → 一系统同步 →「物化课评目录」，
+选择已同步学期后执行。该入口调用 `POST /api/admin/pk/materialize-calendar`，仅需
+SiteManager 权限，不需要一系统 Cookie；单学期事务提交后展示课程卡/教学班新增和更新数量。
+正在同步或尚未完整抓取的学期会被拒绝；完整抓取后仅物化失败的学期可以独立补跑。
+请求取消或两分钟执行期限到达会回滚未提交的物化事务，可重新执行；该端点将 HTTP
+写期限延长至 130 秒，为事务超时响应留出余量。
+
+管理端「立即同步」自动包含时间片重建与课评物化；这些步骤全部完成后才显示同步成功。
+物化失败会显示失败原因，重试可从完整抓取游标直接补跑，无需重抓已提交页面。
+CLI 的 `--materialize` 仍为显式选项。
 
 CLI 同步（运维 cron 等自动化场景）：
 
@@ -605,6 +618,9 @@ CLI 同步（运维 cron 等自动化场景）：
 ./bin/yourtj-hub course-pk-sync 121
 ./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
 ./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
+
+# 同步研究生数据（使用研究生管理端 Cookie 或 ONESYSTEM_GRADUATE_COOKIE）
+./bin/yourtj-hub course-pk-sync 121 --audience graduate
 
 # 连同步前 3 个学期（选课季加频/补历史）
 ./bin/yourtj-hub course-pk-sync 121 --depth 3
@@ -617,8 +633,14 @@ CLI 同步（运维 cron 等自动化场景）：
 写入课程目录 offering 行（幂等 upsert，按 `teaching_class_id` 定位），并落库
 `course_instructor.teacher_code`；学期自动创建（`term` 按 calendar_id_i18n 幂等 upsert）。
 物化/导入链路**均不写 `offering.status`**（管理端隐藏的教学班不会被物化复活）。
+物化在同一个数据库快照内读取教学班与教师。教师换班保留 offering ID 及评价，
+同步修正本物化链维护的班号别名（人工别名及历史开课仍在使用的班号不抢占），旧/新课程
+的搜索更新与评分统计重建随事务入队。多人授课优先保留仍在教师名单中的原身份教师；
+新班按工号、姓名稳定选择，完整教师名单保留在 offering，不自动改变 `review_scope`。
+管理端和公开目录按班号检索时也查询可见 offering 的 `class_code`，无需依赖别名存在。
+
 历史课评数据包导入（见 `docs/operations/course-import-e2e.md`）保持兼容且从属：
-导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 (term, teaching_class_id)
+导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 teaching_class_id
 唯一索引——先物化后导入时导入器复用已有行（不重复建卡）。
 
 **纯本地物化补跑（course-materialize，不依赖一系统 cookie）**：学期已同步到 PK 域但
@@ -645,23 +667,26 @@ CLI 同步（运维 cron 等自动化场景）：
 作为当前有效编号；原 `courseCode` / `code` 仍保留为来源证据和历史输入别名。已有同步数据
 无需迁移，补跑 `course-materialize <学期>` 即可按新编号刷新课程目录。
 
-凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
-（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+凭证优先级：`--onesystem-cookie` 参数 > 受众专用环境变量
+（本科生 `ONESYSTEM_UNDERGRADUATE_COOKIE`、研究生 `ONESYSTEM_GRADUATE_COOKIE`）>
+旧环境变量 `ONESYSTEM_COOKIE`（仅本科生）> 管理端对应设置（设置 → 一系统同步；
+`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
 - 运维 cron（每日，选课季加频；应用内不自造调度器）：
 
   ```bash
   # 每日 02:30 同步当前学期
-  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_UNDERGRADUATE_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121 --audience undergraduate
+  45 2 * * * cd /srv/yourtj-hub && ONESYSTEM_GRADUATE_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121 --audience graduate
   ```
 
 应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，
 可在 `config.toml` 设置 `[cron].enabled = false`；该开关只停止应用内 scheduler，
 不会停用 task queue worker 或手动 CLI。
 
-- 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
+- 行为保证：同一受众、同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
   续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
   fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
-- 并发防护：同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
+- 并发防护：同一受众、同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
   进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
 - 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
   需到管理端重新保存。
@@ -868,6 +893,14 @@ file across restarts, image updates and migrations; do not share the key between
 Google/GitHub retain their own provider credentials and existing HTTPS OAuth callback URLs;
 enabling the built-in provider does not configure those upstream providers.
 
+Third-party `redirect_uris_globs` match the callback after decoding the outer authorization
+query exactly once. Nested page URLs retain their percent encoding: a callback containing
+`redirect=https%3A%2F%2Fwiki.example.com%2Fguide` needs that encoded domain prefix in its
+pattern. Pin both the callback origin and the nested destination origin (or a known relative
+path prefix); do not permit arbitrary hosts or protocol-relative destinations. Check custom
+client patterns against the callback actually sent by the client when updating the provider.
+Exact mobile callbacks are unaffected. The deployment templates include encoded examples.
+
 Apply through the regular image/config workflow. After the instance restarts, verify discovery:
 
 ```bash
@@ -885,3 +918,8 @@ Password and Web social login remain separate from that switch.
 
 - Meilisearch index rebuild, backup
 - Logging & monitoring (config [log] slow SQL, rolling logs; health probes)
+
+PK audience migration rebuilds the natural-key dictionaries and related projection keys in
+one transaction. Failure leaves the old schema intact for a retry; rehearse it against the
+dev database snapshot before production. Source ID allocation stays within the JavaScript
+safe integer range, and upstream IDs outside the supported range are rejected before writes.

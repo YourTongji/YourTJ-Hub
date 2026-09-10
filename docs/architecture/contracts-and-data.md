@@ -285,10 +285,14 @@ complete operation coverage and the precondition for such a gate is met.
   index filter and in the service aggregation defense check.
 - Course aggregation & lineage (2026 课程沿革): `course.review_scope`（teacher/team/course 三档）
   与 `course.team_key`（教学团队键）驱动课评聚合口径——team 档在详情读取时按团队全部卡
-  实时聚合评分/分布/教师名单（无独立投影表）；`offering.teaching_class_id` 与 `term` 构成
+  实时聚合评分/分布/教师名单（无独立投影表）；`offering.teaching_class_id` 构成
   唯一索引，是排课物化与历史数据包导入共享的 offering 定位键（物化为权威写入源，导入
   从属复用；两源均不写 `offering.status`）；`instructor.teacher_code` 落库工号供规则引擎
-  跨学期匹配。`course_relations` 沿革表（from_course_id → to_course_id，relation_type
+  跨学期匹配。物化以一致性快照读取 PK，拒绝活动同步或未完整抓取的数据；同步租约覆盖
+  时间片重建和课评物化。教学班换教师保持 offering ID、评价及人工隐藏状态，修正可迁移的
+  onesystem 班号别名并入队旧/新课程统计和搜索重建。多人班保留仍在授课的原身份教师，
+  新班按工号/姓名稳定选择；团队评价范围仍由 `review_scope/team_key` 显式维护。
+  `course_relations` 沿革表（from_course_id → to_course_id，relation_type
   EQUIVALENT/RENAMED_FROM/SPLIT_FROM/MERGED_FROM/RELATED，source rule/manual，status
   pending/approved/ignored/merged，evidence_json 证据快照；同 (from,to,type) 唯一）只表达
   语义、不参与课程身份。人工确认等价（EQUIVALENT/RENAMED_FROM）后 `MergeCourses` 物理
@@ -402,3 +406,12 @@ and per-topic documents preserve the stored Markdown source.
 - Docs status words updated in step (docs/README.md).
 
 PK plan uploads support an observed `baseUpdatedAt` revision: an empty string creates only if no snapshot exists, and a stale revision returns HTTP 409 without changing data. Sync clients must send this condition and fetch again before resolving a conflict. The server remains the sole clock source; omission retains unconditional replacement for existing API consumers.
+
+PK source records are isolated by audience. Undergraduate external numeric IDs retain their
+value; graduate IDs use bit 52, and ingestion rejects external IDs outside `1..2^52-1` so both
+namespaces remain exact in browser JSON numbers. `external_id` retains the source value.
+Audience schema upgrades commit column, primary-key and index changes atomically; a failed
+upgrade rolls back so retrying cannot skip legacy index cleanup. Catalog materialization reads
+one audience through a consistent transaction, including its calendars, dictionaries, teachers
+and fetch lease. The admin materialization request carries the selected audience and defaults
+to undergraduate for existing clients.

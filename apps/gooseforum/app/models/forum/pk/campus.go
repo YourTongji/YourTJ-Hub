@@ -10,6 +10,7 @@ const campusTableName = "pk_campus"
 
 // CampusEntity 一系统校区字典（campus → I18n）。
 type CampusEntity struct {
+	Audience      string         `gorm:"primaryKey;column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_campus_audience;" json:"audience"`
 	Campus        string         `gorm:"primaryKey;column:campus;type:varchar(128);not null;" json:"campus"`
 	CampusI18n    string         `gorm:"column:campus_i18n;type:varchar(128);not null;default:'';" json:"campusI18n"`
 	CalendarId    uint64         `gorm:"column:calendar_id;not null;default:0;" json:"calendarId"`

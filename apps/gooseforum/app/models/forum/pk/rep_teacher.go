@@ -32,7 +32,8 @@ func ListTeacherArrangeRows() ([]TeacherArrangeRow, error) {
 	var rows []TeacherArrangeRow
 	err := teacherBuilder().
 		Select("pk_teacher.teaching_class_id, pk_teacher.teacher_code, pk_teacher.teacher_name, pk_teacher.arrange_info_text, pk_course_detail.calendar_id").
-		Joins("JOIN pk_course_detail ON pk_course_detail.id = pk_teacher.teaching_class_id").
+		Joins("JOIN pk_course_detail ON pk_course_detail.audience = pk_teacher.audience AND pk_course_detail.id = pk_teacher.teaching_class_id").
+		Where("pk_teacher.audience = ?", AudienceUndergraduate).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -64,12 +65,13 @@ func ListTimeslotCoursesBySlot(calendarId, day int, sections []int, optionalLabe
 		Select(
 			effectiveCourseCodeSQL+` AS course_code, pk_course_detail.course_name,
 			 pk_course_detail.credit, f.faculty_i18n, n.course_label_name, ca.campus_i18n`).
-		Joins("JOIN pk_teacher_timeslot ts ON ts.teaching_class_id = pk_course_detail.id").
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-		Where("pk_course_detail.calendar_id = ?", calendarId).
-		Where("ts.calendar_id = ?", calendarId).
+		Joins("JOIN pk_teacher_timeslot ts ON ts.audience = pk_course_detail.audience AND ts.teaching_class_id = pk_course_detail.id").
+		Joins("LEFT JOIN pk_faculty f ON f.audience = pk_course_detail.audience AND f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.audience = pk_course_detail.audience AND n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+		Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+		Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
+		Where("ts.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 		Where("ts.occupy_day = ?", day).
 		Where("ts.occupy_section IN ?", sections)
 	if len(optionalLabels) > 0 {
@@ -94,11 +96,12 @@ func ListTimeslotCoursesByLike(calendarId int, likePatterns []string, optionalLa
 		Select(
 			effectiveCourseCodeSQL+` AS course_code, pk_course_detail.course_name,
 			 pk_course_detail.credit, f.faculty_i18n, n.course_label_name, ca.campus_i18n`).
-		Joins("JOIN pk_teacher ON pk_teacher.teaching_class_id = pk_course_detail.id").
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-		Where("pk_course_detail.calendar_id = ?", calendarId)
+		Joins("JOIN pk_teacher ON pk_teacher.audience = pk_course_detail.audience AND pk_teacher.teaching_class_id = pk_course_detail.id").
+		Joins("LEFT JOIN pk_faculty f ON f.audience = pk_course_detail.audience AND f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.audience = pk_course_detail.audience AND n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+		Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+		Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId)))
 	orLike := ""
 	for range likePatterns {
 		if orLike != "" {
@@ -144,6 +147,7 @@ func GetLatestFetchTime() (int64, error) {
 	var entity FetchLogEntity
 	err := fetchLogBuilder().
 		Where(queryopt.Eq("status", FetchStatusCompleted)).
+		Where("audience = ?", AudienceUndergraduate).
 		Order("finished_at DESC, id DESC").
 		First(&entity).Error
 	if err != nil {

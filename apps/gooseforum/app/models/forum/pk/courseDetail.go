@@ -20,6 +20,8 @@ const (
 // 字段名与一系统 manualArrange/page 返回逐项对齐（见 pk-login-and-export-sql.py 的列映射）。
 type CourseDetailEntity struct {
 	Id               uint64         `gorm:"primaryKey;column:id;not null;" json:"id"`
+	Audience         string         `gorm:"column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_course_detail_audience;" json:"audience"`
+	ExternalId       uint64         `gorm:"column:external_id;not null;default:0;index:idx_pk_course_detail_external_id;" json:"-"`
 	Code             string         `gorm:"column:code;type:varchar(64);not null;default:'';index:idx_pk_course_detail_code;" json:"code"`
 	Name             string         `gorm:"column:name;type:varchar(255);not null;default:'';" json:"name"`
 	CourseLabelId    *uint64        `gorm:"column:course_label_id;index:idx_pk_course_detail_label;" json:"courseLabelId"`

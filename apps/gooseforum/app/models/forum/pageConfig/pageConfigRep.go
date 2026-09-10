@@ -133,6 +133,11 @@ func SyncMigrationVersion(version uint32) error {
 // 进程内互斥即可——两个写入方都在本进程（HTTP handler）。
 var wikiSyncSettingsMu sync.Mutex
 
+// oneSystemSettingsMu 序列化本科/研究生凭证的读改写。两个凭证共用一个
+// page_config JSON blob；保存其中一个时必须保留另一个，避免并发或分开保存
+// 把另一套凭证静默清空（issue #602）。
+var oneSystemSettingsMu sync.Mutex
+
 // UpdateWikiSyncSettings 原子读改写 wiki 同步设置：mutate 在互斥区内拿到
 // 当前落库形状，返回新形状后整体写回。调用方负责清 hotdataserve 缓存。
 func UpdateWikiSyncSettings(mutate func(WikiSyncSettingsStorage) WikiSyncSettingsStorage) {
@@ -143,6 +148,20 @@ func UpdateWikiSyncSettings(mutate func(WikiSyncSettingsStorage) WikiSyncSetting
 	storage = mutate(storage)
 	entity := GetByPageType(WikiSyncSettings)
 	entity.PageType = WikiSyncSettings
+	entity.Config = jsonopt.Encode(storage)
+	CreateOrSave(&entity)
+}
+
+// UpdateOneSystemSettings 原子读改写一系统凭证配置。调用方只修改目标受众，
+// 并在完成后清理 hotdataserve 缓存。
+func UpdateOneSystemSettings(mutate func(OneSystemSettingsStorage) OneSystemSettingsStorage) {
+	oneSystemSettingsMu.Lock()
+	defer oneSystemSettingsMu.Unlock()
+
+	storage := GetConfigByPageType(OneSystemSettings, OneSystemSettingsStorage{})
+	storage = mutate(storage)
+	entity := GetByPageType(OneSystemSettings)
+	entity.PageType = OneSystemSettings
 	entity.Config = jsonopt.Encode(storage)
 	CreateOrSave(&entity)
 }

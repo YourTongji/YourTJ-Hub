@@ -2,6 +2,7 @@ package pkservice
 
 // SyncReport 一次 course-pk-sync 的运行报表（终端打印用）。
 type SyncReport struct {
+	Audience              string
 	CalendarIDs           []uint64 // 实际同步的学期
 	TeachingClassInserted int      // 处理（upsert）的教学班行数
 	BatchesCommitted      int      // 已提交的批量事务数

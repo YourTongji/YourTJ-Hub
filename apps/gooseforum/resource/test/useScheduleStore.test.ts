@@ -376,6 +376,68 @@ describe('useScheduleStore（v2 多方案 + 容忍式冲突）', () => {
     expect(store.state.plans).toHaveLength(MAX_PLANS)
   })
 
+  test('重命名方案：trim、空名拒绝、同名不动', () => {
+    const store = useScheduleStore()
+    const plan = store.state.plans[0]
+    expect(plan.name).toBe(planName(1))
+
+    // 成功：trim 后生效。
+    expect(store.renamePlan(plan.id, '  新学期  ')).toBe(true)
+    expect(plan.name).toBe('新学期')
+
+    // 空名 / 纯空白拒绝。
+    expect(store.renamePlan(plan.id, '')).toBe(false)
+    expect(store.renamePlan(plan.id, '   ')).toBe(false)
+    expect(plan.name).toBe('新学期')
+
+    // 同名不动（含仅空白差异）。
+    expect(store.renamePlan(plan.id, ' 新学期 ')).toBe(false)
+    expect(plan.name).toBe('新学期')
+
+    // 方案不存在。
+    expect(store.renamePlan('no-such-plan', '任意')).toBe(false)
+  })
+
+  test('复制方案：深拷贝、换新 id、续号命名并追加', () => {
+    const store = useScheduleStore()
+    const first = store.state.plans[0]
+    store.setClickedCourseInfo({ courseCode: '122004', courseName: '高数' })
+    store.pushStagedCourse(makeStaged('122004', [makeDetail('122004.01', 1, [3], [1, 8])]))
+    store.stageCourse(makeDetail('122004.01', 1, [3], [1, 8]))
+    store.addCustomEvent({ label: '有事', day: 5, sections: [1], weeks: [1, 2] })
+
+    const copy = store.duplicatePlan(first.id)
+    expect(copy).not.toBeNull()
+    expect(copy!.id).not.toBe(first.id)
+    // 续号命名：不与现存方案冲突。
+    expect(copy!.name).toBe(planName(2))
+    expect(store.state.plans).toHaveLength(2)
+    expect(store.state.plans[1].id).toBe(copy!.id)
+
+    // 深拷贝：改副本（含数组元素）不影响原方案。
+    copy!.stagedCourses[0].courseDetail[0].status = 0
+    copy!.customEvents.push({ id: 'evt_x', label: '新增', day: 1, sections: [1], weeks: [1] })
+    expect(first.stagedCourses[0].courseDetail[0].status).toBe(1)
+    expect(first.customEvents).toHaveLength(1)
+  })
+
+  test('复制方案：达到上限返回 null 且不改变状态', () => {
+    const store = useScheduleStore()
+    for (let i = 1; i < MAX_PLANS; i++) {
+      expect(store.createPlan()).not.toBeNull()
+    }
+    expect(store.state.plans).toHaveLength(MAX_PLANS)
+
+    expect(store.duplicatePlan(store.state.plans[0].id)).toBeNull()
+    expect(store.state.plans).toHaveLength(MAX_PLANS)
+
+    // 删除一个后可复制。
+    store.deletePlan(store.state.plans[0].id)
+    expect(store.state.plans).toHaveLength(MAX_PLANS - 1)
+    expect(store.duplicatePlan(store.state.plans[0].id)).not.toBeNull()
+    expect(store.state.plans).toHaveLength(MAX_PLANS)
+  })
+
   test('学期/年级/专业变更清空所有方案（防跨学期污染）', () => {
     const store = useScheduleStore()
     store.createPlan()

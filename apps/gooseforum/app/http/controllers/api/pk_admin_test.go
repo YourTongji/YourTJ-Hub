@@ -59,11 +59,13 @@ func TestSyncPkCalendarStartsAsyncSync(t *testing.T) {
 	setupPkAdminTest(t)
 	t.Setenv("ONESYSTEM_COOKIE", "JWTUser=abc")
 
+	var gotMaterialize bool
 	var gotCalendarId uint64
 	var gotDepth int
 	syncCalled := make(chan struct{})
 	orig := runPkSync
-	runPkSync = func(_ context.Context, _ string, calendarId uint64, depth int, _ bool, _ *pk.FetchLogEntity, _ bool) (*pkservice.SyncReport, error) {
+	runPkSync = func(_ context.Context, _ string, calendarId uint64, depth int, materialize bool, _ *pk.FetchLogEntity, _ bool) (*pkservice.SyncReport, error) {
+		gotMaterialize = materialize
 		gotCalendarId = calendarId
 		gotDepth = depth
 		close(syncCalled)
@@ -84,6 +86,9 @@ func TestSyncPkCalendarStartsAsyncSync(t *testing.T) {
 	case <-syncCalled:
 	case <-time.After(2 * time.Second):
 		t.Fatal("async sync stub was not invoked")
+	}
+	if !gotMaterialize {
+		t.Error("admin sync must materialize the course catalog")
 	}
 	if gotCalendarId != 121 {
 		t.Errorf("stub calendarId = %d, want 121", gotCalendarId)
