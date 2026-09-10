@@ -2366,6 +2366,7 @@ export default {
     'admin.agent.rotateConflict': '令牌轮换冲突，请重试。',
     'report.targetInvalid': '举报对象不存在或不可举报。',
     'report.ownContent': '不能举报自己的内容。',
+    'user.selfFollow': '不能关注自己。',
     'report.duplicate': '已举报，等待处理。',
     'report.createFailed': '举报提交失败，请稍后重试。',
     'report.notFound': '举报不存在。',

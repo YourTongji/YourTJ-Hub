@@ -2364,6 +2364,7 @@ export default {
     'admin.agent.rotateConflict': 'トークンのローテーション競合が発生しました。もう一度お試しください。',
     'report.targetInvalid': '通報対象が存在しないか、通報できません。',
     'report.ownContent': '自分のコンテンツは通報できません。',
+    'user.selfFollow': '自分をフォローすることはできません。',
     'report.duplicate': 'すでに通報済みで、処理待ちです。',
     'report.createFailed': '通報の送信に失敗しました。しばらくしてから再試行してください。',
     'report.notFound': '通報が見つかりません。',

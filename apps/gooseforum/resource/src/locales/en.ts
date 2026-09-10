@@ -2364,6 +2364,7 @@ export default {
     'admin.agent.rotateConflict': 'Token rotation conflict. Please try again.',
     'report.targetInvalid': 'The reported content does not exist or cannot be reported.',
     'report.ownContent': 'You cannot report your own content.',
+    'user.selfFollow': 'You cannot follow yourself.',
     'report.duplicate': 'Already reported and waiting for review.',
     'report.createFailed': 'Failed to submit report. Please try again later.',
     'report.notFound': 'Report not found.',

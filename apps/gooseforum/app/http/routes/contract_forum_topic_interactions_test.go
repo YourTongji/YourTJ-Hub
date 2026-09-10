@@ -185,6 +185,28 @@ func TestFollowUserHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
+	t.Run("self follow returns a dedicated business failure", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := fmt.Sprintf(`{"id":%d,"action":1}`, user.Id)
+		recorder := serveJSON(router, "/api/forum/follow-user", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("self follow status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "follow-user-self-follow.json"))
+	})
+
+	t.Run("self unfollow stays an idempotent success", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := fmt.Sprintf(`{"id":%d,"action":2}`, user.Id)
+		recorder := serveJSON(router, "/api/forum/follow-user", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("self unfollow status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
 		assertInteractionUnauthenticated(t, router, "/api/forum/follow-user", `{}`, "auth-required.json")

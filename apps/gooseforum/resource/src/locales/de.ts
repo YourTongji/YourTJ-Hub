@@ -2363,6 +2363,7 @@ export default {
     'admin.agent.rotateConflict': 'Konflikt bei der Token-Rotation. Versuche es erneut.',
     'report.targetInvalid': 'Der gemeldete Inhalt existiert nicht oder kann nicht gemeldet werden.',
     'report.ownContent': 'Du kannst deine eigenen Inhalte nicht melden.',
+    'user.selfFollow': 'Du kannst dir nicht selbst folgen.',
     'report.duplicate': 'Bereits gemeldet und wartet auf Überprüfung.',
     'report.createFailed': 'Senden der Meldung fehlgeschlagen. Versuche es später erneut.',
     'report.notFound': 'Meldung nicht gefunden.',

@@ -7,7 +7,11 @@ followUser:
       Set-semantics and idempotent: repeating the same transition returns true without
       double counting. JSON binding is lenient: a malformed body binds to zero values
       and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
-      Business failures: `user.notFound`, `common.request.invalidParams`.
+      Following yourself (id equals the authenticated user with action 1) is rejected
+      before any follow row, counter, or notification is touched (issue #594); the
+      unfollow action (2) stays an idempotent success so legacy self-follow rows can
+      be cleared through the same endpoint.
+      Business failures: `user.notFound`, `user.selfFollow`, `common.request.invalidParams`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -29,6 +33,8 @@ followUser:
                 externalValue: ../fixtures/result-true.json
               userNotFound:
                 externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
+              selfFollow:
+                externalValue: ../fixtures/follow-user-self-follow.json
               invalidParams:
                 externalValue: ../fixtures/invalid-params.json
       '401':
