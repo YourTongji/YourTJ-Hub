@@ -84,4 +84,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0014](0014-mobile-release-distribution.md) — Mobile release signing, verified APK mirrors and Apple review automation.
 
 - [0015](0015-oryn-repository-local-actions.md) — Repository-local Oryn Actions with scoped GitHub App credentials.
-- [0017](0017-native-push-providers.md) — Direct APNs and Android OEM push through JPush.
+- [0016](0016-oryn-semantic-freshness.md) — Oryn semantic freshness.
+- [0017](0017-oryn-task-interruption.md) — Oryn task interruption.
+- [0018](0018-oryn-paged-diff-evidence.md) — Oryn paged diff evidence.
+- [0019](0019-native-push-providers.md) — Direct APNs and Android OEM push through JPush.

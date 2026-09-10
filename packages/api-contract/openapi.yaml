@@ -476,6 +476,8 @@ paths:
       $ref: ./paths/wiki-sync.yaml#/getWikiAssetCDN/get
     post:
       $ref: ./paths/wiki-sync.yaml#/saveWikiAssetCDN/post
+  /api/admin/pk/materialize-calendar:
+    $ref: ./paths/pk-admin.yaml#/adminMaterializePkCalendar
   /api/admin/pk/sync-calendar:
     post:
       $ref: ./paths/pk-admin.yaml#/adminSyncPkCalendar/post

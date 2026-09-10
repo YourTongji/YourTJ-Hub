@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CourseMaterializePanel from '../components/CourseMaterializePanel.vue'
 import { adminText } from '@/admin/runtime/i18n-text'
 import httpNotifyGuideZh from '@/admin/docs/http-notify-guide.zh.md?raw'
 import httpNotifyGuideEn from '@/admin/docs/http-notify-guide.en.md?raw'
@@ -1801,6 +1802,8 @@ onUnmounted(stopSyncPolling)
             </Button>
           </div>
         </form>
+
+        <CourseMaterializePanel :calendars="syncStatusItems" :syncing="syncingPk" />
 
         <!-- 排课数据同步（issue #248）-->
         <div class="space-y-4 rounded-lg border border-border bg-card p-5">

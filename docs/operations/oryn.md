@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/ac0b788d1d8db8e304c13e9c7167f45778cf0cef)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/775ff40758ffb18ae67e9fdbbf0a335fb447aeaf)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -103,7 +103,7 @@ In YourTJ-Hub → Settings → Secrets and variables → Actions, add:
 
 Optional overrides: `ORYN_MODEL` (default `oryn/glm-5.3-flash`), `ORYN_BASE_URL`
 (default `https://open.bigmodel.cn/api/coding/paas/v4`), `ORYN_TASK_TIMEOUT_SECONDS` (default 1800),
-`ORYN_REQUEST_TIMEOUT_SECONDS` (core adapter default 300). The workflow fixes reasoning at `max`.
+`ORYN_REQUEST_TIMEOUT_SECONDS` (optional 1–3000 seconds; defaults to the remaining task budget). The workflow fixes reasoning at `max`.
 The bot login is derived from the App token action's slug output; no manual login variable is needed.
 
 Leave automation variables unset during preflight. From Actions → Oryn → Run workflow, retain
@@ -146,6 +146,18 @@ The deployed App passed [live preflight](https://github.com/YourTongji/YourTJ-Hu
 A [real GLM review and publication](https://github.com/YourTongji/YourTJ-Hub/actions/runs/34368176030)
 completed with 20 tool calls and explicit max reasoning, producing a Chinese source review, Mermaid
 and four advisory labels on issue #594. This review did not execute repair validation.
+
+## Failure diagnostics and request budgets
+
+A model request may use the remaining task budget. First-byte and idle limits remain at most 120 and
+60 seconds; the total task deadline and authorized cancellation still apply. Remove an existing
+`ORYN_REQUEST_TIMEOUT_SECONDS=300` override to use this default, or set a shorter explicit wall limit.
+
+Failed executions retain a bounded, redacted `diagnostic` in `failure.json` and an `oryn_failure` log
+event. These include the failure stage, elapsed time, budgets, Core status, available provider errors
+and progress counts. Report format failures include the correction attempt and output size. No raw
+prompts, reasoning, provider bodies or headers are retained. A bare abort without further Core evidence
+remains an unknown cause. See [the diagnostics decision](../decisions/0020-oryn-failure-diagnostics.md).
 
 ## Maintenance and verification
 

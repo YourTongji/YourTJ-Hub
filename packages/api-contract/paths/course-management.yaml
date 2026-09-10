@@ -9,6 +9,7 @@ adminCourseList:
     description: |
       CourseManager-scoped course list including hidden courses. Permission failures are a legacy
       HTTP 200 business failure (`permission.denied`).
+      Keyword search also matches class codes from visible offerings, including classes without aliases.
     requestBody:
       required: true
       content:

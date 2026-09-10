@@ -634,3 +634,35 @@ func TestTermOrderingConsistentAcrossQueries(t *testing.T) {
 			byClass[0].Id, oNewer, len(byClass))
 	}
 }
+
+func TestListCoursesFindsClassCodeWithoutAlias(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &AliasEntity{}, &OfferingEntity{}, &OfferingInstructorEntity{}, &InstructorEntity{}, &CourseStatsEntity{}); err != nil {
+		t.Fatal(err)
+	}
+	c := Entity{PrimaryCode: "class-search-probe", Name: "Math"}
+	if err := conn.Create(&c).Error; err != nil {
+		t.Fatal(err)
+	}
+	o := OfferingEntity{CourseId: c.Id, ClassCode: "CMS-CLASS-PROBE"}
+	if err := conn.Create(&o).Error; err != nil {
+		t.Fatal(err)
+	}
+	rows, _, err := ListCourses(ListCourseQuery{Keyword: "cms-class-probe", IncludeHidden: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Id != c.Id {
+		t.Fatalf("class-code search=%+v", rows)
+	}
+	if err := conn.Model(&o).Update("status", OfferingStatusHidden).Error; err != nil {
+		t.Fatal(err)
+	}
+	rows, _, err = ListCourses(ListCourseQuery{Keyword: "cms-class-probe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatal("hidden offering leaked through class-code search")
+	}
+}

@@ -517,3 +517,6 @@ export interface WikiNamespaceTree {
   label: string
   nodes: WikiTreeNode[]
 }
+
+/** Completed local course materialization (the API returns only after commit). */
+export type PkMaterializeResult = import('@gooseforum/client/openapi').components['schemas']['PkMaterializeResult']
