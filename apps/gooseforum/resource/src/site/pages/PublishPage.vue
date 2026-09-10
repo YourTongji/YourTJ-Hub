@@ -8,6 +8,8 @@ import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
+import MentionCandidates from '@/site/components/MentionCandidates.vue'
+import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
@@ -52,6 +54,24 @@ const bodySection = ref<HTMLElement | null>(null)
 /** 移动端 toggle 挂载容器（正文 label 行右侧） */
 const editorToggleHost = ref<HTMLElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const {
+  mentionOpen,
+  mentionQuery,
+  mentionCandidates,
+  mentionActiveIndex,
+  mentionLoading,
+  mentionFailed,
+  mentionDocked,
+  mentionPanelStyle,
+  refreshMentionSession,
+  selectMention,
+} = useMentionAutocomplete({
+  editor: () => editor.value,
+  // 发帖无本地上下文（非回复场景）；服务端搜索提供全部候选（issue #590）
+  localUsers: () => [],
+  currentUserId: () => (page.layout.viewer.isAuthenticated ? page.layout.viewer.id : 0),
+  surface: () => editorHost.value,
+})
 const route = useRoute()
 
 function parseTypeParam(param: unknown): 0 | 1 | 2 | 3 | undefined {
@@ -276,6 +296,11 @@ function handleEditorError(editorError: Error) {
 
 function clearSensitiveHighlight() {
   sensitiveWords.value = []
+}
+
+function handleBodyInput() {
+  clearSensitiveHighlight()
+  refreshMentionSession()
 }
 
 function imageAlt(filename: string) {
@@ -556,9 +581,21 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 :sensitive-words="sensitiveWords"
                 :placeholder="contentType === 2 ? t('publish.thoughtPlaceholder') : t('publish.visualPlaceholder')"
                 @toggle-header="toggleHeaderCollapsed"
-                @input="clearSensitiveHighlight"
+                @input="handleBodyInput"
                 @upload="uploadImageFiles"
                 @error="handleEditorError"
+              />
+              <!-- @mention 候选面板（issue #590）：与回复编辑器共享会话引擎与面板组件 -->
+              <MentionCandidates
+                :open="mentionOpen"
+                :query="mentionQuery"
+                :candidates="mentionCandidates"
+                :active-index="mentionActiveIndex"
+                :loading="mentionLoading"
+                :failed="mentionFailed"
+                :docked="mentionDocked"
+                :panel-style="mentionPanelStyle"
+                @select="selectMention"
               />
             </div>
           </div>
