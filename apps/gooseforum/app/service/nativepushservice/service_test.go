@@ -38,6 +38,8 @@ func clearNativePushConfig(t *testing.T) {
 		preferences.Set("push.apns.environment", "")
 		preferences.Set("push.fcm.credentials_path", "")
 		preferences.Set("push.fcm.project_id", "")
+		preferences.Set("push.jpush.app_key", "")
+		preferences.Set("push.jpush.master_secret", "")
 	})
 }
 

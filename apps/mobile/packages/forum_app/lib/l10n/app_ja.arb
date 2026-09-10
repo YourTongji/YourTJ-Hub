@@ -492,7 +492,13 @@
   "wikiExploreTitle": "キャンパスの案内役",
   "notificationComment": "{actor}があなたのトピックにコメントしました",
   "notificationMention": "{actor}があなたにメンションしました",
-  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
+  "@notificationMention": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
   "notificationPostReply": "{actor}があなたに返信しました",
   "notificationTopicPost": "{actor}がフォロー中のトピックに投稿しました",
   "notificationFollow": "{actor} さんがあなたをフォローしました",
@@ -633,5 +639,10 @@
   "updateReady": "更新の検証が完了しました。インストールできます。",
   "updateInstall": "更新をインストール",
   "updatePermission": "YourTJ にアプリのインストールを許可し、戻ってもう一度インストールを押してください。",
-  "updateRetry": "再試行"
+  "updateRetry": "再試行",
+  "settingsPushConsent": "有効にすると Apple（iOS）または JPush・端末メーカー（Android）が端末の通知識別子と通知内容を処理します。",
+  "settingsPushUnsupported": "このビルドではプッシュ通知が未設定です",
+  "settingsPushServerDisabled": "サーバーでこの通知経路が無効です。タップして再試行。",
+  "settingsPushFailed": "通知の登録に失敗しました。接続を確認して再試行してください。",
+  "settingsPushPrivacy": "JPush プライバシーポリシー（Android）"
 }

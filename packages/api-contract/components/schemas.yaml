@@ -4911,11 +4911,14 @@ PushConfigResult:
 
 NativePushChannels:
   type: object
-  required: [apnsEnabled, fcmEnabled]
+  required: [apnsEnabled, fcmEnabled, jpushEnabled]
   properties:
     apnsEnabled:
       type: boolean
       description: True when [push.apns] credentials are configured so the iOS APNs channel is enabled.
+    jpushEnabled:
+      type: boolean
+      description: True when the Android JPush delivery channel is configured.
     fcmEnabled:
       type: boolean
       description: True when [push.fcm] credentials are configured so the Android FCM channel is enabled.
@@ -5017,7 +5020,11 @@ PushDeviceRegisterRequest:
     platform:
       type: string
       enum: [ios, android]
-      description: ios routes to APNs, android to FCM.
+      description: Device OS; provider selects its compatible delivery channel.
+    provider:
+      type: string
+      enum: [apns, fcm, jpush]
+      description: Delivery provider. iOS only accepts apns; Android accepts fcm or jpush. Omission preserves legacy ios=apns, android=fcm behavior.
     token:
       type: string
       minLength: 1

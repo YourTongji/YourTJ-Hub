@@ -83,6 +83,10 @@ project_id = ""
 
 # Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
 # 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用。
+[push.jpush]
+app_key = ""
+master_secret = ""
+
 [wiki.git]
 repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
 branch = "main"

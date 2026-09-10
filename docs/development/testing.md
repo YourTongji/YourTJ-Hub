@@ -106,6 +106,8 @@ path filters directly, so an unrelated PR does not start a Flutter runner.
   TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
   contract fixture tests run inside the backend `go test ./...` gate.
 - ci-mobile.yml: changed mobile paths run melos bootstrap, analyze, and test (apps/mobile/**); pixel golden tests are tagged `golden` and excluded from the gate (regenerate per golden test file with `flutter test --update-goldens`, or use the mobile-golden-refresh workflow on Linux).
+  Native build jobs run `flutter pub get` from `packages/forum_app` so clean checkouts generate
+  the Flutter plugin and SwiftPM packages before compiling the APNs bridge or Android OEM adapters.
 
 ## Smoke checklist
 

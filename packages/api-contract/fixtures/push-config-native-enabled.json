@@ -3,7 +3,8 @@
     "configured": false,
     "native": {
       "apnsEnabled": true,
-      "fcmEnabled": false
+      "fcmEnabled": false,
+      "jpushEnabled": false
     }
   },
   "code": 0

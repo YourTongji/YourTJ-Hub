@@ -40,6 +40,14 @@ jobs:
           google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
           google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ai-api-key: ${{ secrets.AI_API_KEY }}
+          # Dev's database snapshot contains production devices: never enable delivery there.
+          apns-key-path: ${{ github.event.inputs.env == 'main' && secrets.APNS_KEY_PATH || '' }}
+          apns-key-id: ${{ github.event.inputs.env == 'main' && secrets.APNS_KEY_ID || '' }}
+          apns-team-id: ${{ github.event.inputs.env == 'main' && secrets.APNS_TEAM_ID || '' }}
+          apns-bundle-id: ${{ github.event.inputs.env == 'main' && secrets.APNS_BUNDLE_ID || '' }}
+          apns-environment: ${{ github.event.inputs.env == 'main' && secrets.APNS_ENVIRONMENT || '' }}
+          jpush-app-key: ${{ github.event.inputs.env == 'main' && secrets.JPUSH_APP_KEY || '' }}
+          jpush-master-secret: ${{ github.event.inputs.env == 'main' && secrets.JPUSH_MASTER_SECRET || '' }}
 
       - name: Upload rendered config + apply script
         uses: appleboy/scp-action@v0.1.7

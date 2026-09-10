@@ -10,17 +10,23 @@ import (
 // Upsert 按 token 唯一键插入或更新设备注册归属。
 // 同一设备重新授权/换账号登录后 token 不变：冲突时把注册收敛到当前登录用户
 // 并刷新平台与最近注册时间（created_at 保持不变）。
-func Upsert(userId uint64, platform string, token string, now time.Time) error {
+func Upsert(userId uint64, platform string, token string, now time.Time, providers ...string) error {
+	provider := ""
+	if len(providers) > 0 {
+		provider = providers[0]
+	}
 	return builder().Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "token"}},
 		DoUpdates: clause.Assignments(map[string]any{
 			"user_id":            userId,
 			"platform":           platform,
+			"provider":           provider,
 			"last_registered_at": now,
 		}),
 	}).Create(&Entity{
 		UserId:           userId,
 		Platform:         platform,
+		Provider:         provider,
 		Token:            token,
 		LastRegisteredAt: now,
 	}).Error
@@ -32,7 +38,7 @@ func Upsert(userId uint64, platform string, token string, now time.Time) error {
 // token 已存在（本人所有 = 刷新，他人所有 = 换账号归属收敛）时不新增行、
 // 不淘汰；仅当 token 全新且用户行数已达上限时按 id 升序淘汰最旧行再插入。
 // 返回淘汰行数；并发竞争下可能短暂超限，下次写入收敛。
-func UpsertCapped(userId uint64, platform string, token string, maxPerUser int, now time.Time) (int64, error) {
+func UpsertCapped(userId uint64, platform string, token string, maxPerUser int, now time.Time, providers ...string) (int64, error) {
 	var tokenRows int64
 	builder().Where(queryopt.Eq("token", token)).Count(&tokenRows)
 	if tokenRows == 0 && maxPerUser > 0 {
@@ -51,11 +57,11 @@ func UpsertCapped(userId uint64, platform string, token string, maxPerUser int, 
 				if res.Error != nil {
 					return 0, res.Error
 				}
-				return res.RowsAffected, Upsert(userId, platform, token, now)
+				return res.RowsAffected, Upsert(userId, platform, token, now, providers...)
 			}
 		}
 	}
-	return 0, Upsert(userId, platform, token, now)
+	return 0, Upsert(userId, platform, token, now, providers...)
 }
 
 // DeleteByUser 删除用户全部设备注册（账号注销 anonymize/delete 两 mode 共用）。

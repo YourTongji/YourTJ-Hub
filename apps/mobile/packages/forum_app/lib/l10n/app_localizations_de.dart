@@ -1962,4 +1962,23 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get updateRetry => 'Erneut versuchen';
+
+  @override
+  String get settingsPushConsent =>
+      'Systemmitteilungen über Apple (iOS) oder JPush und Gerätehersteller (Android) aktivieren. Diese Dienste verarbeiten Push-Kennungen und Mitteilungsinhalte.';
+
+  @override
+  String get settingsPushUnsupported =>
+      'Push ist in diesem Build nicht konfiguriert';
+
+  @override
+  String get settingsPushServerDisabled =>
+      'Der Server hat diesen Kanal nicht aktiviert. Zum Wiederholen tippen.';
+
+  @override
+  String get settingsPushFailed =>
+      'Push-Registrierung fehlgeschlagen. Verbindung prüfen und erneut tippen.';
+
+  @override
+  String get settingsPushPrivacy => 'JPush-Datenschutz (Android)';
 }

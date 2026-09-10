@@ -780,7 +780,13 @@
     }
   },
   "notificationMention": "{actor} 提到了你",
-  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
+  "@notificationMention": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
   "notificationPostReply": "{actor} 回复了你",
   "@notificationPostReply": {
     "placeholders": {
@@ -963,5 +969,10 @@
   "updateReady": "更新已验证，可以开始安装。",
   "updateInstall": "安装更新",
   "updatePermission": "请允许 YourTJ 安装应用，然后返回并再次点击安装。",
-  "updateRetry": "重试"
+  "updateRetry": "重试",
+  "settingsPushConsent": "开启后通过 Apple（iOS）或极光及手机厂商（Android）发送系统通知，会处理设备推送标识及通知内容。",
+  "settingsPushUnsupported": "此构建尚未配置推送服务",
+  "settingsPushServerDisabled": "服务器尚未启用此设备的推送通道，点击重试",
+  "settingsPushFailed": "推送注册失败，请检查网络后点击重试",
+  "settingsPushPrivacy": "极光推送隐私说明（Android）"
 }

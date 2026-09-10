@@ -16,6 +16,7 @@ import java.security.MessageDigest
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        PushBridge.attach(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/push"))
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/app_updates")
             .setMethodCallHandler { call, result ->
                 try {
@@ -33,6 +34,15 @@ class MainActivity : FlutterActivity() {
                     result.error("update_failed", "The update could not be verified or opened.", null)
                 }
             }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PushBridge.PERMISSION_REQUEST) PushBridge.permissionResult(this)
+    }
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        PushBridge.detach()
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     @Suppress("DEPRECATION")

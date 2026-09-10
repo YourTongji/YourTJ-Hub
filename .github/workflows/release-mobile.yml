@@ -77,6 +77,11 @@ jobs:
           flutter-version: "3.44.9"
           channel: stable
           cache: true
+      - name: Prepare Android OEM push configuration
+        env:
+          ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
+          HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
+        run: python3 scripts/mobile-release/prepare_push.py
       - name: Bootstrap and test
         working-directory: apps/mobile
         run: |
@@ -125,7 +130,8 @@ jobs:
       - name: Remove private signing inputs
         if: always()
         run: |
-          rm -f "$RUNNER_TEMP/yourtj-release.jks" apps/mobile/packages/forum_app/android/key.properties
+          rm -f "$RUNNER_TEMP/yourtj-release.jks" apps/mobile/packages/forum_app/android/key.properties \
+            apps/mobile/packages/forum_app/android/push.properties apps/mobile/packages/forum_app/android/app/agconnect-services.json
 
   ios:
     needs: prepare

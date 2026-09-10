@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -180,6 +181,15 @@ check(
 )
 check("summarize 输出含键名与长度", "SIGNING_KEY" in sum_text and "len=32" in sum_text)
 
+# Native channels remain disabled without credentials and preserve escaped server secrets.
+native_empty = tomllib.loads(rc.render(real_tmpl, values))["push"]
+check_eq("unconfigured APNs path", "", native_empty["apns"]["key_path"])
+check_eq("unconfigured JPush secret", "", native_empty["jpush"]["master_secret"])
+push_values = {**values, "APNS_KEY_PATH": "/app/storage/push/AuthKey.p8", "APNS_KEY_ID": "KEY", "APNS_TEAM_ID": "TEAM", "APNS_BUNDLE_ID": "tj.yourtj.forumApp", "APNS_ENVIRONMENT": "production", "JPUSH_APP_KEY": "test-app-key", "JPUSH_MASTER_SECRET": 'test-secret"with\\escapes'}
+native = tomllib.loads(rc.render(real_tmpl, push_values))["push"]
+check_eq("production APNs environment", "production", native["apns"]["environment"])
+check_eq("JPush secret round trip", push_values["JPUSH_MASTER_SECRET"], native["jpush"]["master_secret"])
+
 # main 场景: GH 凭据未设 → 必须失败（fail-closed 生产）
 fake_main = {
     "instance": "main",
@@ -325,6 +335,26 @@ with tempfile.TemporaryDirectory() as td:
     )
     check("坏模板端到端拒绝（exit != 0）", proc.returncode != 0)
     check("坏模板不产出文件", not os.path.exists(bad_out))
+
+# Both production entry points must preserve provider configuration; a config-only
+# apply otherwise silently disables push. Dev must not contact production devices.
+workflow_dir = os.path.join(HERE, "..", ".github", "workflows")
+with open(os.path.join(workflow_dir, "deploy-main.yml")) as f:
+    deploy_workflow = f.read()
+with open(os.path.join(workflow_dir, "apply-config.yml")) as f:
+    apply_workflow = f.read()
+push_bindings = re.findall(
+    r"^\s+((?:apns|jpush)-[\w-]+): \$\{\{ secrets\.(\w+) \}\}$",
+    deploy_workflow,
+    re.MULTILINE,
+)
+check("production deploy exposes push configuration", bool(push_bindings))
+for field, secret in push_bindings:
+    check(
+        f"config apply preserves {field} only for main",
+        f"{field}: ${{{{ github.event.inputs.env == 'main' && secrets.{secret} || '' }}}}"
+        in apply_workflow,
+    )
 
 print(f"\n{'-' * 40}\nrender_config_test: {PASS} passed, {FAIL} failed")
 raise SystemExit(1 if FAIL else 0)

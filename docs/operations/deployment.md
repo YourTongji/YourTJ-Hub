@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-06
+> Last verified: 2026-09-10
 
 ## Deployment shape
 
@@ -222,18 +222,43 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
      `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
      rollback tag).
      The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
-- `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
+- `main` is the production site. `Release / main` explicitly dispatches
+  `.github/workflows/deploy-main.yml` on the published server tag; merging main alone does not deploy:
   1. Build single binary and push GHCR image `main-<sha>` on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main main-<sha> 5234` → pull image, compose up, health check,
      auto-rollback to previous image tag on failure; same post-deploy image pruning as dev
      (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
-- **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) opens or
-  reuses a `dev` → `main` PR when the trees differ, then stops for normal review and CI. After merge,
-  rerun it to increment the exact server `vX.Y.Z` tags, tag the reviewed main commit, publish server
-  binaries and dispatch deployment. It never directly pushes to main. The existing `RELEASE_TOKEN`
-  creates the PR/tag through GitHub APIs. Mobile tags use a separate namespace and workflow; see
-  [mobile releases](mobile-releases.md).
+- **Release gate — Current**: run `.github/workflows/release-to-main.yml` (`Release / main`)
+  once on `dev` or `main` and select `patch`, `minor` or `major`. It captures the dev/main commits,
+  opens or reuses a `dev` → `main` PR when their trees differ, waits for PR CI, merges with a merge
+  commit, tags that exact commit as `vX.Y.Z`, publishes server binaries and dispatches deployment.
+  The dev branch is retained. Content already promoted to main can be released without another PR;
+  an existing server tag on that commit prevents a second version reservation.
+  - The script requires successful PR runs of `ci-backend.yml`, `ci-frontend.yml`, `ci-contract.yml`
+    and `ci-govulncheck.yml`, and waits for every other reported `ci-*.yml` workflow. It waits for
+    entire workflows, including backend race/PG jobs. Missing core workflows remain pending;
+    failure, cancellation or a skipped whole workflow stops release. Dev push checks, checks for
+    another head, and runs older than the PR or main base commit do not satisfy this gate.
+  - CI is checked explicitly even without repository required-check settings. The merge uses the
+    captured head SHA and respects GitHub merge requirements, including required reviews when
+    configured; it does not use an admin bypass. A draft/closed PR, conflict or changed dev/main
+    snapshot stops release. CI and merge requirements have a 60-minute wait limit. Resolve the
+    reported problem, then start a new run for the intended snapshot.
+  - Tagging uses the returned merge SHA and verifies its parents against the captured main/dev
+    commits. Deployment runs on the published tag, so its binary, image, scripts and rendered
+    config all come from the released source even when main advances. Production deployments are
+    serialized; the deploy workflow rejects branch refs, mobile tags and tags outside main history.
+  - If publishing fails after tagging, rerun the failed publish job so it reuses the prepared tag.
+    For deployment recovery or rollback, dispatch the deploy workflow on the desired existing
+    server tag: `gh workflow run deploy-main.yml --ref vX.Y.Z` (replace with the actual tag).
+    Selecting `main` directly is rejected. Production environment deployment policies must permit
+    server tags if branch/tag restrictions are configured.
+  - `RELEASE_TOKEN` creates and merges PRs and creates tags through GitHub APIs; it needs repository
+    Contents and Pull requests write permissions plus Actions read permission for CI polling
+    (classic PATs need equivalent repository/workflow access). The workflow's `GITHUB_TOKEN`
+    publishes assets and dispatches deployment using its existing Contents/Actions write permissions.
+  Mobile tags use a separate namespace and workflow; see [mobile releases](mobile-releases.md).
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is rendered in CI from `deploy/config.toml.tmpl` + `deploy/instances/<env>.json`
@@ -266,13 +291,14 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 | `SIGNING_KEY` | both | `[app].signingKey`（**必须与现网一致**；轮换即全线登出 + TOTP/重置链接失效） |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | both（可选） | `[webpush]` VAPID 密钥对（生成：`yourtj-hub webpush-keys`，见下方 Config & run）；为空 = Web Push 通道关闭；**dev 保持空**（快照同步的订阅/任务行绝不外发推送） |
 | `APNS_KEY_PATH` / `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_BUNDLE_ID` / `APNS_ENVIRONMENT` | both（可选） | `[push.apns]` iOS 原生推送凭据（.p8 token 认证）；为空 = APNs 通道关闭；**dev 保持空**（快照同步的 push_device/任务行绝不外发） |
+| `JPUSH_APP_KEY` / `JPUSH_MASTER_SECRET` | production（可选） | Android 极光及厂商聚合通道；服务端私钥绝不打包到 APK；见 [移动端推送配置](mobile-releases.md#native-push-activation-and-verification) |
 | `FCM_CREDENTIALS_PATH` / `FCM_PROJECT_ID` | both（可选） | `[push.fcm]` Android 原生推送凭据（service-account JSON 路径 + Firebase 项目 id）；为空 = FCM 通道关闭；**dev 保持空** |
 | `MEILI_MASTER_KEY` | both | `[meilisearch].masterkey` |
 | `WIKI_WEBHOOK_SECRET` | both | `[wiki.git].webhook_secret` |
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | both（可选） | Google OAuth；为空时登录入口保持关闭 |
 | `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
-| `RELEASE_TOKEN` | repo-level | release-to-main 创建 dev→main PR 和发布 tag 用 PAT |
+| `RELEASE_TOKEN` | repo-level | release-to-main 创建/合并 dev→main PR、读取 CI 和发布 tag 用 PAT |
 
 > 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
 
@@ -317,7 +343,7 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 - Container-internal port is always `5234`; host mapping via `MAIN_PORT` (5234) / `DEV_PORT` (5235).
 - Health probe: `GET /health` returns 200 when service + main db ping succeed, else 503.
 - Web Push（`[webpush]` 段，可选增强通道）：`vapid_public_key`/`vapid_private_key` 为空 = 通道关闭（dev 保持空）；密钥已配置但格式非法（base64url 解码后公钥非 65B / 私钥非 32B）时 `serve` 启动输出告警并禁用通道（fail-closed，绝不外发）。生成密钥对：`cd apps/gooseforum && go run . webpush-keys`
-- 原生推送（`[push.apns]` / `[push.fcm]` 段，可选增强通道）：各凭据为空 = 对应通道关闭（dev 保持空，快照同步的 push_device 注册与任务行绝不外发）。APNs 走 token-based `.p8` 认证：`key_path` 指向 `.p8` 文件、`key_id`/`team_id` 取自 Apple Developer 后台、`bundle_id` 为 App Bundle ID、`environment` 为 `sandbox`（开发构建）或 `production`（App Store/TestFlight）。FCM 走 HTTP v1：`credentials_path` 指向 Firebase 项目 service-account JSON、`project_id` 为 Firebase 项目 id（OAuth2 换取 access token 后调用 `messages:send`）。密钥文件在容器内挂载（`APNS_KEY_PATH`/`FCM_CREDENTIALS_PATH` 为容器内路径）；仅填了部分字段时通道按未配置处理（fail-closed，绝不外发）。`GET /api/forum/push/config` 的 `native.apnsEnabled`/`native.fcmEnabled` 反映通道状态。
+- 原生推送（`[push.apns]` / `[push.fcm]` / `[push.jpush]` 段，可选增强通道）：各凭据为空 = 对应通道关闭（dev 保持空，快照同步的 push_device 注册与任务行绝不外发）。APNs 走 token-based `.p8` 认证：`key_path` 指向 `.p8` 文件、`key_id`/`team_id` 取自 Apple Developer 后台、`bundle_id` 为 App Bundle ID、`environment` 为 `sandbox`（开发构建）或 `production`（App Store/TestFlight）。FCM 走 HTTP v1：`credentials_path` 指向 Firebase 项目 service-account JSON、`project_id` 为 Firebase 项目 id（OAuth2 换取 access token 后调用 `messages:send`）。密钥文件在容器内挂载（`APNS_KEY_PATH`/`FCM_CREDENTIALS_PATH` 为容器内路径）；仅填了部分字段时通道按未配置处理（fail-closed，绝不外发）。`GET /api/forum/push/config` 的 `native.apnsEnabled`/`native.fcmEnabled`/`native.jpushEnabled` 反映通道状态。
 
 ## DB migration execution and rollback
 

@@ -34,7 +34,7 @@ func TestPushDeviceSchemaCreatedOnSQLite(t *testing.T) {
 	if !conn.Migrator().HasTable("push_device") {
 		t.Fatal("push_device table missing after AutoMigrate")
 	}
-	for _, column := range []string{"id", "user_id", "platform", "token", "created_at", "last_registered_at"} {
+	for _, column := range []string{"id", "user_id", "platform", "token", "created_at", "last_registered_at", "provider"} {
 		if !conn.Migrator().HasColumn(&pushDevice.Entity{}, column) {
 			t.Errorf("push_device column %q missing after AutoMigrate", column)
 		}
@@ -94,5 +94,32 @@ func TestPushDeviceSchemaUpgradeFromLegacySubset(t *testing.T) {
 	// 新表可用
 	if err := conn.Create(&pushDevice.Entity{UserId: user.Id, Platform: "ios", Token: "post-upgrade", LastRegisteredAt: time.Now()}).Error; err != nil {
 		t.Fatalf("insert device after upgrade: %v", err)
+	}
+}
+
+// Existing APNs/FCM rows must survive adding a non-null provider discriminator.
+func TestPushDeviceProviderUpgrade(t *testing.T) {
+	conn, err := gorm.Open(sqlite.Open("file:push-provider-upgrade?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec(`CREATE TABLE push_device (id integer PRIMARY KEY, user_id integer NOT NULL,
+        platform varchar(16) NOT NULL, token varchar(512) NOT NULL UNIQUE,
+        created_at datetime, last_registered_at datetime)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec(`INSERT INTO push_device (id,user_id,platform,token) VALUES
+        (1,1,'ios','old-apns'), (2,2,'android','old-fcm')`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.AutoMigrate(&pushDevice.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	var devices []pushDevice.Entity
+	if err := conn.Order("id").Find(&devices).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(devices) != 2 || devices[0].Provider != "" || devices[0].DeliveryProvider() != "apns" || devices[1].DeliveryProvider() != "fcm" {
+		t.Fatal("legacy push ownership or provider routing lost")
 	}
 }

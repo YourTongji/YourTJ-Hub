@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-09
+> Last verified: 2026-09-10
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/3cbdccc7d7b05e6027e8965ed89f19f4e807c081)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/ac0b788d1d8db8e304c13e9c7167f45778cf0cef)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -27,6 +27,14 @@ as evidence. The model is `glm-5.3-flash` through the official Zhipu Coding Plan
 `reasoning_effort=max`, thinking enabled, image input, and a configured 1,000,000-token context window.
 The context setting is not a one-million-token capacity benchmark. The default task budget is 1800
 seconds, manually overridable within 10–3000 seconds.
+
+PR review receives change statistics and a complete paged file inventory. Core reads per-file diffs on
+demand from task-owned temporary storage outside the candidate checkout, with at most 24,000 bytes and
+120 lines per page. This removes the former 150 KB PR input rejection without opening a shell or adding
+persistent state. Renames, deletion, binary notices and long-line continuations remain explicit.
+Independent repair review uses the cumulative staged change inventory. Incomplete coverage is reported
+as needs_human; deadlines and the separate repair-output limit still apply. See
+[the diff evidence decision](../decisions/0018-oryn-paged-diff-evidence.md).
 
 All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
@@ -120,6 +128,16 @@ Manual publication defaults off; the deployment enables all four automatic execu
 `@oryn-mini fix`, `implement issue`, `rebase`, `cluster #N #M`, `autoclose` and `automerge` are also available to authorized maintainers.
 Slash aliases such as `/review`, `/autofix`, `/rebase`, `/autoclose` and `/automerge` are supported.
 Bot-authored comments skip planning and do not occupy the sweep queue; human commands retain runtime parsing and authority checks.
+Admitted work is interrupted by explicit authorized stop commands, edits to its original command,
+revoked author permission, changes to Issue/PR title or body, and new head/base commits. Ordinary
+comments, CI/review status, labels, assignees and project updates do not discard completed work.
+Protected labels filter new admissions; use `@oryn-mini stop` to interrupt a running task.
+Publication still requires live source/command checks, repository access and an open/unlocked target.
+Merge separately verifies current checks, mergeability and independent approval; unmet conditions
+publish a waiting report rather than fail the review. Reports identify discussion and CI as the
+snapshot used for that run. A decision-needed repair shows its question and actual validation status.
+See [the task interruption decision](../decisions/0017-oryn-task-interruption.md).
+
 The operator controls token grants and policy; text in issues/PRs cannot enable repair or merge.
 Disable the event/schedule execution variables to stop new automatic work; use the item's stop command
 for an active task. Preserve receipts when rotating keys or upgrading the runtime.
