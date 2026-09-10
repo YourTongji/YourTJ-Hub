@@ -39,6 +39,8 @@ system installer remain independent gates; a completed upload does not mean dist
 gh workflow run release-mobile.yml --ref main -f bump=patch
 # Resume the exact failed version; bump is ignored when tag is supplied:
 gh workflow run release-mobile.yml --ref main -f bump=patch -f tag=mobile-v1.0.1
+# Resume only an already uploaded iOS build; keep the existing App Store review queue:
+gh workflow run release-mobile.yml --ref main -f tag=mobile-v1.0.2 -f recover_ios=true -f testflight_only=true
 ```
 
 Recovery still checks that the tag's source is reachable from main, but does not require newer dev
@@ -48,9 +50,11 @@ never move or rewrite a release tag. An uncertain API response after reserving a
 resolved by inspecting that tag and using recovery, rather than selecting another bump.
 
 Update public store metadata/screenshots under `apps/mobile/store/` through normal product PRs.
-A pending Apple version can block creation of the next App Store version. TestFlight can succeed
-while that App Store step requires recovery; the job reports failure rather than claiming both
-channels completed. Apple agreements, review decisions and the system installer are not bypassed.
+A pending Apple version can block creation of the next App Store version. The default combined
+submission reports the blocking version/state and fails, even if TestFlight succeeded. Select
+`testflight_only=true` to explicitly omit App Store submission; the job summary identifies that
+omission and preserves the existing review queue. It never withdraws another version automatically.
+Apple agreements, review decisions and the system installer are not bypassed.
 
 Server tags remain `vX.Y.Z`. **Release / main** opens/reuses the `dev` → `main` PR when the trees
 differ and stops. After that PR passes checks and merges, rerun to tag the approved main commit,
@@ -187,10 +191,13 @@ alone does not implement Sign in with Apple or enable Firebase push configuratio
   first confirm no uploader is active. Never delete a processing upload or existing build. Invalid
   processing fails immediately.
 - **Publisher repair after a tag exists:** the tag and retained signed artifacts remain immutable.
-  A workflow rerun checks out the original tagged source, so it does not pick up a later publisher
-  fix. Use the corrected publisher locally against the original run's verified signed artifacts
-  and the original version/build/tag, or publish a new reviewed source with a new version/build.
-  Never move the old tag merely to change the publisher script.
+  With `recover_ios=true` and an existing tag, the workflow skips Android and all iOS build/signing
+  steps. It uses publisher tools from the dispatch's reviewed main commit, store metadata from the
+  original tagged source, and the exact recorded version/build already uploaded to Apple. A missing
+  build fails before any upload; only ASC credentials are installed. Leave `testflight_only=false`
+  to resume both submission channels, or set it to true to preserve a pending App Store version.
+  A normal rebuild still uses tagged source and can produce different signed ZIP bytes. Use retained
+  artifacts for Android recovery; never move a tag or overwrite an existing APK to repair tooling.
 - **Apple validation/rejection:** correct the reported store fields or app behavior. A binary change
   needs a new version/build release; metadata-only corrections can resume against the existing build.
   Already waiting/in-review/approved submissions using the same build are preserved.

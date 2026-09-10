@@ -63,6 +63,10 @@ def tag_identity(tag):
 def main():
     bump = os.environ.get('BUMP', 'patch')
     resume = os.environ.get('RESUME_TAG', '').strip()
+    recover_ios = os.environ.get('RECOVER_IOS') == 'true'
+    testflight_only = os.environ.get('TESTFLIGHT_ONLY') == 'true'
+    if recover_ios and not resume:
+        raise ValueError('iOS recovery requires an existing release tag')
     if bump not in {'patch', 'minor', 'major'} or (resume and not TAG.fullmatch(resume)):
         raise ValueError('Invalid release input')
     if os.environ['GITHUB_REF'] not in {'refs/heads/main', 'refs/heads/dev'}:
@@ -77,6 +81,8 @@ def main():
         # this preparation run exits before the serialized main run acquires the group.
         args = ['gh', 'workflow', 'run', 'release-mobile.yml', '--ref', 'main', '-f', f'bump={bump}']
         if resume: args.extend(['-f', f'tag={resume}'])
+        if recover_ios: args.extend(['-f', 'recover_ios=true'])
+        if testflight_only: args.extend(['-f', 'testflight_only=true'])
         read(*args)
         print('Mobile release dispatched on main; follow its Release / mobile run.')
         return
