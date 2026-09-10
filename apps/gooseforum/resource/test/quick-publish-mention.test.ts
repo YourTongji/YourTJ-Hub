@@ -125,9 +125,9 @@ function mentionPanel() {
   return document.querySelector<HTMLElement>('#gf-mention-listbox')
 }
 
-function mountModal() {
+function mountModal(mobile = false) {
   vi.spyOn(window, 'matchMedia').mockReturnValue({
-    matches: false,
+    matches: mobile,
     media: '(max-width: 640px)',
     addEventListener: () => {},
     removeEventListener: () => {},
@@ -237,6 +237,25 @@ describe('QuickPublishModal @mention 会话（issue #590）', () => {
     expect(mentionPanel()).toBeNull()
     expect(el.hasAttribute('aria-controls')).toBe(false)
     expect(el.hasAttribute('aria-activedescendant')).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('移动端停靠挑选态：面板打开时编辑区挂 is-mention-picking，会话结束即解除', async () => {
+    const wrapper = mountModal(true)
+    await flushPromises()
+    // DialogPortal 将弹层 teleport 到 document.body，须用 document 查询（组件 wrapper 内不可见）
+    const modalEditor = () => document.body.querySelector<HTMLElement>('.gf-modal-editor')!
+    expect(modalEditor().classList.contains('is-mention-picking')).toBe(false)
+
+    await openMentionWithSearch(wrapper, '@wa', [searchUser(21, 'wavery')])
+    expect(modalEditor().classList.contains('is-mention-picking')).toBe(true)
+    expect(mentionPanel()!.classList.contains('is-docked')).toBe(true)
+
+    const escEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    stubEditor(wrapper).element.dispatchEvent(escEvent)
+    await flushPromises()
+    expect(mentionPanel()).toBeNull()
+    expect(modalEditor().classList.contains('is-mention-picking')).toBe(false)
     wrapper.unmount()
   })
 })

@@ -616,7 +616,7 @@ async function handleSubmit() {
           />
 
           <!-- 第四行：正文编辑器（弹性填满剩余空间，工具栏移到底部大拇指触控区，隐去传图按钮） -->
-          <div ref="editorHost" class="gf-modal-editor relative flex-1 min-h-0 flex flex-col">
+          <div ref="editorHost" class="gf-modal-editor relative flex-1 min-h-0 flex flex-col" :class="{ 'is-mention-picking': mentionOpen && mentionDocked }">
             <VditorOfficial
               ref="editor"
               v-model="content"
@@ -895,5 +895,17 @@ async function handleSubmit() {
 
 .gf-image-scroll-track::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+}
+
+/* @mention 挑选态（issue #590 review）：停靠候选面板参与弹层内 flex 布局时，
+ * 压缩编辑器最小高度并钉住面板不收缩，保证候选列表完整落在弹层可视区内可点
+ * （弹层主体移动端 overflow-hidden，static 面板此前会被裁切至不可触达） */
+.gf-modal-editor.is-mention-picking .vditor-content {
+  min-height: 0 !important;
+}
+
+.gf-modal-editor.is-mention-picking .gf-mention-panel.is-docked {
+  flex-shrink: 0;
+  max-height: min(234px, 38vh);
 }
 </style>
