@@ -556,7 +556,7 @@ function courseStars(ratingAvg: number | undefined) {
         <p v-else class="text-xs text-base-content/50">{{ t('coursesPage.relatedEmpty') }}</p>
       </section>
 
-      <!-- 该课程的其他老师 -->
+      <!-- 同课号课程卡按 teacherName 展示身份教师，与详情页保持一致。 -->
       <section v-if="related" class="mb-6">
         <div class="mb-3 flex items-center gap-2">
           <span class="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -570,7 +570,7 @@ function courseStars(ratingAvg: number | undefined) {
             class="group flex items-center justify-between p-4 transition hover:bg-base-200/50"
           >
             <div class="min-w-0">
-              <h4 class="truncate text-sm font-bold text-base-content group-hover:text-primary">{{ item.instructors?.join('、') || t('coursesPage.noTeacher') }}</h4>
+              <h4 class="truncate text-sm font-bold text-base-content group-hover:text-primary">{{ item.teacherName || t('coursesPage.noTeacher') }}</h4>
               <p class="text-xs text-base-content/50">{{ item.name }}</p>
             </div>
             <div class="shrink-0 text-right">
