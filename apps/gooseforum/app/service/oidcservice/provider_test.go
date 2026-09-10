@@ -336,66 +336,57 @@ func TestAuthorizeAcceptsRedirectGlobMatch(t *testing.T) {
 	}
 }
 
-// TestAuthorizeAcceptsWalineCallbackGlob 钉住真实 Waline 回调形状:
-// redirect_uri 内层页面 URL 仍带 %-编码(与 auth center 构造的一致), 而
-// zitadel/oidc 匹配前会再 QueryUnescape 一次——只有 ** 作末尾 segment 的
-// pattern 能命中(dev 部署实测: * 会让真实回调 400)。
-func TestAuthorizeAcceptsWalineCallbackGlob(t *testing.T) {
-	issuer := "https://forum.example.com/api/oauth"
-	clients := []map[string]any{
-		{
-			"id":   "yourtj-wiki-comment",
-			"name": "Wiki Comment",
-			"redirect_uris_globs": []any{
-				`https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**`,
-				`https://comment.example.com/api/oauth\?redirect=/**`,
-			},
-		},
-	}
-	setupProviderConfig(t, issuer, clients)
-	conn := db.Connect()
-	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	h, err := Router()
-	if err != nil {
-		t.Fatalf("Router() error = %v", err)
-	}
-	_, verifier := pkcePair(t)
-	target := authorizeURL(issuer, "yourtj-wiki-comment",
-		"https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fwiki.example.com%2Fguide%2F&type=oidc",
-		"st", "no", verifier)
-	rec := doGet(t, h, target)
-	if !strings.HasPrefix(rec.Header().Get("Location"), "/login") {
-		t.Fatalf("waline callback glob must reach login bridge: %q", rec.Header().Get("Location"))
-	}
-}
-
-// TestAuthorizeRejectsWalineCallbackGlobEvilDomain 钉住 glob 不放宽到任意域:
-// 相同回调形状但页面 URL 是 evil 域, 必须仍被拒绝。
-func TestAuthorizeRejectsWalineCallbackGlobEvilDomain(t *testing.T) {
-	issuer := "https://forum.example.com/api/oauth"
-	clients := []map[string]any{
-		{
-			"id": "yourtj-wiki-comment",
-			"redirect_uris_globs": []any{
-				`https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**`,
-				`https://comment.example.com/api/oauth\?redirect=/**`,
-			},
-		},
-	}
-	setupProviderConfig(t, issuer, clients)
-	h, err := Router()
-	if err != nil {
-		t.Fatalf("Router() error = %v", err)
-	}
-	_, verifier := pkcePair(t)
-	target := authorizeURL(issuer, "yourtj-wiki-comment",
-		"https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fevil.example.com%2F&type=oidc",
-		"st", "no", verifier)
-	rec := doGet(t, h, target)
-	if strings.HasPrefix(rec.Header().Get("Location"), "/login") {
-		t.Fatalf("evil-domain waline callback must not reach login bridge: %q", rec.Header().Get("Location"))
+// Waline embeds a percent-encoded page URL in redirect_uri. Authorization
+// decodes the outer query once and must preserve the callback's own encoding.
+func TestAuthorizeWalineCallbackGlobs(t *testing.T) {
+	for _, tc := range []struct {
+		name, callback string
+		allowed        bool
+	}{
+		{"absolute", "https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fwiki.example.com%2Fguide%2F&type=oidc", true},
+		{"relative", "https://comment.example.com/api/oauth?redirect=%2Fguide%2Fintro&type=oidc", true},
+		{"evil nested domain", "https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fevil.example.com%2F&type=oidc", false},
+		{"lookalike nested domain", "https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fwiki.example.com.evil.test%2F&type=oidc", false},
+		{"protocol relative", "https://comment.example.com/api/oauth?redirect=%2F%2Fevil.example.com%2F&type=oidc", false},
+		{"double encoded", "https://comment.example.com/api/oauth?redirect=https%253A%252F%252Fwiki.example.com%252Fguide&type=oidc", false},
+		{"evil callback host", "https://evil.example.com/api/oauth?redirect=https%3A%2F%2Fwiki.example.com%2Fguide%2F&type=oidc", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			issuer := "https://forum.example.com/api/oauth"
+			setupProviderConfig(t, issuer, []map[string]any{{
+				"id": "yourtj-wiki-comment",
+				"redirect_uris_globs": []any{
+					`https://comment.example.com/api/oauth\?redirect=https%3A%2F%2Fwiki.example.com%2F*`,
+					`https://comment.example.com/api/oauth\?redirect=%2Fguide%2F*`,
+				},
+			}})
+			conn := db.Connect()
+			if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
+				t.Fatal(err)
+			}
+			h, err := Router()
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, verifier := pkcePair(t)
+			rec := doGet(t, h, authorizeURL(issuer, "yourtj-wiki-comment", tc.callback, "waline-"+tc.name, "no", verifier))
+			if got := strings.HasPrefix(rec.Header().Get("Location"), "/login"); got != tc.allowed {
+				t.Fatalf("login bridge=%t, want %t: status=%d location=%q", got, tc.allowed, rec.Code, rec.Header().Get("Location"))
+			}
+			var requests []oidcAuthRequests.Entity
+			if err := conn.Where("state = ?", "waline-"+tc.name).Find(&requests).Error; err != nil {
+				t.Fatal(err)
+			}
+			if !tc.allowed {
+				if len(requests) != 0 {
+					t.Fatal("rejected callback created an authorization request")
+				}
+				return
+			}
+			if len(requests) != 1 || requests[0].RedirectUri != tc.callback {
+				t.Fatalf("callback encoding was not preserved: %+v", requests)
+			}
+		})
 	}
 }
 
