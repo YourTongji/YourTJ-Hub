@@ -2287,6 +2287,7 @@ export default {
   },
   adminOptLog: {
     optType: {
+      materializePk: 'Materialize course catalog',
       editUser: 'User operation',
       editTopic: 'Edit topic',
       editCategory: 'Edit category',
@@ -2305,6 +2306,7 @@ export default {
       post: 'Post',
     },
     messages: {
+      pkMaterialized: 'Materialized course catalog: {coursesInserted} courses added, {coursesUpdated} updated; {offeringsInserted} classes added, {offeringsUpdated} updated',
       userUpdated: 'Updated user {userId}: {changedFields}',
       topicStatusChanged: 'Topic "{title}" status changed to {status}',
       topicPinWeightChanged: 'Topic "{title}" pin weight {oldPinWeight} -> {pinWeight}',

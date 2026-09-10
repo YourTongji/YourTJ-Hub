@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "result": {
+    "calendarId": 121,
+    "coursesInserted": 1,
+    "coursesUpdated": 0,
+    "instructorsInserted": 1,
+    "aliasesInserted": 2,
+    "aliasesSkipped": 0,
+    "offeringsInserted": 1,
+    "offeringsUpdated": 0
+  }
+}

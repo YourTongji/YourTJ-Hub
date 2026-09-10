@@ -2287,6 +2287,7 @@ export default {
   },
   adminOptLog: {
     optType: {
+      materializePk: 'Kurskatalog aktualisieren',
       editUser: 'Benutzeraktion',
       editTopic: 'Thema bearbeiten',
       editCategory: 'Kategorie bearbeiten',
@@ -2305,6 +2306,7 @@ export default {
       post: 'Beitrag',
     },
     messages: {
+      pkMaterialized: 'Kurskatalog aktualisiert: {coursesInserted} Kurse hinzugefügt, {coursesUpdated} aktualisiert; {offeringsInserted} Veranstaltungen hinzugefügt, {offeringsUpdated} aktualisiert',
       userUpdated: 'Benutzer {userId} aktualisiert: {changedFields}',
       topicStatusChanged: 'Status des Themas "{title}" geändert auf {status}',
       topicPinWeightChanged: 'Anheftungsgewicht des Themas "{title}" {oldPinWeight} -> {pinWeight}',

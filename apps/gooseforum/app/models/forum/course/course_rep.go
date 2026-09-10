@@ -103,6 +103,7 @@ func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) 
 		kw := "%" + q.Keyword + "%"
 		b = b.Where(
 			`(normalized_name LIKE ? OR primary_code LIKE ? OR name_pinyin LIKE ? OR name_initials LIKE ?
+OR EXISTS (SELECT 1 FROM course_offering WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ? AND LOWER(course_offering.class_code) LIKE ?)
 OR EXISTS (SELECT 1 FROM course_alias WHERE course_alias.course_id = course.id AND course_alias.deleted_at IS NULL AND (course_alias.value LIKE ? OR course_alias.normalized_value LIKE ?))
 OR EXISTS (
 	SELECT 1 FROM course_offering
@@ -111,7 +112,7 @@ OR EXISTS (
 	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
 	  AND (course_instructor.name LIKE ? OR course_instructor.normalized_name LIKE ? OR course_instructor.name_pinyin LIKE ? OR course_instructor.name_initials LIKE ?)
 ))`,
-			kw, kw, kw, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, kw,
+			kw, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, kw,
 		)
 	}
 	if len(q.Instructor) > 0 {

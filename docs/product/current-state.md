@@ -62,6 +62,12 @@
 | AI-readable content | `Current` | Admin posting settings independently gate the llms.txt index, full-text export, and per-topic Markdown; exports include only published topics with normal first posts and normal, non-deleted replies; generated content is cached for 10 seconds and invalidated by topic/reply/category events, direct clear on moderation/reply-edit/topic-category/unpublish paths, or relevant setting changes; full export is hard-capped (5000 topics / 8 MiB / 30 s) and truncated with a marker |
 | MCP server | `Partial` | Official MCP server (issue #93) ships in the single binary: `/mcp` streamable HTTP endpoint + `mcp-stdio` subcommand, exposing the six-operation Agent forum API as curated handwritten tools (me / list_topics / get_posts / search always; create_topic / create_post only when the MCP write setting is enabled). Both the endpoint (`mcp.enabled`) and write tools (`mcp.writes`) are managed from the admin panel (Settings → MCP server), stored in DB via `page_config` and applied hot (5s cache) without a restart; both default to off. When `mcp.enabled` is off, `/mcp` answers 404 and exposes no MCP surface. Auth reuses the `agt_` bearer token via `agentservice.ResolveByToken`, with unauthenticated floods bounded by the shared `mcp.auth` per-IP rate limit; write tools share the existing topic.write / post.create rate limits (IP + bot userId, SkipAdmin exemption), and `mcp-stdio --writes` can override the write setting per local session. `/mcp` requests lift the 10s server write timeout (GET SSE streams stay unlimited, bounded by the 15m session timeout; POSTs get a finite 60s write deadline so a client that stops reading cannot pin a session). Public-facing OAuth 2.1 + RFC 9728 resource metadata, SSE fallback for domestic clients, and webhook/mention wakeups remain `Planned` |
 
+课程目录同步（`Current`）：管理端「一系统同步」完成抓取后自动更新课评目录；
+独立「物化课评目录」入口可选择本地学期补跑，无需 Cookie，提交后显示新增/更新数量。
+教师变更保留教学班 ID 与评价，班号检索读取当前开课信息；物化修复可迁移的班号别名，
+并触发评分统计及搜索更新。活动同步或未完整抓取的学期不可物化。详见
+[课程同步与物化](../operations/deployment.md)。
+
 PK 改码处理（issue #475）：`newCourseCode` / `newCode` 是排课公开查询与课程目录物化的
 当前有效编号；一系统原始 `courseCode` / `code` 留作沿革证据及历史方案输入兼容。
 

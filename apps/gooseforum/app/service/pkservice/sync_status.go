@@ -10,6 +10,7 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 )
 
@@ -30,6 +31,15 @@ func ResolveSyncTerm(term string) (uint64, string, error) {
 	}
 	if id, ok := pk.GetCalendarIdByI18n(t); ok {
 		return id, t, nil
+	}
+	calendars, err := pk.ListAllCalendars()
+	if err != nil {
+		return 0, "", err
+	}
+	for _, calendar := range calendars {
+		if course.NormalizeTermLabel(calendar.CalendarIdI18n) == course.NormalizeTermLabel(t) {
+			return calendar.CalendarId, t, nil
+		}
 	}
 	return 0, "", fmt.Errorf("无法解析学期 %q：请输入一系统数字 calendarId（如 121），或先以该学期名同步一次使其进入 pk_calendar", t)
 }

@@ -8,9 +8,11 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
@@ -38,6 +40,7 @@ func setupPkAdminContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		middleware.CheckPermission(permission.SiteManager),
 	)
 	admin.POST("/pk/sync-calendar", UpButterReq(api.SyncPkCalendar))
+	admin.POST("/pk/materialize-calendar", UpButterReq(api.MaterializePkCalendar))
 	admin.GET("/pk/sync-status", UpButterReq(api.PkSyncStatus))
 	return conn, router
 }
@@ -156,4 +159,59 @@ func seedPkSyncStatus(t *testing.T, conn *gorm.DB) {
 			t.Fatalf("seed fetch log: %v", err)
 		}
 	}
+}
+
+func TestAdminMaterializePkCalendarHTTPContract(t *testing.T) {
+	path := "/api/admin/pk/materialize-calendar"
+	adminPkGuardScenarios(t, http.MethodPost, path, "pk-materialize")
+	t.Run("materializes locally without cookie and can repeat", func(t *testing.T) {
+		t.Setenv("ONESYSTEM_COOKIE", "")
+		conn, router := setupPkAdminContractTest(t)
+		models := []any{&pk.CourseDetailEntity{}, &pk.TeacherEntity{}, &pk.FacultyEntity{}, &pk.CampusEntity{}, &course.Entity{}, &course.InstructorEntity{}, &course.AliasEntity{}, &course.OfferingEntity{}, &course.OfferingInstructorEntity{}, &course.TermEntity{}, &course.RelationEntity{}, &taskQueue.Entity{}}
+		if err := conn.AutoMigrate(models...); err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range models {
+			if err := conn.Unscoped().Where("1=1").Delete(m).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, m := range []any{&pk.CalendarEntity{CalendarId: 121, CalendarIdI18n: "2025-2026学年第2学期"}, &pk.CourseDetailEntity{Id: 100, CalendarId: 121, CourseCode: "MATH1", CourseName: "数学", Code: "MATH101"}, &pk.TeacherEntity{Id: 100, TeachingClassId: 100, TeacherCode: "T1", TeacherName: "张三"}} {
+			if err := conn.Create(m).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		manager := createContractSiteManager(t, conn)
+		token := contractSessionToken(t, manager)
+		rec := serveAuthSecurityJSON(router, http.MethodPost, path, `{"term":"2025-2026-2"}`, token)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "pk-materialize-success.json"))
+		rec = serveAuthSecurityJSON(router, http.MethodPost, path, `{"term":"121"}`, token)
+		envelope := decodeContractEnvelope(t, rec)
+		if envelope.Code != 0 {
+			t.Fatalf("repeat failed: %s", rec.Body.String())
+		}
+		var offerings int64
+		if err := conn.Model(&course.OfferingEntity{}).Count(&offerings).Error; err != nil {
+			t.Fatal(err)
+		}
+		if offerings != 1 {
+			t.Fatalf("repeat created %d offerings", offerings)
+		}
+		var auditCount int64
+		if err := conn.Model(&optRecord.Entity{}).Where("opt_info LIKE ?", "%admin.opt.pk.materialized%").Count(&auditCount).Error; err != nil {
+			t.Fatal(err)
+		}
+		if auditCount != 2 {
+			t.Fatalf("audit count=%d", auditCount)
+		}
+	})
+	t.Run("missing term fails validation", func(t *testing.T) {
+		conn, router := setupPkAdminContractTest(t)
+		manager := createContractSiteManager(t, conn)
+		rec := serveAuthSecurityJSON(router, http.MethodPost, path, `{}`, contractSessionToken(t, manager))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
+	})
 }

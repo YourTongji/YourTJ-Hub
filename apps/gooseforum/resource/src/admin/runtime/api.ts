@@ -32,6 +32,7 @@ import type {
   OnesystemSettings,
   ScheduleSettings,
   PkSyncStatusItem,
+  PkMaterializeResult,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -608,4 +609,8 @@ export function getWikiAssetCDN() {
 
 export function saveWikiAssetCDN(cdn: string) {
   return postJson<unknown>('/api/admin/wiki/sync/cdn', { cdn }, adminText('k00n0'))
+}
+
+export function materializePkCalendar(term: string) {
+  return postJson<PkMaterializeResult>('/api/admin/pk/materialize-calendar', { term }, adminText('materializeFailed'))
 }

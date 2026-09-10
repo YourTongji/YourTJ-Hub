@@ -9541,3 +9541,55 @@ OwnCourseReviewResponse:
           type: string
       additionalProperties: false
   additionalProperties: false
+
+PkMaterializeRequest:
+  type: object
+  required: [term]
+  additionalProperties: false
+  properties:
+    term:
+      type: string
+      minLength: 1
+      description: Already synced calendar ID, canonical term code or Chinese term label.
+
+PkMaterializeResult:
+  type: object
+  additionalProperties: false
+  required: [calendarId, coursesInserted, coursesUpdated, instructorsInserted, aliasesInserted, aliasesSkipped, offeringsInserted, offeringsUpdated]
+  properties:
+    calendarId:
+      type: integer
+      format: uint64
+      minimum: 1
+    coursesInserted:
+      type: integer
+      minimum: 0
+    coursesUpdated:
+      type: integer
+      minimum: 0
+    instructorsInserted:
+      type: integer
+      minimum: 0
+    aliasesInserted:
+      type: integer
+      minimum: 0
+    aliasesSkipped:
+      type: integer
+      minimum: 0
+    offeringsInserted:
+      type: integer
+      minimum: 0
+    offeringsUpdated:
+      type: integer
+      minimum: 0
+
+PkMaterializeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/PkMaterializeResult'
+    - $ref: '#/ApiFailure'

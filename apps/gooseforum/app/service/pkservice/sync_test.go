@@ -13,7 +13,9 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"gorm.io/gorm"
 )
 
@@ -587,5 +589,64 @@ func TestFetchLogLeaseFencesStaleWorker(t *testing.T) {
 	current, ok := pk.LatestFetchLogByCalendar(121)
 	if !ok || current.Status != pk.FetchStatusRunning || current.LeaseVersion != newer.LeaseVersion {
 		t.Fatalf("current fetch log = %+v, want replacement running lease", current)
+	}
+}
+
+func TestSyncMaterializeFailureIsVisibleAndResumesLocally(t *testing.T) {
+	migratePkTables(t)
+	conn := db.Connect()
+	models := []any{&course.Entity{}, &course.AliasEntity{}, &course.InstructorEntity{}, &course.OfferingEntity{}, &course.OfferingInstructorEntity{}, &course.TermEntity{}, &course.RelationEntity{}, &taskQueue.Entity{}}
+	if err := conn.AutoMigrate(models...); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range models {
+		if err := conn.Unscoped().Where("1=1").Delete(m).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	fake := &fakeOneSystem{cookieOK: true, courses: genCourses(1)}
+	server := httptest.NewServer(fake.handler())
+	defer server.Close()
+	client := newOnesystemClient()
+	client.baseURL = server.URL
+	client.maxAttempts = 1
+	callback := "test:materialize-failure"
+	if err := conn.Callback().Create().Before("gorm:create").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == "course" {
+			_ = tx.AddError(errors.New("injected materialization failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := syncWith(context.Background(), client, "cookie", 121, 1, true)
+	if removeErr := conn.Callback().Create().Remove(callback); removeErr != nil {
+		t.Fatal(removeErr)
+	}
+	if err == nil {
+		t.Fatal("expected materialization failure")
+	}
+	log, ok := pk.LatestFetchLogByCalendar(121)
+	if !ok || log.Status != pk.FetchStatusFailed || !strings.Contains(log.ErrorMsg, "物化课评目录") {
+		t.Fatalf("log=%+v", log)
+	}
+	if log.LastCommittedPage != log.TotalPages {
+		t.Fatal("fetch cursor lost")
+	}
+	fake.mu.Lock()
+	callsBefore := len(fake.calls)
+	fake.mu.Unlock()
+	report, err := syncWith(context.Background(), client, "cookie", 121, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	callsAfter := len(fake.calls)
+	fake.mu.Unlock()
+	if callsBefore != callsAfter {
+		t.Fatal("retry refetched committed pages")
+	}
+	log, ok = pk.LatestFetchLogByCalendar(121)
+	if !ok || log.Status != pk.FetchStatusCompleted || log.ErrorMsg != "" || report.MaterializedCourses != 1 {
+		t.Fatalf("log=%+v report=%+v", log, report)
 	}
 }

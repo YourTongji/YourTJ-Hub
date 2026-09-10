@@ -2287,6 +2287,7 @@ export default {
   },
   adminOptLog: {
     optType: {
+      materializePk: '授業評価カタログの反映',
       editUser: 'User operation',
       editTopic: 'Edit topic',
       editCategory: 'Edit category',
@@ -2305,6 +2306,7 @@ export default {
       post: 'Post',
     },
     messages: {
+      pkMaterialized: '授業評価カタログを反映：科目 {coursesInserted} 件追加、{coursesUpdated} 件更新；クラス {offeringsInserted} 件追加、{offeringsUpdated} 件更新',
       userUpdated: 'Updated user {userId}: {changedFields}',
       topicStatusChanged: 'Topic "{title}" status changed to {status}',
       topicPinWeightChanged: 'Topic "{title}" pin weight {oldPinWeight} -> {pinWeight}',
