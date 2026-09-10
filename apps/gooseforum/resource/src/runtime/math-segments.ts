@@ -11,7 +11,7 @@
  */
 
 export interface MathSegment {
-  /** TeX source without the surrounding delimiters. */
+  /** TeX source; begin/end environment markers are retained for KaTeX. */
   text: string
   /** True for block math, false for inline math. */
   display: boolean
@@ -36,8 +36,6 @@ const MATH_ENVIRONMENTS = [
   'aligned',
   'gather',
   'gather*',
-  'multline',
-  'multline*',
   'split',
   'cases',
   'matrix',
@@ -165,8 +163,9 @@ export function extractMathSegments(source: string): MathSegment[] {
 
     const close = findClosingDelimiter(source, delimiter.close, openEnd)
     if (close !== -1) {
-      const text = source.slice(openEnd, close)
+      let text = source.slice(openEnd, close)
       if (text.trim().length > 0) {
+        if (delimiter.open.startsWith('\\begin{')) text = source.slice(openIndex, close + delimiter.close.length)
         segments.push({ text, display: delimiter.display, start: openIndex, end: close + delimiter.close.length })
         index = close + delimiter.close.length
         continue

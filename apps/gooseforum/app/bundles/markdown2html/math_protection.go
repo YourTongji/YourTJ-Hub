@@ -35,8 +35,6 @@ var mathEnvironments = []string{
 	"aligned",
 	"gather",
 	"gather*",
-	"multline",
-	"multline*",
 	"split",
 	"cases",
 	"matrix",
@@ -146,6 +144,9 @@ func extractMathSegments(source string) []mathSegment {
 		if closeIndex != -1 {
 			text := source[openEnd:closeIndex]
 			if strings.TrimSpace(text) != "" {
+				if strings.HasPrefix(delimiter.open, "\\begin{") {
+					text = source[openIndex : closeIndex+len(delimiter.close)]
+				}
 				segments = append(segments, mathSegment{
 					text:    text,
 					display: delimiter.display,

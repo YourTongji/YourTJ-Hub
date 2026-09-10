@@ -131,3 +131,16 @@ func TestMathProtectionEscapesAttributeBreakoutInsideLinkText(t *testing.T) {
 		t.Fatalf("link itself was not preserved: %s", got)
 	}
 }
+
+func TestMathProtectionLatexBoundaries(t *testing.T) {
+	for _, source := range []string{`\\(x\\)`, `\\[x\\]`, `\(x`, `\[x`, `\begin{align}x`, `\(\)`, `\[ \]`, `\begin{multline}x\end{multline}`} {
+		if got := extractMathSegments(source); len(got) != 0 {
+			t.Errorf("extract %q = %+v; want literal", source, got)
+		}
+	}
+	const source = `\begin{pmatrix}a&b\\c&d\end{pmatrix}`
+	got := extractMathSegments(source)
+	if len(got) != 1 || got[0].text != source {
+		t.Fatalf("matrix environment lost: %+v", got)
+	}
+}

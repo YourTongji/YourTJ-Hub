@@ -225,3 +225,18 @@ raw HTML inside `$...$` cannot bypass the renderer's raw-HTML filtering. The
 client enhancer still scans rendered text nodes, so historical HTML created
 before the rendered-version bump may keep a split inline expression literal
 until posts are re-rendered.
+
+LaTeX delimiter support (`Current`) applies to saved topic/post rendering and the
+shared Markdown preview. Environment markers remain in the TeX passed to KaTeX,
+so alignment and matrix syntax keep their meaning. Supported environments are
+`equation`, `equation*`, `align`, `align*`, `aligned`, `gather`, `gather*`, `split`,
+`cases`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, and `Vmatrix`; `multline` is not
+supported by the bundled KaTeX and stays literal. The rendered HTML version is
+incremented so existing posts can be refreshed with the new delimiter protection.
+
+Vditor WYSIWYG preserves these alternate delimiters in emitted Markdown, but its
+inline preview still recognizes its native dollar syntax. Users who need a live
+editor preview can use the existing inline/block math toolbar buttons. The
+alternate-delimiter editor preview is `Planned` and is separate from read-side
+rendering. Existing non-code text containing paired `\(` / `\[` delimiters now
+renders as math; use inline code or fenced code for literal regex/path examples.
