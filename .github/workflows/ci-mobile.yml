@@ -74,8 +74,9 @@ jobs:
           flutter-version: 3.44.9
           cache: true
       - name: Bootstrap
-        working-directory: apps/mobile
-        run: dart pub get
+        working-directory: apps/mobile/packages/forum_app
+        # Generate Flutter plugin/SwiftPM files on a clean checkout before --no-pub.
+        run: flutter pub get
       - name: Configure build-only OEM identifiers (never distributed)
         if: matrix.platform == 'android'
         run: |

@@ -75,12 +75,8 @@ def main():
     team = os.environ["IOS_TEAM_ID"]
     version = os.environ["MOBILE_VERSION"]
     number = os.environ["MOBILE_BUILD_NUMBER"]
-    if entitlements.get("aps-environment") != "production":
-        raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
     if not re.fullmatch(r"[A-Z0-9]{10}", team):
         raise ValueError("Invalid Apple team ID")
-    if entitlements.get("aps-environment") != "production":
-        raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number):
         raise ValueError("Invalid mobile version/build number")
     profile_path = Path(os.environ["IOS_PROFILE_PATH"]).resolve()

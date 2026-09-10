@@ -76,13 +76,16 @@ class PushController extends Notifier<PushChannelStatus>
     with WidgetsBindingObserver {
   static const _enabledKey = 'push_enabled';
   static const _tokenKey = 'push_token';
+  static const _tokenOwnerKey = 'push_token_owner';
   int _generation = 0;
   bool _disposed = false;
   bool _busy = false;
   bool _refreshAgain = false;
+  Completer<void>? _pendingEnable;
   late PushDriver _driver;
   String? _lastToken;
   PushRepository? _sessionRepository;
+  int? _sessionUserId;
   Future<void>? _pendingRegistration;
   Future<void>? _stopping;
 
@@ -103,6 +106,8 @@ class PushController extends Notifier<PushChannelStatus>
     });
     ref.onDispose(() {
       _disposed = true;
+      _pendingEnable?.complete();
+      _pendingEnable = null;
       _generation++;
       WidgetsBinding.instance.removeObserver(this);
       _driver.dispose();
@@ -122,17 +127,21 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   Future<void> refresh() async {
-    if (_busy) {
-      _refreshAgain = true;
-      return;
-    }
     await _connect(request: false);
   }
 
   Future<void> enable() => _connect(request: true);
 
   Future<void> _connect({required bool request}) async {
-    if (_busy || _disposed || _stopping != null) return;
+    if (_disposed) return;
+    if (_busy || _stopping != null) {
+      if (request) {
+        _pendingEnable ??= Completer<void>();
+        return _pendingEnable!.future;
+      }
+      _refreshAgain = true;
+      return;
+    }
     _busy = true;
     final generation = ++_generation;
     final epoch = ref.read(offlineCacheEpochProvider);
@@ -140,10 +149,6 @@ class PushController extends Notifier<PushChannelStatus>
     try {
       final prefs = await SharedPreferences.getInstance();
       if (!_current(generation, epoch)) return;
-      if (!await _driver.configured()) {
-        if (_current(generation, epoch)) state = PushChannelStatus.unsupported;
-        return;
-      }
       if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
         if (_current(generation, epoch)) state = PushChannelStatus.disabled;
         return;
@@ -151,19 +156,28 @@ class PushController extends Notifier<PushChannelStatus>
       if (!_current(generation, epoch)) return;
       final session = await repository.forSession();
       if (!_current(generation, epoch)) return;
+      final user = await ref.read(currentUserProvider.future);
+      if (!_current(generation, epoch)) return;
       _sessionRepository = session;
+      _sessionUserId = user?.id;
       if (request) await prefs.setBool(_enabledKey, true);
       if (!(prefs.getBool(_enabledKey) ?? false)) {
         state = PushChannelStatus.disabled;
+        await _unregister(session, prefs, user?.id);
         return;
       }
+      if (!await _driver.configured()) {
+        if (_current(generation, epoch)) state = PushChannelStatus.unsupported;
+        return;
+      }
+      if (!_current(generation, epoch)) return;
       // Explicit consent reaches the OS even while delivery configuration is absent.
       final allowed = await _driver.permission(request: request);
       if (!_current(generation, epoch)) return;
       if (!allowed) {
         state = PushChannelStatus.permissionDenied;
         await _driver.stop();
-        await _unregister(session, prefs);
+        await _unregister(session, prefs, user?.id);
         return;
       }
       final config = await session.config();
@@ -179,7 +193,14 @@ class PushController extends Notifier<PushChannelStatus>
       if (!_current(generation, epoch)) return;
       if (token == null || token.isEmpty) throw StateError('No device token');
       _lastToken = token;
-      final registration = _register(session, prefs, token, generation, epoch);
+      final registration = _register(
+        session,
+        prefs,
+        token,
+        generation,
+        epoch,
+        user?.id,
+      );
       _pendingRegistration = registration;
       try {
         await registration;
@@ -196,10 +217,26 @@ class PushController extends Notifier<PushChannelStatus>
       }
     } finally {
       _busy = false;
-      if (_refreshAgain && !_disposed) {
-        _refreshAgain = false;
-        unawaited(refresh());
-      }
+      _drain();
+    }
+  }
+
+  void _drain() {
+    if (_disposed || _busy || _stopping != null) return;
+    final enabling = _pendingEnable;
+    _pendingEnable = null;
+    if (enabling != null) {
+      _refreshAgain = false;
+      unawaited(
+        _connect(request: true).then(
+          (_) => enabling.complete(),
+          onError: (Object error, StackTrace stack) =>
+              enabling.completeError(error, stack),
+        ),
+      );
+    } else if (_refreshAgain) {
+      _refreshAgain = false;
+      unawaited(refresh());
     }
   }
 
@@ -209,6 +246,7 @@ class PushController extends Notifier<PushChannelStatus>
     String token,
     int generation,
     int epoch,
+    int? userId,
   ) async {
     final success = await repository.registerDevice(
       platform: _driver.platform,
@@ -216,13 +254,18 @@ class PushController extends Notifier<PushChannelStatus>
       provider: _driver.provider,
     );
     if (!success) throw StateError('Device registration rejected');
-    if (!_current(generation, epoch)) {
-      // Registration can finish after consent/session changes. Use its original owner.
-      await repository.unregisterDevice(token: token);
-      return;
-    }
     final previous = prefs.getString(_tokenKey);
     await prefs.setString(_tokenKey, token);
+    if (userId != null) {
+      await prefs.setInt(_tokenOwnerKey, userId);
+    } else {
+      await prefs.remove(_tokenOwnerKey);
+    }
+    if (!_current(generation, epoch)) {
+      // Persist before cleanup so an offline late registration remains retryable.
+      await _unregister(repository, prefs, userId);
+      return;
+    }
     if (previous != null && previous != token) {
       try {
         await repository.unregisterDevice(token: previous);
@@ -233,17 +276,23 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   Future<void> disable() {
+    _pendingEnable?.complete();
+    _pendingEnable = null;
+    _refreshAgain = false;
     if (_stopping != null) return _stopping!;
     _generation++;
     if (!_disposed) state = PushChannelStatus.disabled;
     final PushRepository repository =
         _sessionRepository ?? ref.read<PushRepository>(pushRepositoryProvider);
-    final operation = _stop(repository);
+    final operation = _stop(repository, _sessionUserId);
     _stopping = operation;
-    return operation.whenComplete(() => _stopping = null);
+    return operation.whenComplete(() {
+      _stopping = null;
+      _drain();
+    });
   }
 
-  Future<void> _stop(PushRepository repository) async {
+  Future<void> _stop(PushRepository repository, int? userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, false);
     try {
@@ -257,7 +306,7 @@ class PushController extends Notifier<PushChannelStatus>
     } catch (_) {
       /* best effort cleanup below */
     }
-    await _unregister(repository, prefs);
+    await _unregister(repository, prefs, userId);
   }
 
   /// Require fresh consent for the next account on a shared device.
@@ -266,12 +315,18 @@ class PushController extends Notifier<PushChannelStatus>
   Future<void> _unregister(
     PushRepository repository,
     SharedPreferences prefs,
+    int? userId,
   ) async {
     final token = prefs.getString(_tokenKey);
     if (token == null) return;
+    final owner = prefs.getInt(_tokenOwnerKey);
+    // Unregister is owner-scoped and returns success even for another owner's
+    // token. Keep pending cleanup until that account signs in again.
+    if (owner != null && owner != userId) return;
     try {
       if (await repository.unregisterDevice(token: token)) {
         await prefs.remove(_tokenKey);
+        await prefs.remove(_tokenOwnerKey);
       }
     } catch (_) {
       /* preserve token for retry */

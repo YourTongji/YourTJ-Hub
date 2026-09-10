@@ -30,6 +30,7 @@ class Driver extends PushDriver {
   String? deviceToken = 'native-token';
   void Function(String)? changed;
   Completer<String?>? pending;
+  Completer<void>? pendingStop;
   @override
   String get platform => transport == 'apns' ? 'ios' : 'android';
   @override
@@ -51,6 +52,7 @@ class Driver extends PushDriver {
   @override
   Future<void> stop() async {
     stopped++;
+    await pendingStop?.future;
   }
 
   @override
@@ -78,8 +80,13 @@ class Repository extends PushRepository {
     ),
   );
   Completer<bool>? pendingRegistration;
+  Completer<void>? pendingSession;
   @override
-  Future<PushRepository> forSession() async => this;
+  Future<PushRepository> forSession() async {
+    await pendingSession?.future;
+    return this;
+  }
+
   final registered = <String>[];
   final unregistered = <String>[];
   bool reject = false, offline = false;
@@ -104,6 +111,7 @@ class Repository extends PushRepository {
   @override
   Future<bool> unregisterDevice({required String token}) async {
     unregistered.add(token);
+    if (offline) throw StateError('offline');
     return true;
   }
 }
@@ -114,18 +122,20 @@ void main() {
   late Repository repo;
   late MemoryStorage storage;
   late ProviderContainer container;
+  CurrentUser? user;
   Future<void> settle() => pumpEventQueue();
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     driver = Driver();
     repo = Repository();
     storage = MemoryStorage();
+    user = const CurrentUser(id: 1, username: 'one');
     container = ProviderContainer(
       overrides: [
         pushDriverProvider.overrideWithValue(driver),
         pushRepositoryProvider.overrideWithValue(repo),
         tokenStorageProvider.overrideWithValue(storage),
-        currentUserProvider.overrideWith((ref) async => null),
+        currentUserProvider.overrideWith((ref) async => user),
       ],
     );
     container.read(pushControllerProvider);
@@ -134,6 +144,83 @@ void main() {
   PushController controller() =>
       container.read(pushControllerProvider.notifier);
   PushChannelStatus status() => container.read(pushControllerProvider);
+  test(
+    'enable waits for a startup refresh and preserves explicit consent',
+    () async {
+      repo.pendingSession = Completer<void>();
+      await settle();
+      final enabling = controller().enable();
+      await settle();
+      repo.pendingSession!.complete();
+      await enabling;
+      await settle();
+      expect(status(), PushChannelStatus.enabled);
+      expect(driver.requests, 1);
+    },
+  );
+  test('enable during stop runs after cleanup completes', () async {
+    await settle();
+    await controller().enable();
+    driver.pendingStop = Completer<void>();
+    final stopping = controller().disable();
+    await settle();
+    final enabling = controller().enable();
+    driver.pendingStop!.complete();
+    await stopping;
+    await enabling;
+    await settle();
+    expect(status(), PushChannelStatus.enabled);
+    expect(driver.requests, 2);
+  });
+  test('a later disable cancels queued consent', () async {
+    repo.pendingSession = Completer<void>();
+    await settle();
+    final enabling = controller().enable();
+    await controller().disable();
+    repo.pendingSession!.complete();
+    await enabling;
+    await settle();
+    expect(status(), PushChannelStatus.disabled);
+    expect(driver.requests, 0);
+  });
+  test(
+    'disabled refresh retries offline cleanup without requesting permission',
+    () async {
+      await settle();
+      await controller().enable();
+      repo.offline = true;
+      await controller().disable();
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('push_token'), 'native-token');
+      repo.offline = false;
+      driver.supported = false;
+      await controller().refresh();
+      expect(prefs.getString('push_token'), isNull);
+      expect(repo.unregistered, ['native-token', 'native-token']);
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.disabled);
+    },
+  );
+  test('another account cannot acknowledge retained owner cleanup', () async {
+    await settle();
+    await controller().enable();
+    repo.offline = true;
+    await controller().handleLogout();
+    user = const CurrentUser(id: 2, username: 'two');
+    container.invalidate(currentUserProvider);
+    await settle();
+    repo.offline = false;
+    repo.unregistered.clear();
+    await controller().refresh();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('push_token'), 'native-token');
+    expect(repo.unregistered, isEmpty);
+    user = const CurrentUser(id: 1, username: 'one');
+    container.invalidate(currentUserProvider);
+    await settle();
+    await controller().refresh();
+    expect(prefs.getString('push_token'), isNull);
+  });
   test(
     'APNs available without Firebase; no permission prompt before consent',
     () async {
@@ -252,6 +339,28 @@ void main() {
       await enabling;
       await logout;
       expect(repo.unregistered, contains('native-token'));
+      expect(status(), PushChannelStatus.disabled);
+    },
+  );
+  test(
+    'offline cleanup of a late registration is retried while disabled',
+    () async {
+      await settle();
+      repo.pendingRegistration = Completer<bool>();
+      final enabling = controller().enable();
+      await settle();
+      repo.offline = true;
+      final stopping = controller().disable();
+      repo.pendingRegistration!.complete(true);
+      await enabling;
+      await stopping;
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('push_token'), 'native-token');
+      expect(prefs.getInt('push_token_owner'), 1);
+      repo.offline = false;
+      await controller().refresh();
+      expect(prefs.getString('push_token'), isNull);
+      expect(prefs.getInt('push_token_owner'), isNull);
       expect(status(), PushChannelStatus.disabled);
     },
   );

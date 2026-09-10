@@ -1,6 +1,11 @@
 import datetime
+import os
+import plistlib
+import tempfile
 import unittest
+from unittest.mock import patch
 
+import build_ios
 from build_ios import validate_profile, validate_app_entitlements
 
 
@@ -16,6 +21,28 @@ class DistributionProfileTest(unittest.TestCase):
 
     def test_app_store_profile(self):
         validate_profile(self.profile, "4HJTS3G3T2", self.now)
+
+    def test_release_entry_decodes_profile_before_preparing_build(self):
+        self.profile["ExpirationDate"] = datetime.datetime.now() + datetime.timedelta(days=1)
+        with tempfile.TemporaryDirectory() as output, patch.dict(os.environ, {
+            "IOS_TEAM_ID": "4HJTS3G3T2", "MOBILE_VERSION": "1.2.3",
+            "MOBILE_BUILD_NUMBER": "12", "IOS_PROFILE_PATH": output + "/profile",
+            "MOBILE_OUTPUT_DIR": output,
+        }), patch.object(build_ios.os, "umask"), patch.object(
+            build_ios.subprocess, "check_output", return_value=plistlib.dumps(self.profile),
+        ) as decode, patch.object(
+            build_ios.subprocess, "run", side_effect=RuntimeError("build reached"),
+        ) as build:
+            with self.assertRaisesRegex(RuntimeError, "build reached"):
+                build_ios.main()
+            self.assertEqual(decode.call_args.args[0][:3], ["security", "cms", "-D"])
+            self.assertEqual(build.call_args.args[0][1:3], ["build", "ios"])
+            self.profile["Entitlements"].pop("aps-environment")
+            decode.return_value = plistlib.dumps(self.profile)
+            build.reset_mock()
+            with self.assertRaisesRegex(ValueError, "production Push Notifications"):
+                build_ios.main()
+            build.assert_not_called()
 
     def test_exported_app_requires_push_entitlement(self):
         valid = self.profile["Entitlements"].copy()

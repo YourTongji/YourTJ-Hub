@@ -285,6 +285,9 @@ local widget tests do not imply those gates passed.
   build configuration, unavailable server channels, permission denial and registration failure.
   Explicit enable requests system permission. Resume checks existing authorization without repeatedly
   prompting; a non-empty token and successful API registration are required to display enabled.
+  Enable taps during startup/resume or stop are queued; a later disable or account change cancels
+  queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
+  using the owning account; signing in to a different account does not acknowledge that cleanup.
 - `Current`: notifications use the existing event copy and only navigate to supported in-app topic,
   profile and notification routes. Logout stops native delivery and attempts server unbinding;
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
