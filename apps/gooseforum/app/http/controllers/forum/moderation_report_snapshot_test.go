@@ -322,8 +322,9 @@ func TestViewDeletedContentRequiresReasonAndAudits(t *testing.T) {
 	_ = activeRes
 }
 
-// R7+R12：永久删除（PURGED）的内容不可再被版主"查看已删除内容"（应返回 404 语义）。
-func TestViewDeletedContentRejectsPurgedTarget(t *testing.T) {
+// R7+R12+MADR-0021：删除终态为数据保留后，永久删除（PURGED）的内容
+// 必须仍可被版主"查看已删除内容"取证（理由+双审计不变），正文完整返回。
+func TestViewDeletedContentAllowsPurgedTarget(t *testing.T) {
 	conn := setupReportSnapshotTestDB(t)
 	authorID, moderatorID, _, topicID, _ := seedReportSnapshotTopic(t, conn, 9_700_001_000)
 
@@ -338,10 +339,14 @@ func TestViewDeletedContentRejectsPurgedTarget(t *testing.T) {
 		UserId: moderatorID,
 		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: topicID, Reason: "audit"},
 	})
-	if res.Data.Code == component.SUCCESS {
-		t.Fatalf("expected purged target view to fail: %#v", res)
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("expected purged target view to succeed (data retention, MADR-0021): %#v", res)
 	}
-	if res.Data.MessageCode != component.MessageTopicNotFound {
-		t.Fatalf("messageCode = %s, want %s", res.Data.MessageCode, component.MessageTopicNotFound)
+	view, ok := res.Data.Result.(ModerationDeletedContentView)
+	if !ok {
+		t.Fatalf("unexpected view payload: %#v", res.Data.Result)
+	}
+	if view.Title == "" || view.Content == "" {
+		t.Fatalf("purged topic view must retain title/content for forensics: %#v", view)
 	}
 }

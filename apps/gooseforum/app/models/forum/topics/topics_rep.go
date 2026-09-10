@@ -729,7 +729,9 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。
-// 同时清空标题、正文摘录与图片引用，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
+// 删除终态为数据保留（MADR-0021，issue #555）：只做状态翻转，标题/摘要/图片
+// 引用保留在库中供管理员取证（view-deleted-content，理由+双审计）。用户侧
+// 公开读路径按 visibility_status 过滤，PURGED 行不可见，体验仍是"删除即删除"。
 func MarkPurged(id uint64) error {
 	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
 		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
@@ -737,10 +739,6 @@ func MarkPurged(id uint64) error {
 		Updates(map[string]any{
 			"deleted_at":       time.Now(),
 			"retention_status": RetentionPurged,
-			"title":            "",
-			"excerpt":          "",
-			"first_image_url":  "",
-			"image_urls":       "[]",
 		})
 	if result.Error != nil {
 		return result.Error
@@ -751,10 +749,11 @@ func MarkPurged(id uint64) error {
 	return nil
 }
 
-// MarkPrivacyErased immediately hides a user's content and makes it unrecoverable.
-// The visibility state remains distinct from moderator removal so governance
-// records can distinguish privacy erasure from moderation action.
-// 与永久删除一致清空标题/摘要/图片引用，保证"隐私彻底删除"后原文不留库（PRD R8）。
+// MarkPrivacyErased immediately hides a user's topic and makes it unrecoverable.
+// This is the backend fallback of the postless-topic cascade takedown
+// (issue #492); the visibility state stays distinct from moderator removal so
+// governance records can distinguish the origin. Title/excerpt are kept for
+// forensic access (MADR-0021).
 func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"deleted_at":        time.Now(),
@@ -762,10 +761,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 		"retention_status":  RetentionPurged,
 		"deleted_by":        erasedBy,
 		"delete_reason":     reason,
-		"title":             "",
-		"excerpt":           "",
-		"first_image_url":   "",
-		"image_urls":        "[]",
 	}).Error
 }
 

@@ -70,13 +70,14 @@ func TestUploadOwnerDoesNotKeepFileLiveAfterContentDelete(t *testing.T) {
 		t.Fatal("file should still be tracked during the recovering window")
 	}
 	if !fileUsage.HasLiveReferences(fileName) {
-		t.Fatal("recovering reference should keep the file from physical cleanup during the window")
+		t.Fatal("recovering reference should stay live during the window")
 	}
 
-	// Permanent purge: content reference is PURGED; the upload_owner row must
-	// not block physical deletion.
-	PurgeTargetFiles(TargetRef{TargetType: fileUsage.TargetTopic, TargetID: 9_800_200_002})
-	if fileUsage.HasLiveReferences(fileName) {
-		t.Fatal("file should be physically cleanable after purge (upload_owner must not block deletion)")
+	// Permanent purge (MADR-0021): content reference is PURGED, which revokes
+	// the public download grant; the file bytes stay in storage for forensics
+	// (data-retention final state) instead of being physically deleted.
+	RetireTargetFiles(TargetRef{TargetType: fileUsage.TargetTopic, TargetID: 9_800_200_002})
+	if fileUsage.HasActiveReferences(fileName) {
+		t.Fatal("file still publicly downloadable after purge (purged reference must not authorize reads)")
 	}
 }

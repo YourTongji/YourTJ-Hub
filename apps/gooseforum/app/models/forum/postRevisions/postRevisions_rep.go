@@ -81,28 +81,3 @@ func CountByPostIds(postIds []uint64) map[uint64]int64 {
 	}
 	return result
 }
-
-// BlankContentByPostIdTx 事务内清空某帖全部版本的正文（永久删除/隐私擦除级联，
-// 与 posts.MarkPurged/MarkPrivacyErased 的清正文语义一致，防止删除后
-// 原文仍经版本历史留存）。必须与帖子行的状态/正文更新在同一事务内执行。
-func BlankContentByPostIdTx(tx *gorm.DB, postId uint64) error {
-	return tx.Table(tableName).
-		Where(queryopt.Eq("post_id", postId)).
-		Updates(map[string]any{
-			"content":       "",
-			"rendered_html": "",
-		}).Error
-}
-
-// BlankContentByPostIdsTx 事务内批量清空（话题级联删除用，按 post_id 集合）。
-func BlankContentByPostIdsTx(tx *gorm.DB, postIds []uint64) error {
-	if len(postIds) == 0 {
-		return nil
-	}
-	return tx.Table(tableName).
-		Where(queryopt.In("post_id", postIds)).
-		Updates(map[string]any{
-			"content":       "",
-			"rendered_html": "",
-		}).Error
-}

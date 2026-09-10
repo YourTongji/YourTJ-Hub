@@ -502,6 +502,9 @@ type ModerationDeletedContentView struct {
 
 // ViewDeletedContent 版主查看已删除内容原文：必须提供理由，写审计日志（R7）。
 // 全局版主/管理员可查看其作用域内的已删内容；分类版主仅可查看其分类内的内容。
+// 删除终态为数据保留（MADR-0021，issue #555）：PURGED 不再拒绝查看——
+// 永久删除/过期冻结后正文与附件保留在库中，正是取证视图要还原的对象；
+// 仍不可见的只有 ACTIVE（未删除）与不存在的目标。
 func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) component.Response {
 	if !moderationservice.CanAccessModeration(req.UserId) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
@@ -515,7 +518,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 	switch req.Params.ContentType {
 	case reports.TargetTopic:
 		topic := topics.UnscopedGet(req.Params.ContentID)
-		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive || topic.RetentionStatus == topics.RetentionPurged {
+		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
@@ -539,7 +542,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		}
 	case reports.TargetPost:
 		post := posts.UnscopedGet(req.Params.ContentID)
-		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive || post.RetentionStatus == posts.RetentionPurged {
+		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
 		topic := topics.UnscopedGet(post.TopicId)

@@ -991,8 +991,11 @@ export interface paths {
          *     content's categories) — it does NOT use the role-permission middleware, so a
          *     caller without moderation scope fails with HTTP 200 and `permission.denied`,
          *     not 403. The audit reason is mandatory and every view is written to the
-         *     moderation log. Unknown, still-visible, or permanently purged content fails
-         *     with `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
+         *     moderation log. Since the deletion final state is data retention
+         *     (MADR-0021, issue #555), permanently purged content is returned here —
+         *     bodies/titles are retained exactly so moderators can recover them with
+         *     this audited view; only unknown or still-visible content fails with
+         *     `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
          *     a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200), which is also returned for a blank
          *     reason or an unknown contentType.
@@ -1909,16 +1912,20 @@ export interface paths {
          * @description Permanent deletion (跳过恢复窗口): only caller-owned content already in
          *     visibility USER_DELETED + retention RECOVERABLE can be purged; ACTIVE
          *     content must be deleted first and fails with `content.notRecoverable`.
-         *     Purging sets retention PURGED (irreversible — the content can no longer be
-         *     restored), releases attachment references and blanks notification
-         *     previews; moderation evidence snapshots and audit logs are retained.
-         *     Purging a topic also purges the caller's own replies under it and any
-         *     replies already in the deletion lifecycle; other users' still-active
-         *     replies keep their bodies but become unreachable. Moderator-removed
-         *     content fails with `content.notRecoverable` (privacy/purge paths cannot
-         *     bypass governance). Already-PURGED content succeeds idempotently. The
-         *     operation counts into the shared deletion rate window (see
-         *     content-batch-delete; `content.batchDelete.confirmRequired` /
+         *     Purging sets retention PURGED (irreversible — the content can no longer
+         *     be restored) and blanks notification previews; moderation evidence
+         *     snapshots and audit logs are retained. The final state is data retention
+         *     (MADR-0021, issue #555): bodies/titles and attachment bytes are kept in
+         *     the database and storage for moderator forensics via
+         *     view-deleted-content (reason + audited), invisible to all user-side
+         *     read paths, so deletion still reads as deletion to users. Purging a
+         *     topic also purges the caller's own replies under it and any replies
+         *     already in the deletion lifecycle (same retention semantics); other
+         *     users' still-active replies keep their bodies but become unreachable.
+         *     Moderator-removed content fails with `content.notRecoverable` (purge
+         *     paths cannot bypass governance). Already-PURGED content succeeds
+         *     idempotently. The operation counts into the shared deletion rate window
+         *     (see content-batch-delete; `content.batchDelete.confirmRequired` /
          *     `auth.credentials.invalid` on the force+password path). Other business
          *     failures: `topic.notFound` / `post.notFound`, `content.purge.failed`,
          *     `common.request.invalidParams`. The reason field is optional audit text.
