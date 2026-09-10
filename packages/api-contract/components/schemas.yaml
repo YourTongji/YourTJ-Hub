@@ -2604,7 +2604,7 @@ DeletePostRequest:
       type: integer
       format: uint64
       minimum: 1
-      description: Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+      description: Reply posts only. The topic first post fails with `post.firstPostUndeletable`, an already self-deleted reply fails with `post.alreadyDeleted`, and unknown ids fail with `post.notFound` (HTTP 200).
     force:
       type: boolean
       description: Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`).

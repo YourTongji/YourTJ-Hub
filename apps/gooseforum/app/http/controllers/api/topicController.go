@@ -799,9 +799,25 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
 		return component.FailResponseError(err)
 	}
-	postEntity := posts.Get(req.Params.PostId)
-	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
+	// issue #553：Unscoped 读取以区分「从未存在 / 已由本人删除 / 首楼」三种失败，
+	// 重复删除保留错误但返回细分 messageCode（post.alreadyDeleted）。
+	postEntity := posts.UnscopedGet(req.Params.PostId)
+	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	// 非活跃行不向探测者泄露存在性或治理动作：仅属主本人对本人删除（与 service
+	// 幂等分支同条件）返回 alreadyDeleted；其余（管理员删除/级联删除/已清空/
+	// 隐私擦除）一律保持 post.notFound。
+	if postEntity.VisibilityStatus != posts.VisibilityActive {
+		if postEntity.UserId == req.UserId &&
+			postEntity.VisibilityStatus == posts.VisibilityUserDeleted &&
+			postEntity.DeletedBy == req.UserId {
+			return component.FailResponseCode(component.MessagePostAlreadyDeleted, nil)
+		}
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	if postEntity.PostNo <= 1 {
+		return component.FailResponseCode(component.MessagePostFirstPostUndeletable, nil)
 	}
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)

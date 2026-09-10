@@ -140,6 +140,8 @@ const (
 	MessageCommentAnonymousNotAllowed       MessageCode = "comment.anonymousNotAllowed"       // 匿名发布仅限 wiki 页面评论区（issue #524）。
 	MessageTopicContentTypeChangeNotAllowed MessageCode = "topic.contentTypeChangeNotAllowed" // 不能更改已有回复的话题的内容类型。
 	MessagePostNotFound                     MessageCode = "post.notFound"                     // post 不存在。
+	MessagePostAlreadyDeleted               MessageCode = "post.alreadyDeleted"               // 回复已由本人删除（issue #553：重复删除细分文案）。
+	MessagePostFirstPostUndeletable         MessageCode = "post.firstPostUndeletable"         // 话题首楼不可删除，请改用话题删除（issue #553）。
 	MessagePostUpdateFailed                 MessageCode = "post.updateFailed"                 // post 更新失败，params.error 可带原始错误。
 	MessageReportNotFound                   MessageCode = "report.notFound"                   // 举报不存在。
 	MessageReportTargetInvalid              MessageCode = "report.targetInvalid"              // 举报对象无效。
