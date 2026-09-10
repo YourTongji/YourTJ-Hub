@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/b6366a121e1eaa89f3d5ce95872ef25c7df00aa2)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/34d7d1ac7b74b62b8d924fc9d70202b19e68a398)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -27,6 +27,14 @@ as evidence. The model is `glm-5.3-flash` through the official Zhipu Coding Plan
 `reasoning_effort=max`, thinking enabled, image input, and a configured 1,000,000-token context window.
 The context setting is not a one-million-token capacity benchmark. The default task budget is 1800
 seconds, manually overridable within 10–3000 seconds.
+
+PR review receives change statistics and a complete paged file inventory. Core reads per-file diffs on
+demand from task-owned temporary storage outside the candidate checkout, with at most 24,000 bytes and
+120 lines per page. This removes the former 150 KB PR input rejection without opening a shell or adding
+persistent state. Renames, deletion, binary notices and long-line continuations remain explicit.
+Independent repair review uses the cumulative staged change inventory. Incomplete coverage is reported
+as needs_human; deadlines and the separate repair-output limit still apply. See
+[the diff evidence decision](../decisions/0018-oryn-paged-diff-evidence.md).
 
 All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
