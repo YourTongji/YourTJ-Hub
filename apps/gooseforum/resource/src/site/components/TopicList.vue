@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useSlots } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { TopicPayload } from '@gooseforum/client'
+import TopicCardActions from '@/site/components/TopicCardActions.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
-import type { TopicPayload } from '@gooseforum/client'
-
 withDefaults(defineProps<{
   topics: TopicPayload[]
   home?: boolean
@@ -63,11 +63,16 @@ const slots = useSlots()
       <div
         v-for="topic in topics"
         :key="topic.id"
-        class="gf-card group overflow-hidden"
+        class="gf-card group relative overflow-hidden"
       >
-        <a :href="topic.url" class="block outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
-          <TopicFeedPreview :topic="topic" compact />
-        </a>
+        <TopicFeedPreview :topic="topic" compact class="pointer-events-none" />
+        <!-- stretched-link：整卡可点，互动按钮浮于遮罩之上，避免嵌套交互元素 -->
+        <a
+          :href="topic.url"
+          class="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+          :aria-label="topic.title"
+        />
+        <TopicCardActions :topic="topic" class="relative px-3.5 pb-3" />
       </div>
     </div>
   </template>

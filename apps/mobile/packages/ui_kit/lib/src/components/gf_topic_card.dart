@@ -22,6 +22,7 @@ class GfTopicCard extends StatefulWidget {
     required this.activityText,
     required this.replyCount,
     required this.viewCount,
+    this.likeCount = 0,
     this.onTap,
     this.onLike,
     this.onBookmark,
@@ -45,12 +46,14 @@ class GfTopicCard extends StatefulWidget {
   final String activityText;
   final int replyCount;
   final int viewCount;
+  final int likeCount;
   final VoidCallback? onTap;
   final Future<bool> Function(bool target)? onLike;
   final Future<bool> Function(bool target)? onBookmark;
   final String? likeTooltip;
   final String? bookmarkTooltip;
   final String? bookmarkedTooltip;
+
   /// Controlled by the owning list so recycling never resets server state.
   final bool liked;
   final bool bookmarked;
@@ -333,45 +336,34 @@ class _GfTopicCardState extends State<GfTopicCard>
           spacing: 8,
           runSpacing: 4,
           children: <Widget>[
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _Metric(
-                  icon: Icons.chat_bubble_outline,
-                  value: '${widget.replyCount}',
-                ),
-                const SizedBox(width: 6),
-                _Metric(
-                  icon: Icons.visibility_outlined,
-                  value: '${widget.viewCount}',
-                ),
-              ],
+            _Metric(
+              icon: Icons.chat_bubble_outline,
+              value: '${widget.replyCount}',
             ),
-            if (widget.onLike != null || widget.onBookmark != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.onLike != null)
-                    _LikeAction(
-                      liked: _liked,
-                      animation: _likeAnimation,
-                      activeColor: colors.error,
-                      inactiveColor: colors.iconMuted,
-                      tooltip: widget.likeTooltip,
-                      onPressed: _likeBusy ? null : _toggleLike,
-                    ),
-                  if (widget.onBookmark != null)
-                    _BookmarkAction(
-                      bookmarked: _bookmarked,
-                      animation: _bookmarkAnimation,
-                      activeColor: colors.primary,
-                      inactiveColor: colors.iconMuted,
-                      tooltip: _bookmarked
-                          ? widget.bookmarkedTooltip
-                          : widget.bookmarkTooltip,
-                      onPressed: _bookmarkBusy ? null : _toggleBookmark,
-                    ),
-                ],
+            _Metric(icon: Icons.favorite_border, value: '${widget.likeCount}'),
+            _Metric(
+              icon: Icons.visibility_outlined,
+              value: '${widget.viewCount}',
+            ),
+            if (widget.onLike != null)
+              _LikeAction(
+                liked: _liked,
+                animation: _likeAnimation,
+                activeColor: colors.error,
+                inactiveColor: colors.iconMuted,
+                tooltip: widget.likeTooltip,
+                onPressed: _likeBusy ? null : _toggleLike,
+              ),
+            if (widget.onBookmark != null)
+              _BookmarkAction(
+                bookmarked: _bookmarked,
+                animation: _bookmarkAnimation,
+                activeColor: colors.primary,
+                inactiveColor: colors.iconMuted,
+                tooltip: _bookmarked
+                    ? widget.bookmarkedTooltip
+                    : widget.bookmarkTooltip,
+                onPressed: _bookmarkBusy ? null : _toggleBookmark,
               ),
           ],
         ),

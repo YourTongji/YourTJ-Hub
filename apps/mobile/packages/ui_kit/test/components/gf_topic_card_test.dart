@@ -22,11 +22,13 @@ void main() {
             activityText: 'now',
             replyCount: 4,
             viewCount: 12,
+            likeCount: 5,
           ),
         ),
       ),
     );
     expect(find.text('now'), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
     expect(
       tester.widget<Text>(find.text('A short preview')).style!.fontSize,
       greaterThanOrEqualTo(16),

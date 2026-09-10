@@ -16,6 +16,7 @@ type TopicsSimpleVo struct {
 	Nickname       string     `json:"nickname,omitempty"`
 	AuthorId       uint64     `json:"authorId,omitempty"`
 	ViewCount      uint64     `json:"viewCount"`
+	LikeCount      uint64     `json:"likeCount"`
 	CommentCount   uint64     `json:"commentCount"`
 	PinWeight      int        `json:"pinWeight"`
 	ProcessStatus  int8       `json:"processStatus"`

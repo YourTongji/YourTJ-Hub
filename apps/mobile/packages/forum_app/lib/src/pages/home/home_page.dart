@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,7 +36,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   int _interactionRevision = 0;
   final _pendingInteractions = <(int, bool)>{};
   final _interactionOverrides =
-      <int, ({int revision, bool? liked, bool? bookmarked})>{};
+      <int, ({int revision, bool? liked, bool? bookmarked, int? likeCount})>{};
 
   // Only writes completed after a read started override that response. A later
   // refresh (including returning from topic detail) remains authoritative.
@@ -53,6 +55,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     return topic.copyWith(
       liked: update.liked ?? topic.liked,
       bookmarked: update.bookmarked ?? topic.bookmarked,
+      likeCount: update.likeCount ?? topic.likeCount,
     );
   }
 
@@ -211,10 +214,17 @@ class _HomePageState extends ConsumerState<HomePage> {
         return false;
       }
       final previous = _interactionOverrides[topic.id];
+      // 增量基于列表当前值而非闭包捕获的旧 payload：连续快速点击时不丢步。
+      final currentLikeCount = _topics
+          .firstWhere((t) => t.id == topic.id, orElse: () => topic)
+          .likeCount;
       final update = (
         revision: ++_interactionRevision,
         liked: bookmark ? previous?.liked : target,
         bookmarked: bookmark ? target : previous?.bookmarked,
+        likeCount: bookmark
+            ? previous?.likeCount
+            : math.max(0, currentLikeCount + (target ? 1 : -1)),
       );
       setState(() {
         _interactionOverrides[topic.id] = update;
@@ -223,6 +233,9 @@ class _HomePageState extends ConsumerState<HomePage> {
             _topics[i] = _topics[i].copyWith(
               liked: bookmark ? _topics[i].liked : target,
               bookmarked: bookmark ? target : _topics[i].bookmarked,
+              likeCount: bookmark
+                  ? _topics[i].likeCount
+                  : math.max(0, _topics[i].likeCount + (target ? 1 : -1)),
             );
           }
         }

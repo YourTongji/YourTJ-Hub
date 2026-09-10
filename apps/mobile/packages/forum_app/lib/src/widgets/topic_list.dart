@@ -187,6 +187,7 @@ Widget _topicCard(
     ),
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,
+    likeCount: topic.likeCount,
     liked: topic.liked ?? false,
     bookmarked: topic.bookmarked ?? false,
     onLike: onLike,
