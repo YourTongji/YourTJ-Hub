@@ -548,6 +548,24 @@ func TestPushUnsubscribeHTTPContract(t *testing.T) {
 	})
 }
 func TestPushDeviceRegisterHTTPContract(t *testing.T) {
+	t.Run("jpush provider persists and rejects incompatible platforms", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		response := serveJSON(router, "/api/forum/push/device/register", `{"platform":"android","provider":"jpush","token":"jpush-device"}`, contractSessionToken(t, user))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, response), contractFixture(t, "push-device-register-success.json"))
+		devices := pushDevice.ListByUser(user.Id)
+		if len(devices) != 1 || devices[0].Provider != "jpush" {
+			t.Fatal("JPush provider not persisted")
+		}
+		response = serveJSON(router, "/api/forum/push/device/register", `{"platform":"ios","provider":"jpush","token":"invalid-device"}`, contractSessionToken(t, user))
+		if decodeContractEnvelope(t, response).Code == 0 {
+			t.Fatal("incompatible provider returned success")
+		}
+		if len(pushDevice.ListByUser(user.Id)) != 1 {
+			t.Fatal("incompatible provider was registered")
+		}
+	})
+
 	t.Run("success persists native device for the caller", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())

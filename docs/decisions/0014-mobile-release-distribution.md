@@ -37,6 +37,10 @@ same-name files. Only GitHub's HTTPS API supplies update metadata; public mirror
 bytes. The client checks the digest before Android verifies package/version/signing identity and
 opens the system installer. iOS uses a checksum-pinned ASC CLI to upload once and submit the same
 build to TestFlight and App Store review. Server `vX.Y.Z` releases retain their independent flow.
+An explicit iOS-only recovery uses corrected publisher tools from the reviewed main dispatch,
+tagged store metadata and Apple's existing exact version/build, without rebuilding or uploading.
+TestFlight-only submission is opt-in and leaves pending App Store reviews unchanged; the default
+combined submission reports an outstanding App Store version as a blocker.
 
 Release preparation may run from dev with the repository-level `RELEASE_TOKEN`. This deliberately
 trusts maintainers who can merge workflow or release-script changes into dev with that credential's

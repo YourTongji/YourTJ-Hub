@@ -29,8 +29,7 @@ class GfApp extends ConsumerWidget {
       siteThemeProvider.select((s) => s.following ? s.runtime : null),
     );
 
-    // 原生推送启动引导：配置的构建异步恢复注册状态与点按路由；
-    // 未配置/未启用构建为纯 no-op（unsupported 状态，零开销）。
+    // Restore opted-in native delivery and notification navigation.
     ref.watch(pushBootstrapProvider);
 
     return MaterialApp.router(

@@ -780,7 +780,13 @@
     }
   },
   "notificationMention": "{actor} mentioned you",
-  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
+  "@notificationMention": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
   "notificationPostReply": "{actor} replied to you",
   "@notificationPostReply": {
     "placeholders": {
@@ -963,5 +969,10 @@
   "updateReady": "Update verified and ready to install.",
   "updateInstall": "Install update",
   "updatePermission": "Allow YourTJ to install apps, then return and tap Install again.",
-  "updateRetry": "Retry"
+  "updateRetry": "Retry",
+  "settingsPushConsent": "Enable system notifications via Apple (iOS) or JPush and device vendors (Android). These services process push identifiers and notification content.",
+  "settingsPushUnsupported": "Push is not configured in this build",
+  "settingsPushServerDisabled": "The server has not enabled this delivery channel. Tap to retry.",
+  "settingsPushFailed": "Push registration failed. Check your connection and tap to retry.",
+  "settingsPushPrivacy": "JPush privacy policy (Android)"
 }

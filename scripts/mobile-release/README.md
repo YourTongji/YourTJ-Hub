@@ -9,17 +9,25 @@ owns versioning, GitHub environment secrets, signing backup/rotation and recover
 - `publish_android.py [--verify-only]` validates split APKs and publishes immutable-name assets.
 - `prepare_mobile.py` prepares the production PR and reserves patch/minor/major version tags,
   or resumes an existing tag without consuming a build number.
-- `prepare_server.py` opens the production PR or tags already reviewed main source; mobile tags
-  never influence server version increments.
+- `prepare_server.py` opens or reuses the production PR, waits for CI and merge requirements,
+  merges the captured dev snapshot and tags the resulting main commit in one run. It also accepts
+  already promoted main content; mobile tags never influence server version increments. The
+  [server release runbook](../../docs/operations/deployment.md) owns CI gates,
+  timeout/recovery, token permissions and deployment identity.
 
 Run release-script regressions without signing credentials or external mutations:
 
 ```bash
 python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
-actionlint .github/workflows/release-mobile.yml .github/workflows/release-to-main.yml .github/workflows/ci-mobile.yml
+actionlint .github/workflows/release-mobile.yml .github/workflows/release-to-main.yml .github/workflows/deploy-main.yml .github/workflows/ci-mobile.yml
 ```
 
 The publish commands mutate external services. `--verify-only` on the Android publisher writes local
 checksums only. Build logs and outputs belong under ignored `apps/mobile/build/release/`; private inputs
 must come from an ignored local file or the CI runner's private temporary directory. Tests never print
 real review contacts, passwords or signing material.
+
+Native push activation and client/provider credential separation are documented in
+[mobile release operations](../../docs/operations/mobile-releases.md#native-push-activation-and-verification).
+`prepare_push.py` validates Android client-only identifiers and selected OEM adapters before signing;
+`build_ios.py` requires a production APNs entitlement in the distribution profile.

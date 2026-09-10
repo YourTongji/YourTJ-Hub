@@ -1895,4 +1895,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get updateRetry => '再試行';
+
+  @override
+  String get settingsPushConsent =>
+      '有効にすると Apple（iOS）または JPush・端末メーカー（Android）が端末の通知識別子と通知内容を処理します。';
+
+  @override
+  String get settingsPushUnsupported => 'このビルドではプッシュ通知が未設定です';
+
+  @override
+  String get settingsPushServerDisabled => 'サーバーでこの通知経路が無効です。タップして再試行。';
+
+  @override
+  String get settingsPushFailed => '通知の登録に失敗しました。接続を確認して再試行してください。';
+
+  @override
+  String get settingsPushPrivacy => 'JPush プライバシーポリシー（Android）';
 }

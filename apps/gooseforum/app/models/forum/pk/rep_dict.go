@@ -1,5 +1,10 @@
 package pk
 
+import (
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"gorm.io/gorm"
+)
+
 // ListCalendars 返回最近 limit 个学期（calendarId 倒序）。
 func ListCalendars(limit int) ([]CalendarEntity, error) {
 	if limit <= 0 {
@@ -12,8 +17,13 @@ func ListCalendars(limit int) ([]CalendarEntity, error) {
 
 // ListCampuses 返回全部校区字典（按 code 排序）。
 func ListCampuses() ([]CampusEntity, error) {
+	return ListCampusesTx(db.Connect())
+}
+
+// ListCampusesTx reads the dictionary in the caller's snapshot.
+func ListCampusesTx(tx *gorm.DB) ([]CampusEntity, error) {
 	var entities []CampusEntity
-	err := campusBuilder().Order("campus ASC").Find(&entities).Error
+	err := tx.Model(&CampusEntity{}).Order("campus ASC").Find(&entities).Error
 	return entities, err
 }
 

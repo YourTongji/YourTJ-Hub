@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // 方案管理条（v2 多方案）：方案下拉切换 + 新增 + 删除（确认）+ 清空当前方案。
 // 对齐 USTC 排课器「我的方案」交互：每套方案独立持有课程与自定义占位。
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronUp, MoreHorizontal, Plus, Trash2 } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import SiteSelect from '@/site/components/SiteSelect.vue'
+import SchedulePlanCompareDialog from '@/site/components/schedule/SchedulePlanCompareDialog.vue'
 import { MAX_PLANS, useScheduleStore } from '@/site/composables/useScheduleStore'
 
 const { t } = useI18n()
@@ -42,6 +43,26 @@ const pendingDelete = ref(false)
 // ---- 「…」更多菜单 ----
 const menuOpen = ref(false)
 const confirmClear = ref(false)
+
+// ---- 重命名方案 ----
+const renameOpen = ref(false)
+const renameName = ref('')
+
+watch(renameOpen, (open) => {
+  if (open) renameName.value = store.state.plans.find((p) => p.id === store.state.activePlanId)?.name ?? ''
+})
+
+function confirmRename() {
+  if (store.renamePlan(store.state.activePlanId, renameName.value)) renameOpen.value = false
+}
+
+// ---- 复制 / 对比 ----
+const compareOpen = ref(false)
+
+function handleDuplicate() {
+  const copy = store.duplicatePlan(store.state.activePlanId)
+  if (copy) store.switchPlan(copy.id)
+}
 
 function handleAdd() {
   const plan = store.createPlan()
@@ -103,8 +124,32 @@ function handleAdd() {
           <Transition name="gf-menu">
             <div
               v-if="menuOpen"
-              class="gf-menu-surface absolute right-0 top-[calc(100%+0.375rem)] z-30 w-44 p-1 shadow-xl backdrop-blur-md"
+              class="gf-menu-surface absolute right-0 top-[calc(100%+0.375rem)] z-30 w-48 p-1 shadow-xl backdrop-blur-md"
             >
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs"
+                @click="menuOpen = false; renameOpen = true"
+              >
+                {{ t('schedule.planRename') }}
+              </button>
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="planLimitReached"
+                :title="planLimitReached ? t('schedule.planLimitReached', { n: MAX_PLANS }) : undefined"
+                @click="menuOpen = false; handleDuplicate()"
+              >
+                {{ t('schedule.planDuplicate') }}
+              </button>
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs"
+                @click="menuOpen = false; compareOpen = true"
+              >
+                {{ t('schedule.planCompare') }}
+              </button>
+              <div class="my-1 h-px bg-line/60" />
               <button
                 type="button"
                 class="gf-menu-item w-full rounded-md text-xs text-error hover:bg-error/10"
@@ -195,5 +240,41 @@ function handleAdd() {
         </DialogContent>
       </DialogPortal>
     </DialogRoot>
+
+    <!-- 重命名方案 -->
+    <DialogRoot :open="renameOpen" @update:open="(open: boolean) => { if (!open) renameOpen = false }">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent class="fixed left-1/2 top-1/2 z-[2100] w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 outline-none">
+          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg">
+            <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.planRename') }}</DialogTitle>
+            <div class="mt-3">
+              <input
+                v-model="renameName"
+                type="text"
+                class="gf-input gf-input-md w-full"
+                :placeholder="t('schedule.planRenamePlaceholder')"
+              />
+            </div>
+            <div class="mt-4 flex justify-end gap-2">
+              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="renameOpen = false">
+                {{ t('schedule.cancel') }}
+              </button>
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-primary"
+                :disabled="!renameName.trim()"
+                @click="confirmRename"
+              >
+                {{ t('schedule.planRenameConfirm') }}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
+
+    <!-- 方案对比 -->
+    <SchedulePlanCompareDialog :open="compareOpen" @close="compareOpen = false" />
   </div>
 </template>

@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/b87c472ef3bccf1d9683efc19c43de78046a4be9)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/775ff40758ffb18ae67e9fdbbf0a335fb447aeaf)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -27,6 +27,14 @@ as evidence. The model is `glm-5.3-flash` through the official Zhipu Coding Plan
 `reasoning_effort=max`, thinking enabled, image input, and a configured 1,000,000-token context window.
 The context setting is not a one-million-token capacity benchmark. The default task budget is 1800
 seconds, manually overridable within 10–3000 seconds.
+
+PR review receives change statistics and a complete paged file inventory. Core reads per-file diffs on
+demand from task-owned temporary storage outside the candidate checkout, with at most 24,000 bytes and
+120 lines per page. This removes the former 150 KB PR input rejection without opening a shell or adding
+persistent state. Renames, deletion, binary notices and long-line continuations remain explicit.
+Independent repair review uses the cumulative staged change inventory. Incomplete coverage is reported
+as needs_human; deadlines and the separate repair-output limit still apply. See
+[the diff evidence decision](../decisions/0018-oryn-paged-diff-evidence.md).
 
 All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
@@ -95,7 +103,7 @@ In YourTJ-Hub → Settings → Secrets and variables → Actions, add:
 
 Optional overrides: `ORYN_MODEL` (default `oryn/glm-5.3-flash`), `ORYN_BASE_URL`
 (default `https://open.bigmodel.cn/api/coding/paas/v4`), `ORYN_TASK_TIMEOUT_SECONDS` (default 1800),
-`ORYN_REQUEST_TIMEOUT_SECONDS` (core adapter default 300). The workflow fixes reasoning at `max`.
+`ORYN_REQUEST_TIMEOUT_SECONDS` (optional 1–3000 seconds; defaults to the remaining task budget). The workflow fixes reasoning at `max`.
 The bot login is derived from the App token action's slug output; no manual login variable is needed.
 
 Leave automation variables unset during preflight. From Actions → Oryn → Run workflow, retain
@@ -120,12 +128,15 @@ Manual publication defaults off; the deployment enables all four automatic execu
 `@oryn-mini fix`, `implement issue`, `rebase`, `cluster #N #M`, `autoclose` and `automerge` are also available to authorized maintainers.
 Slash aliases such as `/review`, `/autofix`, `/rebase`, `/autoclose` and `/automerge` are supported.
 Bot-authored comments skip planning and do not occupy the sweep queue; human commands retain runtime parsing and authority checks.
-Publication compares source fields and the captured discussion/review/check context separately.
-Assignee, project and bot-receipt timestamp updates do not interrupt an otherwise unchanged task;
-changed requirements, code, discussion, labels and command authority still block stale publication.
-A decision-needed repair shows the concrete question and whether host validation ran, and publishes
-no patch. Source/context publication failures identify the changed category in the status receipt.
-See [the freshness decision](../decisions/0016-oryn-semantic-freshness.md).
+Admitted work is interrupted by explicit authorized stop commands, edits to its original command,
+revoked author permission, changes to Issue/PR title or body, and new head/base commits. Ordinary
+comments, CI/review status, labels, assignees and project updates do not discard completed work.
+Protected labels filter new admissions; use `@oryn-mini stop` to interrupt a running task.
+Publication still requires live source/command checks, repository access and an open/unlocked target.
+Merge separately verifies current checks, mergeability and independent approval; unmet conditions
+publish a waiting report rather than fail the review. Reports identify discussion and CI as the
+snapshot used for that run. A decision-needed repair shows its question and actual validation status.
+See [the task interruption decision](../decisions/0017-oryn-task-interruption.md).
 
 The operator controls token grants and policy; text in issues/PRs cannot enable repair or merge.
 Disable the event/schedule execution variables to stop new automatic work; use the item's stop command
@@ -135,6 +146,18 @@ The deployed App passed [live preflight](https://github.com/YourTongji/YourTJ-Hu
 A [real GLM review and publication](https://github.com/YourTongji/YourTJ-Hub/actions/runs/34368176030)
 completed with 20 tool calls and explicit max reasoning, producing a Chinese source review, Mermaid
 and four advisory labels on issue #594. This review did not execute repair validation.
+
+## Failure diagnostics and request budgets
+
+A model request may use the remaining task budget. First-byte and idle limits remain at most 120 and
+60 seconds; the total task deadline and authorized cancellation still apply. Remove an existing
+`ORYN_REQUEST_TIMEOUT_SECONDS=300` override to use this default, or set a shorter explicit wall limit.
+
+Failed executions retain a bounded, redacted `diagnostic` in `failure.json` and an `oryn_failure` log
+event. These include the failure stage, elapsed time, budgets, Core status, available provider errors
+and progress counts. Report format failures include the correction attempt and output size. No raw
+prompts, reasoning, provider bodies or headers are retained. A bare abort without further Core evidence
+remains an unknown cause. See [the diagnostics decision](../decisions/0020-oryn-failure-diagnostics.md).
 
 ## Maintenance and verification
 

@@ -5171,6 +5171,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/pk/materialize-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Materialize a local calendar into the course review catalog
+         * @description Requires SiteManager (Admin is a superset). Reads one already synced local
+         *     calendar and updates course cards, instructors and class offerings in one
+         *     transaction without a OneSystem cookie or network fetch. Returns counts
+         *     only after commit; request cancellation rolls back. Requests for a missing
+         *     calendar, a running sync, or a partially fetched calendar fail without
+         *     catalog writes. A complete fetch whose later materialization failed may
+         *     be materialized independently. Repeating the request preserves offering
+         *     IDs, reviews, manually hidden records and confirmed merges. An audit
+         *     record admin.opt.pk.materialized records a successful update.
+         */
+        post: operations["adminMaterializePkCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/pk/sync-calendar": {
         parameters: {
             query?: never;
@@ -5192,7 +5220,10 @@ export interface paths {
          *     background goroutine (paged fetch can take tens of seconds to minutes).
          *     The response returns `started: true` immediately; progress and outcome
          *     are queried via `adminGetPkSyncStatus`. Resume-from-crash paging keeps
-         *     a retried trigger idempotent. A missing/blank/unparseable `term`
+         *     a retried trigger idempotent. After fetching each calendar, the job rebuilds
+         *     schedule timeslots and materializes the review catalog before reporting
+         *     completed. A materialization failure is reported as failed; retrying
+         *     resumes from the committed fetch cursor without refetching completed pages. A missing/blank/unparseable `term`
          *     (neither a numeric calendarId nor a known term name) fails request
          *     validation as `common.request.invalidParams` (HTTP 200). An audit
          *     record (`admin.opt.pk.synced`) is written for the requesting operator.
@@ -5559,6 +5590,7 @@ export interface paths {
          * List courses for management (CourseManager/Admin)
          * @description CourseManager-scoped course list including hidden courses. Permission failures are a legacy
          *     HTTP 200 business failure (`permission.denied`).
+         *     Keyword search also matches class codes from visible offerings, including classes without aliases.
          */
         post: operations["adminCourseList"];
         delete?: never;
@@ -6872,15 +6904,22 @@ export interface components {
         NativePushChannels: {
             /** @description True when [push.apns] credentials are configured so the iOS APNs channel is enabled. */
             apnsEnabled: boolean;
+            /** @description True when the Android JPush delivery channel is configured. */
+            jpushEnabled: boolean;
             /** @description True when [push.fcm] credentials are configured so the Android FCM channel is enabled. */
             fcmEnabled: boolean;
         };
         PushDeviceRegisterRequest: {
             /**
-             * @description ios routes to APNs, android to FCM.
+             * @description Device OS; provider selects its compatible delivery channel.
              * @enum {string}
              */
             platform: "ios" | "android";
+            /**
+             * @description Delivery provider. iOS only accepts apns; Android accepts fcm or jpush. Omission preserves legacy ios=apns, android=fcm behavior.
+             * @enum {string}
+             */
+            provider?: "apns" | "fcm" | "jpush";
             /** @description Push-service device token (APNs device token or FCM registration token); globally unique — re-registering from the same device converges the row to the current user. */
             token: string;
         };
@@ -10737,6 +10776,24 @@ export interface components {
         };
         WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiSearchResult"];
+        }) | components["schemas"]["ApiFailure"];
+        PkMaterializeRequest: {
+            /** @description Already synced calendar ID, canonical term code or Chinese term label. */
+            term: string;
+        };
+        PkMaterializeResult: {
+            /** Format: uint64 */
+            calendarId: number;
+            coursesInserted: number;
+            coursesUpdated: number;
+            instructorsInserted: number;
+            aliasesInserted: number;
+            aliasesSkipped: number;
+            offeringsInserted: number;
+            offeringsUpdated: number;
+        };
+        PkMaterializeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PkMaterializeResult"];
         }) | components["schemas"]["ApiFailure"];
         PkReviewBriefClass: {
             /** @description 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
@@ -19527,6 +19584,48 @@ export interface operations {
                 };
             };
             /** @description The account is not a PageManager or Admin (or it is frozen). A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminMaterializePkCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkMaterializeRequest"];
+            };
+        };
+        responses: {
+            /** @description Completed materialization report, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkMaterializeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;

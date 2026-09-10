@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
@@ -680,6 +681,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _revokeAll() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     try {
+      await ref.read(pushControllerProvider.notifier).handleLogout();
       await ref.read(userRepositoryProvider).revokeAllSessions();
     } catch (e) {
       if (mounted) {
@@ -1155,21 +1157,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        // 原生推送（Route A）：未配置构建/服务端未启用/未知态时整段隐藏
-        // （设置页零入口零报错，语义对齐 Web Push 通道门控）。
+        // Keep delivery status visible even when configuration is incomplete.
         Consumer(
           builder: (BuildContext context, WidgetRef ref, _) {
             final PushChannelStatus push = ref.watch(pushControllerProvider);
-            if (push == PushChannelStatus.unsupported ||
-                push == PushChannelStatus.serverDisabled ||
-                push == PushChannelStatus.unknown) {
-              return const SizedBox.shrink();
-            }
             // permissionDenied = 用户已开启但系统权限被拒：开关保持开，
             // 下方给出跳系统设置引导行（三态之二）。
             final bool switchOn =
                 push == PushChannelStatus.enabled ||
-                push == PushChannelStatus.permissionDenied;
+                push == PushChannelStatus.permissionDenied ||
+                push == PushChannelStatus.serverDisabled ||
+                push == PushChannelStatus.registrationFailed;
             return _settingsSection(
               context,
               title: l10n.settingsPush,
@@ -1178,6 +1176,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   GfSwitchRow(
                     symbol: 'bell',
                     title: l10n.settingsPush,
+                    description: l10n.settingsPushConsent,
                     value: switchOn,
                     onChanged: (bool value) async {
                       final PushController controller = ref.read(
@@ -1190,6 +1189,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       }
                     },
                   ),
+                  const GfDivider(),
+                  GfSettingRow(
+                    title: l10n.settingsPushPrivacy,
+                    onTap: () => launchUrl(
+                      Uri.parse('https://www.jiguang.cn/license/privacy'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                  ),
+                  if (push == PushChannelStatus.unsupported ||
+                      push == PushChannelStatus.serverDisabled ||
+                      push == PushChannelStatus.registrationFailed) ...[
+                    const GfDivider(),
+                    GfSettingRow(
+                      title: push == PushChannelStatus.unsupported
+                          ? l10n.settingsPushUnsupported
+                          : push == PushChannelStatus.serverDisabled
+                          ? l10n.settingsPushServerDisabled
+                          : l10n.settingsPushFailed,
+                      onTap: () =>
+                          ref.read(pushControllerProvider.notifier).enable(),
+                    ),
+                  ],
                   if (push == PushChannelStatus.permissionDenied) ...[
                     const GfDivider(),
                     GfSettingRow(
@@ -1351,6 +1372,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     if (ok != true || !mounted) return;
     try {
+      // Unbind while the session is still valid; logout revokes its JWT.
+      await ref.read(pushControllerProvider.notifier).handleLogout();
       await ref.read(authRepositoryProvider).logout();
     } catch (_) {
       // 服务端失效失败不阻塞本地登出(会话已不可信)。

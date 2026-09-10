@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui' show Tristate;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1102,6 +1103,8 @@ class FilteringNotificationRepository extends NotificationRepository {
 }
 
 /// 记录 logout 的 AuthRepository。
+int nativePushStops = 0;
+
 class LogoutAuthRepository extends AuthRepository {
   LogoutAuthRepository(super.client);
 
@@ -1109,6 +1112,11 @@ class LogoutAuthRepository extends AuthRepository {
 
   @override
   Future<bool> logout() async {
+    expect(
+      nativePushStops,
+      greaterThan(0),
+      reason: 'Unbind push before revoking the session',
+    );
     logoutCalls++;
     return true;
   }
@@ -1336,6 +1344,14 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    nativePushStops = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('yourtj/push'), (
+          call,
+        ) async {
+          if (call.method == 'stop') nativePushStops++;
+          return call.method == 'configured' ? false : null;
+        });
   });
 
   Future<ProviderContainer> makeContainer({

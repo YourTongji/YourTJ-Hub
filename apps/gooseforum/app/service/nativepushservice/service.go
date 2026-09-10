@@ -1,6 +1,6 @@
 // Package nativepushservice 实现服务端事件驱动的移动端原生推送通道
 // （mobile Route A）：通知行创建成功后入 taskQueue outbox，专用 worker 异步向
-// 该用户全部已注册设备（iOS APNs / Android FCM）发送系统推送。
+// 该用户全部已注册设备（iOS APNs / Android JPush（兼容 FCM））发送系统推送。
 // 与 webpushservice 同一套 outbox + worker 语义：推送是站内通知红点的
 // best-effort 外投，失败绝不影响通知落库与业务请求；实例未配置 [push.apns] /
 // [push.fcm] 时通道关闭（dev 从 main 快照同步的任务行 no-op，绝不外发）。
@@ -101,28 +101,29 @@ func (c FCMConfig) Enabled() bool {
 
 // Channels 是实例当前生效的原生推送通道集合。
 type Channels struct {
-	APNs APNsConfig
-	FCM  FCMConfig
+	APNs  APNsConfig
+	FCM   FCMConfig
+	JPush JPushConfig
 }
 
 // LoadChannels 读取全部原生推送通道配置。
 func LoadChannels() Channels {
-	return Channels{APNs: LoadAPNsConfig(), FCM: LoadFCMConfig()}
+	return Channels{APNs: LoadAPNsConfig(), FCM: LoadFCMConfig(), JPush: LoadJPushConfig()}
 }
 
 // Enabled 返回是否存在至少一条已启用通道。
 func (c Channels) Enabled() bool {
-	return c.APNs.Enabled() || c.FCM.Enabled()
+	return c.APNs.Enabled() || c.FCM.Enabled() || c.JPush.Enabled()
 }
 
 // LogConfigStatus 在 serve 启动时输出原生推送通道状态。
 func LogConfigStatus() {
 	ch := LoadChannels()
 	if !ch.Enabled() {
-		slog.Info("nativepush: disabled (no [push.apns] / [push.fcm] configured)")
+		slog.Info("nativepush: disabled (no [push.apns] / [push.fcm] / [push.jpush] configured)")
 		return
 	}
-	slog.Info("nativepush: enabled", "apns", ch.APNs.Enabled(), "fcm", ch.FCM.Enabled())
+	slog.Info("nativepush: enabled", "apns", ch.APNs.Enabled(), "fcm", ch.FCM.Enabled(), "jpush", ch.JPush.Enabled())
 }
 
 // PushTask 是 outbox 任务负载：定位一条通知行。
@@ -254,17 +255,23 @@ func RunPushTask(ctx context.Context, task *taskQueue.Entity) error {
 			continue
 		}
 		var sendErr error
-		switch dev.Platform {
-		case pushDevice.PlatformIOS:
+		switch dev.DeliveryProvider() {
+		case "apns":
 			if apnsClient == nil {
 				continue
 			}
 			sendErr = sendAPNs(ctx, apnsClient, ch.APNs, dev.Token, msg)
-		case pushDevice.PlatformAndroid:
+		case "fcm":
 			if fcmAccessToken == "" {
 				continue
 			}
 			sendErr = sendFCM(ctx, fcmAccessToken, ch.FCM, dev.Token, msg)
+		case "jpush":
+			if !ch.JPush.Enabled() {
+				continue
+			}
+			sendErr = sendJPush(ctx, ch.JPush, dev.Token, msg)
+
 		default:
 			continue
 		}
@@ -346,7 +353,7 @@ func sendAPNs(ctx context.Context, client *apns2.Client, cfg APNsConfig, deviceT
 		// 403（provider token 配置错误）、429、5xx 等：记录并跳过。
 		// 按设计不做自动重试（避免重复投递），站内红点兜底。
 		slog.Warn("nativepush: unexpected apns response", "status", resp.StatusCode, "reason", resp.Reason)
-		return nil
+		return fmt.Errorf("apns rejected notification: status=%d reason=%s", resp.StatusCode, resp.Reason)
 	}
 }
 

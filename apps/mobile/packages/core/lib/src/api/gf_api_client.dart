@@ -29,7 +29,10 @@ class GfApiClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await tokenStorage.read();
+          // A session-bound cleanup request must not inherit a newly logged-in account.
+          final token = options.headers.containsKey('Authorization')
+              ? null
+              : await tokenStorage.read();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }

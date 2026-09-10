@@ -492,7 +492,13 @@
   "wikiExploreTitle": "Dein Campusbegleiter",
   "notificationComment": "{actor} hat dein Thema kommentiert",
   "notificationMention": "{actor} hat dich erwähnt",
-  "@notificationMention": {"placeholders": {"actor": {"type": "String"}}},
+  "@notificationMention": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
   "notificationPostReply": "{actor} hat dir geantwortet",
   "notificationTopicPost": "{actor} hat in einem von dir verfolgten Thema geschrieben",
   "notificationFollow": "{actor} folgt dir jetzt",
@@ -633,5 +639,10 @@
   "updateReady": "Update geprüft und bereit zur Installation.",
   "updateInstall": "Update installieren",
   "updatePermission": "Erlaube YourTJ die Installation von Apps. Kehre dann zurück und tippe erneut auf Installieren.",
-  "updateRetry": "Erneut versuchen"
+  "updateRetry": "Erneut versuchen",
+  "settingsPushConsent": "Systemmitteilungen über Apple (iOS) oder JPush und Gerätehersteller (Android) aktivieren. Diese Dienste verarbeiten Push-Kennungen und Mitteilungsinhalte.",
+  "settingsPushUnsupported": "Push ist in diesem Build nicht konfiguriert",
+  "settingsPushServerDisabled": "Der Server hat diesen Kanal nicht aktiviert. Zum Wiederholen tippen.",
+  "settingsPushFailed": "Push-Registrierung fehlgeschlagen. Verbindung prüfen und erneut tippen.",
+  "settingsPushPrivacy": "JPush-Datenschutz (Android)"
 }

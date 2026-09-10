@@ -4911,11 +4911,14 @@ PushConfigResult:
 
 NativePushChannels:
   type: object
-  required: [apnsEnabled, fcmEnabled]
+  required: [apnsEnabled, fcmEnabled, jpushEnabled]
   properties:
     apnsEnabled:
       type: boolean
       description: True when [push.apns] credentials are configured so the iOS APNs channel is enabled.
+    jpushEnabled:
+      type: boolean
+      description: True when the Android JPush delivery channel is configured.
     fcmEnabled:
       type: boolean
       description: True when [push.fcm] credentials are configured so the Android FCM channel is enabled.
@@ -5017,7 +5020,11 @@ PushDeviceRegisterRequest:
     platform:
       type: string
       enum: [ios, android]
-      description: ios routes to APNs, android to FCM.
+      description: Device OS; provider selects its compatible delivery channel.
+    provider:
+      type: string
+      enum: [apns, fcm, jpush]
+      description: Delivery provider. iOS only accepts apns; Android accepts fcm or jpush. Omission preserves legacy ios=apns, android=fcm behavior.
     token:
       type: string
       minLength: 1
@@ -9534,3 +9541,55 @@ OwnCourseReviewResponse:
           type: string
       additionalProperties: false
   additionalProperties: false
+
+PkMaterializeRequest:
+  type: object
+  required: [term]
+  additionalProperties: false
+  properties:
+    term:
+      type: string
+      minLength: 1
+      description: Already synced calendar ID, canonical term code or Chinese term label.
+
+PkMaterializeResult:
+  type: object
+  additionalProperties: false
+  required: [calendarId, coursesInserted, coursesUpdated, instructorsInserted, aliasesInserted, aliasesSkipped, offeringsInserted, offeringsUpdated]
+  properties:
+    calendarId:
+      type: integer
+      format: uint64
+      minimum: 1
+    coursesInserted:
+      type: integer
+      minimum: 0
+    coursesUpdated:
+      type: integer
+      minimum: 0
+    instructorsInserted:
+      type: integer
+      minimum: 0
+    aliasesInserted:
+      type: integer
+      minimum: 0
+    aliasesSkipped:
+      type: integer
+      minimum: 0
+    offeringsInserted:
+      type: integer
+      minimum: 0
+    offeringsUpdated:
+      type: integer
+      minimum: 0
+
+PkMaterializeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/PkMaterializeResult'
+    - $ref: '#/ApiFailure'

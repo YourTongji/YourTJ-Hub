@@ -581,3 +581,39 @@ class PkPlansDeleteResult {
   factory PkPlansDeleteResult.fromJson(Map<String, dynamic> json) =>
       PkPlansDeleteResult(deleted: json['deleted'] as bool? ?? false);
 }
+
+/// SiteManager-only local materialization result, unwrapped from the admin
+/// `{code,result}` envelope (PkMaterializeResult in OpenAPI).
+class PkMaterializeResult {
+  const PkMaterializeResult({
+    required this.calendarId,
+    required this.coursesInserted,
+    required this.coursesUpdated,
+    required this.instructorsInserted,
+    required this.aliasesInserted,
+    required this.aliasesSkipped,
+    required this.offeringsInserted,
+    required this.offeringsUpdated,
+  });
+
+  final int calendarId;
+  final int coursesInserted;
+  final int coursesUpdated;
+  final int instructorsInserted;
+  final int aliasesInserted;
+  final int aliasesSkipped;
+  final int offeringsInserted;
+  final int offeringsUpdated;
+
+  factory PkMaterializeResult.fromJson(Map<String, dynamic> json) =>
+      PkMaterializeResult(
+        calendarId: (json['calendarId'] as num).toInt(),
+        coursesInserted: (json['coursesInserted'] as num).toInt(),
+        coursesUpdated: (json['coursesUpdated'] as num).toInt(),
+        instructorsInserted: (json['instructorsInserted'] as num).toInt(),
+        aliasesInserted: (json['aliasesInserted'] as num).toInt(),
+        aliasesSkipped: (json['aliasesSkipped'] as num).toInt(),
+        offeringsInserted: (json['offeringsInserted'] as num).toInt(),
+        offeringsUpdated: (json['offeringsUpdated'] as num).toInt(),
+      );
+}

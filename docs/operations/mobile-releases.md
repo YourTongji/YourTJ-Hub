@@ -39,6 +39,8 @@ system installer remain independent gates; a completed upload does not mean dist
 gh workflow run release-mobile.yml --ref main -f bump=patch
 # Resume the exact failed version; bump is ignored when tag is supplied:
 gh workflow run release-mobile.yml --ref main -f bump=patch -f tag=mobile-v1.0.1
+# Resume only an already uploaded iOS build; keep the existing App Store review queue:
+gh workflow run release-mobile.yml --ref main -f tag=mobile-v1.0.2 -f recover_ios=true -f testflight_only=true
 ```
 
 Recovery still checks that the tag's source is reachable from main, but does not require newer dev
@@ -48,9 +50,11 @@ never move or rewrite a release tag. An uncertain API response after reserving a
 resolved by inspecting that tag and using recovery, rather than selecting another bump.
 
 Update public store metadata/screenshots under `apps/mobile/store/` through normal product PRs.
-A pending Apple version can block creation of the next App Store version. TestFlight can succeed
-while that App Store step requires recovery; the job reports failure rather than claiming both
-channels completed. Apple agreements, review decisions and the system installer are not bypassed.
+A pending Apple version can block creation of the next App Store version. The default combined
+submission reports the blocking version/state and fails, even if TestFlight succeeded. Select
+`testflight_only=true` to explicitly omit App Store submission; the job summary identifies that
+omission and preserves the existing review queue. It never withdraws another version automatically.
+Apple agreements, review decisions and the system installer are not bypassed.
 
 Server tags remain `vX.Y.Z`. **Release / main** opens/reuses the `dev` → `main` PR when the trees
 differ and stops. After that PR passes checks and merges, rerun to tag the approved main commit,
@@ -166,7 +170,7 @@ require updating those forms before release.
 
 `ITSAppUsesNonExemptEncryption=false` reflects the current authentication/TLS/system-storage use.
 Reassess the declaration when adding non-exempt encryption. An Apple account capability checkbox
-alone does not implement Sign in with Apple or enable Firebase push configuration.
+alone does not implement Sign in with Apple or configure notification delivery credentials.
 
 ## Failure and recovery
 
@@ -187,10 +191,13 @@ alone does not implement Sign in with Apple or enable Firebase push configuratio
   first confirm no uploader is active. Never delete a processing upload or existing build. Invalid
   processing fails immediately.
 - **Publisher repair after a tag exists:** the tag and retained signed artifacts remain immutable.
-  A workflow rerun checks out the original tagged source, so it does not pick up a later publisher
-  fix. Use the corrected publisher locally against the original run's verified signed artifacts
-  and the original version/build/tag, or publish a new reviewed source with a new version/build.
-  Never move the old tag merely to change the publisher script.
+  With `recover_ios=true` and an existing tag, the workflow skips Android and all iOS build/signing
+  steps. It uses publisher tools from the dispatch's reviewed main commit, store metadata from the
+  original tagged source, and the exact recorded version/build already uploaded to Apple. A missing
+  build fails before any upload; only ASC credentials are installed. Leave `testflight_only=false`
+  to resume both submission channels, or set it to true to preserve a pending App Store version.
+  A normal rebuild still uses tagged source and can produce different signed ZIP bytes. Use retained
+  artifacts for Android recovery; never move a tag or overwrite an existing APK to repair tooling.
 - **Apple validation/rejection:** correct the reported store fields or app behavior. A binary change
   needs a new version/build release; metadata-only corrections can resume against the existing build.
   Already waiting/in-review/approved submissions using the same build are preserved.
@@ -200,3 +207,88 @@ alone does not implement Sign in with Apple or enable Firebase push configuratio
 
 See [the release decision](../decisions/0014-mobile-release-distribution.md) and
 [GitHub environment documentation](https://docs.github.com/en/actions/deployment/targeting-different-environments/managing-environments-for-deployment).
+
+## Native push activation and verification
+
+`Partial`: native authorization/registration, provider routing and release validation are implemented.
+APNs/JPush credentials, vendor console configuration and signed-device delivery must be verified for
+the deployed environment. CI compiles the iOS bridge and all six Android OEM adapters with build-only identifiers. These APKs are never distributed. A passing SDK build is not a delivery test. The provider decision is
+[0019](../decisions/0019-native-push-providers.md).
+
+iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push
+Notifications** on Apple Developer's `tj.yourtj.forumApp` App ID. Create an APNs authentication key
+under **Certificates, Identifiers & Profiles → Keys**, grant production access for distribution,
+and retain its Key ID and downloaded `.p8` securely. App Store Connect upload keys are a different
+service and cannot substitute for an APNs key. Regenerate the App Store provisioning profile and
+replace `mobile-release/IOS_PROFILE_BASE64`; the signer rejects profiles without
+`aps-environment=production`, and checks the exported IPA entitlement before upload. Xcode's export uses the distribution profile to select the production
+entitlement; debug development signatures use the sandbox service.
+
+Provision the APNs `.p8` under the production instance's persistent storage directory, readable only
+by the application UID. Set the production environment secrets `APNS_KEY_PATH` (the **container**
+path), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_ENVIRONMENT=production`. The deployment
+workflow and **Apply / instance config** (when targeting `main`) pass these to the configuration
+renderer; config-only applies preserve the same provider settings. Both entry points keep dev
+delivery disabled. A path setting does not upload the file;
+provision it before deployment. Keep old key files during credential rotation so deployment rollback
+can restore the previous configuration. Never copy the private key to dev or into an IPA.
+
+Android uses JPush 6.2.1 / JCore 5.5.2, with pinned OEM adapters selected by the build configuration.
+Create a JPush Android app for `tj.yourtj.forum_app`. Obtain its AppKey and Master Secret. Configure
+manufacturer services in JPush's **Push settings → Integration settings** using each vendor's
+application credentials, registered package, signing certificate fingerprints, notification category
+and quotas. Available adapters are Huawei, Xiaomi, OPPO, vivo, Honor and Meizu. Huawei Android/HMS
+support does not imply native HarmonyOS NEXT support. OEM channels may require developer verification
+or application review; do not claim they are active merely because their adapter is in the APK.
+
+Set `mobile-release/ANDROID_PUSH_JSON` to client identifiers only, for example:
+
+```json
+{
+  "JPUSH_APPKEY": "<24-character JPush AppKey>",
+  "VENDORS": ["honor", "xiaomi"],
+  "HONOR_APPID": "<Honor App ID>",
+  "XIAOMI_APPID": "<Xiaomi App ID>",
+  "XIAOMI_APPKEY": "<Xiaomi client AppKey>"
+}
+```
+
+Other client keys are `OPPO_APPID/OPPO_APPKEY/OPPO_APPSECRET`, `VIVO_APPID/VIVO_APPKEY`, and
+`MEIZU_APPID/MEIZU_APPKEY`. With `huawei` selected, also set
+`mobile-release/HUAWEI_AGCONNECT_JSON` to that app's `agconnect-services.json`. The preparation script
+writes ignored `android/push.properties` and Huawei configuration files. It rejects missing OEM
+parameters, unknown fields and provider server secrets; signed releases require at least one OEM
+adapter. Ordinary debug builds without this configuration show push as unavailable.
+
+Set **production** secrets `JPUSH_APP_KEY` and `JPUSH_MASTER_SECRET` for the server. Do not place the
+JPush Master Secret or manufacturer server credentials in `ANDROID_PUSH_JSON`. The production
+workflow renders `[push.jpush]`. Dev intentionally receives no native push secrets because its
+snapshot contains production device registrations. Stopping a deployment channel does not change
+existing user consent; enabling it again requires the client to register on resume or retry.
+
+Before distribution, update the published privacy policy and store disclosures for JPush and enabled
+OEM SDKs: device push identifiers, device/system/network information and notification title/body are
+processed to deliver notifications. The native settings screen explains this before opt-in and links
+to the processor policy. Do not include account passwords or forum session tokens in push payloads.
+
+Validate on a physical iPhone using the exact TestFlight build and on each enabled manufacturer's
+Android phone without Google services:
+
+1. Sign in and enable push in Settings. The OS permission prompt appears; declining shows a settings
+   recovery action. Allowing adds the app to system notification settings.
+2. Confirm authenticated `GET /api/forum/push/config` enables the matching provider, and
+   `POST /api/forum/push/device/register` succeeds with `provider=apns` or `jpush`. An empty token or
+   failed API call must not display enabled. Never paste tokens into public logs.
+3. Generate an ordinary notification from a separate test account. Check foreground presentation,
+   background/locked delivery, and tap navigation to the corresponding topic/profile/notification page.
+4. For Android, test the OEM offline channel after process removal, and inspect the provider delivery
+   receipt. Do not equate swipe-away/process removal with the OS's explicit Force stop action.
+5. Disable push, then log out/switch accounts. Verify device unbinding and no previous-account routing.
+   Re-enable, deny permissions in system settings, return to the app, and verify state recovery.
+6. Check production startup channel status and provider error logs. Configuration absence, registration
+   failure and provider rejection are separate diagnoses. GitHub/Apple release success alone proves
+   none of these delivery conditions.
+
+Public provider setup references: [Apple APNs keys](https://developer.apple.com/help/account/keys/create-a-private-key),
+[JPush integration settings](https://docs.jiguang.cn/jpush/console/push_setting/integration_set),
+[OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param).

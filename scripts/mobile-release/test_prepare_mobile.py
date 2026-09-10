@@ -33,6 +33,26 @@ class MobileVersionTest(unittest.TestCase):
                 parse_annotation('mobile-v1.2.3', json.dumps(data))
 
 class MobilePreparationTest(unittest.TestCase):
+    def test_ios_recovery_requires_tag_before_any_release_work(self):
+        import os
+        from unittest.mock import patch
+        import prepare_mobile as mobile
+        with patch.dict(os.environ, RECOVER_IOS='true', RESUME_TAG='', GITHUB_REF='refs/heads/main'), patch.object(mobile.subprocess, 'run') as run:
+            with self.assertRaisesRegex(ValueError, 'recovery.*tag'):
+                mobile.main()
+            run.assert_not_called()
+
+    def test_dev_forwards_recovery_and_testflight_target_to_main(self):
+        import os
+        from unittest.mock import patch
+        import prepare_mobile as mobile
+        with patch.dict(os.environ, RECOVER_IOS='true', TESTFLIGHT_ONLY='true', BUMP='patch', RESUME_TAG='mobile-v1.0.2', GITHUB_REF='refs/heads/dev'), patch.object(mobile.subprocess, 'run'), patch.object(mobile, 'tag_identity'), patch.object(mobile, 'read') as read:
+            mobile.main()
+        args = read.call_args.args
+        self.assertIn('recover_ios=true', args)
+        self.assertIn('testflight_only=true', args)
+        self.assertIn('tag=mobile-v1.0.2', args)
+
     def test_resume_keeps_tag_build_and_skips_new_release_pr(self):
         import os
         from pathlib import Path

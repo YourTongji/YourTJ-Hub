@@ -79,8 +79,13 @@ def main():
     os.environ.setdefault("ASC_TIMEOUT", "90s")
     version = os.environ["MOBILE_VERSION"]
     number = os.environ["MOBILE_BUILD_NUMBER"]
-    ipa = os.environ["IOS_IPA_PATH"]
+    target = os.environ.get("IOS_PUBLISH_TARGET", "both")
+    if target not in {"both", "testflight"}:
+        raise ValueError("Invalid iOS publish target; choose both or testflight")
     if find_build(version, number) is None:
+        if os.environ.get("IOS_EXISTING_BUILD_ONLY") == "true":
+            raise ValueError("iOS recovery requires an existing uploaded build with the exact version/build number")
+        ipa = os.environ["IOS_IPA_PATH"]
         uploads = asc("builds", "uploads", "list", "--app", APP_ID,
                       "--cf-bundle-short-version", version, "--cf-bundle-version", number, "--paginate")["data"]
         matching = [u for u in uploads if u["attributes"].get("cfBundleShortVersionString") == version
@@ -105,10 +110,24 @@ def main():
             "--test-notes", "Test course search and reviews, scheduler, Wiki, community and account features.",
             "--locale", "en-US", "--submit", "--confirm")
     print(f"TestFlight build: {build_id}", flush=True)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as output:
+            output.write(f"TestFlight: {version} ({number}), build `{build_id}`.\n\n")
+    if target == "testflight":
+        message = "App Store submission skipped by request; the existing review queue is unchanged."
+        print(message)
+        if summary:
+            with open(summary, "a") as output:
+                output.write(message + "\n")
+        return
 
-    versions = asc("versions", "list", "--app", APP_ID, "--version", version, "--include", "build")["data"]
-    if versions:
-        current = versions[0]
+    versions = asc("versions", "list", "--app", APP_ID, "--platform", "IOS", "--include", "build", "--paginate")["data"]
+    matching = [v for v in versions if v["attributes"]["versionString"] == version]
+    if len(matching) > 1:
+        raise ValueError("Ambiguous App Store version identity")
+    if matching:
+        current = matching[0]
         state = current["attributes"].get("appStoreState")
         attached = current.get("relationships", {}).get("build", {}).get("data") or {}
         if state in ACCEPTED_STATES:
@@ -118,6 +137,16 @@ def main():
             return
         version_id = current["id"]
     else:
+        released = {"READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION",
+                    "REMOVED_FROM_SALE", "DEVELOPER_REMOVED_FROM_SALE"}
+        for other in versions:
+            attributes = other["attributes"]
+            state = attributes.get("appStoreState")
+            if state not in released:
+                raise ValueError(
+                    f"App Store {attributes['versionString']} is {state}; it blocks creation of {version}. "
+                    "Preserve its review queue using testflight-only recovery, or resolve the existing version in ASC."
+                )
         created = resource(asc("versions", "create", "--app", APP_ID, "--version", version,
                                "--platform", "IOS", "--release-type", "AFTER_APPROVAL",
                                "--copyright", "2026 YourTJ Open Source"))
@@ -127,7 +156,8 @@ def main():
                      asc("localizations", "list", "--version", version_id, "--paginate")["data"]}
     fields = {"description": "description", "keywords": "keywords", "marketingUrl": "marketing-url",
               "supportUrl": "support-url", "whatsNew": "whats-new"}
-    for folder in sorted((ROOT / "apps/mobile/store").iterdir()):
+    store = Path(os.environ.get("IOS_STORE_PATH", str(ROOT / "apps/mobile/store")))
+    for folder in sorted(store.iterdir()):
         if not folder.is_dir() or not (folder / "metadata.json").exists():
             continue
         locale = folder.name

@@ -401,8 +401,13 @@ func ReplaceTeacherTimeslotsTx(tx *gorm.DB, calendarIds []uint64, rows []Teacher
 
 // ListCourseDetailsByCalendar 返回某学期全部教学班（按 id 升序，供物化/对账）。
 func ListCourseDetailsByCalendar(calendarId uint64) ([]CourseDetailEntity, error) {
+	return ListCourseDetailsByCalendarTx(db.Connect(), calendarId)
+}
+
+// ListCourseDetailsByCalendarTx reads a calendar in the caller's consistent snapshot.
+func ListCourseDetailsByCalendarTx(tx *gorm.DB, calendarId uint64) ([]CourseDetailEntity, error) {
 	var entities []CourseDetailEntity
-	if err := courseDetailBuilder().Where(queryopt.Eq("calendar_id", calendarId)).Order("id ASC").Find(&entities).Error; err != nil {
+	if err := tx.Model(&CourseDetailEntity{}).Where(queryopt.Eq("calendar_id", calendarId)).Order("id ASC").Find(&entities).Error; err != nil {
 		return nil, fmt.Errorf("pk: list course details: %w", err)
 	}
 	return entities, nil
@@ -430,6 +435,11 @@ func ListCourseDetailsByIDs(ids []uint64) ([]CourseDetailEntity, error) {
 
 // ListTeachersByClassIds 返回一批教学班的教师（分块查询避免 IN 超限）。
 func ListTeachersByClassIds(classIds []uint64) ([]TeacherEntity, error) {
+	return ListTeachersByClassIdsTx(db.Connect(), classIds)
+}
+
+// ListTeachersByClassIdsTx returns a stable order independent of upstream row IDs.
+func ListTeachersByClassIdsTx(tx *gorm.DB, classIds []uint64) ([]TeacherEntity, error) {
 	var all []TeacherEntity
 	const chunkSize = 80
 	for i := 0; i < len(classIds); i += chunkSize {
@@ -438,7 +448,7 @@ func ListTeachersByClassIds(classIds []uint64) ([]TeacherEntity, error) {
 			end = len(classIds)
 		}
 		var chunk []TeacherEntity
-		if err := teacherBuilder().Where("teaching_class_id IN ?", classIds[i:end]).Find(&chunk).Error; err != nil {
+		if err := tx.Model(&TeacherEntity{}).Where("teaching_class_id IN ?", classIds[i:end]).Order("teacher_code ASC, teacher_name ASC, id ASC").Find(&chunk).Error; err != nil {
 			return nil, fmt.Errorf("pk: list teachers: %w", err)
 		}
 		all = append(all, chunk...)

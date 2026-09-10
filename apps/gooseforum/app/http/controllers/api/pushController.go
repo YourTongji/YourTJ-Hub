@@ -13,8 +13,9 @@ import (
 
 // NativePushConfigResp GET push/config 中原生推送通道状态。
 type NativePushConfigResp struct {
-	APNsEnabled bool `json:"apnsEnabled"`
-	FCMEnabled  bool `json:"fcmEnabled"`
+	APNsEnabled  bool `json:"apnsEnabled"`
+	FCMEnabled   bool `json:"fcmEnabled"`
+	JPushEnabled bool `json:"jpushEnabled"`
 }
 
 // PushConfigResp GET push/config 响应。
@@ -38,14 +39,16 @@ func GetPushConfig(req component.BetterRequest[GetPushConfigReq]) component.Resp
 		Configured:           key != "",
 		ApplicationServerKey: key,
 		Native: NativePushConfigResp{
-			APNsEnabled: channels.APNs.Enabled(),
-			FCMEnabled:  channels.FCM.Enabled(),
+			APNsEnabled:  channels.APNs.Enabled(),
+			FCMEnabled:   channels.FCM.Enabled(),
+			JPushEnabled: channels.JPush.Enabled(),
 		},
 	})
 }
 
 // RegisterPushDeviceReq POST push/device/register 请求。
 type RegisterPushDeviceReq struct {
+	Provider string `json:"provider" validate:"omitempty,oneof=apns fcm jpush"`
 	Platform string `json:"platform" validate:"required,oneof=ios android"`
 	Token    string `json:"token" validate:"required,min=1,max=512"`
 }
@@ -63,7 +66,19 @@ func RegisterPushDevice(req component.BetterRequest[RegisterPushDeviceReq]) comp
 	if token == "" {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	if _, err := pushDevice.UpsertCapped(req.UserId, req.Params.Platform, token, maxPushDevicesPerUser, time.Now()); err != nil {
+	provider := req.Params.Provider
+	if provider == "" {
+		if req.Params.Platform == "ios" {
+			provider = "apns"
+		} else {
+			provider = "fcm"
+		}
+	}
+	if (req.Params.Platform == "ios" && provider != "apns") ||
+		(req.Params.Platform == "android" && provider == "apns") {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	if _, err := pushDevice.UpsertCapped(req.UserId, req.Params.Platform, token, maxPushDevicesPerUser, time.Now(), provider); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	return component.SuccessResponse(true)

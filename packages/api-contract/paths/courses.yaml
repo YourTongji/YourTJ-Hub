@@ -9,7 +9,7 @@ listCourses:
         in: query
         schema:
           type: string
-          description: Free-text keyword matched against normalized name, primary code, aliases, pinyin, and initials.
+          description: Free-text keyword matched against normalized name, primary code, aliases, visible offering class codes, pinyin, and initials.
       - name: department
         in: query
         schema:

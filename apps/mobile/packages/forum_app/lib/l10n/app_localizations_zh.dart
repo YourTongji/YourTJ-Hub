@@ -1885,4 +1885,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get updateRetry => '重试';
+
+  @override
+  String get settingsPushConsent =>
+      '开启后通过 Apple（iOS）或极光及手机厂商（Android）发送系统通知，会处理设备推送标识及通知内容。';
+
+  @override
+  String get settingsPushUnsupported => '此构建尚未配置推送服务';
+
+  @override
+  String get settingsPushServerDisabled => '服务器尚未启用此设备的推送通道，点击重试';
+
+  @override
+  String get settingsPushFailed => '推送注册失败，请检查网络后点击重试';
+
+  @override
+  String get settingsPushPrivacy => '极光推送隐私说明（Android）';
 }

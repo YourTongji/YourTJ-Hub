@@ -1941,4 +1941,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateRetry => 'Retry';
+
+  @override
+  String get settingsPushConsent =>
+      'Enable system notifications via Apple (iOS) or JPush and device vendors (Android). These services process push identifiers and notification content.';
+
+  @override
+  String get settingsPushUnsupported => 'Push is not configured in this build';
+
+  @override
+  String get settingsPushServerDisabled =>
+      'The server has not enabled this delivery channel. Tap to retry.';
+
+  @override
+  String get settingsPushFailed =>
+      'Push registration failed. Check your connection and tap to retry.';
+
+  @override
+  String get settingsPushPrivacy => 'JPush privacy policy (Android)';
 }
