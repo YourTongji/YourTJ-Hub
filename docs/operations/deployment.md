@@ -885,6 +885,14 @@ file across restarts, image updates and migrations; do not share the key between
 Google/GitHub retain their own provider credentials and existing HTTPS OAuth callback URLs;
 enabling the built-in provider does not configure those upstream providers.
 
+Third-party `redirect_uris_globs` match the callback after decoding the outer authorization
+query exactly once. Nested page URLs retain their percent encoding: a callback containing
+`redirect=https%3A%2F%2Fwiki.example.com%2Fguide` needs that encoded domain prefix in its
+pattern. Pin both the callback origin and the nested destination origin (or a known relative
+path prefix); do not permit arbitrary hosts or protocol-relative destinations. Check custom
+client patterns against the callback actually sent by the client when updating the provider.
+Exact mobile callbacks are unaffected. The deployment templates include encoded examples.
+
 Apply through the regular image/config workflow. After the instance restarts, verify discovery:
 
 ```bash

@@ -1406,6 +1406,7 @@ export default {
     },
     modal: {
       quickPublish: '快速发布',
+      draftRestored: '已恢复上次未保存的内容',
       questionTitlePlaceholder: '写下你的问题，准确描述更容易得到解答...',
       thoughtTitlePlaceholder: '输入瞬间标题（可选，如留空自动提取）...',
       contentPlaceholder: '添加正文',

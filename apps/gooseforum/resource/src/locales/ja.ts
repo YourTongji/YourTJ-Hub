@@ -1404,6 +1404,7 @@ export default {
     },
     modal: {
       quickPublish: 'クイック投稿',
+      draftRestored: '前回の未保存内容を復元しました',
       questionTitlePlaceholder: '質問のタイトルを明確に入力してください...',
       thoughtTitlePlaceholder: 'モーメントのタイトル（省略時は自動抽出）...',
       contentPlaceholder: '本文を入力',

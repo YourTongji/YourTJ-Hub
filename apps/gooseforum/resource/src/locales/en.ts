@@ -1404,6 +1404,7 @@ export default {
     },
     modal: {
       quickPublish: 'Quick Publish',
+      draftRestored: 'Restored your unsaved draft',
       questionTitlePlaceholder: 'Ask your question clearly...',
       thoughtTitlePlaceholder: 'Moment title (optional, auto-extracted if empty)...',
       contentPlaceholder: 'Add content',
