@@ -27,6 +27,8 @@ const optTypeCodeMap: Record<number, string> = {
   0: 'editUser',
   1: 'editTopic',
   2: 'editCategory',
+  10: 'exportData',
+  12: 'materializePk',
 }
 
 const targetTypeCodeMap: Record<number, string> = {
@@ -37,6 +39,9 @@ const targetTypeCodeMap: Record<number, string> = {
   4: 'docVersion',
   5: 'docContent',
   6: 'category',
+  7: 'courseReview',
+  8: 'course',
+  9: 'post',
 }
 
 const optInfoMessageKeyMap: Record<string, string> = {
@@ -48,6 +53,9 @@ const optInfoMessageKeyMap: Record<string, string> = {
   'moderator.opt.topic.statusChanged': 'adminOptLog.messages.moderatorTopicStatusChanged',
   'admin.opt.category.moderatorAdded': 'adminOptLog.messages.categoryModeratorAdded',
   'admin.opt.category.moderatorRemoved': 'adminOptLog.messages.categoryModeratorRemoved',
+  'admin.opt.data.exported': 'adminOptLog.messages.dataExported',
+  'admin.opt.data.exported.download': 'adminOptLog.messages.dataExportDownloaded',
+  'admin.opt.pk.materialized': 'adminOptLog.messages.pkMaterialized',
 }
 
 function pageResultSize(result: { pageSize?: number, size?: number }) {

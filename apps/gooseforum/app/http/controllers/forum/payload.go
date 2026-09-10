@@ -12,38 +12,41 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/urlutil"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/badgeservice"
-	"github.com/leancodebox/GooseForum/app/service/chatservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/notificationservice"
-	"github.com/leancodebox/GooseForum/app/service/oidcservice"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/app/service/postservice"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
-	"github.com/leancodebox/GooseForum/app/service/themeservice"
-	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
-	"github.com/leancodebox/GooseForum/app/service/unreadservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/samber/lo"
 )
 
@@ -115,11 +118,17 @@ type ErrorPageProps struct {
 }
 
 type LoginPageProps struct {
-	InitialMode string `json:"initialMode"`
-	RedirectURL string `json:"redirectUrl"`
-	GitHubURL   string `json:"githubUrl"`
-	GoogleReady bool   `json:"googleReady"`
-	CasdoorURL  string `json:"casdoorUrl,omitempty"`
+	InitialMode           string   `json:"initialMode"`
+	RedirectURL           string   `json:"redirectUrl"`
+	GitHubURL             string   `json:"githubUrl"`
+	GoogleURL             string   `json:"googleUrl"`
+	GoogleReady           bool     `json:"googleReady"`
+	TermsOfServiceEnabled bool     `json:"termsOfServiceEnabled"`
+	PrivacyPolicyEnabled  bool     `json:"privacyPolicyEnabled"`
+	AllowedDomains        []string `json:"allowedDomains"`
+	// OAuthNotice 标记本次到达注册页来自 OAuth 回调（纯新号改道，issue #531），
+	// 前端在注册表单上方渲染「先注册、后绑定」提示。
+	OAuthNotice bool `json:"oauthNotice"`
 }
 
 type ResetPasswordPageProps struct {
@@ -127,13 +136,19 @@ type ResetPasswordPageProps struct {
 }
 
 type LayoutPayload struct {
-	Site    SitePayload         `json:"site"`
-	Viewer  ViewerPayload       `json:"viewer"`
-	Header  []NavItemPayload    `json:"header,omitempty"`
-	Sidebar SidebarPayload      `json:"sidebar"`
-	Footer  FooterPayload       `json:"footer"`
-	Unread  UnreadStatusPayload `json:"unread"`
-	Theme   ThemePayload        `json:"theme"`
+	Site                SitePayload         `json:"site"`
+	Viewer              ViewerPayload       `json:"viewer"`
+	Header              []NavItemPayload    `json:"header,omitempty"`
+	Sidebar             SidebarPayload      `json:"sidebar"`
+	Footer              FooterPayload       `json:"footer"`
+	Unread              UnreadStatusPayload `json:"unread"`
+	Posting             PostingPayload      `json:"posting"`
+	Theme               ThemePayload        `json:"theme"`
+	InsightFlareEnabled bool                `json:"insightFlareEnabled"`
+}
+
+type PostingPayload struct {
+	MaxTitleLength int `json:"maxTitleLength"`
 }
 
 type ThemePayload struct {
@@ -149,6 +164,7 @@ type UnreadStatusPayload struct {
 	Messages               bool   `json:"messages"`
 	ModerationReports      bool   `json:"moderationReports"`
 	LatestNotificationType string `json:"latestNotificationType,omitempty"`
+	LatestUnreadId         uint64 `json:"latestUnreadId,omitempty"`
 }
 
 type SitePayload struct {
@@ -185,6 +201,7 @@ type CategoryNavPayload struct {
 	ID    uint64 `json:"id"`
 	Label string `json:"label"`
 	URL   string `json:"url"`
+	Icon  string `json:"icon,omitempty"`
 	Color string `json:"color"`
 }
 
@@ -201,6 +218,27 @@ type SidebarPayload struct {
 	Groups     []SidebarGroupPayload `json:"groups,omitempty"`
 	Categories []CategoryNavPayload  `json:"categories"`
 	ActiveKey  string                `json:"activeKey"`
+	// Mode 指示当前视图：forum（默认）/ wiki。
+	Mode string `json:"mode,omitempty"`
+	// WikiTree 在 wiki 模式下填充（左栏导航树）。
+	WikiTree []WikiTreeNamespacePayload `json:"wikiTree,omitempty"`
+}
+
+// WikiTreeNamespacePayload wiki 导航树的 namespace 分组。
+type WikiTreeNamespacePayload struct {
+	Name  string                `json:"name"`
+	Label string                `json:"label"`
+	Nodes []WikiTreeNodePayload `json:"nodes"`
+}
+
+// WikiTreeNodePayload wiki 导航树的递归节点。
+type WikiTreeNodePayload struct {
+	Kind     string                `json:"kind"`
+	PageId   uint64                `json:"pageId"`
+	Path     string                `json:"path"`
+	Title    string                `json:"title"`
+	Active   bool                  `json:"active"`
+	Children []WikiTreeNodePayload `json:"children"`
 }
 
 type FooterPayload struct {
@@ -260,6 +298,10 @@ type TopicPayload struct {
 	ActivityText   string                 `json:"activityText"`
 	LastUpdateTime string                 `json:"lastUpdateTime"`
 	Unseen         bool                   `json:"unseen,omitempty"`
+	ContentType    int8                   `json:"contentType"`
+	// Nil means personal state is unavailable, never an assumed false value.
+	Liked      *bool `json:"liked,omitempty"`
+	Bookmarked *bool `json:"bookmarked,omitempty"`
 }
 
 type TopicAuthorPayload struct {
@@ -285,54 +327,68 @@ type TopicDetailProps struct {
 }
 
 type TopicDetailPayload struct {
-	ID            uint64                 `json:"id"`
-	Title         string                 `json:"title"`
-	Description   string                 `json:"description"`
-	FirstImageURL string                 `json:"firstImageUrl,omitempty"`
-	URL           string                 `json:"url"`
-	TopicStatus   int8                   `json:"topicStatus"`
-	ProcessStatus int8                   `json:"processStatus"`
-	Author        TopicAuthorPayload     `json:"author"`
-	Participants  []TopicAuthorPayload   `json:"participants"`
-	Categories    []TopicCategoryPayload `json:"categories"`
-	ReplyCount    uint64                 `json:"replyCount"`
-	MaxPostNo     uint64                 `json:"maxPostNo"`
-	ViewCount     uint64                 `json:"viewCount"`
-	LikeCount     uint64                 `json:"likeCount"`
-	IsLiked       bool                   `json:"isLiked"`
-	IsBookmarked  bool                   `json:"isBookmarked"`
-	IsWatched     bool                   `json:"isWatched"`
-	CreatedAt     string                 `json:"createdAt"`
-	UpdatedAt     string                 `json:"updatedAt"`
+	ID               uint64                 `json:"id"`
+	Title            string                 `json:"title"`
+	Description      string                 `json:"description"`
+	FirstImageURL    string                 `json:"firstImageUrl,omitempty"`
+	Images           []string               `json:"images,omitempty"`
+	URL              string                 `json:"url"`
+	TopicStatus      int8                   `json:"topicStatus"`
+	ProcessStatus    int8                   `json:"processStatus"`
+	AuthorDeleted    bool                   `json:"authorDeleted"`
+	ModeratorRemoved bool                   `json:"moderatorRemoved"`
+	Author           TopicAuthorPayload     `json:"author"`
+	Participants     []TopicAuthorPayload   `json:"participants"`
+	Categories       []TopicCategoryPayload `json:"categories"`
+	ReplyCount       uint64                 `json:"replyCount"`
+	MaxPostNo        uint64                 `json:"maxPostNo"`
+	ViewCount        uint64                 `json:"viewCount"`
+	LikeCount        uint64                 `json:"likeCount"`
+	IsLiked          bool                   `json:"isLiked"`
+	IsBookmarked     bool                   `json:"isBookmarked"`
+	IsWatched        bool                   `json:"isWatched"`
+	CreatedAt        string                 `json:"createdAt"`
+	UpdatedAt        string                 `json:"updatedAt"`
+	ContentType      int8                   `json:"contentType"`
 }
 
 type PostPayload struct {
-	ID              uint64             `json:"id"`
-	TopicID         uint64             `json:"topicId"`
-	PostNo          uint64             `json:"postNo"`
-	Content         string             `json:"content"`
-	RenderedContent string             `json:"renderedContent"`
-	ProcessStatus   int8               `json:"processStatus"`
-	IsHidden        bool               `json:"isHidden"`
-	CanModerate     bool               `json:"canModerate"`
-	Author          TopicAuthorPayload `json:"author"`
-	CreatedAt       string             `json:"createdAt"`
-	ReplyToPostID   uint64             `json:"replyToPostId,omitempty"`
-	ReplyToUserID   uint64             `json:"replyToUserId,omitempty"`
-	ReplyToUsername string             `json:"replyToUsername,omitempty"`
-	IsOwnPost       bool               `json:"isOwnPost"`
-	UpdatedAt       string             `json:"updatedAt"`
-	LikeCount       uint64             `json:"likeCount"`
-	IsLiked         bool               `json:"isLiked"`
-	IsBookmarked    bool               `json:"isBookmarked"`
+	ID                 uint64              `json:"id"`
+	TopicID            uint64              `json:"topicId"`
+	PostNo             uint64              `json:"postNo"`
+	Content            string              `json:"content"`
+	RenderedContent    string              `json:"renderedContent"`
+	ProcessStatus      int8                `json:"processStatus"`
+	IsHidden           bool                `json:"isHidden"`
+	IsAuthorDeleted    bool                `json:"isAuthorDeleted"`
+	IsModeratorRemoved bool                `json:"isModeratorRemoved"`
+	CanModerate        bool                `json:"canModerate"`
+	Author             TopicAuthorPayload  `json:"author"`
+	IsAnonymous        bool                `json:"isAnonymous"`
+	CreatedAt          string              `json:"createdAt"`
+	ReplyToPostID      uint64              `json:"replyToPostId,omitempty"`
+	ReplyToUserID      uint64              `json:"replyToUserId,omitempty"`
+	ReplyToUsername    string              `json:"replyToUsername,omitempty"`
+	IsOwnPost          bool                `json:"isOwnPost"`
+	UpdatedAt          string              `json:"updatedAt"`
+	LastEditor         *TopicAuthorPayload `json:"lastEditor,omitempty"`
+	LastEditedAt       string              `json:"lastEditedAt,omitempty"`
+	RevisionCount      int64               `json:"revisionCount"`
+	LikeCount          uint64              `json:"likeCount"`
+	IsLiked            bool                `json:"isLiked"`
+	IsBookmarked       bool                `json:"isBookmarked"`
+	IsAnswer           bool                `json:"isAnswer"`
 }
 
 type ReplyTargetPayload struct {
-	ID              uint64             `json:"id"`
-	PostNo          uint64             `json:"postNo,omitempty"`
-	Author          TopicAuthorPayload `json:"author"`
-	RenderedContent string             `json:"renderedContent,omitempty"`
-	Unavailable     bool               `json:"unavailable,omitempty"`
+	ID                 uint64             `json:"id"`
+	PostNo             uint64             `json:"postNo,omitempty"`
+	Author             TopicAuthorPayload `json:"author"`
+	IsAnonymous        bool               `json:"isAnonymous"`
+	RenderedContent    string             `json:"renderedContent,omitempty"`
+	IsAuthorDeleted    bool               `json:"isAuthorDeleted,omitempty"`
+	IsModeratorRemoved bool               `json:"isModeratorRemoved,omitempty"`
+	Unavailable        bool               `json:"unavailable,omitempty"`
 }
 
 type PostWindowPayload struct {
@@ -528,9 +584,14 @@ type MessagesPageProps struct {
 }
 
 type SettingsPageProps struct {
-	User  *vo.UserDetailedVo   `json:"user"`
-	Stats SettingsStatsPayload `json:"stats"`
-	Tabs  []TabPayload         `json:"tabs"`
+	User             *vo.UserDetailedVo   `json:"user"`
+	Stats            SettingsStatsPayload `json:"stats"`
+	Tabs             []TabPayload         `json:"tabs"`
+	GoogleOAuthReady bool                 `json:"googleOAuthReady"`
+	// CanSetPassword 标记当前用户可走 set-password 首次设密（issue #530：
+	// 无邮箱 OAuth 绑定账号）。服务端按同一资格门禁计算，前端据此切换
+	// 「设置密码 / 修改密码」表单，不向前端暴露密码状态。
+	CanSetPassword bool `json:"canSetPassword"`
 }
 
 type SettingsStatsPayload struct {
@@ -568,6 +629,7 @@ type PublishTopicPayload struct {
 	Content     string   `json:"content"`
 	CategoryIDs []uint64 `json:"categoryIds"`
 	TopicStatus int8     `json:"topicStatus"`
+	ContentType int8     `json:"contentType"`
 }
 
 type SearchPageProps struct {
@@ -576,13 +638,31 @@ type SearchPageProps struct {
 	Topics            []TopicPayload          `json:"topics"`
 	Users             []UserSearchPayload     `json:"users"`
 	Categories        []CategorySearchPayload `json:"categories"`
+	Courses           []CourseSearchPayload   `json:"courses"`
 	Total             int64                   `json:"total"`
 	UsersTotal        int64                   `json:"usersTotal"`
 	CategoriesTotal   int64                   `json:"categoriesTotal"`
+	CoursesTotal      int64                   `json:"coursesTotal"`
 	TotalPages        int                     `json:"totalPages"`
 	Pagination        PaginationPayload       `json:"pagination"`
 	FailedScopes      []string                `json:"failedScopes,omitempty"`
 	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
+}
+
+// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）。
+// TeacherId/TeacherName 为 (code, teacher) 复合身份下的卡片身份教师（无教师时省略）。
+type CourseSearchPayload struct {
+	ID          uint64   `json:"id"`
+	PrimaryCode string   `json:"primaryCode"`
+	Name        string   `json:"name"`
+	Department  string   `json:"department"`
+	CreditX10   int      `json:"creditX10"`
+	Aliases     []string `json:"aliases"`
+	TeacherId   uint64   `json:"teacherId,omitempty"`
+	TeacherName string   `json:"teacherName,omitempty"`
+	Instructors []string `json:"instructors"`
+	Terms       []string `json:"terms"`
+	Campus      []string `json:"campus"`
 }
 
 // UserSearchPayload 用户搜索结果展示数据（由 DB 重构填充）
@@ -630,16 +710,24 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	for _, item := range footerInfo.Primary {
 		footerPrimary = append(footerPrimary, item.Content)
 	}
+	// 渲染防线（issue #409）：历史脏配置不进入前台 href/src，SSR 与 SPA
+	// payload 一律用净化后的副本（不 mutate 共享 chrome 缓存）。
+	footerLinks := make([]pageConfig.FooterItem, 0, len(footerInfo.List))
+	for _, item := range footerInfo.List {
+		item.Url = urlutil.Clean(urlutil.SiteLink, item.Url)
+		footerLinks = append(footerLinks, item)
+	}
 	brandType := chrome.BrandType
 	brandText := chrome.BrandText
-	brandImage := chrome.BrandImage
+	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
 	return LayoutPayload{
+		InsightFlareEnabled: setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		Site: SitePayload{
 			Name:          siteConfig.SiteName,
 			Description:   siteConfig.SiteDescription,
-			Logo:          siteConfig.SiteLogo,
-			Favicon:       siteConfig.SiteLogo,
+			Logo:          urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
+			Favicon:       urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			ExternalLinks: siteConfig.ExternalLinks,
 			BrandType:     brandType,
 			BrandText:     brandText,
@@ -652,11 +740,14 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 			activeKey,
 		),
 		Footer: FooterPayload{
-			Links:   footerInfo.List,
+			Links:   footerLinks,
 			Primary: footerPrimary,
 		},
 		Unread: unread,
-		Theme:  buildThemePayload(c),
+		Posting: PostingPayload{
+			MaxTitleLength: hotdataserve.GetPostingSettingsConfigCache().TextControl.MaxTitleLength,
+		},
+		Theme: buildThemePayload(c),
 	}
 }
 
@@ -724,6 +815,7 @@ func buildUnreadStatus(userID uint64) UnreadStatusPayload {
 		Messages:               status.Messages,
 		ModerationReports:      moderationservice.HasOpenReports(userID),
 		LatestNotificationType: status.LatestNotificationType,
+		LatestUnreadId:         status.LatestUnreadId,
 	}
 }
 
@@ -738,6 +830,7 @@ func buildSidebarPayload(categories []*category.Entity, activeKey string) Sideba
 			ID:    category.Id,
 			Label: category.Name,
 			URL:   categoryURL(category),
+			Icon:  category.Icon,
 			Color: category.Color,
 		})
 	}
@@ -774,7 +867,7 @@ func buildChromeNavItems(items []pageConfig.ChromeItem) []NavItemPayload {
 		if !item.Enabled || (item.Label == "" && item.I18nLabel == "") {
 			continue
 		}
-		url := item.URL
+		url := urlutil.Clean(urlutil.SiteLink, item.URL)
 		if url == "" {
 			url = "#"
 		}
@@ -826,6 +919,20 @@ func buildTrackedTopicPayloads(userID uint64, topics []*vo.TopicsSimpleVo) []Top
 	if userID == 0 || len(payloads) == 0 {
 		return payloads
 	}
+	topicIDs := make([]uint64, 0, len(payloads))
+	for _, topic := range payloads {
+		topicIDs = append(topicIDs, topic.ID)
+	}
+	states, stateErr := topicUserAction.GetByTopicIDs(userID, topicIDs)
+	if stateErr != nil {
+		slog.Warn("resolve topic interaction state failed", "userId", userID, "error", stateErr)
+	} else {
+		for i := range payloads {
+			state := states[payloads[i].ID]
+			liked, bookmarked := state.LikedAt != nil, state.BookmarkedAt != nil
+			payloads[i].Liked, payloads[i].Bookmarked = &liked, &bookmarked
+		}
+	}
 	activities := make([]topicunseenservice.TopicActivity, 0, len(topics))
 	for _, topic := range topics {
 		if topic == nil || topic.Id == 0 {
@@ -848,9 +955,10 @@ func buildTrackedTopicPayloads(userID uint64, topics []*vo.TopicsSimpleVo) []Top
 	return payloads
 }
 
-// isSafeRedirect 仅允许站内相对路径，拒绝 javascript:、//host、\host、/\host 等危险值。
+// IsSafeRedirect 仅允许站内相对路径，拒绝 javascript:、//host、\host、/\host 等危险值。
 // 浏览器按 WHATWG URL 规范会把 \ 归一化为 /，因此路径中任何位置的反斜杠都要拦截。
-func isSafeRedirect(value string) bool {
+// 导出供 api 层 OAuth 回调透传 redirect 复用（issue #531，与登录页 props 同规则）。
+func IsSafeRedirect(value string) bool {
 	if value == "" {
 		return false
 	}
@@ -872,23 +980,25 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		mode = "register"
 	}
 	redirectURL := c.Query("redirect")
-	if !isSafeRedirect(redirectURL) {
+	if !IsSafeRedirect(redirectURL) {
 		redirectURL = ""
 	}
 	githubURL := "/api/auth/github"
+	googleURL := "/api/auth/google"
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
-	}
-	casdoorURL := ""
-	if oidcservice.IsConfigured() {
-		casdoorURL = "/api/auth/oidc/login"
+		googleURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
-		InitialMode: mode,
-		RedirectURL: redirectURL,
-		GitHubURL:   githubURL,
-		GoogleReady: false,
-		CasdoorURL:  casdoorURL,
+		InitialMode:           mode,
+		RedirectURL:           redirectURL,
+		GitHubURL:             githubURL,
+		GoogleURL:             googleURL,
+		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
+		TermsOfServiceEnabled: hotdataserve.GetTermsOfServiceConfigCache().Enabled,
+		PrivacyPolicyEnabled:  hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
+		AllowedDomains:        hotdataserve.GetSecuritySettingsConfigCache().AllowedDomains,
+		OAuthNotice:           c.Query("oauthNotice") == "1",
 	}
 }
 
@@ -955,6 +1065,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			ViewCount:      topic.ViewCount,
 			ActivityText:   topic.LastUpdateTime,
 			LastUpdateTime: topic.LastUpdateTime,
+			ContentType:    topic.ContentType,
 		})
 	}
 	return res
@@ -1049,6 +1160,18 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	if anchorPostNo <= 1 && len(postEntities) == 0 && firstPost != nil && firstPost.Id != 0 {
 		postEntities = append(postEntities, firstPost)
 	}
+	if anchorPostNo <= 1 && firstPost != nil && firstPost.Id != 0 && topic.VisibilityStatus != topics.VisibilityActive {
+		firstPostLoaded := false
+		for _, item := range postEntities {
+			if item != nil && item.Id == firstPost.Id {
+				firstPostLoaded = true
+				break
+			}
+		}
+		if !firstPostLoaded {
+			postEntities = append([]*posts.Entity{firstPost}, postEntities...)
+		}
+	}
 	userIDs := make([]uint64, 0, len(postEntities)+1)
 	seenUserIDs := make(map[uint64]struct{}, len(postEntities)+1)
 	if topic.UserId > 0 {
@@ -1057,6 +1180,11 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	}
 	for _, item := range postEntities {
 		if item == nil {
+			continue
+		}
+		// 匿名楼层作者不进 userMap：不进入 participants 身份表面（issue #524）。
+		// IsOwnPost 是 currentUserID == item.UserId 的直接比较，不依赖 userMap。
+		if item.IsAnonymous {
 			continue
 		}
 		if _, seen := seenUserIDs[item.UserId]; seen {
@@ -1080,11 +1208,12 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 			int64(topic.PostSeq),
 			topic.PostSeq,
 			0,
+			firstPost,
 		),
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
 			IsOwnTopic:       currentUserID == topic.UserId,
-			CanPost:          currentUserID > 0,
+			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
 			CanModerateTopic: canModerate,
 		},
 	}
@@ -1104,7 +1233,7 @@ func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Enti
 	return items, true, hasAfter
 }
 
-func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64) PostWindowPayload {
+func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64, firstPost *posts.Entity) PostWindowPayload {
 	// 对非版主过滤待审（ProcessStatus=2）帖子：待审内容不应出现在普通用户流中，
 	// 避免渲染为空占位；封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
 	if !canModerate {
@@ -1117,7 +1246,7 @@ func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap ma
 		}
 		postEntities = filtered
 	}
-	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate)
+	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate, firstPost)
 	var beforePostNo uint64
 	var afterPostNo uint64
 	if len(postEntities) > 0 {
@@ -1137,7 +1266,7 @@ func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap ma
 	}
 }
 
-func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool) ([]PostPayload, []ReplyTargetPayload) {
+func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, firstPost *posts.Entity) ([]PostPayload, []ReplyTargetPayload) {
 	postMap := make(map[uint64]*posts.Entity, len(postEntities))
 	for _, item := range postEntities {
 		if item != nil {
@@ -1178,12 +1307,22 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			seenMissingUserIDs[parent.UserId] = struct{}{}
 			missingUserIDs = append(missingUserIDs, parent.UserId)
 		}
+		// 最后编辑者也要进 userMap，供 lastEditor 卡片构建
+		if parent.LastEditorId > 0 {
+			if _, seen := seenMissingUserIDs[parent.LastEditorId]; !seen {
+				seenMissingUserIDs[parent.LastEditorId] = struct{}{}
+				missingUserIDs = append(missingUserIDs, parent.LastEditorId)
+			}
+		}
 	}
 	maps.Copy(userMap, users.GetMapByIds(missingUserIDs))
 	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
 	authorPayload := func(userID uint64) TopicAuthorPayload {
 		return userPayloadWithWornBadge(userID, userMap, wornBadges[userID])
 	}
+
+	// Determine if this is a question topic
+	isQuestionTopic := firstPost != nil && firstPost.ContentType == posts.ContentTypeQuestion
 
 	res := make([]PostPayload, 0, len(postEntities))
 	replyTargets := make([]ReplyTargetPayload, 0, len(seenMissingParentIDs))
@@ -1192,14 +1331,24 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		if item == nil {
 			continue
 		}
-		author := authorPayload(item.UserId)
+		var author TopicAuthorPayload
+		if item.IsAnonymous {
+			author = anonymousPostAuthor()
+		} else {
+			author = authorPayload(item.UserId)
+		}
 		postservice.EnsureRenderedHTML(item)
 		replyToName, replyToUserID := "", uint64(0)
 		if item.ReplyToPostId > 0 {
 			if parent, ok := postMap[item.ReplyToPostId]; ok && parent != nil && parent.TopicId == item.TopicId && (parent.ProcessStatus == 0 || canModerate) {
-				parentAuthor := authorPayload(parent.UserId)
-				replyToName = parentAuthor.Username
-				replyToUserID = parentAuthor.ID
+				// 回复对象为匿名楼层时，不暴露其真实作者（issue #524）。
+				if parent.IsAnonymous {
+					replyToName = "匿名同学"
+				} else {
+					parentAuthor := authorPayload(parent.UserId)
+					replyToName = parentAuthor.Username
+					replyToUserID = parentAuthor.ID
+				}
 			}
 			if _, seen := seenReplyTargets[item.ReplyToPostId]; !seen {
 				seenReplyTargets[item.ReplyToPostId] = struct{}{}
@@ -1209,26 +1358,53 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		content := item.Content
 		renderedContent := item.RenderedHTML
 		isHidden := item.ProcessStatus != 0
+		isAuthorDeleted := isAuthorDeletedVisibility(item.VisibilityStatus)
+		isModeratorRemoved := isModeratorRemovedVisibility(item.VisibilityStatus)
 		if isHidden && !canModerate {
 			content = ""
 			renderedContent = ""
 		}
+		if isAuthorDeleted || isModeratorRemoved {
+			content = ""
+			renderedContent = ""
+		}
+		var lastEditor *TopicAuthorPayload
+		lastEditedAt := ""
+		// 匿名楼层（issue #524）：last_editor_id 即真实作者（一次自编辑即暴露），
+		// 公开载荷不回显编辑者身份；编辑事实仍可经 updatedAt/revisionCount 感知。
+		if item.LastEditorId > 0 && !item.IsAnonymous {
+			editor := authorPayload(item.LastEditorId)
+			lastEditor = &editor
+			if item.LastEditedAt != nil {
+				lastEditedAt = item.LastEditedAt.Format(time.RFC3339)
+			}
+		}
+
+		// Determine if this post is an answer
+		isAnswer := isQuestionTopic && item.PostNo > 1 && item.ReplyToPostId == firstPost.Id
+
 		res = append(res, PostPayload{
-			ID:              item.Id,
-			TopicID:         item.TopicId,
-			PostNo:          item.PostNo,
-			Content:         content,
-			RenderedContent: renderedContent,
-			ProcessStatus:   item.ProcessStatus,
-			IsHidden:        isHidden,
-			CanModerate:     canModerate,
-			Author:          author,
-			CreatedAt:       item.CreatedAt.Format(time.DateTime),
-			ReplyToPostID:   item.ReplyToPostId,
-			ReplyToUserID:   replyToUserID,
-			ReplyToUsername: replyToName,
-			IsOwnPost:       currentUserID == item.UserId,
-			UpdatedAt:       item.UpdatedAt.Format(time.DateTime),
+			ID:                 item.Id,
+			TopicID:            item.TopicId,
+			PostNo:             item.PostNo,
+			Content:            content,
+			RenderedContent:    renderedContent,
+			ProcessStatus:      item.ProcessStatus,
+			IsHidden:           isHidden,
+			IsAuthorDeleted:    isAuthorDeleted,
+			IsModeratorRemoved: isModeratorRemoved,
+			CanModerate:        canModerate,
+			Author:             author,
+			IsAnonymous:        item.IsAnonymous,
+			CreatedAt:          item.CreatedAt.Format(time.RFC3339),
+			ReplyToPostID:      item.ReplyToPostId,
+			ReplyToUserID:      replyToUserID,
+			ReplyToUsername:    replyToName,
+			IsOwnPost:          currentUserID == item.UserId,
+			UpdatedAt:          item.UpdatedAt.Format(time.RFC3339),
+			LastEditor:         lastEditor,
+			LastEditedAt:       lastEditedAt,
+			IsAnswer:           isAnswer,
 		})
 	}
 
@@ -1239,10 +1415,12 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			postIDs = append(postIDs, item.Id)
 		}
 	}
+	revisionCounts := postRevisions.CountByPostIds(postIDs)
 	likeCounts := postUserAction.CountLikesByPostIds(postIDs)
 	userPostStates := postUserAction.GetStateMapByUserAndPostIds(currentUserID, postIDs)
 	for i := range res {
 		res[i].LikeCount = likeCounts[res[i].ID]
+		res[i].RevisionCount = revisionCounts[res[i].ID]
 		if state, ok := userPostStates[res[i].ID]; ok {
 			res[i].IsLiked = state.LikedAt != nil
 			res[i].IsBookmarked = state.BookmarkedAt != nil
@@ -1257,12 +1435,24 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	if !ok || parent == nil || parent.TopicId != topicID {
 		return target
 	}
+	if parent.RetentionStatus == posts.RetentionPurged {
+		return target
+	}
 	if parent.ProcessStatus != 0 && !canModerate {
 		return target
 	}
 	target.PostNo = parent.PostNo
-	target.Author = userPayloadWithWornBadge(parent.UserId, userMap, wornBadges[parent.UserId])
-	target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	if parent.IsAnonymous {
+		target.Author = anonymousPostAuthor()
+		target.IsAnonymous = true
+	} else {
+		target.Author = userPayloadWithWornBadge(parent.UserId, userMap, wornBadges[parent.UserId])
+	}
+	target.IsAuthorDeleted = isAuthorDeletedVisibility(parent.VisibilityStatus)
+	target.IsModeratorRemoved = isModeratorRemovedVisibility(parent.VisibilityStatus)
+	if !target.IsAuthorDeleted && !target.IsModeratorRemoved {
+		target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	}
 	target.Unavailable = false
 	return target
 }
@@ -1323,26 +1513,48 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 	}
 
 	return TopicDetailPayload{
-		ID:            topic.Id,
-		Title:         topic.Title,
-		Description:   topic.Excerpt,
-		FirstImageURL: topic.FirstImageURL,
-		URL:           urlconfig.PostDetail(topic.Id),
-		TopicStatus:   topic.Status,
-		ProcessStatus: topic.ProcessStatus,
-		Author:        authorPayload(topic.UserId),
-		Participants:  participants,
-		Categories:    categoryPayloads(topic.CategoryIds),
-		ReplyCount:    topic.ReplyCount,
-		MaxPostNo:     topic.PostSeq,
-		ViewCount:     topic.ViewCount,
-		LikeCount:     topic.LikeCount,
-		IsLiked:       isLiked,
-		IsBookmarked:  isBookmarked,
-		IsWatched:     isWatched,
-		CreatedAt:     createdAt.Format(time.DateTime),
-		UpdatedAt:     updatedAt.Format(time.DateTime),
+		ID:               topic.Id,
+		Title:            topic.Title,
+		Description:      topic.Excerpt,
+		FirstImageURL:    topic.FirstImageURL,
+		Images:           topic.ImageUrls,
+		URL:              urlconfig.PostDetail(topic.Id),
+		TopicStatus:      topic.Status,
+		ProcessStatus:    topic.ProcessStatus,
+		AuthorDeleted:    isAuthorDeletedVisibility(topic.VisibilityStatus),
+		ModeratorRemoved: isModeratorRemovedVisibility(topic.VisibilityStatus),
+		Author:           authorPayload(topic.UserId),
+		Participants:     participants,
+		Categories:       categoryPayloads(topic.CategoryIds),
+		ReplyCount:       topic.ReplyCount,
+		MaxPostNo:        topic.PostSeq,
+		ViewCount:        topic.ViewCount,
+		LikeCount:        topic.LikeCount,
+		IsLiked:          isLiked,
+		IsBookmarked:     isBookmarked,
+		IsWatched:        isWatched,
+		CreatedAt:        createdAt.Format(time.RFC3339),
+		UpdatedAt:        updatedAt.Format(time.RFC3339),
+		ContentType:      resolveTopicContentType(firstPost.ContentType),
 	}
+}
+
+// resolveTopicContentType 将未设置或存量 0（默认/常规）统一归为文章类型（ContentTypeArticle = 3）。
+func resolveTopicContentType(contentType int8) int8 {
+	if contentType == posts.ContentTypeRegular {
+		return posts.ContentTypeArticle
+	}
+	return contentType
+}
+
+// isAuthorDeletedVisibility 判断内容是否由作者删除或因账号匿名化而进入用户删除态。
+func isAuthorDeletedVisibility(visibility string) bool {
+	return visibility == posts.VisibilityUserDeleted || visibility == posts.VisibilityAccountAnonymized
+}
+
+// isModeratorRemovedVisibility 判断内容是否由管理端治理删除。
+func isModeratorRemovedVisibility(visibility string) bool {
+	return visibility == posts.VisibilityModeratorRemoved
 }
 
 func categoryPayloads(ids []uint64) []TopicCategoryPayload {
@@ -1366,9 +1578,20 @@ func categoryPayloads(ids []uint64) []TopicCategoryPayload {
 func userPayload(userID uint64, userMap map[uint64]*users.EntityComplete) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		if userID == 0 {
+			// 无关联（如未分配的 handler）回退为「匿名用户」。
+			return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		}
+		// 用户不存在或已注销（软删）时回退为「已注销用户」（PRD R10）。
+		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return userPayloadWithWornBadge(userID, userMap, badgeservice.GetWornBadge(userID, user.WornBadgeCode))
+}
+
+// anonymousPostAuthor 返回匿名楼层（issue #524）的公开作者占位：隐藏真实
+// user_id/用户名/头像，前端按 isAnonymous 渲染本地化占位；作者管理仍走 IsOwnPost。
+func anonymousPostAuthor() TopicAuthorPayload {
+	return TopicAuthorPayload{ID: 0, Username: "匿名同学", AvatarURL: ""}
 }
 
 func selectedWornBadges(userMap map[uint64]*users.EntityComplete) map[uint64]string {
@@ -1384,7 +1607,10 @@ func selectedWornBadges(userMap map[uint64]*users.EntityComplete) map[uint64]str
 func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityComplete, wornBadge *badgeservice.UserBadge) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		if userID == 0 {
+			return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		}
+		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return TopicAuthorPayload{ID: userID, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
 }
@@ -1582,9 +1808,15 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		userCard = &vo.UserCard{}
 	}
 	userBadges := userCard.Badges
+	if userBadges == nil {
+		// 空切片而非 nil：契约（payload.ts）声明非空数组，nil 会序列化为 JSON null。
+		userBadges = []badgeservice.UserBadge{}
+	}
 	card := *userCard
 	userCard = &card
-	userCard.Badges = nil
+	// 空切片而非 nil：契约（payload.ts UserCardPayload.badges）声明非空数组，
+	// Go nil 切片会序列化为 JSON null，移动端非空镜像解析失败（2026-09-06 生产回归）。
+	userCard.Badges = []badgeservice.UserBadge{}
 	userCard.IsFollowing = isFollowing
 	userCard.IsSelf = currentUserID == user.Id
 
@@ -1765,7 +1997,10 @@ func buildUserProfileTabs(userID uint64, active string, isOwnProfile bool) []Tab
 
 func buildUserProfileActivityTabs(userID uint64, section string, active string) []TabPayload {
 	if section != userProfileSectionActivity {
-		return nil
+		// 空切片而非 nil：契约（payload.ts UserProfileProps.activityTabs）声明
+		// 非空数组，nil 会序列化为 JSON null，移动端非空镜像解析失败
+		// （2026-09-06 生产回归：Profile 页「Failed to parse page data」）。
+		return []TabPayload{}
 	}
 	baseURL := "/u/" + strconv.FormatUint(userID, 10) + "/" + userProfileSectionActivity
 	return []TabPayload{
@@ -1796,7 +2031,7 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			TopicID: ref.TopicID,
 			Title:   topic.Title,
 			URL:     urlconfig.PostDetail(ref.TopicID),
-			LikedAt: ref.LikedAt.Format(time.DateTime),
+			LikedAt: ref.LikedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -1822,7 +2057,7 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
 			URL:          urlconfig.PostDetail(ref.TopicID),
-			BookmarkedAt: ref.BookmarkedAt.Format(time.DateTime),
+			BookmarkedAt: ref.BookmarkedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -1959,7 +2194,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
 				URL:          urlconfig.PostDetail(ref.topicID),
-				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		case "post":
 			post := postMap[ref.postID]
@@ -1979,7 +2214,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				Title:        topic.Title,
 				Excerpt:      bookmarkExcerpt(post.Content),
 				URL:          buildPostAnchorURL(post.TopicId, post.PostNo, post.Id),
-				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		}
 	}
@@ -2021,7 +2256,7 @@ func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayl
 			ContentPreview: contentPreview,
 			URL:            userActivityURL(activity, replyByID),
 			Label:          userActivityLabel(activity.Action),
-			CreatedAt:      activity.CreatedAt.Format(time.DateTime),
+			CreatedAt:      activity.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2217,8 +2452,8 @@ func buildLinksPageProps(groups []pageConfig.FriendLinksGroup) LinksPageProps {
 			links = append(links, FriendLinkPayload{
 				Name:    link.Name,
 				Desc:    link.Desc,
-				URL:     link.Url,
-				LogoURL: link.LogoUrl,
+				URL:     urlutil.Clean(urlutil.External, link.Url),
+				LogoURL: urlutil.Clean(urlutil.Image, link.LogoUrl),
 			})
 		}
 		if len(links) == 0 {
@@ -2272,7 +2507,7 @@ func buildSponsorsPageProps(config pageConfig.SponsorsConfig) SponsorsPageProps 
 			Title:       sponsorText(config.Contact.Title, defaultConfig.Contact.Title),
 			Description: sponsorText(config.Contact.Description, defaultConfig.Contact.Description),
 			ButtonText:  sponsorText(config.Contact.ButtonText, defaultConfig.Contact.ButtonText),
-			ButtonLink:  sponsorText(config.Contact.ButtonLink, defaultConfig.Contact.ButtonLink),
+			ButtonLink:  urlutil.Clean(urlutil.Contact, sponsorText(config.Contact.ButtonLink, defaultConfig.Contact.ButtonLink)),
 		},
 		Rules: buildSponsorsRules(config.Rules),
 	}
@@ -2308,7 +2543,7 @@ func buildSponsorPayloads(items []pageConfig.SponsorItem) []SponsorPayload {
 		res = append(res, SponsorPayload{
 			Name:      item.Name,
 			Message:   item.Message,
-			Link:      item.Link,
+			Link:      urlutil.Clean(urlutil.External, item.Link),
 			AvatarURL: sponsorAvatar(item.AvatarUrl),
 		})
 	}
@@ -2316,8 +2551,8 @@ func buildSponsorPayloads(items []pageConfig.SponsorItem) []SponsorPayload {
 }
 
 func sponsorAvatar(avatar string) string {
-	if avatar != "" {
-		return avatar
+	if cleaned := urlutil.Clean(urlutil.Image, avatar); cleaned != "" {
+		return cleaned
 	}
 	return "/static/pic/default-avatar.webp"
 }
@@ -2336,13 +2571,17 @@ func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
 	notifications, nextCursor, hasNext, _ := notificationservice.GetNotificationCursorList(userID, notificationservice.DefaultNotificationPageSize, 0, false)
 	unreadCount, _ := eventNotification.GetUnreadCount(userID)
 	items := BuildNotificationPayloads(notifications)
+	nextPage := 0
+	if hasNext {
+		nextPage = 2
+	}
 	return NotificationsPageProps{
 		Total:         int64(len(items)),
 		UnreadCount:   unreadCount,
 		Notifications: items,
 		Pagination: PaginationPayload{
 			Page:     1,
-			NextPage: lo.Ternary(hasNext, 2, 0),
+			NextPage: nextPage,
 			HasNext:  hasNext,
 			NextURL:  fmt.Sprintf("/api/forum/notifications?filter=all&cursor=%d&limit=%d", nextCursor, notificationservice.DefaultNotificationPageSize),
 		},
@@ -2377,8 +2616,8 @@ func buildDraftPayloads(entities []*topics.Entity) []DraftPayload {
 			ReplyCount:    entity.ReplyCount,
 			ViewCount:     entity.ViewCount,
 			ProcessStatus: entity.ProcessStatus,
-			UpdatedAt:     entity.UpdatedAt.Format(time.DateTime),
-			CreatedAt:     entity.CreatedAt.Format(time.DateTime),
+			UpdatedAt:     entity.UpdatedAt.Format(time.RFC3339),
+			CreatedAt:     entity.CreatedAt.Format(time.RFC3339),
 			Categories:    categories,
 		})
 	}
@@ -2417,7 +2656,7 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 		ID:        notification.Id,
 		EventType: notification.EventType,
 		IsRead:    notification.IsRead,
-		CreatedAt: notification.CreatedAt.Format(time.DateTime),
+		CreatedAt: notification.CreatedAt.Format(time.RFC3339),
 		Title:     notificationTitle(notification.EventType, payload),
 		Content:   payload.Content,
 		Actor: TopicAuthorPayload{
@@ -2431,7 +2670,14 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 	}
 	if payload.TopicId > 0 {
 		topicURL := urlconfig.PostDetail(payload.TopicId)
-		if payload.PostId > 0 {
+		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
+		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
+			topicURL = payload.Extra.ProfileURL
+		} else if payload.PostNo > 0 {
+			// 楼层号链接：删除/重建索引后仍稳定落到正确楼层，不依赖 post ID。
+			topicURL = fmt.Sprintf("%s/%d", topicURL, payload.PostNo)
+		} else if payload.PostId > 0 {
+			// 历史通知缺楼层号时保留 post ID 锚点 fallback。
 			topicURL = fmt.Sprintf("%s#post-%d", topicURL, payload.PostId)
 		}
 		item.Topic = &NotificationTopicPayload{
@@ -2476,7 +2722,11 @@ func buildMessagesPageProps(c *gin.Context) MessagesPageProps {
 func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 	stats := userStatistics.Get(user.Id)
 	return SettingsPageProps{
-		User: transform.User2UserDetailedVo(user),
+		User:             transform.User2UserDetailedVo(user),
+		GoogleOAuthReady: oauthservice.IsGoogleOAuthReady(),
+		// 与 SetPassword 控制器同门禁（issue #530）：无邮箱 + 有 OAuth 绑定
+		// + 非 bot 才能免旧密码设密。
+		CanSetPassword: !user.IsBot() && user.Email == "" && oauthservice.HasOAuthBinding(user.Id),
 		Stats: SettingsStatsPayload{
 			TopicCount:        stats.TopicCount,
 			ReplyCount:        stats.ReplyCount,
@@ -2485,15 +2735,22 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 			LikeReceivedCount: stats.LikeReceivedCount,
 			LikeGivenCount:    stats.LikeGivenCount,
 			CollectionCount:   stats.CollectionCount,
-			CreatedAt:         user.CreatedAt.Format(time.DateTime),
+			CreatedAt:         user.CreatedAt.Format(time.RFC3339),
 		},
-		Tabs: []TabPayload{
-			{Key: "profile", URL: "/settings", Active: true},
-			{Key: "account", URL: "/settings?tab=account"},
-			{Key: "privacy", URL: "/settings?tab=privacy"},
-			{Key: "binding", URL: "/settings?tab=binding"},
-			{Key: "security", URL: "/settings?tab=security"},
-		},
+		Tabs: settingsTabs(),
+	}
+}
+
+func settingsTabs() []TabPayload {
+	return []TabPayload{
+		{Key: "profile", URL: "/settings", Active: true},
+		{Key: "account", URL: "/settings?tab=account"},
+		{Key: "privacy", URL: "/settings?tab=privacy"},
+		{Key: "binding", URL: "/settings?tab=binding"},
+		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "content", URL: "/settings?tab=content"},
+		{Key: "deleted", URL: "/settings?tab=deleted"},
+		{Key: "general", URL: "/settings?tab=general"},
 	}
 }
 
@@ -2505,6 +2762,11 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 		Topic:      PublishTopicPayload{},
 	}
 	if topicID == 0 {
+		typeParam := c.Query("type")
+		if typeParam == "" {
+			typeParam = c.Query("contentType")
+		}
+		props.Topic.ContentType = parsePublishContentType(typeParam)
 		return props, nil
 	}
 
@@ -2521,8 +2783,22 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 		Content:     firstPost.Content,
 		CategoryIDs: topic.CategoryIds,
 		TopicStatus: topic.Status,
+		ContentType: firstPost.ContentType,
 	}
 	return props, nil
+}
+
+func parsePublishContentType(raw string) int8 {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "question":
+		return 1
+	case "2", "thought":
+		return 2
+	case "3", "article":
+		return 3
+	default:
+		return 0
+	}
 }
 
 func buildPublishCategories() []PublishCategoryPayload {
@@ -2550,6 +2826,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		Topics:     []TopicPayload{},
 		Users:      []UserSearchPayload{},
 		Categories: []CategorySearchPayload{},
+		Courses:    []CourseSearchPayload{},
 		Pagination: PaginationPayload{
 			Page: page,
 		},
@@ -2562,9 +2839,9 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		page = 1
 	}
 	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
-	// users/categories 一期单页（上限 MaxAggregateLimit），无分页 UI。
+	// users/categories/courses 一期单页（上限 MaxAggregateLimit），无分页 UI。
 	limit := pageSize
-	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories {
+	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories || normalizedScope == searchservice.ScopeCourses {
 		limit = searchservice.MaxAggregateLimit
 	}
 	offset := 0
@@ -2572,10 +2849,11 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		offset = (page - 1) * pageSize
 	}
 	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
-		Query:  query,
-		Scope:  normalizedScope,
-		Limit:  limit,
-		Offset: offset,
+		Query:     query,
+		Scope:     normalizedScope,
+		Limit:     limit,
+		Offset:    offset,
+		TopicType: topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	if errors.Is(err, searchservice.ErrSearchUnavailable) {
 		props.SearchUnavailable = true
@@ -2618,10 +2896,25 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 			Desc:  item.Desc,
 		}
 	})
+	props.Courses = lo.Map(result.Courses, func(item searchservice.CourseSearchResult, _ int) CourseSearchPayload {
+		return CourseSearchPayload{
+			ID:          item.ID,
+			PrimaryCode: item.PrimaryCode,
+			Name:        item.Name,
+			Department:  item.Department,
+			CreditX10:   item.CreditX10,
+			Aliases:     item.Aliases,
+			TeacherId:   item.TeacherId,
+			TeacherName: item.TeacherName,
+			Instructors: item.Instructors,
+			Terms:       item.Terms,
+			Campus:      item.Campus,
+		}
+	})
 	props.Total = result.Total
 	props.UsersTotal = result.UsersTotal
 	props.CategoriesTotal = result.CategoriesTotal
-	props.TotalPages = totalPageCount
+	props.CoursesTotal = result.CoursesTotal
 	props.Pagination = PaginationPayload{
 		Page:     page,
 		NextPage: nextPage,

@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
@@ -166,7 +167,7 @@ func Init() {
 	slog.SetDefault(logger)
 
 	// 注册到全局关闭管理器
-	closer.RegisterPriority(closer.PriorityLogger, func() error {
+	closer.RegisterPriorityContext(closer.PriorityLogger, func(context.Context) error {
 		Shutdown()
 		return nil
 	})

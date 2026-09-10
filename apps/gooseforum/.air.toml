@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "storage/tmp"
 
 [build]
-bin = "./storage/tmp/GooseForum"
+bin = "./storage/tmp/gooseforum"
 args_bin = ["serve"]# 最新版配置
 cmd = "go build -o ./storage/tmp/ ."
 delay = 1000

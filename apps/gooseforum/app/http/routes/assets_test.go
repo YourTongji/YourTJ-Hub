@@ -10,12 +10,17 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/resource"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
 func TestAssetsGzipSwitch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	previousEnv := preferences.GetString("app.env", "production")
+	preferences.Set("app.env", "production")
+	t.Cleanup(func() {
+		preferences.Set("app.env", previousEnv)
+	})
 
 	type manifestItem struct {
 		File string   `json:"file"`

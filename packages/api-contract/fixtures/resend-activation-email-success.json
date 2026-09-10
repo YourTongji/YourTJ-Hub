@@ -1,0 +1,10 @@
+{
+  "result": {
+    "remainingToday": 2
+  },
+  "code": 0,
+  "messageCode": "auth.activation.resendSuccess",
+  "params": {
+    "remainingToday": 2
+  }
+}

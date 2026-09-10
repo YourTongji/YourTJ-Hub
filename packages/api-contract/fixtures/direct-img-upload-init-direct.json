@@ -1,0 +1,20 @@
+{
+  "result": {
+    "mode": "direct",
+    "name": "pending/2026/09/02/9f1c2d3e-0000-4000-8000-000000000000.png",
+    "upload": {
+      "url": "https://objects.example.com/forum-bucket",
+      "method": "POST",
+      "fields": {
+        "key": "pending/2026/09/02/9f1c2d3e-0000-4000-8000-000000000000.png",
+        "policy": "eyJleHBpcmF0aW9uIjoiMjAyNi0wOS0wMlQxMjowMDowMFoifQ==",
+        "x-amz-algorithm": "AWS4-HMAC-SHA256",
+        "x-amz-credential": "AKIAIOSFODNN7EXAMPLE/20260902/us-east-1/s3/aws4_request",
+        "x-amz-date": "20260902T110000Z",
+        "x-amz-signature": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+      },
+      "expiresAt": "2026-09-02T12:00:00Z"
+    }
+  },
+  "code": 0
+}

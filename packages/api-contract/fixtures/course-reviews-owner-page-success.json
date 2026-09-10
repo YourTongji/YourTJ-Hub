@@ -1,0 +1,30 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 2,
+        "offeringId": 901,
+        "rating": 4,
+        "content": "匿名评价",
+        "contentHtml": "<p>匿名评价</p>\n",
+        "author": {
+          "kind": "anonymous",
+          "label": "匿名同学"
+        },
+        "viewer": {
+          "canEdit": true,
+          "canDelete": true,
+          "isHelpful": false,
+          "isDisliked": false
+        },
+        "helpfulCount": 0,
+        "createdAt": "2026-08-01T09:00:00+08:00",
+        "updatedAt": "2026-08-01T09:00:00+08:00",
+        "dislikeCount": 0
+      }
+    ],
+    "nextCursor": "901:2:1",
+    "total": 3
+  },
+  "code": 0
+}

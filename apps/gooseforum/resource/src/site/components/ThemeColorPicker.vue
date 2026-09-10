@@ -334,7 +334,7 @@ onBeforeUnmount(() => {
                     v-for="(color, columnIndex) in row"
                     :key="`${rowIndex}-${columnIndex}`"
                     type="button"
-                    class="relative grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line/75 text-[8px] font-black transition hover:scale-105"
+                    class="relative grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line/75 text-[9px] font-black transition hover:scale-105"
                     :class="toHex(modelValue) === color.value ? 'ring-2 ring-primary ring-offset-1 ring-offset-base-100' : ''"
                     :style="{ backgroundColor: color.value, color: readableTextColor(color.value) }"
                     :aria-label="color.value"

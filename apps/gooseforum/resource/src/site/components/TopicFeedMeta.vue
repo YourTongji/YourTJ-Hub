@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, MessageSquare, Pin, Sparkles } from '@lucide/vue'
+import { BookOpen, Eye, HelpCircle, MessageSquare, Pin, Sparkles } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -40,6 +40,19 @@ const { t } = useI18n()
           </span>
         </div>
         <div class="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+          <!-- Content type badge -->
+          <span v-if="topic.contentType === 1" class="inline-flex h-5 items-center gap-1 rounded-full bg-success/15 px-1.5 text-[11px] font-semibold text-success">
+            <HelpCircle class="h-3 w-3" />
+            <span>{{ t('publish.contentTypes.question') }}</span>
+          </span>
+          <span v-else-if="topic.contentType === 2" class="inline-flex h-5 items-center gap-1 rounded-full bg-purple-500/15 px-1.5 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+            <Sparkles class="h-3 w-3" />
+            <span>{{ t('publish.contentTypes.thought') }}</span>
+          </span>
+          <span v-else-if="topic.contentType === 3" class="inline-flex h-5 items-center gap-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            <BookOpen class="h-3 w-3" />
+            <span>{{ t('publish.contentTypes.article') }}</span>
+          </span>
           <a
             v-for="category in showCategories ? topic.categories : []"
             :key="category.id"
@@ -87,12 +100,12 @@ const { t } = useI18n()
     <div class="mt-3 flex items-center gap-1 border-t border-line/70 pt-2.5 text-xs text-base-content/55">
       <span
         class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"
-        :title="t('topicList.replies') + ': ' + formatNumber(topic.replyCount)"
+        :title="t('topicList.columns.replies') + ': ' + formatNumber(topic.replyCount)"
       >
         <MessageSquare class="h-4 w-4" />
         <span class="tabular-nums">{{ formatNumber(topic.replyCount) }}</span>
       </span>
-      <span class="inline-flex h-7 items-center gap-1.5 rounded-md px-2" :title="t('topicList.views')">
+      <span class="inline-flex h-7 items-center gap-1.5 rounded-md px-2" :title="t('topicList.columns.views')">
         <Eye class="h-4 w-4" />
         <span class="tabular-nums">{{ formatNumber(topic.viewCount) }}</span>
       </span>

@@ -1,0 +1,246 @@
+name: Release / mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "版本递增类型（patch 修复 / minor 功能 / major 大版本）"
+        required: true
+        default: patch
+        type: choice
+        options: [patch, minor, major]
+      tag:
+        description: "仅失败恢复时填写已有 mobile-vX.Y.Z 标签；留空正常发布"
+        required: false
+        type: string
+      recover_ios:
+        description: "仅恢复已有 iOS 构建的分发（必须填写 tag；不重打包、不发布 Android）"
+        type: boolean
+        default: false
+      testflight_only:
+        description: "仅提交 TestFlight，保留 App Store 当前审核队列"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Serialize version reservation and distribution across every mobile release.
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
+      number: ${{ steps.version.outputs.number }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare reviewed source and reserve or resume the mobile version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          BUMP: ${{ inputs.bump }}
+          RESUME_TAG: ${{ inputs.tag }}
+          RECOVER_IOS: ${{ inputs.recover_ios }}
+          TESTFLIGHT_ONLY: ${{ inputs.testflight_only }}
+        run: python3 scripts/mobile-release/prepare_mobile.py
+
+  android:
+    needs: prepare
+    if: needs.prepare.outputs.tag != '' && !inputs.recover_ios
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    permissions:
+      contents: write
+    env:
+      MOBILE_VERSION: ${{ needs.prepare.outputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ needs.prepare.outputs.number }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+          cache: true
+      - name: Prepare Android OEM push configuration
+        env:
+          ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
+          HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
+        run: python3 scripts/mobile-release/prepare_push.py
+      - name: Bootstrap and test
+        working-directory: apps/mobile
+        run: |
+          dart pub get
+          dart run melos run analyze
+          dart run melos run test
+      - name: Install private Android signing inputs
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          values = {key: os.environ[key] for key in ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_PASSWORD', 'ANDROID_KEY_ALIAS']}
+          if not all(values.values()): raise SystemExit('Missing Android release secrets')
+          key = Path(os.environ['RUNNER_TEMP']) / 'yourtj-release.jks'
+          key.write_bytes(base64.b64decode(values['ANDROID_KEYSTORE_BASE64'], validate=True))
+          def prop(value):
+              return value.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace('=', '\\=').replace(':', '\\:').replace(' ', '\\ ')
+          fields = {'storeFile': str(key), 'storePassword': values['ANDROID_KEYSTORE_PASSWORD'], 'keyPassword': values['ANDROID_KEY_PASSWORD'], 'keyAlias': values['ANDROID_KEY_ALIAS']}
+          Path('apps/mobile/packages/forum_app/android/key.properties').write_text(''.join(k + '=' + prop(v) + '\n' for k, v in fields.items()))
+          PY
+      - name: Build signed APKs
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          flutter build apk --release --split-per-abi \
+            --build-name="$MOBILE_VERSION" --build-number="$MOBILE_BUILD_NUMBER" \
+            --dart-define=YOURTJ_API_BASE_URL=https://f.yourtj.de \
+            --dart-define=YOURTJ_OIDC_ISSUER=https://f.yourtj.de/api/oauth \
+            --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+      - name: Preserve signed APKs for recovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.number }}
+          path: apps/mobile/packages/forum_app/build/app/outputs/flutter-apk/*-release.apk
+          retention-days: 30
+          if-no-files-found: error
+      - name: Verify and publish APK assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/mobile-release/publish_android.py
+      - name: Remove private signing inputs
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/yourtj-release.jks" apps/mobile/packages/forum_app/android/key.properties \
+            apps/mobile/packages/forum_app/android/push.properties apps/mobile/packages/forum_app/android/app/agconnect-services.json
+
+  ios:
+    needs: prepare
+    if: needs.prepare.outputs.tag != ''
+    runs-on: macos-26
+    environment: mobile-release
+    timeout-minutes: 90
+    env:
+      MOBILE_VERSION: ${{ needs.prepare.outputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ needs.prepare.outputs.number }}
+      IOS_TEAM_ID: "4HJTS3G3T2"
+      ASC_TELEMETRY_DISABLED: "1"
+      ASC_TIMEOUT: 90s
+      IOS_PUBLISH_TARGET: ${{ inputs.testflight_only && 'testflight' || 'both' }}
+      IOS_EXISTING_BUILD_ONLY: ${{ inputs.recover_ios }}
+      IOS_STORE_PATH: ${{ github.workspace }}/apps/mobile/store
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      # Recover old immutable builds using reviewed publisher fixes from this main run.
+      # Store metadata remains from the original release source above.
+      - name: Checkout release tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .release-tools
+          sparse-checkout: |
+            scripts/mobile-release
+            .github/workflows
+      - uses: subosito/flutter-action@v2
+        if: ${{ !inputs.recover_ios }}
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+          cache: true
+      - name: Bootstrap
+        if: ${{ !inputs.recover_ios }}
+        working-directory: apps/mobile
+        run: dart pub get
+      - name: Install verified ASC CLI
+        run: |
+          python3 .release-tools/scripts/mobile-release/install_asc.py "$RUNNER_TEMP/asc"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Install private iOS signing inputs
+        if: ${{ !inputs.recover_ios }}
+        env:
+          IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          root = Path(os.environ['RUNNER_TEMP']) / 'yourtj-ios-secrets'
+          root.mkdir()
+          for key, name in {'IOS_DISTRIBUTION_P12_BASE64': 'distribution.p12', 'IOS_PROFILE_BASE64': 'profile.mobileprovision', 'ASC_PRIVATE_KEY_BASE64': 'AuthKey.p8'}.items():
+              if not os.environ[key]: raise SystemExit('Missing secret ' + key)
+              (root / name).write_bytes(base64.b64decode(os.environ[key], validate=True))
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'IOS_P12_PATH={root / "distribution.p12"}\nIOS_PROFILE_PATH={root / "profile.mobileprovision"}\nASC_PRIVATE_KEY_PATH={root / "AuthKey.p8"}\n')
+          PY
+      - name: Install only ASC authentication for recovery
+        if: inputs.recover_ios
+        env:
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          root = Path(os.environ['RUNNER_TEMP']) / 'yourtj-ios-secrets'
+          root.mkdir()
+          key = root / 'AuthKey.p8'
+          key.write_bytes(base64.b64decode(os.environ['ASC_PRIVATE_KEY_BASE64'], validate=True))
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'ASC_PRIVATE_KEY_PATH={key}\n')
+          PY
+      - name: Validate release tools
+        run: python3 -m unittest discover -s .release-tools/scripts/mobile-release -p 'test_*.py'
+      - name: Build App Store IPA
+        if: ${{ !inputs.recover_ios }}
+        env:
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+        run: |
+          python3 scripts/mobile-release/build_ios.py
+      - name: Authenticate App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: asc auth login --bypass-keychain --local --name release --key-id "$ASC_KEY_ID" --issuer-id "$ASC_ISSUER_ID" --private-key "$ASC_PRIVATE_KEY_PATH" --network
+      - name: Upload and submit TestFlight and App Store
+        env:
+          IOS_REVIEW_JSON: ${{ secrets.IOS_REVIEW_JSON }}
+          IOS_IPA_PATH: apps/mobile/build/release/ios/forum_app.ipa
+        run: python3 .release-tools/scripts/mobile-release/publish_ios.py
+      - name: Preserve signed IPA and symbols for recovery
+        if: always() && !inputs.recover_ios
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.number }}
+          path: |
+            apps/mobile/build/release/ios/*.ipa
+            apps/mobile/build/release/YourTJ.xcarchive/dSYMs/
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Remove private signing inputs
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/yourtj-ios-secrets"
+          rm -f .asc/config.json apps/mobile/packages/forum_app/ios/Flutter/ReleaseSigning.xcconfig

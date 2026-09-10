@@ -3,7 +3,7 @@ package filedata
 import (
 	"context"
 
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 // localProvider stores file bytes in the SQLite BLOB column, which is the
@@ -38,6 +38,21 @@ func (localProvider) Get(_ context.Context, name string) ([]byte, string, error)
 		return nil, "", storageservice.ErrNotFound
 	}
 	return entity.Data, entity.Type, nil
+}
+
+func (localProvider) GetRange(_ context.Context, name string, offset, length int64) ([]byte, string, error) {
+	entity := GetByName(name)
+	if entity.Id == 0 {
+		return nil, "", storageservice.ErrNotFound
+	}
+	if offset >= int64(len(entity.Data)) {
+		return []byte{}, entity.Type, nil
+	}
+	end := offset + length
+	if end > int64(len(entity.Data)) {
+		end = int64(len(entity.Data))
+	}
+	return entity.Data[offset:end], entity.Type, nil
 }
 
 func (localProvider) Delete(_ context.Context, name string) error {

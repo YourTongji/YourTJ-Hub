@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-09-06
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and
@@ -53,6 +53,8 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [Vision & principles](product/vision-and-principles.md)
 - [Current state & gaps](product/current-state.md)
+- [Mobile experience](product/mobile-experience.md)
+- [Wiki authoring](product/wiki-authoring.md)
 - [Identity, login & account lifecycle](product/identity-and-access.md)
 - [Points & cross-platform settlement](product/credit-and-escrow.md)
 
@@ -68,12 +70,26 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Testing strategy & commands](development/testing.md)
 - [Branches, commits & pull requests](development/pull-requests.md)
 - [Documentation governance](development/documentation.md)
+- [Newcomer orientation (repo-seed)](development.md)
+- [Go dependency vulnerability scanning](development/dependency-scanning.md)
 
 ### Operations
 
 - [Deployment & release](operations/deployment.md)
+- [Mobile releases and signing](operations/mobile-releases.md)
+- [Object storage](operations/object-storage.md)
+- [Oryn repository maintenance](operations/oryn.md)
+
+### Governance
+
+- [Governance layer & upgrade channel](../.repo-seed/update-strategy.md) — repo-seed manifest,
+  gates (`node scripts/run-gates.mjs`), and capability state
+- [Specs (external pointer)](specs/README.md)
+- [Postmortems](postmortems/README.md)
 
 ### Decision records
 
-- Architecture decision records (ADR) live in the project note (yourtj-hub ADR note), **not in git**;
-  new decisions append a number, append-only, history never rewritten.
+- MADR decision log lives in [decisions/](decisions/) — in git, append-only numbering,
+  supersede instead of rewrite, enforced by `node scripts/verify-decisions.mjs`
+  (gate in `node scripts/run-gates.mjs`). The legacy host-note ADR archive is frozen:
+  read-only history, no new records.

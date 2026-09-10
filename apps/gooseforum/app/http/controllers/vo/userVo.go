@@ -3,8 +3,8 @@ package vo
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 )
 
 // UserInfoShow is the authenticated user summary exposed to pages and APIs.

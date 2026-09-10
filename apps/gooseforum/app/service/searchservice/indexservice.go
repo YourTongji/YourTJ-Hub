@@ -1,18 +1,70 @@
 package searchservice
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
+
+const searchTaskWaitTimeout = 30 * time.Second
+
+// enqueueSearchTask writes an idempotent search projection task inside the
+// caller's business transaction. The task row is the local outbox boundary;
+// Meilisearch is only contacted after the transaction commits by a worker.
+func enqueueSearchTask(tx *gorm.DB, typePrefix, operation string, payload any) error {
+	taskJSON, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	var count int64
+	if err := tx.Table((&taskQueue.Entity{}).TableName()).
+		Where("type LIKE ?", typePrefix+"%").
+		Where("status IN ?", []int{taskQueue.StatusPending, taskQueue.StatusRetrying}).
+		Where("task_json = ?", string(taskJSON)).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	return taskQueue.CreateTx(tx, &taskQueue.Entity{
+		Type:     typePrefix + operation,
+		Status:   taskQueue.StatusPending,
+		TaskJson: string(taskJSON),
+	})
+}
+
+// TopicSearchTask identifies the current topic projection to rebuild. The
+// worker reads the latest database row so repeated writes coalesce naturally.
+type TopicSearchTask struct {
+	TopicId uint64 `json:"topicId"`
+}
+
+// TaskTypeTopicSearch is the topic-search outbox task type prefix.
+const TaskTypeTopicSearch = "topic-search."
+
+// EnqueueTopicSearchTask adds a topic projection task to the caller's
+// transaction. A missing topic is also valid: the worker then removes its
+// stale search document by id.
+func EnqueueTopicSearchTask(tx *gorm.DB, topicID uint64) error {
+	if topicID == 0 {
+		return errors.New("topic search task requires topic id")
+	}
+	return enqueueSearchTask(tx, TaskTypeTopicSearch, "sync", TopicSearchTask{TopicId: topicID})
+}
 
 // IndexBuildResult summarizes a Meilisearch rebuild.
 type IndexBuildResult struct {
@@ -20,6 +72,7 @@ type IndexBuildResult struct {
 	FailedCount    int    `json:"failedCount"`
 	TotalBatches   int    `json:"totalBatches"`
 	IndexName      string `json:"indexName"`
+	GhostRemoved   int    `json:"ghostRemoved"`
 }
 
 // convertTopicToSearchDocument maps a topic and its first post to a search document.
@@ -35,12 +88,36 @@ func convertTopicToSearchDocument(topic *topics.Entity, firstPost *posts.Entity)
 		Category:      topic.CategoryIds,
 		TopicStatus:   topic.Status,
 		ProcessStatus: topic.ProcessStatus,
+		TopicType:     topic.TopicType,
 		CreatedAt:     topic.CreatedAt.Unix(),
 		UpdatedAt:     topic.UpdatedAt.Unix(),
 	}
 }
 
+// isTopicPubliclySearchable 判断话题当前是否应出现在公共搜索：
+// 已发布、未封禁/待审、未软删、可见性正常。
+// 供索引构建（isIndexable）与聚合搜索防御过滤（issue #132）复用，
+// 保证"索引事件未落地"的窗口期也不泄露非公开话题。
+func isTopicPubliclySearchable(topic *topics.Entity) bool {
+	if topic == nil {
+		return false
+	}
+	return topic.Status == 1 &&
+		topic.ProcessStatus == topics.ProcessStatusNormal &&
+		!topic.DeletedAt.Valid &&
+		topic.VisibilityStatus == topics.VisibilityActive
+}
+
 func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entity) (*meilisearch.TaskInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), searchTaskWaitTimeout)
+	defer cancel()
+	return BuildSingleTopicSearchDocumentContext(ctx, topic, firstPost)
+}
+
+// BuildSingleTopicSearchDocumentContext is the cancellable form used by
+// background projection workers. The legacy wrapper above preserves callers
+// that do not yet own a context.
+func BuildSingleTopicSearchDocumentContext(ctx context.Context, topic *topics.Entity, firstPost *posts.Entity) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
 	}
@@ -53,9 +130,20 @@ func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entit
 	var task *meilisearch.TaskInfo
 	var err error
 	pk := "id"
-	if topic.Status == 1 && topic.ProcessStatus == 0 {
+	// 仅"已发布、未封禁、未软删、可见性正常"的主题进入索引；其余一律删除文档。
+	// 用户删除（visibility_status=USER_DELETED）与封禁（process_status=1）都走删除分支。
+	isIndexable := topic.Status == 1 &&
+		topic.ProcessStatus == 0 &&
+		!topic.DeletedAt.Valid &&
+		topic.VisibilityStatus == topics.VisibilityActive &&
+		firstPost != nil &&
+		firstPost.Id > 0 &&
+		!firstPost.DeletedAt.Valid &&
+		firstPost.ProcessStatus == posts.ProcessStatusNormal &&
+		firstPost.VisibilityStatus == posts.VisibilityActive
+	if isIndexable {
 		doc := convertTopicToSearchDocument(topic, firstPost)
-		task, err = index.AddDocuments(doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+		task, err = index.AddDocumentsWithContext(ctx, doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 处理主题 ID:%v 失败: %v\n", doc.ID, err))
 			return nil, fmt.Errorf("add search document: %w", err)
@@ -63,7 +151,7 @@ func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entit
 		slog.Info(fmt.Sprintf("处理主题 ID:%v, TaskUID: %v\n", doc.ID, getTaskUID(task)))
 	} else {
 		// DeleteDocument 删除单个文档；index.Delete(uid) 会误删整个索引
-		task, err = index.DeleteDocument(cast.ToString(topic.Id), nil)
+		task, err = index.DeleteDocumentWithContext(ctx, cast.ToString(topic.Id), nil)
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 删除文档失败: %v, Error: %v\n", topic.Id, err))
 			return nil, fmt.Errorf("delete search document: %w", err)
@@ -71,6 +159,65 @@ func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entit
 		slog.Info(fmt.Sprintf("删除主题 ID:%v, TaskUID: %v\n", topic.Id, getTaskUID(task)))
 	}
 	return task, nil
+}
+
+// RunTopicSearchTask projects the latest topic state after the business
+// transaction has committed. Missing topics are explicit delete operations.
+func RunTopicSearchTask(ctx context.Context, task *taskQueue.Entity) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if task == nil {
+		return errors.New("topic search task is nil")
+	}
+	var payload TopicSearchTask
+	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
+		return err
+	}
+	if payload.TopicId == 0 {
+		return errors.New("topic search task requires topic id")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !meiliconnect.IsAvailable() {
+		return errors.New("meilisearch 服务不可用")
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, searchTaskWaitTimeout)
+	defer cancel()
+	client := meiliconnect.GetClient()
+	topic, err := topics.GetWithContext(operationCtx, payload.TopicId)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		deleteTask, deleteErr := client.Index(TopicIndex).DeleteDocumentWithContext(operationCtx, cast.ToString(payload.TopicId), nil)
+		if deleteErr != nil {
+			return fmt.Errorf("delete missing topic search document: %w", deleteErr)
+		}
+		return waitForTaskCheckedContext(operationCtx, client, deleteTask.TaskUID, searchTaskWaitTimeout)
+	}
+	firstPost, firstPostErr := posts.GetWithContext(operationCtx, topic.FirstPostId)
+	if firstPostErr != nil && !errors.Is(firstPostErr, gorm.ErrRecordNotFound) {
+		return firstPostErr
+	}
+	if firstPost.Id == 0 {
+		firstPost, _ = posts.GetByTopicPostNoAtOrAfterContext(operationCtx, topic.Id, 1)
+	}
+	searchTask, err := BuildSingleTopicSearchDocumentContext(operationCtx, &topic, &firstPost)
+	if err != nil {
+		return err
+	}
+	if searchTask == nil {
+		return errors.New("meilisearch returned no topic task")
+	}
+	return waitForTaskCheckedContext(operationCtx, client, searchTask.TaskUID, searchTaskWaitTimeout)
+}
+
+// RecoverTopicSearchTasks restores expired topic projection leases after a
+// process restart.
+func RecoverTopicSearchTasks() error {
+	return taskQueue.RecoverStaleRunning(TaskTypeTopicSearch, taskQueue.LeaseDuration)
 }
 
 // BuildMeilisearchIndex rebuilds the Meilisearch topic index.
@@ -95,6 +242,7 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 	processedCount := 0
 	failedCount := 0
 	totalBatches := 0
+	expectedIDs := make(map[string]struct{})
 
 	for {
 		topicList := topics.QueryById(topicStartID, limit)
@@ -105,6 +253,11 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 			firstPost := posts.Get(topic.FirstPostId)
 			if firstPost.Id == 0 {
 				firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+			}
+			// 先登记应存在于索引的文档 ID：即使本次写入失败，幽灵清理也不得
+			// 删除数据库仍要求保留的文档（写入失败由 failedCount 暴露）。
+			if topic.Status == 1 && topic.ProcessStatus == 0 {
+				expectedIDs[cast.ToString(topic.Id)] = struct{}{}
 			}
 			task, err := BuildSingleTopicSearchDocument(topic, &firstPost)
 			if err != nil {
@@ -123,20 +276,104 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 		}
 	}
 
+	// 幽灵清理删除候选在入队前按数据库最新状态复核，跳过 snapshot 之后
+	// 新创建或恢复为可索引的文档（PR #151 review P1 竞态：线上事件处理器的
+	// upsert 可能晚于 snapshot 到达，不能把它判定为幽灵删除）。
+	revalidateTopicGhost := func(id string) (bool, error) {
+		topicID := cast.ToUint64(id)
+		if topicID == 0 {
+			return false, nil
+		}
+		topic, err := topics.GetWithError(topicID)
+		if err != nil {
+			// 记录不存在 → 确实是幽灵；其他错误（如 DB 瞬时故障）→ 保守保留，
+			// 宁可不删也不误删有效文档。
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return true, err
+		}
+		return topic.Status == 1 && topic.ProcessStatus == 0, nil
+	}
+	deletedIDs, err := cleanupGhostDocuments(index, expectedIDs, revalidateTopicGhost)
+	if err != nil {
+		return nil, fmt.Errorf("清理主题索引幽灵文档失败: %w", err)
+	}
+	ghostRemoved := len(deletedIDs)
+
+	// replay：删除任务入队后、执行前，事件处理器仍可能为新文档入队 upsert；
+	// Meilisearch 同索引任务按入队顺序执行，因此把删除入队期间重新变为可索引
+	// 的文档重新入队 upsert（排在 delete 之后），确保有效文档最终不丢失。
+	replayedCount := 0
+	for _, id := range deletedIDs {
+		topicID := cast.ToUint64(id)
+		if topicID == 0 {
+			continue
+		}
+		topic := topics.Get(topicID)
+		if topic.Id == 0 || !(topic.Status == 1 && topic.ProcessStatus == 0) {
+			continue
+		}
+		firstPost := posts.Get(topic.FirstPostId)
+		if firstPost.Id == 0 {
+			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+		}
+		if _, err := BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+			failedCount++
+			slog.Warn("failed to restore topic search document after ghost cleanup", "topicId", topic.Id, "err", err)
+			continue
+		}
+		replayedCount++
+	}
+
 	result := &IndexBuildResult{
 		ProcessedCount: processedCount,
 		FailedCount:    failedCount,
 		TotalBatches:   totalBatches,
 		IndexName:      indexName,
+		GhostRemoved:   ghostRemoved,
 	}
 
 	fmt.Printf("\n=== Meilisearch 索引构建完成 ===\n")
 	fmt.Printf("处理批次: %d\n", result.TotalBatches)
 	fmt.Printf("成功索引: %d 个主题\n", result.ProcessedCount)
 	fmt.Printf("失败数量: %d 个主题\n", result.FailedCount)
+	fmt.Printf("提交幽灵文档删除任务: %d 个\n", result.GhostRemoved)
+	fmt.Printf("清理期间恢复索引文档: %d 个\n", replayedCount)
 	fmt.Printf("索引名称: %s\n", result.IndexName)
 
 	return result, nil
+}
+
+// EnsureTopicIndexConfigured 服务启动时幂等保证话题索引的 filterable 属性配置
+// （review N2：topicType 过滤上线后，configureIndex 只在手动 rebuild-search-index
+// 与一次性迁移中调用；已迁移的存量部署不会再走迁移路径，若索引缺 topicType
+// filterable，带 topicType=0 过滤的论坛搜索会 400 进入 failedScopes 降级）。
+// 带有限重试（3 次 × 5s 退避）：部署重启时 Meilisearch 可能尚未就绪，首次
+// 配置失败不能直接放弃，否则 filterable 属性要等手动 rebuild 才补齐；
+// 最终失败仅警告，不阻断启动。
+func EnsureTopicIndexConfigured() {
+	client := meiliconnect.GetClient()
+	if client == nil {
+		return
+	}
+	index := client.Index(TopicIndex)
+	const (
+		maxAttempts  = 3
+		retryBackoff = 5 * time.Second
+	)
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err = configureIndex(index); err == nil {
+			slog.Info("search: topic index filterable attributes ensured")
+			return
+		}
+		slog.Warn("search: ensure topic index filterable attributes failed",
+			"attempt", attempt, "maxAttempts", maxAttempts, "error", err)
+		if attempt < maxAttempts {
+			time.Sleep(retryBackoff)
+		}
+	}
 }
 
 // configureIndex applies searchable, filterable, sortable and displayed fields.
@@ -152,6 +389,7 @@ func configureIndex(index meilisearch.IndexManager) error {
 
 	filterableAttributes := []any{
 		"category",
+		"topicType",
 	}
 	_, err = index.UpdateFilterableAttributes(&filterableAttributes)
 	if err != nil {

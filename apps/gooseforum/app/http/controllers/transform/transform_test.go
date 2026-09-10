@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 func TestUser2userShow(t *testing.T) {

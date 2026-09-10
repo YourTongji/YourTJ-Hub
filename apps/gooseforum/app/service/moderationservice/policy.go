@@ -1,18 +1,16 @@
 package moderationservice
 
 import (
-	"errors"
 	"strings"
 
-	"gorm.io/gorm"
-
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/wordmatch"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 // CheckUsernameAllowed 检查用户名是否命中保留或禁用名单，未命中时返回空错误码与 nil。
@@ -21,66 +19,144 @@ func CheckUsernameAllowed(username string) (component.MessageCode, error) {
 }
 
 // CheckUsernameAllowedWithConfig 使用给定配置检查用户名，便于测试。
+// 匹配为整串归一化后全等（wordmatch.NameOptions：大小写/NFKC/零宽折叠 +
+// ASCII leetspeak 折叠），不子串匹配，避免误伤 myadmin 之类合法名。
 func CheckUsernameAllowedWithConfig(username string, cfg pageConfig.SecurityAndRegistration) (component.MessageCode, error) {
-	lowerUsername := strings.ToLower(username)
-	for _, reserved := range cfg.ReservedUsernames {
-		if strings.ToLower(reserved) == lowerUsername {
-			return component.MessageAuthUsernameReserved, component.NewMessageError(component.MessageAuthUsernameReserved, "该用户名已被保留，不可使用", nil)
-		}
+	reserved := wordmatch.Compile(cfg.ReservedUsernames, wordmatch.NameOptions)
+	if _, ok := reserved.Equal(username); ok {
+		return component.MessageAuthUsernameReserved, component.NewMessageError(component.MessageAuthUsernameReserved, "该用户名已被保留，不可使用", nil)
 	}
-	for _, banned := range cfg.BannedUsernames {
-		if strings.ToLower(banned) == lowerUsername {
-			return component.MessageAuthUsernameBanned, component.NewMessageError(component.MessageAuthUsernameBanned, "该用户名已被禁用，不可使用", nil)
-		}
+	banned := wordmatch.Compile(cfg.BannedUsernames, wordmatch.NameOptions)
+	if _, ok := banned.Equal(username); ok {
+		return component.MessageAuthUsernameBanned, component.NewMessageError(component.MessageAuthUsernameBanned, "该用户名已被禁用，不可使用", nil)
 	}
 	return "", nil
 }
 
-// CheckContentAllowed 检查内容是否命中敏感词，返回是否命中及命中的敏感词。
+// CheckNicknameAllowed 检查昵称是否命中保留或禁用名单（与用户名同一份名单、
+// 同一归一化全等规则，防止 "官方/客服/管理员" 之类冒充性昵称），未命中返回空错误码与 nil。
+func CheckNicknameAllowed(nickname string) (component.MessageCode, error) {
+	return CheckNicknameAllowedWithConfig(nickname, hotdataserve.GetSecuritySettingsConfigCache())
+}
+
+// CheckNicknameAllowedWithConfig 使用给定配置检查昵称，便于测试。
+func CheckNicknameAllowedWithConfig(nickname string, cfg pageConfig.SecurityAndRegistration) (component.MessageCode, error) {
+	reserved := wordmatch.Compile(cfg.ReservedUsernames, wordmatch.NameOptions)
+	if _, ok := reserved.Equal(nickname); ok {
+		return component.MessageAuthNicknameReserved, component.NewMessageError(component.MessageAuthNicknameReserved, "该昵称已被保留，不可使用", nil)
+	}
+	banned := wordmatch.Compile(cfg.BannedUsernames, wordmatch.NameOptions)
+	if _, ok := banned.Equal(nickname); ok {
+		return component.MessageAuthNicknameBanned, component.NewMessageError(component.MessageAuthNicknameBanned, "该昵称已被禁用，不可使用", nil)
+	}
+	return "", nil
+}
+
+// CheckContentAllowed 检查内容是否命中敏感词，返回是否命中及首个命中的敏感词。
+// 保留单词入口给审核日志和旧调用方；需要完整命中列表时使用 FindSensitiveWords。
 func CheckContentAllowed(content string) (hit bool, word string) {
 	return CheckContentAllowedWithConfig(content, hotdataserve.GetSecuritySettingsConfigCache())
 }
 
 // CheckContentAllowedWithConfig 使用给定配置检查内容，便于测试。
+// 词表经 wordmatch.ContentOptions（大小写/NFKC/零宽折叠，不含 leetspeak）
+// 归一化后单遍 AC 扫描；命中返回配置顺序中的首个原词。
 func CheckContentAllowedWithConfig(content string, cfg pageConfig.SecurityAndRegistration) (hit bool, word string) {
-	lowerContent := strings.ToLower(content)
-	for _, sensitive := range cfg.SensitiveWords {
-		if sensitive != "" && strings.Contains(lowerContent, strings.ToLower(sensitive)) {
-			return true, sensitive
-		}
-	}
-	return false, ""
+	matcher := wordmatch.Compile(cfg.SensitiveWords, wordmatch.ContentOptions)
+	word, hit = matcher.Find(content)
+	return hit, word
 }
 
-// FreezeUsersByBannedUsername 冻结与禁用用户名匹配（大小写不敏感）的存量账号，并写入审核日志。
-func FreezeUsersByBannedUsername(username string, actorUserId uint64) error {
-	user, err := findUserByUsernameCaseInsensitive(username)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-	if user.IsFrozen == users.StatusFrozen {
+// FindSensitiveWords 返回内容中所有命中的敏感词，顺序与安全设置中的词表一致。
+// 结果已去重，匹配只扫描一次，供需要准确提示用户修改位置的调用方使用。
+func FindSensitiveWords(content string) []string {
+	return FindSensitiveWordsWithConfig(content, hotdataserve.GetSecuritySettingsConfigCache())
+}
+
+// FindSensitiveWordsWithConfig 使用给定配置返回内容中所有命中的敏感词，便于测试。
+// matcher.FindAll 已处理大小写/NFKC/零宽归一化、重叠词和配置顺序。
+func FindSensitiveWordsWithConfig(content string, cfg pageConfig.SecurityAndRegistration) []string {
+	return FindSensitiveWordsInTextsWithConfig([]string{content}, cfg)
+}
+
+// FindSensitiveWordsInTextsWithConfig 在多个文本表示中查找所有命中的敏感词。
+// 调用方可同时传入 Markdown 原文与渲染后的可见文本，防止格式标记插入词中间
+// （例如「赌**博**」）后仅靠原文子串检查被绕过。结果仍按配置词表顺序去重。
+func FindSensitiveWordsInTextsWithConfig(contents []string, cfg pageConfig.SecurityAndRegistration) []string {
+	matcher := wordmatch.Compile(cfg.SensitiveWords, wordmatch.ContentOptions)
+	if matcher.Len() == 0 {
 		return nil
 	}
-	user.IsFrozen = users.StatusFrozen
-	if err := userservice.SaveUser(user); err != nil {
-		return err
+
+	found := make(map[string]struct{}, matcher.Len())
+	for i, content := range contents {
+		duplicate := false
+		for _, previous := range contents[:i] {
+			if content == previous {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+		for _, word := range matcher.FindAll(content) {
+			found[word] = struct{}{}
+		}
 	}
-	logUserFrozen(actorUserId, user.Id, user.Username)
-	return nil
+	if len(found) == 0 {
+		return nil
+	}
+
+	hits := make([]string, 0, len(found))
+	for _, word := range matcher.Words() {
+		if _, ok := found[word.Original]; ok {
+			hits = append(hits, word.Original)
+		}
+	}
+	return hits
 }
 
-func findUserByUsernameCaseInsensitive(username string) (*users.EntityComplete, error) {
-	var entity users.EntityComplete
-	err := dbconnect.Connect().Model(&users.EntityComplete{}).
-		Where("lower(username) = ?", strings.ToLower(username)).
-		First(&entity).Error
-	if err != nil {
-		return nil, err
+// FreezeUsersByBannedUsername 冻结与单个禁用词（归一化整串全等，与策略检查同规则）
+// 匹配的存量账号。保留该单数入口以兼容既有调用/测试，内部复用批量实现。
+func FreezeUsersByBannedUsername(username string, actorUserId uint64) error {
+	if strings.TrimSpace(username) == "" {
+		return nil
 	}
-	return &entity, nil
+	return FreezeUsersByBannedUsernames([]string{username}, actorUserId)
+}
+
+// FreezeUsersByBannedUsernames 冻结与任一禁用词（wordmatch.NameOptions 归一化整串
+// 全等：大小写/NFKC 全半角/零宽/ASCII leetspeak 折叠）匹配的存量账号，并写入审核
+// 日志。与策略层 CheckUsernameAllowed 使用同一归一化语义：管理员新增禁用词 admin
+// 时，存量 Adm1n/ａｄｍｉｎ/a\u200bdmin 等归一化变体账号同样会被冻结，避免出现
+// 「策略判定禁用但存量变体账号仍活跃」的口径分裂。冻结幂等（已冻结跳过，不重复
+// 写日志）；无匹配账号返回 nil。整表扫描仅在管理端保存禁用名单时触发（低频管理
+// 动作），单次调用编译全部新词后只扫描一遍。
+func FreezeUsersByBannedUsernames(bannedUsernames []string, actorUserId uint64) error {
+	matcher := wordmatch.Compile(bannedUsernames, wordmatch.NameOptions)
+	if matcher.Len() == 0 {
+		return nil
+	}
+	var list []users.EntityComplete
+	if err := dbconnect.Connect().Model(&users.EntityComplete{}).Find(&list).Error; err != nil {
+		return err
+	}
+	for i := range list {
+		user := &list[i]
+		if user.IsFrozen == users.StatusFrozen {
+			continue
+		}
+		if _, ok := matcher.Equal(user.Username); !ok {
+			continue
+		}
+		user.IsFrozen = users.StatusFrozen
+		if err := userservice.SaveUser(user); err != nil {
+			return err
+		}
+		logUserFrozen(actorUserId, user.Id, user.Username)
+	}
+	return nil
 }
 
 // logUserFrozen 记录用户被冻结的审核日志。

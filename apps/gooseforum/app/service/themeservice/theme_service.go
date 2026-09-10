@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 const (

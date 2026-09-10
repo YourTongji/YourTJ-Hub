@@ -2,7 +2,7 @@
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
 version: 2
-project_name: GooseForum
+project_name: yourtj-hub
 
 before:
   hooks:
@@ -17,9 +17,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Version={{ .Version }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Commit={{ .Commit }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.BuildDate={{ .Date }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Version={{ .Version }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Commit={{ .Commit }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.BuildDate={{ .Date }}
     goos:
       - linux
       - darwin
@@ -33,9 +33,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Version={{ .Version }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Commit={{ .Commit }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.BuildDate={{ .Date }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Version={{ .Version }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Commit={{ .Commit }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.BuildDate={{ .Date }}
     goos:
       - windows
     goarch:
@@ -76,8 +76,6 @@ changelog:
       - "^docs:"
       - "^test:"
 
-env_files:
-  github_token: ~/.local/github_token
 
 release:
   footer: >-

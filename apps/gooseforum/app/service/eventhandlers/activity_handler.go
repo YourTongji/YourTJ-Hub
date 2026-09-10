@@ -3,7 +3,7 @@ package eventhandlers
 import (
 	"context"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
 )
 
 // handleActivitySignUp 记录注册行为
@@ -32,5 +32,10 @@ func handleActivityFollow(ctx context.Context, event *UserFollowedEvent) error {
 
 // handleActivityReply 记录回复行为
 func handleActivityReply(ctx context.Context, event *CommentCreatedEvent) error {
+	// 匿名楼层（issue #524）不进个人动态时间线：动态是公开身份表面，
+	// 记录即把匿名楼层以真实主页暴露（内容预览 + 锚点可反查归属）。
+	if event.IsAnonymous {
+		return nil
+	}
 	return userActivities.Record(event.UserId, userActivities.ActionComment, userActivities.SubjectPost, event.PostId, TakeUpTo64Chars(event.Content))
 }

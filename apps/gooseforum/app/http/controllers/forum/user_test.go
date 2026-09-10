@@ -3,8 +3,8 @@ package forum
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
 )
 
 func TestResolveUserProfileSection(t *testing.T) {

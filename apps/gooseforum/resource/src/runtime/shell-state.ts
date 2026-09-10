@@ -10,6 +10,7 @@ const shellState = reactive({
   headerTitle: '',
   headerTags: [] as ShellHeaderTag[],
   showHeaderTitle: false,
+  isTopicPage: false,
 })
 
 export function useShellState() {
@@ -20,4 +21,5 @@ export function resetShellState() {
   shellState.headerTitle = ''
   shellState.headerTags = []
   shellState.showHeaderTitle = false
+  shellState.isTopicPage = false
 }

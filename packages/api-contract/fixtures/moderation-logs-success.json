@@ -1,0 +1,40 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 701,
+        "action": "topicBlocked",
+        "actor": {
+          "id": 7,
+          "username": "mod_user",
+          "avatarUrl": "/static/pic/default-avatar.webp"
+        },
+        "subject": {
+          "type": "topic",
+          "id": 1201,
+          "title": "期中复习资料汇总",
+          "url": "/p/post/1201",
+          "excerpt": "整理了本学期各科目的复习资料，需要的同学自取。"
+        },
+        "categories": [
+          {
+            "id": 3,
+            "name": "学习交流",
+            "url": "/c/study/3",
+            "color": "#3b82f6"
+          }
+        ],
+        "messageCode": "moderation.log.topic.statusChanged",
+        "params": {
+          "topicId": 1201,
+          "title": "期中复习资料汇总",
+          "status": "blocked"
+        },
+        "createdAt": "2026-08-15T10:05:00Z"
+      }
+    ],
+    "nextCursor": 0,
+    "hasNext": false
+  },
+  "code": 0
+}

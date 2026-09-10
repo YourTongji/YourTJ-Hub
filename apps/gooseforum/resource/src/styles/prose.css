@@ -132,33 +132,72 @@
     content: none;
   }
 
+  /* ---- Markdown 表格（better-* 系列优化）----
+     空间胜过线条：去掉四周粗框与纵向分隔线，只保留
+     「表头底线 + 行分隔线」；统一内边距与左对齐，表头加
+     微妙底色与加粗形成层级；支持 GFM 对齐语法（:---: / ---:）；
+     窄屏横向滚动不挤压。 */
   .gf-prose table {
-    @apply text-sm;
+    @apply my-2.5 w-full text-[13px] leading-relaxed text-base-content/85;
     display: block;
     max-width: 100%;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
     border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
   }
 
-  .gf-prose :where(thead, tbody, tr) {
-    border-color: var(--gf-color-line);
+  .gf-prose thead {
+    background: color-mix(in oklch, var(--gf-color-base-content) 5%, transparent);
   }
 
-  .gf-prose :where(th, td) {
-    border-width: 1px;
-    border-color: var(--gf-color-line);
+  .gf-prose th {
+    @apply px-3 py-2 text-left font-semibold text-base-content;
+    border-bottom: 1.5px solid var(--gf-color-line);
+    white-space: nowrap;
   }
 
-  .gf-prose :where(th) {
-    color: var(--gf-color-base-content);
+  .gf-prose td {
+    @apply px-3 py-2 text-left align-top;
+    border-bottom: 1px solid var(--gf-color-line);
+    word-break: break-word;
+  }
+
+  .gf-prose tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .gf-prose tbody tr:hover td {
+    background: color-mix(in oklch, var(--gf-color-base-content) 4%, transparent);
+  }
+
+  /* GFM 表头对齐语法（居中 / 右对齐） */
+  .gf-prose :where(th, td)[align="center"] {
+    text-align: center;
+  }
+
+  .gf-prose :where(th, td)[align="right"] {
+    text-align: right;
   }
 
   .gf-prose img {
     @apply my-2.5 max-w-full rounded-lg border border-line object-contain;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .gf-prose-post img {
     @apply cursor-zoom-in;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .gf-prose p:has(> img),
+  .gf-prose p:has(> a > img) {
+    text-align: center;
   }
 
   .gf-prose-post ul,
@@ -206,4 +245,64 @@
     @apply my-1.5 max-w-full rounded-lg border border-line object-contain;
     max-height: min(360px, 70vh);
   }
+
+  /* 客户端内容增强（Mermaid 等）渲染出的图表容器：居中、横向可滚动、自适应深浅色 */
+  .gf-prose .gf-content-diagram {
+    @apply my-2.5 flex max-w-full justify-center overflow-x-auto rounded-lg border border-line bg-base-100 p-3;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gf-prose .gf-content-diagram svg {
+    display: block;
+    height: auto;
+    max-width: 100%;
+  }
+
+  /* 渲染失败的图表保留原始代码块，用 warning 描边提示降级 */
+  .gf-prose pre[data-gf-enhancement='mermaid-error'] {
+    border-color: color-mix(in oklch, var(--gf-color-warning) 45%, transparent);
+  }
+}
+
+/*
+ * KaTeX display-math containment must live OUTSIDE @layer components.
+ *
+ * katex.min.css is imported from math-rendering.ts and bundled unlayered into
+ * the lazy math-rendering chunk. CSS cascade layers give unlayered author
+ * styles priority over layered ones regardless of specificity or source order,
+ * so any override kept inside @layer components (e.g. the mobile text-align:
+ * start and the display: inline-block below) would be silently defeated by
+ * KaTeX's own .katex-display / .katex rules. Keeping them unlayered lets the
+ * higher-specificity .gf-prose .katex-display selectors win as intended.
+ */
+.gf-prose .katex-display {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gf-prose .katex-display > .katex {
+  display: inline-block;
+  max-width: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .gf-prose .katex-display {
+    padding-bottom: 0.4rem;
+    scrollbar-width: thin;
+    text-align: start;
+  }
+}
+
+html[data-gf-font-body] .gf-prose {
+  font-size: var(--gf-font-size-body, 1rem);
+  font-family: var(--gf-font-family-body, inherit);
 }

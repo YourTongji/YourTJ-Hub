@@ -1,0 +1,6 @@
+# Pixel golden baselines are tagged `golden` and excluded from the default CI
+# gate (melos run test passes --exclude-tags=golden). Run or regenerate them
+# explicitly, e.g.:
+#   flutter test --update-goldens test/golden/components_golden_test.dart
+tags:
+  golden:

@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 )
 
 // GetDefaultAvatar returns the default avatar URL, using the CDN URL when configured.
@@ -113,6 +113,11 @@ func Rss() string {
 // PostDetail returns the topic detail path for id.
 func PostDetail(id any) string {
 	return fmt.Sprintf("%s/%v", PathPost, id)
+}
+
+// PostMarkdown returns the public Markdown projection path for a topic.
+func PostMarkdown(id any) string {
+	return fmt.Sprintf("/p/posts/%v.md", id)
 }
 
 // Category returns the public category path for slug and id.

@@ -1,0 +1,29 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 9001,
+        "senderId": 1024,
+        "content": "你好，请问资料还能发我一份吗？",
+        "msgType": 1,
+        "isRead": 1,
+        "createdAt": "2026-08-15T09:00:00Z",
+        "isSelf": false
+      },
+      {
+        "id": 9002,
+        "senderId": 2048,
+        "content": "可以，稍后传你",
+        "msgType": 1,
+        "isRead": 0,
+        "createdAt": "2026-08-15T09:01:12Z",
+        "isSelf": true
+      }
+    ],
+    "hasMoreBefore": false,
+    "hasMoreAfter": false,
+    "nextBeforeId": 9001,
+    "latestId": 9002
+  },
+  "code": 0
+}

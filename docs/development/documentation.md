@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-09-06
 
 ## Docs are code's neighbors
 
@@ -47,6 +47,9 @@ When sources disagree, treat it as a defect and fix it in the same PR, or record
 
 1. Confirm facts before writing (read source/tests/contracts; never from memory).
 2. Update affected product/architecture/development/operations docs and status words.
-3. Big decisions go into the project note's ADR record (yourtj-hub ADR note), append-only numbering,
-   history never rewritten.
+3. Durable choices with real alternatives get a MADR record in
+   [docs/decisions/](../decisions/) (append-only numbering, supersede instead of rewrite;
+   `node scripts/verify-decisions.mjs` enforces format).
 4. Delete stale content instead of keeping "deprecated but useful" copies; git history owns archival.
+5. Any new feature PR must include documentation changes: user-visible features update the docs center
+   and status words; purely internal changes at least update the relevant README or code comments.

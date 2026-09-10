@@ -13,43 +13,67 @@ implementation, testing, review, CI, or PR work.
 
 yourtj-hub is the monorepo for the Tongji university campus forum platform (brand: yourtj, distinct from
 the archived YourTJ-Platform). The forum is the core product — a **direct modification of the upstream
-GooseForum, keeping the single-binary deployment**. Unified auth (Casdoor), search (Meilisearch), and
+GooseForum, keeping the single-binary deployment**. Unified auth (built-in OIDC Provider), search (Meilisearch), and
 points (credit, phase 2) are shared infrastructure subdomains. Database, search, and structure may all
 be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" deployment shape is kept.
 
-- Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; keeps the
-  `github.com/leancodebox/GooseForum` module name so upstream can be merged in).
+- Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; module path
+  `github.com/YourTongji/YourTJ-Hub/apps/gooseforum`, diverged from upstream's `github.com/leancodebox/GooseForum`).
 - Backend layers (upstream structure): `app/bundles` (utilities) → `app/models` (GORM models) →
   `app/service` (business) → `app/http/controllers/{api,forum}` (JSON API + GoHTML three-mode rendering).
 - Frontend: `apps/gooseforum/resource` (Vue 3 + Vite, site/admin dual entry), built output
   `resource/static/dist` go:embed; GoHTML templates in `resource/templates` keep server-side rendering (three-mode).
-- Database: SQLite default, MySQL optional (`config.toml [db]`); **PostgreSQL supported for the main
-  database since issue #11** (file db stays SQLite).
+- Database: **PostgreSQL is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite stays the local development/test default
+  (`apps/gooseforum/config.toml`, in-memory tests); the file db (`[db.file]`) is fixed SQLite.
+  MySQL is **not supported**.
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
-- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, planned).
-- Auth: GitHub OAuth (goth) + **Casdoor OIDC integrated** (PKCE, numeric `sub` enforced server-side);
-  TOTP 2FA and session management (`jti` + `user_sessions`) in place (issue #8).
+- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
+- Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
+  RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
+  (`jti` + `user_sessions`) in place.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
-  login and topic writing, with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP
-  tests; broader route coverage still needs manual or annotation-based work.
+  password login, login public-key retrieval, TOTP login verification and account management, logout,
+  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, forum core
+  interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
+  post like/bookmark, follow-user, report), user account and identity (captcha, user-card,
+  profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
+  bindings/unbind), notifications/unread/chat, forum moderation workbench, the admin console
+  (`/api/admin/*`: user/role/category/moderator management, topic/post moderation, agent
+  administration, operation records, traffic overview, page settings, site settings, data
+  import/export), account
+  registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
+  the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
+  (public tree/namespaces/home + admin read-only tree + sync/status|sync|sync/runs +
+  sync/webhook-secret + asset CDN + webhook; the legacy in-forum write/revision/rollback/diff/editor
+  and namespace-CRUD endpoints were retired with the GitHub-SSoT model),
+  and the PK scheduler (14 ops:
+  courses-by-major/optional-types/courses-by-nature/course-details/course-search/courses-by-time/
+  latest-update/course-info-sync/course-review-brief),
+  the user content lifecycle (my-content/deleted-content lists, content-restore/batch-delete/
+  purge/event, account-close), aggregate search (`/api/forum/search`) and public
+  site statistics,
+  with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
+  paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
+  `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a
+  contract operation; new routes must be added to the contract or the exclusion list.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules
 
 ```
 apps/
-  gooseforum/  The forum itself (upstream fork; module name github.com/leancodebox/GooseForum preserved)
+  gooseforum/  The forum itself (upstream fork; module path github.com/YourTongji/YourTJ-Hub/apps/gooseforum)
     main.go            Entry point (cobra: serve / mock / rebuild-search-index subcommands)
     config.toml       Runtime config (gitignored; bring your own locally)
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package
-    docs/             Upstream-owned docs (reference only)
+    docs/             Fork-owned docs (maintained in this monorepo, not reference-only)
   mobile/      Flutter melos workspace (core/auth/ui_kit/forum_app)
 packages/
-  api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (planned)
+  api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
 services/
-  casdoor/   Unified auth deployment config (numeric-ID init checklist)
   search/    Meilisearch deployment config
   credit/    Points (phase 2 placeholder)
 deploy/      Per-environment compose + env.example
@@ -62,26 +86,53 @@ docs/        Docs center (product/architecture/development/operations)
 - Cross-domain access goes through the owner's public API; no foreign SQL against other domains' tables.
 - Frontend output only via `resource/static/dist` (go:embed); vite :3010 hits the backend in dev,
   single binary in production.
-- `services/` holds deployment configs only, not third-party source (Casdoor/Meilisearch/credit are
+- `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
   off-the-shelf components).
-- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it.
+- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it. After
+  merging, rewrite upstream's `github.com/leancodebox/GooseForum` import prefix to
+  `github.com/YourTongji/YourTJ-Hub/apps/gooseforum` (upstream files keep the old prefix), then run `go mod tidy`.
 
 ## 3. Hard constraints
 
 - Deployment shape is a **single binary** (go:embed webdist/static-dist); no nginx/CDN split.
-- User IDs must be **numeric** (uint64) — credit's `GetID()` only accepts numeric sub; Casdoor must use
-  the Incremental ID rule or explicit numeric ids (enforce at integration).
-- Once auth is integrated, Casdoor is the only identity source; the forum JWT is a session credential,
-  not identity truth.
+- User IDs must be **numeric** (uint64) — credit's `GetID()` only accepts numeric sub; the built-in
+  OIDC Provider always issues `sub` = users.id (uint64 decimal string).
+- The forum `users` table is the identity source; the forum JWT is a session credential, not identity
+  truth, and is never issued to external OIDC clients.
 - For OpenAPI-covered operations, contract changes ship in the same PR: backend behavior/structs →
-  `openapi.yaml` → generated TypeScript output → fixture contract tests. Dart generation remains Planned.
+  `openapi.yaml` → generated TypeScript output → fixture contract tests. Until the pipeline fully
+  covers an operation, contract changes must also update the mobile Dart mirrors in
+  `apps/mobile/packages/core/lib/src/gen/` (same PR) and web TS types
+  (`resource/packages/client/src/contracts/`) in the same commit. Dart generation remains Planned.
+  Route coverage is gated: every route from `RegisterByGin` (snapshot
+  `packages/api-contract/fixtures/routes-snapshot.json`, regenerate with
+  `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`) must be an
+  OpenAPI operation or listed in `packages/api-contract/route-coverage.json`, and the generated
+  `packages/api-contract/coverage-matrix.md` must be committed — `pnpm run check` and CI fail otherwise.
+- Design-token changes ship in the same PR: changing `resource/src/styles/tokens.css` requires
+  updating `apps/mobile/packages/ui_kit/lib/src/theme/tokens.json` in the same commit.
 - Docs use the four implementation status words (`Current`/`Partial`/`Planned`/`Decision needed`),
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones
   (see docs/development/documentation.md).
+- Any new feature PR must include documentation changes: user-visible features update the docs center
+  and status words; purely internal changes at least update the relevant README or code comments
+  (see docs/development/documentation.md).
+- config.toml contains signingKey — never commit it (gitignored).
 - Research files goto research/, and should not be included in git.
 
 ## 4. Verification
+- Run only the checks relevant to the change locally; CI owns the full repository-wide gate matrix.
+  Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint run` (incremental against
+  `origin/dev`, full fallback) + `pnpm typecheck` (see `make hooks`).
+- Bug fixes start red: write the smallest failing test first, run it to confirm the failure, then
+  implement and turn it green. Mechanical changes (rename, formatting, dependency bump, docs-only)
+  are exempt; the regression test stays.
+- TODO markers use three tiers (`FIXME` / `TODO` / `XXX`), see
+  docs/development/coding-conventions.md.
+- Test layout follows the per-language convention (Go `*_test.go` co-located, frontend `resource/test/`,
+  Flutter `test/`, contract fixtures under `packages/api-contract/fixtures/`), see
+  docs/development/testing.md#test-layout.
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration
@@ -89,18 +140,21 @@ docs/        Docs center (product/architecture/development/operations)
   (both `TestSchemaMigratesOnPostgreSQL` and `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL` in
   `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
   command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
-  break PG and are forbidden in models.
-- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output into resource/static/dist)
+  break PG and are forbidden in models (MySQL itself is not supported).
+- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)
 - Report the commands actually run and their results; a local subset is not CI passing.
+- Governance gates: `node scripts/run-gates.mjs` (doc links / placeholders / manifest /
+  decisions MADR / postmortem format; seeded by repo-seed, owned by `.repo-seed/manifest.json`). Fast — run early.
 
 ## 5. Git & PR discipline
 
 - `dev` is the main development line: create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from
   `origin/dev`, open PRs against `dev`; CI builds and auto-deploys `dev` to the test instance.
-- `main` is the production site: merges to `main` go through PR + CI and auto-deploy to the prod
-  instance. Never develop directly on `main` or `dev`.
+- `main` is the production site: changes reach it through PR + CI. `Release / main` merges the
+  release PR, publishes a server tag and dispatches production deployment on that tag (see
+  `docs/operations/deployment.md`). Never develop directly on `main` or `dev`.
 - The dev instance syncs a consistent snapshot of the main database on each deploy (see
   `docs/operations/deployment.md`), so DB migrations are rehearsed on dev before reaching main.
 - Stage only files this task owns; leave unrelated dirty/untracked files alone.
@@ -112,5 +166,9 @@ docs/        Docs center (product/architecture/development/operations)
 
 - [Docs center](docs/README.md) (fact-source table + status words)
 - [Development entry](docs/development/README.md)
-- Architecture decision records live in the project note (yourtj-hub ADR note), not in git
+- Repository skills: `$yourtj-development`, `$yourtj-pre-push-checks`, `$yourtj-simplifications`,
+  `$yourtj-doc-standards`, `$yourtj-code-review` (see `.agents/skills/`); repo-seed governance skills
+  `repo-review`, `repo-decisions`, `repo-governance` (upgrade channel: `.repo-seed/update-strategy.md`)
+- Decision records: MADR log in [docs/decisions/](docs/decisions/) (gate `node scripts/verify-decisions.mjs`);
+  the legacy host-note ADR archive is frozen (append-only, no new records)
 - Upstream: GooseForum (apps/gooseforum, the fork itself); YourTJ-Platform (local, same-brand archived repo)

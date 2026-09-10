@@ -1,0 +1,13 @@
+{
+  "result": {
+    "succeeded": 1,
+    "failed": 0,
+    "results": [
+      {
+        "contentId": 8810401,
+        "success": true
+      }
+    ]
+  },
+  "code": 0
+}

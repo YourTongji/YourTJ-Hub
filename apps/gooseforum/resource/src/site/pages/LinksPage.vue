@@ -4,12 +4,22 @@ import { ExternalLink, Link, Send, ShieldCheck } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { LayoutPayload, LinksPageProps } from '@gooseforum/client'
+import { safeUrl } from '@/runtime/safe-url'
 
-defineProps<{
+const page = defineProps<{
   layout: LayoutPayload
   props: LinksPageProps
 }>()
 const { t } = useI18n()
+
+// 渲染防线（issue #409）：历史脏配置/绕过 API 的链接降级为 '#'，不进入 href。
+function linkHref(url: string) {
+  return safeUrl(url, 'external') || '#'
+}
+
+function logoHref(url: string) {
+  return safeUrl(url, 'image')
+}
 </script>
 
 <template>
@@ -40,16 +50,16 @@ const { t } = useI18n()
               <a
                 v-for="link in group.links"
                 :key="`${group.name}-${link.url}`"
-                :href="link.url"
+                :href="linkHref(link.url)"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="group rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-2 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
+                class="group relative rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-2 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
               >
                 <div class="flex items-center gap-2">
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[var(--gf-radius-field)] border border-line bg-base-100 sm:bg-base-200">
                     <img
-                      v-if="link.logoUrl"
-                      :src="link.logoUrl"
+                      v-if="logoHref(link.logoUrl)"
+                      :src="logoHref(link.logoUrl)"
                       :alt="link.name"
                       class="h-full w-full object-cover"
                       loading="lazy"
@@ -64,6 +74,15 @@ const { t } = useI18n()
                     <p class="mt-0.5 truncate text-[11px] leading-4 text-base-content/55">{{ link.desc || link.url }}</p>
                   </div>
                 </div>
+                <!-- 描述被 truncate 截断时（issue #471），hover/focus 在卡片上方展示完整描述：
+                     与卡片同宽（inset-x-0）、紧贴上沿（bottom-full），高度随内容自适配。
+                     配色用 base 主题变量（随深浅色正确翻转）；neutral 是对比色变量，会反向。
+                     完整文本本就在 DOM 中（truncate 仅视觉裁剪），tooltip 对读屏重复，故 aria-hidden -->
+                <span
+                  v-if="link.desc"
+                  aria-hidden="true"
+                  class="pointer-events-none absolute inset-x-0 bottom-full z-10 break-words rounded-[var(--gf-radius-field)] border border-line bg-base-100 px-2 py-1 text-left text-[11px] font-medium leading-4 text-base-content shadow-md opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                >{{ link.desc }}</span>
               </a>
             </div>
           </section>

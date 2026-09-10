@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpen, Search, UsersRound } from '@lucide/vue'
+import { BookOpen, FolderOpen, Search, UsersRound } from '@lucide/vue'
 import { formatNumber } from '@/runtime/format'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -14,17 +15,20 @@ const page = defineProps<{
   pageUrl: string
 }>()
 const { t } = useI18n()
+const router = useRouter()
 
 const query = ref(page.props.query)
 const scope = computed(() => page.props.scope || 'all')
 const topics = computed(() => page.props.topics || [])
 const users = computed(() => page.props.users || [])
 const categories = computed(() => page.props.categories || [])
+const courses = computed(() => page.props.courses || [])
 const hasQuery = computed(() => (page.props.query || '').trim().length > 0)
-const hasResults = computed(() => topics.value.length > 0 || users.value.length > 0 || categories.value.length > 0)
+const hasResults = computed(() => topics.value.length > 0 || users.value.length > 0 || categories.value.length > 0 || courses.value.length > 0)
 const hasTopicResults = computed(() => topics.value.length > 0)
 const hasUserResults = computed(() => users.value.length > 0)
 const hasCategoryResults = computed(() => categories.value.length > 0)
+const hasCourseResults = computed(() => courses.value.length > 0)
 const searchUnavailable = computed(() => page.props.searchUnavailable === true)
 const failedScopes = computed(() => page.props.failedScopes || [])
 const hasPartialFailure = computed(() => failedScopes.value.length > 0 && !searchUnavailable.value)
@@ -32,11 +36,12 @@ const scopeLabelMap: Record<string, string> = {
   topics: 'scopeTopics',
   users: 'scopeUsers',
   categories: 'scopeCategories',
+  courses: 'scopeCourses',
 }
 const scopeLabels = computed(() => failedScopes.value.map((s) => (scopeLabelMap[s] ? t(`searchPage.${scopeLabelMap[s]}`) : s)).join(', '))
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
-  const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : page.props.total
+  const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
   return `${page.props.query} · ${t('searchPage.resultCount', { count: formatNumber(count) })}`
 })
 
@@ -44,10 +49,11 @@ const scopeTabs = computed(() => {
   const base = '/search'
   const scopeParam = (value: string) => (value === 'all' || !value ? '' : `&scope=${value}`)
   return [
-    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all' },
-    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics' },
-    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users' },
-    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories' },
+    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all', count: page.props.total },
+    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: page.props.total },
+    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: page.props.usersTotal },
+    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: page.props.categoriesTotal },
+    { key: 'courses', label: t('searchPage.scopeCourses'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('courses')}`, active: scope.value === 'courses', count: page.props.coursesTotal },
   ]
 })
 
@@ -67,6 +73,29 @@ function userUrl(user: { id: number }) {
 function categoryUrl(cat: { slug: string; id: number }) {
   return `/c/${cat.slug}/${cat.id}`
 }
+function courseUrl(course: { id: number }) {
+  return `/courses/${course.id}`
+}
+
+// 搜索提交走客户端路由跳转：页面 body 为空壳、内容由 Vue 客户端渲染，
+// 原生 GET 提交会先卸载整页再渲染（期间白屏），故拦截 submit 复用
+// router.push 的 X-Goose-Page JSON 拉取路径（顶部 loading bar，旧页保持）。
+// action/method 保留作无 JS 环境的原生回退。
+async function submitSearch(event: SubmitEvent) {
+  event.preventDefault()
+  const form = event.currentTarget as HTMLFormElement
+  const rawQuery = new FormData(form).get('q')
+  const q = typeof rawQuery === 'string' ? rawQuery.trim() : ''
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (scope.value !== 'all') params.set('scope', scope.value)
+  const qs = params.toString()
+  try {
+    await router.push(qs ? `/search?${qs}` : '/search')
+  } catch {
+    form.submit()
+  }
+}
 
 watch(
   () => page.props.query,
@@ -83,7 +112,7 @@ watch(
         <span class="gf-badge gf-badge-muted h-5 text-[11px] uppercase">{{ t('searchPage.label') }}</span>
       </template>
       <template #actions>
-        <form action="/search" method="GET" class="w-full sm:w-80 lg:w-96">
+        <form action="/search" method="GET" class="w-full sm:w-80 lg:w-96" @submit="submitSearch">
           <input v-if="scope !== 'all'" type="hidden" name="scope" :value="scope" />
           <label class="flex h-10 items-center gap-2 rounded-field border border-line bg-base-100 px-3 text-sm text-base-content/55 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
             <Search class="h-4 w-4 shrink-0" />
@@ -94,16 +123,27 @@ watch(
         </template>
       </PageHeader>
 
-      <div v-if="hasQuery && !searchUnavailable" class="mb-3 flex flex-wrap items-center gap-1">
+      <!-- 搜索范围分段：与首页/分类页 gf-tab 体系一致（实心激活胶囊 + 结果计数）。
+           移动端 4 列等宽均分（带左右留白不贴边），桌面端内容自适应靠左 -->
+      <div
+        v-if="hasQuery && !searchUnavailable"
+        class="gf-home-topic-tabs mb-3 grid grid-cols-4 gap-1.5 px-3 sm:flex sm:gap-2 sm:px-0"
+        role="group"
+        :aria-label="t('searchPage.scopeAll')"
+      >
         <a
           v-for="tab in scopeTabs"
           :key="tab.key"
           :href="tab.url"
-          class="rounded-full px-3 py-1 text-sm transition"
-          :class="tab.active ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content/70 hover:bg-base-300'"
+          class="gf-tab justify-center sm:justify-start"
+          :class="tab.active ? 'gf-tab-active' : 'gf-tab-idle'"
           :aria-pressed="tab.active"
         >
           {{ tab.label }}
+          <span
+            class="ml-1 text-[11px] font-semibold tabular-nums"
+            :class="tab.active ? 'text-neutral-content/70' : 'text-base-content/40'"
+          >{{ formatNumber(tab.count) }}</span>
         </a>
       </div>
 
@@ -170,17 +210,47 @@ watch(
               {{ t('searchPage.categoriesSection') }}
               <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.categoriesCount', { count: formatNumber(page.props.categoriesTotal) }) }}</span>
             </h2>
-            <ul class="divide-y divide-line">
-              <li v-for="cat in categories" :key="cat.id">
-                <a :href="categoryUrl(cat)" class="flex items-center gap-3 px-4 py-3 transition hover:bg-base-200/60">
-                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field text-base" :style="{ backgroundColor: cat.color || undefined }">{{ cat.icon || '#' }}</span>
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-medium text-base-content">{{ cat.name }}</p>
-                    <p v-if="cat.desc" class="truncate text-xs text-base-content/55">{{ cat.desc }}</p>
-                  </div>
-                </a>
-              </li>
-            </ul>
+            <div class="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+              <a
+                v-for="cat in categories"
+                :key="cat.id"
+                :href="categoryUrl(cat)"
+                class="flex min-w-0 items-center gap-2.5 rounded-field border border-line bg-base-100 p-3 transition hover:border-primary/40 hover:bg-base-200/60"
+              >
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field text-lg" :style="{ backgroundColor: cat.color || undefined }">{{ cat.icon || '#' }}</span>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-base-content">{{ cat.name }}</p>
+                  <p v-if="cat.desc" class="mt-0.5 truncate text-xs text-base-content/55">{{ cat.desc }}</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <div v-if="hasCourseResults && (scope === 'all' || scope === 'courses')" class="border-b border-line">
+            <h2 class="flex items-center gap-2 px-4 pt-3 text-sm font-semibold text-base-content/70">
+              <BookOpen class="h-4 w-4" />
+              {{ t('searchPage.coursesSection') }}
+              <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.coursesCount', { count: formatNumber(page.props.coursesTotal) }) }}</span>
+            </h2>
+            <div class="grid gap-2 p-3 sm:grid-cols-2">
+              <a
+                v-for="course in courses"
+                :key="course.id"
+                :href="courseUrl(course)"
+                class="flex min-w-0 items-start gap-2.5 rounded-field border border-line bg-base-100 p-3 transition hover:border-primary/40 hover:bg-base-200/60"
+              >
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field bg-primary/10 text-lg text-primary">
+                  <BookOpen class="h-4 w-4" />
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-base-content">{{ course.name }}</p>
+                  <p class="mt-0.5 truncate text-xs text-base-content/55">{{ course.primaryCode }} · {{ course.department }}</p>
+                  <p class="mt-0.5 truncate text-xs text-base-content/45">
+                    {{ course.teacherName || t('coursesPage.noTeacher') }}
+                  </p>
+                </div>
+              </a>
+            </div>
           </div>
         </template>
 

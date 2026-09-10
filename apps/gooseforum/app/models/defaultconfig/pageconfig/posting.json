@@ -4,13 +4,19 @@
     "maxPostLength": 50000,
     "minTitleLength": 5,
     "maxTitleLength": 100,
-    "newUserPostCooldownMinutes": 0
+    "newUserPostCooldownMinutes": 0,
+    "maxDailyTopicsPerUser": 10
   },
   "uploadControl": {
     "allowAttachments": true,
-    "authorizedExtensions": [".jpg", ".jpeg", ".png", ".gif", ".webp"],
+    "authorizedExtensions": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"],
     "maxAttachmentSizeKb": 5120,
     "maxDailyUploadsPerUser": 10,
     "newUserUploadCooldownMinutes": 1440
+  },
+  "llms": {
+    "enabled": false,
+    "fullText": false,
+    "files": false
   }
 }

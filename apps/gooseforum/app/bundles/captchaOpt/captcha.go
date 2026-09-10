@@ -1,13 +1,14 @@
 package captchaOpt
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/mojocn/base64Captcha"
 )
 
@@ -86,7 +87,9 @@ var (
 // StartCleanup starts the expired captcha cleanup worker.
 func StartCleanup() {
 	cleanupOnce.Do(func() {
-		closer.RegisterPriority(closer.PriorityCache, StopCleanup)
+		closer.RegisterPriorityContext(closer.PriorityCache, func(context.Context) error {
+			return StopCleanup()
+		})
 		cleanupWg.Go(func() {
 			defer paniclog.Recover("captcha_cleanup")
 			ticker := time.NewTicker(time.Minute) // 每分钟清理一次

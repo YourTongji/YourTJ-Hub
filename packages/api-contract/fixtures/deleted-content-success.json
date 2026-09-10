@@ -1,0 +1,19 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 8810301,
+        "contentType": "topic",
+        "title": "Contract deleted topic",
+        "visibility": "USER_DELETED",
+        "retention": "RECOVERABLE",
+        "deletedAt": "",
+        "canRestore": false,
+        "canPermanent": true
+      }
+    ],
+    "hasMore": false,
+    "nextCursorId": 8810301
+  },
+  "code": 0
+}

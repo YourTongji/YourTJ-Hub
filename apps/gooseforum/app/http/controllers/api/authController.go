@@ -1,29 +1,28 @@
 package api
 
 import (
-	"context"
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/logincrypto"
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/totpservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	jwt "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/logincrypto"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"log/slog"
 	"net/http"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/validate"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 )
 
 func Logout(c *gin.Context) {
@@ -31,6 +30,7 @@ func Logout(c *gin.Context) {
 	if claims, _, err := jwt.VerifyTokenWithFreshClaims(token); err == nil && claims.Jti != "" {
 		if err := sessionservice.RevokeByJti(claims.UserId, claims.Jti); err != nil {
 			slog.Error("Logout revoke session failed", "userId", claims.UserId, "jti", claims.Jti, "error", err)
+			jwt.TokenClean(c)
 			c.JSON(http.StatusOK, component.FailDataCode(component.MessageSessionRevokeFailed, nil))
 			return
 		}
@@ -57,11 +57,14 @@ func Register(c *gin.Context) {
 		c.JSON(200, component.FailDataCode(component.MessageAuthSignupDisabled, nil))
 		return
 	}
-
 	// 蜜罐字段：正常用户不可见，填了即机器，静默拒绝（返回成功但不创建账号）。
 	if strings.TrimSpace(r.Website) != "" {
 		slog.Warn("honeypot_hit", "action", "register", "ip", c.ClientIP(), "userId", uint64(0))
 		c.JSON(http.StatusOK, component.SuccessDataCode("登录成功", component.MessageAuthLoginSuccess, nil))
+		return
+	}
+	if securityConfig.MaxDailySignups >= 0 && users.CountCreatedToday() >= int64(securityConfig.MaxDailySignups) {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterDailyQuota, nil))
 		return
 	}
 
@@ -98,13 +101,16 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	if users.ExistUsername(r.Username) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthUsernameExists, nil))
-		return
-	}
-
-	if users.ExistEmail(r.Email) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthEmailExists, nil))
+	// 账号枚举防护（CWE-208）：用户名/邮箱已占用时返回与其他注册失败一致的
+	// auth.register.failed 错误体，不再区分 auth.username.exists / auth.email.exists，
+	// 消除"具体哪个字段被占用"的子 oracle（邮箱注册状态属 PII 级身份关联信息）。
+	// 两次存在性查询无条件执行，查询次数不随账号状态变化，消除查询次数侧信道。
+	// 注意：注册协议本身（新建账号并自动登录成功 vs 失败）仍固有地区分邮箱是否
+	// 已注册；彻底消除该残余信号需改为异步邮箱验证流程，属产品决策（issue #124 验收项 1）。
+	usernameExists := users.ExistUsername(r.Username)
+	emailExists := users.ExistEmail(r.Email)
+	if usernameExists || emailExists {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterFailed, nil))
 		return
 	}
 
@@ -122,7 +128,7 @@ func Register(c *gin.Context) {
 		slog.Debug("注册激活邮件任务已提交", "userId", userEntity.Id, "email", userEntity.Email, "enableEmailVerification", securityConfig.EnableEmailVerification)
 	}
 
-	eventbus.Publish(context.Background(), &eventhandlers.UserSignUpEvent{
+	eventbus.Publish(detachedRequestContext(c), &eventhandlers.UserSignUpEvent{
 		UserId:   userEntity.Id,
 		Username: userEntity.Username,
 	})
@@ -228,12 +234,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
-	if securityConfig.EnableEmailVerification && userEntity.IsActivated == users.ActivationPending {
-		c.JSON(200, component.FailDataCode(component.MessageAuthEmailUnverified, nil))
-		return
-	}
-
+	// 待激活账号允许重新登录：写权限在权限层由 CheckWritableAccount 拦截
+	// （permission.emailRequired），会话本身不授予写能力，pending 用户借此
+	// 找回过期会话后可继续走 resend-activation-email 激活恢复（issue #427）。
 	// 封禁用户不允许登录（与 OIDC/goth 路径的冻结检查一致）。
 	if userEntity.IsFrozen == users.StatusFrozen {
 		c.JSON(200, component.FailDataCode(component.MessageAuthAccountFrozen, nil))

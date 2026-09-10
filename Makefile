@@ -1,6 +1,6 @@
-.PHONY: dev down server web build test gen contract-lint contract-generate-ts contract-check
+.PHONY: dev down server web build test gen govulncheck contract-lint contract-generate-ts contract-check hooks
 
-dev: ## Start local dependencies (postgres + meilisearch + mariadb + casdoor)
+dev: ## Start local dependencies (postgres + meilisearch)
 	docker compose up -d
 
 down: ## Stop local dependencies
@@ -22,13 +22,30 @@ contract-lint: ## Validate and bundle the OpenAPI contract
 contract-generate-ts: ## Generate OpenAPI TypeScript types for @gooseforum/client
 	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run generate:ts
 
+# pnpm run check also runs check:coverage (route → contract coverage gate,
+# scripts/check-route-coverage.mjs), which regenerates coverage-matrix.md; CI
+# asserts that generated file is committed, same as the TypeScript output below.
 contract-check: ## Validate, bundle, generate, and require committed OpenAPI TypeScript output
 	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
 	git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen
+	git diff --exit-code -- packages/api-contract/coverage-matrix.md
 
 test: ## Run backend, contract, and frontend checks
 	cd apps/gooseforum && go vet ./... && go test ./...
 	$(MAKE) contract-check
-	cd apps/gooseforum/resource && pnpm typecheck
+	cd apps/gooseforum/resource && pnpm typecheck && pnpm test
 
+# Go dependency vulnerability scan (issue #410): reports only reachable
+# vulnerabilities and exits non-zero on network/DB fetch failures, same as the
+# CI job (which runs golang/govulncheck-action in apps/gooseforum).
+govulncheck: ## Scan Go module for reachable vulnerabilities (govulncheck)
+	cd apps/gooseforum && go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 gen: contract-generate-ts ## Generate currently supported API client artifacts
+
+hooks: ## Install/verify local git hooks (lefthook)
+	@if command -v lefthook >/dev/null 2>&1; then \
+		lefthook install; \
+	else \
+		echo "lefthook not found — run: brew install lefthook"; \
+		exit 1; \
+	fi

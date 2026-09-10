@@ -1,0 +1,6 @@
+{
+  "instance": "main",
+  "server_url": "https://f.yourtj.de",
+  "trusted_proxies": ["172.16.0.0/12"],
+  "pg_dbname": "yourtj_main"
+}

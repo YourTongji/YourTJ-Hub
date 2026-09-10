@@ -1,0 +1,689 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:core/core.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('首页 PagePayload (home.index)', () {
+    final page = PagePayload.fromJson({
+      'component': 'home.index',
+      'props': {
+        'sort': 'hot',
+        'tabs': [
+          {'key': 'hot', 'label': '热门', 'url': '/?sort=hot', 'active': true},
+          {
+            'key': 'latest',
+            'label': '最新',
+            'url': '/?sort=latest',
+            'active': false,
+          },
+        ],
+        'topics': [
+          {
+            'id': 1,
+            'title': '测试话题',
+            'description': '描述',
+            'firstImageUrl': '/uploads/a.webp',
+            'url': '/p/post/1',
+            'author': {
+              'id': 10,
+              'username': 'alice',
+              'nickname': '爱丽丝',
+              'avatarUrl': '/static/1.webp',
+            },
+            'participants': [
+              {'id': 11, 'username': 'bob', 'avatarUrl': '/static/2.webp'},
+            ],
+            'categories': [
+              {'id': 3, 'name': '闲聊', 'url': '/c/chat/3', 'color': '#f00'},
+            ],
+            'replyCount': 5,
+            'viewCount': 100,
+            'pinWeight': 0,
+            'processStatus': 0,
+            'activityText': '5 分钟前',
+            'lastUpdateTime': '2026-08-07T10:00:00+08:00',
+          },
+        ],
+        'pagination': {
+          'page': 1,
+          'nextPage': 2,
+          'hasNext': true,
+          'nextUrl': '/?sort=hot&page=2',
+        },
+        'announcement': {
+          'enabled': true,
+          'html': '<p>公告</p>',
+          'publishedAt': '2026-08-01T00:00:00+08:00',
+        },
+      },
+      'meta': {
+        'title': 'yourtj',
+        'description': '同济大学校园论坛',
+        'canonical': 'https://yourtj.example/',
+      },
+      'layout': _layout(),
+      'url': '/',
+      'version': '1.0',
+    });
+
+    test('解析组件与 meta', () {
+      expect(page.component, 'home.index');
+      expect(page.meta.title, 'yourtj');
+      expect(page.meta.description, '同济大学校园论坛');
+      expect(page.url, '/');
+      expect(page.version, '1.0');
+    });
+
+    test('parsePageProps 解析 HomeProps', () {
+      final props = parsePageProps<HomeProps>(page);
+      expect(props, isNotNull);
+      expect(props!.sort, 'hot');
+      expect(props.tabs, hasLength(2));
+      expect(props.tabs.first.active, isTrue);
+      expect(props.topics, hasLength(1));
+      expect(props.topics.first.author.username, 'alice');
+      expect(props.topics.first.author.nickname, '爱丽丝');
+      expect(props.topics.first.categories.first.color, '#f00');
+      expect(props.pagination.hasNext, isTrue);
+      expect(props.announcement.enabled, isTrue);
+      expect(props.announcement.html, '<p>公告</p>');
+    });
+  });
+
+  group('话题详情 PagePayload (topic.detail)', () {
+    final page = PagePayload.fromJson({
+      'component': 'topic.detail',
+      'props': {
+        'topic': {
+          'id': 1,
+          'title': '详情标题',
+          'description': '详情描述',
+          'url': '/p/post/1',
+          'topicStatus': 0,
+          'processStatus': 0,
+          'author': {
+            'id': 10,
+            'username': 'alice',
+            'avatarUrl': '/static/1.webp',
+          },
+          'participants': [],
+          'categories': [
+            {'id': 3, 'name': '闲聊', 'url': '/c/chat/3', 'color': '#f00'},
+          ],
+          'replyCount': 2,
+          'maxPostNo': 3,
+          'viewCount': 42,
+          'likeCount': 7,
+          'isLiked': false,
+          'isBookmarked': false,
+          'isWatched': false,
+          'createdAt': '2026-08-01T00:00:00+08:00',
+          'updatedAt': '2026-08-07T10:00:00+08:00',
+        },
+        'postStream': {
+          'posts': [
+            {
+              'id': 100,
+              'topicId': 1,
+              'postNo': 1,
+              'content': '# 正文',
+              'renderedContent': '<h1>正文</h1>',
+              'processStatus': 0,
+              'isHidden': false,
+              'canModerate': false,
+              'author': {
+                'id': 10,
+                'username': 'alice',
+                'avatarUrl': '/static/1.webp',
+              },
+              'createdAt': '2026-08-01T00:00:00+08:00',
+              'isOwnPost': true,
+              'likeCount': 3,
+              'isLiked': true,
+              'isBookmarked': false,
+            },
+          ],
+          'replyTargets': [],
+          'hasBefore': false,
+          'hasAfter': true,
+          'total': 3,
+          'maxPostNo': 3,
+        },
+        'hotTopics': [],
+        'permissions': {
+          'isOwnTopic': true,
+          'canPost': true,
+          'canModerateTopic': false,
+        },
+      },
+      'meta': {'title': '详情标题 - yourtj'},
+      'layout': _layout(),
+      'url': '/p/post/1',
+      'version': '1.0',
+    });
+
+    test('parsePageProps 解析 TopicDetailProps', () {
+      final props = parsePageProps<TopicDetailProps>(page);
+      expect(props, isNotNull);
+      expect(props!.topic.title, '详情标题');
+      expect(props.topic.likeCount, 7);
+      expect(props.postStream.posts, hasLength(1));
+      expect(props.postStream.posts.first.content, '# 正文');
+      expect(props.postStream.posts.first.isOwnPost, isTrue);
+      expect(props.postStream.posts.first.isLiked, isTrue);
+      expect(props.postStream.afterPostNo, isNull);
+      expect(props.postStream.hasAfter, isTrue);
+      expect(props.permissions.canPost, isTrue);
+      expect(props.permissions.isOwnTopic, isTrue);
+    });
+  });
+
+  group('用户卡片 UserCardPayload', () {
+    final card = UserCardPayload.fromJson({
+      'userId': 10,
+      'username': 'alice',
+      'nickname': '爱丽丝',
+      'avatarUrl': '/static/1.webp',
+      'profileCoverUrl': '/uploads/cover.webp',
+      'bio': '你好',
+      'signature': '签名',
+      'websiteName': '',
+      'website': '',
+      'prestige': 3,
+      'externalInformation': {
+        'github': {'link': 'https://github.com/alice'},
+      },
+      'isAdmin': false,
+      'topicCount': 5,
+      'replyCount': 20,
+      'likeReceivedCount': 10,
+      'likeGivenCount': 8,
+      'followerCount': 2,
+      'followingCount': 1,
+      'collectionCount': 0,
+      'isOnline': true,
+      'isFollowing': false,
+      'isSelf': true,
+      'badges': [
+        {
+          'code': 'early',
+          'type': 'system',
+          'grantMode': 'auto',
+          'name': '早期用户',
+          'description': '描述',
+          'iconType': 'emoji',
+          'iconKey': 'star',
+          'iconUrl': '',
+          'color': '#ffd700',
+          'level': 'gold',
+          'isEnabled': true,
+          'isWearable': true,
+          'sortOrder': 1,
+          'source': 'auto',
+          'reason': '注册',
+          'grantedAt': '2026-01-01T00:00:00+08:00',
+        },
+      ],
+      'wornBadge': null,
+      'lastActiveTime': '2026-08-07T09:00:00+08:00',
+      'createdAt': '2026-01-01T00:00:00+08:00',
+    });
+
+    test('字段逐一对齐', () {
+      expect(card.userId, 10);
+      expect(card.username, 'alice');
+      expect(card.nickname, '爱丽丝');
+      expect(card.prestige, 3);
+      expect(
+        card.externalInformation['github']?.link,
+        'https://github.com/alice',
+      );
+      expect(card.isSelf, isTrue);
+      expect(card.badges, hasLength(1));
+      expect(card.badges.first.code, 'early');
+      expect(card.badges.first.level, 'gold');
+      expect(card.wornBadge, isNull);
+      expect(card.lastActiveTime, '2026-08-07T09:00:00+08:00');
+    });
+  });
+
+  group('通知 NotificationListResponse', () {
+    final response = NotificationListResponse.fromJson({
+      'items': [
+        {
+          'id': 900,
+          'eventType': 'comment',
+          'isRead': false,
+          'createdAt': '2026-08-07T10:00:00+08:00',
+          'title': '有人回复了你',
+          'content': '回复内容预览',
+          'actor': {'id': 11, 'username': 'bob', 'avatarUrl': '/static/2.webp'},
+          'topic': {'id': 1, 'title': '测试话题', 'url': '/p/post/1'},
+          'payload': {
+            'templateKey': 'notifications.templates.comment',
+            'templateParams': {'preview': '回复内容预览'},
+            'actorId': 11,
+            'actorName': 'bob',
+            'topicId': 1,
+            'postId': 100,
+            'postNo': 7,
+            'topicTitle': '测试话题',
+          },
+        },
+      ],
+      'nextCursor': 20,
+      'hasNext': true,
+      'unreadCount': 3,
+    });
+
+    test('解析通知列表与模板参数', () {
+      expect(response.items, hasLength(1));
+      final item = response.items.first;
+      expect(item.id, 900);
+      expect(item.eventType, 'comment');
+      expect(item.isRead, isFalse);
+      expect(item.actor.username, 'bob');
+      expect(item.topic?.url, '/p/post/1');
+      expect(item.payload.actorId, 11);
+      expect(item.payload.templateKey, 'notifications.templates.comment');
+      expect(item.payload.templateParams?.preview, '回复内容预览');
+      expect(item.payload.postId, 100);
+      expect(item.payload.postNo, 7);
+      expect(response.nextCursor, 20);
+      expect(response.hasNext, isTrue);
+      expect(response.unreadCount, 3);
+    });
+  });
+
+  group('私信 ChatMessagesResponse', () {
+    final response = ChatMessagesResponse.fromJson({
+      'list': [
+        {
+          'id': 500,
+          'senderId': 11,
+          'content': '在吗',
+          'msgType': 1,
+          'isRead': 1,
+          'createdAt': '2026-08-07T10:00:00+08:00',
+          'isSelf': false,
+        },
+      ],
+      'hasMoreBefore': false,
+      'hasMoreAfter': true,
+      'nextBeforeId': 499,
+      'latestId': 500,
+    });
+
+    test('解析消息列表与游标', () {
+      expect(response.list, hasLength(1));
+      final message = response.list.first;
+      expect(message.senderId, 11);
+      expect(message.content, '在吗');
+      expect(message.msgType, 1);
+      expect(message.isRead, 1);
+      expect(message.isSelf, isFalse);
+      expect(response.hasMoreAfter, isTrue);
+      expect(response.nextBeforeId, 499);
+      expect(response.latestId, 500);
+    });
+  });
+
+  group('搜索 SearchPageProps', () {
+    final props = SearchPageProps.fromJson({
+      'query': 'flutter',
+      'scope': 'all',
+      'topics': [
+        {
+          'id': 2,
+          'title': 'Flutter 讨论',
+          'description': '',
+          'url': '/p/post/2',
+          'author': {
+            'id': 12,
+            'username': 'carol',
+            'avatarUrl': '/static/3.webp',
+          },
+          'participants': [],
+          'categories': [],
+          'replyCount': 0,
+          'viewCount': 1,
+          'pinWeight': 0,
+          'processStatus': 0,
+          'activityText': '刚刚',
+          'lastUpdateTime': '2026-08-07T11:00:00+08:00',
+        },
+      ],
+      'users': [
+        {
+          'id': 13,
+          'username': 'dart',
+          'nickname': '小狐狸',
+          'avatarUrl': '/static/4.webp',
+          'bio': '喜欢 Flutter',
+        },
+      ],
+      'categories': [
+        {
+          'id': 5,
+          'name': '技术',
+          'slug': 'tech',
+          'icon': 'code',
+          'color': '#00f',
+          'desc': '技术讨论',
+        },
+      ],
+      'courses': [],
+      'total': 1,
+      'usersTotal': 1,
+      'categoriesTotal': 1,
+      'coursesTotal': 0,
+      'totalPages': 1,
+      'pagination': {'page': 1, 'nextPage': 1, 'hasNext': false, 'nextUrl': ''},
+    });
+
+    test('解析搜索三类结果', () {
+      expect(props.query, 'flutter');
+      expect(props.topics, hasLength(1));
+      expect(props.topics.first.title, 'Flutter 讨论');
+      expect(props.users, hasLength(1));
+      expect(props.users.first.nickname, '小狐狸');
+      expect(props.categories, hasLength(1));
+      expect(props.categories.first.slug, 'tech');
+      expect(props.total, 1);
+      expect(props.totalPages, 1);
+      expect(props.pagination.hasNext, isFalse);
+    });
+  });
+
+  test('topic interactions distinguish unknown from false', () {
+    final raw = <String, dynamic>{
+      'id': 1,
+      'title': 'Topic',
+      'description': '',
+      'url': '/p/1',
+      'author': {'id': 1, 'username': 'alice', 'avatarUrl': ''},
+      'participants': [],
+      'categories': [],
+      'replyCount': 0,
+      'viewCount': 0,
+      'pinWeight': 0,
+      'processStatus': 0,
+      'activityText': '',
+      'lastUpdateTime': '',
+    };
+    final legacy = TopicPayload.fromJson(raw);
+    expect(legacy.liked, isNull);
+    expect(legacy.bookmarked, isNull);
+    final known = TopicPayload.fromJson({
+      ...raw,
+      'liked': true,
+      'bookmarked': false,
+    });
+    expect(known.liked, isTrue);
+    expect(known.bookmarked, isFalse);
+    expect(
+      TopicPayload.fromJson(
+        jsonDecode(jsonEncode(known)) as Map<String, dynamic>,
+      ).liked,
+      isTrue,
+    );
+  });
+
+  group('会话 UserSessionPayload', () {
+    // 与 packages/api-contract/fixtures/sessions-list-success.json 对齐。
+    final response = _contractFixture('sessions-list-success.json');
+    final sessions = (response['result'] as List<dynamic>);
+
+    test('解析会话列表条目', () {
+      final session = UserSessionPayload.fromJson(
+        sessions.single as Map<String, dynamic>,
+      );
+      expect(session.id, 42);
+      expect(session.ipMasked, '127.0.0.*');
+      expect(session.userAgent, 'contract-test');
+      expect(session.createdAt, 1754496000000);
+      expect(session.expiresAt, 1757088000000);
+      expect(session.isCurrent, isTrue);
+    });
+  });
+
+  group('登录安全受控契约', () {
+    test('解析登录公钥 fixture', () {
+      final response = GfResponse<LoginPublicKeyPayload>.fromJson(
+        _contractFixture('login-public-key-success.json'),
+        (json) => LoginPublicKeyPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      // The fixture redacts the PEM body and pins a fixed timestamp; assert
+      // types and the stable algorithm constant instead of those placeholders.
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.publicKey, isA<String>());
+      expect(response.result?.publicKey, isNotEmpty);
+      expect(response.result?.serverTs, isA<int>());
+      expect(response.result?.algorithm, 'RSA-OAEP-256');
+    });
+
+    test('解析 TOTP 登录验证成功 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('login-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '登录成功');
+      expect(response.messageCode, 'auth.login.success');
+    });
+
+    test('解析 TOTP 失败信封（result 为 null）不抛 TypeError', () {
+      final response = GfResponse<Object?>.fromJson(
+        _contractFixture('totp-verify-rate-limited.json'),
+        (json) => json,
+      );
+
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'totp.rateLimited');
+      expect(response.result, isNull);
+    });
+
+    test('解析 TOTP 设置 fixture', () {
+      final response = GfResponse<TotpSetupPayload>.fromJson(
+        _contractFixture('totp-setup-success.json'),
+        (json) => TotpSetupPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.secret, isNotEmpty);
+      expect(response.result?.otpauthUrl, startsWith('otpauth://totp/'));
+    });
+
+    test('解析 TOTP 启用 fixture', () {
+      final response = GfResponse<TotpEnablePayload>.fromJson(
+        _contractFixture('totp-enable-success.json'),
+        (json) => TotpEnablePayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.recoveryCodes, hasLength(10));
+    });
+
+    test('解析 TOTP 状态 fixture', () {
+      final disabled = GfResponse<TotpStatusPayload>.fromJson(
+        _contractFixture('totp-status-disabled.json'),
+        (json) => TotpStatusPayload.fromJson(json as Map<String, dynamic>),
+      );
+      final enabled = GfResponse<TotpStatusPayload>.fromJson(
+        _contractFixture('totp-status-enabled.json'),
+        (json) => TotpStatusPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      expect(disabled.result?.enabled, isFalse);
+      expect(enabled.result?.enabled, isTrue);
+    });
+
+    test('解析 TOTP 禁用 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('totp-disable-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      // 契约已把 disable 成功文案从 const 解耦为自由字符串（S3），这里只断言
+      // result 是存在且非空的人类可读文案，不绑定具体值。
+      expect(response.result, isNotNull);
+      expect(response.result, isNotEmpty);
+      expect(response.messageCode, 'common.operation.success');
+    });
+  });
+
+  group('账号注册与找回密码受控契约', () {
+    test('解析注册成功 fixture（自动登录，带会话）', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('login-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '登录成功');
+      expect(response.messageCode, 'auth.login.success');
+    });
+
+    test('解析注册业务失败 fixture（result 为 null）', () {
+      final response = GfResponse<Object?>.fromJson(
+        _contractFixture('register-failed.json'),
+        (json) => json,
+      );
+
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'auth.register.failed');
+      expect(response.result, isNull);
+    });
+
+    test('解析找回密码成功 fixture（防枚举统一消息）', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('forgot-password-mail-queued.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, contains('密码重置邮件'));
+      expect(response.messageCode, 'auth.passwordReset.mailQueued');
+    });
+
+    test('解析重置密码成功 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('reset-password-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '密码重置成功');
+      expect(response.messageCode, 'auth.passwordReset.success');
+    });
+
+    test('解析重置密码 token 失效 fixture（result 为 null 不抛 TypeError）', () {
+      final response = GfResponse<Object?>.fromJson(
+        _contractFixture('reset-password-token-invalid.json'),
+        (json) => json,
+      );
+
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'auth.passwordReset.tokenInvalid');
+      expect(response.result, isNull);
+    });
+  });
+
+  test('private course reviews decode the shared contract fixture', () {
+    final response = _contractFixture('own-course-reviews-success.json');
+    final page = OwnCourseReviewPage.fromJson(
+      response['result'] as Map<String, dynamic>,
+    );
+    expect(page.list.single.courseId, 42);
+    expect(page.list.single.canOpenCourse, isTrue);
+    expect(page.list.single.review.viewer.canDelete, isTrue);
+    expect(page.nextCursor, '2');
+    expect(OwnCourseReviewPage.fromJson({'list': []}).nextCursor, isEmpty);
+  });
+
+  group('GfResponse 响应包装', () {
+    test('code == 0 成功', () {
+      final response = GfResponse<int>.fromJson({
+        'code': 0,
+        'result': 42,
+      }, (json) => json as int);
+      expect(response.isSuccess, isTrue);
+      expect(response.result, 42);
+    });
+
+    test('code != 0 业务失败保留 messageCode 与 params', () {
+      final response = GfResponse<int>.fromJson({
+        'code': 1,
+        'messageCode': 'auth.login.invalidCredentials',
+        'params': {'retryAfterSeconds': 60},
+      }, (json) => json as int);
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'auth.login.invalidCredentials');
+      expect(response.params?['retryAfterSeconds'], 60);
+      expect(response.result, isNull);
+    });
+  });
+}
+
+Map<String, dynamic> _contractFixture(String filename) {
+  // Resolve relative to this test file instead of the process CWD so the
+  // loader keeps working regardless of where `flutter test` is invoked from.
+  final script = Platform.script.toFilePath();
+  final separator = Platform.pathSeparator;
+  final repoRoot = script
+      .split(separator)
+      .takeWhile((part) => part != 'apps')
+      .join(separator);
+  final candidate = File(
+    '$repoRoot${separator}packages${separator}api-contract'
+    '${separator}fixtures$separator$filename',
+  );
+  if (!candidate.existsSync()) {
+    throw StateError('找不到 OpenAPI fixture: ${candidate.path}');
+  }
+  return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
+}
+
+Map<String, dynamic> _layout() {
+  return {
+    'site': {
+      'name': 'yourtj',
+      'description': '同济大学校园论坛',
+      'logo': '/static/logo.webp',
+      'favicon': '/static/favicon.ico',
+      'brandType': 'text',
+      'brandText': 'yourtj',
+      'brandImage': '',
+    },
+    'viewer': {
+      'id': 10,
+      'username': 'alice',
+      'email': 'alice@example.com',
+      'avatarUrl': '/static/1.webp',
+      'isAuthenticated': true,
+      'canAccessAdmin': false,
+      'isModerator': false,
+      'requiresEmailVerification': false,
+      'adminPermissions': [],
+    },
+    'sidebar': {
+      'categories': [
+        {'id': 3, 'label': '闲聊', 'url': '/c/chat/3', 'color': '#f00'},
+      ],
+      'activeKey': 'home',
+    },
+    'footer': {
+      'links': [
+        {'name': '关于', 'url': '/links'},
+      ],
+      'primary': ['yourtj'],
+    },
+    'unread': {'notifications': true, 'messages': false},
+    'theme': {'enabled': true, 'current': 'gf-light', 'themeColor': '#4f46e5'},
+  };
+}

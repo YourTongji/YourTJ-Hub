@@ -1,0 +1,18 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 8810202,
+        "contentType": "post",
+        "title": "回复 #2",
+        "excerpt": "Contract reply content",
+        "topicId": 8810201,
+        "postNo": 2,
+        "createdAt": "2026-08-01T12:00:00Z"
+      }
+    ],
+    "hasMore": false,
+    "nextCursorId": 8810202
+  },
+  "code": 0
+}

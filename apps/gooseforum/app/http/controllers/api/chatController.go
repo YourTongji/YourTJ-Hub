@@ -1,9 +1,9 @@
 package api
 
 import (
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/service/chatservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 )
 
 // SendMessageReq 发送私信请求
@@ -16,12 +16,13 @@ type SendMessageReq struct {
 // SendMessage 发送私信
 func SendMessage(req component.BetterRequest[SendMessageReq]) component.Response {
 	// 敏感词检查：私信仅支持直接拦截（无状态字段，不适合延迟可见）
-	if hit, word := moderationservice.CheckContentAllowed(req.Params.Content); hit {
+	if words := moderationservice.FindSensitiveWords(req.Params.Content); len(words) > 0 {
+		word := words[0]
 		moderationservice.SensitiveContentBlocked(req.UserId, "chat", 0, word, truncateExcerpt(req.Params.Content))
 		return component.FailResponseCode(
 			component.MessageChatSensitiveBlocked,
 
-			component.MessageParams{"word": word})
+			component.MessageParams{"word": word, "words": words})
 
 	}
 	// Set default msg type to text if not provided or 0 (though validate should handle it if required, let's assume default 1)

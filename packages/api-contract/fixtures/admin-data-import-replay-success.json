@@ -1,0 +1,13 @@
+{
+  "result": {
+    "id": 990020,
+    "type": "import",
+    "status": 0,
+    "taskJson": "{\"fileName\":\"adac7b84dc3b7394d8385aa0c65fe27a19915d6ab4b0e0d826d34fb439541d3f.json\",\"sha256\":\"adac7b84dc3b7394d8385aa0c65fe27a19915d6ab4b0e0d826d34fb439541d3f\",\"format\":\"json\"}",
+    "retryCount": 0,
+    "lastError": "",
+    "createdAt": "2026-02-03T04:05:06Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "code": 0
+}

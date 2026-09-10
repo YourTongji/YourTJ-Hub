@@ -1,0 +1,13 @@
+{
+  "result": {
+    "enabled": false,
+    "repo": "",
+    "branch": "main",
+    "headSha": "",
+    "pages": {
+      "total": 0,
+      "namespaces": 0
+    }
+  },
+  "code": 0
+}

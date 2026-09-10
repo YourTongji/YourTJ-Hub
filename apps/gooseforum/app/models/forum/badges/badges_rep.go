@@ -1,6 +1,6 @@
 package badges
 
-import "github.com/leancodebox/GooseForum/app/bundles/queryopt"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 
 func All() (entities []*Entity) {
 	builder().

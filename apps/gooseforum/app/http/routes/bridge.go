@@ -1,16 +1,17 @@
 package routes
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
 )
 
 func RegisterByGin(ginApp *gin.Engine) {
 	// 基础中间件
 	ginApp.Use(middleware.Recovery())
 	ginApp.Use(middleware.SiteMaintenance)
-	ginApp.Use(middleware.SiteInfo)
+	// 安全响应头（注册在 SiteMaintenance 之后：维护页含内联脚本，不能被页面级 CSP 禁用）
+	ginApp.Use(middleware.SecurityHeaders)
 	// 访问日志中间件
 	ginApp.Use(middleware.AccessLog)
 
@@ -19,6 +20,8 @@ func RegisterByGin(ginApp *gin.Engine) {
 	siteInfoRoute(ginApp)
 	// 接口
 	apiRoute(ginApp)
+	// MCP（streamable HTTP，读默认可用、写 opt-in）
+	mcpRoute(ginApp)
 	// 文件
 	fileServer(ginApp)
 	// view

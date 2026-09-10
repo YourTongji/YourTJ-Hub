@@ -49,7 +49,7 @@ const emit = defineEmits<{
       </DialogHeader>
       <DialogFooter>
         <Button variant="outline" type="button" @click="emit('update:open', false)">{{ cancelText }}</Button>
-        <Button variant="destructive" type="button" :disabled="loading" @click="emit('confirm')">
+        <Button data-testid="admin-confirm" variant="destructive" type="button" :disabled="loading" @click="emit('confirm')">
           {{ loading ? adminText('k005h') : confirmText }}
         </Button>
       </DialogFooter>

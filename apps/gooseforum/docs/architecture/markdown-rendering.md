@@ -23,7 +23,8 @@ and leaving room for richer rendering such as diagrams and math.
 ## Non-Goals
 
 - Do not store rich-text HTML as the canonical content format.
-- Do not add Vditor, WangEditor, or another full editor runtime by default.
+- Do not add an editor runtime to the global site bundle or to server-side
+  rendering. Topic publishing loads Vditor only with the publish-page chunk.
 - Do not embed Node, `goja`, or another JavaScript runtime in the Go server for
   normal Markdown rendering.
 - Do not promise full compatibility with Discourse Markdown extensions.
@@ -31,9 +32,15 @@ and leaving room for richer rendering such as diagrams and math.
 ## Rendering Model
 
 ```text
-Editor raw Markdown
+Vditor WYSIWYG
         |
-        | client preview
+        | emits Markdown
+        v
+Editor raw Markdown
+
+Other composer raw Markdown
+        |
+        | optional client preview
         v
 markdown-it preview HTML
 
@@ -95,7 +102,7 @@ attribute order does not.
 Current checks:
 
 ```bash
-go test ./app/http/controllers/markdown2html
+go test ./app/bundles/markdown2html
 cd resource && pnpm exec vitest run test/markdown-compat.test.ts
 ```
 
@@ -111,15 +118,29 @@ Server rendering owns:
 - SEO and no-JavaScript output
 
 The current server renderer is `goldmark` in
-`app/http/controllers/markdown2html`.
+`app/bundles/markdown2html`.
 
 ## Client Responsibilities
 
 Client rendering owns:
 
 - editor preview
-- lightweight authoring helpers
+- topic authoring through Vditor WYSIWYG, with Markdown emitted as the stored value
+- lightweight authoring helpers for other composer surfaces
 - optional post-render enhancements that do not change stored Markdown
+
+The topic publish page loads Vditor only when its route is opened. It uses a
+reduced toolbar, disables editor cache and optional preview renderers, and
+packages only the required parser, icon, and locale assets into the embedded
+frontend output. The toolbar includes image selection, while project-owned
+validation, compression, upload, paste, and drag-and-drop handling remain in
+the publish page. A separate Markdown preview is not exposed because Vditor
+already provides WYSIWYG authoring. It does not use an external CDN. Vditor
+HTML is editor state only; the submitted value remains Markdown.
+Dark/light chrome uses Vditor `setTheme`; body text color follows via a local
+`content-theme` stylesheet swap plus a CSS binding of `.vditor-reset` to
+`--textarea-text-color` (Vditor's base CSS hardcodes light text color, and an
+empty `preview.theme.path` would otherwise skip content-theme loading).
 
 The current client preview renderer is centralized in
 `resource/src/runtime/markdown.ts`. Pages should call this helper instead of
@@ -144,17 +165,29 @@ Current client enhancement:
   variables stay literal; render failures leave the original text unchanged.
 - KaTeX renders from text input only — `trust`/raw-HTML output is never
   enabled — so math content stays escaped and cannot execute script.
+- Fenced ` ```mermaid ` code blocks are rendered as SVG by the
+  `v-content-enhancements` directive on saved topic/post HTML, reply quotes and
+  revision history, and by the Vditor editor preview (its `mermaidRender` is
+  overridden to load the same lazy chunk and to share the module's serial
+  render queue). The Mermaid chunk (JS) is imported only after a
+  `language-mermaid` block is detected, so pages without diagrams keep the
+  base bundle unchanged, and a failed chunk load resets the cached promise so
+  a later render can retry. Rendering uses strict Mermaid settings
+  (`securityLevel: strict`, `suppressErrorRendering`) and follows the site
+  dark/light theme: the shared instance is re-initialized whenever the theme
+  flips during an SPA session, so diagrams rendered afterwards pick up the
+  new theme without a page reload. Every failure — including input over
+  50,000 characters — keeps the original source code block with an error
+  marker, and a successful render replaces the whole `code-copy` wrapper (the
+  `v-code-copy` directive wraps `<pre>` blocks), so no dangling copy button
+  is left behind. Server-side goldmark output and the stored Markdown are
+  never modified, and the two rendering paths stay version-aligned because
+  the editor preview shares the same lazy Mermaid chunk as the directive.
 
-Potential client enhancements:
-
-- Mermaid for diagrams
-
-These should be loaded only on pages that need them, preferably by detecting
-matching code fences or inline markers. They should not become part of the base
-forum bundle until real usage justifies it.
-
-Client enhancement libraries should decorate already-rendered content. They
-should not change the canonical Markdown storage format.
+Client enhancement libraries should decorate already-rendered content, load
+lazily (preferably by detecting matching code fences or inline markers), and
+stay out of the base forum bundle until real usage justifies them. They should
+not change the canonical Markdown storage format.
 
 ## Feature Policy
 
@@ -176,6 +209,7 @@ GooseForum should continue with dual implementation:
 - `markdown-it` for client preview.
 - fixture-based compatibility tests to keep them aligned.
 - Highlight.js as a client-only, explicit-language code enhancement.
+- Vditor WYSIWYG as a publish-page-only authoring UI that emits Markdown.
 - client-only optional renderers for diagrams and math.
 
 The `goja` experiment is useful as a reference, but it should not replace the

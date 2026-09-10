@@ -15,6 +15,9 @@ url = "REPLACE_SERVER_URL"
 port = 5234
 accessLog = false
 gzip = true
+# 信任的反向代理来源: 1Panel 反代在宿主机本机回源(127.0.0.1/::1),
+# 仅信任本机回源即可正确解析 X-Forwarded-For(限流按真实客户端 IP 归并)
+trusted_proxies = ["127.0.0.1", "::1"]
 
 [jwtopt]
 validTime = 604800
@@ -26,12 +29,17 @@ backupDir = "./storage/databasebackup/"
 keep = 7
 spec = "0 3 * * *"
 
+[cron]
+# 应用内定时任务开关；关闭后持久化 worker 与手动 CLI 仍可用。
+enabled = true
+
 [db.default]
-# 主库连接类型: sqlite / mysql / postgres（文件库 [db.file] 固定 sqlite）
-connection = "sqlite"
-# mysql: "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
-# postgres: "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"
-url = "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
+# 主库连接类型: postgres（部署默认）/ sqlite（本地开发；文件库 [db.file] 固定 sqlite）
+connection = "postgres"
+# 部署时由 init-server.sh 用 .env 的 POSTGRES_* 生成真实 DSN 替换
+# （main/dev 分别使用 yourtj_main / yourtj_dev 数据库）。
+# postgres: "host=postgres user=... password=... dbname=... port=5432 sslmode=disable"
+url = "REPLACE_POSTGRES_DSN"
 path = "./storage/database/sqlite.db"
 maxIdleConnections = 3
 maxOpenConnections = 5
@@ -39,15 +47,57 @@ maxLifeSeconds = 300
 
 [db.file]
 connection = "sqlite"
-url = "root:root_password@tcp(127.0.0.1:3306)/goose_forum?charset=utf8mb4&parseTime=True&loc=Local"
 path = "./storage/database/file.db"
 maxIdleConnections = 3
 maxOpenConnections = 5
 maxLifeSeconds = 300
 
+
 [meilisearch]
-url = "http://localhost:7700"
-masterkey = ""
+url = "http://meilisearch:7700"
+masterkey = "REPLACE_MEILI_KEY"
+
+# Web Push 浏览器推送（可选增强通道）：密钥留空 = 通道关闭。本机生成：
+#   cd apps/gooseforum && go run . webpush-keys
+# 部署实例由 GitHub Environments secrets VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+# 经 render_config.py 注入（见 docs/operations/deployment.md）。
+[webpush]
+vapid_public_key = ""
+vapid_private_key = ""
+
+# 原生推送（移动端 APNs/FCM，可选增强通道）：凭据留空 = 通道关闭。
+# APNs 走 .p8 token 认证（Key ID/Team ID 取自 Apple Developer 后台，
+# bundle_id 为 App 的 Bundle ID）；FCM 用 service-account JSON（Firebase
+# 项目设置 → 服务账号 → 生成新私钥）。部署实例由 GitHub Environments
+# secrets APNS_*/FCM_* 经 render_config.py 注入（见 docs/operations/deployment.md）。
+[push.apns]
+key_path = ""
+key_id = ""
+team_id = ""
+bundle_id = ""
+environment = ""
+
+[push.fcm]
+credentials_path = ""
+project_id = ""
+
+# Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
+# 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用。
+[push.jpush]
+app_key = ""
+master_secret = ""
+
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+# 每日定时同步 cron spec（默认每日 03:00；另含进程启动时异步同步一次）
+schedule = "0 3 * * *"
+# GitHub webhook 验签密钥（兼容旧配置的明文写法；推荐改用管理端
+# 「wiki 同步面板 → Webhook 验签密钥」保存，securestore 加密落库，
+# 留空 = webhook 端点 403 拒绝）
+# 管理端清除密钥后本配置失效（fail-closed）
+webhook_secret = ""
 
 [log]
 type = "file"
@@ -71,7 +121,60 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
-[casdoor]
-endpoint = "REPLACE_CASDOOR_ENDPOINT"
-client_id = "REPLACE_CASDOOR_CLIENT_ID"
-client_secret = "REPLACE_CASDOOR_CLIENT_SECRET"
+# Google OAuth 登录（可选；通过 GitHub Environment secrets 注入）
+[google]
+client_id = ""
+client_secret = ""
+
+# 排课器学期起止日期（可选）：一系统同步数据不含学期日期，排课器「当前周次」
+# 定位与学期日期条展示依赖此配置。键 = 学期标记（pk_calendar.calendar_id_i18n），
+# 值 = start/end 纯日期；course-pk-sync 同步时写入 pk_calendar。未配置的学期
+# start_date/end_date 为 NULL，排课器周次仍可手动选择。
+[pk.semester_dates."2025-2026-1"]
+start = "2025-09-08"
+end = "2026-01-18"
+# [pk.semester_dates."2025-2026-2"]
+# start = "2026-03-02"
+# end = "2026-07-11"
+
+[oidc]
+enabled = true
+# Set to this instance origin; CI derives it from deploy/instances/<env>.json.
+issuer = "https://forum.example.com/api/oauth"
+# RS256 签名私钥：内联 PEM 或密钥文件（二者都为空时自动生成并持久化到 signing_key_file）
+# signing_key = ""
+signing_key_file = "./storage/oidc/signing_key.pem"
+access_token_ttl = 3600
+auth_request_ttl = 600
+id_token_ttl = 3600
+# 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
+# redirect_uris 精确匹配；回调带动态 query/路径段时用 redirect_uris_globs
+# 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)。
+# 示例：第三方客户端授权回调带动态 redirect query（授权后回跳应用深层页）时用 globs 兜底。
+# redirect_uri 仅解码外层授权 query 一次；内层 URL 保留 %3A / %2F 等编码。
+# pattern 必须与客户端构造的回调字节一致，固定回调域名与内层页面域名/路径前缀。
+# * 匹配编码后的路径；不要使用任意域名通配符或允许 //evil.example 的相对路径。
+# \? 匹配字面 ?；TOML 单引号字面串保留反斜杠。
+# redirect_uris_globs = [
+#   'https://app.example.com/api/oauth\?redirect=https%3A%2F%2Fapp.example.com%2F*',
+#   'https://app.example.com/api/oauth\?redirect=%2Fguide%2F*',
+# ]
+[[oidc.clients]]
+id = "yourtj-mobile"
+name = "YourTJ 移动端"
+redirect_uris = ["yourtj://callback"]
+# secret = ""
+
+# AI 课程总结（B7，issue #181）：OpenAI-compatible /chat/completions 端点。
+# qwen（DashScope compatible-mode）/OpenRouter/本地 Ollama 均走同一协议，
+# 切换只改 base_url/model/api_key，输出 schema 不变。
+# 开关与全局每分钟生成上限在管理面板「AI 总结」设置中（DB 存储、热生效），
+# 默认关闭；部署需在此配好端点与模型并开启开关后生效。
+[ai_summary]
+provider = "qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# 生产环境请通过环境注入或密钥管理替换为真实密钥
+api_key = ""
+model = "qwen3.6-flash-2026-04-16"
+temperature = 0.3
+max_tokens = 1024

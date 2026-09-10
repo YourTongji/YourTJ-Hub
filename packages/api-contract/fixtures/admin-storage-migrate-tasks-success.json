@@ -1,0 +1,15 @@
+{
+  "result": [
+    {
+      "id": 990001,
+      "type": "file-migrate",
+      "status": 3,
+      "taskJson": "{\"lastId\":0,\"total\":5,\"processed\":4,\"failed\":1,\"clearAfterMigrate\":true}",
+      "retryCount": 1,
+      "lastError": "contract boom",
+      "createdAt": "2026-02-03T04:05:06Z",
+      "processedAt": "0001-01-01T00:00:00Z"
+    }
+  ],
+  "code": 0
+}

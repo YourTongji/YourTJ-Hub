@@ -1,0 +1,40 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 9012,
+        "targetType": "topic",
+        "targetId": 1201,
+        "targetUrl": "/p/post/1201",
+        "title": "期中复习资料汇总",
+        "excerpt": "",
+        "reason": "spam",
+        "note": "疑似广告引流",
+        "status": "open",
+        "resolution": "",
+        "reporter": {
+          "id": 1024,
+          "username": "tongji_user",
+          "avatarUrl": "/static/pic/default-avatar.webp"
+        },
+        "handler": {
+          "id": 0,
+          "username": "匿名用户",
+          "avatarUrl": "/static/pic/default-avatar.webp"
+        },
+        "categories": [
+          {
+            "id": 3,
+            "name": "学习交流",
+            "url": "/c/study/3",
+            "color": "#3b82f6"
+          }
+        ],
+        "createdAt": "2026-08-15T10:00:00Z"
+      }
+    ],
+    "nextCursor": 0,
+    "hasNext": false
+  },
+  "code": 0
+}

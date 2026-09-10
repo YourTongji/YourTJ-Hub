@@ -28,6 +28,31 @@ func TestVerifyEncryptPasswordRejectsMalformedValue(t *testing.T) {
 	}
 }
 
+func TestIsWellFormedPasswordHash(t *testing.T) {
+	stored, err := MakePassword("correct horse battery staple")
+	if err != nil {
+		t.Fatalf("MakePassword failed: %v", err)
+	}
+	if !IsWellFormedPasswordHash(stored) {
+		t.Fatalf("MakePassword output %q should be well-formed", stored)
+	}
+	validHash, validSalt, _ := strings.Cut(stored, ":")
+	malformed := []string{
+		"",
+		"not-a-hash",
+		"%%%:" + validSalt,
+		validHash + ":%%%",
+		"a:b:c",
+		validHash + ":" + validSalt[:len(validSalt)-4],
+		validHash[:len(validHash)-4] + ":" + validSalt,
+	}
+	for _, value := range malformed {
+		if IsWellFormedPasswordHash(value) {
+			t.Fatalf("%q should not be well-formed", value)
+		}
+	}
+}
+
 func TestVerifyPasswordRejectsInvalidBase64(t *testing.T) {
 	if err := VerifyPassword("not base64", "also not base64", "password"); err == nil {
 		t.Fatalf("expected invalid hash error")

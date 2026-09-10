@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 // UserLastActiveUpdatedEvent 用户最后活跃时间更新事件

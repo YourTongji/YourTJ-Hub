@@ -1,6 +1,7 @@
 import { computed, readonly, ref } from 'vue'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
+import { maybeNotifyUnread } from './browser-notification'
 import { setUnreadMessagesDocumentTitle } from './document-title'
 import type { UnreadStatusPayload } from '@gooseforum/client'
 
@@ -28,6 +29,7 @@ function normalizeStatus(data: Partial<UnreadStatusPayload> | null | undefined):
     messages: Boolean(data?.messages),
     moderationReports: Boolean(data?.moderationReports),
     latestNotificationType: data?.latestNotificationType || '',
+    latestUnreadId: typeof data?.latestUnreadId === 'number' ? data.latestUnreadId : 0,
   }
 }
 
@@ -56,12 +58,14 @@ function writeCache(data: UnreadStatusPayload) {
 
 function applyUnread(data: Partial<UnreadStatusPayload> | null | undefined) {
   const status = normalizeStatus(data)
+  const hadNotifications = notifications.value
   notifications.value = status.notifications
   messages.value = status.messages
   moderationReports.value = status.moderationReports || false
   latestNotificationType.value = status.latestNotificationType || ''
   checked.value = true
   setUnreadMessagesDocumentTitle(status.messages)
+  maybeNotifyUnread(hadNotifications, status.notifications, status.latestNotificationType || '', status.latestUnreadId || 0)
   writeCache(status)
 }
 

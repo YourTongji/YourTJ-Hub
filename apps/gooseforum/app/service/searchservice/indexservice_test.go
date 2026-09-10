@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"gorm.io/gorm"
 )
 
 func TestConvertTopicToSearchDocument(t *testing.T) {
@@ -61,5 +62,32 @@ func TestTopicSearchDocumentDoesNotExposeLegacyType(t *testing.T) {
 func TestGetTaskUIDNil(t *testing.T) {
 	if got := getTaskUID(nil); got != nil {
 		t.Fatalf("getTaskUID(nil) = %v, want nil", got)
+	}
+}
+
+func TestIsTopicPubliclySearchable(t *testing.T) {
+	base := topics.Entity{Id: 1, Title: "t", Status: 1, ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive}
+	cases := []struct {
+		name  string
+		mut   func(*topics.Entity)
+		want  bool
+	}{
+		{"published normal", func(e *topics.Entity) {}, true},
+		{"unpublished (status 0)", func(e *topics.Entity) { e.Status = 0 }, false},
+		{"pending review", func(e *topics.Entity) { e.ProcessStatus = topics.ProcessStatusPending }, false},
+		{"blocked", func(e *topics.Entity) { e.ProcessStatus = topics.ProcessStatusBlocked }, false},
+		{"user deleted", func(e *topics.Entity) { e.VisibilityStatus = topics.VisibilityUserDeleted }, false},
+		{"moderator removed", func(e *topics.Entity) { e.VisibilityStatus = topics.VisibilityModeratorRemoved }, false},
+		{"soft deleted", func(e *topics.Entity) { e.DeletedAt = gorm.DeletedAt{Time: time.Now(), Valid: true} }, false},
+	}
+	for _, tc := range cases {
+		e := base
+		tc.mut(&e)
+		if got := isTopicPubliclySearchable(&e); got != tc.want {
+			t.Fatalf("isTopicPubliclySearchable(%s) = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+	if isTopicPubliclySearchable(nil) {
+		t.Fatal("isTopicPubliclySearchable(nil) = true, want false")
 	}
 }

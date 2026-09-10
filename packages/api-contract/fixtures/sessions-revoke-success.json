@@ -1,0 +1,5 @@
+{
+  "result": "会话已吊销",
+  "code": 0,
+  "messageCode": "session.revoke.success"
+}

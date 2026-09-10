@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/meilisearch/meilisearch-go"
 )
 

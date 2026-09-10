@@ -1,0 +1,32 @@
+{
+  "result": {
+    "query": "保研",
+    "total": 1,
+    "items": [
+      {
+        "namespace": "同济新手教程",
+        "path": "同济新手教程/academics/保研",
+        "title": "保研",
+        "titleHit": true,
+        "heading": "申请条件",
+        "anchors": ["s-1", "s-2"],
+        "snippet": "推荐免试（<mark>保研</mark>）需要满足学业成绩要求……",
+        "score": 0.92,
+        "hitType": "title"
+      },
+      {
+        "namespace": "同济新手教程",
+        "path": "同济新手教程/academics/交换",
+        "title": "交换",
+        "titleHit": false,
+        "heading": "申请条件",
+        "anchors": ["s-3"],
+        "snippet": "……与<mark>保研</mark>相关的学籍政策见相关规定。",
+        "score": 0.61,
+        "hitType": "body"
+      }
+    ],
+    "searchUnavailable": false
+  },
+  "code": 0
+}

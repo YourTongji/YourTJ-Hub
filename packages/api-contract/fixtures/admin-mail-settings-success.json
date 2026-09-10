@@ -1,0 +1,13 @@
+{
+  "result": {
+    "enableMail": true,
+    "smtpHost": "smtp.contract.example.test",
+    "smtpPort": 465,
+    "useSSL": true,
+    "smtpUsername": "mailer@contract.example.test",
+    "smtpPasswordConfigured": true,
+    "fromName": "契约站务",
+    "fromEmail": "noreply@contract.example.test"
+  },
+  "code": 0
+}

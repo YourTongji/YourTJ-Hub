@@ -1,9 +1,10 @@
 # yourtj-hub 双实例编排(main 正式 / dev 测试)
 # 用法: docker compose up -d [main|dev]
-# 环境变量来自 /opt/yourtj/.env(见 init-server.sh)
+# 镜像来自 GHCR(CI 构建推送, 服务器匿名 pull), 环境变量来自 /opt/yourtj/.env(见 init-server.sh)
+# 公网 TLS 由 1Panel 反代终止, 回源到宿主机 MAIN_PORT/DEV_PORT; 后端容器只绑 127.0.0.1。
 services:
   main:
-    image: yourtj-hub:${MAIN_TAG:-latest}
+    image: ${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}:${MAIN_TAG:-latest}
     container_name: yourtj-main
     restart: unless-stopped
     ports:
@@ -11,6 +12,9 @@ services:
     volumes:
       - ./main/config.toml:/app/config.toml:ro
       - ./main/storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5234/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -19,7 +23,7 @@ services:
       start_period: 10s
 
   dev:
-    image: yourtj-hub:${DEV_TAG:-latest}
+    image: ${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}:${DEV_TAG:-latest}
     container_name: yourtj-dev
     restart: unless-stopped
     ports:
@@ -27,6 +31,9 @@ services:
     volumes:
       - ./dev/config.toml:/app/config.toml:ro
       - ./dev/storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5234/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -66,37 +73,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # 可选: Casdoor 统一认证(与根目录 docker-compose.yml 的本地 dev 实例对齐)
-  # 生产建议独立部署, 并仅对反代暴露; 初始化步骤见 services/casdoor/README.md
-  casdoor:
-    image: casbin/casdoor:latest
-    container_name: yourtj-casdoor
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${CASDOOR_PORT:-8001}:8000"
-    environment:
-      driverName: mysql
-      dataSourceName: "root:${CASDOOR_DB_PASSWORD:?must be set}@tcp(mariadb:3306)/"
-      dbName: casdoor
-    depends_on:
-      mariadb:
-        condition: service_healthy
-
-  mariadb:
-    image: mariadb:11
-    container_name: yourtj-mariadb
-    restart: unless-stopped
-    environment:
-      MARIADB_ROOT_PASSWORD: ${CASDOOR_DB_PASSWORD:?must be set}
-    volumes:
-      - ./mariadbdata:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
 
 volumes:
   pgdata:

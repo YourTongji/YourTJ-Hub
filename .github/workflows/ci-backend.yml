@@ -1,37 +1,148 @@
-name: ci-backend
+name: CI / backend
 
 on:
   push:
+    branches: [dev, main]
     paths:
       - "apps/gooseforum/app/**"
       - "apps/gooseforum/main.go"
       - "apps/gooseforum/go.mod"
       - "apps/gooseforum/go.sum"
+      - "apps/gooseforum/resource/embed.go"
+      - "apps/gooseforum/resource/embed_test.go"
+      - "apps/gooseforum/resource/templates/**"
+      - "apps/gooseforum/testdata/markdown-compat/**"
+      - "packages/api-contract/**"
+      - "deploy/scripts/**"
+      - "deploy/*.py"
+      - "deploy/instances/**"
+      - "deploy/config.toml.tmpl"
+      - "deploy/config.toml.example"
+      - ".github/actions/render-config/**"
+      - ".github/workflows/ci-backend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   ci-backend:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      backend_pg: ${{ steps.filter.outputs.backend_pg }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          # On dev/main pushes, compare with the commit before this push.
+          # This input is ignored for pull_request, which uses its base branch.
+          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          filters: |
+            backend:
+              - 'apps/gooseforum/app/**'
+              - 'apps/gooseforum/main.go'
+              - 'apps/gooseforum/go.mod'
+              - 'apps/gooseforum/go.sum'
+              - 'apps/gooseforum/resource/embed.go'
+              - 'apps/gooseforum/resource/embed_test.go'
+              - 'apps/gooseforum/resource/templates/**'
+              - 'apps/gooseforum/testdata/markdown-compat/**'
+              - 'packages/api-contract/**'
+              - '.github/workflows/ci-backend.yml'
+            backend_pg:
+              - 'apps/gooseforum/app/bundles/connect/sqlconnect/**'
+              - 'apps/gooseforum/app/migration/**'
+              - 'apps/gooseforum/app/models/**'
+              - 'apps/gooseforum/go.mod'
+              - 'apps/gooseforum/go.sum'
+              - '.github/workflows/ci-backend.yml'
+            deploy_scripts:
+              - 'deploy/scripts/**'
+              - 'deploy/*.py'
+              - 'deploy/instances/**'
+              - 'deploy/config.toml.tmpl'
+              - 'deploy/config.toml.example'
+              - '.github/workflows/ci-backend.yml'
+              - '.github/actions/render-config/**'
+
       - uses: actions/setup-go@v5
+        if: steps.filter.outputs.backend == 'true'
         with:
           go-version: "1.26"
+      # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.6 + toolchain go1.26.8,
+      # 但 setup-go 的 go-version "1.26"(check-latest) 只保证取最新 1.26.x patch。
+      # 显式断言解析到的实际工具链 >= 1.26.6, 防止缓存/回退导致旧 patch
+      # (go1.26.5 及更早的 7 个 stdlib CVE, 修复于 go1.26.6) 静默编译产物。
+      - name: Assert Go toolchain >= 1.26.6 (issue #447)
+        if: steps.filter.outputs.backend == 'true'
+        working-directory: apps/gooseforum
+        run: |
+          set -euo pipefail
+          min="1.26.6"
+          cur="$(go env GOVERSION | sed 's/^go//')"
+          if [[ "$(printf '%s\n%s\n' "$min" "$cur" | sort -V | head -n1)" != "$min" ]]; then
+            echo "::error::Go toolchain ${cur} is below the required minimum ${min} (stdlib CVEs fixed in Go 1.26.6, issue #447)"
+            exit 1
+          fi
+          echo "Go toolchain ${cur} >= ${min}: OK"
       - name: Vet
+        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go vet ./...
       - name: Test
+        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go test ./...
       - name: Build
+        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go build .
+
+      # deploy 运维脚本测试(issue #134): DSN 解析支持 URL/key=value 两种格式,
+      # 非法 DSN 在调用侧于任何 DB 操作前报错; 渲染器 fail-closed(配置治理);
+      # 仅 deploy 脚本/模板/渲染器变更时运行。
+      - name: Deploy scripts (bash syntax + DSN parser + render config tests)
+        if: steps.filter.outputs.deploy_scripts == 'true'
+        run: |
+          # bash -n 只语法检查第一个文件参数, 多文件写法会静默跳过其余文件, 必须逐个检查
+          for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh deploy/scripts/deploy.sh deploy/scripts/apply-config.sh deploy/scripts/verify-instance.sh; do
+            bash -n "$f"
+          done
+          bash deploy/scripts/pgdsn_test.sh
+          python3 deploy/render_config_test.py
+
+  # wiki 同步锁并发测试（#285 回归）必须通过竞态检测。PR #297 描述引用过
+  # "ci-backend-race"，但此前该 job 不存在；此处落地为真实 job，与
+  # ci-backend-pg 相同的 paths-filter 门控模式（backend 变更时运行）。
+  ci-backend-race:
+    needs: ci-backend
+    if: needs.ci-backend.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Test (race detector, wiki sync concurrency)
+        working-directory: apps/gooseforum
+        run: go test -race ./app/service/wikiservice/
 
   # 全部主库模型必须在 PostgreSQL 上可迁移。回归背景: issue #8 曾因模型里
   # 硬编码 MySQL 类型(bigint unsigned/datetime/tinyint)导致 PG 建表失败、
   # 服务带残缺 schema 启动, 登录/注册运行期才报错。此 job 用真实 PG 验证。
   ci-backend-pg:
+    needs: ci-backend
+    if: needs.ci-backend.outputs.backend_pg == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -48,12 +159,21 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - name: Test (PostgreSQL migration)
+      - name: Test (PostgreSQL migration + PG-gated models)
         working-directory: apps/gooseforum
         env:
           YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
-        run: go test ./app/migration/ -run 'TestSchema' -v
+        # PostgreSQL$ 覆盖已接线包内所有 PG 门控用例（course stats 并发/学期列表、
+        # dailyStats 增量、topicUserStat upsert 歧义）。刻意不逐个显式列举用例：
+        # 本类缺陷 pg-only（SQLite 宽松通过，只有 PostgreSQL 报错），一旦漏接线，
+        # 回归护栏形同虚设。包内同名模式的新用例会自动纳入；但新出现 PG 门控的
+        # 包必须在此显式接线（PR #589 的 topicUserStat 一度漏接）。
+        run: |
+          go test ./app/migration/ -run 'TestSchema' -v
+          go test ./app/models/forum/course/ -run 'PostgreSQL$' -v
+          go test ./app/models/forum/dailyStats/ -run 'PostgreSQL$' -v
+          go test ./app/models/forum/topicUserStat/ -run 'PostgreSQL$' -v

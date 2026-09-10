@@ -1,0 +1,673 @@
+package routes
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+// setupNotificationChatContractTest 在共享 harness（setupHTTPContractTest）之上
+// 补齐通知 4 条 + 聊天 3 条路由，中间件链与 route4api.go 的生产注册保持一致
+// （chat 组继承 forumApi 经 Use 挂载的 JWTAuthCheck 并再叠一层，与生产相同）。
+func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
+	t.Helper()
+	conn, router := setupHTTPContractTest(t)
+	if err := conn.AutoMigrate(
+		&eventNotification.Entity{},
+		&pushSubscription.Entity{},
+		&pushDevice.Entity{},
+		&imConversations.Entity{},
+		&imUserChatConfigs.Entity{},
+		&messages.Entity{},
+	); err != nil {
+		t.Fatalf("migrate notification/chat contract tables: %v", err)
+	}
+
+	forumAPI := router.Group("/api/forum")
+	forumLoginAPI := forumAPI.Use(middleware.JWTAuthCheck)
+	forumLoginAPI.GET("/unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
+	forumLoginAPI.GET("/notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
+	forumLoginAPI.POST("/notification/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAsRead))
+	forumLoginAPI.POST("/notification/mark-all-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkAllAsRead))
+	forumLoginAPI.GET("/push/config", middleware.NoUpdateUserActivity, UpButterReq(api.GetPushConfig))
+	forumLoginAPI.POST("/push/subscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.SubscribePush))
+	forumLoginAPI.POST("/push/unsubscribe", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnsubscribePush))
+	forumLoginAPI.POST("/push/device/register", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RegisterPushDevice))
+	forumLoginAPI.POST("/push/device/unregister", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.UnregisterPushDevice))
+
+	chatAPI := forumAPI.Group("/chat", middleware.JWTAuthCheck)
+	chatAPI.POST("/send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
+	chatAPI.POST("/messages", UpButterReq(api.GetMessages))
+	chatAPI.POST("/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
+	return conn, router
+}
+
+// createContractNotification 直接写库造一条通知（显式 id/CreatedAt 供确定性 fixture 断言）。
+func createContractNotification(t *testing.T, conn *gorm.DB, id, userID uint64, eventType string, isRead bool, payload eventNotification.NotificationPayload, createdAt time.Time) {
+	t.Helper()
+	entity := eventNotification.Entity{
+		Id:        id,
+		UserId:    userID,
+		TopicID:   payload.TopicId,
+		Payload:   payload,
+		EventType: eventType,
+		IsRead:    isRead,
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+	}
+	if err := conn.Create(&entity).Error; err != nil {
+		t.Fatalf("create contract notification: %v", err)
+	}
+}
+
+// createContractConversation 直接写库造一个单聊会话及双向成员配置。
+func createContractConversation(t *testing.T, conn *gorm.DB, convID, userID, peerID uint64) {
+	t.Helper()
+	if err := conn.Create(&imConversations.Entity{Id: convID, Type: 1, LastMsgTime: time.Now()}).Error; err != nil {
+		t.Fatalf("create contract conversation: %v", err)
+	}
+	for _, pair := range [2][2]uint64{{userID, peerID}, {peerID, userID}} {
+		if err := conn.Create(&imUserChatConfigs.Entity{UserId: pair[0], PeerId: pair[1], ConvId: convID, UpdatedAt: time.Now()}).Error; err != nil {
+			t.Fatalf("create contract chat config: %v", err)
+		}
+	}
+}
+
+// createContractMessage 直接写库造一条聊天消息（显式 id/CreatedAt 供确定性 fixture 断言）。
+func createContractMessage(t *testing.T, conn *gorm.DB, id, convID, senderID uint64, content string, isRead int, createdAt time.Time) {
+	t.Helper()
+	entity := messages.Entity{
+		Id:        id,
+		ConvId:    convID,
+		SenderId:  senderID,
+		Content:   content,
+		MsgType:   1,
+		IsRead:    isRead,
+		CreatedAt: createdAt,
+	}
+	if err := conn.Create(&entity).Error; err != nil {
+		t.Fatalf("create contract message: %v", err)
+	}
+}
+
+func TestUnreadStatusHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		// 固定 id：响应含 latestUnreadId（最新未读通知 id），fixture 依赖确定值
+		// （unread-status-success.json latestUnreadId: 6001）。
+		createContractNotification(t, conn, 6001, user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{Title: "契约未读通知", ActorId: user.Id}, time.Now())
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/unread-status", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("unread status status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "unread-status-success.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/unread-status", "", "")
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
+	})
+}
+
+func TestNotificationListHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		// 固定 id/时间戳/payload；actor/topic 名称直接存于 payload（hydrate 为
+		// best-effort 补强，无对应 users/topics 行时保留存储值），使响应与确定性
+		// fixture 精确一致。
+		createContractNotification(t, conn, 2048, user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{
+				Title:      "你的回复收到了新回复",
+				Content:    "tongji_user 回复了你的评论",
+				ActorId:    1024,
+				ActorName:  "tongji_user",
+				TopicId:    512,
+				TopicTitle: "期中复习资料汇总",
+				PostId:     4096,
+				PostNo:     8,
+			},
+			time.Date(2026, 8, 15, 10, 20, 30, 0, time.UTC))
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("notifications status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-success.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications", "", "")
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
+	})
+
+	t.Run("unknown filter stays a legacy HTTP 200 validation failure", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?filter=bogus", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid filter status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+	})
+
+	t.Run("non-numeric cursor returns strict 400", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?cursor=abc", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
+	})
+}
+
+func TestNotificationMarkReadHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		notificationID := contractTestID()
+		createContractNotification(t, conn, notificationID, user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{Title: "契约待读通知", ActorId: user.Id}, time.Now())
+		body := fmt.Sprintf(`{"notificationId":%d}`, notificationID)
+		recorder := serveJSON(router, "/api/forum/notification/mark-read", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("mark read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-read-success.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/notification/mark-read", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/notification/mark-read", `{}`, "account-frozen.json")
+	})
+}
+
+func TestNotificationMarkAllReadHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		createContractNotification(t, conn, contractTestID(), user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{Title: "契约待读通知", ActorId: user.Id}, time.Now())
+		recorder := serveJSON(router, "/api/forum/notification/mark-all-read", `{}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("mark all read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-all-read-success.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/notification/mark-all-read", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/notification/mark-all-read", `{}`, "account-frozen.json")
+	})
+}
+
+func TestChatSendHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		body := fmt.Sprintf(`{"peerId":%d,"content":"契约私信内容","msgType":1}`, peer.Id)
+		recorder := serveJSON(router, "/api/forum/chat/send", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("chat send status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		response := decodeContractEnvelope(t, recorder)
+		fixture := contractFixture(t, "chat-send-success.json")
+		if response.Code != fixture.Code {
+			t.Fatalf("chat send code = %d, want fixture code %d", response.Code, fixture.Code)
+		}
+		// result.convId 为共享测试库自增 id（随用例执行变化），断言为正数即可。
+		var result struct {
+			ConvId uint64 `json:"convId"`
+		}
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			t.Fatalf("decode chat send result %s: %v", response.Result, err)
+		}
+		if result.ConvId == 0 {
+			t.Fatalf("convId = %d, want positive conversation id", result.ConvId)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/send", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/chat/send", `{}`, "account-frozen.json")
+	})
+
+	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionRateLimited(t, conn, router, "/api/forum/chat/send",
+			`{"peerId":1,"content":"Contract rate limit probe."}`,
+			"chat-send-rate-limited.json", middleware.RateLimitMessageSend)
+	})
+
+	t.Run("missing msgType stays a legacy HTTP 200 validation failure", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveJSON(router, "/api/forum/chat/send", `{"peerId":1,"content":"契约私信内容"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+	})
+}
+
+func TestChatMessagesHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		// 固定 viewer(2048)/peer(1024)/conv(7701)/消息 id 与时间戳，使游标分页
+		// 响应与确定性 fixture 精确一致（viewer=2048 视角：9002 为 isSelf）。
+		viewer := createHTTPContractUser(t, conn, 2048)
+		createContractConversation(t, conn, 7701, viewer.Id, 1024)
+		createContractMessage(t, conn, 9001, 7701, 1024, "你好，请问资料还能发我一份吗？", 1,
+			time.Date(2026, 8, 15, 9, 0, 0, 0, time.UTC))
+		createContractMessage(t, conn, 9002, 7701, viewer.Id, "可以，稍后传你", 0,
+			time.Date(2026, 8, 15, 9, 1, 12, 0, time.UTC))
+		recorder := serveJSON(router, "/api/forum/chat/messages", `{"convId":7701}`, contractSessionToken(t, viewer))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("chat messages status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-messages-success.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/messages", `{}`, "auth-required.json")
+	})
+
+	t.Run("non-member conversation returns business failure", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		// user 不是该会话成员：越权读取他人会话被拒绝。
+		recorder := serveJSON(router, "/api/forum/chat/messages", `{"convId":987654321}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-messages-failed.json"))
+	})
+}
+
+func TestChatMarkReadHTTPContract(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		convID := contractTestID()
+		createContractConversation(t, conn, convID, user.Id, peer.Id)
+		body := fmt.Sprintf(`{"convId":%d}`, convID)
+		recorder := serveJSON(router, "/api/forum/chat/mark-read", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("chat mark read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-success.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/mark-read", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/chat/mark-read", `{}`, "account-frozen.json")
+	})
+
+	t.Run("non-member conversation returns business failure", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		// user 不是该会话成员：越权翻转他人会话已读状态被拒绝（issue #111，CWE-639）。
+		recorder := serveJSON(router, "/api/forum/chat/mark-read", `{"convId":987654321}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
+	})
+}
+
+// TestPendingUserReadStateCleanupAllowed 未读清理放行变体（issue #427）：
+// pending 用户仅清理自己的读状态、不产生内容写，notification/chat mark-read
+// 不被拦截；冻结拦截在放行变体中保留（已由上方 frozen 用例 pin 住）。
+func TestPendingUserReadStateCleanupAllowed(t *testing.T) {
+	t.Run("pending user can mark notification read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		notificationID := contractTestID()
+		createContractNotification(t, conn, notificationID, user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{Title: "契约待读通知", ActorId: user.Id}, time.Now())
+		body := fmt.Sprintf(`{"notificationId":%d}`, notificationID)
+
+		recorder := serveJSON(router, "/api/forum/notification/mark-read", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending notification mark-read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-read-success.json"))
+	})
+
+	t.Run("pending user can mark all notifications read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+
+		recorder := serveJSON(router, "/api/forum/notification/mark-all-read", `{}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending notification mark-all-read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-all-read-success.json"))
+	})
+
+	t.Run("pending user can mark chat read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		convID := contractTestID()
+		createContractConversation(t, conn, convID, user.Id, peer.Id)
+		body := fmt.Sprintf(`{"convId":%d}`, convID)
+
+		recorder := serveJSON(router, "/api/forum/chat/mark-read", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending chat mark-read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-success.json"))
+	})
+
+	t.Run("pending user cannot mark another conversation read", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		user := createPendingContractUser(t, conn)
+		// 放行变体不豁免越权：非会话成员仍被拒绝（CWE-639 回归）。
+		recorder := serveJSON(router, "/api/forum/chat/mark-read", `{"convId":987654321}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("pending non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
+	})
+}
+
+func TestPushConfigHTTPContract(t *testing.T) {
+	t.Run("disabled when no vapid keys configured", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/push/config", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push config status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-config-disabled.json"))
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/push/config", "", "")
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
+	})
+}
+
+func TestPushSubscribeHTTPContract(t *testing.T) {
+	t.Run("success persists subscription for the caller", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := `{"subscription":{"endpoint":"https://fcm.googleapis.com/fcm/send/contract-sub","keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`
+		recorder := serveJSON(router, "/api/forum/push/subscribe", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push subscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-subscribe-success.json"))
+		subs := pushSubscription.ListByUser(user.Id)
+		if len(subs) != 1 || subs[0].Endpoint != "https://fcm.googleapis.com/fcm/send/contract-sub" || subs[0].Lang != "zh" {
+			t.Fatalf("subscription not persisted for caller: %+v", subs)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/push/subscribe", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/push/subscribe", `{}`, "account-frozen.json")
+	})
+
+	t.Run("empty subscription fails legacy validation", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveJSON(router, "/api/forum/push/subscribe", `{"subscription":{"endpoint":"","keys":{}}}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+	})
+
+	t.Run("non-allowlisted endpoint rejected as invalid params", func(t *testing.T) {
+		// review P1 SSRF：订阅 endpoint 必须在存储前通过推送服务白名单校验。
+		// 未知 host / IP 字面量 / 内网地址一律按业务参数错误拒绝，绝不落库。
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		for _, endpoint := range []string{
+			"https://push.example.com/evil",
+			"https://127.0.0.1/sub",
+			"http://fcm.googleapis.com/fcm/send/abc",
+		} {
+			body := fmt.Sprintf(`{"subscription":{"endpoint":%q,"keys":{"p256dh":"dGVzdC1wMjU2ZGg","auth":"dGVzdC1hdXRo"}},"lang":"zh"}`, endpoint)
+			recorder := serveJSON(router, "/api/forum/push/subscribe", body, contractSessionToken(t, user))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("endpoint %q status = %d, want 200 envelope: %s", endpoint, recorder.Code, recorder.Body.String())
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+		}
+		if subs := pushSubscription.ListByUser(user.Id); len(subs) != 0 {
+			t.Fatalf("rejected endpoints persisted %d subscription(s), want 0", len(subs))
+		}
+	})
+}
+
+func TestPushUnsubscribeHTTPContract(t *testing.T) {
+	t.Run("removes owned subscription", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := pushSubscription.Upsert(user.Id, "https://fcm.googleapis.com/fcm/send/contract-unsub", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
+			t.Fatalf("seed subscription: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://fcm.googleapis.com/fcm/send/contract-unsub"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push unsubscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-unsubscribe-success.json"))
+		if subs := pushSubscription.ListByUser(user.Id); len(subs) != 0 {
+			t.Fatalf("subscription not removed: %+v", subs)
+		}
+	})
+
+	t.Run("foreign endpoint is idempotent success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		owner := createHTTPContractUser(t, conn, contractTestID())
+		caller := createHTTPContractUser(t, conn, contractTestID())
+		if err := pushSubscription.Upsert(owner.Id, "https://fcm.googleapis.com/fcm/send/foreign", "dGVzdC1wMjU2ZGg", "dGVzdC1hdXRo", "zh"); err != nil {
+			t.Fatalf("seed foreign subscription: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/unsubscribe", `{"endpoint":"https://fcm.googleapis.com/fcm/send/foreign"}`, contractSessionToken(t, caller))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("foreign unsubscribe status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-unsubscribe-success.json"))
+		// 他人订阅未被删除（越权防护）。
+		if subs := pushSubscription.ListByUser(owner.Id); len(subs) != 1 {
+			t.Fatalf("foreign subscription was removed: %+v", subs)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/push/unsubscribe", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/push/unsubscribe", `{}`, "account-frozen.json")
+	})
+}
+func TestPushDeviceRegisterHTTPContract(t *testing.T) {
+	t.Run("jpush provider persists and rejects incompatible platforms", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		response := serveJSON(router, "/api/forum/push/device/register", `{"platform":"android","provider":"jpush","token":"jpush-device"}`, contractSessionToken(t, user))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, response), contractFixture(t, "push-device-register-success.json"))
+		devices := pushDevice.ListByUser(user.Id)
+		if len(devices) != 1 || devices[0].Provider != "jpush" {
+			t.Fatal("JPush provider not persisted")
+		}
+		response = serveJSON(router, "/api/forum/push/device/register", `{"platform":"ios","provider":"jpush","token":"invalid-device"}`, contractSessionToken(t, user))
+		if decodeContractEnvelope(t, response).Code == 0 {
+			t.Fatal("incompatible provider returned success")
+		}
+		if len(pushDevice.ListByUser(user.Id)) != 1 {
+			t.Fatal("incompatible provider was registered")
+		}
+	})
+
+	t.Run("success persists native device for the caller", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := `{"platform":"ios","token":"contract-apns-device-token-0001"}`
+		recorder := serveJSON(router, "/api/forum/push/device/register", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push device register status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-device-register-success.json"))
+		devices := pushDevice.ListByUser(user.Id)
+		if len(devices) != 1 || devices[0].Token != "contract-apns-device-token-0001" || devices[0].Platform != pushDevice.PlatformIOS {
+			t.Fatalf("device not persisted for caller: %+v", devices)
+		}
+	})
+
+	t.Run("same token from another account converges ownership", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		owner := createHTTPContractUser(t, conn, contractTestID())
+		caller := createHTTPContractUser(t, conn, contractTestID())
+		if _, err := pushDevice.UpsertCapped(owner.Id, pushDevice.PlatformAndroid, "contract-fcm-device-token-0002", 20, time.Now()); err != nil {
+			t.Fatalf("seed owner device: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/device/register",
+			`{"platform":"android","token":"contract-fcm-device-token-0002"}`, contractSessionToken(t, caller))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push device re-register status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-device-register-success.json"))
+		if devices := pushDevice.ListByUser(owner.Id); len(devices) != 0 {
+			t.Fatalf("device stayed on previous owner: %+v", devices)
+		}
+		if devices := pushDevice.ListByUser(caller.Id); len(devices) != 1 || devices[0].Platform != pushDevice.PlatformAndroid {
+			t.Fatalf("device not converged to caller: %+v", devices)
+		}
+	})
+
+	t.Run("invalid platform fails legacy validation", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveJSON(router, "/api/forum/push/device/register", `{"platform":"web","token":"x"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+		if devices := pushDevice.ListByUser(user.Id); len(devices) != 0 {
+			t.Fatalf("invalid device persisted: %+v", devices)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/push/device/register", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/push/device/register", `{}`, "account-frozen.json")
+	})
+}
+
+func TestPushDeviceUnregisterHTTPContract(t *testing.T) {
+	t.Run("removes owned device", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := pushDevice.Upsert(user.Id, pushDevice.PlatformIOS, "contract-apns-device-token-0003", time.Now()); err != nil {
+			t.Fatalf("seed device: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/device/unregister", `{"token":"contract-apns-device-token-0003"}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("push device unregister status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-device-unregister-success.json"))
+		if devices := pushDevice.ListByUser(user.Id); len(devices) != 0 {
+			t.Fatalf("device not removed: %+v", devices)
+		}
+	})
+
+	t.Run("foreign token is idempotent success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		owner := createHTTPContractUser(t, conn, contractTestID())
+		caller := createHTTPContractUser(t, conn, contractTestID())
+		if err := pushDevice.Upsert(owner.Id, pushDevice.PlatformAndroid, "contract-fcm-device-token-0004", time.Now()); err != nil {
+			t.Fatalf("seed foreign device: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/push/device/unregister", `{"token":"contract-fcm-device-token-0004"}`, contractSessionToken(t, caller))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("foreign unregister status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "push-device-unregister-success.json"))
+		// 他人设备未被删除（越权防护）。
+		if devices := pushDevice.ListByUser(owner.Id); len(devices) != 1 {
+			t.Fatalf("foreign device was removed: %+v", devices)
+		}
+	})
+
+	t.Run("missing session returns 401", func(t *testing.T) {
+		_, router := setupNotificationChatContractTest(t)
+		assertInteractionUnauthenticated(t, router, "/api/forum/push/device/unregister", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/push/device/unregister", `{}`, "account-frozen.json")
+	})
+}

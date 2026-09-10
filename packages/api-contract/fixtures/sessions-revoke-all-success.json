@@ -1,0 +1,5 @@
+{
+  "result": "已退出所有设备",
+  "code": 0,
+  "messageCode": "session.revokeAll.success"
+}

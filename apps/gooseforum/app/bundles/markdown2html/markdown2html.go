@@ -1,0 +1,657 @@
+package markdown2html
+
+import (
+	"bytes"
+	"log/slog"
+	"net/url"
+	"regexp"
+	"strings"
+	"unicode/utf8"
+
+	headingid "github.com/jkboxomine/goldmark-headingid"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	extensionast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
+	nethtml "golang.org/x/net/html"
+)
+
+func GetPostVersion() uint32 {
+	return 6
+}
+
+var md = goldmark.New(
+	goldmark.WithExtensions(
+		extension.GFM,
+		extension.Table,
+		extension.Strikethrough,
+		extension.Linkify,
+		extension.TaskList,
+		extension.Typographer,
+	),
+	goldmark.WithParserOptions(
+		parser.WithAutoHeadingID(),
+	),
+)
+
+// MarkdownToHTML renders Markdown to HTML with the shared server parser.
+func MarkdownToHTML(markdown string) string {
+	protected, placeholders := protectMathSegments(markdown)
+	var buf bytes.Buffer
+	ctx := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
+	if err := md.Convert([]byte(protected), &buf, parser.WithContext(ctx)); err != nil {
+		slog.Error("转化失败", "err", err)
+	}
+	return restoreMathSegments(buf.String(), placeholders)
+}
+
+// PostMarkdownToHTML renders public user content and applies UGC link/image policies.
+func PostMarkdownToHTML(markdown string) string {
+	return normalizePostHTML(MarkdownToHTML(markdown))
+}
+
+// 课程评审段落标题（与 YourTJCourse-Serverless 前端 CollapsibleMarkdown 的
+// REVIEW_SECTION_HEADINGS 一致）：历史导入的评审正文常无 Markdown 标记，
+// 渲染前把「标题：」行归一化为 ## 标题，列表与分享卡显示统一。
+// 长词在前，避免「授课质量与给分」被「授课质量」先行截断。
+var reviewSectionHeadings = []string{
+	"授课质量与给分",
+	"上课自由度",
+	"课程内容",
+	"考核标准",
+	"授课质量",
+	"考核方式",
+	"上课学期",
+	"作业与考核",
+	"给分情况",
+	"作业量",
+	"考试难度",
+}
+
+var (
+	reviewSectionHeadingRe = regexp.MustCompile(`^(` + strings.Join(reviewSectionHeadings, "|") + `)[：:]?$`)
+	reviewSectionInlineRe  = regexp.MustCompile(`(` + strings.Join(reviewSectionHeadings, "|") + `)[：:]`)
+	reviewSectionFenceRe   = regexp.MustCompile("^\\s*(```|~~~)")
+	reviewSectionHeadingMd = regexp.MustCompile(`^\s{0,3}#{1,6}\s`)
+	reviewZeroWidthRe      = regexp.MustCompile("[\u200B\u200C\u200D\uFEFF\u2060]")
+	reviewBlankLinesRe     = regexp.MustCompile(`\n{3,}`)
+)
+
+// NormalizeCourseReviewSections 把「课程内容：…」这类无 Markdown 标记的历史评审段落
+// 归一化为 ## 标题；已带 Markdown 标记或代码围栏内的内容原样保留。
+// 独立标题行 -> 「## x」；行内「标题：」-> 拆出「## x」再保留剩余正文（与 serverless 前端一致）。
+func NormalizeCourseReviewSections(markdown string) string {
+	if markdown == "" {
+		return ""
+	}
+	raw := strings.ReplaceAll(markdown, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\r", "\n")
+	lines := strings.Split(raw, "\n")
+	normalized := make([]string, 0, len(lines))
+	inFence := false
+	for _, originalLine := range lines {
+		line := reviewZeroWidthRe.ReplaceAllString(originalLine, "")
+		if reviewSectionFenceRe.MatchString(line) {
+			inFence = !inFence
+			normalized = append(normalized, strings.TrimRight(line, " \t"))
+			continue
+		}
+		if inFence {
+			normalized = append(normalized, line)
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		if reviewSectionHeadingMd.MatchString(trimmed) {
+			normalized = append(normalized, trimmed)
+			continue
+		}
+		if match := reviewSectionHeadingRe.FindStringSubmatch(trimmed); match != nil {
+			normalized = append(normalized, "## "+match[1])
+			continue
+		}
+		if reviewSectionInlineRe.MatchString(trimmed) {
+			replaced := reviewSectionInlineRe.ReplaceAllString(trimmed, "\n## $1\n")
+			replaced = strings.TrimLeft(replaced, "\n")
+			normalized = append(normalized, strings.TrimRight(replaced, " \t"))
+			continue
+		}
+		normalized = append(normalized, line)
+	}
+	return reviewBlankLinesRe.ReplaceAllString(strings.Join(normalized, "\n"), "\n\n")
+}
+
+func normalizePostHTML(raw string) string {
+	root, err := nethtml.Parse(strings.NewReader("<div>" + raw + "</div>"))
+	if err != nil {
+		return raw
+	}
+
+	var walk func(*nethtml.Node)
+	walk = func(node *nethtml.Node) {
+		if node.Type == nethtml.ElementNode {
+			switch node.Data {
+			case "a":
+				if isExternalHTTPLink(getHTMLAttr(node, "href")) {
+					setHTMLAttr(node, "target", "_blank")
+					setHTMLAttr(node, "rel", "nofollow ugc noopener noreferrer")
+				}
+			case "img":
+				setHTMLAttr(node, "loading", "lazy")
+				setHTMLAttr(node, "decoding", "async")
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(root)
+
+	container := findFirstElement(root, "div")
+	if container == nil {
+		return raw
+	}
+	var buf bytes.Buffer
+	for child := container.FirstChild; child != nil; child = child.NextSibling {
+		if err := nethtml.Render(&buf, child); err != nil {
+			return raw
+		}
+	}
+	return buf.String()
+}
+
+func getHTMLAttr(node *nethtml.Node, key string) string {
+	for _, attr := range node.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
+}
+
+func isExternalHTTPLink(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	return err == nil && parsed.IsAbs() && (parsed.Scheme == "http" || parsed.Scheme == "https")
+}
+
+func findFirstElement(node *nethtml.Node, tag string) *nethtml.Node {
+	if node == nil {
+		return nil
+	}
+	if node.Type == nethtml.ElementNode && node.Data == tag {
+		return node
+	}
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if found := findFirstElement(child, tag); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func setHTMLAttr(node *nethtml.Node, key, value string) {
+	for i := range node.Attr {
+		if node.Attr[i].Key == key {
+			node.Attr[i].Val = value
+			return
+		}
+	}
+	node.Attr = append(node.Attr, nethtml.Attribute{Key: key, Val: value})
+}
+
+// GetParser returns the shared goldmark parser.
+func GetParser() goldmark.Markdown {
+	return md
+}
+
+// ExtractFirstImageURL returns the first public image destination from Markdown.
+func ExtractFirstImageURL(content string) string {
+	urls := ExtractImageURLs(content)
+	if len(urls) == 0 {
+		return ""
+	}
+	return urls[0]
+}
+
+func ExtractImageURLs(content string) []string {
+	reader := text.NewReader([]byte(content))
+	doc := GetParser().Parser().Parse(reader)
+
+	imageURLs := make([]string, 0)
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		image, ok := n.(*ast.Image)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		imageURL := strings.TrimSpace(string(image.Destination))
+		if isPublicImageURL(imageURL) {
+			imageURLs = append(imageURLs, imageURL)
+		}
+		return ast.WalkContinue, nil
+	})
+	return imageURLs
+}
+
+func isPublicImageURL(value string) bool {
+	if value == "" || strings.HasPrefix(value, "data:") || strings.HasPrefix(value, "blob:") {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+	if parsed.IsAbs() {
+		return parsed.Scheme == "http" || parsed.Scheme == "https"
+	}
+	return strings.HasPrefix(value, "/")
+}
+
+// ExtractDescription extracts readable summary text from Markdown.
+func ExtractDescription(content string, maxLength int) string {
+	if maxLength <= 0 {
+		maxLength = 200
+	}
+
+	reader := text.NewReader([]byte(content))
+	doc := GetParser().Parser().Parse(reader)
+
+	var textParts []string
+	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			switch node := n.(type) {
+			case *ast.Heading, *ast.Paragraph, *ast.ListItem:
+				textContent := extractDescriptionBlockText(node, reader.Source())
+				if textContent != "" && utf8.RuneCountInString(textContent) > 3 {
+					textParts = append(textParts, textContent)
+				}
+				return ast.WalkSkipChildren, nil
+			case *ast.CodeBlock, *ast.FencedCodeBlock:
+				return ast.WalkSkipChildren, nil
+			case *ast.Image:
+				return ast.WalkSkipChildren, nil
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+
+	if err != nil {
+		return fallbackExtractDescription(content, maxLength)
+	}
+
+	description := strings.Join(textParts, " ")
+	description = strings.ReplaceAll(description, "\n", " ")
+	description = strings.ReplaceAll(description, "\t", " ")
+	for strings.Contains(description, "  ") {
+		description = strings.ReplaceAll(description, "  ", " ")
+	}
+	description = strings.TrimSpace(description)
+
+	if utf8.RuneCountInString(description) > maxLength {
+		runes := []rune(description)
+		if len(runes) > maxLength {
+			description = string(runes[:maxLength]) + "..."
+		}
+	}
+
+	return description
+}
+
+// ExtractMentions shares the source-aware parser used by rendered post links.
+func ExtractMentions(content string) []string {
+	return ExtractUsernames(content)
+}
+
+// ExtractPreview converts Markdown into compact readable text for notifications and activity lists.
+func ExtractPreview(content string, maxLength int) string {
+	if maxLength <= 0 {
+		return ""
+	}
+
+	reader := text.NewReader([]byte(content))
+	doc := GetParser().Parser().Parse(reader)
+	var builder strings.Builder
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch node := n.(type) {
+		case *ast.Text:
+			builder.Write(node.Segment.Value(reader.Source()))
+			if node.SoftLineBreak() || node.HardLineBreak() {
+				builder.WriteByte(' ')
+			}
+		case *ast.Image:
+			builder.WriteString("[图片]")
+			return ast.WalkSkipChildren, nil
+		case *ast.CodeBlock, *ast.FencedCodeBlock, *ast.HTMLBlock:
+			return ast.WalkSkipChildren, nil
+		case *ast.Paragraph, *ast.Heading, *ast.ListItem:
+			if builder.Len() > 0 {
+				builder.WriteByte(' ')
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+
+	preview := strings.Join(strings.Fields(builder.String()), " ")
+	runes := []rune(preview)
+	if len(runes) > maxLength {
+		preview = string(runes[:maxLength])
+	}
+	return preview
+}
+
+// ExtractVisibleText returns the text represented by Markdown after its
+// formatting delimiters are removed. Block boundaries stay separated so text
+// from adjacent paragraphs cannot become a new match when this value is used
+// by moderation checks.
+func ExtractVisibleText(content string) string {
+	// Most content is plain text. Avoid building a Markdown AST when no syntax
+	// can split a sensitive word across visible text nodes.
+	if !strings.ContainsAny(content, "*_~`[]<>\\&") {
+		return content
+	}
+
+	reader := text.NewReader([]byte(content))
+	doc := GetParser().Parser().Parse(reader)
+	var builder strings.Builder
+	appendBlockBreak := func() {
+		if builder.Len() == 0 {
+			return
+		}
+		value := builder.String()
+		if value[len(value)-1] != '\n' {
+			builder.WriteByte('\n')
+		}
+	}
+
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			switch n.(type) {
+			case *ast.Paragraph, *ast.Heading, *ast.ListItem, *ast.Blockquote,
+				*ast.CodeBlock, *ast.FencedCodeBlock, *extensionast.TableCell:
+				appendBlockBreak()
+			}
+			return ast.WalkContinue, nil
+		}
+
+		switch node := n.(type) {
+		case *ast.Text:
+			value := node.Segment.Value(reader.Source())
+			if !node.IsRaw() {
+				value = util.UnescapePunctuations(value)
+				value = util.ResolveNumericReferences(value)
+				value = util.ResolveEntityNames(value)
+			}
+			builder.Write(value)
+			if node.SoftLineBreak() || node.HardLineBreak() {
+				builder.WriteByte('\n')
+			}
+		case *ast.String:
+			builder.Write(node.Value)
+		case *ast.CodeBlock:
+			builder.Write(node.Lines().Value(reader.Source()))
+			return ast.WalkSkipChildren, nil
+		case *ast.FencedCodeBlock:
+			builder.Write(node.Lines().Value(reader.Source()))
+			return ast.WalkSkipChildren, nil
+		case *ast.Image, *ast.HTMLBlock:
+			// Image alt text and raw HTML markup are not ordinary Markdown
+			// prose. The original source is still scanned separately.
+			return ast.WalkSkipChildren, nil
+		}
+		return ast.WalkContinue, nil
+	})
+
+	return builder.String()
+}
+
+func extractDescriptionBlockText(node ast.Node, source []byte) string {
+	var builder strings.Builder
+	_ = ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch typed := n.(type) {
+		case *ast.Text:
+			builder.Write(typed.Segment.Value(source))
+			if typed.SoftLineBreak() || typed.HardLineBreak() {
+				builder.WriteByte(' ')
+			}
+		case *ast.CodeBlock, *ast.FencedCodeBlock, *ast.Image:
+			return ast.WalkSkipChildren, nil
+		}
+		return ast.WalkContinue, nil
+	})
+
+	textContent := strings.ReplaceAll(builder.String(), "\n", " ")
+	textContent = strings.ReplaceAll(textContent, "\t", " ")
+	for strings.Contains(textContent, "  ") {
+		textContent = strings.ReplaceAll(textContent, "  ", " ")
+	}
+	return strings.TrimSpace(textContent)
+}
+
+// fallbackExtractDescription strips common Markdown markers without parsing.
+func fallbackExtractDescription(content string, maxLength int) string {
+	lines := strings.Split(content, "\n")
+	var textLines []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, "```") {
+			continue
+		}
+
+		if strings.Contains(line, "![]") || (strings.Contains(line, "![") && strings.Contains(line, "](") && strings.Contains(line, ")")) {
+			continue
+		}
+
+		if strings.HasPrefix(line, "#") {
+			line = strings.TrimLeft(line, "# ")
+		}
+
+		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ") {
+			line = line[2:]
+		}
+
+		if len(line) > 10 {
+			textLines = append(textLines, line)
+		}
+	}
+
+	description := strings.Join(textLines, " ")
+
+	if utf8.RuneCountInString(description) > maxLength {
+		runes := []rune(description)
+		if len(runes) > maxLength {
+			description = string(runes[:maxLength]) + "..."
+		}
+	}
+
+	return description
+}
+
+// ExtractSearchContent extracts searchable text while preserving useful Markdown context.
+func ExtractSearchContent(content string) string {
+	reader := text.NewReader([]byte(content))
+	doc := GetParser().Parser().Parse(reader)
+
+	var searchBuf strings.Builder
+	stack := make([]ast.Node, 0, 8)
+
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			if n.Kind() == ast.KindHeading || n.Kind() == ast.KindThematicBreak {
+				if searchBuf.Len() > 0 {
+					searchBuf.WriteByte('\n')
+				}
+			}
+			stack = append(stack, n)
+		} else {
+			stack = stack[:len(stack)-1]
+		}
+
+		switch node := n.(type) {
+		case *ast.Text:
+			if entering {
+				if searchBuf.Len() > 0 && shouldInsertSpace(stack) {
+					searchBuf.WriteByte(' ')
+				}
+				segment := node.Segment
+				searchBuf.Write(segment.Value(reader.Source()))
+			}
+
+		case *ast.Link:
+			if entering {
+				searchBuf.WriteString("[")
+			} else {
+				dest := node.Destination
+				searchBuf.WriteString("](")
+				searchBuf.Write(dest)
+				searchBuf.WriteString(")")
+			}
+
+		case *ast.CodeSpan:
+			searchBuf.WriteString("`")
+
+		case *ast.Image:
+			if entering {
+				searchBuf.WriteString("![")
+			} else {
+				dest := node.Destination
+				searchBuf.WriteString("](")
+				searchBuf.Write(dest)
+				searchBuf.WriteString(")")
+			}
+
+		case *ast.CodeBlock, *ast.FencedCodeBlock:
+			return ast.WalkSkipChildren, nil
+
+		case *ast.HTMLBlock:
+			return ast.WalkSkipChildren, nil
+		}
+
+		return ast.WalkContinue, nil
+	})
+
+	return compactWhitespace(searchBuf.String())
+}
+
+// shouldInsertSpace decides whether adjacent text nodes need a separator.
+func shouldInsertSpace(stack []ast.Node) bool {
+	if len(stack) == 0 {
+		return false
+	}
+
+	for i := len(stack) - 1; i >= 0; i-- {
+		switch stack[i].Kind() {
+		case ast.KindParagraph:
+			return true
+		case ast.KindHeading:
+			return true
+		}
+	}
+	return false
+}
+
+// compactWhitespace collapses repeated whitespace while preserving paragraph breaks.
+func compactWhitespace(s string) string {
+	var buf strings.Builder
+	lines := strings.Split(s, "\n")
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if len(trimmed) == 0 {
+			continue
+		}
+		if buf.Len() > 0 {
+			buf.WriteByte('\n')
+		}
+		buf.WriteString(trimmed)
+
+		if i < len(lines)-1 && strings.HasPrefix(trimmed, "#") {
+			buf.WriteByte('\n')
+		}
+	}
+	return buf.String()
+}
+
+// HeadingItem 是文档目录（TOC）的一个条目，与服务端渲染的 heading id 严格一致。
+type HeadingItem struct {
+	Level int    `json:"level"`
+	ID    string `json:"id"`
+	Text  string `json:"text"`
+}
+
+// ExtractHeadings 解析 Markdown 并提取全部标题（层级/id/纯文本）。
+// 与 MarkdownToHTML 共用同一 goldmark 配置与 headingid context，
+// 保证返回的 id 与渲染 HTML 中 h1-h6 的 id 完全一致（TOC 锚点可靠）。
+func ExtractHeadings(content string) []HeadingItem {
+	reader := text.NewReader([]byte(content))
+	ctx := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
+	doc := GetParser().Parser().Parse(reader, parser.WithContext(ctx))
+
+	items := make([]HeadingItem, 0, 16)
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		heading, ok := n.(*ast.Heading)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		items = append(items, HeadingItem{
+			Level: heading.Level,
+			ID:    headingIDAttr(heading),
+			Text:  headingText(heading, reader.Source()),
+		})
+		return ast.WalkContinue, nil
+	})
+	return items
+}
+
+func headingIDAttr(heading *ast.Heading) string {
+	value, ok := heading.AttributeString("id")
+	if !ok {
+		return ""
+	}
+	switch typed := value.(type) {
+	case []byte:
+		return string(typed)
+	case string:
+		return typed
+	default:
+		return ""
+	}
+}
+
+func headingText(heading *ast.Heading, source []byte) string {
+	var buf strings.Builder
+	_ = ast.Walk(heading, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch node := n.(type) {
+		case *ast.Text:
+			buf.Write(node.Segment.Value(source))
+		case *ast.CodeSpan:
+			for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+				if textNode, ok := child.(*ast.Text); ok {
+					buf.Write(textNode.Segment.Value(source))
+				}
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+	return strings.TrimSpace(buf.String())
+}

@@ -1,38 +1,106 @@
-name: deploy-main
+name: Deploy / main
 
 on:
-  # 生产部署唯一入口: release-to-main 显式触发, 不监听 push
-  # (防止直接 push main 导致意外/双重复部署)
+  # release-to-main dispatches the published server tag; manual recovery also
+  # selects a server tag. Merging main alone does not deploy production.
   workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a server release tag on main
+        run: |
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Select a server vX.Y.Z tag to deploy production"
+            exit 1
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: ./.github/actions/build-binary
 
-  deploy:
+  build-image:
     needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/push-image
+        with:
+          tag: main-${{ github.sha }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: [build, build-image]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      # 渲染实例 config（production 环境 secrets; GitHub 凭据生产必填）
+      - name: Render main config
+        uses: ./.github/actions/render-config
         with:
-          name: yourtj-hub
-          path: ./bin
-      - name: Upload binary to prod host
+          env: main
+          signing-key: ${{ secrets.SIGNING_KEY }}
+          pg-dsn: ${{ secrets.PG_DSN }}
+          meili-master-key: ${{ secrets.MEILI_MASTER_KEY }}
+          wiki-webhook-secret: ${{ secrets.WIKI_WEBHOOK_SECRET }}
+          gh-client-id: ${{ secrets.GH_CLIENT_ID }}
+          gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
+          google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ai-api-key: ${{ secrets.AI_API_KEY }}
+          apns-key-path: ${{ secrets.APNS_KEY_PATH }}
+          apns-key-id: ${{ secrets.APNS_KEY_ID }}
+          apns-team-id: ${{ secrets.APNS_TEAM_ID }}
+          apns-bundle-id: ${{ secrets.APNS_BUNDLE_ID }}
+          apns-environment: ${{ secrets.APNS_ENVIRONMENT }}
+          jpush-app-key: ${{ secrets.JPUSH_APP_KEY }}
+          jpush-master-secret: ${{ secrets.JPUSH_MASTER_SECRET }}
+      # 上传到 run-specific 路径, 避免与 deploy-dev 并发部署时
+      # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
+      - name: Upload deploy scripts to prod host
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "bin/yourtj-hub"
-          target: "/tmp"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
+          strip_components: 2
+      - name: Upload rendered main config to prod host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/rendered/config-main.toml"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
+          strip_components: 2
+      # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
+      # (scp-action 丢弃空路径), 必须单独上传不 strip
+      - name: Upload compose file to prod host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/docker-compose.yaml"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 1
-      - name: Deploy to main (backup db + build image + restart + smoke + rollback)
+      - name: Deploy to main (backup db + pull image + restart + smoke + rollback)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
@@ -41,7 +109,29 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
+            RUN_DIR=/tmp/yourtj-deploy-${{ github.run_id }}
+            # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
+            #    backup-db.sh source pgdsn.sh, 必须一并下发, 否则 set -e 下
+            #    source 失败阻断部署(review W2)。
+            install -m 0755 "$RUN_DIR/deploy.sh" /opt/yourtj/scripts/deploy.sh
+            install -m 0755 "$RUN_DIR/backup-db.sh" /opt/yourtj/scripts/backup-db.sh
+            install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
+            install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
+            # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
+            #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
+            if [ -f /opt/yourtj/docker-compose.yaml ]; then
+              cp -f /opt/yourtj/docker-compose.yaml /opt/yourtj/docker-compose.yaml.prev
+              echo "main: backed up existing compose to docker-compose.yaml.prev"
+            fi
+            install -m 0644 "$RUN_DIR/docker-compose.yaml" /opt/yourtj/docker-compose.yaml
             # 1. 部署前一致性备份(保留最近 7 份)
             /opt/yourtj/scripts/backup-db.sh main
-            # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
-            /opt/yourtj/scripts/deploy.sh main /tmp/yourtj-hub main-${{ github.sha }} 5234
+            # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
+            #    生产保留更多回滚候选, 镜像保留最近 5 个(含当前) + prev
+            #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
+            IMAGE_KEEP_N=5 CONFIG_FILE="$RUN_DIR/config-main.toml" \
+              /opt/yourtj/scripts/deploy.sh main main-${{ github.sha }} 5234
+            # 3. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
+            rm -f /opt/yourtj/docker-compose.yaml.prev
+            # 4. 清理本 run 上传的临时文件(含明文渲染 config)
+            rm -rf "$RUN_DIR"

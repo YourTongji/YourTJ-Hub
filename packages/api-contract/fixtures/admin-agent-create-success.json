@@ -1,0 +1,20 @@
+{
+  "result": {
+    "agent": {
+      "agentId": 2049,
+      "username": "campus-helper-bot",
+      "nickname": "校园助手",
+      "avatarUrl": "/static/img/avatar/3.png",
+      "email": "",
+      "tokenPrefix": "agt_kQ9mZ2xL",
+      "webhookEndpoint": "https://hooks.example.com/agent",
+      "enabled": 1,
+      "createdBy": 1024,
+      "lastUsedAt": null,
+      "createdAt": 1750000000000,
+      "updatedAt": 1750000000000
+    },
+    "token": "agt_kQ9mZ2xLp4Rt8Yw3Nb6Vc7Hs1Df5Gj0A"
+  },
+  "code": 0
+}

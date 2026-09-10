@@ -3,11 +3,12 @@ package transform
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
 
 func Topics2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity) []*vo.TopicsSimpleVo {
@@ -34,6 +35,16 @@ func Topics2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity) [
 }
 
 func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity, userMap map[uint64]*users.EntityComplete) []*vo.TopicsSimpleVo {
+	// Collect first post IDs to fetch content types
+	firstPostIDs := make([]uint64, 0, len(data))
+	for _, t := range data {
+		if t != nil && t.FirstPostId > 0 {
+			firstPostIDs = append(firstPostIDs, t.FirstPostId)
+		}
+	}
+	// Fetch first posts to get content types
+	firstPostMap := posts.GetMapByIds(firstPostIDs)
+
 	res := make([]*vo.TopicsSimpleVo, 0, len(data))
 	for _, t := range data {
 		if t == nil {
@@ -77,14 +88,22 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			})
 		}
 
+		// Get content type from first post (default to Article for legacy/regular posts)
+		contentType := posts.ContentTypeArticle
+		if firstPost, ok := firstPostMap[t.FirstPostId]; ok && firstPost != nil {
+			if firstPost.ContentType != posts.ContentTypeRegular {
+				contentType = firstPost.ContentType
+			}
+		}
+
 		res = append(res, &vo.TopicsSimpleVo{
 			Id:             t.Id,
 			Title:          t.Title,
 			Description:    t.Excerpt,
 			FirstImageURL:  t.FirstImageURL,
 			ImageUrls:      t.ImageUrls,
-			LastUpdateTime: t.UpdatedAt.Format(time.DateTime),
-			CreateTime:     t.CreatedAt.Format(time.DateTime),
+			LastUpdateTime: t.UpdatedAt.Format(time.RFC3339),
+			CreateTime:     t.CreatedAt.Format(time.RFC3339),
 			AuthorId:       t.UserId,
 			Username:       username,
 			Nickname:       nickname,
@@ -98,6 +117,7 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			Posters:        postersVo,
 			LastPostId:     t.LastPostId,
 			LastPostedAt:   timeValue(t.LastPostedAt),
+			ContentType:    contentType,
 		})
 	}
 	return res

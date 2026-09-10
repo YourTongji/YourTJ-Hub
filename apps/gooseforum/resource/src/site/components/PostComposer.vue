@@ -1,31 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import {
-  Bold,
-  Check,
-  ClipboardPaste,
-  Code,
-  Code2,
-  Eye,
-  Image,
-  Italic,
-  Link,
-  List,
-  ListOrdered,
-  Loader2,
-  MessageSquareQuote,
-  Send,
-  Sigma,
-  Strikethrough,
-  X,
-} from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
 import { uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
-import { markdownFromClipboard } from '@/runtime/rich-paste'
-import { hasUnsupportedVisualMarkdown } from '@/runtime/rich-paste'
-import { renderMarkdownPreview } from '@/runtime/markdown'
-import { fencedCodeBlock, prefixMarkdownBlock, replaceMarkdownSelectionWithBlock } from '@/runtime/markdown-editing'
-import VisualMarkdownEditor from '@/site/components/VisualMarkdownEditor.vue'
+import type { MentionUser } from '@/runtime/mention'
+import MentionCandidates from '@/site/components/MentionCandidates.vue'
+import VditorOfficial from '@/site/components/VditorOfficial.vue'
+import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { useKeyboardVisualViewportOffset } from '@/runtime/visual-viewport'
 import type { PostPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
@@ -41,6 +22,13 @@ const props = defineProps<{
   captchaRequired?: boolean
   captchaImg?: string
   captchaLoading?: boolean
+  sensitiveWords?: string[]
+  /** 是否允许匿名发布（wiki 评论区，issue #524）；true 时显示匿名勾选项。 */
+  allowAnonymous?: boolean
+  /** @mention 本地上下文候选（issue #564）：回复目标 > 主题作者 > 参与者，按此顺序传入 */
+  mentionUsers?: MentionUser[]
+  /** 当前登录用户 id：mention 候选排除自己（0/缺省表示未知） */
+  currentUserId?: number
 }>()
 
 const emit = defineEmits<{
@@ -55,235 +43,181 @@ const emit = defineEmits<{
 
 const captchaCode = defineModel<string>('captchaCode', { default: '' })
 const content = defineModel<string>({ default: '' })
+const anonymous = defineModel<boolean>('anonymous', { default: false })
 const { t } = useI18n()
 // 软键盘弹出时抬高浮动面板，确保输入内容不被输入法遮挡
 const { bottomOffset: keyboardOffset } = useKeyboardVisualViewportOffset()
 
-const editorMode = ref<'visual' | 'markdown'>('visual')
-const preview = ref(false)
-const toolbarOpen = ref(false)
-const toolbarCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)
-const linkPickerOpen = ref(false)
-const linkUrl = ref('')
-const linkInput = ref<HTMLInputElement | null>(null)
-const visualEditor = ref<InstanceType<typeof VisualMarkdownEditor> | null>(null)
-const markdownEditor = ref<HTMLTextAreaElement | null>(null)
+const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const editorReady = ref(false)
+const editorInitFailed = ref(false)
 const uploadingImage = ref(false)
-const dragOver = ref(false)
+
+// Vditor 异步就绪（after()）前在编辑区显示加载占位；初始化失败时结束 loading，避免转圈不止
+watch(
+  () => [editor.value?.editorReady, editor.value?.editorFailed] as const,
+  ([ready, failed]) => {
+    editorReady.value = !!ready
+    editorInitFailed.value = !!failed
+  },
+  { immediate: true },
+)
 const composerBusy = computed(() => props.submitting || uploadingImage.value)
+
+// ---- @mention 会话（issue #564 实现，issue #590 抽取为共享 composable + 面板组件）----
+const {
+  mentionOpen,
+  mentionQuery,
+  mentionCandidates,
+  mentionActiveIndex,
+  mentionLoading,
+  mentionFailed,
+  mentionDocked,
+  mentionPanelStyle,
+  refreshMentionSession,
+  closeMention,
+  selectMention,
+  updateMentionLayout,
+} = useMentionAutocomplete({
+  editor: () => editor.value,
+  localUsers: () => props.mentionUsers ?? [],
+  currentUserId: () => props.currentUserId ?? 0,
+  surface: () => editorArea.value,
+  onSelect: () => emit('clearValidation'),
+})
+
+function onEditorInput() {
+  emit('clearValidation')
+  refreshMentionSession()
+}
+
+/** 浮动面板高度：支持桌面端与移动端顶部手柄拖拽调整 */
+const MOBILE_VIEWPORT_QUERY = '(max-width: 520px)'
+const DESKTOP_COMPOSER_HEIGHT = 480
+const MIN_COMPOSER_HEIGHT = 240
+const MAX_COMPOSER_HEIGHT = 720
+const isMobileComposer = () => typeof window !== 'undefined' && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+const composerHeight = ref(DESKTOP_COMPOSER_HEIGHT)
+const editorArea = ref<HTMLElement | null>(null)
+const draggingHeight = ref(false)
+const dragStartY = ref(0)
+const dragStartHeight = ref(0)
+
+onMounted(() => {
+  if (isMobileComposer()) {
+    composerHeight.value = Math.min(380, Math.max(MIN_COMPOSER_HEIGHT, Math.floor(window.innerHeight * 0.6)))
+  }
+})
+
+function startHeightDrag(event: PointerEvent) {
+  draggingHeight.value = true
+  dragStartY.value = event.clientY
+  dragStartHeight.value = composerHeight.value
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function moveHeightDrag(event: PointerEvent) {
+  if (!draggingHeight.value) return
+  // 手柄在顶部：向上拖（clientY 减小）→ 变高；向下拖 → 变矮
+  const delta = dragStartY.value - event.clientY
+  const maxAllowed = isMobileComposer() ? Math.max(MIN_COMPOSER_HEIGHT, window.innerHeight - 24) : MAX_COMPOSER_HEIGHT
+  composerHeight.value = Math.min(maxAllowed, Math.max(MIN_COMPOSER_HEIGHT, dragStartHeight.value + delta))
+  // 同步 Vditor 高度，让编辑器填满新的编辑区
+  void nextTick(() => {
+    if (editorArea.value && editor.value) {
+      editor.value.setHeight(editorArea.value.clientHeight)
+    }
+  })
+}
+
+function endHeightDrag(event: PointerEvent) {
+  if (!draggingHeight.value) return
+  draggingHeight.value = false
+  const handle = event.currentTarget as HTMLElement
+  if (handle.hasPointerCapture?.(event.pointerId)) handle.releasePointerCapture(event.pointerId)
+  void nextTick(() => {
+    if (editorArea.value && editor.value) {
+      editor.value.setHeight(editorArea.value.clientHeight)
+    }
+  })
+}
 const editing = computed(() => props.mode === 'edit')
-const composerTitle = computed(() => editing.value ? t('topic.editOwnReply') : t('topic.joinDiscussion'))
-const composerPlaceholder = computed(() => editing.value ? t('topic.editReplyPlaceholder') : t('topic.replyPlaceholder'))
+const composerTitle = computed(() => (editing.value ? t('topic.editOwnReply') : t('topic.joinDiscussion')))
+const composerPlaceholder = computed(() => (editing.value ? t('topic.editReplyPlaceholder') : t('topic.replyPlaceholder')))
 const submitText = computed(() => {
   if (uploadingImage.value) return t('publish.processingImage')
   if (props.submitting) return editing.value ? t('common.saving') : t('topic.publishing')
   return editing.value ? t('common.save') : t('topic.publishReply')
 })
-const renderedPreview = computed(() => renderMarkdownPreview(content.value))
-const showToolbar = computed(() => toolbarOpen.value || preview.value || content.value.trim().length > 0)
+
+// 访客登录门的登录链接引用：打开面板时把键盘焦点移过去（访客态没有编辑器可聚焦）
+const loginLinkRef = ref<HTMLAnchorElement | null>(null)
+// 访客门进场叙事：先呈现"开锁"，短暂停留后切换为"闭锁"——登录后才能解锁评论
+const lockSettled = ref(false)
+let lockSettleTimer: ReturnType<typeof setTimeout> | undefined
 
 watch(
   () => props.open,
   async (open) => {
     if (!open) return
+    // 面板关闭会卸载内层 Vditor；再次打开时清失败态，重新走 loading → ready/error
+    editorInitFailed.value = false
+    if (!props.authenticated) {
+      lockSettled.value = false
+      clearTimeout(lockSettleTimer)
+      lockSettleTimer = setTimeout(() => {
+        lockSettled.value = true
+      }, 650)
+    }
     await nextTick()
     window.requestAnimationFrame(() => {
-      if (editorMode.value === 'visual') visualEditor.value?.focus()
-      else markdownEditor.value?.focus()
+      if (props.authenticated) {
+        if (!editorInitFailed.value) editor.value?.focus()
+      } else {
+        loginLinkRef.value?.focus()
+      }
     })
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  clearTimeout(lockSettleTimer)
+})
+
+// 面板关闭/重开：关闭时结束 mention 会话；打开时重算 dock/popover 布局
+watch(
+  () => props.open,
+  (open) => {
+    if (open) updateMentionLayout()
+    else closeMention()
+  },
+  { immediate: true },
+)
+
+// 登录后回跳当前内容页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
+const loginHref = computed(() => {
+  const currentPath = typeof window === 'undefined' ? '' : window.location.pathname + window.location.search + window.location.hash
+  return currentPath ? `/login?redirect=${encodeURIComponent(currentPath)}` : '/login'
+})
 
 function closeComposer() {
   if (composerBusy.value) return
   emit('update:open', false)
 }
 
-async function openLinkPicker() {
-  linkPickerOpen.value = !linkPickerOpen.value
-  if (!linkPickerOpen.value) return
-  if (!linkUrl.value) linkUrl.value = 'https://'
-  await nextTick()
-  linkInput.value?.focus()
-  linkInput.value?.select()
-}
-
-async function applyLink() {
-  const url = linkUrl.value.trim()
-  if (!url) return
-  if (editorMode.value === 'visual') {
-    visualEditor.value?.setLink(url, t('publish.placeholder.link'))
-    linkPickerOpen.value = false
-    linkUrl.value = ''
-    await nextTick()
-    visualEditor.value?.focus()
-    return
-  }
-  insert('[', `](${url})`, t('publish.placeholder.link'))
-  linkPickerOpen.value = false
-  linkUrl.value = ''
-  await nextTick()
-  markdownEditor.value?.focus()
-}
-
-function scheduleToolbarClose() {
-  if (toolbarCloseTimer.value) clearTimeout(toolbarCloseTimer.value)
-  toolbarCloseTimer.value = setTimeout(() => {
-    if (!linkPickerOpen.value) toolbarOpen.value = false
-  }, 150)
-}
-
-function keepToolbarOpen() {
-  if (toolbarCloseTimer.value) clearTimeout(toolbarCloseTimer.value)
-  toolbarOpen.value = true
-}
-
-async function selectEditorMode(mode: 'visual' | 'markdown') {
-  if (editorMode.value === mode && !preview.value) return
-  if (mode === 'visual' && hasUnsupportedVisualMarkdown(content.value)) {
-    emit('imageError', t('publish.visualUnsupported'))
-    return
-  }
-  linkPickerOpen.value = false
-  editorMode.value = mode
-  preview.value = false
-  await nextTick()
-  if (mode === 'visual') visualEditor.value?.focus()
-  else markdownEditor.value?.focus()
-}
-
-async function togglePreview() {
-  linkPickerOpen.value = false
-  preview.value = !preview.value
-  if (!preview.value) {
-    await nextTick()
-    if (editorMode.value === 'visual') visualEditor.value?.focus()
-    else markdownEditor.value?.focus()
-  }
-}
-
-type ToolbarAction = 'bold' | 'italic' | 'strike' | 'inlineCode' | 'math' | 'quote' | 'code' | 'bulletList' | 'orderedList'
-
-function applyToolbarAction(action: ToolbarAction) {
-  if (editorMode.value === 'markdown') {
-    if (action === 'bold') insert('**', '**', t('publish.placeholder.bold'))
-    else if (action === 'italic') insert('*', '*', t('publish.placeholder.italic'))
-    else if (action === 'strike') insert('~~', '~~', t('publish.placeholder.strike'))
-    else if (action === 'inlineCode') insert('`', '`', 'code')
-    else if (action === 'math') insert('$', '$', t('publish.placeholder.math'))
-    else if (action === 'quote') insertPrefixedMarkdownBlock('> ', t('publish.placeholder.quote'))
-    else if (action === 'code') insertFencedCodeBlock()
-    else if (action === 'bulletList') insertPrefixedMarkdownBlock('- ', t('publish.placeholder.listItem'))
-    else insertPrefixedMarkdownBlock('1. ', t('publish.placeholder.listItem'))
-    return
-  }
-
-  visualEditor.value?.applyAction(action)
-}
-
-function insert(before: string, after = '', placeholder = '') {
-  const el = markdownEditor.value
-  if (!el) {
-    content.value = content.value ? `${content.value}\n${before}${placeholder}${after}` : `${before}${placeholder}${after}`
-    return
-  }
-  const start = el.selectionStart
-  const end = el.selectionEnd
-  const selected = content.value.slice(start, end) || placeholder
-  content.value = `${content.value.slice(0, start)}${before}${selected}${after}${content.value.slice(end)}`
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(start + before.length, start + before.length + selected.length)
-  })
+function handleEditorError(editorError: Error) {
+  // 兜底：即使子组件尚未 expose editorFailed，也立刻结束 loading 遮罩
+  editorInitFailed.value = true
+  emit('imageError', editorError.message || t('common.loadFailed'))
 }
 
 function insertMarkdownBlock(text: string) {
-  if (editorMode.value === 'visual') {
-    visualEditor.value?.insertMarkdown(text)
-    return
-  }
-  const el = markdownEditor.value
-  if (!el) {
-    content.value = content.value ? `${content.value}\n${text}` : text
-    return
-  }
-  const start = el.selectionStart
-  const end = el.selectionEnd
-  const result = replaceMarkdownSelectionWithBlock(content.value, start, end, text)
-  content.value = result.value
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(result.selectionEnd, result.selectionEnd)
-  })
-}
-
-function insertPrefixedMarkdownBlock(prefix: string, placeholder: string) {
-  const el = markdownEditor.value
-  if (!el) {
-    content.value = content.value ? `${content.value}\n${prefix}${placeholder}` : `${prefix}${placeholder}`
-    return
-  }
-  const selected = content.value.slice(el.selectionStart, el.selectionEnd) || placeholder
-  insertMarkdownBlock(prefixMarkdownBlock(selected, prefix))
-}
-
-function insertFencedCodeBlock() {
-  const el = markdownEditor.value
-  const selected = el ? content.value.slice(el.selectionStart, el.selectionEnd) || 'code' : 'code'
-  insertMarkdownBlock(fencedCodeBlock(selected))
-}
-
-async function pastePlainText() {
-  try {
-    const text = await navigator.clipboard.readText()
-    if (!text) return
-    if (editorMode.value === 'visual') {
-      visualEditor.value?.insertText(text)
-    } else {
-      const el = markdownEditor.value
-      if (!el) {
-        content.value += text
-        return
-      }
-      const start = el.selectionStart
-      const end = el.selectionEnd
-      content.value = `${content.value.slice(0, start)}${text}${content.value.slice(end)}`
-      nextTick(() => {
-        el.focus()
-        el.setSelectionRange(start + text.length, start + text.length)
-      })
-    }
-  } catch {
-    emit('imageError', t('publish.clipboardReadFailed'))
-  }
+  editor.value?.insertMarkdown(text)
 }
 
 function imageAlt(filename: string) {
   return filename.replace(/\.[^.]+$/, '').replace(/[[\]\n\r]/g, ' ').trim() || 'image'
-}
-
-function imageFilesFromList(files: FileList | File[] | null | undefined) {
-  return Array.from(files || []).filter((file) => file.type.startsWith('image/'))
-}
-
-function imageFilesFromDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return []
-  return imageFilesFromList(dataTransfer.files)
-}
-
-function hasImageDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return false
-  if (Array.from(dataTransfer.items || []).some((item) => item.kind === 'file' && item.type.startsWith('image/'))) return true
-  return imageFilesFromList(dataTransfer.files).length > 0
-}
-
-function imageFilesFromClipboard(data: DataTransfer | null) {
-  if (!data) return []
-  return Array.from(data.items || [])
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file))
 }
 
 async function uploadImageFiles(files: File[]) {
@@ -326,41 +260,6 @@ async function uploadImageFiles(files: File[]) {
   }
 }
 
-async function handleImageInput(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = imageFilesFromList(input.files)
-  input.value = ''
-  await uploadImageFiles(files)
-}
-
-async function handlePaste(event: ClipboardEvent) {
-  const files = imageFilesFromClipboard(event.clipboardData)
-  if (files.length) {
-    event.preventDefault()
-    await uploadImageFiles(files)
-    return
-  }
-
-  const markdown = markdownFromClipboard(event.clipboardData)
-  if (!markdown) return
-  event.preventDefault()
-  insertMarkdownBlock(markdown)
-}
-
-async function handleDrop(event: DragEvent) {
-  dragOver.value = false
-  const files = imageFilesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  await uploadImageFiles(files)
-}
-
-function handleDragOver(event: DragEvent) {
-  if (!hasImageDataTransfer(event.dataTransfer)) return
-  event.preventDefault()
-  dragOver.value = true
-}
-
 function submit() {
   if (composerBusy.value) return
   emit('submit')
@@ -368,19 +267,44 @@ function submit() {
 </script>
 
 <template>
-  <Teleport v-if="open" to="body">
+  <Teleport to="body">
     <div class="pointer-events-none fixed inset-x-0 z-[90] px-3 sm:px-6" :style="{ bottom: `calc(${keyboardOffset}px + 1rem)` }">
       <div class="relative mx-auto flex w-full max-w-full justify-center">
-        <Transition name="floating-reply">
-          <div v-if="authenticated" class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3">
+        <!-- appear：覆盖首次打开时组件刚挂载、Transition 与其子元素同帧出现的场景 -->
+        <Transition name="composer-rise" appear>
+          <div
+            v-if="open"
+            role="dialog"
+            aria-labelledby="post-composer-title"
+            class="gf-floating-surface gf-composer-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-visible p-3"
+            :style="{
+              height: `${composerHeight}px`,
+            }"
+          >
+            <!-- 高度拖拽手柄（移动端与桌面端统一提供，实时跟随无动画） -->
+            <div
+              class="composer-resize-handle"
+              :class="{ 'is-active': draggingHeight }"
+              role="separator"
+              aria-orientation="horizontal"
+              :aria-label="t('topic.resizeComposer')"
+              @pointerdown="startHeightDrag"
+              @pointermove="moveHeightDrag"
+              @pointerup="endHeightDrag"
+              @pointercancel="endHeightDrag"
+            >
+              <span aria-hidden="true" />
+            </div>
+
             <div class="mb-2 flex items-center justify-between gap-3">
               <div class="min-w-0">
-                <div class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
+                <div id="post-composer-title" class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
               </div>
-              <button type="button" class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-60" :disabled="composerBusy" @click="closeComposer">
+              <button type="button" class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-60" :disabled="composerBusy" :aria-label="t('common.close')" @click="closeComposer">
                 <X class="h-4 w-4" />
               </button>
             </div>
+            <template v-if="authenticated">
             <div v-if="target && !editing" class="mb-2 flex min-w-0 items-center justify-between gap-3 rounded-md border border-primary/20 bg-info/10 px-3 py-2">
               <div class="min-w-0 text-sm font-medium text-base-content/75">
                 {{ t('topic.replyTo', { user: `@${target.author.username}` }) }}
@@ -390,76 +314,48 @@ function submit() {
               </button>
             </div>
 
-            <div
-              class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-base-100 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10"
-              @focusin="keepToolbarOpen"
-              @focusout="scheduleToolbarClose"
-            >
-              <div v-if="showToolbar" class="flex flex-wrap items-center gap-0.5 border-b border-line bg-base-100 px-1.5 py-1">
-                <template v-if="!preview">
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.bold')" @mousedown.prevent @click="applyToolbarAction('bold')"><Bold class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.italic')" @mousedown.prevent @click="applyToolbarAction('italic')"><Italic class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.strike')" @mousedown.prevent @click="applyToolbarAction('strike')"><Strikethrough class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.inlineCode')" @mousedown.prevent @click="applyToolbarAction('inlineCode')"><Code class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.math')" @mousedown.prevent @click="applyToolbarAction('math')"><Sigma class="h-4 w-4" /></button>
-                  <div class="relative">
-                    <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.link')" :aria-expanded="linkPickerOpen" @mousedown.prevent @click="openLinkPicker"><Link class="h-4 w-4" /></button>
-                    <form v-if="linkPickerOpen" class="gf-menu-surface absolute left-0 top-full z-30 mt-1.5 flex w-72 max-w-[calc(100vw-5rem)] items-center gap-1.5 p-2 shadow-lg" @submit.prevent="applyLink">
-                      <input ref="linkInput" v-model="linkUrl" type="text" inputmode="url" class="h-8 min-w-0 flex-1 rounded border border-line bg-base-100 px-2 text-sm outline-none focus:border-primary" :placeholder="t('publish.toolbar.linkUrl')" />
-                      <button type="submit" class="gf-button gf-button-primary h-8 px-2.5" :disabled="!linkUrl.trim()">{{ t('publish.toolbar.applyLink') }}</button>
-                    </form>
-                  </div>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.quote')" @mousedown.prevent @click="applyToolbarAction('quote')"><MessageSquareQuote class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.code')" @mousedown.prevent @click="applyToolbarAction('code')"><Code2 class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.bulletList')" @mousedown.prevent @click="applyToolbarAction('bulletList')"><List class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.orderedList')" @mousedown.prevent @click="applyToolbarAction('orderedList')"><ListOrdered class="h-4 w-4" /></button>
-                  <span class="mx-1 h-5 w-px bg-line" />
-                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.pastePlainText')" @mousedown.prevent @click="pastePlainText"><ClipboardPaste class="h-4 w-4" /></button>
-                </template>
+            <div ref="editorArea" class="relative min-h-[160px] flex-1 flex flex-col overflow-visible">
+              <!-- Vditor 异步就绪前显示加载占位；初始化失败则结束转圈并提示失败（可关面板重开重试） -->
+              <div
+                v-if="!editorReady || editorInitFailed"
+                class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-base-100/50 text-sm"
+                :class="editorInitFailed ? 'text-error' : 'text-base-content/55'"
+                :role="editorInitFailed ? 'alert' : 'status'"
+                aria-live="polite"
+              >
+                <Loader2 v-if="!editorInitFailed" class="h-4 w-4 animate-spin" />
+                <span>{{ editorInitFailed ? t('common.loadFailed') : t('common.loadingShort') }}</span>
               </div>
-
-              <div class="relative min-h-0 flex-1 overflow-y-auto">
-                <VisualMarkdownEditor
-                  v-if="!preview && editorMode === 'visual'"
-                  ref="visualEditor"
-                  v-model="content"
-                  compact
-                  :placeholder="composerPlaceholder"
-                  @paste="handlePaste"
-                  @drop="handleDrop"
-                  @dragover="handleDragOver"
-                  @dragleave="dragOver = false"
-                />
-                <textarea
-                  v-else-if="!preview"
-                  ref="markdownEditor"
-                  v-model="content"
-                  rows="4"
-                  class="block min-h-24 w-full resize-none border-0 bg-transparent px-3 py-2.5 text-[15px] leading-relaxed outline-none placeholder:text-base-content/45"
-                  :placeholder="composerPlaceholder"
-                  @input="emit('clearValidation')"
-                  @paste="handlePaste"
-                  @drop="handleDrop"
-                  @dragover="handleDragOver"
-                  @dragleave="dragOver = false"
-                />
-                <div v-else class="gf-prose gf-prose-post min-h-24 max-w-none px-3 py-2.5">
-                  <template v-if="content.trim()">
-                    <div v-code-highlight v-math-render v-html="renderedPreview" />
-                  </template>
-                  <p v-else class="text-sm text-base-content/55">{{ t('publish.emptyPreview') }}</p>
-                </div>
-                <div
-                  v-if="dragOver"
-                  class="pointer-events-none absolute inset-3 grid place-items-center rounded-lg border-2 border-dashed border-primary/60 bg-info/10 text-sm font-semibold text-primary"
-                >
-                  {{ t('publish.dropToUpload') }}
-                </div>
-              </div>
+              <!-- 与发布页同款官版编辑器（紧凑工具栏）：粘贴/拖拽图片走官方 upload.handler → uploadImageFiles -->
+              <VditorOfficial
+                ref="editor"
+                v-model="content"
+                :height="isMobileComposer() ? 320 : '100%'"
+                :compact="true"
+                :placeholder="composerPlaceholder"
+                :sensitive-words="sensitiveWords"
+                @input="onEditorInput"
+                @upload="uploadImageFiles"
+                @error="handleEditorError"
+              />
+              <!-- @mention 候选面板（issue #564 实现，issue #590 抽取共享）：桌面贴近 caret 浮层（空间不足向上翻转/不越界），
+                   移动端（≤640px / 200% zoom 窄空间）停靠在编辑区与工具/发送区之间 -->
+              <MentionCandidates
+                :open="mentionOpen"
+                :query="mentionQuery"
+                :candidates="mentionCandidates"
+                :active-index="mentionActiveIndex"
+                :loading="mentionLoading"
+                :failed="mentionFailed"
+                :docked="mentionDocked"
+                :panel-style="mentionPanelStyle"
+                @select="selectMention"
+              />
             </div>
+
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
             <p v-if="successMessage" class="mt-2 text-sm text-success">{{ successMessage }}</p>
-            <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2">
+            <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 class="relative h-9 w-24 shrink-0 overflow-hidden rounded-md border border-line"
@@ -476,31 +372,41 @@ function submit() {
                 maxlength="8"
               />
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-2">
-              <label class="gf-icon-button h-9 w-9 cursor-pointer" :class="{ 'cursor-wait opacity-60': uploadingImage }" :title="t('publish.uploadImageTitle')">
-                <Loader2 v-if="uploadingImage" class="h-4 w-4 animate-spin" />
-                <Image v-else class="h-4 w-4" />
-                <input type="file" accept="image/*" multiple class="hidden" :disabled="uploadingImage" @change="handleImageInput" />
-              </label>
-              <div class="inline-flex shrink-0 rounded-md border border-line p-0.5">
-                <button type="button" class="rounded px-2 py-1 text-xs font-semibold whitespace-nowrap transition" :class="editorMode === 'visual' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('visual')">{{ t('publish.visualMode') }}</button>
-                <button type="button" class="rounded px-2 py-1 text-xs font-semibold whitespace-nowrap transition" :class="editorMode === 'markdown' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('markdown')">{{ t('publish.markdownMode') }}</button>
-              </div>
-              <button type="button" class="inline-flex h-9 shrink-0 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold whitespace-nowrap transition" :class="preview ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'" @click="togglePreview">
-                <Eye class="h-3.5 w-3.5" />
-                <span class="hidden sm:inline">{{ t('publish.preview') }}</span>
+            <label v-if="allowAnonymous && !editing" class="mt-2 flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-base-content/75">
+              <input v-model="anonymous" type="checkbox" class="checkbox checkbox-sm" />
+              {{ t('topic.publishAnonymous') }}
+            </label>
+            <div class="mt-3 flex flex-wrap items-center gap-2 shrink-0">
+              <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="emit('clearTarget')">
+                {{ t('common.cancel') }}
               </button>
-              <div class="ml-auto flex items-center gap-2">
-                <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="emit('clearTarget')">
-                  {{ t('common.cancel') }}
-                </button>
-                <button type="button" class="gf-button gf-button-md gf-button-primary shrink-0" :disabled="composerBusy" @click="submit">
-                  <Loader2 v-if="composerBusy" class="h-4 w-4 animate-spin" />
-                  <Check v-else-if="editing" class="h-4 w-4" />
-                  <Send v-else class="h-4 w-4" />
-                  {{ submitText }}
-                </button>
+              <button type="button" class="gf-button gf-button-md gf-button-primary ml-auto shrink-0" :disabled="composerBusy" @click="submit">
+                <Loader2 v-if="composerBusy" class="h-4 w-4 animate-spin" />
+                <Check v-else-if="editing" class="h-4 w-4" />
+                <Send v-else class="h-4 w-4" />
+                {{ submitText }}
+              </button>
+            </div>
+            </template>
+            <div
+              v-else
+              class="flex min-h-40 flex-1 flex-col items-center justify-center gap-5 px-6 py-8 text-center"
+              :class="{ 'guest-lock-settled': lockSettled }"
+            >
+              <!-- 开锁 → 闭锁 进场叙事：访客看到"需要登录才能解锁评论" -->
+              <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-info/10 text-primary">
+                <LockKeyholeOpen aria-hidden="true" class="guest-lock-icon guest-lock-open absolute inset-0 m-auto h-7 w-7" />
+                <LockKeyhole aria-hidden="true" class="guest-lock-icon guest-lock-closed absolute inset-0 m-auto h-7 w-7" />
               </div>
+              <div class="space-y-1.5">
+                <p class="text-sm font-semibold text-base-content">{{ t('topic.loginRequiredToComment') }}</p>
+                <p class="text-xs text-base-content/55">{{ t('topic.loginRequiredToCommentHint') }}</p>
+              </div>
+              <a
+                ref="loginLinkRef"
+                :href="loginHref"
+                class="gf-button gf-button-md gf-button-primary"
+              >{{ t('topic.loginToComment') }}</a>
             </div>
           </div>
         </Transition>
@@ -508,3 +414,228 @@ function submit() {
     </div>
   </Teleport>
 </template>
+
+<style>
+/*
+ * 桌面端高度拖拽手柄（design-taste：冷静工具语言，VARIANCE 4 / MOTION 2 / DENSITY 6）：
+ * 细 grip 条 + 稍宽热区；hover 高亮提示可拖；拖动中加深；实时跟随、无动画。
+ */
+.composer-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  margin: -6px -12px 6px;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.composer-resize-handle > span {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--gf-color-base-content) 18%, transparent);
+  transition: background-color 0.15s ease;
+}
+
+.composer-resize-handle:hover > span,
+.composer-resize-handle.is-active > span {
+  background: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+}
+
+.composer-resize-handle.is-active {
+  background: color-mix(in oklch, var(--gf-color-primary) 6%, transparent);
+}
+
+/*
+ * 访客登录门：开锁 → 闭锁 进场叙事（design-taste：trust-first 语言，VARIANCE 4 / MOTION 5）。
+ * 面板打开先呈现"开锁"，650ms 后 cross-fade 到"闭锁"，隐喻"登录后才能解锁评论"。
+ * 遵循 better-ui：opacity / scale / blur 驱动（0.25→1、0→1、4px→0），一次性、之后静止；
+ * prefers-reduced-motion 下直接显示闭锁态。
+ */
+.guest-lock-icon {
+  transition:
+    opacity 0.45s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.45s cubic-bezier(0.2, 0, 0, 1),
+    filter 0.45s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.guest-lock-open {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+.guest-lock-closed {
+  opacity: 0;
+  transform: scale(0.25);
+  filter: blur(4px);
+}
+
+.guest-lock-settled .guest-lock-open {
+  opacity: 0;
+  transform: scale(0.25);
+  filter: blur(4px);
+}
+
+.guest-lock-settled .guest-lock-closed {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-lock-icon {
+    transition: none;
+  }
+
+  .guest-lock-open {
+    opacity: 0;
+    transform: scale(1);
+    filter: none;
+  }
+
+  .guest-lock-closed {
+    opacity: 1;
+  }
+}
+
+/* 移动端回复框专属工具栏与编辑器美化：对称均分、优雅质感、直观触达 */
+@media (max-width: 640px) {
+  .gf-floating-surface .vditor {
+    border: 1px solid color-mix(in oklch, var(--gf-color-base-content) 12%, transparent) !important;
+    border-radius: 14px !important;
+    overflow: visible !important;
+    background-color: var(--color-base-100, #fff) !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  }
+
+  .gf-floating-surface .vditor:focus-within {
+    border-color: color-mix(in oklch, var(--gf-color-primary) 65%, transparent) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--gf-color-primary) 12%, transparent) !important;
+  }
+
+  .gf-floating-surface .vditor-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 6px 8px !important;
+    background: color-mix(in oklch, var(--gf-color-base-200) 45%, var(--gf-color-base-100)) !important;
+    border-bottom: 1px solid color-mix(in oklch, var(--gf-color-base-content) 8%, transparent) !important;
+    border-radius: 14px 14px 0 0 !important;
+    gap: 2px !important;
+    overflow: visible !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .gf-floating-surface .vditor-toolbar__item {
+    flex: 1 1 0 !important;
+    max-width: 36px !important;
+    min-width: 28px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 6px !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: color-mix(in oklch, var(--gf-color-base-content) 75%, transparent) !important;
+    transition: all 0.15s cubic-bezier(0.2, 0, 0, 1) !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped:hover {
+    background-color: color-mix(in oklch, var(--gf-color-base-content) 10%, transparent) !important;
+    color: var(--color-base-content, #24292e) !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped:active {
+    transform: scale(0.9) !important;
+    background-color: color-mix(in oklch, var(--gf-color-primary) 15%, transparent) !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item .vditor-tooltipped svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .gf-composer-surface .vditor-panel,
+  .gf-composer-surface .vditor-hint {
+    z-index: 100 !important;
+    max-width: min(320px, calc(100vw - 32px)) !important;
+    top: calc(100% + 4px) !important;
+    bottom: auto !important;
+    left: 0 !important;
+    right: auto !important;
+    max-height: min(220px, 38vh) !important;
+    overflow-y: auto !important;
+  }
+
+  .gf-composer-surface .vditor-toolbar__item:last-child > .vditor-hint,
+  .gf-composer-surface .vditor-toolbar__item:last-child > .vditor-panel,
+  .gf-composer-surface .vditor-toolbar__item:nth-last-child(2) > .vditor-hint,
+  .gf-composer-surface .vditor-toolbar__item:nth-last-child(2) > .vditor-panel {
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  .gf-composer-surface .vditor-emojis {
+    max-height: 160px !important;
+  }
+}
+
+/* 移动端与桌面端回复框：全高 Flex 自适应填满，底栏确认/取消按键永不被推挤或遮挡 */
+.gf-composer-surface .vditor-official {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.gf-composer-surface .vditor-official .vditor {
+  height: 100% !important;
+  flex: 1 1 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.gf-composer-surface .vditor-official .vditor-content {
+  flex: 1 1 0 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .gf-composer-surface {
+    min-height: 240px;
+  }
+}
+
+/* 桌面与通用回复框：工具栏下拉浮层自然向下展开，并限制最大高度防止外层容器产生滚动条 */
+.gf-composer-surface .vditor-toolbar__item > .vditor-hint,
+.gf-composer-surface .vditor-toolbar__item > .vditor-panel {
+  top: calc(100% + 4px) !important;
+  bottom: auto !important;
+  max-height: min(280px, 45vh) !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+}
+
+.gf-composer-surface .vditor-toolbar__item:last-child > .vditor-hint,
+.gf-composer-surface .vditor-toolbar__item:last-child > .vditor-panel {
+  right: 0 !important;
+  left: auto !important;
+}
+
+</style>

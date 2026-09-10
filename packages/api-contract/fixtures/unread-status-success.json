@@ -1,0 +1,10 @@
+{
+  "result": {
+    "notifications": true,
+    "messages": false,
+    "moderationReports": false,
+    "latestNotificationType": "post_reply",
+    "latestUnreadId": 6001
+  },
+  "code": 0
+}

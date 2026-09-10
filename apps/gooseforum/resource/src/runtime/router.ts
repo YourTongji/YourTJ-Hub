@@ -84,14 +84,51 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
     if (url.origin !== window.location.origin || !isRoutablePath(url.pathname)) return
 
     event.preventDefault()
+    const targetPath = `${url.pathname}${url.search}${url.hash}`
     try {
-      await router.push(`${url.pathname}${url.search}${url.hash}`)
+      await navigateTo(targetPath, window.location.pathname)
     } catch {
       window.location.href = url.toString()
     }
   })
 
   return router
+
+  // ---- 首页 ↔ Wiki 过场动画（机制对齐 codrops/PageFlipLayout 的 PageTurn）----
+  // 侧栏在两种模式间整体切换（导航树 ↔ wiki 树），瞬时跳变突兀；
+  // 用 View Transitions API 做「纸页盖入」过场。仅首页↔wiki 导航触发，
+  // 其余导航保持原样；不支持 API 时退化为普通跳转。
+  async function navigateTo(targetPath: string, fromPath: string) {
+    if (!isHomeWikiTransition(fromPath, targetPath) || typeof document.startViewTransition !== 'function') {
+      await router.push(targetPath)
+      return
+    }
+    const root = document.documentElement
+    const toPathname = new URL(targetPath, window.location.origin).pathname
+    // 方向语义：去 wiki = 向前翻（纸页从右缘盖入）；回首页 = 向后翻（从左缘盖入）。
+    root.classList.add('gf-page-flip', isWikiPath(toPathname) ? 'gf-page-flip--next' : 'gf-page-flip--prev')
+    try {
+      const transition = document.startViewTransition(async () => {
+        await router.push(targetPath)
+      })
+      await transition.finished.catch(() => {})
+    } finally {
+      root.classList.remove('gf-page-flip', 'gf-page-flip--next', 'gf-page-flip--prev')
+    }
+  }
+}
+
+function isHomePath(path: string) {
+  return path === '/' || path === ''
+}
+
+function isWikiPath(path: string) {
+  return path === '/wiki' || path.startsWith('/wiki/')
+}
+
+function isHomeWikiTransition(fromPath: string, toPath: string) {
+  const to = new URL(toPath, window.location.origin)
+  return (isHomePath(fromPath) && isWikiPath(to.pathname)) || (isWikiPath(fromPath) && isHomePath(to.pathname))
 }
 
 async function getPreparedPage(url: URL): Promise<PreparedPage> {

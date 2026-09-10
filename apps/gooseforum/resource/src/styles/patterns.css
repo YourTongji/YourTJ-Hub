@@ -1,6 +1,6 @@
 @layer components {
   .gf-home-topic-toolbar {
-    @apply flex flex-col gap-3 border-b border-line bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:border-y sm:border-t-0;
+    @apply flex items-center justify-between gap-3 border-b border-line bg-base-100 px-4 py-3 sm:border-y sm:border-t-0;
   }
 
   .gf-home-topic-tools {
@@ -16,6 +16,7 @@
   .gf-home-topic-tabs::-webkit-scrollbar {
     display: none;
   }
+
 
   .gf-topic-list-header {
     @apply hidden grid-cols-[minmax(0,1fr)_112px_72px_72px_88px] gap-3 border-b border-line/70 bg-base-100/70 px-4 py-1.5 text-[13px] font-normal leading-5 text-base-content/55 lg:grid;
@@ -36,4 +37,52 @@
     @apply inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full bg-base-300 px-1.5 text-[11px] font-medium text-base-content/55 hover:bg-info/10 hover:text-primary;
     border-radius: var(--gf-radius-selector);
   }
+}
+
+/* ---- wiki 局内搜索：命中段落高亮动画 ----
+   注意：纯 CSS 不支持 Tailwind 的 `var(--x) / alpha` 语法，必须用 color-mix()。
+   高亮语义：先闪一下（strong），停住约 1.5s（hold），再淡出到透明。
+   animation-fill-mode: forwards 保证动画结束后停在透明背景，不会残留高亮。 */
+:root,
+[data-theme="gf-light"] {
+  --wiki-hit-bg: color-mix(in oklab, var(--gf-color-primary) 22%, transparent);
+  --wiki-hit-bg-strong: color-mix(in oklab, var(--gf-color-primary) 42%, transparent);
+}
+
+[data-theme="gf-dark"] {
+  /* 深色主题背景更深，提高不透明度 + 加一层描边，保证高亮清晰可见 */
+  --wiki-hit-bg: color-mix(in oklab, var(--gf-color-primary) 38%, transparent);
+  --wiki-hit-bg-strong: color-mix(in oklab, var(--gf-color-primary) 58%, transparent);
+}
+
+.wiki-hit-flash {
+  background: transparent;
+  border-radius: 0.35rem;
+  animation: wiki-hit-flash 2.8s ease-out forwards;
+}
+@keyframes wiki-hit-flash {
+  0% {
+    background: var(--wiki-hit-bg-strong);
+  }
+  18% {
+    background: var(--wiki-hit-bg);
+  }
+  60% {
+    background: var(--wiki-hit-bg);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* wiki 搜索面板命中词高亮（主题色派生，非默认黄；深浅主题均可读） */
+#wiki-search-listbox mark {
+  background: color-mix(in oklab, var(--gf-color-primary) 15%, transparent);
+  color: var(--gf-color-primary);
+  border-radius: 0.2rem;
+  padding: 0 0.05em;
+}
+
+[data-theme="gf-dark"] #wiki-search-listbox mark {
+  background: color-mix(in oklab, var(--gf-color-primary) 30%, transparent);
 }

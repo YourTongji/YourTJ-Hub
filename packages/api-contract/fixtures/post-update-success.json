@@ -1,0 +1,13 @@
+{
+  "result": {
+    "id": 2002,
+    "postNo": 2,
+    "content": "Updated reply content",
+    "renderedContent": "<p>Updated reply content</p>",
+    "updatedAt": "2026-08-10T12:00:00+08:00",
+    "lastEditorId": 7,
+    "lastEditedAt": "2026-08-10T12:00:00+08:00",
+    "revisionCount": 2
+  },
+  "code": 0
+}

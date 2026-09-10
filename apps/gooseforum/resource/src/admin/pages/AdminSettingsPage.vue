@@ -1,14 +1,20 @@
 <script setup lang="ts">
+import CourseMaterializePanel from '../components/CourseMaterializePanel.vue'
 import { adminText } from '@/admin/runtime/i18n-text'
 import httpNotifyGuideZh from '@/admin/docs/http-notify-guide.zh.md?raw'
 import httpNotifyGuideEn from '@/admin/docs/http-notify-guide.en.md?raw'
 import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
+import type { BulkImportPreview } from '@/admin/bulkImport'
+import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
+import { normalizeAnnouncement, serializeAnnouncement } from '@/admin/utils/announcement'
+import { toBool } from '@/admin/utils/toBool'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
 import { Badge } from '@/admin/components/ui/badge'
@@ -26,25 +32,38 @@ import {
 } from '@/admin/components/ui/dialog'
 import {
   createStorageMigrateTask,
+  getAiSummarySettings,
   getAnnouncement,
-  getHttpNotifySettings,
+  getMCPSettings,
   getMailSettings,
+  getHttpNotifySettings,
+  getOnesystemSettings,
+  getPkSyncStatus,
   getPostingSettings,
   getRateLimitSettings,
   getSecuritySettings,
+  getScheduleSettings,
   getSiteSettings,
   getStorageMigrateTasks,
   getStorageSettings,
+  getPrivacyPolicy,
   getTermsOfService,
+  listAiSummaryModels,
   saveAnnouncement,
   saveHttpNotifySettings,
   saveMailSettings,
+  saveOnesystemSettings,
   savePostingSettings,
+  saveAiSummarySettings,
+  saveMCPSettings,
   saveRateLimitSettings,
   saveSecuritySettings,
+  saveScheduleSettings,
   saveSiteSettings,
   saveStorageSettings,
+  savePrivacyPolicy,
   saveTermsOfService,
+  syncPkCalendar,
   testMailConnection,
   testStorageConnection,
   uploadAdminImage,
@@ -53,21 +72,31 @@ import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  AiSummaryModelItem,
+  AiSummarySettings,
+  ManageHomeProps,
   AdminTaskRow,
   AnnouncementConfig,
   HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
-  ManageHomeProps,
+  MCPSettings,
+  OnesystemSettings,
+  PkSyncStatusItem,
   PostingSettings,
   RateLimitSettings,
   SecuritySettings,
+  ScheduleSectionTime,
+  ScheduleSettings,
   SiteSettings,
   StorageSettings,
+  PrivacyPolicyConfig,
   TermsOfServiceConfig,
 } from '@/admin/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
+import { safeUrl } from '@/runtime/safe-url'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'privacy' | 'onesystem' | 'schedule'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -90,6 +119,90 @@ const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
+
+// ---- 安全名单批量粘贴导入（Blueprint R5：解析纯函数见 src/admin/bulkImport.ts）----
+type BulkImportTarget = 'reservedUsernames' | 'bannedUsernames' | 'sensitiveWords'
+const bulkImportOpen = ref(false)
+const bulkImportTarget = ref<BulkImportTarget>('reservedUsernames')
+const bulkImportText = ref('')
+// 解析结果由输入驱动实时计算：文本为空时返回 null（此时确认导入会提示 k00uj）。
+// 敏感词列表用短语模式（保留条目内部空格，多词短语逐条导入），名单类用默认模式。
+const bulkImportPreview = computed<BulkImportPreview | null>(() => {
+  const text = bulkImportText.value.trim()
+  if (!text) return null
+  const target = bulkImportTarget.value
+  return parseImportText(text, securityForm[target], target === 'sensitiveWords' ? { preserveSpaces: true } : undefined)
+})
+const bulkImportEmptyHint = ref(false)
+
+// 弹层标题展示目标名单名（键 k00hr/k00ht/k00hv）。
+const bulkImportTitleKey = computed(() => {
+  const titleKeys: Record<BulkImportTarget, string> = {
+    reservedUsernames: 'k00hr',
+    bannedUsernames: 'k00ht',
+    sensitiveWords: 'k00hv',
+  }
+  return titleKeys[bulkImportTarget.value]
+})
+
+// ---- 一系统同步（issue #248 排课数据自愈入口）----
+const onesystemForm = reactive<{ cookie: string, cookieConfigured: boolean }>({
+  cookie: '',
+  cookieConfigured: false,
+})
+const savingCookie = ref(false)
+const syncForm = reactive<{ term: string, depth: number }>({ term: '', depth: 1 })
+const syncingPk = ref(false)
+const syncStatusItems = ref<PkSyncStatusItem[]>([])
+const syncStatusLoading = ref(false)
+let syncPollTimer: ReturnType<typeof setInterval> | null = null
+
+// ---- 排课器节次作息（控制 /schedule 课表左侧节次时间展示）----
+// 现行 11 节制默认作息（2025-2026 学年起）：白天 1-8 节 + 晚间 9/10/11 节（18:30 起）。
+const DEFAULT_SCHEDULE_SECTION_TIMES: Array<[start: string, end: string]> = [
+  ['08:00', '08:45'],
+  ['08:50', '09:35'],
+  ['10:00', '10:45'],
+  ['10:50', '11:35'],
+  ['13:30', '14:15'],
+  ['14:20', '15:05'],
+  ['15:30', '16:15'],
+  ['16:20', '17:05'],
+  ['18:30', '19:15'],
+  ['19:20', '20:05'],
+  ['20:10', '20:55'],
+]
+
+function defaultScheduleSectionTimes(): ScheduleSectionTime[] {
+  return DEFAULT_SCHEDULE_SECTION_TIMES.map(([start, end], index) => ({ section: index + 1, start, end }))
+}
+
+const scheduleForm = reactive<ScheduleSettings>({ sectionTimes: defaultScheduleSectionTimes() })
+
+interface MigrateTaskPayload {
+  lastId?: number
+  total?: number
+  processed?: number
+  failed?: number
+  clearAfterMigrate?: boolean
+}
+
+function parseMigrateTask(task: AdminTaskRow): MigrateTaskPayload {
+  try {
+    const raw = JSON.parse(task.taskJson || '{}') as unknown
+    if (typeof raw === 'object' && raw !== null) {
+      return raw as MigrateTaskPayload
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
+
+// 渲染用：为每条迁移任务预解析 taskJson，展示进度与失败数，避免模板内重复解析。
+const migrateTaskRows = computed(() =>
+  migrateTasks.value.map((task) => ({ ...task, payload: parseMigrateTask(task) }))
+)
 
 const siteForm = reactive<SiteSettings>({
   siteName: '',
@@ -115,6 +228,7 @@ const mailForm = reactive<MailSettings>({
 const securityForm = reactive<SecuritySettings>({
   enableSignup: true,
   enableEmailVerification: false,
+  maxDailySignups: -1,
   allowedDomains: [],
   reservedUsernames: [],
   bannedUsernames: [],
@@ -132,6 +246,23 @@ const rateLimitForm = reactive<RateLimitSettings>({
   minSubmitSeconds: 1,
 })
 
+const mcpForm = reactive<MCPSettings>({
+  enabled: false,
+  writes: false,
+})
+const aiSummaryForm = reactive<AiSummarySettings>({
+  enabled: false,
+  globalPerMinute: 5,
+  baseUrl: '',
+  model: '',
+  apiKey: '',
+  apiKeyConfigured: false,
+  temperature: undefined,
+  maxTokens: undefined,
+})
+const aiSummaryModels = ref<AiSummaryModelItem[]>([])
+const aiSummaryModelsLoading = ref(false)
+
 const postingForm = reactive<PostingSettings>({
   textControl: {
     minPostLength: 5,
@@ -139,19 +270,26 @@ const postingForm = reactive<PostingSettings>({
     minTitleLength: 5,
     maxTitleLength: 100,
     newUserPostCooldownMinutes: 0,
+    maxDailyTopicsPerUser: 10,
   },
   uploadControl: {
     allowAttachments: true,
-    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    authorizedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
     maxAttachmentSizeKb: 5120,
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
+  },
+  llms: {
+    enabled: false,
+    fullText: false,
+    files: false,
   },
 })
 
 const storageForm = reactive<StorageSettings>({
   provider: 'local',
   endpoint: '',
+  internalEndpoint: '',
   bucket: '',
   region: '',
   bucketLookup: 'auto',
@@ -162,6 +300,11 @@ const storageForm = reactive<StorageSettings>({
 })
 
 const termsForm = reactive<TermsOfServiceConfig>({
+  enabled: false,
+  content: '',
+})
+
+const privacyForm = reactive<PrivacyPolicyConfig>({
   enabled: false,
   content: '',
 })
@@ -202,10 +345,15 @@ const pageMeta = computed(() => {
     security: { title: adminText('k0005'), description: adminText('k0006') },
     posting: { title: adminText('k0007'), description: adminText('k0008') },
     'rate-limit': { title: adminText('k00ig'), description: adminText('k00ij') },
+    mcp: { title: adminText('k00mj'), description: adminText('k00mk') },
+    'ai-summary': { title: adminText('k00p0'), description: adminText('k00p1') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
     terms: { title: adminText('k00gp'), description: adminText('k00gq') },
+    privacy: { title: adminText('k00gu'), description: adminText('k00gv') },
+    onesystem: { title: adminText('k00t4'), description: adminText('k00t5') },
+    schedule: { title: adminText('k00u1'), description: adminText('k00u2') },
   }
   return meta[props.kind]
 })
@@ -222,17 +370,6 @@ const httpNotifyGuideHtml = computed(() => {
   }
   return guideMarkdown.render(guides[guideLocale as keyof typeof guides] || httpNotifyGuideZh)
 })
-
-function toBool(value: unknown, fallback = false) {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'number') return value === 1
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (['true', '1', 'yes', 'on', 'enabled'].includes(normalized)) return true
-    if (['false', '0', 'no', 'off', 'disabled', ''].includes(normalized)) return false
-  }
-  return fallback
-}
 
 function normalizeSite(settings: Partial<SiteSettings> = {}) {
   return {
@@ -254,15 +391,29 @@ function normalizeMail(settings: Partial<MailSettings> = {}) {
     useSSL: toBool(settings.useSSL, false),
     smtpUsername: settings.smtpUsername ?? '',
     smtpPassword: settings.smtpPassword ?? '',
+    smtpPasswordConfigured: toBool(settings.smtpPasswordConfigured, false),
     fromName: settings.fromName ?? '',
     fromEmail: settings.fromEmail ?? '',
   } satisfies MailSettings
 }
 
+// mailPayload 保存/测试请求负载：去掉只读回显字段（smtpPasswordConfigured），
+// 与 OpenAPI 请求 schema（additionalProperties: false）一致（issue #324 S2）。
+function mailPayload() {
+  const { smtpPasswordConfigured: _configured, ...payload } = normalizeMail(mailForm)
+  return payload
+}
+
 function normalizeSecurity(settings: Partial<SecuritySettings> = {}) {
+  const maxDailySignupsValue = Number(settings.maxDailySignups)
+  const maxDailySignups = String(settings.maxDailySignups ?? '').trim() === '' || !Number.isFinite(maxDailySignupsValue)
+    ? -1
+    : Math.max(-1, Math.trunc(maxDailySignupsValue))
+
   return {
     enableSignup: toBool(settings.enableSignup, true),
     enableEmailVerification: toBool(settings.enableEmailVerification, false),
+    maxDailySignups,
     allowedDomains: Array.isArray(settings.allowedDomains)
       ? settings.allowedDomains.map(item => String(item).trim().toLowerCase()).filter(Boolean)
       : [],
@@ -298,6 +449,83 @@ function normalizeRateLimit(settings: Partial<RateLimitSettings> = {}) {
   } satisfies RateLimitSettings
 }
 
+function normalizeMCP(settings: Partial<MCPSettings> = {}) {
+  return {
+    enabled: toBool(settings.enabled, false),
+    writes: toBool(settings.writes, false),
+  } satisfies MCPSettings
+}
+// optionalFormNumber 处理 v-model.number 清空输入产生的 ''（运行时值，类型上
+// AiSummarySettings 为 number|undefined）：''/NaN/空一律视为未设置。
+function optionalFormNumber(raw: number | undefined | null | ''): number | undefined {
+  if (raw == null || raw === '') return undefined
+  const value = Number(raw)
+  return Number.isNaN(value) ? undefined : value
+}
+
+function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
+  const temperature = optionalFormNumber(settings.temperature)
+  const maxTokens = optionalFormNumber(settings.maxTokens)
+  return {
+    enabled: toBool(settings.enabled, false),
+    globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
+    baseUrl: (settings.baseUrl ?? '').trim().replace(/\/+$/, ''),
+    model: (settings.model ?? '').trim(),
+    apiKey: settings.apiKey ?? '',
+    apiKeyConfigured: toBool(settings.apiKeyConfigured, false),
+    temperature,
+    maxTokens: maxTokens == null ? undefined : Math.max(maxTokens, 0),
+  } satisfies AiSummarySettings
+}
+
+// aiSummaryPayload 保存请求负载：去掉只读回显字段（apiKeyConfigured），
+// apiKey 留空 = 保留已存密钥（与 OpenAPI 请求 schema 一致）。
+function aiSummaryPayload() {
+  const { apiKeyConfigured: _configured, ...payload } = normalizeAiSummary(aiSummaryForm)
+  return payload satisfies AiSummarySettings
+}
+
+// loadAiSummaryModels 调用 /models 端点拉取模型列表（支持先用临时参数探测，
+// 未实现 /models 的服务返回明确错误，允许手动输入 model 兜底）。
+async function loadAiSummaryModels() {
+  aiSummaryModelsLoading.value = true
+  try {
+    const response = await listAiSummaryModels({
+      baseUrl: aiSummaryForm.baseUrl.trim(),
+      apiKey: aiSummaryForm.apiKey.trim(),
+    })
+    aiSummaryModels.value = response.models ?? []
+    // 列表已填充即视觉反馈；空列表提示手动输入兜底。
+    if (aiSummaryModels.value.length === 0) adminToast.warning(adminText('k00pe'))
+  } catch (err) {
+    aiSummaryModels.value = []
+    adminToast.error(err, adminText('k00pf'))
+  } finally {
+    aiSummaryModelsLoading.value = false
+  }
+}
+
+function validateAiSummary() {
+  const baseUrl = aiSummaryForm.baseUrl.trim()
+  if (baseUrl && !isHttpUrl(baseUrl)) {
+    adminToast.warning(adminText('k00pg'))
+    return false
+  }
+  return true
+}
+
+function validateSiteInfo() {
+  if (siteForm.siteUrl.trim() !== '' && !safeUrl(siteForm.siteUrl, 'external')) {
+    adminToast.warning(adminText('k00up'))
+    return false
+  }
+  if (siteForm.siteLogo.trim() !== '' && !safeUrl(siteForm.siteLogo, 'image')) {
+    adminToast.warning(adminText('k00up'))
+    return false
+  }
+  return true
+}
+
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
   return {
     textControl: {
@@ -306,15 +534,21 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       minTitleLength: Number(settings.textControl?.minTitleLength ?? 5),
       maxTitleLength: Number(settings.textControl?.maxTitleLength ?? 100),
       newUserPostCooldownMinutes: Number(settings.textControl?.newUserPostCooldownMinutes ?? 0),
+      maxDailyTopicsPerUser: Number(settings.textControl?.maxDailyTopicsPerUser ?? 10),
     },
     uploadControl: {
       allowAttachments: toBool(settings.uploadControl?.allowAttachments, true),
       authorizedExtensions: Array.isArray(settings.uploadControl?.authorizedExtensions)
         ? settings.uploadControl.authorizedExtensions.map(item => String(item).trim().toLowerCase()).filter(Boolean)
-        : ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+        : ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
       maxAttachmentSizeKb: Number(settings.uploadControl?.maxAttachmentSizeKb ?? 5120),
       maxDailyUploadsPerUser: Number(settings.uploadControl?.maxDailyUploadsPerUser ?? 10),
       newUserUploadCooldownMinutes: Number(settings.uploadControl?.newUserUploadCooldownMinutes ?? 1440),
+    },
+    llms: {
+      enabled: toBool(settings.llms?.enabled, false),
+      fullText: toBool(settings.llms?.fullText, false),
+      files: toBool(settings.llms?.files, false),
     },
   } satisfies PostingSettings
 }
@@ -325,6 +559,16 @@ function normalizeHttpNotify(settings: Partial<HttpNotifySettings> = {}) {
     endpoints: Array.isArray(settings.endpoints)
       ? settings.endpoints.map(endpoint => normalizeEndpoint(endpoint)).filter(endpoint => endpoint.url)
       : [],
+  } satisfies HttpNotifySettings
+}
+
+// httpNotifyPayload 保存请求负载：去掉端点只读回显字段（secretConfigured），
+// 与 OpenAPI 请求 schema 一致（issue #324 S1）。
+function httpNotifyPayload() {
+  const settings = normalizeHttpNotify(httpNotifyForm)
+  return {
+    enabled: settings.enabled,
+    endpoints: settings.endpoints.map(({ secretConfigured: _configured, ...endpoint }) => endpoint),
   } satisfies HttpNotifySettings
 }
 
@@ -339,6 +583,7 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     enabled,
     url: endpoint.url?.trim() ?? '',
     secret: endpoint.secret ?? '',
+    secretConfigured: toBool(endpoint.secretConfigured, false),
     events,
     timeoutSeconds: Math.min(Math.max(Number(endpoint.timeoutSeconds ?? 2), 1), 15),
     failureCount: enabled ? 0 : Number(endpoint.failureCount ?? 0),
@@ -385,32 +630,6 @@ function validateHttpNotify(settings: HttpNotifySettings) {
   return true
 }
 
-function normalizeAnnouncement(settings: Partial<AnnouncementConfig> = {}) {
-  const items = settings.items ?? []
-  // 旧版单则数据迁移为一条 legacy 公告，保证编辑入口不丢失
-  if (items.length === 0 && settings.content) {
-    return {
-      enabled: toBool(settings.enabled, false),
-      content: settings.content ?? '',
-      items: [{ id: 'legacy', title: '', content: settings.content, enabled: true }],
-    } satisfies AnnouncementConfig
-  }
-  return {
-    enabled: toBool(settings.enabled, false),
-    content: settings.content ?? '',
-    items,
-  } satisfies AnnouncementConfig
-}
-
-function serializeAnnouncement(): AnnouncementConfig {
-  const items = (announcementForm.items ?? []).filter((item) => item.content.trim())
-  const isLegacyOnly = items.length === 1 && items[0].id === 'legacy'
-  return {
-    enabled: announcementForm.enabled,
-    content: isLegacyOnly ? items[0].content : announcementForm.content,
-    items: isLegacyOnly ? [] : items,
-  }
-}
 
 function addAnnouncementItem() {
   if (!announcementForm.items) announcementForm.items = []
@@ -469,14 +688,24 @@ function normalizeStorage(settings: Partial<StorageSettings> = {}) {
   return {
     provider: settings.provider === 's3' ? 's3' : 'local',
     endpoint: settings.endpoint ?? '',
+    internalEndpoint: settings.internalEndpoint ?? '',
     bucket: settings.bucket ?? '',
     region: settings.region ?? '',
     bucketLookup: settings.bucketLookup === 'dns' || settings.bucketLookup === 'path' ? settings.bucketLookup : 'auto',
     secure: toBool(settings.secure, true),
     accessKey: settings.accessKey ?? '',
     secretKey: settings.secretKey ?? '',
+    accessKeyConfigured: toBool(settings.accessKeyConfigured, false),
+    secretKeyConfigured: toBool(settings.secretKeyConfigured, false),
     publicUrlPrefix: settings.publicUrlPrefix ?? '',
   } satisfies StorageSettings
+}
+
+// storagePayload 保存/测试请求负载：去掉只读回显字段（accessKeyConfigured/
+// secretKeyConfigured），与 OpenAPI 请求 schema 一致（issue #324 S3）。
+function storagePayload() {
+  const { accessKeyConfigured: _ak, secretKeyConfigured: _sk, ...payload } = normalizeStorage(storageForm)
+  return payload
 }
 
 function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
@@ -484,6 +713,58 @@ function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
     enabled: toBool(settings.enabled, false),
     content: settings.content ?? '',
   } satisfies TermsOfServiceConfig
+}
+
+function normalizePrivacy(settings: Partial<PrivacyPolicyConfig> = {}) {
+  return {
+    enabled: toBool(settings.enabled, false),
+    content: settings.content ?? '',
+  } satisfies PrivacyPolicyConfig
+}
+
+// normalizeHHMM 校验并规范化 "HH:MM"（补零），非法返回 null。
+function normalizeHHMM(value: unknown): string | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? '').trim())
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour > 23 || minute > 59) return null
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+// 节次固定 1-11（现行 11 节制）：按 section 对齐服务端数据，缺失/非法回退默认作息。
+function normalizeSchedule(settings: Partial<ScheduleSettings> = {}): ScheduleSettings {
+  const bySection = new Map(
+    (Array.isArray(settings.sectionTimes) ? settings.sectionTimes : [])
+      .filter(item => item && Number.isInteger(Number(item.section)))
+      .map(item => [Number(item.section), item]),
+  )
+  return {
+    sectionTimes: DEFAULT_SCHEDULE_SECTION_TIMES.map(([start, end], index) => {
+      const item = bySection.get(index + 1)
+      return {
+        section: index + 1,
+        start: normalizeHHMM(item?.start) ?? start,
+        end: normalizeHHMM(item?.end) ?? end,
+      }
+    }),
+  } satisfies ScheduleSettings
+}
+
+function validateSchedule() {
+  for (const item of scheduleForm.sectionTimes) {
+    const start = normalizeHHMM(item.start)
+    const end = normalizeHHMM(item.end)
+    if (!start || !end || start >= end) {
+      adminToast.warning(adminText('k00u9', { section: item.section }))
+      return false
+    }
+  }
+  return true
+}
+
+function restoreScheduleDefaults() {
+  scheduleForm.sectionTimes = defaultScheduleSectionTimes()
 }
 
 
@@ -511,12 +792,27 @@ async function load() {
     else if (props.kind === 'security') Object.assign(securityForm, normalizeSecurity(await getSecuritySettings()))
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
+    else if (props.kind === 'mcp') Object.assign(mcpForm, normalizeMCP(await getMCPSettings()))
+    else if (props.kind === 'ai-summary') {
+      Object.assign(aiSummaryForm, normalizeAiSummary(await getAiSummarySettings()))
+      // 自动拉取模型列表填充下拉（失败静默，允许手动输入兜底）。
+      try {
+        aiSummaryModels.value = (await listAiSummaryModels({})).models ?? []
+      } catch {
+        aiSummaryModels.value = []
+      }
+    }
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
       await loadMigrateTasks()
     }
     else if (props.kind === 'terms') Object.assign(termsForm, normalizeTerms(await getTermsOfService()))
+    else if (props.kind === 'privacy') Object.assign(privacyForm, normalizePrivacy(await getPrivacyPolicy()))
+    else if (props.kind === 'onesystem') {
+      await Promise.all([loadOnesystem(), refreshSyncStatus()])
+    }
+    else if (props.kind === 'schedule') Object.assign(scheduleForm, normalizeSchedule(await getScheduleSettings()))
     else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
@@ -526,26 +822,57 @@ async function load() {
 }
 
 async function save() {
-  const httpNotifySettings = props.kind === 'http-notify' ? normalizeHttpNotify(httpNotifyForm) : null
+  const httpNotifySettings = props.kind === 'http-notify' ? httpNotifyPayload() : null
   if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
-
+  if (props.kind === 'ai-summary' && !validateAiSummary()) return
+  if (props.kind === 'schedule' && !validateSchedule()) return
+  if (props.kind === 'site-info' && !validateSiteInfo()) return
+  if (props.kind === 'posting' && !validatePostingExtensions()) return
   saving.value = true
   try {
     if (props.kind === 'site-info') await saveSiteSettings(normalizeSite(siteForm))
-    else if (props.kind === 'mail') await saveMailSettings(normalizeMail(mailForm))
+    else if (props.kind === 'mail') await saveMailSettings(mailPayload())
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
+    else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
+    else if (props.kind === 'ai-summary') {
+      await saveAiSummarySettings(aiSummaryPayload())
+      // 保存后立即同步徽标并清空明文 key：填了新 key（非留空=保留旧 key）即
+      // 视为已配置。清空后该标签页后续保存（如改 temperature）不再重发/重加密
+      // 同一明文，多管理员/多标签轮换 key 时旧表单不会静默恢复旧 key
+      // （空 = 保留已存密文语义，与 saveCookie 保存后清空一致）。
+      if (aiSummaryForm.apiKey.trim() !== '') {
+        aiSummaryForm.apiKeyConfigured = true
+        aiSummaryForm.apiKey = ''
+      }
+    }
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
-    else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
+    else if (props.kind === 'storage') await saveStorageSettings(storagePayload())
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
-    else await saveAnnouncement(serializeAnnouncement())
+    else if (props.kind === 'privacy') await savePrivacyPolicy(normalizePrivacy(privacyForm))
+    else if (props.kind === 'schedule') await saveScheduleSettings(normalizeSchedule(scheduleForm))
+    else await saveAnnouncement(serializeAnnouncement(announcementForm))
     adminToast.success(adminText('k000e'))
   } catch (err) {
     adminToast.error(err, adminText('k000f'))
   } finally {
     saving.value = false
   }
+}
+
+// validatePostingExtensions 保存前拦截：列表为空允许（服务端回退内置全集），
+// 但任一非法/危险扩展整单拒绝——前端校验只是体验，权威在服务端
+// （admin.upload.extNotAllowed）。
+function validatePostingExtensions() {
+  const entries = postingForm.uploadControl.authorizedExtensions
+  if (entries.length === 0) return true
+  const invalid = entries.filter(item => !isSupportedUploadExtension(item))
+  if (invalid.length > 0) {
+    adminToast.warning(adminText('k00uo', { extensions: invalid.join(', ') }))
+    return false
+  }
+  return true
 }
 
 async function sendTestMail() {
@@ -555,7 +882,7 @@ async function sendTestMail() {
   }
   testing.value = true
   try {
-    const response = await testMailConnection(normalizeMail(mailForm), testEmail.value.trim())
+    const response = await testMailConnection(mailPayload(), testEmail.value.trim())
     adminToast.success(resolveApiMessage(response.result || response, adminText('k000h')))
   } catch (err) {
     adminToast.error(err, adminText('k000i'))
@@ -567,7 +894,7 @@ async function sendTestMail() {
 async function testStorage() {
   testing.value = true
   try {
-    const response = await testStorageConnection(normalizeStorage(storageForm))
+    const response = await testStorageConnection(storagePayload())
     if (response.success) {
       adminToast.success(resolveApiMessage(response, adminText('k00g7')))
     } else {
@@ -641,6 +968,31 @@ function removeSensitiveWord(word: string) {
   securityForm.sensitiveWords = securityForm.sensitiveWords.filter(item => item !== word)
 }
 
+function openBulkImport(target: BulkImportTarget) {
+  bulkImportTarget.value = target
+  bulkImportText.value = ''
+  bulkImportEmptyHint.value = false
+  bulkImportOpen.value = true
+}
+
+function closeBulkImport() {
+  bulkImportOpen.value = false
+  bulkImportEmptyHint.value = false
+}
+
+function confirmBulkImport() {
+  if (!bulkImportPreview.value) {
+    bulkImportEmptyHint.value = true
+    return
+  }
+  const target = bulkImportTarget.value
+  const added = bulkImportPreview.value.added
+  if (added.length > 0) {
+    securityForm[target] = [...securityForm[target], ...added]
+  }
+  closeBulkImport()
+}
+
 function addAllowedDomain() {
   const domain = newAllowedDomain.value.trim().toLowerCase()
   if (!domain || allowedDomains.value.includes(domain)) return
@@ -655,10 +1007,12 @@ function removeAllowedDomain(domain: string) {
 }
 
 function addExtension() {
-  const ext = newExtension.value.trim().toLowerCase()
-  if (!ext) return
-  if (!ext.startsWith('.')) {
-    adminToast.warning(adminText('k000j'))
+  const raw = newExtension.value
+  if (!raw.trim()) return
+  const ext = normalizeExtensionToken(raw)
+  if (!isSupportedUploadExtension(ext)) {
+    // 危险扩展（svg/html/xml/js 等）与非法输入（双扩展/空）即时提示，不允许入列。
+    adminToast.warning(adminText('k00uo', { extensions: ext || raw.trim() }))
     return
   }
   if (!postingForm.uploadControl.authorizedExtensions.includes(ext)) {
@@ -703,17 +1057,138 @@ function onEndpointEventChange(endpoint: HttpNotifyEndpoint, eventName: string, 
   toggleEndpointEvent(endpoint, eventName, (event.target as HTMLInputElement).checked)
 }
 
+// ---- 一系统同步（issue #248）----
+
+async function loadOnesystem() {
+  try {
+    const settings = await getOnesystemSettings()
+    onesystemForm.cookieConfigured = settings.cookieConfigured
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : adminText('k000d')
+  }
+}
+
+async function refreshSyncStatus() {
+  syncStatusLoading.value = true
+  try {
+    syncStatusItems.value = await getPkSyncStatus()
+  } catch (err) {
+    adminToast.error(err, adminText('k00t3'))
+  } finally {
+    syncStatusLoading.value = false
+  }
+}
+
+async function saveCookie() {
+  savingCookie.value = true
+  try {
+    await saveOnesystemSettings(onesystemForm.cookie.trim())
+    onesystemForm.cookieConfigured = onesystemForm.cookie.trim() !== ''
+    onesystemForm.cookie = ''
+    adminToast.success(adminText('k00tv'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00t1'))
+  } finally {
+    savingCookie.value = false
+  }
+}
+
+async function clearCookie() {
+  onesystemForm.cookie = ''
+  savingCookie.value = true
+  try {
+    await saveOnesystemSettings('')
+    onesystemForm.cookieConfigured = false
+    adminToast.success(adminText('k00tw'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00t1'))
+  } finally {
+    savingCookie.value = false
+  }
+}
+
+async function startSync() {
+  const term = syncForm.term.trim()
+  if (!term) {
+    adminToast.warning(adminText('k00ty'))
+    return
+  }
+  syncingPk.value = true
+  try {
+    const depth = Math.min(Math.max(syncForm.depth || 1, 1), 8)
+    const result = await syncPkCalendar(term, depth)
+    adminToast.success(adminText('k00tq', { term: result.term || term }))
+    startSyncPolling(result.calendarId)
+  } catch (err) {
+    adminToast.error(err, adminText('k00t2'))
+  } finally {
+    syncingPk.value = false
+  }
+}
+
+/** 同步为后台异步：每 3s 只轮询本次取得租约的目标学期。 */
+function startSyncPolling(calendarId: number) {
+  stopSyncPolling()
+  const poll = () => {
+    void refreshSyncStatus().then(() => {
+      const item = syncStatusItems.value.find((status) => status.calendarId === calendarId)
+      if (!item || item.status === 'running') return
+      stopSyncPolling()
+      if (item.status === 'failed') {
+        adminToast.error(adminText('k00tz'))
+      } else {
+        adminToast.success(adminText('k00tr'))
+      }
+    })
+  }
+  poll()
+  syncPollTimer = setInterval(poll, 3000)
+}
+
+function stopSyncPolling() {
+  if (syncPollTimer !== null) {
+    clearInterval(syncPollTimer)
+    syncPollTimer = null
+  }
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case 'running': return adminText('k00ts')
+    case 'completed': return adminText('k00tt')
+    case 'failed': return adminText('k00tu')
+    default: return adminText('k00tx')
+  }
+}
+
+function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (status) {
+    case 'running': return 'secondary'
+    case 'completed': return 'default'
+    case 'failed': return 'destructive'
+    default: return 'outline'
+  }
+}
+
+function formatTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 watch(() => props.kind, () => {
+  stopSyncPolling()
   void load()
 })
 
 onMounted(load)
+
+onUnmounted(stopSyncPolling)
 </script>
 
 <template>
   <BasicPage :title="pageMeta.title" :description="pageMeta.description" sticky>
     <template #actions>
-      <Button type="button" :disabled="saving" @click="save">
+      <Button v-if="kind !== 'onesystem'" type="button" :disabled="saving" @click="save">
         <Loader2 v-if="saving" class="size-4 animate-spin" />
         <Save v-else class="size-4" />
         {{ adminText('k004f') }}
@@ -768,7 +1243,15 @@ onMounted(load)
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008m') }}<Input v-model="mailForm.smtpHost" :disabled="!mailForm.enableMail" placeholder="smtp.example.com" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008n') }}<Input v-model.number="mailForm.smtpPort" :disabled="!mailForm.enableMail" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008o') }}<Input v-model="mailForm.smtpUsername" :disabled="!mailForm.enableMail" /></label>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008p') }}<Input v-model="mailForm.smtpPassword" :disabled="!mailForm.enableMail" type="password" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008p') }}
+              <div class="flex items-center gap-2">
+                <Input v-model="mailForm.smtpPassword" :disabled="!mailForm.enableMail" type="password" autocomplete="new-password" />
+                <Badge :variant="mailForm.smtpPasswordConfigured ? 'default' : 'outline'" class="shrink-0">
+                  {{ mailForm.smtpPasswordConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                </Badge>
+              </div>
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+            </label>
           </div>
           <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
             <div><div class="flex items-center gap-2 font-medium"><Shield class="size-4" />{{ adminText('k008q') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k008r') }}</p></div>
@@ -801,6 +1284,11 @@ onMounted(load)
           <div><div class="text-base font-medium">{{ adminText('k008y') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k008z') }}</p></div>
           <Switch v-model="securityForm.enableSignup" />
         </div>
+        <div class="space-y-2">
+          <div class="text-base font-medium">{{ adminText('k00lk') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00ll') }}</p>
+          <Input v-model.number="securityForm.maxDailySignups" type="number" min="-1" step="1" class="max-w-sm" />
+        </div>
         <div class="flex items-center justify-between">
           <div><div class="flex items-center gap-2 text-base font-medium"><MailCheck class="size-4" />{{ adminText('k0090') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0091') }}</p></div>
           <Switch v-model="securityForm.enableEmailVerification" />
@@ -826,7 +1314,7 @@ onMounted(load)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('reservedUsernames')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newReservedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addReservedUsername" />
             <Button type="button" variant="secondary" @click="addReservedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -842,7 +1330,7 @@ onMounted(load)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('bannedUsernames')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newBannedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addBannedUsername" />
             <Button type="button" variant="secondary" @click="addBannedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -858,7 +1346,7 @@ onMounted(load)
           </div>
         </div>
         <div class="space-y-4">
-          <div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div>
+          <div class="flex items-center justify-between gap-2"><div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div><Button type="button" variant="outline" size="sm" class="shrink-0" @click="openBulkImport('sensitiveWords')"><ClipboardPaste class="size-4" />{{ adminText('k00ue') }}</Button></div>
           <div class="flex gap-2">
             <Input v-model="newSensitiveWord" class="max-w-sm" @keydown.enter.prevent="addSensitiveWord" />
             <Button type="button" variant="secondary" @click="addSensitiveWord"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
@@ -910,8 +1398,8 @@ onMounted(load)
         <section class="space-y-3">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k00ip') }}</div>
           <div class="grid gap-3">
-            <div v-for="(rule, index) in rateLimitForm.actions" :key="rule.action" class="grid grid-cols-[minmax(120px,1fr)_110px_110px_110px] items-center gap-3 rounded-lg border p-3">
-              <span class="truncate font-mono text-sm">{{ rule.action }}</span>
+            <div v-for="(rule, index) in rateLimitForm.actions" :key="rule.action" class="grid grid-cols-3 items-center sm:grid-cols-[minmax(120px,1fr)_110px_110px_110px] gap-3 rounded-lg border p-3">
+              <span class="col-span-3 truncate font-mono text-sm sm:col-span-1">{{ rule.action }}</span>
               <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00iq') }}<Input v-model.number="rateLimitForm.actions[index].windowSeconds" :disabled="!rateLimitForm.enabled" type="number" min="1" /></label>
               <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00ir') }}<Input v-model.number="rateLimitForm.actions[index].limitPerIp" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
               <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00is') }}<Input v-model.number="rateLimitForm.actions[index].limitPerUser" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
@@ -925,6 +1413,77 @@ onMounted(load)
         </section>
       </form>
 
+      <form v-else-if="kind === 'mcp'" class="max-w-4xl space-y-8" @submit.prevent="save">
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="flex items-center gap-2 text-base font-medium"><Bot class="size-4" />{{ adminText('k00ml') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00mm') }}</p></div>
+          <Switch v-model="mcpForm.enabled" />
+        </div>
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="text-base font-medium">{{ adminText('k00mn') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00mo') }}</p></div>
+          <Switch v-model="mcpForm.writes" :disabled="!mcpForm.enabled" />
+        </div>
+      </form>
+
+      <form v-else-if="kind === 'ai-summary'" class="max-w-2xl space-y-8" @submit.prevent="save">
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div>
+            <div class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ adminText('k00p4') }}</div>
+            <p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00p5') }}</p>
+          </div>
+          <Switch v-model="aiSummaryForm.enabled" />
+        </div>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00p6') }}
+          <Input v-model.number="aiSummaryForm.globalPerMinute" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00p7') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00p9') }}
+          <Input v-model="aiSummaryForm.baseUrl" :disabled="!aiSummaryForm.enabled" placeholder="https://api.openai.com/v1" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pa') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00pb') }}
+          <div class="flex items-center gap-2">
+            <Input v-model="aiSummaryForm.apiKey" :disabled="!aiSummaryForm.enabled" type="password" autocomplete="new-password" placeholder="sk-..." />
+            <Badge :variant="aiSummaryForm.apiKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+              {{ aiSummaryForm.apiKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+            </Badge>
+          </div>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pc') }}</span>
+        </label>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00pl') }}
+          <div class="flex items-center gap-2">
+            <Input v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled" :placeholder="adminText('k00pe')" class="flex-1" />
+            <Select v-model="aiSummaryForm.model" :disabled="!aiSummaryForm.enabled || aiSummaryModels.length === 0">
+              <SelectTrigger class="h-9 w-44 shrink-0">
+                <SelectValue :placeholder="adminText('k00pe')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="m in aiSummaryModels" :key="m.id" :value="m.id">{{ m.id }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="secondary" class="shrink-0" :disabled="!aiSummaryForm.enabled || aiSummaryModelsLoading" @click="loadAiSummaryModels">
+              <RefreshCw class="size-4" :class="{ 'animate-spin': aiSummaryModelsLoading }" />{{ adminText('k00pd') }}
+            </Button>
+          </div>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pm') }}</span>
+        </label>
+        <div class="grid gap-6 sm:grid-cols-2">
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00ph') }}
+            <Input v-model.number="aiSummaryForm.temperature" type="number" step="0.1" min="0" max="2" :disabled="!aiSummaryForm.enabled" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pi') }}</span>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00pj') }}
+            <Input v-model.number="aiSummaryForm.maxTokens" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00pk') }}</span>
+          </label>
+        </div>
+      </form>
+
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">
         <section class="space-y-6">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k0096') }}</div>
@@ -934,6 +1493,7 @@ onMounted(load)
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k0099') }}<Input v-model.number="postingForm.textControl.minPostLength" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k009a') }}<Input v-model.number="postingForm.textControl.maxPostLength" type="number" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k009b') }}<Input v-model.number="postingForm.textControl.newUserPostCooldownMinutes" type="number" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k00ub') }}<Input v-model.number="postingForm.textControl.maxDailyTopicsPerUser" min="0" step="1" type="number" /></label>
           </div>
         </section>
         <section class="space-y-6">
@@ -960,6 +1520,24 @@ onMounted(load)
                   <Trash2 class="size-3.5" />
                 </AdminActionButton>
               </Badge>
+            </div>
+          </div>
+        </section>
+        <section class="space-y-5 lg:col-span-2">
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Bot class="size-5 text-muted-foreground" />{{ adminText('k00iv') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00iw') }}</p>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00ix') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00iy') }}</p></div>
+              <Switch v-model="postingForm.llms.enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00iz') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00j3') }}</p></div>
+              <Switch v-model="postingForm.llms.fullText" :disabled="!postingForm.llms.enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00j4') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00j5') }}</p></div>
+              <Switch v-model="postingForm.llms.files" :disabled="!postingForm.llms.enabled" />
             </div>
           </div>
         </section>
@@ -1029,7 +1607,13 @@ onMounted(load)
 
                   <label class="grid gap-2 text-sm font-medium">
                     Secret
-                    <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                    <div class="flex items-center gap-2">
+                      <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                      <Badge :variant="endpoint.secretConfigured ? 'default' : 'outline'" class="shrink-0">
+                        {{ endpoint.secretConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                      </Badge>
+                    </div>
+                    <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
                   </label>
 
                   <div class="space-y-2">
@@ -1079,9 +1663,29 @@ onMounted(load)
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fu') }}<Input v-model="storageForm.region" :disabled="storageForm.provider !== 's3'" /></label>
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g5') }}<Input v-model="storageForm.publicUrlPrefix" :disabled="storageForm.provider !== 's3'" placeholder="https://cdn.example.com" /></label>
         </div>
+        <label class="grid gap-2 text-sm font-medium">{{ adminText('k00uc') }}
+          <Input v-model="storageForm.internalEndpoint" :disabled="storageForm.provider !== 's3'" placeholder="https://oss-<region>-internal.aliyuncs.com" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00ud') }}</span>
+        </label>
         <div class="grid gap-6 md:grid-cols-2">
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}<Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" /></label>
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}<Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}
+            <div class="flex items-center gap-2">
+              <Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" />
+              <Badge :variant="storageForm.accessKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+                {{ storageForm.accessKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+              </Badge>
+            </div>
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}
+            <div class="flex items-center gap-2">
+              <Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" />
+              <Badge :variant="storageForm.secretKeyConfigured ? 'default' : 'outline'" class="shrink-0">
+                {{ storageForm.secretKeyConfigured ? adminText('k00t8') : adminText('k00t9') }}
+              </Badge>
+            </div>
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+          </label>
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
           <div><div class="flex items-center gap-2 font-medium"><HardDrive class="size-4" />{{ adminText('k00g2') }}</div></div>
@@ -1106,14 +1710,18 @@ onMounted(load)
 
         <section class="space-y-3">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><HardDrive class="size-5 text-muted-foreground" />{{ adminText('k00if') }}</div>
-          <div v-if="migrateTasks.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
-          <div v-for="task in migrateTasks" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
+          <div v-if="migrateTaskRows.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
+          <div v-for="task in migrateTaskRows" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="font-mono text-xs text-muted-foreground">#{{ task.id }}</span>
                 <Badge :variant="task.status === 2 ? 'default' : task.status === 3 ? 'destructive' : 'secondary'" class="px-2 py-0 text-xs">{{ migrateTaskStatus(task.status) }}</Badge>
               </div>
               <span class="text-xs text-muted-foreground">{{ task.createdAt || '-' }}</span>
+            </div>
+            <div v-if="task.payload.total != null || (task.payload.failed || 0) > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span v-if="task.payload.total != null" class="text-muted-foreground">{{ adminText('k00ms', { processed: task.payload.processed || 0, total: task.payload.total }) }}</span>
+              <span v-if="(task.payload.failed || 0) > 0" class="font-medium text-destructive">{{ adminText('k00mt', { failed: task.payload.failed }) }}</span>
             </div>
             <div v-if="task.lastError" class="truncate text-xs text-destructive">{{ task.lastError }}</div>
           </div>
@@ -1131,6 +1739,124 @@ onMounted(load)
         </label>
       </form>
 
+      <form v-else-if="kind === 'privacy'" class="max-w-3xl space-y-6" @submit.prevent="save">
+        <div class="flex items-center justify-between">
+          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00gw') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00gv') }}</p></div>
+          <Switch v-model="privacyForm.enabled" />
+        </div>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00gx') }}
+          <Textarea v-model="privacyForm.content" class="min-h-64 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
+        </label>
+      </form>
+
+      <form v-else-if="kind === 'schedule'" class="max-w-2xl space-y-6" @submit.prevent="save">
+        <p class="text-sm text-muted-foreground">{{ adminText('k00u2') }}</p>
+        <section class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Clock class="size-5 text-muted-foreground" />{{ adminText('k00u1') }}</div>
+            <Button type="button" variant="secondary" @click="restoreScheduleDefaults"><RotateCcw class="size-4" />{{ adminText('k00u6') }}</Button>
+          </div>
+          <div class="grid grid-cols-[minmax(80px,auto)_1fr_1fr] items-center gap-3 text-xs font-medium text-muted-foreground">
+            <span>{{ adminText('k00u3') }}</span>
+            <span>{{ adminText('k00u4') }}</span>
+            <span>{{ adminText('k00u5') }}</span>
+          </div>
+          <div v-for="(item, index) in scheduleForm.sectionTimes" :key="item.section" class="grid grid-cols-[minmax(80px,auto)_1fr_1fr] items-center gap-3 rounded-lg border p-3">
+            <span class="text-sm font-medium">{{ adminText('k00ua', { section: item.section }) }}</span>
+            <label class="grid gap-1">
+              <span class="sr-only">{{ adminText('k00u4') }}</span>
+              <Input v-model="scheduleForm.sectionTimes[index].start" type="time" step="60" />
+            </label>
+            <label class="grid gap-1">
+              <span class="sr-only">{{ adminText('k00u5') }}</span>
+              <Input v-model="scheduleForm.sectionTimes[index].end" type="time" step="60" />
+            </label>
+          </div>
+        </section>
+      </form>
+
+      <div v-else-if="kind === 'onesystem'" class="max-w-3xl space-y-8">
+        <!-- Cookie 凭证配置 -->
+        <form class="space-y-4 rounded-lg border border-border bg-card p-5" @submit.prevent="saveCookie">
+          <div class="flex items-center gap-2 text-base font-medium"><KeyRound class="size-4 text-muted-foreground" />{{ adminText('k00t6') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00t7') }}</p>
+          <div class="flex items-center gap-2">
+            <Badge :variant="onesystemForm.cookieConfigured ? 'default' : 'outline'">
+              {{ onesystemForm.cookieConfigured ? adminText('k00t8') : adminText('k00t9') }}
+            </Badge>
+          </div>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00ta') }}
+            <Textarea v-model="onesystemForm.cookie" :placeholder="adminText('k00tb')" rows="2" autocomplete="off" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00tc') }}</span>
+          </label>
+          <div class="flex gap-2">
+            <Button type="submit" :disabled="savingCookie">
+              <Loader2 v-if="savingCookie" class="size-4 animate-spin" />
+              <Save v-else class="size-4" />
+              {{ adminText('k00td') }}
+            </Button>
+            <Button type="button" variant="outline" :disabled="savingCookie || !onesystemForm.cookieConfigured" @click="clearCookie">
+              {{ adminText('k00te') }}
+            </Button>
+          </div>
+        </form>
+
+        <CourseMaterializePanel :calendars="syncStatusItems" :syncing="syncingPk" />
+
+        <!-- 排课数据同步（issue #248）-->
+        <div class="space-y-4 rounded-lg border border-border bg-card p-5">
+          <div class="flex items-center gap-2 text-base font-medium"><RefreshCw class="size-4 text-muted-foreground" />{{ adminText('k00tf') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00tg') }}</p>
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
+              {{ adminText('k00th') }}
+              <Input v-model="syncForm.term" :placeholder="adminText('k00ti')" />
+            </label>
+            <label class="grid w-28 gap-2 text-sm font-medium">
+              {{ adminText('k00tj') }}
+              <Input v-model.number="syncForm.depth" type="number" min="1" max="8" />
+            </label>
+            <Button type="button" :disabled="syncingPk" @click="startSync">
+              <Loader2 v-if="syncingPk" class="size-4 animate-spin" />
+              <RefreshCw v-else class="size-4" />
+              {{ adminText('k00tk') }}
+            </Button>
+          </div>
+
+          <div class="border-t pt-4">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-sm font-medium">{{ adminText('k00tl') }}</span>
+              <Button type="button" variant="ghost" size="sm" @click="refreshSyncStatus">
+                <RefreshCw class="size-3.5" />
+                {{ adminText('k00tm') }}
+              </Button>
+            </div>
+            <div v-if="syncStatusLoading" class="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 class="size-4 animate-spin" />
+              {{ adminText('k00tn') }}
+            </div>
+            <p v-else-if="syncStatusItems.length === 0" class="py-6 text-center text-sm text-muted-foreground">{{ adminText('k00to') }}</p>
+            <ul v-else class="divide-y divide-border">
+              <li v-for="item in syncStatusItems" :key="item.calendarId" class="flex items-start gap-3 py-2.5">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-medium">{{ item.calendarName || String(item.calendarId) }}</span>
+                    <Badge :variant="statusVariant(item.status)">{{ statusLabel(item.status) }}</Badge>
+                    <span v-if="item.status === 'running'" class="text-xs text-muted-foreground">{{ item.lastCommittedPage }}/{{ item.totalPages }}</span>
+                  </div>
+                  <p v-if="item.errorMsg" class="mt-1 text-xs text-destructive">{{ item.errorMsg }}</p>
+                  <p class="mt-0.5 text-xs text-muted-foreground">
+                    {{ adminText('k00tp', { rows: item.rowsWritten }) }}
+                    <span v-if="item.finishedAt"> · {{ formatTime(item.finishedAt) }}</span>
+                  </p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
       <form v-else class="max-w-3xl space-y-6" @submit.prevent="save">
         <div class="flex items-center justify-between">
@@ -1198,6 +1924,37 @@ onMounted(load)
               <Loader2 v-if="migrating" class="size-4 animate-spin" />
               <HardDrive v-else class="size-4" />
               {{ adminText('k00gb') }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog :open="bulkImportOpen" @update:open="bulkImportOpen = $event">
+        <!-- 限高弹层：Textarea 基类 field-sizing-content 随内容撑高，粘贴超长词表时
+             仅中部滚动区滚动、页眉/页脚固定，防止弹层超出视口被裁且无法滚动。 -->
+        <DialogContent class="flex max-h-[min(700px,calc(100vh-1.5rem))] flex-col overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader class="shrink-0 px-6 pt-6">
+            <DialogTitle>{{ adminText('k00ug') }}：{{ adminText(bulkImportTitleKey) }}</DialogTitle>
+            <DialogDescription>{{ bulkImportTarget === 'sensitiveWords' ? adminText('k00un') : adminText('k00uf') }}</DialogDescription>
+          </DialogHeader>
+          <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-2">
+            <Textarea v-model="bulkImportText" class="max-h-56 min-h-32 text-sm" />
+            <p v-if="bulkImportEmptyHint" class="text-sm text-destructive">{{ adminText('k00uj') }}</p>
+            <template v-if="bulkImportPreview">
+              <p class="text-sm font-medium">{{ adminText('k00ui', { added: bulkImportPreview.added.length, skipped: bulkImportPreview.skipped }) }}</p>
+              <p v-if="bulkImportPreview.truncated" class="text-xs text-muted-foreground">{{ adminText('k00uk', { limit: BULK_IMPORT_LIMIT }) }}</p>
+              <div v-if="bulkImportPreview.added.length > 0" class="flex flex-wrap gap-2 rounded-lg border bg-muted/10 p-3">
+                <span v-if="bulkImportPreview.added.length > BULK_IMPORT_PREVIEW_LIMIT" class="w-full text-xs text-muted-foreground">{{ adminText('k00um', { limit: BULK_IMPORT_PREVIEW_LIMIT }) }}</span>
+                <Badge v-for="item in bulkImportPreview.added.slice(0, BULK_IMPORT_PREVIEW_LIMIT)" :key="item" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">{{ item }}</Badge>
+              </div>
+              <p v-if="bulkImportTarget === 'bannedUsernames'" class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{{ adminText('k00ul') }}</p>
+            </template>
+          </div>
+          <DialogFooter class="shrink-0 px-6 pb-6">
+            <Button variant="outline" type="button" @click="closeBulkImport">{{ adminText('k009q') }}</Button>
+            <Button type="button" @click="confirmBulkImport">
+              <ClipboardPaste class="size-4" />
+              {{ adminText('k00uh') }}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/fileopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/fileopt"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cast"
@@ -93,6 +93,12 @@ func internalGet(path string, defaultValue ...any) any {
 
 func IsSet(path string) bool {
 	return v.IsSet(path) && v.Get(path) != nil
+}
+
+// GetRaw returns the raw setting value without type coercion. It is used to
+// read structured settings such as the OIDC client list.
+func GetRaw(path string) any {
+	return internalGet(path)
 }
 
 func Set(path string, value any) {

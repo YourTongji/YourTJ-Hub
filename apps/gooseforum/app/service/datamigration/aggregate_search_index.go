@@ -3,8 +3,8 @@ package datamigration
 import (
 	"log/slog"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 )
 
 // AggregateSearchIndexMigrationResult 汇总 v13 迁移结果（users + categories 索引构建）。

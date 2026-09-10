@@ -1,19 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
+  AlertTriangle,
+  Archive,
+  ArrowLeft,
   Ban,
   CalendarDays,
   Camera,
   Check,
-  Image,
+  FileText,
+  ImagePlus,
   KeyRound,
   Link as LinkIcon,
   Loader2,
+  Lock,
   Mail,
+  Monitor,
+  Moon,
   Pencil,
+  Feather,
+  RotateCcw,
+  Settings2,
   Shield,
   Sparkles,
+  Sun,
+  Trash2,
   UserRound,
+  X,
 } from '@lucide/vue'
 import {
   changePassword,
@@ -26,27 +39,71 @@ import {
   resendActivationEmail,
   revokeAllSessions,
   revokeSession,
+  getDeletedContent,
+  purgeDeletedContent,
+  restoreDeletedContent,
+  getMyContent,
+  batchDeleteContent,
+  closeAccount,
+  logout,
   savePresetAvatar,
   saveUserEmail,
   saveUserInfo,
   saveUserName,
   saveUserProfileCover,
+  sensitiveWordsFromError,
   unbindOAuth,
+  setPassword,
   wearBadge,
   type OAuthBindingsPayload,
+  type DeletedContentItem,
+  type DeletedContentListResult,
+  type DeletedContentType,
+  type MyContentItem,
   type TotpEnablePayload,
   type TotpSetupPayload,
   type UserSessionPayload,
 } from '@/runtime/api'
 import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
+import { ApiResponseError } from '@/runtime/api'
+import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
+import { useSiteTheme } from '@/runtime/site-theme'
+import {
+  currentPushSubscription,
+  disableWebPush,
+  enableWebPush,
+  prepareWebPush,
+  PushError,
+  rebindPushSubscription,
+} from '@/runtime/web-push'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
-import { useCoverCropUpload } from '@/site/composables/useCoverCropUpload'
+import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
+import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
+import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
+import {
+  applyAppearanceSettings,
+  loadAppearanceSettings,
+  loadLocalFonts,
+  quoteFontFamily,
+  resetAppearanceSettings,
+  saveAppearanceSettings,
+  MAX_CUSTOM_CSS_LENGTH,
+  type AppearanceSettings,
+  type FontZone,
+  type LocalFontInfo,
+} from '@/runtime/appearance-settings'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
+import {
+  disableBrowserNotifications,
+  enableBrowserNotifications,
+  isBrowserNotificationEnabled,
+  isBrowserNotificationSupported,
+} from '@/runtime/browser-notification'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
 import type { LayoutPayload, SettingsPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
@@ -58,12 +115,13 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'content', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
 const status = ref('')
 const error = ref('')
+const sensitiveWords = ref<string[]>([])
 const savingProfile = ref(false)
 const savingUsername = ref(false)
 const savingEmail = ref(false)
@@ -85,51 +143,100 @@ const totpSetupCode = ref('')
 const totpRecoveryCodes = ref<string[]>([])
 const totpDisableCode = ref('')
 const totpQrUrl = ref('')
+const deletedTopics = ref<DeletedContentItem[]>([])
+const deletedPosts = ref<DeletedContentItem[]>([])
+const loadingDeletedContent = ref(false)
+const deletedContentLoaded = ref(false)
+const deletedContentAction = ref('')
+const deletedTopicCursor = ref(0)
+const { preference, setPreference } = useSiteTheme()
+
+const themeOptions = computed(() => [
+  { value: 'auto' as const, label: t('settings.general.themeAuto'), icon: Monitor },
+  { value: 'light' as const, label: t('settings.general.themeLight'), icon: Sun },
+  { value: 'dark' as const, label: t('settings.general.themeDark'), icon: Moon },
+])
+
+function setThemePreference(value: 'auto' | 'light' | 'dark') {
+  setPreference(value)
+}
+const deletedPostCursor = ref(0)
+const hasMoreDeletedTopics = ref(false)
+const hasMoreDeletedPosts = ref(false)
+// 内容管理（PRD R9）：本人公开内容/回复，勾选批量删除 + 频率二次确认
+const myTopics = ref<MyContentItem[]>([])
+const myPosts = ref<MyContentItem[]>([])
+const loadingMyContent = ref(false)
+const myContentLoaded = ref(false)
+const myContentType = ref<DeletedContentType>('topic')
+const selectedMyContentIds = ref<number[]>([])
+const batchDeleting = ref(false)
+const batchDeleteConfirmOpen = ref(false)
+const batchDeletePassword = ref('')
+const batchDeleteError = ref('')
+// 注销账号（PRD R10）：密码二次认证 + 输入「注销」确认
+const accountCloseOpen = ref(false)
+const accountCloseMode = ref<'anonymize' | 'delete'>('anonymize')
+const accountClosePassword = ref('')
+const accountCloseConfirmText = ref('')
+const accountCloseSubmitting = ref(false)
+const accountCloseError = ref('')
 const editingUsername = ref(false)
 const editingEmail = ref(false)
-const editingCover = ref(false)
-const savingCover = ref(false)
+/** 签名单行展示的上限字数（信息栏与公开资料表单共用） */
+const SIGNATURE_MAX_LENGTH = 40
+/** 简介的上限字数（信息栏与公开资料表单共用） */
+const BIO_MAX_LENGTH = 80
+/** 简介/签名允许的最多换行次数（保留前 N 个 \n，多余丢弃） */
+const MAX_PROFILE_NEWLINES = 4
+
+/** 信息栏就地编辑：同一时间只开一个字段 */
+type InlineProfileField = 'bio' | 'signature'
+const inlineEditingField = ref<InlineProfileField | null>(null)
+const inlineDraft = ref('')
+const savingInlineProfile = ref(false)
+const inlineFieldRef = ref<HTMLTextAreaElement | null>(null)
+/** 清空确认态：用户清空有内容的字段后点保存，先弹出确认条再落库 */
+const inlineConfirmClear = ref<InlineProfileField | null>(null)
 const savingPresetAvatar = ref('')
 const savingWornBadge = ref(false)
 const presetAvatarDraft = ref(page.props.user.avatarUrl)
 const wornBadgeCode = ref(page.props.user.wornBadgeCode || '')
 const coverUrl = ref(page.props.user.profileCoverUrl || '')
-const coverDraft = ref(page.props.user.profileCoverUrl || '')
 const bindings = ref<OAuthBindingsPayload>({})
 const { push: pushFlash } = useFlashMessages()
+const avatarEditorRef = ref<{ save: () => void } | null>(null)
 const {
-  uploadingAvatar,
   avatarInput,
-  cropperImage,
+  uploadingAvatar,
+  avatarCropOpen,
   avatarUrl,
-  cropModalOpen,
-  cropImageUrl,
-  cropPreviewUrl,
-  cropError,
+  avatarImageUrl,
   chooseAvatar: openAvatarPicker,
   handleAvatarChange,
-  closeCropModal,
-  uploadCroppedAvatar,
+  closeAvatarCrop,
+  saveAvatarFromCanvas,
 } = useAvatarCropUpload({
   initialAvatarUrl: page.props.user.avatarUrl,
-  onStatus: showStatus,
-  onError: showError,
+  // 头像相关反馈统一走全局通知横幅，避免打断设置页表单区域
+  onStatus: (message) => pushMediaFlash(message, 'success'),
+  onError: (message) => pushMediaFlash(message, 'error'),
 })
+const coverEditorRef = ref<{ save: () => void } | null>(null)
 const {
-  uploadingCover,
   coverInput,
-  coverCropperImage,
-  coverCropModalOpen,
-  coverCropImageUrl,
-  coverCropPreviewUrl,
-  coverCropError,
+  coverCropOpen,
+  coverImageUrl,
+  uploadingCover,
   chooseCover: openCoverPicker,
   handleCoverChange,
-  closeCropModal: closeCoverCropModal,
-  uploadCroppedCover,
+  closeCoverCrop,
+  saveCoverFromCanvas,
 } = useCoverCropUpload({
-  onStatus: showStatus,
-  onError: showError,
+  // 封面相关反馈统一走全局通知横幅（成功 / 错误 / 尺寸不足）
+  onStatus: (message) => pushMediaFlash(message, 'success'),
+  onError: (message) => pushMediaFlash(message, 'error'),
+  onWarning: (message) => pushMediaFlash(message, 'warning'),
 })
 
 const socialKeys = ['github', 'twitter', 'linkedIn', 'weibo', 'bilibili', 'zhihu'] as const
@@ -150,6 +257,7 @@ const usernameForm = reactive({
 
 const emailForm = reactive({
   email: page.props.user.email,
+  password: '',
 })
 
 const passwordForm = reactive({
@@ -164,8 +272,30 @@ const privacy = reactive({
   emailNotifications: true,
 })
 
+// Web Push（issue #444 第二通道）：开关状态以浏览器真实订阅为准，
+// 不落入 localStorage 偏好（savePrivacy 只持久化展示类偏好）。
+const webPushAvailable = ref(false)
+const webPushEnabled = ref(false)
+const webPushBusy = ref(false)
+
+// 浏览器级通知（Web Notification API，issue #444）：偏好独立于 privacy 存 localStorage，
+// 由 runtime/browser-notification 直接读写，权限状态由浏览器维护。
+const browserNotificationsSupported = isBrowserNotificationSupported()
+const browserNotificationsEnabled = ref(isBrowserNotificationEnabled())
+const togglingBrowserNotifications = ref(false)
+
 const displayName = computed(() => profileForm.nickname || usernameForm.username)
-const profileBioText = computed(() => profileForm.bio || profileForm.signature || t('user.emptyBio'))
+const hasProfileBio = computed(() => Boolean(profileForm.bio.trim()))
+const hasProfileSignature = computed(() => Boolean(profileForm.signature.trim()))
+/**
+ * 设置页信息栏：简介与签名分两行，避免「仅签名」时编辑目标歧义。
+ * 公开主页仍用 bio||signature 合成主行（见 UserPage）。
+ */
+const profileBioIsEmpty = computed(() => !hasProfileBio.value)
+const showSignatureQuote = computed(() => hasProfileSignature.value)
+const showSignatureAddSlot = computed(() => !hasProfileSignature.value && inlineEditingField.value !== 'signature')
+const isEditingBio = computed(() => inlineEditingField.value === 'bio')
+const isEditingSignature = computed(() => inlineEditingField.value === 'signature')
 const profileCoverStyle = computed(() => {
   const activeCoverUrl = coverUrl.value.trim()
   const defaultCover = 'linear-gradient(135deg, var(--gf-color-base-200) 0%, var(--gf-color-info-content) 52%, var(--gf-color-base-200) 100%)'
@@ -195,8 +325,7 @@ const socialItems = computed(() => socialKeys.map((key) => ({
 })))
 const providers = computed(() => [
   { key: 'github', label: 'GitHub', supported: true },
-  { key: 'casdoor', label: 'Casdoor', supported: true },
-  { key: 'google', label: 'Google', supported: false },
+  { key: 'google', label: 'Google', supported: page.props.googleOAuthReady },
 ])
 const localeOptions = computed(() => supportedLocales.map(item => ({
   value: item,
@@ -205,6 +334,7 @@ const localeOptions = computed(() => supportedLocales.map(item => ({
 const presetAvatars = Array.from({ length: 12 }, (_, index) => `/static/pic/${index + 1}.webp`)
 const presetAvatarChanged = computed(() => presetAvatarDraft.value !== avatarUrl.value)
 const avatarPreviewUrl = computed(() => presetAvatarChanged.value ? presetAvatarDraft.value : avatarUrl.value)
+const profileUrl = computed(() => `/u/${page.props.user.id}`)
 const userBadges = computed(() => page.props.user.badges || [])
 const wearableBadges = computed(() => page.props.user.wearableBadges || [])
 const wornBadgePreview = computed(() => wearableBadges.value.find(item => item.code === wornBadgeCode.value) || null)
@@ -231,9 +361,7 @@ watch(
     profileForm.website = page.props.user.website || ''
     profileForm.externalInformation = buildExternalInfo()
     coverUrl.value = page.props.user.profileCoverUrl || ''
-    coverDraft.value = page.props.user.profileCoverUrl || ''
     wornBadgeCode.value = page.props.user.wornBadgeCode || ''
-    editingCover.value = false
   },
 )
 
@@ -252,6 +380,12 @@ onMounted(() => {
   void loadBindings()
   void loadSessions()
   void loadTotpStatus()
+  void initWebPush()
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'deleted' && !deletedContentLoaded.value) void loadDeletedContent()
+  if (tab === 'content' && !myContentLoaded.value) void loadMyContent()
 })
 
 function buildExternalInfo() {
@@ -276,12 +410,255 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
+  if (key === 'content') return t('settings.tabs.content')
+  if (key === 'deleted') return t('settings.tabs.deleted')
+  if (key === 'general') return t('settings.tabs.general')
   return fallback || key
+}
+
+const deletedContentItems = computed(() => [
+  ...deletedTopics.value,
+  ...deletedPosts.value,
+].sort((left, right) => right.id - left.id))
+
+function deletedContentLabel(item: DeletedContentItem) {
+  return item.contentType === 'topic'
+    ? t('settings.deleted.topicLabel')
+    : t('settings.deleted.replyLabel', { no: item.postNo || item.id })
+}
+
+function deletedContentTitle(item: DeletedContentItem) {
+  return item.title || item.excerpt || t('settings.deleted.untitled')
+}
+
+function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge') {
+  return `${action}:${item.contentType}:${item.id}`
+}
+
+async function loadDeletedContent(reset = true) {
+  if (loadingDeletedContent.value) return
+  if (!reset && !hasMoreDeletedTopics.value && !hasMoreDeletedPosts.value) return
+  loadingDeletedContent.value = true
+  try {
+    if (reset) {
+      deletedTopicCursor.value = 0
+      deletedPostCursor.value = 0
+      hasMoreDeletedTopics.value = false
+      hasMoreDeletedPosts.value = false
+    }
+    const emptyResult = (nextCursorId: number): DeletedContentListResult => ({
+      items: [],
+      hasMore: false,
+      nextCursorId,
+    })
+    const [topicResult, postResult] = await Promise.all([
+      reset || hasMoreDeletedTopics.value
+        ? getDeletedContent('topic', deletedTopicCursor.value)
+        : Promise.resolve(emptyResult(deletedTopicCursor.value)),
+      reset || hasMoreDeletedPosts.value
+        ? getDeletedContent('post', deletedPostCursor.value)
+        : Promise.resolve(emptyResult(deletedPostCursor.value)),
+    ])
+    deletedTopics.value = reset ? topicResult.items : [...deletedTopics.value, ...topicResult.items]
+    deletedPosts.value = reset ? postResult.items : [...deletedPosts.value, ...postResult.items]
+    deletedTopicCursor.value = topicResult.nextCursorId
+    deletedPostCursor.value = postResult.nextCursorId
+    hasMoreDeletedTopics.value = topicResult.items.length > 0 && topicResult.nextCursorId > 0
+    hasMoreDeletedPosts.value = postResult.items.length > 0 && postResult.nextCursorId > 0
+    deletedContentLoaded.value = true
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.deletedContentLoadFailed'))
+  } finally {
+    loadingDeletedContent.value = false
+  }
+}
+
+async function loadMoreDeletedContent() {
+  await loadDeletedContent(false)
+}
+
+// 内容管理（PRD R9）：加载本人公开内容，支持批量删除
+const myContentItems = computed(() => myContentType.value === 'topic' ? myTopics.value : myPosts.value)
+
+function myContentItemKey(item: MyContentItem) {
+  return `${item.contentType}:${item.id}`
+}
+
+function isMyContentSelected(item: MyContentItem) {
+  return selectedMyContentIds.value.includes(item.id)
+}
+
+function toggleMyContent(item: MyContentItem) {
+  if (isMyContentSelected(item)) {
+    selectedMyContentIds.value = selectedMyContentIds.value.filter(id => id !== item.id)
+  } else {
+    selectedMyContentIds.value = [...selectedMyContentIds.value, item.id]
+  }
+}
+
+async function loadMyContent() {
+  if (loadingMyContent.value) return
+  loadingMyContent.value = true
+  batchDeleteError.value = ''
+  try {
+    const result = await getMyContent(myContentType.value)
+    if (myContentType.value === 'topic') {
+      myTopics.value = result.items
+    } else {
+      myPosts.value = result.items
+    }
+    myContentLoaded.value = true
+  } catch (error) {
+    batchDeleteError.value = error instanceof Error ? error.message : t('api.deletedContentLoadFailed')
+  } finally {
+    loadingMyContent.value = false
+  }
+}
+
+function switchMyContentType(type: DeletedContentType) {
+  if (myContentType.value === type) return
+  myContentType.value = type
+  selectedMyContentIds.value = []
+  if (type === 'topic' && myTopics.value.length === 0 && myContentLoaded.value) void loadMyContent()
+  if (type === 'post' && myPosts.value.length === 0 && myContentLoaded.value) void loadMyContent()
+}
+
+async function runBatchDelete(force: boolean) {
+  if (batchDeleting.value || selectedMyContentIds.value.length === 0) return
+  batchDeleting.value = true
+  batchDeleteError.value = ''
+  try {
+    const result = await batchDeleteContent(myContentType.value, selectedMyContentIds.value, force, batchDeletePassword.value)
+    if (myContentType.value === 'topic') {
+      myTopics.value = myTopics.value.filter(item => !selectedMyContentIds.value.includes(item.id))
+    } else {
+      myPosts.value = myPosts.value.filter(item => !selectedMyContentIds.value.includes(item.id))
+    }
+    selectedMyContentIds.value = []
+    batchDeleteConfirmOpen.value = false
+    batchDeletePassword.value = ''
+    pushFlash(
+      result.failed > 0
+        ? t('settings.content.batchDeletePartial', { succeeded: result.succeeded, failed: result.failed })
+        : t('settings.content.batchDeleteSuccess', { count: result.succeeded }),
+      result.failed > 0 ? 'warning' : 'success',
+    )
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'content.batchDelete.confirmRequired') {
+      batchDeleteConfirmOpen.value = true
+      return
+    }
+    if (error instanceof ApiResponseError && error.messageCode === 'auth.credentials.invalid') {
+      batchDeleteError.value = t('settings.content.batchPasswordMismatch')
+      return
+    }
+    batchDeleteError.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
+async function requestBatchDelete() {
+  if (selectedMyContentIds.value.length === 0 || batchDeleting.value) return
+  batchDeleteConfirmOpen.value = false
+  await runBatchDelete(false)
+}
+
+function confirmForceBatchDelete() {
+  if (batchDeleting.value) return
+  void runBatchDelete(true)
+}
+
+function cancelBatchDeleteConfirm() {
+  if (batchDeleting.value) return
+  batchDeleteConfirmOpen.value = false
+  batchDeletePassword.value = ''
+}
+
+// 注销账号（PRD R10）
+function openAccountCloseDialog() {
+  accountCloseOpen.value = true
+  accountCloseMode.value = 'anonymize'
+  accountClosePassword.value = ''
+  accountCloseConfirmText.value = ''
+  accountCloseError.value = ''
+}
+
+function closeAccountCloseDialog() {
+  if (accountCloseSubmitting.value) return
+  accountCloseOpen.value = false
+}
+
+async function submitAccountClose() {
+  if (accountCloseSubmitting.value) return
+  if (accountCloseConfirmText.value.trim() !== '注销') {
+    accountCloseError.value = t('settings.account.closeConfirmMismatch')
+    return
+  }
+  if (!accountClosePassword.value) {
+    accountCloseError.value = t('settings.account.closePasswordRequired')
+    return
+  }
+  accountCloseSubmitting.value = true
+  accountCloseError.value = ''
+  try {
+    await closeAccount(accountCloseMode.value, accountClosePassword.value)
+    await logout()
+    window.location.href = '/'
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'auth.credentials.invalid') {
+      accountCloseError.value = t('settings.account.closePasswordMismatch')
+      return
+    }
+    accountCloseError.value = error instanceof Error ? error.message : t('api.operationFailed')
+  } finally {
+    accountCloseSubmitting.value = false
+  }
+}
+
+async function restoreDeletedItem(item: DeletedContentItem) {
+  if (!item.canRestore || deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.restoreConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'restore')
+  try {
+    await restoreDeletedContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.restoreSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentRestoreFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
+}
+
+async function purgeDeletedItem(item: DeletedContentItem) {
+  if (!item.canPermanent || deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.purgeConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'purge')
+  try {
+    await purgeDeletedContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.purgeSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
 }
 
 function triggerAvatarFlash() {
   const item = easterEggMessages[Math.floor(Math.random() * easterEggMessages.length)]
   pushFlash(item.message, item.type)
+}
+
+// 头像 / 封面编辑的反馈：走全局横幅，不占用设置页卡片内嵌状态条
+function pushMediaFlash(message: string, type: FlashMessageType = 'info') {
+  const trimmed = message.trim()
+  if (!trimmed) return
+  // 避免与内嵌表单状态条同时出现同一条媒体提示
+  if (status.value === trimmed) status.value = ''
+  if (error.value === trimmed) error.value = ''
+  pushFlash(trimmed, type)
 }
 
 function showStatus(message: string) {
@@ -295,6 +672,10 @@ function showStatus(message: string) {
 function showError(message: string) {
   status.value = ''
   error.value = message
+}
+
+function clearSensitiveHighlight() {
+  sensitiveWords.value = []
 }
 
 function selectPresetAvatar(url: string) {
@@ -319,9 +700,9 @@ async function applyPresetAvatar() {
   try {
     avatarUrl.value = await savePresetAvatar(presetAvatarDraft.value)
     presetAvatarDraft.value = avatarUrl.value
-    showStatus(t('settings.status.avatarSaved'))
+    pushMediaFlash(t('settings.status.avatarSaved'), 'success')
   } catch (err) {
-    showError(err instanceof Error ? err.message : t('api.avatarPresetFailed'))
+    pushMediaFlash(err instanceof Error ? err.message : t('api.avatarPresetFailed'), 'error')
   } finally {
     savingPresetAvatar.value = ''
   }
@@ -340,15 +721,127 @@ async function applyWornBadge() {
   }
 }
 
+function beginInlineEdit(field: InlineProfileField) {
+  if (savingInlineProfile.value || savingProfile.value) return
+  clearSensitiveHighlight()
+  inlineEditingField.value = field
+  inlineConfirmClear.value = null
+  inlineDraft.value = field === 'bio' ? profileForm.bio : profileForm.signature
+  void nextTick(() => {
+    const fieldElement = inlineFieldRef.value
+    if (!fieldElement) return
+    fieldElement.focus()
+    const textLength = fieldElement.value.length
+    fieldElement.setSelectionRange(textLength, textLength)
+  })
+}
+
+function cancelInlineEdit() {
+  if (savingInlineProfile.value) return
+  clearSensitiveHighlight()
+  inlineEditingField.value = null
+  inlineConfirmClear.value = null
+  inlineDraft.value = ''
+}
+
+function onInlineKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelInlineEdit()
+    return
+  }
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault()
+    void saveInlineEdit()
+  }
+}
+
+/** 限制换行次数：最多保留 MAX_PROFILE_NEWLINES 个换行，多余丢弃 */
+function clampNewlines(value: string): string {
+  let newlinesSeen = 0
+  let result = ''
+  for (const char of value) {
+    if (char === '\n') {
+      if (newlinesSeen >= MAX_PROFILE_NEWLINES) continue
+      newlinesSeen += 1
+    }
+    result += char
+  }
+  return result
+}
+
+function onInlineInput(event: Event) {
+  clearSensitiveHighlight()
+  const nextValue = clampNewlines((event.target as HTMLTextAreaElement).value)
+  inlineDraft.value = nextValue
+  // 重新输入内容时退出清空确认态
+  if (nextValue.trim() && inlineConfirmClear.value) {
+    inlineConfirmClear.value = null
+  }
+}
+
+async function saveInlineEdit() {
+  const field = inlineEditingField.value
+  if (!field || savingInlineProfile.value) return
+
+  const nextValue = clampNewlines(inlineDraft.value)
+  const previousValue = field === 'bio' ? profileForm.bio : profileForm.signature
+  // 内容没变化：直接关闭，不产生网络改动
+  if (nextValue === previousValue) {
+    cancelInlineEdit()
+    return
+  }
+  // 清空有内容的字段：先弹确认条，确认后才真正落库
+  if (!nextValue.trim() && previousValue.trim() && inlineConfirmClear.value !== field) {
+    inlineConfirmClear.value = field
+    return
+  }
+
+  if (field === 'bio') profileForm.bio = nextValue
+  else profileForm.signature = nextValue
+
+  const normalized = normalizeSocialLinks()
+  if (!normalized) {
+    // 社交链接校验失败时回滚本字段，避免信息栏与未提交状态脱节
+    if (field === 'bio') profileForm.bio = previousValue
+    else profileForm.signature = previousValue
+    return
+  }
+
+  savingInlineProfile.value = true
+  clearSensitiveHighlight()
+  try {
+    await saveUserInfo({ ...profileForm, externalInformation: normalized })
+    inlineEditingField.value = null
+    inlineConfirmClear.value = null
+    inlineDraft.value = ''
+    showStatus(t('settings.status.profileSaved'))
+  } catch (err) {
+    if (field === 'bio') profileForm.bio = previousValue
+    else profileForm.signature = previousValue
+    inlineConfirmClear.value = null
+    sensitiveWords.value = sensitiveWordsFromError(err)
+    showError(err instanceof Error ? err.message : t('api.profileSaveFailed'))
+  } finally {
+    savingInlineProfile.value = false
+  }
+}
+
 async function saveProfile() {
+  // 兜底：简介/签名来自信息栏就地编辑（已 clamp），此处再保险一次防止未来入口绕过
+  profileForm.bio = clampNewlines(profileForm.bio)
+  profileForm.signature = clampNewlines(profileForm.signature)
+
   const normalized = normalizeSocialLinks()
   if (!normalized) return
 
   savingProfile.value = true
+  clearSensitiveHighlight()
   try {
     await saveUserInfo({ ...profileForm, externalInformation: normalized })
     showStatus(t('settings.status.profileSaved'))
   } catch (err) {
+    sensitiveWords.value = sensitiveWordsFromError(err)
     showError(err instanceof Error ? err.message : t('api.profileSaveFailed'))
   } finally {
     savingProfile.value = false
@@ -400,40 +893,31 @@ function normalizeSocialLinks(): Record<string, { link?: string }> | undefined {
   return normalized
 }
 
-async function uploadCoverAndSave() {
+// 封面浮层编辑器保存：按当前视图输出 canvas → 上传并保存
+async function onCoverSave(canvas: HTMLCanvasElement) {
+  const coverUrlFromUpload = await saveCoverFromCanvas(canvas)
+  if (!coverUrlFromUpload) return
   try {
-    const coverUrlFromUpload = await uploadCroppedCover()
     await saveUserProfileCover(coverUrlFromUpload)
     coverUrl.value = coverUrlFromUpload
-    coverDraft.value = coverUrlFromUpload
-    showStatus(t('user.coverSaved'))
+    closeCoverCrop()
+    pushMediaFlash(t('user.coverSaved'), 'success')
   } catch (err) {
-    if (err instanceof Error) showError(err.message)
+    pushMediaFlash(err instanceof Error ? err.message : t('api.coverSaveFailed'), 'error')
   }
 }
 
-function toggleCoverEditor() {
-  coverDraft.value = coverUrl.value
-  editingCover.value = !editingCover.value
-}
-
-function cancelCoverEditor() {
-  coverDraft.value = coverUrl.value
-  editingCover.value = false
-}
-
-async function saveCover() {
-  savingCover.value = true
-  try {
-    await saveUserProfileCover(coverDraft.value)
-    coverUrl.value = coverDraft.value.trim()
-    editingCover.value = false
-    showStatus(t('user.coverSaved'))
-  } catch (err) {
-    showError(err instanceof Error ? err.message : t('api.coverSaveFailed'))
-  } finally {
-    savingCover.value = false
+// 头像编辑器保存：canvas → 上传
+async function onAvatarSave(canvas: HTMLCanvasElement) {
+  const url = await saveAvatarFromCanvas(canvas)
+  if (url) {
+    closeAvatarCrop()
+    pushMediaFlash(t('settings.status.avatarSaved'), 'success')
   }
+}
+
+function saveAvatarViaEditor() {
+  avatarEditorRef.value?.save()
 }
 
 async function saveUsername() {
@@ -460,11 +944,14 @@ function cancelUsernameEdit() {
 async function saveEmail() {
   const email = emailForm.email.trim()
   if (!email) return showError(t('settings.validation.emailRequired'))
+  if (!emailForm.password) return showError(t('settings.validation.passwordRequired'))
 
   savingEmail.value = true
   try {
-    await saveUserEmail(email)
+    await saveUserEmail(email, emailForm.password)
+    emailForm.email = email
     editingEmail.value = false
+    emailForm.password = ''
     showStatus(t('settings.status.emailSaved'))
   } catch (err) {
     showError(err instanceof Error ? err.message : t('api.emailSaveFailed'))
@@ -475,6 +962,7 @@ async function saveEmail() {
 
 function cancelEmailEdit() {
   emailForm.email = page.props.user.email
+  emailForm.password = ''
   editingEmail.value = false
 }
 
@@ -496,6 +984,13 @@ async function submitPassword() {
 
   savingPassword.value = true
   try {
+    if (page.props.canSetPassword) {
+      // set-password（issue #530）成功即 TokenVersion++ 全端吊销（含当前会话），
+      // 必须跳转登录页用新密码重新登录，不能再发任何已失效会话的请求。
+      await setPassword(passwordForm.newPassword)
+      window.location.href = '/login'
+      return
+    }
     await changePassword(passwordForm.oldPassword, passwordForm.newPassword)
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''
@@ -511,6 +1006,186 @@ async function submitPassword() {
 function savePrivacy() {
   localStorage.setItem('goose-privacy-settings', JSON.stringify(privacy))
   showStatus(t('settings.status.privacySaved'))
+}
+
+/** 初始化推送开关：仅浏览器支持且实例已配置 VAPID 时展示，初始态 = 现有订阅。 */
+async function initWebPush() {
+  const pending = prepareWebPush()
+  if (!pending) return
+  try {
+    await pending
+  } catch {
+    return // 网络/接口异常时保持隐藏，设置页其余功能不受影响
+  }
+  webPushAvailable.value = true
+  webPushEnabled.value = Boolean(await currentPushSubscription())
+  // 换账号后浏览器订阅仍属于旧账号：绑定到当前账号（失败静默，下次访问重试）。
+  if (webPushEnabled.value) {
+    try {
+      await rebindPushSubscription(locale.value)
+    } catch {
+      // 静默失败：开关状态不变，下次进入设置页重试
+    }
+  }
+}
+
+async function toggleBrowserNotifications() {
+  const next = !browserNotificationsEnabled.value
+  togglingBrowserNotifications.value = true
+  try {
+    if (next) {
+      const granted = await enableBrowserNotifications()
+      browserNotificationsEnabled.value = granted
+      if (granted) {
+        showStatus(t('settings.status.browserNotificationsEnabled'))
+      } else {
+        showError(t('settings.privacy.browserNotificationsPermissionDenied'))
+      }
+    } else {
+      disableBrowserNotifications()
+      browserNotificationsEnabled.value = false
+      showStatus(t('settings.status.browserNotificationsDisabled'))
+    }
+  } finally {
+    togglingBrowserNotifications.value = false
+  }
+}
+
+/** 开关切换：开启 = 授权 + 订阅 + 后端持久化；关闭 = 后端解绑 + 浏览器退订。 */
+async function onWebPushToggle(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (webPushBusy.value) {
+    target.checked = webPushEnabled.value
+    return
+  }
+  const enabling = target.checked
+  webPushBusy.value = true
+  try {
+    if (enabling) {
+      await enableWebPush(locale.value)
+      webPushEnabled.value = true
+      showStatus(t('settings.privacy.webPushEnabled'))
+    } else {
+      await disableWebPush()
+      webPushEnabled.value = false
+      showStatus(t('settings.privacy.webPushDisabled'))
+    }
+  } catch (err) {
+    target.checked = webPushEnabled.value
+    const code = err instanceof PushError ? err.code : 'network'
+    const message = code === 'permission-denied'
+      ? t('settings.privacy.webPushPermissionDenied')
+      : code === 'unconfigured'
+        ? t('settings.privacy.webPushUnconfigured')
+        : code === 'unsupported'
+          ? t('settings.privacy.webPushUnsupported')
+          : enabling
+            ? t('settings.privacy.webPushEnableFailed')
+            : t('settings.privacy.webPushDisableFailed')
+    showError(message)
+  } finally {
+    webPushBusy.value = false
+  }
+}
+
+const appearance = reactive<AppearanceSettings>(loadAppearanceSettings())
+
+const fontFamilyOptions = computed(() => [
+  { value: 'system', label: t('settings.general.fontSystem') },
+  { value: 'serif', label: t('settings.general.fontSerif') },
+  { value: 'kai', label: t('settings.general.fontKai') },
+  { value: 'hei', label: t('settings.general.fontHei') },
+  { value: 'mono', label: t('settings.general.fontMono') },
+  { value: 'custom', label: t('settings.general.fontCustom') },
+])
+
+const fontZones = computed(() => [
+  { key: 'ui' as FontZone, label: t('settings.general.zoneUi'), description: t('settings.general.zoneUiDescription') },
+  { key: 'body' as FontZone, label: t('settings.general.zoneBody'), description: t('settings.general.zoneBodyDescription') },
+  { key: 'code' as FontZone, label: t('settings.general.zoneCode'), description: t('settings.general.zoneCodeDescription') },
+])
+
+function clampSizes() {
+  for (const zone of ['ui', 'body', 'code'] as FontZone[]) {
+    const raw = Number(appearance.zones[zone].size)
+    appearance.zones[zone].size = Number.isFinite(raw) ? Math.min(24, Math.max(12, Math.round(raw))) : 12
+  }
+}
+
+function previewAppearance() {
+  applyAppearanceSettings({ ...appearance })
+}
+
+function saveAppearance() {
+  clampSizes()
+  appearance.customCss = appearance.customCss.slice(0, MAX_CUSTOM_CSS_LENGTH)
+  saveAppearanceSettings({ ...appearance })
+}
+
+/** 本地字体加载状态（按 zone 独立）：idle / loading / loaded / unsupported / error */
+type LocalFontsStatus = 'idle' | 'loading' | 'loaded' | 'unsupported' | 'error'
+const localFontsStatus = reactive<Record<FontZone, LocalFontsStatus>>({ ui: 'idle', body: 'idle', code: 'idle' })
+const localFonts = ref<LocalFontInfo[]>([])
+
+async function handleLoadLocalFonts(zone: FontZone) {
+  if (localFontsStatus[zone] === 'loading') return
+  localFontsStatus[zone] = 'loading'
+  const result = await loadLocalFonts()
+  if (result.status === 'ok') {
+    localFonts.value = result.fonts
+    localFontsStatus[zone] = 'loaded'
+  } else if (result.status === 'unsupported') {
+    localFontsStatus[zone] = 'unsupported'
+  } else {
+    localFontsStatus[zone] = 'error'
+  }
+}
+
+function selectLocalFont(zone: FontZone, font: LocalFontInfo) {
+  appearance.zones[zone].customFamily = font.family
+  saveAppearance()
+}
+
+function clearCustomFont(zone: FontZone) {
+  appearance.zones[zone].customFamily = ''
+  saveAppearance()
+}
+
+let cssPreviewTimer: number | undefined
+function previewCssDebounced() {
+  window.clearTimeout(cssPreviewTimer)
+  cssPreviewTimer = window.setTimeout(previewAppearance, 300)
+}
+
+const cssFileInput = ref<HTMLInputElement | null>(null)
+function triggerCssFileImport() {
+  cssFileInput.value?.click()
+}
+function onCssFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = typeof reader.result === 'string' ? reader.result : ''
+    appearance.customCss = text.slice(0, MAX_CUSTOM_CSS_LENGTH)
+    saveAppearance()
+  }
+  reader.onerror = () => {
+    showError(t('settings.general.cssImportFailed'))
+  }
+  reader.readAsText(file)
+}
+function clearCustomCss() {
+  appearance.customCss = ''
+  saveAppearance()
+}
+
+function confirmResetAppearance() {
+  if (!window.confirm(t('settings.general.resetConfirm'))) return
+  resetAppearanceSettings()
+  Object.assign(appearance, loadAppearanceSettings())
 }
 
 async function loadBindings() {
@@ -664,18 +1339,21 @@ function isBound(provider: string) {
   return Boolean(bindings.value[provider]?.bound)
 }
 
+function canManageBinding(provider: { key: string; supported: boolean }) {
+  return provider.supported || isBound(provider.key)
+}
+
 function providerActionLabel(provider: { key: string; supported: boolean }) {
+  if (isBound(provider.key)) return t('settings.binding.disconnect')
   if (!provider.supported) return t('settings.binding.unsupported')
-  return isBound(provider.key) ? t('settings.binding.disconnect') : t('settings.binding.connect')
+  return t('settings.binding.connect')
 }
 
 async function toggleBinding(provider: string) {
   const item = providers.value.find((entry) => entry.key === provider)
-  if (!item?.supported) return
-
+  if (!item || !canManageBinding(item)) return
   if (!isBound(provider)) {
-    // Casdoor 走独立 OIDC 链路（PKCE），goth 的 /api/auth/:provider 不适用。
-    window.location.href = provider === 'casdoor' ? '/api/auth/oidc/login' : `/api/auth/${provider}`
+    window.location.href = `/api/auth/${provider}`
     return
   }
 
@@ -694,11 +1372,50 @@ async function toggleBinding(provider: string) {
 
 <template>
     <main class="min-w-0 pb-8">
-      <section class="gf-card overflow-hidden">
-        <div class="h-20 border-b border-line bg-base-300 bg-cover bg-center sm:h-24" :style="profileCoverStyle" />
-        <div class="px-4 pb-4 sm:px-5">
+      <section class="gf-card overflow-visible">
+        <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
+        <!-- overflow-visible 保持悬浮 tooltip 不被卡片裁剪；封面图由自身圆角裁剪，封面编辑浮层不裁剪 -->
+        <div
+          class="relative h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60"
+          :class="coverCropOpen ? 'overflow-visible' : 'overflow-hidden rounded-t-[calc(var(--gf-radius-box)-1px)]'"
+          :style="coverCropOpen ? undefined : profileCoverStyle"
+        >
+          <button
+            v-if="!coverCropOpen"
+            type="button"
+            class="absolute right-3 top-3 z-10 inline-flex h-9 items-center gap-1.5 rounded-md bg-black/40 px-3 text-sm font-semibold text-white/90 backdrop-blur-sm transition hover:bg-black/55 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30 disabled:cursor-wait disabled:opacity-70"
+            :aria-label="t('user.editCover')"
+            :disabled="uploadingCover"
+            @click="openCoverPicker"
+          >
+            <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
+            <ImagePlus v-else class="h-4 w-4" />
+            {{ t('user.editCover') }}
+          </button>
+          <!-- 浮层：预览铺满封面高度，操作条向下盖在头像上层 -->
+          <div v-if="coverCropOpen && coverImageUrl" class="absolute inset-0 z-20">
+            <CoverImageEditor
+              ref="coverEditorRef"
+              float-mode
+              :image-url="coverImageUrl"
+              :aspect-ratio="COVER_ASPECT_RATIO"
+              :saving="uploadingCover"
+              @save="onCoverSave"
+              @cancel="closeCoverCrop"
+            />
+          </div>
+          <input
+            ref="coverInput"
+            type="file"
+            class="hidden"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif"
+            @change="handleCoverChange"
+          />
+        </div>
+        <div class="relative z-0 px-4 pb-4 sm:px-5">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div class="flex min-w-0 gap-4">
+            <!-- 移动端：头像单独一行盖封面，文字全宽在下方（与 UserPage 一致）；桌面端并排 -->
+            <div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
               <button
                 type="button"
                 class="group relative -mt-9 h-24 w-24 shrink-0 rounded-full border-2 border-base-100 bg-base-100 shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-primary/20 sm:-mt-10 sm:h-28 sm:w-28"
@@ -711,12 +1428,11 @@ async function toggleBinding(provider: string) {
                   <Loader2 v-if="uploadingAvatar" class="h-8 w-8 animate-spin opacity-100" />
                   <Camera v-else class="h-8 w-8 opacity-0 drop-shadow transition group-hover:opacity-100" />
                 </span>
-                <input ref="avatarInput" type="file" class="hidden" accept="image/*" @change="handleAvatarChange" />
               </button>
 
-              <div class="min-w-0 pt-3">
-                <div class="flex min-w-0 flex-wrap items-center gap-2">
-                  <h2 class="truncate text-2xl font-bold leading-tight text-base-content">{{ displayName }}</h2>
+              <div class="min-w-0 flex-1 sm:pt-3">
+                <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
+                  <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h2>
                   <span class="gf-badge gf-badge-info rounded text-[11px]">{{ t('settings.editing') }}</span>
                   <button
                     type="button"
@@ -728,86 +1444,223 @@ async function toggleBinding(provider: string) {
                     <Sparkles class="h-4 w-4 text-primary" />
                   </button>
                 </div>
-                <p class="mt-1 text-sm font-medium text-base-content/55">@{{ usernameForm.username }}</p>
-                <p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/75">{{ profileBioText }}</p>
+                <p class="mt-0.5 text-[13px] font-medium text-base-content/50 sm:mt-1">@{{ usernameForm.username }}</p>
+                <!-- 简介：展示 / 双击就地编辑（与下方表单共享 profileForm） -->
+                <div
+                  class="gf-profile-inline mt-2"
+                  :class="isEditingBio ? 'gf-profile-inline--editing' : 'gf-profile-inline--idle'"
+                >
+                  <div v-if="!isEditingBio" class="flex items-start gap-1">
+                    <button
+                      type="button"
+                      class="gf-profile-inline__body min-w-0 flex-1 text-left"
+                      :title="t('settings.profile.editBioHint')"
+                      :aria-label="t('settings.profile.editBioAria')"
+                      @dblclick="beginInlineEdit('bio')"
+                    >
+                      <p
+                        class="gf-profile-bio"
+                        :class="{
+                          'gf-profile-bio--empty': profileBioIsEmpty,
+                          'gf-sensitive-field': containsSensitiveText(profileForm.bio, sensitiveWords),
+                        }"
+                      >
+                        {{ profileBioIsEmpty ? t('settings.profile.addBio') : profileForm.bio }}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-profile-inline__edit-btn mt-0.5"
+                      :aria-label="t('settings.profile.editBioAria')"
+                      :title="t('settings.profile.editBioHint')"
+                      @click="beginInlineEdit('bio')"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div v-else class="gf-profile-inline__editor">
+                    <textarea
+                      ref="inlineFieldRef"
+                      :value="inlineDraft"
+                      class="gf-profile-inline__textarea"
+                      :class="{ 'gf-sensitive-field': containsSensitiveText(inlineDraft, sensitiveWords) }"
+                      rows="3"
+                      :maxlength="BIO_MAX_LENGTH"
+                      :disabled="savingInlineProfile"
+                      :aria-label="t('settings.profile.bio')"
+                      @input="onInlineInput"
+                      @keydown="onInlineKeydown"
+                    />
+                    <div v-if="inlineConfirmClear !== 'bio'" class="gf-profile-inline__toolbar">
+                      <span class="gf-profile-inline__hint">{{ t('settings.profile.inlineSaveHint') }}</span>
+                      <span class="gf-profile-inline__count">{{ inlineDraft.length }}/{{ BIO_MAX_LENGTH }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action gf-profile-inline__action--save"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.save')"
+                        :title="t('common.save')"
+                        @click="saveInlineEdit"
+                      >
+                        <Loader2 v-if="savingInlineProfile" class="h-4 w-4 animate-spin" />
+                        <Check v-else class="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.cancel')"
+                        :title="t('common.cancel')"
+                        @click="cancelInlineEdit"
+                      >
+                        <X class="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div v-else class="gf-profile-inline__confirm" role="alert">
+                      <span class="gf-profile-inline__confirm-text">{{ t('settings.profile.confirmClearBio') }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn gf-profile-inline__confirm-btn--clear"
+                        :disabled="savingInlineProfile"
+                        @click="saveInlineEdit"
+                      >
+                        {{ t('settings.profile.confirmClearAction') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn"
+                        :disabled="savingInlineProfile"
+                        @click="inlineConfirmClear = null"
+                      >
+                        {{ t('settings.profile.confirmKeepAction') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 签名：始终独立一行（有内容用引用块，无内容用添加占位） -->
+                <div
+                  v-if="showSignatureQuote || isEditingSignature || showSignatureAddSlot"
+                  class="gf-profile-inline gf-profile-inline--quote mt-1.5 sm:mt-2"
+                  :class="isEditingSignature ? 'gf-profile-inline--editing' : 'gf-profile-inline--idle'"
+                >
+                  <div v-if="!isEditingSignature" class="flex items-start gap-1">
+                    <button
+                      type="button"
+                      class="min-w-0 flex-1 text-left"
+                      :title="t('settings.profile.editSignatureHint')"
+                      :aria-label="t('settings.profile.editSignatureAria')"
+                      @dblclick="beginInlineEdit('signature')"
+                    >
+                      <aside v-if="showSignatureQuote" class="gf-profile-signature !mt-0" :aria-label="t('user.signatureLabel')">
+                        <div class="gf-profile-signature__row">
+                          <Feather class="gf-profile-signature__icon" aria-hidden="true" />
+                          <p
+                            class="gf-profile-signature__text"
+                            :class="{ 'gf-sensitive-field': containsSensitiveText(profileForm.signature, sensitiveWords) }"
+                          >{{ profileForm.signature }}</p>
+                        </div>
+                        <svg class="gf-profile-signature__squiggle" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+                          <path
+                            d="M2 5 C 10 0, 18 8, 26 5 S 42 8, 50 5 S 66 8, 74 5 S 90 8, 98 5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </aside>
+                      <p
+                        v-else
+                        class="gf-profile-bio gf-profile-bio--empty px-1.5 py-1 sm:px-2"
+                      >
+                        {{ t('settings.profile.addSignature') }}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-profile-inline__edit-btn mt-1"
+                      :aria-label="t('settings.profile.editSignatureAria')"
+                      :title="t('settings.profile.editSignatureHint')"
+                      @click="beginInlineEdit('signature')"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div v-else class="gf-profile-inline__editor">
+                    <textarea
+                      ref="inlineFieldRef"
+                      :value="inlineDraft"
+                      class="gf-profile-inline__textarea gf-profile-inline__textarea--quote"
+                      :class="{ 'gf-sensitive-field': containsSensitiveText(inlineDraft, sensitiveWords) }"
+                      rows="2"
+                      :maxlength="SIGNATURE_MAX_LENGTH"
+                      :disabled="savingInlineProfile"
+                      :aria-label="t('settings.profile.signature')"
+                      @input="onInlineInput"
+                      @keydown="onInlineKeydown"
+                    />
+                    <div v-if="inlineConfirmClear !== 'signature'" class="gf-profile-inline__toolbar">
+                      <span class="gf-profile-inline__hint">{{ t('settings.profile.inlineSaveHint') }}</span>
+                      <span class="gf-profile-inline__count">{{ inlineDraft.length }}/{{ SIGNATURE_MAX_LENGTH }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action gf-profile-inline__action--save"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.save')"
+                        :title="t('common.save')"
+                        @click="saveInlineEdit"
+                      >
+                        <Loader2 v-if="savingInlineProfile" class="h-4 w-4 animate-spin" />
+                        <Check v-else class="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.cancel')"
+                        :title="t('common.cancel')"
+                        @click="cancelInlineEdit"
+                      >
+                        <X class="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div v-else class="gf-profile-inline__confirm" role="alert">
+                      <span class="gf-profile-inline__confirm-text">{{ t('settings.profile.confirmClearSignature') }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn gf-profile-inline__confirm-btn--clear"
+                        :disabled="savingInlineProfile"
+                        @click="saveInlineEdit"
+                      >
+                        {{ t('settings.profile.confirmClearAction') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn"
+                        :disabled="savingInlineProfile"
+                        @click="inlineConfirmClear = null"
+                      >
+                        {{ t('settings.profile.confirmKeepAction') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-              <div class="flex flex-wrap items-center gap-2">
-                <div class="relative">
-                  <button
-                    type="button"
-                    class="gf-button gf-button-md gf-button-secondary"
-                    :aria-expanded="editingCover"
-                    @click="toggleCoverEditor"
-                  >
-                    <Image class="h-4 w-4" />
-                    {{ t('user.editCover') }}
-                  </button>
-                  <div
-                    v-if="editingCover"
-                    class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-line bg-base-100 p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:top-11 sm:bottom-auto sm:left-auto sm:right-0 sm:w-80 sm:rounded-xl sm:border sm:bg-base-100 sm:p-3 sm:shadow-lg"
-                    role="dialog"
-                    aria-modal="false"
-                    :aria-label="t('user.editCover')"
-                  >
-                    <div class="mb-3 flex items-center justify-between sm:hidden">
-                      <span class="text-sm font-semibold text-base-content">{{ t('user.editCover') }}</span>
-                      <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300" @click="cancelCoverEditor">
-                        {{ t('common.close') }}
-                      </button>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <input ref="coverInput" type="file" class="hidden" accept="image/*" @change="handleCoverChange" />
-                      <button
-                        type="button"
-                        class="gf-button gf-button-md gf-button-primary flex-1"
-                        :disabled="uploadingCover"
-                        @click="openCoverPicker"
-                      >
-                        <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
-                        <Camera v-else class="h-4 w-4" />
-                        {{ t('settings.cover.upload') }}
-                      </button>
-                      <span class="text-xs text-base-content/55">{{ t('settings.cover.ratioHint') }}</span>
-                    </div>
-                    <div class="my-3 flex items-center gap-3 text-xs text-base-content/45">
-                      <span class="h-px flex-1 bg-line" />
-                      {{ t('settings.cover.orUrl') }}
-                      <span class="h-px flex-1 bg-line" />
-                    </div>
-                    <form class="space-y-3" @submit.prevent="saveCover">
-                      <label class="block">
-                        <span class="text-xs font-semibold text-base-content/55">{{ t('user.coverUrl') }}</span>
-                        <input
-                          v-model="coverDraft"
-                          type="url"
-                          class="gf-input mt-1 h-9"
-                          :placeholder="t('user.coverUrl')"
-                        />
-                      </label>
-                      <div class="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          class="gf-button gf-button-sm gf-button-secondary"
-                          :disabled="savingCover || uploadingCover"
-                          @click="cancelCoverEditor"
-                        >
-                          {{ t('common.cancel') }}
-                        </button>
-                        <button
-                          type="submit"
-                          class="gf-button gf-button-sm gf-button-primary min-w-16 disabled:cursor-wait"
-                          :disabled="savingCover || uploadingCover"
-                        >
-                          <Loader2 v-if="savingCover" class="h-4 w-4 animate-spin" />
-                          <span v-else>{{ t('common.save') }}</span>
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
+            <!-- 右栏操作区：导航出口置顶/靠前，编辑动作同组 gap-2（better-layout）。
+                 信息栏编辑进行中时隐藏，让编辑框展开到整行宽度（40 字签名一行放下） -->
+            <div v-if="!isEditingBio && !isEditingSignature" class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+              <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                <a
+                  :href="profileUrl"
+                  class="gf-button gf-button-md gf-button-secondary"
+                  :aria-label="t('settings.backToProfile')"
+                >
+                  <ArrowLeft class="h-4 w-4" />
+                  {{ t('settings.backToProfile') }}
+                </a>
                 <button
                   type="button"
                   class="gf-button gf-button-md gf-button-secondary"
@@ -1011,12 +1864,15 @@ async function toggleBinding(provider: string) {
                       {{ t('common.edit') }}
                     </button>
                   </div>
-                  <div v-else class="mt-1 flex min-w-0 gap-2">
-                    <input v-model="emailForm.email" type="email" class="gf-input min-w-0 flex-1 border-primary/40 ring-4 ring-primary/20" />
-                    <button type="button" class="gf-button gf-button-lg gf-button-primary shrink-0" :disabled="savingEmail" @click="saveEmail">
-                      {{ savingEmail ? t('settings.savingShort') : t('common.save') }}
-                    </button>
-                    <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelEmailEdit">{{ t('common.cancel') }}</button>
+                  <div v-else class="mt-1 flex min-w-0 flex-col gap-2">
+                    <input v-model="emailForm.email" type="email" class="gf-input min-w-0 border-primary/40 ring-4 ring-primary/20" />
+                    <div class="flex min-w-0 gap-2">
+                      <input v-model="emailForm.password" type="password" class="gf-input min-w-0 flex-1" :placeholder="t('settings.account.currentPassword')" autocomplete="current-password" />
+                      <button type="button" class="gf-button gf-button-lg gf-button-primary shrink-0" :disabled="savingEmail" @click="saveEmail">
+                        {{ savingEmail ? t('settings.savingShort') : t('common.save') }}
+                      </button>
+                      <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelEmailEdit">{{ t('common.cancel') }}</button>
+                    </div>
                   </div>
                   <div v-if="layout.viewer.requiresEmailVerification" class="mt-2 flex flex-col gap-2 border-l-2 border-warning bg-warning/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                     <span class="min-w-0 text-sm text-warning">
@@ -1045,22 +1901,24 @@ async function toggleBinding(provider: string) {
                 </label>
                 <label class="block">
                   <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.websiteName') }}</span>
-                  <input v-model="profileForm.websiteName" class="gf-input mt-1" />
+                  <input
+                    v-model="profileForm.websiteName"
+                    class="gf-input mt-1"
+                    :class="{ 'gf-sensitive-field': containsSensitiveText(profileForm.websiteName, sensitiveWords) }"
+                    @input="clearSensitiveHighlight"
+                  />
                 </label>
                 <label class="block">
                   <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.website') }}</span>
-                  <input v-model="profileForm.website" class="gf-input mt-1" placeholder="https://example.com" />
+                  <input
+                    v-model="profileForm.website"
+                    class="gf-input mt-1"
+                    :class="{ 'gf-sensitive-field': containsSensitiveText(profileForm.website, sensitiveWords) }"
+                    placeholder="https://example.com"
+                    @input="clearSensitiveHighlight"
+                  />
                 </label>
               </div>
-
-              <label class="block">
-                <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.bio') }}</span>
-                <textarea v-model="profileForm.bio" class="gf-textarea mt-1 min-h-24 py-2" />
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.signature') }}</span>
-                <textarea v-model="profileForm.signature" class="gf-textarea mt-1 min-h-20 py-2" />
-              </label>
 
               <div class="border-t border-line pt-5">
                 <div class="mb-1 flex items-center gap-2">
@@ -1100,7 +1958,8 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'account'">
             <SectionHeader :icon="KeyRound" :title="t('settings.account.title')" />
             <form class="max-w-xl space-y-4 p-4" @submit.prevent="submitPassword">
-              <label class="block">
+              <p v-if="page.props.canSetPassword" class="gf-status-message gf-status-message-info">{{ t('settings.account.setPasswordHint') }}</p>
+              <label v-else class="block">
                 <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.currentPassword') }}</span>
                 <input v-model="passwordForm.oldPassword" required type="password" class="gf-input mt-1" />
               </label>
@@ -1115,10 +1974,151 @@ async function toggleBinding(provider: string) {
               </label>
               <button type="submit" class="gf-button gf-button-lg gf-button-primary disabled:cursor-wait" :disabled="savingPassword">
                 <Loader2 v-if="savingPassword" class="h-4 w-4 animate-spin" />
-                {{ t('settings.account.changePassword') }}
+                {{ page.props.canSetPassword ? t('settings.account.setPassword') : t('settings.account.changePassword') }}
               </button>
             </form>
+
+            <div class="mx-4 mb-4 max-w-xl rounded-[var(--gf-radius-box)] border border-error/20 bg-error/10 p-4">
+              <div class="flex items-start gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/15 text-error ring-1 ring-inset ring-error/20">
+                  <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h3 class="text-sm font-semibold text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+                  <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+                </div>
+              </div>
+              <div class="mt-3 flex justify-end">
+                <button type="button" class="gf-button gf-button-sm gf-button-danger active:scale-[0.96]" @click="openAccountCloseDialog">
+                  <UserRound class="h-4 w-4" aria-hidden="true" />
+                  {{ t('settings.account.closeAction') }}
+                </button>
+              </div>
+            </div>
           </section>
+
+          <Teleport to="body">
+            <Transition name="gf-modal">
+              <div
+                v-if="accountCloseOpen"
+                class="fixed inset-0 z-[110] flex items-center justify-center bg-neutral/45 px-4 py-6 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="account-close-title"
+                @click.self="closeAccountCloseDialog"
+              >
+                <div class="gf-menu-surface w-full max-w-md p-4 sm:p-5">
+                  <div class="flex items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/10 text-error ring-1 ring-inset ring-error/15">
+                      <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <h3 id="account-close-title" class="text-base font-semibold leading-6 text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+                      <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content"
+                      :disabled="accountCloseSubmitting"
+                      :aria-label="t('common.close')"
+                      @click="closeAccountCloseDialog"
+                    >
+                      <X class="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div class="mt-4 space-y-2">
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-[var(--gf-radius-field)] border p-3 transition-colors"
+                      :class="accountCloseMode === 'anonymize' ? 'border-primary/40 bg-primary/5 ring-1 ring-inset ring-primary/20' : 'border-line hover:bg-base-200/60'"
+                    >
+                      <input
+                        v-model="accountCloseMode"
+                        type="radio"
+                        value="anonymize"
+                        class="mt-1 h-4 w-4 accent-primary"
+                      />
+                      <span>
+                        <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeAnonymize') }}</span>
+                        <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeAnonymizeDescription') }}</span>
+                      </span>
+                    </label>
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-[var(--gf-radius-field)] border p-3 transition-colors"
+                      :class="accountCloseMode === 'delete' ? 'border-primary/40 bg-primary/5 ring-1 ring-inset ring-primary/20' : 'border-line hover:bg-base-200/60'"
+                    >
+                      <input
+                        v-model="accountCloseMode"
+                        type="radio"
+                        value="delete"
+                        class="mt-1 h-4 w-4 accent-primary"
+                      />
+                      <span>
+                        <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeDelete') }}</span>
+                        <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeDeleteDescription') }}</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <label class="mt-4 block">
+                    <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closeConfirmLabel') }}</span>
+                    <input
+                      v-model="accountCloseConfirmText"
+                      type="text"
+                      class="gf-input mt-1"
+                      :class="{ 'border-error/60 ring-1 ring-inset ring-error/30': accountCloseError }"
+                      :aria-invalid="Boolean(accountCloseError)"
+                      placeholder="注销"
+                    />
+                  </label>
+
+                  <label class="mt-4 block">
+                    <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closePasswordLabel') }}</span>
+                    <input
+                      v-model="accountClosePassword"
+                      type="password"
+                      autocomplete="current-password"
+                      class="gf-input mt-1"
+                      :class="{ 'border-error/60 ring-1 ring-inset ring-error/30': accountCloseError }"
+                      :placeholder="t('settings.account.closePasswordPlaceholder')"
+                      :disabled="accountCloseSubmitting"
+                      @keydown.enter="submitAccountClose"
+                    />
+                  </label>
+
+                  <div class="mt-2.5 flex items-start gap-2.5 rounded-[var(--gf-radius-field)] border border-line/80 bg-base-200/40 px-3 py-2.5">
+                    <Lock class="mt-0.5 h-3.5 w-3.5 shrink-0 text-base-content/45" aria-hidden="true" />
+                    <p class="text-xs leading-5 text-base-content/55">{{ t('settings.account.closePasswordHint') }}</p>
+                  </div>
+
+                  <p
+                    v-if="accountCloseError"
+                    class="mt-3 rounded-[var(--gf-radius-field)] border border-error/20 bg-error/10 px-3 py-2 text-sm leading-5 text-error"
+                    role="alert"
+                  >
+                    {{ accountCloseError }}
+                  </p>
+
+                  <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted active:scale-[0.96]" :disabled="accountCloseSubmitting" @click="closeAccountCloseDialog">
+                      {{ t('common.cancel') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-danger active:scale-[0.96]"
+                      :disabled="accountCloseSubmitting || !accountClosePassword || !accountCloseConfirmText"
+                      :aria-busy="accountCloseSubmitting"
+                      @click="submitAccountClose"
+                    >
+                      <Loader2 v-if="accountCloseSubmitting" class="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <UserRound v-else class="h-4 w-4" aria-hidden="true" />
+                      {{ t('settings.account.closeConfirmButton') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </Teleport>
 
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
@@ -1144,6 +2144,37 @@ async function toggleBinding(provider: string) {
                 </span>
                 <input v-model="privacy.emailNotifications" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="savePrivacy" />
               </label>
+              <label v-if="webPushAvailable" class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.webPushNotifications') }}</span>
+                  <span class="text-sm text-base-content/55">{{ t('settings.privacy.webPushNotificationsDescription') }}</span>
+                </span>
+                <span v-if="webPushBusy" class="flex items-center gap-2 text-xs text-base-content/55">
+                  <Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
+                </span>
+                <input
+                  v-else
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-line text-primary"
+                  :checked="webPushEnabled"
+                  @change="onWebPushToggle"
+                />
+              </label>
+              <label class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.privacy.browserNotifications') }}</span>
+                  <span class="text-sm text-base-content/55">
+                    {{ browserNotificationsSupported ? t('settings.privacy.browserNotificationsDescription') : t('settings.privacy.browserNotificationsUnsupported') }}
+                  </span>
+                </span>
+                <input
+                  :checked="browserNotificationsEnabled"
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-line text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!browserNotificationsSupported || togglingBrowserNotifications"
+                  @change="toggleBrowserNotifications"
+                />
+              </label>
             </div>
           </section>
 
@@ -1162,12 +2193,12 @@ async function toggleBinding(provider: string) {
                 v-for="provider in providers"
                 :key="provider.key"
                 class="flex items-center justify-between gap-4 rounded-lg border p-4"
-                :class="provider.supported ? 'border-line bg-base-100' : 'border-line bg-base-200/70'"
+                :class="canManageBinding(provider) ? 'border-line bg-base-100' : 'border-line bg-base-200/70'"
               >
                 <div class="flex min-w-0 items-center gap-3">
                   <div
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border"
-                    :class="provider.supported ? 'border-line bg-base-100 shadow-sm' : 'border-line bg-base-300 opacity-60'"
+                    :class="canManageBinding(provider) ? 'border-line bg-base-100 shadow-sm' : 'border-line bg-base-300 opacity-60'"
                   >
                     <svg v-if="provider.key === 'github'" class="h-6 w-6 text-base-content" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.04c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.49.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 5.8c1.02.01 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.82 1.1.82 2.22v3.29c0 .32.22.7.82.58A12.01 12.01 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />
@@ -1181,8 +2212,8 @@ async function toggleBinding(provider: string) {
                   </div>
                   <div>
                     <h3 class="font-semibold text-base-content">{{ provider.label }}</h3>
-                    <p class="text-sm" :class="provider.supported ? 'text-base-content/55' : 'text-base-content/55'">
-                      {{ provider.supported ? (isBound(provider.key) ? t('settings.binding.connected') : t('settings.binding.disconnected')) : t('settings.binding.siteUnsupported') }}
+                    <p class="text-sm text-base-content/55">
+                      {{ isBound(provider.key) ? t('settings.binding.connected') : provider.supported ? t('settings.binding.disconnected') : t('settings.binding.siteUnsupported') }}
                     </p>
                   </div>
                 </div>
@@ -1190,13 +2221,13 @@ async function toggleBinding(provider: string) {
                   type="button"
                   class="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold disabled:cursor-not-allowed"
                   :class="[
-                    !provider.supported
+                    !canManageBinding(provider)
                       ? 'border-line bg-base-300 text-base-content/55'
                       : isBound(provider.key)
                         ? 'border-error/30 bg-error/10 text-error hover:bg-error/10'
                         : 'border-neutral bg-neutral text-neutral-content hover:bg-neutral/90',
                   ]"
-                  :disabled="bindingAction === provider.key || !provider.supported"
+                  :disabled="bindingAction === provider.key || !canManageBinding(provider)"
                   @click="toggleBinding(provider.key)"
                 >
                   <Loader2 v-if="bindingAction === provider.key" class="h-4 w-4 animate-spin" />
@@ -1365,6 +2396,345 @@ async function toggleBinding(provider: string) {
             </div>
           </section>
 
+          <section v-show="activeTab === 'content'">
+            <SectionHeader :icon="Settings2" :title="t('settings.content.title')" :description="t('settings.content.description')" />
+
+            <div class="gf-card overflow-hidden">
+              <div class="flex items-center gap-1 border-b border-line bg-base-200/60 p-2">
+                <button
+                  type="button"
+                  class="gf-tab"
+                  :class="myContentType === 'topic' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+                  @click="switchMyContentType('topic')"
+                >
+                  {{ t('settings.content.topicTab') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-tab"
+                  :class="myContentType === 'post' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+                  @click="switchMyContentType('post')"
+                >
+                  {{ t('settings.content.replyTab') }}
+                </button>
+                <div class="ml-auto flex items-center gap-2">
+                  <span v-if="selectedMyContentIds.length" class="text-xs text-base-content/55">
+                    {{ t('settings.content.selectedCount', { count: selectedMyContentIds.length }) }}
+                  </span>
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm gf-button-danger"
+                    :disabled="selectedMyContentIds.length === 0 || batchDeleting"
+                    @click="requestBatchDelete"
+                  >
+                    <Loader2 v-if="batchDeleting" class="h-3.5 w-3.5 animate-spin" />
+                    <Trash2 v-else class="h-3.5 w-3.5" />
+                    {{ t('settings.content.batchDelete') }}
+                  </button>
+                </div>
+              </div>
+
+              <p v-if="batchDeleteError" class="border-b border-line bg-error/10 px-3 py-2 text-sm text-error">{{ batchDeleteError }}</p>
+
+              <div v-if="loadingMyContent && myContentItems.length === 0" class="p-4 py-10 text-center text-sm text-base-content/55">
+                <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+                {{ t('settings.deleted.loading') }}
+              </div>
+              <div v-else-if="myContentItems.length === 0" class="p-6 text-center">
+                <FileText class="mx-auto h-8 w-8 text-base-content/30" />
+                <h3 class="mt-3 text-sm font-semibold text-base-content/75">{{ t('settings.content.emptyTitle') }}</h3>
+                <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.content.emptyDescription') }}</p>
+              </div>
+              <div v-else class="divide-y divide-line">
+                <label
+                  v-for="item in myContentItems"
+                  :key="myContentItemKey(item)"
+                  class="flex cursor-pointer items-start gap-3 px-4 py-3 transition hover:bg-base-200/60"
+                >
+                  <input
+                    type="checkbox"
+                    class="mt-1 h-4 w-4 shrink-0 rounded border-line accent-primary"
+                    :checked="isMyContentSelected(item)"
+                    @change="toggleMyContent(item)"
+                  />
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-base-content">{{ item.title }}</span>
+                    <span v-if="item.excerpt" class="mt-0.5 block truncate text-[13px] leading-5 text-base-content/55">{{ item.excerpt }}</span>
+                    <span class="mt-0.5 block text-xs text-base-content/45">{{ formatDate(item.createdAt) }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- 批量删除频率二次确认（PRD R9） -->
+          <Teleport to="body">
+            <div v-if="batchDeleteConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="cancelBatchDeleteConfirm">
+              <div class="w-full max-w-md rounded-xl border border-line bg-base-100 p-5 shadow-xl">
+                <h3 class="text-base font-semibold text-base-content">{{ t('settings.content.batchConfirmTitle') }}</h3>
+                <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.content.batchConfirmDescription', { count: selectedMyContentIds.length }) }}</p>
+                <label class="mt-4 block">
+                  <span class="mb-1 block text-xs font-semibold text-base-content/70">{{ t('settings.content.batchPasswordLabel') }}</span>
+                  <input
+                    v-model="batchDeletePassword"
+                    type="password"
+                    autocomplete="current-password"
+                    class="gf-input h-9 w-full text-sm"
+                    :placeholder="t('settings.content.batchPasswordPlaceholder')"
+                    :disabled="batchDeleting"
+                    @keydown.enter="confirmForceBatchDelete"
+                  />
+                </label>
+                <p class="mt-2 text-xs leading-5 text-base-content/50">{{ t('settings.content.batchPasswordHint') }}</p>
+                <div class="mt-4 flex justify-end gap-2">
+                  <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="batchDeleting" @click="cancelBatchDeleteConfirm">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="batchDeleting || !batchDeletePassword" @click="confirmForceBatchDelete">
+                    <Loader2 v-if="batchDeleting" class="h-4 w-4 animate-spin" />
+                    {{ t('settings.content.batchConfirmContinue') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Teleport>
+
+          <section v-show="activeTab === 'deleted'">
+            <SectionHeader :icon="Archive" :title="t('settings.deleted.title')" :description="t('settings.deleted.description')">
+              <template #actions>
+                <button
+                  type="button"
+                  class="text-xs font-medium text-primary hover:text-primary disabled:cursor-wait disabled:opacity-60"
+                  :disabled="loadingDeletedContent"
+                  @click="() => loadDeletedContent(true)"
+                >
+                  {{ t('settings.deleted.refresh') }}
+                </button>
+              </template>
+            </SectionHeader>
+
+            <div v-if="loadingDeletedContent" class="p-4 py-10 text-center text-sm text-base-content/55">
+              <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+              {{ t('settings.deleted.loading') }}
+            </div>
+            <div v-else-if="deletedContentItems.length === 0" class="p-6 text-center">
+              <Archive class="mx-auto h-8 w-8 text-base-content/30" />
+              <h3 class="mt-3 text-sm font-semibold text-base-content/75">{{ t('settings.deleted.emptyTitle') }}</h3>
+              <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.deleted.emptyDescription') }}</p>
+            </div>
+            <div v-else class="space-y-3 p-4">
+              <article
+                v-for="item in deletedContentItems"
+                :key="`${item.contentType}:${item.id}`"
+                class="rounded-lg border border-line bg-base-100 p-4"
+              >
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-base-content/50">
+                      <span class="gf-badge gf-badge-info rounded">{{ deletedContentLabel(item) }}</span>
+                      <span>{{ t('settings.deleted.deletedAt', { time: formatDate(item.deletedAt) }) }}</span>
+                    </div>
+                    <h3 class="mt-2 break-words text-sm font-semibold text-base-content">{{ deletedContentTitle(item) }}</h3>
+                    <p v-if="item.contentType === 'topic'" class="mt-1 text-sm leading-6 text-base-content/55">
+                      {{ item.excerpt || t('settings.deleted.topicFallback') }}
+                    </p>
+                    <p v-else class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-base-content/55">
+                      {{ item.excerpt || t('settings.deleted.replyFallback') }}
+                    </p>
+                    <p class="mt-2 text-xs text-base-content/45">{{ t('settings.deleted.retentionHint') }}</p>
+                  </div>
+                  <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                    <button
+                      v-if="item.canRestore"
+                      type="button"
+                      class="gf-tip gf-button gf-button-sm gf-button-primary"
+                      :data-tip="t('settings.deleted.restoreHint')"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="restoreDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'restore')" class="h-3.5 w-3.5 animate-spin" />
+                      <RotateCcw v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.restore') }}
+                    </button>
+                    <button
+                      v-if="item.canPermanent"
+                      type="button"
+                      class="gf-tip gf-button gf-button-sm gf-button-danger"
+                      :data-tip="t('settings.deleted.purgeHint')"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="purgeDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'purge')" class="h-3.5 w-3.5 animate-spin" />
+                      <Trash2 v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.purge') }}
+                    </button>
+                  </div>
+                </div>
+              </article>
+              <button
+                v-if="hasMoreDeletedTopics || hasMoreDeletedPosts"
+                type="button"
+                class="gf-button gf-button-sm gf-button-secondary mx-auto"
+                :disabled="loadingDeletedContent"
+                @click="loadMoreDeletedContent"
+              >
+                <Loader2 v-if="loadingDeletedContent" class="h-3.5 w-3.5 animate-spin" />
+                {{ t('common.loadMore') }}
+              </button>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'general'">
+            <SectionHeader :icon="Settings2" :title="t('settings.general.title')" :description="t('settings.general.description')" />
+            <div class="max-w-2xl divide-y divide-line p-4">
+              <!-- Theme Selection -->
+              <div class="py-4">
+                <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.theme') }}</span>
+                <span class="text-sm text-base-content/55">{{ t('settings.general.themeDescription') }}</span>
+
+                <div class="mt-3 flex gap-2">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    type="button"
+                    class="gf-button gf-button-md"
+                    :class="preference === option.value ? 'gf-button-primary' : 'gf-button-muted'"
+                    @click="setThemePreference(option.value)"
+                  >
+                    <component :is="option.icon" class="h-4 w-4" />
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-for="zone in fontZones" :key="zone.key" class="py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <span class="min-w-0">
+                    <span class="block text-sm font-semibold text-base-content">{{ zone.label }}</span>
+                    <span class="text-sm text-base-content/55">{{ zone.description }}</span>
+                  </span>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <input
+                      type="number"
+                      min="12"
+                      max="24"
+                      step="1"
+                      class="gf-input h-9 w-20 text-center text-sm"
+                      v-model.number="appearance.zones[zone.key].size"
+                      :aria-label="zone.label + ' ' + t('settings.general.size')"
+                      @input="previewAppearance"
+                      @change="saveAppearance"
+                    />
+                    <SiteSelect
+                      class="w-44 shrink-0"
+                      :options="fontFamilyOptions"
+                      v-model="appearance.zones[zone.key].familyPreset"
+                      @update:model-value="saveAppearance"
+                    />
+                  </div>
+                </div>
+                <div v-if="appearance.zones[zone.key].familyPreset === 'custom'" class="mt-3">
+                  <div
+                    v-if="appearance.zones[zone.key].customFamily"
+                    class="mb-2 flex items-center justify-between gap-2 rounded-md border border-line bg-base-200/50 px-3 py-2"
+                  >
+                    <span
+                      class="min-w-0 truncate text-sm font-medium text-base-content"
+                      :style="{ fontFamily: quoteFontFamily(appearance.zones[zone.key].customFamily) }"
+                    >
+                      {{ appearance.zones[zone.key].customFamily }}
+                    </span>
+                    <button
+                      type="button"
+                      class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content"
+                      :aria-label="t('settings.general.clearCustomFont')"
+                      :title="t('settings.general.clearCustomFont')"
+                      @click="clearCustomFont(zone.key)"
+                    >
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <button
+                    v-if="localFontsStatus[zone.key] === 'idle' || localFontsStatus[zone.key] === 'loading' || localFontsStatus[zone.key] === 'error'"
+                    type="button"
+                    class="gf-button gf-button-md gf-button-secondary w-full"
+                    :disabled="localFontsStatus[zone.key] === 'loading'"
+                    @click="handleLoadLocalFonts(zone.key)"
+                  >
+                    <Loader2 v-if="localFontsStatus[zone.key] === 'loading'" class="h-4 w-4 animate-spin" />
+                    <Check v-else class="h-4 w-4" />
+                    {{ localFontsStatus[zone.key] === 'error' ? t('settings.general.retryLoadFonts') : t('settings.general.loadLocalFonts') }}
+                  </button>
+
+                  <p v-else-if="localFontsStatus[zone.key] === 'unsupported'" class="text-xs text-base-content/55">
+                    {{ t('settings.general.fontsUnsupported') }}
+                  </p>
+
+                  <template v-else-if="localFontsStatus[zone.key] === 'loaded'">
+                    <div v-if="localFonts.length" class="mt-2 max-h-56 overflow-y-auto rounded-md border border-line p-1">
+                      <button
+                        v-for="font in localFonts"
+                        :key="font.family"
+                        type="button"
+                        class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-base-content hover:bg-base-200"
+                        :class="appearance.zones[zone.key].customFamily === font.family ? 'bg-primary/10 text-primary' : ''"
+                        :style="{ fontFamily: quoteFontFamily(font.family) }"
+                        @click="selectLocalFont(zone.key, font)"
+                      >
+                        <span class="min-w-0 flex-1 truncate">{{ font.fullName }}</span>
+                        <Check v-if="appearance.zones[zone.key].customFamily === font.family" class="h-4 w-4 shrink-0" />
+                      </button>
+                    </div>
+                    <p v-else class="text-xs text-base-content/55">
+                      {{ t('settings.general.fontsEmpty') }}
+                      <button type="button" class="ml-1 text-primary underline" @click="handleLoadLocalFonts(zone.key)">
+                        {{ t('settings.general.retryLoadFonts') }}
+                      </button>
+                    </p>
+                  </template>
+                </div>
+              </div>
+
+              <div class="py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <span>
+                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.customCss') }}</span>
+                    <span class="text-sm text-base-content/55">{{ t('settings.general.customCssDescription') }}</span>
+                  </span>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted" @click="triggerCssFileImport">{{ t('settings.general.importCss') }}</button>
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="!appearance.customCss" @click="clearCustomCss">{{ t('settings.general.clearCss') }}</button>
+                    <input ref="cssFileInput" type="file" accept=".css,text/css" class="hidden" @change="onCssFileChange" />
+                  </div>
+                </div>
+                <textarea
+                  v-model="appearance.customCss"
+                  class="gf-textarea mt-3 h-44 w-full font-mono text-xs"
+                  :placeholder="t('settings.general.customCssPlaceholder')"
+                  :aria-label="t('settings.general.customCss')"
+                  @input="previewCssDebounced"
+                  @blur="saveAppearance"
+                ></textarea>
+              </div>
+
+              <label class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.clickAnimation') }}</span>
+                  <span class="text-sm text-base-content/55">{{ t('settings.general.clickAnimationDescription') }}</span>
+                </span>
+                <input v-model="appearance.clickAnimation" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="saveAppearance" />
+              </label>
+
+              <div class="flex items-center justify-between gap-4 py-4">
+                <span class="text-sm text-base-content/55">{{ t('settings.general.resetDescription') }}</span>
+                <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="confirmResetAppearance">
+                  {{ t('settings.general.reset') }}
+                </button>
+              </div>
+            </div>
+          </section>
+
           <div v-if="revokeAllConfirmOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
             <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
               <div class="gf-menu-surface w-full p-5">
@@ -1385,109 +2755,71 @@ async function toggleBinding(provider: string) {
         </div>
       </section>
 
-      <div v-if="cropModalOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
-        <div class="mx-auto flex min-h-full max-w-[760px] items-center justify-center">
-          <div class="gf-menu-surface flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden">
-            <div class="flex items-center justify-between border-b border-line px-5 py-3">
-              <div>
-                <h2 class="text-base font-semibold text-base-content">{{ t('settings.avatar.cropTitle') }}</h2>
-                <p class="mt-0.5 text-sm text-base-content/55">{{ t('settings.avatar.cropDescription') }}</p>
-              </div>
-              <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300 hover:text-base-content" @click="closeCropModal">
-                {{ t('common.close') }}
-              </button>
+      <!-- 头像编辑模态框（知乎式：居中 1:1 预览 + 滑条缩放 + 保存） -->
+      <div
+        v-if="avatarCropOpen"
+        class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="avatar-crop-dialog-title"
+      >
+        <div class="mx-auto flex min-h-full items-center justify-center">
+          <div class="gf-menu-surface relative flex w-full max-w-[400px] flex-col overflow-hidden">
+            <button
+              type="button"
+              class="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-base-content/45 transition hover:bg-base-300 hover:text-base-content"
+              :aria-label="t('common.close')"
+              @click="closeAvatarCrop"
+            >
+              <X class="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <div class="px-6 pb-2 pt-8 text-center">
+              <h2 id="avatar-crop-dialog-title" class="text-lg font-semibold text-base-content">
+                {{ t('settings.avatar.cropTitle') }}
+              </h2>
+              <p class="mt-1 text-sm text-base-content/55">
+                {{ t('settings.avatar.cropDescription') }}
+              </p>
             </div>
 
-            <div class="grid gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(280px,420px)_180px] md:items-start md:justify-center">
-              <div class="avatar-crop-workspace aspect-square w-full max-w-[420px] justify-self-center overflow-hidden rounded-lg border border-line bg-base-200">
-                <img ref="cropperImage" :src="cropImageUrl" :alt="t('settings.avatar.cropAlt')" class="block" />
-              </div>
-
-              <aside class="grid gap-4 sm:grid-cols-[128px_minmax(0,1fr)] md:block md:space-y-4">
-                <div class="min-w-0">
-                  <div class="mb-2 text-sm font-semibold text-base-content">{{ t('settings.avatar.preview') }}</div>
-                  <div class="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-line bg-base-200">
-                    <img v-if="cropPreviewUrl" :src="cropPreviewUrl" :alt="t('settings.avatar.previewAlt')" class="h-full w-full object-cover" />
-                  </div>
-                </div>
-                <div class="self-start rounded-lg bg-base-200 p-3 text-sm leading-6 text-base-content/55">
-                  {{ t('settings.avatar.cropTip') }}
-                </div>
-              </aside>
+            <div class="flex flex-col items-center px-6 py-4">
+              <AvatarImageEditor
+                v-if="avatarImageUrl"
+                ref="avatarEditorRef"
+                :image-url="avatarImageUrl"
+                :stage-size="256"
+                :output-size="300"
+                :saving="uploadingAvatar"
+                @save="onAvatarSave"
+                @cancel="closeAvatarCrop"
+              />
             </div>
 
-            <div v-if="cropError" class="border-t border-error/20 bg-error/10 px-5 py-3 text-sm font-medium text-error">
-              {{ cropError }}
-            </div>
 
-            <div class="flex items-center justify-end gap-2 border-t border-line bg-base-200 px-5 py-3">
-              <button type="button" class="gf-button gf-button-lg gf-button-muted font-medium" @click="closeCropModal">
-                {{ t('common.cancel') }}
-              </button>
+            <div class="px-6 pb-6 pt-2">
               <button
                 type="button"
-                class="gf-button gf-button-lg gf-button-primary min-w-28 disabled:cursor-wait"
-                :disabled="uploadingAvatar"
-                @click="uploadCroppedAvatar"
+                class="gf-button gf-button-lg gf-button-primary w-full font-semibold disabled:cursor-wait"
+                :disabled="uploadingAvatar || !avatarImageUrl"
+                :aria-busy="uploadingAvatar"
+                @click="saveAvatarViaEditor"
               >
                 <Loader2 v-if="uploadingAvatar" class="h-4 w-4 animate-spin" />
-                {{ uploadingAvatar ? t('settings.avatar.uploading') : t('settings.avatar.confirmUpload') }}
+                {{ uploadingAvatar ? t('settings.avatar.uploading') : t('common.save') }}
               </button>
             </div>
           </div>
         </div>
       </div>
-      <div v-if="coverCropModalOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
-        <div class="mx-auto flex min-h-full max-w-[760px] items-center justify-center">
-          <div class="gf-menu-surface flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden">
-            <div class="flex items-center justify-between border-b border-line px-5 py-3">
-              <div>
-                <h2 class="text-base font-semibold text-base-content">{{ t('settings.cover.cropTitle') }}</h2>
-                <p class="mt-0.5 text-sm text-base-content/55">{{ t('settings.cover.cropDescription') }}</p>
-              </div>
-              <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300 hover:text-base-content" @click="closeCoverCropModal">
-                {{ t('common.close') }}
-              </button>
-            </div>
 
-            <div class="grid gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(280px,440px)_180px] md:items-start md:justify-center">
-              <div class="cover-crop-workspace aspect-[4/1] w-full max-w-[440px] justify-self-center overflow-hidden rounded-lg border border-line bg-base-200">
-                <img ref="coverCropperImage" :src="coverCropImageUrl" :alt="t('settings.cover.cropAlt')" class="block" />
-              </div>
+      <input
+        ref="avatarInput"
+        type="file"
+        class="hidden"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif"
+        @change="handleAvatarChange"
+      />
 
-              <aside class="grid gap-4 sm:grid-cols-[200px_minmax(0,1fr)] md:block md:space-y-4">
-                <div class="min-w-0">
-                  <div class="mb-2 text-sm font-semibold text-base-content">{{ t('settings.avatar.preview') }}</div>
-                  <div class="flex h-20 w-80 max-w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-base-200">
-                    <img v-if="coverCropPreviewUrl" :src="coverCropPreviewUrl" :alt="t('settings.avatar.previewAlt')" class="h-full w-full object-cover" />
-                  </div>
-                </div>
-                <div class="self-start rounded-lg bg-base-200 p-3 text-sm leading-6 text-base-content/55">
-                  {{ t('settings.cover.cropTip') }}
-                </div>
-              </aside>
-            </div>
-
-            <div v-if="coverCropError" class="border-t border-error/20 bg-error/10 px-5 py-3 text-sm font-medium text-error">
-              {{ coverCropError }}
-            </div>
-
-            <div class="flex items-center justify-end gap-2 border-t border-line bg-base-200 px-5 py-3">
-              <button type="button" class="gf-button gf-button-lg gf-button-muted font-medium" @click="closeCoverCropModal">
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                type="button"
-                class="gf-button gf-button-lg gf-button-primary min-w-28 disabled:cursor-wait"
-                :disabled="uploadingCover"
-                @click="uploadCoverAndSave"
-              >
-                <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
-                {{ uploadingCover ? t('settings.cover.uploading') : t('settings.cover.confirmUpload') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </main>
 </template>

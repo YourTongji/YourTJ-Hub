@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/migration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +66,9 @@ AND name NOT LIKE 'sqlite_autoindex%'
 	printStepDuration("drop indexes", stepStart)
 
 	stepStart = time.Now()
-	migration.M()
+	if err := migration.M(); err != nil {
+		return fmt.Errorf("rerun migrations after index drop: %w", err)
+	}
 	printStepDuration("rerun migrations", stepStart)
 
 	var afterCount int64

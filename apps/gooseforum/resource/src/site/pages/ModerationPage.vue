@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Ban, CircleAlert, Flag, History, RotateCcw, Scale, XCircle } from '@lucide/vue'
+import { Ban, CircleAlert, Flag, History, Loader2, RotateCcw, Scale, X, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus } from '@/runtime/api'
+import { fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus, viewDeletedContent } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -10,7 +10,7 @@ import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import TopicList from '@/site/components/TopicList.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
-import type { LayoutPayload, ModerationLogItem, ModerationPageProps, ModerationReportItem, PagePayload, TopicPayload } from '@gooseforum/client'
+import type { LayoutPayload, ModerationDeletedContentView, ModerationLogItem, ModerationPageProps, ModerationReportItem, PagePayload, TopicPayload } from '@gooseforum/client'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -221,6 +221,47 @@ function reportResolutionLabel(item: ModerationReportItem) {
   if (item.status === 'rejected') return t('moderation.reports.resolutions.ignored')
   return t('moderation.reports.resolutions.resolved')
 }
+
+// 查看已删内容（PRD R7）：必须提供理由，后端会写审计日志与埋点。
+const evidenceDialogOpen = ref(false)
+const evidenceReason = ref('')
+const evidenceLoading = ref(false)
+const evidenceError = ref('')
+const evidenceItem = ref<ModerationReportItem | null>(null)
+const evidenceView = ref<ModerationDeletedContentView | null>(null)
+
+function openEvidenceDialog(item: ModerationReportItem) {
+  evidenceItem.value = item
+  evidenceReason.value = ''
+  evidenceError.value = ''
+  evidenceView.value = null
+  evidenceDialogOpen.value = true
+}
+
+function closeEvidenceDialog() {
+  if (evidenceLoading.value) return
+  evidenceDialogOpen.value = false
+  evidenceItem.value = null
+  evidenceView.value = null
+}
+
+async function submitEvidenceView() {
+  if (!evidenceItem.value || evidenceLoading.value) return
+  const reason = evidenceReason.value.trim()
+  if (!reason) {
+    evidenceError.value = t('moderation.reports.evidenceReasonRequired')
+    return
+  }
+  evidenceLoading.value = true
+  evidenceError.value = ''
+  try {
+    evidenceView.value = await viewDeletedContent(evidenceItem.value.targetType, evidenceItem.value.targetId, reason)
+  } catch (error) {
+    evidenceError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
+  } finally {
+    evidenceLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -287,7 +328,11 @@ function reportResolutionLabel(item: ModerationReportItem) {
             <div class="min-w-0">
               <div class="flex min-w-0 items-center gap-1.5 text-[15px] leading-5 text-base-content/80">
                 <span class="shrink-0 text-base-content/45">{{ t(`moderation.reports.targetTypes.${item.targetType}`) }}</span>
-                <a :href="item.targetUrl" class="min-w-0 max-w-full truncate font-medium text-primary/90 hover:text-primary">{{ item.title }}</a>
+                <a v-if="!item.targetDeleted" :href="item.targetUrl" class="min-w-0 max-w-full truncate font-medium text-primary/90 hover:text-primary">{{ item.title }}</a>
+                <span v-else class="truncate font-medium text-base-content/45">{{ item.title }}</span>
+                <span v-if="item.targetDeleted" class="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">
+                  {{ t('moderation.reports.targetDeleted') }}
+                </span>
                 <span v-for="category in item.categories" :key="category.id" class="hidden shrink-0 items-center gap-1 text-xs text-base-content/45 lg:inline-flex">
                   <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
                   {{ category.name }}
@@ -361,6 +406,16 @@ function reportResolutionLabel(item: ModerationReportItem) {
               </div>
             </div>
             <div v-if="reportStatus === 'open'" class="col-start-2 mt-1 flex items-center justify-start gap-2 lg:col-start-auto lg:mt-0 lg:justify-end">
+              <button
+                v-if="item.targetDeleted"
+                type="button"
+                class="gf-button gf-button-sm gf-button-muted shrink-0 whitespace-nowrap text-xs"
+                :disabled="reportBusy(item.id)"
+                @click="openEvidenceDialog(item)"
+              >
+                <CircleAlert class="h-4 w-4" />
+                {{ t('moderation.reports.viewEvidence') }}
+              </button>
               <button
                 type="button"
                 class="gf-button gf-button-sm gf-button-danger shrink-0 whitespace-nowrap text-xs"
@@ -571,4 +626,56 @@ function reportResolutionLabel(item: ModerationReportItem) {
       </div>
     </section>
   </main>
+
+  <!-- 查看已删内容理由对话框（PRD R7）：每次查看都会被审计记录 -->
+  <Teleport to="body">
+    <div v-if="evidenceDialogOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeEvidenceDialog">
+      <div class="w-full max-w-lg rounded-xl border border-line bg-base-100 p-5 shadow-xl">
+        <h3 class="text-base font-semibold text-base-content">{{ t('moderation.reports.evidenceTitle') }}</h3>
+        <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('moderation.reports.evidenceDescription') }}</p>
+
+        <textarea
+          v-model="evidenceReason"
+          rows="3"
+          maxlength="300"
+          class="mt-3 w-full resize-none rounded-lg border border-line bg-base-100 px-3 py-2 text-sm text-base-content outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+          :placeholder="t('moderation.reports.evidenceReasonPlaceholder')"
+        />
+
+        <p v-if="evidenceError" class="mt-2 text-sm text-error">{{ evidenceError }}</p>
+
+        <div class="mt-4 flex justify-end gap-2">
+          <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="evidenceLoading" @click="closeEvidenceDialog">
+            {{ t('common.cancel') }}
+          </button>
+          <button type="button" class="gf-button gf-button-sm gf-button-primary" :disabled="evidenceLoading" @click="submitEvidenceView">
+            <Loader2 v-if="evidenceLoading" class="h-4 w-4 animate-spin" />
+            {{ t('moderation.reports.evidenceSubmit') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 已删内容证据视图（PRD R7）：仅版主在提供理由后可见 -->
+  <Teleport to="body">
+    <div v-if="evidenceView" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeEvidenceDialog">
+      <div class="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-line bg-base-100 shadow-xl">
+        <div class="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+          <div class="min-w-0">
+            <h3 class="truncate text-base font-semibold text-base-content">{{ evidenceView.title }}</h3>
+            <p class="mt-1 text-xs text-base-content/55">
+              {{ t('moderation.reports.evidenceMeta', { author: evidenceView.authorName || '-', deletedBy: evidenceView.deletedByWho || '-', deletedAt: evidenceView.deletedAt || '-', reason: evidenceView.deleteReason || '-' }) }}
+            </p>
+          </div>
+          <button type="button" class="shrink-0 rounded p-1 text-base-content/50 hover:bg-base-200 hover:text-base-content" @click="closeEvidenceDialog">
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p class="whitespace-pre-wrap text-sm leading-6 text-base-content/80">{{ evidenceView.content || t('moderation.reports.evidenceEmpty') }}</p>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

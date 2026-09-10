@@ -1,0 +1,7 @@
+# 构建上下文仅需 Dockerfile + 由 CI 放入的 yourtj-hub 二进制
+scripts/
+nginx/
+config.toml.example
+env.example
+docker-compose.yaml
+*.md

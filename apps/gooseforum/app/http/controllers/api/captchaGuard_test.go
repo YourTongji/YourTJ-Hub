@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 )
 
 func TestNewUserCaptchaRequiredThreshold(t *testing.T) {

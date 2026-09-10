@@ -1,0 +1,30 @@
+name: core
+description: "yourtj mobile core: entities, API client, error mapping, markdown conversion."
+publish_to: 'none'
+resolution: workspace
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  flutter_quill: ^11.5.1
+  flutter_quill_extensions: ^11.0.0
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  markdown: ^7.2.1
+  markdown_quill: ^4.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true

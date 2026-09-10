@@ -207,14 +207,22 @@ function notificationTemplateText(item: NotificationPayload) {
   switch (templateKey) {
     case 'notifications.templates.comment':
       return t('notifications.templates.comment')
+    case 'notifications.templates.mention':
+      return t('notifications.templates.mention')
     case 'notifications.templates.postReply':
       return t('notifications.templates.postReply')
     case 'notifications.templates.topicPost':
       return t('notifications.templates.topicPost')
     case 'notifications.templates.follow':
       return t('notifications.templates.follow')
-    case 'notifications.templates.badge':
-      return t('notifications.templates.badge', { badge: item.payload.templateParams?.badgeName || item.payload.metadata?.badgeName || '' })
+    case 'notifications.templates.badge': {
+      // 兼容旧数据：模板参数中的 badgeName 已随收敛移除（简化落地中候选1），
+      // 历史通知可能仍带该字段，运行时继续读取；新数据统一走 metadata。
+      const legacyParams = item.payload.templateParams as { badgeName?: string } | undefined
+      return t('notifications.templates.badge', { badge: legacyParams?.badgeName || item.payload.metadata?.badgeName || '' })
+    }
+    case 'notifications.templates.wikiUpdated':
+      return t('notifications.templates.wikiUpdated')
     default:
       return ''
   }
@@ -225,6 +233,7 @@ function notificationVerb(item: NotificationPayload) {
   if (templateText && item.eventType !== 'badge') return templateText
   if (item.eventType === 'follow') return t('notifications.verb.follow')
   if (item.eventType === 'badge') return ''
+  if (item.eventType === 'mention') return t('notifications.templates.mention')
   if (item.eventType === 'post_reply') return t('notifications.verb.reply')
   if (item.eventType === 'comment' || item.eventType === 'topic_post') return t('notifications.verb.comment')
   return notificationTitleText(item)
@@ -359,10 +368,11 @@ function markItemReadAndNavigate(item: NotificationPayload) {
         </button>
       </div>
 
-      <div class="hidden grid-cols-[34px_minmax(0,1fr)_116px] gap-3 border-b border-line bg-base-200/60 px-3 py-2 text-[11px] font-bold uppercase text-base-content/75 md:grid">
+      <div class="hidden grid-cols-[34px_minmax(0,1fr)_116px_40px] gap-3 border-b border-line bg-base-200/60 px-3 py-2 text-[11px] font-bold uppercase text-base-content/75 md:grid">
         <div />
         <div>{{ t('notifications.table.notification') }}</div>
         <div class="text-right">{{ t('notifications.table.time') }}</div>
+        <div />
       </div>
 
       <div v-if="notifications.length" class="divide-y divide-line">

@@ -8,25 +8,224 @@
   }
 }
 
-.gf-flash-enter-active,
-.gf-flash-leave-active {
+/*
+ * 玻璃态 Toast 动效
+ * - 进入：流光凝实——轻滑入 + 类型色流光扫过并消逝，时长 ~520ms
+ * - 离开：表面溶解——轻位移 + 模糊去饱和 + 波点/流光/柔晕（见 GlobalFlash）
+ * - 多条堆叠：move 平滑重排；离开项 absolute 不挤布局
+ * - 剩余时间：亏月彗星环，conic 弧从 300° 收卷到残弧
+ */
+@property --gf-flash-arc {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 300deg;
+}
+
+@keyframes gf-flash-arc-shrink {
+  from {
+    --gf-flash-arc: 300deg;
+  }
+  to {
+    --gf-flash-arc: 45deg;
+  }
+}
+
+/*
+ * 流光扫过：类型色高光带从左侧掠过卡片表面后消逝。
+ * 一次性 staged sequence（非交互态），用 keyframes 是合适的。
+ * 扫过期间略抬 opacity，尾段归零——「流光消逝」本体。
+ */
+@keyframes gf-flash-sheen-sweep {
+  0% {
+    transform: translate3d(-130%, 0, 0) skewX(-12deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  58% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate3d(130%, 0, 0) skewX(-12deg);
+    opacity: 0;
+  }
+}
+
+/* 顶部封条线：流光经过时短暂点亮，随后回落到常态 */
+@keyframes gf-flash-seal-ignite {
+  0% {
+    opacity: 0.35;
+    filter: brightness(1);
+  }
+  28% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.gf-flash-stack {
+  position: relative;
+}
+
+.gf-flash-enter-active {
+  z-index: 1;
   transition:
-    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.52s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 进入期驱动流光层与封条点亮（组件 ::after / ::before） */
+.gf-flash-enter-active.gf-flash-banner::after {
+  animation: gf-flash-sheen-sweep 0.68s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+}
+
+.gf-flash-enter-active.gf-flash-banner::before {
+  animation: gf-flash-seal-ignite 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .gf-flash-leave-active {
   position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    /* 退场与表面溶解同拍：卡片软化 ~0.6s，粒子略长于卡片 */
+    opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.62s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.62s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.gf-flash-enter-from,
+/* 退场时封条与流光层一并软灭，避免硬切 */
+.gf-flash-leave-active.gf-flash-banner::before {
+  transition: opacity 0.36s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.36s ease;
+  opacity: 0;
+  filter: brightness(1.2);
+}
+
+.gf-flash-leave-active.gf-flash-banner::after {
+  /* 退场再扫一道极淡流光，与溶解粒子同向消逝 */
+  animation: gf-flash-sheen-exit 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.gf-flash-enter-from {
+  opacity: 0;
+  /* 从侧后凝实：略远、略小、略糊，给流光扫过留出「显现」空间 */
+  transform: translate3d(14px, -8px, 0) scale(0.96);
+  filter: blur(6px) saturate(0.7);
+  box-shadow:
+    0 8px 24px -20px rgb(15 23 42 / 0.15),
+    0 0 0 0 transparent;
+}
+
+.gf-flash-enter-to {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0) saturate(1);
+}
+
+.gf-flash-leave-from {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0) saturate(1);
+}
+
 .gf-flash-leave-to {
   opacity: 0;
-  transform: translateX(-14px) scale(0.98);
+  /* 溶解感：更轻上浮 + 微缩 + 模糊去饱和（better-ui：exit 克制，不抢注意力） */
+  transform: translate3d(2px, -12px, 0) scale(0.975);
+  filter: blur(10px) saturate(0.4);
+  box-shadow:
+    0 0 0 0 transparent,
+    0 0 32px -4px color-mix(in oklab, var(--gf-flash-accent, transparent) 18%, transparent);
 }
 
 .gf-flash-move {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (max-width: 639px) {
+  .gf-flash-enter-from {
+    transform: translate3d(0, 16px, 0) scale(0.96);
+    filter: blur(5px) saturate(0.75);
+  }
+
+  .gf-flash-leave-to {
+    /* 移动端锚在底部：向下轻沉 + 溶解（位移更小，让波点贴表面） */
+    transform: translate3d(0, 10px, 0) scale(0.98);
+    filter: blur(9px) saturate(0.45);
+  }
+
+  /* 移动端流光改为略竖直偏斜的扫过，呼应底部入场 */
+  @keyframes gf-flash-sheen-sweep-mobile {
+    0% {
+      transform: translate3d(-40%, 110%, 0) skewX(-8deg);
+      opacity: 0;
+    }
+    14% {
+      opacity: 0.85;
+    }
+    100% {
+      transform: translate3d(40%, -110%, 0) skewX(-8deg);
+      opacity: 0;
+    }
+  }
+
+  .gf-flash-enter-active.gf-flash-banner::after {
+    animation-name: gf-flash-sheen-sweep-mobile;
+    animation-duration: 0.62s;
+  }
+}
+
+/* 退场流光：比入场更淡、更短，从中部向外消逝 */
+@keyframes gf-flash-sheen-exit {
+  0% {
+    transform: translate3d(-18%, 0, 0) skewX(-10deg);
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.38;
+  }
+  100% {
+    transform: translate3d(110%, -8%, 0) skewX(-10deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-flash-enter-active,
+  .gf-flash-leave-active,
+  .gf-flash-move {
+    transition-duration: 0.01ms;
+  }
+
+  .gf-flash-enter-from,
+  .gf-flash-leave-to {
+    transform: none;
+    filter: none;
+  }
+
+  .gf-flash-enter-active.gf-flash-banner::after,
+  .gf-flash-enter-active.gf-flash-banner::before,
+  .gf-flash-leave-active.gf-flash-banner::after,
+  .gf-flash-leave-active.gf-flash-banner::before {
+    animation: none !important;
+  }
+
+  .gf-flash-leave-active.gf-flash-banner::before {
+    transition: none;
+    opacity: 1;
+    filter: none;
+  }
 }
 
 .gf-page-enter-active {
@@ -57,18 +256,76 @@
   transform: translateY(-4px);
 }
 
-.gf-local-expand-enter-active,
+/* 写评/编辑表单（gf-local-expand）：打开时按内容真实高度展开（grid-rows 0fr→1fr，
+   无 max-height 硬编码，内容随高度释放淡入）；关闭时保持展开高度，仅做固定位移的
+   柔和淡出（better-ui：退出不做高度塌陷，且短于进入）。 */
+.gf-local-expand {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.gf-local-expand-enter-active {
+  transition:
+    grid-template-rows 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gf-local-expand-enter-from {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
 .gf-local-expand-leave-active {
-  overflow: hidden;
+  grid-template-rows: 1fr;
   transition:
     opacity 0.16s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.gf-local-expand-enter-from,
 .gf-local-expand-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(0.99);
+}
+
+/* 提交失败按钮反馈：水平抖动（一次性高注意力提示，仅失败态触发） */
+@keyframes gf-shake-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.gf-submit-error {
+  animation: gf-shake-x 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* 新评价定位高亮：表单收起后平滑滚动到该条评论，主题色泛光一次并退火（1.8s），
+   锚定用户视线后回归常态（可重复触发）。 */
+@keyframes gf-review-highlight-fade {
+  0% {
+    background-color: color-mix(in oklab, var(--gf-color-primary) 14%, transparent);
+    box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--gf-color-primary) 45%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+
+.gf-review-highlight {
+  animation: gf-review-highlight-fade 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .gf-modal-enter-active,
@@ -94,17 +351,45 @@
   transform: translateY(6px) scale(0.98);
 }
 
+/* 底部气泡/回复位置轨道：与 composer 收回同时上弹，轻量淡入 + 上滑 12px */
 .floating-reply-enter-active,
 .floating-reply-leave-active {
+  will-change: transform;
   transition:
-    opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .floating-reply-enter-from,
 .floating-reply-leave-to {
   opacity: 0;
-  transform: translateY(10px) scale(0.98);
+  transform: translateY(12px) scale(0.98);
+}
+
+/* 回复编辑器：仿 MacOS 弹簧上弹（enter 400ms 带回弹过冲），收回为其逆操作（300ms 平滑）。
+   enter 曲线 y 峰值约 1.098：面板略微越过落点再回位，scale 峰值约 1.004（短暂柔和、落定锐利）。 */
+.composer-rise-enter-active {
+  will-change: transform;
+  transition:
+    opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 双类提高优先级：面板本身带 Tailwind pointer-events-auto，leave 必须盖过它 */
+.composer-rise-leave-active,
+.composer-rise-leave-active.pointer-events-auto {
+  will-change: transform;
+  /* leave 期间禁用命中，避免 ~300ms 半透明面板挡住下方气泡点击 */
+  pointer-events: none;
+  transition:
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.composer-rise-enter-from,
+.composer-rise-leave-to {
+  opacity: 0;
+  transform: translateY(32px) scale(0.96);
 }
 
 .user-card-pop-enter-active,
@@ -134,6 +419,57 @@
   transform: translateY(3px);
 }
 
+/* 分享评论卡（对齐 serverless）：纸张弹入 + 打印机墨盒扫光 */
+@keyframes gf-share-paper-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(-96px) scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(8px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.share-paper-enter {
+  animation: gf-share-paper-reveal 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: top center;
+}
+
+.share-printer-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.share-printer-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(14, 165, 233, 0.18) 25%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(14, 165, 233, 0.18) 75%,
+    transparent 100%
+  );
+  animation: gf-share-printer-sweep 2.2s ease-in-out infinite;
+}
+
+@keyframes gf-share-printer-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gf-page-enter-active,
   .gf-page-leave-active,
@@ -150,6 +486,8 @@
   .gf-flash-move,
   .floating-reply-enter-active,
   .floating-reply-leave-active,
+  .composer-rise-enter-active,
+  .composer-rise-leave-active,
   .user-card-pop-enter-active,
   .user-card-pop-leave-active,
   .user-card-content-enter-active,
@@ -166,11 +504,25 @@
   .gf-modal-leave-to > *,
   .floating-reply-enter-from,
   .floating-reply-leave-to,
+  .composer-rise-enter-from,
+  .composer-rise-leave-to,
   .user-card-pop-enter-from,
   .user-card-pop-leave-to,
   .user-card-content-enter-from,
   .user-card-content-leave-to {
     transform: none;
   }
+
+  .share-paper-enter,
+  .share-printer-bar::after,
+  .gf-submit-error,
+  .gf-review-highlight {
+    animation: none;
+  }
 }
 
+/* Blue Archive touch overlay: must never steal hit-testing from real UI. */
+#gf-ba-touch-effect-host,
+#gf-ba-touch-effect-host * {
+  pointer-events: none !important;
+}

@@ -1,6 +1,6 @@
 package userservice
 
-import "github.com/leancodebox/GooseForum/app/models/forum/users"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 
 func SaveUser(userEntity *users.EntityComplete) error {
 	if err := users.Save(userEntity); err != nil {

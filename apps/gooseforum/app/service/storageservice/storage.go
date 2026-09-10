@@ -12,8 +12,8 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 // Provider abstracts object storage backends (SQLite BLOB, S3-compatible).
@@ -26,6 +26,18 @@ type Provider interface {
 	Delete(ctx context.Context, name string) error
 	// Exists reports whether an object exists for name.
 	Exists(ctx context.Context, name string) (bool, error)
+}
+
+// ObjectRangeReader is an optional Provider capability for reading a bounded
+// byte range of an object without downloading the whole body. Direct upload
+// completion uses it to validate just the image header, so the app server
+// never downloads the full (up to the upload cap) object during a direct
+// upload publish.
+type ObjectRangeReader interface {
+	// GetRange returns up to length bytes starting at offset, plus the object
+	// content type. If the object is smaller than offset+length, the available
+	// tail (possibly empty) is returned without error.
+	GetRange(ctx context.Context, name string, offset, length int64) ([]byte, string, error)
 }
 
 // Provider names used by the storage settings config.
@@ -42,6 +54,7 @@ var (
 	current       Provider
 	currentFinger any
 	localFactory  func() Provider
+	testOverride  Provider
 )
 
 // RegisterLocalFactory installs the factory that builds the local provider.
@@ -50,6 +63,16 @@ func RegisterLocalFactory(f func() Provider) {
 	mu.Lock()
 	defer mu.Unlock()
 	localFactory = f
+}
+
+// SetCurrentForTest overrides the active provider for tests. Pass nil to
+// restore the config-driven provider. Not safe for concurrent use with
+// production request handling.
+func SetCurrentForTest(p Provider) {
+	mu.Lock()
+	defer mu.Unlock()
+	testOverride = p
+	current = nil
 }
 
 // IsLocalProvider reports whether the configured provider is the local one.
@@ -68,6 +91,9 @@ func Current() Provider {
 	cfg := hotdataserve.GetStorageSettingsConfigCache()
 	mu.Lock()
 	defer mu.Unlock()
+	if testOverride != nil {
+		return testOverride
+	}
 	if current != nil && reflect.DeepEqual(currentFinger, cfg) {
 		return current
 	}

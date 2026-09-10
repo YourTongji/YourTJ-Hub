@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send, Smile, X } from '@lucide/vue'
-import { getChatMessages, markChatRead, sendChatMessage, type ChatMessagePayload } from '@/runtime/api'
+import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError, type ChatMessagePayload } from '@/runtime/api'
+import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { formatChatTime } from '@/runtime/format'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -33,6 +34,7 @@ const showNewChat = ref(false)
 const showEmoji = ref(false)
 const sending = ref(false)
 const error = ref('')
+const sensitiveWords = ref<string[]>([])
 const messagesEl = ref<HTMLElement | null>(null)
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const unreadStatus = useUnreadStatus()
@@ -153,6 +155,7 @@ async function submitMessage() {
 
   sending.value = true
   error.value = ''
+  sensitiveWords.value = []
   try {
     const convId = await sendChatMessage(active.value.peerId, content)
     if (!active.value.convId && convId) {
@@ -178,6 +181,7 @@ async function submitMessage() {
     showEmoji.value = false
     await scrollToBottom()
   } catch (err) {
+    sensitiveWords.value = sensitiveWordsFromError(err)
     error.value = err instanceof Error ? err.message : t('api.sendFailed')
   } finally {
     sending.value = false
@@ -188,6 +192,11 @@ function handleEnter(event: KeyboardEvent) {
   if (event.shiftKey) return
   event.preventDefault()
   void submitMessage()
+}
+
+function handleMessageInput() {
+  sensitiveWords.value = []
+  resizeMessageInput()
 }
 
 function resizeMessageInput() {
@@ -364,8 +373,9 @@ async function startChat(user: UserConnectionPayload) {
                     v-model="newMessage"
                     rows="1"
                     class="block max-h-36 min-h-11 w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-relaxed text-base-content outline-none placeholder:text-base-content/55"
+                    :class="{ 'gf-sensitive-field': containsSensitiveText(newMessage, sensitiveWords) }"
                     :placeholder="t('messages.inputPlaceholder')"
-                    @input="resizeMessageInput"
+                    @input="handleMessageInput"
                     @keydown.enter="handleEnter"
                   />
                   <div class="mt-1 flex items-center justify-between gap-3 border-t border-line/70 px-1 pt-2">

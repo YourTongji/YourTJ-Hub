@@ -29,7 +29,7 @@ func NewMessageError(code MessageCode, fallback string, params MessageParams) er
 const (
 	MessageRequestInvalidFormat MessageCode = "common.request.invalidFormat" // 请求体或参数格式无法解析。
 	MessageRequestInvalidParams MessageCode = "common.request.invalidParams" // 请求参数未通过业务校验。
-	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败，params.error 可带原始错误。
+	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败（400；不返回原始解析错误）。
 	MessageOperationSuccess     MessageCode = "common.operation.success"     // 通用操作成功。
 	MessageOperationFailed      MessageCode = "common.operation.failed"      // 通用操作失败。
 	MessageRateLimited          MessageCode = "common.rateLimited"           // 操作过于频繁，params.action/retryAfterSeconds。
@@ -45,6 +45,7 @@ const (
 const (
 	MessageAuthRequired                  MessageCode = "auth.required"                   // 需要登录后才能继续操作。
 	MessageAuthSignupDisabled            MessageCode = "auth.signupDisabled"             // 当前站点关闭了注册。
+	MessageAuthRegisterDailyQuota        MessageCode = "auth.register.dailyQuota"        // 今日注册额度已用完。
 	MessageAuthEmailDomainInvalid        MessageCode = "auth.emailDomain.invalid"        // 邮箱格式不正确或无法提取域名。
 	MessageAuthEmailDomainNotAllowed     MessageCode = "auth.emailDomain.notAllowed"     // 邮箱域名不在注册白名单。
 	MessageAuthUsernameInvalid           MessageCode = "auth.username.invalid"           // 用户名格式不符合规则。
@@ -65,8 +66,10 @@ const (
 	MessageAuthEmailUnverified           MessageCode = "auth.email.unverified"           // 邮箱未验证。
 	MessageAuthLoginFailed               MessageCode = "auth.login.failed"               // 登录异常。
 	MessageAuthOldPasswordInvalid        MessageCode = "auth.password.oldInvalid"        // 原密码错误。
+	MessageAuthPasswordOAuthRequired     MessageCode = "auth.password.oauthRequired"     // 无邮箱的 OAuth 账号密码校验失败，需通过 OAuth 恢复。
 	MessageAuthPasswordUpdateFailed      MessageCode = "auth.password.updateFailed"      // 修改密码失败。
 	MessageAuthPasswordUpdateSuccess     MessageCode = "auth.password.updateSuccess"     // 修改密码成功。
+	MessageAuthPasswordSetNotAllowed     MessageCode = "auth.password.setNotAllowed"     // 当前账号不满足设置密码条件（已有密码可用或无第三方绑定），请使用修改密码。
 	MessageAuthResetMailQueued           MessageCode = "auth.passwordReset.mailQueued"   // 如邮箱存在，将收到密码重置邮件。
 	MessageAuthResetTokenCreateFailed    MessageCode = "auth.passwordReset.tokenFailed"  // 生成重置令牌失败。
 	MessageAuthResetMailSendFailed       MessageCode = "auth.passwordReset.mailFailed"   // 发送重置邮件失败。
@@ -79,6 +82,7 @@ const (
 	MessageAuthActivationResendCooldown  MessageCode = "auth.activation.resendCooldown"  // 验证邮件发送过于频繁，params.retryAfterSeconds。
 	MessageAuthActivationResendDaily     MessageCode = "auth.activation.resendDaily"     // 验证邮件达到当天重发上限，params.limit。
 	MessageAuthActivationResendFailed    MessageCode = "auth.activation.resendFailed"    // 验证邮件重新发送失败。
+	MessageAuthCsrfRejected              MessageCode = "auth.csrf.rejected"              // 跨站请求被拒绝（Origin/Referer 校验失败，issue #406）。
 )
 
 const (
@@ -118,28 +122,92 @@ const (
 )
 
 const (
-	MessageTopicNotFound            MessageCode = "topic.notFound"            // 主题不存在。
-	MessageTopicOwnerMismatch       MessageCode = "topic.ownerMismatch"       // 不能修改或删除他人的主题。
-	MessageTopicOperationDenied     MessageCode = "topic.operationDenied"     // 当前主题不可操作。
-	MessageTopicSaveFailed          MessageCode = "topic.saveFailed"          // 主题保存失败。
-	MessageTopicDailyLimit          MessageCode = "topic.dailyLimit"          // 当天发布过多。
-	MessageTopicTitleTooShort       MessageCode = "topic.title.tooShort"      // 标题过短，params.minLength。
-	MessageTopicTitleTooLong        MessageCode = "topic.title.tooLong"       // 标题过长，params.maxLength。
-	MessageTopicContentTooShort     MessageCode = "topic.content.tooShort"    // 正文过短，params.minLength。
-	MessageTopicContentTooLong      MessageCode = "topic.content.tooLong"     // 正文过长，params.maxLength。
-	MessageTopicPostCooldown        MessageCode = "topic.post.cooldown"       // 新用户发帖冷却中，params.minutes/availableAt。
-	MessageCommentContentTooShort   MessageCode = "comment.content.tooShort"  // 评论过短，params.minLength。
-	MessageCommentContentTooLong    MessageCode = "comment.content.tooLong"   // 评论过长，params.maxLength。
-	MessageCommentPostCooldown      MessageCode = "comment.post.cooldown"     // 新用户评论冷却中，params.minutes/availableAt。
-	MessageCommentParentPostMissing MessageCode = "comment.parentPostMissing" // 父 post 不存在。
-	MessageCommentCreateFailed      MessageCode = "comment.createFailed"      // 评论创建失败，params.error 可带原始错误。
-	MessagePostNotFound             MessageCode = "post.notFound"             // post 不存在。
-	MessagePostUpdateFailed         MessageCode = "post.updateFailed"         // post 更新失败，params.error 可带原始错误。
-	MessageReportNotFound           MessageCode = "report.notFound"           // 举报不存在。
-	MessageReportTargetInvalid      MessageCode = "report.targetInvalid"      // 举报对象无效。
-	MessageReportOwnContent         MessageCode = "report.ownContent"         // 不能举报自己的内容。
-	MessageReportDuplicate          MessageCode = "report.duplicate"          // 已举报，等待处理。
-	MessageReportCreateFailed       MessageCode = "report.createFailed"       // 举报提交失败。
+	MessageTopicNotFound                    MessageCode = "topic.notFound"                    // 主题不存在。
+	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
+	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
+	MessageTopicSaveFailed                  MessageCode = "topic.saveFailed"                  // 主题保存失败。
+	MessageTopicDailyLimit                  MessageCode = "topic.dailyLimit"                  // 当天发布过多。
+	MessageTopicTitleTooShort               MessageCode = "topic.title.tooShort"              // 标题过短，params.minLength。
+	MessageTopicTitleTooLong                MessageCode = "topic.title.tooLong"               // 标题过长，params.maxLength。
+	MessageTopicContentTooShort             MessageCode = "topic.content.tooShort"            // 正文过短，params.minLength。
+	MessageTopicContentTooLong              MessageCode = "topic.content.tooLong"             // 正文过长，params.maxLength。
+	MessageTopicPostCooldown                MessageCode = "topic.post.cooldown"               // 新用户发帖冷却中，params.minutes/availableAt。
+	MessageCommentContentTooShort           MessageCode = "comment.content.tooShort"          // 评论过短，params.minLength。
+	MessageCommentContentTooLong            MessageCode = "comment.content.tooLong"           // 评论过长，params.maxLength。
+	MessageCommentPostCooldown              MessageCode = "comment.post.cooldown"             // 新用户评论冷却中，params.minutes/availableAt。
+	MessageCommentParentPostMissing         MessageCode = "comment.parentPostMissing"         // 父 post 不存在。
+	MessageCommentCreateFailed              MessageCode = "comment.createFailed"              // 评论创建失败，params.error 可带原始错误。
+	MessageCommentAnonymousNotAllowed       MessageCode = "comment.anonymousNotAllowed"       // 匿名发布仅限 wiki 页面评论区（issue #524）。
+	MessageTopicContentTypeChangeNotAllowed MessageCode = "topic.contentTypeChangeNotAllowed" // 不能更改已有回复的话题的内容类型。
+	MessagePostNotFound                     MessageCode = "post.notFound"                     // post 不存在。
+	MessagePostUpdateFailed                 MessageCode = "post.updateFailed"                 // post 更新失败，params.error 可带原始错误。
+	MessageReportNotFound                   MessageCode = "report.notFound"                   // 举报不存在。
+	MessageReportTargetInvalid              MessageCode = "report.targetInvalid"              // 举报对象无效。
+	MessageReportOwnContent                 MessageCode = "report.ownContent"                 // 不能举报自己的内容。
+	MessageReportDuplicate                  MessageCode = "report.duplicate"                  // 已举报，等待处理。
+	MessageReportCreateFailed               MessageCode = "report.createFailed"               // 举报提交失败。
+
+	// 课评（course review）
+	MessageReviewNotFound         MessageCode = "review.notFound"              // 评价不存在或不可见。
+	MessageReviewNotOwned         MessageCode = "review.notOwned"              // 不能修改/删除他人的评价。
+	MessageReviewDuplicate        MessageCode = "review.duplicate"             // 已评价过该开课实例。
+	MessageReviewOfferingNotFound MessageCode = "review.offeringNotFound"      // 开课实例不存在或不可见。
+	MessageReviewRatingInvalid    MessageCode = "review.rating.invalid"        // 评分必须为 1..5 的整数。
+	MessageReviewContentEmpty     MessageCode = "review.content.empty"         // 评价内容不能为空。
+	MessageReviewContentTooLong   MessageCode = "review.content.tooLong"       // 评价内容过长，params.maxLength。
+	MessageReviewCreateFailed     MessageCode = "review.createFailed"          // 评价提交失败，params.error 可带原始错误。
+	MessageReviewUpdateFailed     MessageCode = "review.updateFailed"          // 评价更新失败，params.error 可带原始错误。
+	MessageReviewDeleteFailed     MessageCode = "review.deleteFailed"          // 评价删除失败，params.error 可带原始错误。
+	MessageReviewListFailed       MessageCode = "review.listFailed"            // 评价列表读取失败。
+	MessageReviewHelpfulFailed    MessageCode = "review.helpful.failed"        // 标记 helpful 失败。
+	MessageReviewReportFailed     MessageCode = "review.report.failed"         // 举报评价失败。
+	MessageReviewRevealReasonReq  MessageCode = "review.reveal.reasonRequired" // 查看匿名作者必须填写理由。
+
+	// wiki 分站
+	MessageWikiNamespaceNameInvalid  MessageCode = "wiki.namespace.nameInvalid"  // namespace 名称非法。
+	MessageWikiPathInvalid           MessageCode = "wiki.path.invalid"           // wiki 路径非法。
+	MessageWikiPageNotFound          MessageCode = "wiki.page.notFound"          // wiki 页面不存在。
+	MessageWikiForbidden             MessageCode = "wiki.forbidden"              // 无 wiki 操作权限。
+	MessageWikiRevisionNotFound      MessageCode = "wiki.revision.notFound"      // 修订不存在。
+	MessageWikiPageHasChildren       MessageCode = "wiki.page.hasChildren"       // 页面存在子页面，无法删除。
+	MessageWikiSaveFailed            MessageCode = "wiki.saveFailed"             // wiki 保存失败。
+	MessageWikiNamespaceNameConflict MessageCode = "wiki.namespace.nameConflict" // namespace 名称已存在（契约 409 语义）。
+	MessageWikiPathConflict          MessageCode = "wiki.page.pathConflict"      // wiki 路径已存在（契约 409 语义）。
+	MessageWikiRevisionConflict      MessageCode = "wiki.revision.conflict"      // 页面 CAS 冲突：页面已被他人更新，需基于最新版本重编（409 语义）。
+	MessageWikiSyncRunning           MessageCode = "wiki.sync.running"           // wiki 同步已在运行中（防重入）。
+	MessageWikiSyncFailed            MessageCode = "wiki.sync.failed"            // wiki 同步失败。
+	MessageWikiReadFailed            MessageCode = "wiki.readFailed"             // wiki 读取失败（数据库故障；区别于空数据）。
+	// 课程管理（管理端课程/评价管理）
+	MessageCourseNotFound                  MessageCode = "course.notFound"                   // 课程不存在或已删除。
+	MessageCourseCodeRequired              MessageCode = "course.codeRequired"               // 主课号不能为空。
+	MessageCourseNameRequired              MessageCode = "course.nameRequired"               // 课程名不能为空。
+	MessageCourseCodeConflict              MessageCode = "course.codeConflict"               // 主课号已被其它课程占用。
+	MessageCourseCreditInvalid             MessageCode = "course.creditInvalid"              // 学分格式不正确。
+	MessageCourseListFailed                MessageCode = "course.listFailed"                 // 课程列表读取失败。
+	MessageCourseStatsRebuildQueued        MessageCode = "course.statsRebuildQueued"         // 课程统计重建任务已入队。
+	MessageCourseStatsRebuildFailed        MessageCode = "course.statsRebuildFailed"         // 课程统计重建任务入队失败。
+	MessageCourseRelationNotFound          MessageCode = "course.relation.notFound"          // 沿革候选不存在。
+	MessageCourseRelationConflict          MessageCode = "course.relation.conflict"          // 沿革合并冲突（旧卡存在其他未处理候选）。
+	MessageCourseRelationNotMerge          MessageCode = "course.relation.notMerge"          // 该沿革类型不可合并/不可批准。
+	MessageCourseRelationMerged            MessageCode = "course.relation.merged"            // 该候选已合并，不可重复操作。
+	MessageCourseRelationListFailed        MessageCode = "course.relation.listFailed"        // 沿革候选列表读取失败。
+	MessageCourseRelationOpFailed          MessageCode = "course.relation.opFailed"          // 沿革操作失败。
+	MessageCourseRelationNotResettable     MessageCode = "course.relation.notResettable"     // 该候选不可撤回（仅 approved/ignored 可撤回为 pending）。
+	MessageCourseReviewScopeInvalid        MessageCode = "course.reviewScopeInvalid"         // 课评范围取值非法（仅 teacher/team/course）。
+	MessageCourseMergeTargetHidden         MessageCode = "course.mergeTargetHidden"          // 目标课程已隐藏，不可作为合并目标。
+	MessageCourseRelationConfidenceInvalid MessageCode = "course.relation.confidenceInvalid" // 沿革候选置信度超出 [0,1]。
+	MessageCourseSummaryFailed             MessageCode = "course.summary.failed"             // AI 总结生成失败（LLM 超时/输出非法等，不影响课程页主流程）。
+)
+
+const (
+	MessageContentDeleteFailed         MessageCode = "content.delete.failed"               // 删除失败。
+	MessageContentRestoreFailed        MessageCode = "content.restore.failed"              // 恢复失败。
+	MessageContentRestoreSuccess       MessageCode = "content.restore.success"             // 内容已恢复。
+	MessageContentPurgeFailed          MessageCode = "content.purge.failed"                // 永久删除失败。
+	MessageContentPurgeSuccess         MessageCode = "content.purge.success"               // 内容已永久删除。
+	MessageContentRecoveryExpired      MessageCode = "content.recovery.expired"            // 已超出恢复窗口，无法恢复。
+	MessageContentNotRecoverable       MessageCode = "content.notRecoverable"              // 该内容不可由作者恢复。
+	MessageContentBatchConfirmRequired MessageCode = "content.batchDelete.confirmRequired" // 短时间内删除过多，需要二次确认，params.count。
 )
 
 const (
@@ -154,11 +222,8 @@ const (
 	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"             // OAuth 登录账号被冻结。
 	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed"    // OAuth 用户激活状态更新失败。
 	MessageOAuthTokenFailed            MessageCode = "oauth.token.failed"               // OAuth 登录 token 生成失败。
-	MessageOAuthNumericSubRequired     MessageCode = "oauth.numericSubRequired"         // OAuth 账号标识必须为数字ID。
 	MessageOidcStartFailed             MessageCode = "oidc.start.failed"                // OIDC 登录发起失败。
 	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"             // OIDC 登录回调失败。
-	MessageOidcBindFailed              MessageCode = "oidc.bind.failed"                 // OIDC 账号绑定失败。
-	MessageOidcBindConflict            MessageCode = "oidc.bind.conflict"               // 该 OIDC 账号已被其他用户绑定。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"                 // 私信发送失败，params.error 可带原始错误。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"             // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"             // 标记私信已读失败。
@@ -200,11 +265,14 @@ const (
 
 const (
 	// 审核策略（保留/禁用用户名、敏感词）
-	MessageAuthUsernameReserved    MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
-	MessageAuthUsernameBanned      MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
-	MessageContentSensitiveBlocked MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
-	MessageContentSensitiveReview  MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
-	MessageChatSensitiveBlocked    MessageCode = "chat.sensitive.blocked"          // 私信内容包含敏感词，已被拦截。
+	MessageAuthUsernameReserved        MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
+	MessageAuthUsernameBanned          MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
+	MessageAuthNicknameReserved        MessageCode = "auth.nickname.reserved"          // 昵称被保留，不可使用。
+	MessageAuthNicknameBanned          MessageCode = "auth.nickname.banned"            // 昵称被禁用，不可使用。
+	MessageContentSensitiveBlocked     MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
+	MessageContentSensitiveReview      MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
+	MessageChatSensitiveBlocked        MessageCode = "chat.sensitive.blocked"          // 私信内容包含敏感词，已被拦截。
+	MessageCourseReviewSensitiveBanned MessageCode = "course.review.sensitiveBlocked"  // 课评包含敏感词，已被拦截。
 
 	// 存储设置
 	MessageAdminStorageSaveFailed             MessageCode = "admin.storage.saveFailed"             // 存储设置保存失败，params.error 可带原始错误。
@@ -226,4 +294,26 @@ const (
 	MessageAdminReviewNotFound      MessageCode = "admin.review.notFound"      // 审核对象不存在。
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
+	// AI 课程总结（issue #181）：models 列表自动获取
+	MessageAdminAiSummaryModelsFailed      MessageCode = "admin.aiSummary.modelsFailed"      // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
+	MessageAdminAiSummaryModelsUnsupported MessageCode = "admin.aiSummary.modelsUnsupported" // 提供方未实现 /models 端点，需手动输入模型。
+	MessageAdminAiSummarySaveFailed        MessageCode = "admin.aiSummary.saveFailed"        // 保存 AI 总结配置失败，params.error 可带原始错误。
+	// Agent（机器人账号）管理
+	MessageAdminAgentUsernameInvalid MessageCode = "admin.agent.usernameInvalid" // 用户名格式不符合规则。
+	MessageAdminAgentUsernameExists  MessageCode = "admin.agent.usernameExists"  // 用户名已存在。
+	MessageAdminAgentWebhookInvalid  MessageCode = "admin.agent.webhookInvalid"  // Webhook 端点必须是合法的 http(s) URL。
+	MessageAdminAgentCreateFailed    MessageCode = "admin.agent.createFailed"    // 创建 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentUpdateFailed    MessageCode = "admin.agent.updateFailed"    // 更新 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentNotFound        MessageCode = "admin.agent.notFound"        // Agent 不存在。
+	MessageAdminAgentRotateFailed    MessageCode = "admin.agent.rotateFailed"    // 轮换令牌失败，params.error 可带原始错误。
+	MessageAdminAgentDisableFailed   MessageCode = "admin.agent.disableFailed"   // 禁用 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentNeedsRotate     MessageCode = "admin.agent.needsRotate"     // 该 Agent 的令牌已被吊销，重新启用前必须先轮换。
+	MessageAdminAgentRoleNotAllowed  MessageCode = "admin.agent.roleNotAllowed"  // 机器人账号不允许被授予角色。
+	MessageAdminAgentRotateConflict  MessageCode = "admin.agent.rotateConflict"  // 并发轮换冲突，请重试。
+
+	// 上传扩展配置（issue #408）
+	MessageAdminUploadExtNotAllowed MessageCode = "admin.upload.extNotAllowed" // 上传扩展名白名单含不受支持的扩展，params.extensions。
+
+	// 管理员可配置 URL 校验（issue #409）
+	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 )

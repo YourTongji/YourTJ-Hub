@@ -3,8 +3,8 @@ package vo
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 )
 
 // UserCard is the compact public profile payload used by profile cards.
@@ -36,4 +36,6 @@ type UserCard struct {
 	WornBadge      *badgeservice.UserBadge   `json:"wornBadge,omitempty"`
 	LastActiveTime time.Time                 `json:"lastActiveTime"`
 	CreatedAt      time.Time                 `json:"createdAt"`
+	// IsAccountClosed 标识该账号已注销（软删），前端渲染专门的注销用户卡片。
+	IsAccountClosed bool `json:"isAccountClosed"`
 }

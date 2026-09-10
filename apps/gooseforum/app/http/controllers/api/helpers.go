@@ -1,9 +1,9 @@
 package api
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 func dataMap(key string, value any) component.DataMap {
@@ -19,6 +19,8 @@ func savePageConfig(pageType string, config any, clearCache func()) component.Re
 	configEntity.PageType = pageType
 	configEntity.Config = jsonopt.Encode(config)
 	pageConfig.CreateOrSave(&configEntity)
-	clearCache()
+	if clearCache != nil {
+		clearCache()
+	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }

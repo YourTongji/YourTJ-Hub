@@ -11,19 +11,30 @@ import (
 type StatType string
 
 const (
-	StatTypeRegCount   StatType = "reg_count"   // 注册用户数
-	StatTypeTopicCount StatType = "topic_count" // 主题发布数
-	StatTypeReplyCount StatType = "reply_count" // 回复发布数
+	StatTypeRegCount          StatType = "reg_count"           // 注册用户数
+	StatTypeTopicCount        StatType = "topic_count"         // 主题发布数
+	StatTypeReplyCount        StatType = "reply_count"         // 回复发布数
+	StatTypeCourseReviewCount StatType = "course_review_count" // 课评发布数
 )
 
 // Increment 增加统计值 (Upsert)
 func Increment(date time.Time, key StatType, delta int64) error {
+	return increment(builder(), date, key, delta)
+}
+
+// IncrementTx 在事务内增加统计值 (Upsert)：供业务写路径与统计同事务原子提交。
+func IncrementTx(tx *gorm.DB, date time.Time, key StatType, delta int64) error {
+	return increment(tx, date, key, delta)
+}
+
+func increment(db *gorm.DB, date time.Time, key StatType, delta int64) error {
 	dateStr := date.Format("2006-01-02")
 
-	return builder().Clauses(clause.OnConflict{
+	// Create 用 map 承载，必须显式指定表名（builder() 自带，事务 tx 需在此补齐）。
+	return db.Table(tableName).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "stat_date"}, {Name: "stat_key"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"stat_value": gorm.Expr("stat_value + ?", delta),
+			"stat_value": gorm.Expr(tableName+".stat_value + ?", delta),
 		}),
 	}).Create(map[string]any{
 		"stat_date":  dateStr,

@@ -1,14 +1,15 @@
 package badgeservice
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/badges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
-	"github.com/leancodebox/GooseForum/app/service/notificationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/samber/lo"
 )
 
@@ -75,11 +76,8 @@ func buildAllForAdmin() []AdminBadge {
 		result = append(result, AdminBadge{Badge: fromEntity(entity), IsSystem: false, CanDelete: true})
 	}
 
-	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].SortOrder == result[j].SortOrder {
-			return result[i].Code < result[j].Code
-		}
-		return result[i].SortOrder < result[j].SortOrder
+	slices.SortStableFunc(result, func(a, b AdminBadge) int {
+		return cmp.Or(cmp.Compare(a.SortOrder, b.SortOrder), cmp.Compare(a.Code, b.Code))
 	})
 	return result
 }
@@ -129,14 +127,11 @@ func GetUserBadges(userID uint64) []UserBadge {
 			Badge:     badge,
 			Source:    record.Source,
 			Reason:    record.Reason,
-			GrantedAt: record.GrantedAt.Format(time.DateTime),
+			GrantedAt: record.GrantedAt.Format(time.RFC3339),
 		})
 	}
-	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].SortOrder == result[j].SortOrder {
-			return result[i].GrantedAt > result[j].GrantedAt
-		}
-		return result[i].SortOrder < result[j].SortOrder
+	slices.SortStableFunc(result, func(a, b UserBadge) int {
+		return cmp.Or(cmp.Compare(a.SortOrder, b.SortOrder), cmp.Compare(b.GrantedAt, a.GrantedAt))
 	})
 	return result
 }
@@ -191,7 +186,7 @@ func wornBadgesFromRecords(selected map[uint64]string, records []*userBadges.Ent
 			Badge:     badge,
 			Source:    record.Source,
 			Reason:    record.Reason,
-			GrantedAt: record.GrantedAt.Format(time.DateTime),
+			GrantedAt: record.GrantedAt.Format(time.RFC3339),
 		}
 	}
 	return result

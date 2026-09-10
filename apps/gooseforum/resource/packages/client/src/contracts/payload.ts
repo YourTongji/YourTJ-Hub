@@ -47,8 +47,12 @@ export interface LoginPageProps {
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string
+  googleUrl: string
   googleReady: boolean
-  casdoorUrl?: string
+  termsOfServiceEnabled: boolean
+  privacyPolicyEnabled: boolean
+  allowedDomains: string[]
+  oauthNotice: boolean
 }
 
 export interface ResetPasswordPageProps {
@@ -62,7 +66,13 @@ export interface LayoutPayload {
   sidebar: SidebarPayload
   footer: FooterPayload
   unread: UnreadStatusPayload
+  posting: PostingPayload
   theme: ThemePayload
+  insightFlareEnabled: boolean
+}
+
+export interface PostingPayload {
+  maxTitleLength: number
 }
 
 export interface ThemePayload {
@@ -208,6 +218,8 @@ export interface UnreadStatusPayload {
   messages: boolean
   moderationReports?: boolean
   latestNotificationType?: string
+  /** 最新一条未读通知的 id（单调递增；仅在有未读时存在）。 */
+  latestUnreadId?: number
 }
 
 export interface SitePayload {
@@ -237,6 +249,8 @@ export interface CategoryNavPayload {
   id: number
   label: string
   url: string
+  /** 后台配置的分类图标（emoji/短文本），空值由前端回退为名称首字。 */
+  icon?: string
   color: string
 }
 
@@ -258,6 +272,26 @@ export interface SidebarPayload {
   }>
   categories: CategoryNavPayload[]
   activeKey: string
+  /** 侧栏模式：wiki 模式下替换左栏为 wiki 导航树。 */
+  mode?: 'forum' | 'wiki'
+  /** wiki 模式下的左栏导航树（wiki 模式才填充）。 */
+  wikiTree?: WikiTreeNamespace[]
+}
+
+export interface WikiTreeNode {
+  /** A Markdown page or a non-clickable repository directory. */
+  kind: 'page' | 'directory'
+  pageId: number
+  path: string
+  title: string
+  active: boolean
+  children: WikiTreeNode[]
+}
+
+export interface WikiTreeNamespace {
+  name: string
+  label: string
+  nodes: WikiTreeNode[]
 }
 
 export interface FooterPayload {
@@ -300,9 +334,13 @@ export interface TopicDetailPayload {
   id: number
   title: string
   description: string
+  firstImageUrl?: string
+  images?: string[]
   url: string
   topicStatus: number
   processStatus: number
+  authorDeleted: boolean
+  moderatorRemoved: boolean
   author: {
     id: number
     username: string
@@ -321,6 +359,7 @@ export interface TopicDetailPayload {
   isWatched: boolean
   createdAt: string
   updatedAt: string
+  contentType: 0 | 1 | 2 | 3
 }
 
 export interface PostPayload {
@@ -331,6 +370,8 @@ export interface PostPayload {
   renderedContent: string
   processStatus: number
   isHidden: boolean
+  isAuthorDeleted: boolean
+  isModeratorRemoved: boolean
   canModerate: boolean
   author: {
     id: number
@@ -344,10 +385,22 @@ export interface PostPayload {
   replyToUserId?: number
   replyToUsername?: string
   isOwnPost: boolean
+  /** 匿名楼层（wiki 评论区，issue #524）：author 为匿名占位，前端不得渲染个人主页链接/用户卡片。 */
+  isAnonymous?: boolean
   updatedAt?: string
+  lastEditor?: {
+    id: number
+    username: string
+    nickname?: string
+    avatarUrl: string
+    wornBadge?: UserBadgePayload | null
+  }
+  lastEditedAt?: string
+  revisionCount: number
   likeCount: number
   isLiked: boolean
   isBookmarked: boolean
+  isAnswer: boolean
 }
 
 export interface ReplyTargetPayload {
@@ -361,6 +414,10 @@ export interface ReplyTargetPayload {
     wornBadge?: UserBadgePayload | null
   }
   renderedContent?: string
+  isAuthorDeleted?: boolean
+  isModeratorRemoved?: boolean
+  /** 被回复楼层为匿名（wiki 评论区，issue #524）：author 为匿名占位，前端不得渲染个人主页链接/用户卡片。 */
+  isAnonymous?: boolean
   unavailable?: boolean
 }
 
@@ -399,6 +456,10 @@ export interface TopicPayload {
   activityText: string
   lastUpdateTime: string
   unseen?: boolean
+  /** Absent when authenticated interaction state is unavailable. */
+  liked?: boolean
+  bookmarked?: boolean
+  contentType: 0 | 1 | 2 | 3
 }
 
 export interface ModerationPageProps {
@@ -465,12 +526,29 @@ export interface ModerationReportItem {
   categories: Array<{ id: number; name: string; url: string; color: string }>
   createdAt: string
   handledAt?: string
+  targetDeleted?: boolean
 }
 
 export interface ModerationReportListResponse {
   items: ModerationReportItem[]
   nextCursor: number
   hasNext: boolean
+}
+
+export interface ModerationDeletedContentView {
+  contentType: 'topic' | 'post'
+  contentId: number
+  topicId?: number
+  title: string
+  content: string
+  authorId: number
+  authorName: string
+  categories: Array<{ id: number; name: string; url: string; color: string }>
+  deletedBy: number
+  deletedByWho: string
+  deletedAt: string
+  deleteReason: string
+  targetUrl: string
 }
 
 export interface UserCardPayload {
@@ -500,6 +578,7 @@ export interface UserCardPayload {
   wornBadge?: UserBadgePayload | null
   lastActiveTime: string
   createdAt: string
+  isAccountClosed: boolean
 }
 
 export interface UserProfileProps {
@@ -637,6 +716,11 @@ export interface TermsPageProps {
   contentHtml: string
 }
 
+export interface PrivacyPageProps {
+  enabled: boolean
+  contentHtml: string
+}
+
 export interface SponsorSectionPayload {
   key: string
   label: string
@@ -694,6 +778,7 @@ export type NotificationTemplateKey =
   | 'notifications.templates.topicPost'
   | 'notifications.templates.follow'
   | 'notifications.templates.badge'
+  | 'notifications.templates.wikiUpdated'
 
 export interface DraftsPageProps {
   total: number
@@ -745,6 +830,7 @@ export interface NotificationPayload {
     actorName?: string
     topicId?: number
     postId?: number
+    postNo?: number
     topicTitle?: string
     metadata?: {
       followerName?: string
@@ -756,11 +842,9 @@ export interface NotificationPayload {
   }
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段统一走 metadata。
 export interface NotificationTemplateParams {
   preview?: string
-  followerName?: string
-  badgeCode?: string
-  badgeName?: string
 }
 
 export interface MessagesPageProps {
@@ -782,6 +866,9 @@ export interface ChatItemPayload {
 
 export interface SettingsPageProps {
   user: SettingsUserPayload
+  googleOAuthReady: boolean
+  /** issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。 */
+  canSetPassword: boolean
   stats: {
     topicCount: number
     replyCount: number
@@ -825,6 +912,7 @@ export interface PublishPageProps {
     content: string
     categoryIds: number[]
     topicStatus: number
+    contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
   }
 }
 
@@ -857,9 +945,11 @@ export interface SearchPageProps {
   topics: TopicPayload[]
   users: UserSearchPayload[]
   categories: CategorySearchPayload[]
+  courses: CourseSearchPayload[]
   total: number
   usersTotal: number
   categoriesTotal: number
+  coursesTotal: number
   totalPages: number
   pagination: {
     page: number
@@ -869,4 +959,195 @@ export interface SearchPageProps {
   }
   failedScopes?: string[]
   searchUnavailable?: boolean
+}
+
+export interface CourseSearchPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  // (code, teacher) 复合身份：卡片身份教师（teacher_id=0 无教师时省略）。
+  teacherId?: number
+  teacherName?: string
+  instructors?: string[]
+  terms?: string[]
+  campus?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
+}
+
+export interface CourseCatalogPageProps {
+  query: {
+    keyword?: string
+    department?: string[]
+    term?: string[]
+    campus?: string[]
+    instructor?: string[]
+    onlyWithReviews?: boolean
+    sortBy?: string
+    page: number
+    size: number
+  }
+  courses: CourseSummaryPayload[]
+  pagination: {
+    page: number
+    nextPage: number
+    hasNext: boolean
+    nextUrl: string
+  }
+  departments: string[]
+  /** 可筛选学期（value=code，label 优先学期名），按 starts_on 倒序。 */
+  terms: Array<{ value: string; label: string }>
+  /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
+  campuses: string[]
+  /** 当前登录用户已收藏的课程 id（issue #331）；未登录/无收藏时省略或为空。 */
+  bookmarkedCourseIDs?: number[]
+}
+
+export interface CourseSummaryPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  // (code, teacher) 复合身份：卡片身份教师（teacher_id=0 无教师时省略，前端显示「无教师」）。
+  teacherId?: number
+  teacherName?: string
+  aliases?: string[]
+  instructors?: string[]
+  recentTerms?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
+}
+
+export interface CourseDetailPageProps {
+  course: {
+    id: number
+    primaryCode: string
+    name: string
+    department: string
+    creditX10: number
+    // (code, teacher) 复合身份：卡片身份教师（teacher_id=0 无教师时省略，前端显示「无教师」）。
+    teacherId?: number
+    teacherName?: string
+    aliases?: string[]
+    // B1 统计投影（PRD §5.1）：均分 / 评论数 / 1-5 星各档计数（index 0 = 1 星）。
+    // 无评分/无评价时省略（omitempty），前端按 undefined 降级展示。
+    ratingAvg?: number
+    reviewCount?: number
+    ratingDistribution?: number[]
+    // 课评范围三档（teacher 默认 / team 团队聚合 / course 课程级）。
+    reviewScope?: 'teacher' | 'team' | 'course'
+    // 教学团队键；reviewScope=team 时评分聚合为团队读时聚合值。
+    teamKey?: string
+    // team 档团队全部卡的去重教师名单（教学团队 · 张三、李四等 N 位教师）。
+    teamInstructors?: string[]
+    // 原名标注：本卡 EQUIVALENT/RENAMED_FROM 且 approved/merged 的旧卡名称。
+    legacyNames?: string[]
+    offerings?: Array<{
+      id: number
+      termCode: string
+      termName?: string
+      campus?: string
+      faculty?: string
+      // 班号信息（如 32000101 / 01班）；旧数据包导入的 offering 无此字段。
+      classCode?: string
+      className?: string
+      instructors?: string[]
+      ratingAvg?: number
+      reviewCount?: number
+    }>
+  }
+}
+
+export interface CourseReviewModerationPageProps {
+  // 课评审核页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}
+
+export interface CourseManagementPageProps {
+  // 课程/评价管理页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}
+
+export interface SchedulePageProps {
+  // 排课器课程数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts）。
+  // sectionTimes：后台「设置 → 排课器作息」维护的 12 节起止时间（SSR 注入，
+  // 供课表左侧时间与上午/下午/晚上分组；未配置时前端走内置默认表）。
+  sectionTimes?: Array<{ section: number; start: string; end: string }>
+}
+
+// ---- wiki 分站 ----
+
+export interface WikiNamespacePayload {
+  name: string
+  description: string
+  pageCount: number
+  updatedAt: string
+  /** 首个 approved 页面的完整路径（首段 = 命名空间目录名），供首页 namespace 卡跳转。 */
+  firstPagePath?: string
+}
+
+export interface WikiRecentPagePayload {
+  pageId: number
+  path: string
+  title: string
+  updatedAt: string
+}
+
+export interface WikiHomeProps {
+  namespaces: WikiNamespacePayload[]
+  recent: WikiRecentPagePayload[]
+  /** PageManager/Admin 可见「前往管理端」。 */
+  canManage: boolean
+}
+
+export interface WikiTocItem {
+  level: number
+  id: string
+  text: string
+}
+
+export interface WikiContributorPayload {
+  userId: number
+  username: string
+  /** GitHub noreply 邮箱可解析时的动态头像直链；自定义邮箱贡献者为空。 */
+  avatarUrl: string
+  /** GitHub 主页外链（{username}）；自定义邮箱贡献者为空。 */
+  githubUrl?: string
+  count: number
+  lastEditedAt: string
+}
+
+export interface WikiPageDetailPayload {
+  id: number
+  topicId: number
+  namespace: string
+  path: string
+  title: string
+  /** 服务端 goldmark 输出的渲染 HTML。 */
+  content: string
+  toc: WikiTocItem[]
+  updatedAt: string
+  likeCount: number
+  viewCount: number
+  postCount: number
+  liked: boolean
+  bookmarked: boolean
+  watched: boolean
+  canEdit: boolean
+  publishedRevisionNo: number
+  /** GitHub SSOT：仓库编辑外链（{repo}/edit/{branch}/{path}.md；未配置时为空）。 */
+  editUrl?: string
+  /** GitHub SSOT：仓库历史外链（{repo}/commits/{branch}/{path}.md；未配置时为空）。 */
+  historyUrl?: string
+}
+
+export interface WikiDetailProps {
+  page: WikiPageDetailPayload
+  contributors: WikiContributorPayload[]
+  /** 复用现有 TopicPayload 类型（TopicPage 的 hotTopics 同型）。 */
+  hotTopics: TopicPayload[]
 }

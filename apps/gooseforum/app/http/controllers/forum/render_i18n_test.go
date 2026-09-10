@@ -6,9 +6,46 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/resource"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
+
+func TestAppTemplateInsightFlareRendering(t *testing.T) {
+	reg, err := newRegistry(resource.GetTemplateFS())
+	if err != nil {
+		t.Fatalf("newRegistry: %v", err)
+	}
+	payload := PagePayload{
+		Layout: LayoutPayload{
+			Site:                SitePayload{Name: "GooseForum"},
+			InsightFlareEnabled: true,
+		},
+		Props: HomeProps{},
+	}
+
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+		want    bool
+	}{
+		{name: "enabled", enabled: true, want: true},
+		{name: "disabled", enabled: false, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload.Layout.InsightFlareEnabled = tc.enabled
+			var buf bytes.Buffer
+			if err := reg.render(&buf, "home.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+				t.Fatalf("render home template: %v", err)
+			}
+			got := strings.Contains(buf.String(), "https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1")
+			if got != tc.want {
+				t.Fatalf("InsightFlare script rendered with enabled=%t, want %t", tc.enabled, tc.want)
+			}
+		})
+	}
+}
 
 // TestServerTemplatesParse ensures every server-rendered template parses with
 // the shared FuncMap (notably the "t" translator and sprig's "dict").
@@ -17,7 +54,7 @@ func TestServerTemplatesParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newRegistry: %v", err)
 	}
-	for _, name := range []string{"app_shell.gohtml", "home.gohtml", "user.gohtml", "topic.gohtml", "links.gohtml", "sponsors.gohtml"} {
+	for _, name := range []string{"app_shell.gohtml", "home.gohtml", "user.gohtml", "topic.gohtml", "links.gohtml", "sponsors.gohtml", "wiki.gohtml"} {
 		if reg.templates[name] == nil {
 			t.Errorf("template %s failed to register", name)
 		}
@@ -262,6 +299,33 @@ func TestNoscriptTemplatesRenderRepresentativePayloads(t *testing.T) {
 			},
 			want: "reply body",
 		},
+		{
+			name:     "wiki home",
+			template: "wiki.gohtml",
+			payload: PagePayload{
+				Component: PageComponentWikiHome,
+				Props: WikiHomeProps{Recent: []wikiservice.RecentPage{{
+					Path:      "dev/hello",
+					Title:     "Hello",
+					UpdatedAt: "2026-08-10T15:00:00+08:00",
+				}}},
+			},
+			want: "Hello",
+		},
+		{
+			name:     "wiki detail",
+			template: "wiki.gohtml",
+			payload: PagePayload{
+				Component: PageComponentWikiDetail,
+				Props: WikiDetailProps{Page: wikiservice.PageDetail{
+					Namespace: "dev",
+					Path:      "dev/hello",
+					Title:     "Hello page",
+					Content:   "<p>body</p>",
+				}},
+			},
+			want: "Hello page",
+		},
 	}
 
 	for _, tt := range cases {
@@ -275,6 +339,55 @@ func TestNoscriptTemplatesRenderRepresentativePayloads(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWikiTemplateSSRRendersHomeAndDetail guards the wiki SSR branch that
+// discriminates on the plain-string .Payload.Component (WikiHomeProps carries
+// no Page field, so the detail article must not be evaluated on home).
+func TestWikiTemplateSSRRendersHomeAndDetail(t *testing.T) {
+	reg, err := newRegistry(resource.GetTemplateFS())
+	if err != nil {
+		t.Fatalf("newRegistry: %v", err)
+	}
+
+	t.Run("home renders recent pages without Page props", func(t *testing.T) {
+		payload := PagePayload{
+			Component: PageComponentWikiHome,
+			Props: WikiHomeProps{Recent: []wikiservice.RecentPage{{
+				Path:      "dev/hello",
+				Title:     "Hello",
+				UpdatedAt: "2026-08-10T15:00:00+08:00",
+			}}},
+		}
+		var buf bytes.Buffer
+		if err := reg.render(&buf, "wiki.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+			t.Fatalf("render wiki home template: %v", err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, `href="/wiki/dev/hello"`) || !strings.Contains(out, "Hello") {
+			t.Fatalf("wiki home noscript missing recent page link: %s", out)
+		}
+	})
+
+	t.Run("detail renders page title and content", func(t *testing.T) {
+		payload := PagePayload{
+			Component: PageComponentWikiDetail,
+			Props: WikiDetailProps{Page: wikiservice.PageDetail{
+				Namespace: "dev",
+				Path:      "dev/hello",
+				Title:     "Hello page",
+				Content:   "<p>body</p>",
+			}},
+		}
+		var buf bytes.Buffer
+		if err := reg.render(&buf, "wiki.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+			t.Fatalf("render wiki detail template: %v", err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, "Hello page") || !strings.Contains(out, "<p>body</p>") {
+			t.Fatalf("wiki detail noscript missing page title/content: %s", out)
+		}
+	})
 }
 
 func TestUserTemplateRendersCrawlerProfileStructure(t *testing.T) {
@@ -416,6 +529,72 @@ func TestNoscriptLayoutRendersHeaderHomeLink(t *testing.T) {
 	}
 	if !strings.Contains(out, `<a class="gf-crawler-home-link" href="/">GooseForum</a>`) {
 		t.Fatalf("noscript header missing home link: %s", out)
+	}
+}
+
+func TestErrorTemplateLocalizesMessageCode(t *testing.T) {
+	reg, err := newRegistry(resource.GetTemplateFS())
+	if err != nil {
+		t.Fatalf("newRegistry: %v", err)
+	}
+	tmpl := reg.templates["error.gohtml"]
+	if tmpl == nil {
+		t.Fatal("error.gohtml missing")
+	}
+
+	cases := []struct {
+		name        string
+		lang        string
+		messageCode component.MessageCode
+		params      component.MessageParams
+		want        string // localized message expected in the output
+	}{
+		{
+			name:        "known flat code",
+			lang:        "en",
+			messageCode: "route.notFound",
+			want:        "Route not found. Please check the URL and request method.",
+		},
+		{
+			name:        "known zh code",
+			lang:        "zh",
+			messageCode: "topic.notFound",
+			want:        "话题不存在",
+		},
+		{
+			name:        "unknown code falls back",
+			lang:        "en",
+			messageCode: "some.unknown.code",
+			want:        "Failed to load",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := PagePayload{Props: ErrorPageProps{
+				Code:        "404",
+				Title:       "Not found",
+				MessageCode: tt.messageCode,
+				Params:      tt.params,
+			}}
+			var buf bytes.Buffer
+			if err := reg.render(&buf, "error.gohtml", templateData{Payload: payload, Lang: tt.lang}); err != nil {
+				t.Fatalf("render error template: %v", err)
+			}
+			out := buf.String()
+			if !strings.Contains(out, tt.want) {
+				t.Errorf("error page missing localized message %q: %s", tt.want, out)
+			}
+			if !strings.Contains(out, `class="gf-crawler-error"`) || !strings.Contains(out, `class="gf-crawler-error-code"`) {
+				t.Errorf("error page missing empty-state structure: %s", out)
+			}
+			// The noscript-rendered section must not leak the raw messageCode;
+			// the goose-payload JSON script below it intentionally keeps it for
+			// the JS ErrorPage.vue resolver.
+			noscript := out[strings.Index(out, "<noscript>"):strings.Index(out, "</noscript>")]
+			if strings.Contains(noscript, string(tt.messageCode)) {
+				t.Errorf("noscript error page leaked raw messageCode %q: %s", tt.messageCode, noscript)
+			}
+		})
 	}
 }
 

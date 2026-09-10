@@ -1,13 +1,17 @@
 package notificationservice
 
 import (
-	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
-	"github.com/leancodebox/GooseForum/app/service/unreadservice"
+	"log/slog"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/spf13/cast"
 )
 
 // SendCommentNotification 发送评论通知
-func SendCommentNotification(userId uint64, topicId uint64, commentContent string, commenterId uint64, postId uint64) error {
+func SendCommentNotification(userId uint64, topicId uint64, commentContent string, commenterId uint64, postId uint64, postNo uint64) error {
 	payload := eventNotification.NotificationPayload{
 		Content:     commentContent,
 		TemplateKey: eventNotification.TemplateComment,
@@ -17,23 +21,27 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 		ActorId: commenterId,
 		TopicId: topicId,
 		PostId:  postId,
+		PostNo:  postNo,
 	}
 
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypeComment,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
 	err := eventNotification.Create(notification)
 	if err == nil {
 		unreadservice.Invalidate(userId)
+		webpushservice.EnqueueNotification(userId, notification.Id)
+		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
 	return err
 }
 
 // SendPostReplyNotification 发送 post 回复通知
-func SendPostReplyNotification(userId uint64, postId uint64, topicId uint64, replyContent string, replierId uint64) error {
+func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topicId uint64, replyContent string, replierId uint64) error {
 	payload := eventNotification.NotificationPayload{
 		Content:     replyContent,
 		TemplateKey: eventNotification.TemplatePostReply,
@@ -43,22 +51,26 @@ func SendPostReplyNotification(userId uint64, postId uint64, topicId uint64, rep
 		ActorId: replierId,
 		TopicId: topicId,
 		PostId:  postId,
+		PostNo:  postNo,
 	}
 
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypePostReply,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
 	err := eventNotification.Create(notification)
 	if err == nil {
 		unreadservice.Invalidate(userId)
+		webpushservice.EnqueueNotification(userId, notification.Id)
+		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
 	return err
 }
 
-func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64, commentContent string, commenterId uint64) error {
+func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64, postNo uint64, commentContent string, commenterId uint64) error {
 	if len(userIds) == 0 {
 		return nil
 	}
@@ -71,6 +83,7 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 		notifications = append(notifications, &eventNotification.Entity{
 			UserId:    userId,
 			EventType: eventNotification.EventTypeTopicPost,
+			TopicID:   topicId,
 			Payload: eventNotification.NotificationPayload{
 				Content:     commentContent,
 				TemplateKey: eventNotification.TemplateTopicPost,
@@ -80,6 +93,54 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 				ActorId: commenterId,
 				TopicId: topicId,
 				PostId:  postId,
+				PostNo:  postNo,
+			},
+		})
+	}
+	if len(notifications) == 0 {
+		return nil
+	}
+
+	err := eventNotification.CreateBatch(notifications, 100)
+	if err == nil {
+		for _, notification := range notifications {
+			if notification == nil {
+				continue
+			}
+			unreadservice.Invalidate(notification.UserId)
+			webpushservice.EnqueueNotification(notification.UserId, notification.Id)
+			nativepushservice.EnqueueNotification(notification.UserId, notification.Id)
+		}
+	}
+	return err
+}
+
+// SendMentionNotifications 批量发送 @mention 通知（issue #563）。
+// 调用方已按优先级去重并限制 fan-out 上限，这里只做 0 值过滤。
+func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, postNo uint64, preview string, mentionerId uint64) error {
+	if len(userIds) == 0 {
+		return nil
+	}
+
+	notifications := make([]*eventNotification.Entity, 0, len(userIds))
+	for _, userId := range userIds {
+		if userId == 0 {
+			continue
+		}
+		notifications = append(notifications, &eventNotification.Entity{
+			UserId:    userId,
+			EventType: eventNotification.EventTypeMention,
+			TopicID:   topicId,
+			Payload: eventNotification.NotificationPayload{
+				Content:     preview,
+				TemplateKey: eventNotification.TemplateMention,
+				TemplateParams: eventNotification.NotificationTemplateParams{
+					Preview: preview,
+				},
+				ActorId: mentionerId,
+				TopicId: topicId,
+				PostId:  postId,
+				PostNo:  postNo,
 			},
 		})
 	}
@@ -99,11 +160,7 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, badgeIconURL string) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateBadge,
-		TemplateParams: eventNotification.NotificationTemplateParams{
-			BadgeCode: badgeCode,
-			BadgeName: badgeName,
-		},
-		ActorId: userId,
+		ActorId:     userId,
 		Extra: eventNotification.Extra{
 			BadgeCode:    badgeCode,
 			BadgeName:    badgeName,
@@ -121,29 +178,35 @@ func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, ba
 	err := eventNotification.Create(notification)
 	if err == nil {
 		unreadservice.Invalidate(userId)
+		webpushservice.EnqueueNotification(userId, notification.Id)
+		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
 	return err
 }
 
 // SendLikeNotification 发送楼层点赞通知
-func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, likerId uint64) error {
+func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, postNo uint64, likerId uint64) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateLike,
 		ActorId:     likerId,
 		TopicId:     topicId,
 		TopicTitle:  topicTitle,
 		PostId:      postId,
+		PostNo:      postNo,
 	}
 
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypeLike,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
 	err := eventNotification.Create(notification)
 	if err == nil {
 		unreadservice.Invalidate(userId)
+		webpushservice.EnqueueNotification(userId, notification.Id)
+		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
 	return err
 }
@@ -152,11 +215,8 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 func SendFollowNotification(userId uint64, followerId uint64, followerName string) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateFollow,
-		TemplateParams: eventNotification.NotificationTemplateParams{
-			FollowerName: followerName,
-		},
-		ActorId: followerId,
-		Extra:   eventNotification.Extra{FollowerName: followerName},
+		ActorId:     followerId,
+		Extra:       eventNotification.Extra{FollowerName: followerName},
 	}
 
 	notification := &eventNotification.Entity{
@@ -168,6 +228,18 @@ func SendFollowNotification(userId uint64, followerId uint64, followerName strin
 	err := eventNotification.Create(notification)
 	if err == nil {
 		unreadservice.Invalidate(userId)
+		webpushservice.EnqueueNotification(userId, notification.Id)
+		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
 	return err
+}
+
+// NullifyContentPreviews 内容删除后把相关通知的正文预览置空，避免泄露已删原文。
+func NullifyContentPreviews(topicId uint64, postId uint64) {
+	if topicId == 0 && postId == 0 {
+		return
+	}
+	if err := eventNotification.ClearPreviewsByTopic(topicId, postId); err != nil {
+		slog.Error("clear notification previews failed", "topicId", topicId, "postId", postId, "err", err)
+	}
 }

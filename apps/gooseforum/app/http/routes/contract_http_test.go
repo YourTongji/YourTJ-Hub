@@ -20,33 +20,35 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/logincrypto"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/logincrypto"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/controllers/api"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
-	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
-	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
-	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"gorm.io/gorm"
 )
 
@@ -77,6 +79,8 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 		&topics.Entity{},
+		&postRevisions.Entity{},
+		&taskQueue.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
@@ -97,6 +101,11 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	configureHTTPContractTestSettings(t, conn)
 	router := gin.New()
 	router.POST("/api/login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
+	router.POST(
+		"/api/auth/oidc/exchange",
+		middleware.RateLimit(middleware.RateLimitLogin),
+		api.OidcExchange,
+	)
 	forumAPI := router.Group("/api/forum")
 	forumLoginAPI := forumAPI.Use(middleware.JWTAuthCheck)
 	forumLoginAPI.POST(
@@ -147,6 +156,9 @@ func configureHTTPContractTestSettings(t *testing.T, conn *gorm.DB) {
 		Actions: []pageConfig.RateLimitRule{
 			{Action: middleware.RateLimitLogin, WindowSeconds: 60, LimitPerIp: 5},
 			{Action: middleware.RateLimitTopicWrite, WindowSeconds: 60, LimitPerIp: 5},
+			{Action: middleware.RateLimitTotpSetup, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpEnable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpDisable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
 		},
 	})
 	hotdataserve.ClearRateLimitConfigCache()
@@ -199,6 +211,11 @@ func contractSessionToken(t *testing.T, user *users.EntityComplete) string {
 
 func encryptLoginPassword(t *testing.T, password string) string {
 	t.Helper()
+	return encryptLoginPasswordAt(t, password, time.Now().UnixMilli())
+}
+
+func encryptLoginPasswordAt(t *testing.T, password string, ts int64) string {
+	t.Helper()
 	block, _ := pem.Decode([]byte(logincrypto.PublicKeyPEM()))
 	if block == nil {
 		t.Fatal("decode login public key PEM")
@@ -211,7 +228,7 @@ func encryptLoginPassword(t *testing.T, password string) string {
 	if !ok {
 		t.Fatal("login public key is not RSA")
 	}
-	payload, err := json.Marshal(logincrypto.PasswordPayload{Password: password, Ts: time.Now().UnixMilli()})
+	payload, err := json.Marshal(logincrypto.PasswordPayload{Password: password, Ts: ts})
 	if err != nil {
 		t.Fatalf("marshal encrypted password payload: %v", err)
 	}
@@ -223,14 +240,7 @@ func encryptLoginPassword(t *testing.T, password string) string {
 }
 
 func serveJSON(router http.Handler, path string, body string, token string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		request.Header.Set("Authorization", "Bearer "+token)
-	}
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-	return recorder
+	return serveAuthSecurityJSON(router, http.MethodPost, path, body, token)
 }
 
 func decodeContractEnvelope(t *testing.T, recorder *httptest.ResponseRecorder) contractEnvelope {
@@ -316,6 +326,13 @@ func assertFixtureParams(t *testing.T, actual map[string]any, fixture map[string
 			t.Fatalf("params.%s = %#v, want fixture value %#v", name, actualValue, fixtureValue)
 		}
 	}
+	// 断言实际响应不包含 fixture 未声明的额外参数，防止原始解析错误串等敏感信息泄漏回归
+	// （例如 parse-failed.json 声明 params:{}，若 400 又带上 params.error 应在此失败）。
+	for name := range actual {
+		if _, declared := fixture[name]; !declared {
+			t.Fatalf("params.%s = %#v is present but not declared in fixture", name, actual[name])
+		}
+	}
 }
 
 func TestLoginHTTPContract(t *testing.T) {
@@ -360,7 +377,23 @@ func TestLoginHTTPContractBusinessFailureAndRateLimit(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("business failure status = %d, want 200", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-failure.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-close-invalid-credentials.json"))
+	})
+
+	t.Run("stale encrypted password payload stays an invalid-request business failure", func(t *testing.T) {
+		_, router := setupHTTPContractTest(t)
+		body, err := json.Marshal(map[string]string{
+			"username":          "missing-contract-user",
+			"encryptedPassword": encryptLoginPasswordAt(t, "secret123", time.Now().Add(-10*time.Minute).UnixMilli()),
+		})
+		if err != nil {
+			t.Fatalf("marshal stale-payload login request: %v", err)
+		}
+		recorder := serveJSON(router, "/api/login", string(body), "")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("stale-payload status = %d, want 200", recorder.Code)
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-invalid-request.json"))
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -379,6 +412,19 @@ func TestLoginHTTPContractBusinessFailureAndRateLimit(t *testing.T) {
 		assertFixtureEnvelope(t, response, contractFixture(t, "login-rate-limited.json"))
 		assertRetryAfter(t, recorder, response, middleware.RateLimitLogin)
 	})
+}
+
+func TestOidcExchangeHTTPContractInvalidRequest(t *testing.T) {
+	_, router := setupHTTPContractTest(t)
+	recorder := serveJSON(router, "/api/auth/oidc/exchange", "{", "")
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("OIDC exchange invalid request status = %d, want 400", recorder.Code)
+	}
+	assertFixtureEnvelope(
+		t,
+		decodeContractEnvelope(t, recorder),
+		contractFixture(t, "invalid-format.json"),
+	)
 }
 
 func TestWriteTopicHTTPContract(t *testing.T) {
@@ -402,13 +448,86 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("unicode title limit counts code points", func(t *testing.T) {
+		conn, router := setupHTTPContractTest(t)
+		posting := defaultconfig.GetDefaultPostingSettingsConfig()
+		posting.TextControl.MinTitleLength = 3
+		posting.TextControl.MaxTitleLength = 4
+		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
+		hotdataserve.ClearPostingSettingsConfigCache()
+
+		user := createHTTPContractUser(t, conn, contractTestID())
+		categoryID := contractTestID()
+		if err := conn.Create(&category.Entity{Id: categoryID, Name: "Unicode", Slug: fmt.Sprintf("unicode-%d", categoryID)}).Error; err != nil {
+			t.Fatalf("create unicode category: %v", err)
+		}
+		token := contractSessionToken(t, user)
+		for _, title := range []string{"aaaa", "汉汉汉汉", "😀😀😀😀", "a汉😀b"} {
+			body := fmt.Sprintf(`{"title":%q,"content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, title, categoryID)
+			recorder := serveJSON(router, "/api/forum/topics/write", body, token)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("title %q status = %d, want 200: %s", title, recorder.Code, recorder.Body.String())
+			}
+			if response := decodeContractEnvelope(t, recorder); response.Code != 0 {
+				t.Fatalf("title %q response = %#v, must pass title length validation", title, response)
+			}
+		}
+
+		// Keep length boundary requests independent from the five-write rate limit.
+		ratelimit.Default().ResetAll()
+		shortBody := fmt.Sprintf(`{"title":"汉😀","content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, categoryID)
+		shortResponse := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", shortBody, token))
+		if shortResponse.MessageCode != "topic.title.tooShort" || shortResponse.Params["minLength"] != float64(3) {
+			t.Fatalf("short Unicode title response = %#v", shortResponse)
+		}
+
+		body := fmt.Sprintf(`{"title":"汉汉汉汉汉","content":"Unicode title contract content.","categoryId":[%d],"topicStatus":1}`, categoryID)
+		recorder := serveJSON(router, "/api/forum/topics/write", body, token)
+		response := decodeContractEnvelope(t, recorder)
+		if response.MessageCode != "topic.title.tooLong" || response.Params["maxLength"] != float64(4) {
+			t.Fatalf("too-long title response = %#v, want topic.title.tooLong maxLength=4", response)
+		}
+	})
+
+	t.Run("unicode topic content limit counts code points", func(t *testing.T) {
+		conn, router := setupHTTPContractTest(t)
+		posting := defaultconfig.GetDefaultPostingSettingsConfig()
+		posting.TextControl.MinPostLength = 3
+		posting.TextControl.MaxPostLength = 4
+		persistHTTPContractConfig(t, conn, pageConfig.PostingSettings, posting)
+		hotdataserve.ClearPostingSettingsConfigCache()
+
+		user := createHTTPContractUser(t, conn, contractTestID())
+		categoryID := contractTestID()
+		if err := conn.Create(&category.Entity{Id: categoryID, Name: "Unicode Content", Slug: fmt.Sprintf("unicode-content-%d", categoryID)}).Error; err != nil {
+			t.Fatalf("create unicode content category: %v", err)
+		}
+		token := contractSessionToken(t, user)
+		body := fmt.Sprintf(`{"title":"Valid title","content":"汉😀ab","categoryId":[%d],"topicStatus":1}`, categoryID)
+		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, token)); response.Code != 0 {
+			t.Fatalf("four-rune content response = %#v, must pass content length validation", response)
+		}
+
+		shortBody := fmt.Sprintf(`{"title":"Valid title","content":"汉😀","categoryId":[%d],"topicStatus":1}`, categoryID)
+		shortResponse := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", shortBody, token))
+		if shortResponse.MessageCode != "topic.content.tooShort" || shortResponse.Params["minLength"] != float64(3) {
+			t.Fatalf("short Unicode body response = %#v", shortResponse)
+		}
+
+		body = fmt.Sprintf(`{"title":"Valid title","content":"汉汉汉汉汉","categoryId":[%d],"topicStatus":1}`, categoryID)
+		response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, token))
+		if response.MessageCode != "topic.content.tooLong" || response.Params["maxLength"] != float64(4) {
+			t.Fatalf("too-long content response = %#v, want topic.content.tooLong maxLength=4", response)
+		}
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupHTTPContractTest(t)
 		recorder := serveJSON(router, "/api/forum/topics/write", `{}`, "")
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -421,7 +540,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("malformed body remains a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -431,7 +550,7 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid topic request status = %d, want 200", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-invalid.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {

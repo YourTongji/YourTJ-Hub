@@ -1,0 +1,978 @@
+{
+  "myCourseReviewsTitle": "My course reviews",
+  "myCourseReviewsEmpty": "No reviews yet. Explore the course catalog to get started.",
+  "myCourseReviewHidden": "This review is hidden. You can delete it here.",
+  "myCourseReviewUnavailable": "This course is unavailable. You can still manage your review.",
+  "myCourseReviewOpen": "View details",
+  "courseReviewNetworkError": "Could not connect. Check your connection and retry; your review has been kept.",
+  "courseReviewUnknownError": "Your review could not be saved. The server did not provide a specific reason; please retry later.",
+  "commonHideKeyboard": "Hide keyboard",
+  "@@locale": "en",
+  "appTitle": "YourTJ",
+  "navHome": "Home",
+  "navSearch": "Search",
+  "navPublish": "Publish",
+  "navMessages": "Messages",
+  "navProfile": "Me",
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonLoading": "Loading…",
+  "commonLoadMore": "Load more",
+  "commonRetry": "Retry",
+  "commonClose": "Close",
+  "commonSend": "Send",
+  "commonSearch": "Search",
+  "commonEdit": "Edit",
+  "commonCurrent": "Current",
+  "commonEmpty": "Nothing here",
+  "commonBack": "Back",
+  "commonBackToTop": "Back to top",
+  "commonUseLightTheme": "Use light theme",
+  "commonUseDarkTheme": "Use dark theme",
+  "timeAgoJustNow": "just now",
+  "timeAgoMinutes": "{count} min ago",
+  "@timeAgoMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoHours": "{count} h ago",
+  "@timeAgoHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoDays": "{count} d ago",
+  "@timeAgoDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoWeeks": "{count} w ago",
+  "@timeAgoWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoMonths": "{count} mo ago",
+  "@timeAgoMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoYears": "{count} y ago",
+  "@timeAgoYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authLoginTitle": "Sign in",
+  "authRegisterTitle": "Create account",
+  "authForgotTitle": "Reset password",
+  "authLoginSubtitle": "Welcome back. Continue your discussions and writing.",
+  "authRegisterSubtitle": "Create an account and join the campus conversation.",
+  "authForgotSubtitle": "Enter your email and we will send a reset link.",
+  "authUsernameOrEmail": "Username or email",
+  "authUsername": "Username",
+  "authEmail": "Email",
+  "authPassword": "Password",
+  "authNewPassword": "New password",
+  "authConfirmPassword": "Confirm password",
+  "authCaptcha": "Captcha",
+  "authForgotPassword": "Forgot password?",
+  "authCreateAccount": "Create account",
+  "authSendResetEmail": "Send reset email",
+  "authBackToLogin": "Back to login",
+  "authTwoFactorTitle": "Two-factor authentication",
+  "authTwoFactorCode": "TOTP code",
+  "authVerify": "Verify",
+  "authGetCode": "Get code",
+  "authOidcLogin": "Sign in with yourtj",
+  "authRegisterSuccess": "Registered successfully, please sign in",
+  "authResetEmailSent": "Reset email sent, please check your inbox",
+  "authLoading": "Processing…",
+  "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
+  "authSessionSaveFailed": "Failed to save the new session securely. Please retry.",
+  "loginWelcome": "Welcome to YourTJ",
+  "loginModeLogin": "Sign in",
+  "loginModeRegister": "Sign up",
+  "loginModeForgot": "Forgot password",
+  "publishTitle": "Publish topic",
+  "publishEditTitle": "Edit topic",
+  "publishPublish": "Publish",
+  "publishSaveDraft": "Save draft",
+  "publishTitleField": "Title",
+  "publishTitleHint": "Enter title (5-100 chars)",
+  "publishBodyPlaceholder": "Content…",
+  "publishTitleRequired": "Title is required",
+  "publishContentRequired": "Content is required",
+  "publishSuccess": "Published successfully",
+  "publishSavedDraft": "Saved as draft",
+  "publishFailed": "Publish failed: {error}",
+  "@publishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishImageFailed": "Image upload failed: {error}",
+  "@publishImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "composePreview": "Preview",
+  "composeEdit": "Edit",
+  "publishBodyField": "Body",
+  "publishCategoryRequired": "Select at least one category",
+  "publishPreviewEmpty": "Start writing to see the formatted preview here",
+  "publishLoadFailed": "Failed to load editor data: {error}",
+  "@publishLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishToolBold": "Bold",
+  "publishToolItalic": "Italic",
+  "publishToolStrike": "Strikethrough",
+  "publishToolQuote": "Quote",
+  "publishToolCode": "Inline code",
+  "publishToolBulletList": "Bulleted list",
+  "publishToolOrderedList": "Numbered list",
+  "publishToolImage": "Add image",
+  "publishRemoveImage": "Remove image",
+  "topicReplyTarget": "Replying to {name}",
+  "@topicReplyTarget": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "topicTitle": "Topic",
+  "topicReply": "Reply",
+  "topicReplySuccess": "Reply posted",
+  "topicReplyFailed": "Reply failed: {error}",
+  "@topicReplyFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicReplyHint": "Write a comment…",
+  "topicReplyTargetUnavailable": "The original reply is unavailable",
+  "topicReplying": "Replying… (tap to cancel)",
+  "topicReport": "Report post",
+  "topicReportHint": "Describe the reason",
+  "topicReportSubmit": "Submit",
+  "topicReportSubmitted": "Report submitted",
+  "topicReportFailed": "Report failed: {error}",
+  "@topicReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicWatch": "Watch topic replies",
+  "topicUnwatch": "Stop watching topic replies",
+  "topicReplies": "{count} replies",
+  "@topicReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "topicNoTitle": "Untitled",
+  "profileTitle": "Profile",
+  "profileFollow": "Follow",
+  "profileFollowing": "Following",
+  "profileTopics": "Topics",
+  "profileReplies": "Replies",
+  "profileLikes": "Likes",
+  "profileFollowers": "Followers",
+  "profileFollowingCount": "Following",
+  "profileBadges": "Badges",
+  "profileNoBadges": "No badges",
+  "profileEmptyActivity": "No activity yet",
+  "profileEmptyTopics": "No topics yet",
+  "profileEmptyLikes": "No likes yet",
+  "profileEmptyBookmarks": "No bookmarks yet",
+  "profileEmptyFollowing": "Not following anyone",
+  "profileEmptyFollowers": "No followers yet",
+  "profileNotLoggedIn": "Not signed in",
+  "messagesTitle": "Messages",
+  "messagesEmpty": "No conversations yet",
+  "messagesEmptyDescription": "Start a conversation with someone from the community.",
+  "messagesSearchConversations": "Search conversations",
+  "messagesConversation": "Private conversation",
+  "messagesStartChat": "Start a conversation",
+  "messagesFirstMessageTo": "Send the first message to {user}.",
+  "@messagesFirstMessageTo": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesNoMessagesYet": "No messages yet",
+  "messagesEmptyDetail": "No messages yet, say hi!",
+  "messagesInputHint": "Type a message…",
+  "messagesSendFailed": "Send failed: {error}",
+  "@messagesSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsTitle": "Notifications",
+  "notificationsEmpty": "No notifications",
+  "notificationsMarkAllRead": "Mark all read",
+  "notificationsAll": "All",
+  "notificationsUnread": "Unread",
+  "searchTitle": "Search",
+  "searchHint": "Search topics, users, categories…",
+  "searchEmpty": "Enter keywords to search",
+  "searchNoUsers": "No matching users",
+  "searchNoCategories": "No matching categories",
+  "searchUnavailable": "Search unavailable",
+  "searchAll": "All",
+  "searchTopics": "Topics",
+  "searchUsers": "Users",
+  "searchCategories": "Categories",
+  "categoryTitle": "Category",
+  "settingsTitle": "Settings",
+  "settingsTabProfile": "Profile",
+  "settingsTabAccount": "Account",
+  "settingsTabPrivacy": "Privacy",
+  "settingsTabBinding": "Bindings",
+  "settingsTabSecurity": "Security",
+  "settingsSectionProfile": "Personal info",
+  "settingsNickname": "Nickname",
+  "settingsNicknameEdit": "Edit display nickname",
+  "settingsBio": "Bio",
+  "settingsBioEdit": "Edit bio and signature",
+  "settingsAvatar": "Avatar",
+  "settingsAvatarUpload": "Upload avatar (converted to webp)",
+  "settingsAvatarUploading": "Uploading…",
+  "settingsAvatarUploadFailed": "Avatar upload failed: {error}",
+  "@settingsAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsEmail": "Email",
+  "settingsEmailEdit": "Change bound email",
+  "settingsEmailUpdated": "Email updated, please verify",
+  "settingsEmailOAuthReauthRequired": "The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.",
+  "settingsEmailFailed": "Email update failed: {error}",
+  "@settingsEmailFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNewEmail": "New email",
+  "settingsChangePassword": "Change password",
+  "settingsChangePasswordSub": "Change login password",
+  "settingsCurrentPassword": "Current password",
+  "settingsPasswordUpdated": "Password updated",
+  "settingsPasswordFailed": "Password change failed: {error}",
+  "@settingsPasswordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBadge": "Badge",
+  "settingsBadgeNone": "Not wearing",
+  "settingsBadgeCurrent": "Current: {name}",
+  "@settingsBadgeCurrent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBadgePick": "Choose badge to wear",
+  "settingsBadgeNoOptions": "No wearable badges",
+  "settingsBadgeUpdated": "Badge updated",
+  "settingsBadgeFailed": "Badge update failed: {error}",
+  "@settingsBadgeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOAuth": "External account connections",
+  "settingsOAuthSub": "GitHub and Google login connections",
+  "settingsOAuthManage": "Manage OAuth bindings",
+  "settingsOAuthBindings": "OAuth bindings",
+  "settingsBound": "Bound",
+  "settingsUnbound": "Not bound",
+  "settingsUnbind": "Unbind",
+  "settingsUnboundDone": "Unbound",
+  "settingsUnbindFailed": "Unbind failed: {error}",
+  "@settingsUnbindFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLoadBindingsFailed": "Failed to load bindings: {error}",
+  "@settingsLoadBindingsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrivacyDirect": "Messages visible to friends only",
+  "settingsPrivacyLikes": "Show my likes publicly",
+  "settingsSessions": "Session management",
+  "settingsSessionsEmpty": "No sessions",
+  "settingsRevokeAll": "Revoke all sessions",
+  "settingsRevoked": "Session revoked",
+  "settingsRevokeFailed": "Revoke failed: {error}",
+  "@settingsRevokeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRevokeAllDone": "All sessions revoked",
+  "settingsOpFailed": "Operation failed: {error}",
+  "@settingsOpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAppearance": "Appearance",
+  "settingsDarkMode": "Dark mode",
+  "settingsDarkCurrent": "Current: dark",
+  "settingsLightCurrent": "Current: light",
+  "settingsAbout": "About",
+  "settingsAboutVersion": "v0.1.0 · Tongji campus forum",
+  "settingsEditProfile": "Edit profile",
+  "settingsSignature": "Signature",
+  "settingsSaveInfo": "Save",
+  "settingsInfoSaved": "Profile updated",
+  "settingsInfoFailed": "Profile update failed: {error}",
+  "@settingsInfoFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsUserDataLoading": "Account data loading…",
+  "settingsFillComplete": "Please fill in all fields",
+  "settingsSecondPhase": "Coming in phase 2",
+  "settingsTotpTitle": "Two-factor auth (TOTP)",
+  "settingsTotpEnable": "Enable",
+  "settingsTotpDisable": "Disable",
+  "settingsTotpPasswordPrompt": "Enter password to manage TOTP",
+  "settingsTotpSetupSecret": "Scan or enter the secret in your authenticator app",
+  "settingsTotpCode": "Enter the 6-digit code",
+  "settingsTotpRecoveryCodes": "Recovery codes (save them safely):",
+  "settingsTotpEnabled": "TOTP enabled",
+  "settingsTotpDisabled": "TOTP disabled",
+  "settingsTotpFailed": "TOTP operation failed: {error}",
+  "@settingsTotpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsTotpDisableTitle": "Disable TOTP",
+  "settingsTotpEnableTitle": "Enable TOTP",
+  "settingsTotpPassword": "Password",
+  "settingsTotpNext": "Next",
+  "settingsTotpScanSecret": "Scan or enter the secret",
+  "settingsTotpDone": "Done",
+  "settingsTotpUnavailable": "TOTP unavailable",
+  "draftsTitle": "Drafts",
+  "draftsEmpty": "No drafts",
+  "draftsNew": "New draft",
+  "draftsBlocked": "Blocked",
+  "draftsMetaCreated": "Created {date}",
+  "draftsMetaViews": "{count} views",
+  "draftsMetaReplies": "{count} replies",
+  "messagesNew": "New message",
+  "messagesSearchUsers": "Search users",
+  "messagesNoContactableUsers": "No contactable users",
+  "settingsLogout": "Log out",
+  "settingsLogoutConfirm": "Log out of yourtj?",
+  "commonParseFailed": "Failed to parse page data",
+  "commonLoadFailed": "Failed to load",
+  "topicEmpty": "No topics yet",
+  "settingsAvatarUploaded": "Avatar uploaded: {url}",
+  "@settingsAvatarUploaded": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsImageDecodeFailed": "Failed to decode image",
+  "dateMonthDayTime": "{month}/{day} {time}",
+  "@dateMonthDayTime": {
+    "placeholders": {
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateYearMonthDayTime": "{year}/{month}/{day} {time}",
+  "@dateYearMonthDayTime": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "topicFloorSelected": "Jumped to floor {floor}",
+  "sortLatest": "Latest",
+  "sortHot": "Hot",
+  "sortPopular": "Popular",
+  "topicFeedModeList": "List",
+  "topicFeedModeCard": "Cards",
+  "topicNewTopic": "New topic",
+  "scheduleTitle": "Scheduler",
+  "scheduleTabTimetable": "Plan preview",
+  "scheduleTabPick": "Pick courses",
+  "scheduleTerm": "Term",
+  "scheduleGrade": "Grade",
+  "scheduleMajor": "Major",
+  "scheduleSyncLatest": "Sync latest",
+  "scheduleDataOutdated": "Course data updated, tap to sync",
+  "scheduleSyncedTo": "Synced to {date}",
+  "@scheduleSyncedTo": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSyncConflictTitle": "Plan sync conflict",
+  "scheduleSyncConflictBody": "Your local schedule plans differ from the cloud copy. Which one should be kept?",
+  "scheduleSyncUseCloud": "Use cloud",
+  "scheduleSyncKeepLocal": "Keep local",
+  "scheduleWeekAll": "All weeks",
+  "scheduleWeekN": "Week {week}",
+  "@scheduleWeekN": {
+    "placeholders": {
+      "week": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleCurrentWeek": "Current week",
+  "schedulePlanNew": "New plan",
+  "schedulePlanRename": "Rename plan",
+  "schedulePlanDelete": "Delete plan",
+  "schedulePlanClear": "Clear courses",
+  "schedulePlanN": "Plan {n}",
+  "@schedulePlanN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleStatsCourses": "{count} courses",
+  "@scheduleStatsCourses": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleStatsCredits": "Credits",
+  "scheduleStatsHours": "Hours",
+  "scheduleStatsConflicts": "Conflicts",
+  "scheduleConflictBadge": "Conflict",
+  "scheduleConflictWith": "Conflicts with \"{course}\"",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "Conflicts with \"{course}\" and {count} other courses",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "Can still add",
+  "scheduleAddCustomEvent": "Add placeholder",
+  "scheduleCustomEventLabel": "Busy",
+  "scheduleExportPng": "Export image",
+  "scheduleExportCsv": "Export CSV",
+  "scheduleDegraded": "Degraded search, results may be incomplete",
+  "scheduleNoReviewData": "No review data yet",
+  "schedulePickClass": "Pick class",
+  "scheduleCompulsory": "Compulsory",
+  "scheduleOptional": "Elective",
+  "scheduleSearchHint": "Search name/code/teacher",
+  "scheduleStaged": "Staged",
+  "scheduleSelected": "Selected",
+  "scheduleRemoveCourse": "Remove",
+  "scheduleParityOdd": "odd weeks",
+  "scheduleParityEven": "even weeks",
+  "scheduleWeeksN": "{range} weeks",
+  "@scheduleWeeksN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleDayMon": "Mon",
+  "scheduleDayTue": "Tue",
+  "scheduleDayWed": "Wed",
+  "scheduleDayThu": "Thu",
+  "scheduleDayFri": "Fri",
+  "scheduleDaySat": "Sat",
+  "scheduleDaySun": "Sun",
+  "scheduleMorning": "Morning",
+  "scheduleAfternoon": "Afternoon",
+  "scheduleEvening": "Evening",
+  "coursesTitle": "Courses",
+  "coursesSearchHint": "Search courses",
+  "coursesFilterDepartment": "Department",
+  "coursesFilterTerm": "Term",
+  "coursesFilterCampus": "Campus",
+  "coursesFilterInstructor": "Instructor",
+  "coursesOnlyWithReviews": "With reviews only",
+  "coursesRatingCount": "{count} reviews",
+  "@coursesRatingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "coursesNoRating": "No rating",
+  "courseDetailReviews": "Reviews",
+  "courseDetailOfferings": "Classes",
+  "courseDetailLineage": "History",
+  "courseDetailRelated": "Related courses",
+  "courseDetailAiSummary": "AI summary",
+  "courseDetailAiSummaryEmpty": "No AI summary",
+  "courseBookmark": "Bookmark",
+  "courseBookmarked": "Bookmarked",
+  "courseWriteReview": "Write review",
+  "reviewAnonymous": "Anonymous",
+  "reviewSubmit": "Submit",
+  "reviewHelpful": "Helpful",
+  "reviewsEmpty": "No reviews yet",
+  "wikiTitle": "Wiki",
+  "wikiRecent": "Recently updated",
+  "wikiEditOnGithub": "Edit on GitHub",
+  "wikiToc": "Contents",
+  "wikiNamespaces": "Namespaces",
+  "wikiViewCount": "{count} views",
+  "@wikiViewCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsPush": "Push notifications",
+  "settingsPushDenied": "Notification permission denied, tap to open Settings",
+  "settingsFollowSiteTheme": "Follow site theme",
+  "settingsFollowSiteThemeDesc": "Use server-issued site colors",
+  "entryCourses": "Courses",
+  "entrySchedule": "Schedule",
+  "entryWiki": "Wiki",
+  "navCampus": "Campus",
+  "campusTitle": "Your campus, connected",
+  "campusSubtitle": "Find courses, plan your week and share campus knowledge.",
+  "campusCoursesHint": "Explore courses and student reviews",
+  "campusScheduleHint": "Plan your week, check conflicts and export",
+  "campusWikiHint": "A campus guide built by the community",
+  "publishMoment": "Moment",
+  "publishQuestion": "Question",
+  "publishArticle": "Article",
+  "publishNext": "Next",
+  "publishGallery": "Choose photos, then tell your story",
+  "publishGalleryHint": "Up to 9 photos. Hold and drag to reorder.",
+  "publishFormatting": "Formatting",
+  "publishClassification": "Choose categories",
+  "publishLeaveTitle": "Keep your work?",
+  "publishLeaveBody": "You have unsaved changes. Continue editing or discard them.",
+  "publishDiscard": "Discard changes",
+  "publishContinue": "Keep editing",
+  "publishImageOnlyTitle": "A moment to share",
+  "publishTypeLocked": "The original type is retained when editing",
+  "profileMore": "More options",
+  "profileContent": "Manage content",
+  "profileTrash": "Recycle bin",
+  "profileSecurity": "Account, security & privacy",
+  "profileAdmin": "Admin workspace",
+  "fabDiscussion": "Jump to discussion",
+  "fabRefresh": "Refresh and return to top",
+  "contentRestore": "Restore",
+  "contentDelete": "Delete",
+  "contentPurge": "Delete permanently",
+  "contentDeleteConfirm": "Content moves to the recycle bin and can be restored within 30 days when eligible.",
+  "contentPurgeConfirm": "This cannot be undone. Text and images will be permanently erased.",
+  "contentPassword": "Enter your current password to confirm",
+  "contentSelected": "Selected",
+  "contentSelectAll": "Select loaded items",
+  "contentEmpty": "No content here yet",
+  "contentTrashHint": "Eligible content can be restored for 30 days. Moderated removals cannot be restored here.",
+  "commonConfirm": "Confirm",
+  "adminUnavailable": "The admin console is unavailable. Check your permissions, session and connection, then retry.",
+  "adminDownloadFailed": "Could not download the export. Please try again.",
+  "publishGalleryTooMany": "Content supports up to 9 images. Remove some images or continue with the article editor.",
+  "profileActivity": "Activity",
+  "profileBookmarks": "Bookmarks",
+  "profileModeration": "Moderation workspace",
+  "settingsCloseAccount": "Close account",
+  "settingsCloseAccountWarning": "Account closure is irreversible and signs out all devices. Keep historical content under an anonymized identity, or request deletion of your content. Retention rules may preserve some content. Enter your current password to confirm.",
+  "settingsCloseKeepContent": "Keep anonymized content",
+  "settingsCloseDeleteContent": "Request content deletion",
+  "publishUndo": "Undo",
+  "publishRedo": "Redo",
+  "publishHeading": "Heading",
+  "publishToolLink": "Insert link",
+  "publishLinkInvalid": "Enter a valid http, https or email link.",
+  "publishPhotoLibrary": "Choose from library",
+  "publishCamera": "Take a photo",
+  "settingsWebsiteName": "Website name",
+  "settingsWebsite": "Website",
+  "settingsSocialLinks": "Social links",
+  "settingsProfileLanguage": "Profile language",
+  "settingsInvalidLink": "Enter a valid http or https link",
+  "siteInfoTitle": "About the community",
+  "siteInfoLinks": "Community links",
+  "siteInfoSponsors": "Supporters",
+  "siteInfoTerms": "Terms of service",
+  "siteInfoPrivacy": "Privacy policy",
+  "siteInfoEmpty": "No public content yet",
+  "settingsUsernameHint": "This is your sign-in name. Site naming rules apply.",
+  "settingsUsernameUpdated": "Username updated",
+  "settingsPresetAvatar": "Choose a preset avatar",
+  "coursesManagement": "Manage courses",
+  "coursesReviewModeration": "Review moderation",
+  "settingsCover": "Profile cover",
+  "settingsCoverDescription": "Choose an image and adjust the crop",
+  "settingsCoverRemove": "Remove cover",
+  "settingsCoverRemoveConfirm": "Your profile will use the default background.",
+  "settingsCoverMinSize": "Choose an image at least 1200 × 240 pixels",
+  "settingsCoverSafeArea": "The bright center is the main mobile view. The full width is preserved for wider screens.",
+  "settingsCropHint": "Drag to reposition. Pinch to zoom.",
+  "settingsCropPreview": "Image crop preview",
+  "settingsCropZoom": "Zoom",
+  "settingsCropReset": "Reset position",
+  "settingsImageSaved": "Image updated",
+  "settingsImageTooLarge": "Image must be no larger than {maxMb} MB",
+  "@settingsImageTooLarge": {
+    "placeholders": {
+      "maxMb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsOAuthUnavailable": "Not enabled on this site",
+  "settingsOAuthOpenBrowser": "Manage connections in browser",
+  "settingsOAuthBrowserHint": "Sign in as @{username} in the browser to connect an account. Connections refresh when you return to the app.",
+  "@settingsOAuthBrowserHint": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "commonRefresh": "Refresh",
+  "topicEarliest": "Earliest",
+  "topicLatest": "Latest",
+  "topicEarlierReplies": "Load earlier replies",
+  "topicHistory": "Revision history",
+  "topicHistoryUnavailable": "This version is unavailable",
+  "topicHistoryEmpty": "No revisions yet",
+  "topicDeleteConfirm": "Delete this content? Recoverable items can be found in the recycle bin.",
+  "topicModerateBan": "Hide content",
+  "topicModerateUnban": "Restore visibility",
+  "topicModerateConfirm": "Change the visibility of this content?",
+  "topicShare": "Share",
+  "topicEditReply": "Edit reply",
+  "topicRemoved": "This content has been deleted or removed",
+  "topicBookmark": "Bookmark",
+  "topicBookmarked": "Remove bookmark",
+  "topicLike": "Like",
+  "authEmailPrefix": "Email username",
+  "authEmailDomain": "Email domain",
+  "authAgreePolicies": "I have read and agree to the published policies",
+  "authPasswordMismatch": "The passwords do not match",
+  "schedulerWebTitle": "Explore the full scheduler on the Web",
+  "schedulerWebAction": "Open f.yourtj.de",
+  "schedulerPlanDisclaimer": "This is a course plan. Final enrolment is determined by the university.",
+  "campusExploreCourses": "Find your next course through student reviews",
+  "campusPlanTitle": "Turn your course shortlist into a plan",
+  "campusPlanDescription": "Compare offerings and check conflicts before choosing.",
+  "loginGoogle": "Continue with Google",
+  "loginGithub": "Continue with GitHub",
+  "wikiSearchUnavailable": "Search is unavailable. You can still browse the directory.",
+  "wikiSearchHint": "Search campus knowledge",
+  "wikiExploreTitle": "Your campus companion",
+  "notificationComment": "{actor} commented on your topic",
+  "@notificationComment": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationMention": "{actor} mentioned you",
+  "@notificationMention": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationPostReply": "{actor} replied to you",
+  "@notificationPostReply": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationTopicPost": "{actor} posted in a topic you watch",
+  "@notificationTopicPost": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationFollow": "{actor} followed you",
+  "@notificationFollow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationLike": "{actor} liked your reply",
+  "@notificationLike": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationWikiUpdated": "{actor} updated a wiki page you watch",
+  "@notificationWikiUpdated": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationBadge": "You earned the “{badge}” badge",
+  "@notificationBadge": {
+    "placeholders": {
+      "badge": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationNew": "New notification",
+  "notificationSomeone": "Someone",
+  "profileRoleAdmin": "Admin",
+  "profileActionSignup": "Joined the community",
+  "profileActionPost": "Published a topic",
+  "profileActionLike": "Liked",
+  "profileActionFollow": "Followed",
+  "profileActionComment": "Replied",
+  "replyQuoteExpand": "Show full quote",
+  "replyQuoteCollapse": "Collapse quote",
+  "notificationBadgeUnnamed": "You earned a new badge",
+  "settingsAppLanguage": "App language",
+  "settingsLanguageSystem": "Follow system",
+  "scheduleGradeYear": "Class of {year}",
+  "@scheduleGradeYear": {
+    "placeholders": {
+      "year": {
+        "type": "String"
+      }
+    }
+  },
+  "schedulePeriods": "Periods",
+  "scheduleWeeksLabel": "Weeks",
+  "schedulePeriodRange": "Periods {range}",
+  "@schedulePeriodRange": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "courseCopyCreditUnit": "Credits",
+  "courseCopyNoTeacher": "No teacher",
+  "courseCopyCatalogEmptyTitle": "No courses yet",
+  "courseCopyCatalogEmptyDescription": "The course catalog has not been imported yet.",
+  "courseCopyNoFilterResults": "No courses match these filters.",
+  "courseCopyNoFilterResultsDescription": "Try adjusting or clearing filters to see more courses.",
+  "courseCopyClearSearch": "Clear search",
+  "courseCopyDone": "Done",
+  "courseCopyNoOptions": "No options available",
+  "courseCopySelectedCount": "{count} selected",
+  "@courseCopySelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "courseCopyInstructorInputHint": "Enter an instructor name and press enter",
+  "courseCopyInstructorAdd": "Add",
+  "courseCopyInstructorEmptyHint": "Add instructors with the field above",
+  "courseCopyAliasesLabel": "Aliases: ",
+  "courseCopyLegacyNamesLabel": "Former name: ",
+  "courseCopyReviewScopeTeam": "Teaching Team",
+  "courseCopyReviewScopeCourse": "Course-level Reviews",
+  "courseCopyTeamInstructorsPrefix": "Teaching team · ",
+  "courseCopyTeamInstructorsSuffix": " ({count} teachers)",
+  "@courseCopyTeamInstructorsSuffix": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "courseCopyRatingTitle": "Course rating",
+  "courseCopyRatingOutOf": "/ 5.0",
+  "courseCopyNoRatingQuiet": "No rating yet",
+  "courseCopyOfferingsEmpty": "No offerings yet.",
+  "courseCopyOfferingFocusLabel": "Showing reviews for this class only",
+  "courseCopyOfferingFocusClear": "Show all reviews",
+  "courseCopySummaryGenerated": "Generated",
+  "courseCopySummaryKeywords": "Keywords",
+  "courseCopySummaryPros": "Pros",
+  "courseCopySummaryCons": "Cons",
+  "courseCopySummaryRepresentativeReviews": "Representative reviews",
+  "courseCopySummarySentimentPositive": "Positive",
+  "courseCopySummarySentimentNeutral": "Neutral",
+  "courseCopySummarySentimentNegative": "Negative",
+  "courseCopySummaryRefresh": "Refresh",
+  "courseCopySummaryExpand": "Expand",
+  "courseCopySummaryCollapse": "Collapse",
+  "courseCopySummaryDisclaimer": "Generated by AI from student reviews. For reference only; not a course recommendation.",
+  "courseCopySummaryInsufficient": "Not enough reviews to generate an AI summary yet.",
+  "courseCopySummaryLoadFailed": "Failed to generate the AI summary. Please try again later.",
+  "courseCopyWriteReviewTitle": "Write a review",
+  "courseCopyEditReviewTitle": "Edit review",
+  "courseCopySelectOffering": "Select offering",
+  "courseCopyRatingLabel": "Rating",
+  "courseCopyContentLabel": "Review",
+  "courseCopyContentPlaceholder": "Share your experience with the course, teaching quality, or grading…",
+  "courseCopyRatingRequired": "Please choose a 1–5 star rating.",
+  "courseCopyContentRequired": "Review content cannot be empty.",
+  "courseCopyAnonymousLabel": "Post anonymously (identity hidden from the public)",
+  "courseCopySubmitSuccess": "Submitted",
+  "courseCopyUpdateSuccess": "Updated",
+  "courseCopyDelete": "Delete",
+  "courseCopyDeleteReviewTitle": "Delete review",
+  "courseCopyConfirmDeleteReview": "Delete this review? This cannot be undone.",
+  "courseCopyReviewDeleted": "Review deleted",
+  "courseCopyOperationFailed": "Operation failed. Please try again later.",
+  "courseCopyReviewsLoadFailed": "Failed to load reviews. Please try again later.",
+  "courseCopyAuthorAnonymousLabel": "Anonymous",
+  "courseCopyAuthorLegacyLabel": "Legacy anonymous review",
+  "courseCopyRelatedTeacherCoursesTitle": "Other courses by the same teachers",
+  "courseCopyRelatedOtherTeachersTitle": "Other teachers of this course",
+  "courseCopyRelatedEmpty": "No related content",
+  "courseCopyRelationEquivalent": "Equivalent",
+  "courseCopyRelationRenamed": "Renamed",
+  "courseCopyRelationSplit": "Split",
+  "courseCopyRelationMerged": "Merged",
+  "courseCopyRelationRelated": "Related",
+  "courseCopySummaryConsensusStrongRecommend": "Strongly recommended",
+  "courseCopySummaryConsensusRecommend": "Recommended",
+  "courseCopySummaryConsensusNeutral": "Mixed",
+  "courseCopySummaryConsensusCautious": "Caution advised",
+  "courseCopySummaryConsensusNotRecommend": "Not recommended",
+  "courseCopySummaryConsensusTextStrongRecommend": "Most students strongly recommend this course.",
+  "courseCopySummaryConsensusTextRecommend": "Most students recommend this course.",
+  "courseCopySummaryConsensusTextNeutral": "Students have mixed opinions about this course.",
+  "courseCopySummaryConsensusTextCautious": "Most students advise caution before choosing this course.",
+  "courseCopySummaryConsensusTextNotRecommend": "Most students do not recommend this course.",
+  "topicJoinDiscussion": "Join discussion",
+  "updateCheck": "Check for updates",
+  "updateAvailable": "Update available",
+  "updateLatest": "You’re up to date",
+  "updateFailed": "Unable to check or download updates. Please try again later.",
+  "updateDownload": "Download update",
+  "updateSkip": "Skip this version",
+  "updateLater": "Later",
+  "updatePreparing": "Choosing the fastest download source…",
+  "updateDownloading": "Downloading…",
+  "updateReady": "Update verified and ready to install.",
+  "updateInstall": "Install update",
+  "updatePermission": "Allow YourTJ to install apps, then return and tap Install again.",
+  "updateRetry": "Retry",
+  "settingsPushConsent": "Enable system notifications via Apple (iOS) or JPush and device vendors (Android). These services process push identifiers and notification content.",
+  "settingsPushUnsupported": "Push is not configured in this build",
+  "settingsPushServerDisabled": "The server has not enabled this delivery channel. Tap to retry.",
+  "settingsPushFailed": "Push registration failed. Check your connection and tap to retry.",
+  "settingsPushPrivacy": "JPush privacy policy (Android)"
+}

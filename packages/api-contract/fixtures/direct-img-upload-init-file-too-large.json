@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "upload.file.tooLarge",
+  "params": {
+    "maxSizeKb": 4096
+  }
+}

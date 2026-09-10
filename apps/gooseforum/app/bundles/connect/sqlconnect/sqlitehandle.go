@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/fileopt"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/fileopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"gorm.io/gorm"
 )
 
@@ -83,10 +83,16 @@ func cleanOldBackups(sourcePath string, keep int) {
 	}
 
 	// 按修改时间排序（旧文件在前）
-	sort.Slice(files, func(i, j int) bool {
-		infoI, _ := os.Stat(files[i])
-		infoJ, _ := os.Stat(files[j])
-		return infoI.ModTime().Before(infoJ.ModTime())
+	slices.SortFunc(files, func(a, b string) int {
+		infoA, _ := os.Stat(a)
+		infoB, _ := os.Stat(b)
+		if infoA.ModTime().Before(infoB.ModTime()) {
+			return -1
+		}
+		if infoA.ModTime().After(infoB.ModTime()) {
+			return 1
+		}
+		return 0
 	})
 
 	// 删除超量旧备份

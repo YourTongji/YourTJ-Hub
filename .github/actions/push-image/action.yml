@@ -1,0 +1,41 @@
+name: push-image
+description: Stage the built binary and push the GHCR image with a parameterized tag
+
+inputs:
+  tag:
+    description: Image tag suffix, e.g. dev-<sha> or main-<sha>
+    required: true
+  github-token:
+    description: GITHUB_TOKEN for GHCR login (composite actions cannot read the secrets context directly)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: yourtj-hub
+        path: ./bin
+    - name: Stage binary into build context
+      shell: bash
+      run: |
+        cp bin/yourtj-hub deploy/yourtj-hub
+        # upload/download-artifact 不保留 Unix 执行位, 必须显式恢复,
+        # 否则镜像入口 /app/yourtj-hub 无执行权限导致部署回滚
+        chmod +x deploy/yourtj-hub
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.github-token }}
+    # GHCR 包首次创建默认 private: 首次运行后需手动把包设为 public,
+    # 否则服务器匿名 pull 401(见 docs/operations/deployment.md 迁移 runbook)
+    - name: Build and push image
+      uses: docker/build-push-action@v6
+      with:
+        context: deploy/
+        file: deploy/Dockerfile
+        push: true
+        tags: ghcr.io/yourtongji/yourtj-hub:${{ inputs.tag }}

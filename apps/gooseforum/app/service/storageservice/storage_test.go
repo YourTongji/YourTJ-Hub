@@ -3,7 +3,7 @@ package storageservice
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 func TestIsLocalProviderDefault(t *testing.T) {

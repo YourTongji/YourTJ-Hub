@@ -1,0 +1,38 @@
+{
+  "result": {
+    "userId": 1024,
+    "username": "tongji_user",
+    "nickname": "同济用户",
+    "avatarUrl": "/static/pic/3.webp",
+    "profileCoverUrl": "",
+    "bio": "多喝水",
+    "signature": "同舟共济",
+    "websiteName": "",
+    "website": "",
+    "prestige": 12,
+    "isAdmin": false,
+    "topicCount": 7,
+    "replyCount": 42,
+    "likeReceivedCount": 18,
+    "likeGivenCount": 23,
+    "followerCount": 5,
+    "followingCount": 9,
+    "collectionCount": 3,
+    "isOnline": false,
+    "isFollowing": false,
+    "externalInformation": {
+      "github": { "link": "https://github.com/tongji-user" },
+      "weibo": { "link": "" },
+      "bilibili": { "link": "" },
+      "twitter": { "link": "" },
+      "linkedIn": { "link": "" },
+      "zhihu": { "link": "" }
+    },
+    "isSelf": false,
+    "badges": [],
+    "lastActiveTime": "2026-08-15T12:34:56Z",
+    "createdAt": "2025-09-01T08:00:00Z",
+    "isAccountClosed": false
+  },
+  "code": 0
+}

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/meilisearch/meilisearch-go"
 )
 
@@ -80,6 +80,9 @@ func TestAggregateSearchE2E(t *testing.T) {
 	if !containsUser(resp.Users, user.Id) {
 		t.Fatalf("zhangsan should match user %d, got %+v", user.Id, resp.Users)
 	}
+	// 4.1 候选契约字段（issue #562）：scope=users 的候选 UI 需要
+	// id/username/nickname/avatarUrl/bio，展示数据由 DB 重构填充。
+	assertUserCandidateFields(t, resp.Users, user.Id, user.Username, user.Nickname, user.Bio)
 
 	// 5. 首字母命中（nickname 张三 -> ZS）
 	resp, err = AggregateSearch(AggregateSearchRequest{Query: "zs", Scope: ScopeUsers, Limit: 10})
@@ -156,12 +159,31 @@ func containsCategory(cats []CategorySearchResult, id uint64) bool {
 	return false
 }
 
+// assertUserCandidateFields 校验 scope=users 候选契约字段（issue #562）：
+// id/username/nickname/avatarUrl/bio 与 DB 重构数据一致。
+func assertUserCandidateFields(t *testing.T, users []UserSearchResult, id uint64, username, nickname, bio string) {
+	t.Helper()
+	for _, u := range users {
+		if u.ID != id {
+			continue
+		}
+		if u.Username != username || u.Nickname != nickname || u.Bio != bio {
+			t.Fatalf("user candidate fields mismatch for %d: got %+v, want username=%q nickname=%q bio=%q", id, u, username, nickname, bio)
+		}
+		if u.AvatarURL == "" {
+			t.Fatalf("user candidate avatarUrl must be non-empty for %d, got %+v", id, u)
+		}
+		return
+	}
+	t.Fatalf("user %d not found in candidate results", id)
+}
+
 func waitIndexTask(t *testing.T, client meilisearch.ServiceManager) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		tasks, err := client.GetTasks(&meilisearch.TasksQuery{
-			IndexUIDS: []string{TopicIndex, UserIndex, CategoryIndex},
+			IndexUIDS: []string{TopicIndex, UserIndex, CategoryIndex, WikiPageIndex},
 		})
 		if err != nil {
 			time.Sleep(100 * time.Millisecond)

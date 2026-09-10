@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from '@lucide/vue'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import { buildBeamAvatarDataUri } from '@/site/utils/course-review-share'
 import type { ReplyTargetPayload } from '@gooseforum/client'
 
 const props = defineProps<{
@@ -56,17 +57,32 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   <aside class="mb-2 border-l-2 border-primary/45 bg-base-200/40 py-2">
     <div class="flex min-h-7 items-center gap-2 px-3 text-sm text-base-content/55">
       <UserAvatar
-        v-if="target && !target.unavailable"
+        v-if="target && !target.unavailable && !target.isAnonymous"
         :src="target.author.avatarUrl"
         :alt="target.author.username"
         class="h-6 w-6 rounded-full object-cover ring-1 ring-line"
       />
-      <span v-if="target?.author.username" class="min-w-0 truncate font-medium text-base-content/75">@{{ target.author.username }}</span>
+      <UserAvatar
+        v-else-if="target && !target.unavailable"
+        :src="buildBeamAvatarDataUri(`anonymous-${target.id}`, 24)"
+        :alt="t('topic.authorAnonymous')"
+        class="h-6 w-6 rounded-full object-cover ring-1 ring-line"
+      />
+      <span v-if="target?.author.username && !target.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">@{{ target.author.username }}</span>
+      <span v-else-if="target?.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">{{ t('topic.authorAnonymous') }}</span>
       <span v-if="target?.postNo" class="shrink-0 text-xs text-base-content/45">#{{ target.postNo }}</span>
     </div>
 
     <div v-if="!target || target.unavailable" class="px-3 pt-2 text-sm text-base-content/45">
       {{ t('topic.replyTargetUnavailable') }}
+    </div>
+    <div v-else-if="target.isAuthorDeleted" class="px-3 pt-2 text-sm text-base-content/55">
+      <div class="font-semibold text-base-content/70">{{ t('topic.authorDeletedTitle') }}</div>
+      <div class="mt-1 leading-6">{{ t('topic.authorDeletedPlaceholder') }}</div>
+    </div>
+    <div v-else-if="target.isModeratorRemoved" class="px-3 pt-2 text-sm text-base-content/55">
+      <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
+      <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
     </div>
     <template v-else>
       <div class="px-3 pt-2">
@@ -77,8 +93,10 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
             'reply-reference-content--collapsed': !expanded,
             'reply-reference-content--faded': !expanded && overflowing,
           }"
+          v-code-copy
           v-code-highlight
           v-math-render
+          v-content-enhancements
           v-html="target.renderedContent"
         />
       </div>

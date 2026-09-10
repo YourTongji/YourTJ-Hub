@@ -1,0 +1,19 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 700001,
+        "title": "契约待审主题",
+        "excerpt": "契约待审主题",
+        "userId": 800001,
+        "username": "contract_user",
+        "processStatus": 2,
+        "createdAt": "2026-02-03T04:05:06Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pageSize": 20
+  },
+  "code": 0
+}

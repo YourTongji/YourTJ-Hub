@@ -21,6 +21,7 @@ import {
 import { getFriendLinks, saveFriendLinks } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, FriendLink, FriendLinkGroup, ManageHomeProps } from '@/admin/types'
+import { safeUrl } from '@/runtime/safe-url'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -123,6 +124,10 @@ async function submitLink() {
     adminToast.warning(adminText('k003l'))
     return
   }
+  if (!safeUrl(linkForm.url, 'external') || ((linkForm.logoUrl || '').trim() !== '' && !safeUrl(linkForm.logoUrl, 'image'))) {
+    adminToast.warning(adminText('k00up'))
+    return
+  }
   if (!linkDialog.value) return
   const next = normalize(groups.value)
   const link = { name: linkForm.name.trim(), desc: linkForm.desc || '', url: linkForm.url.trim(), logoUrl: linkForm.logoUrl || '', status: Number(linkForm.status ?? 1) }
@@ -165,7 +170,7 @@ onMounted(() => {
 <template>
   <BasicPage :title="adminText('k006u')" :description="adminText('k006v')" sticky>
     <template #actions>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <Button variant="outline" type="button" @click="loadLinks">
           <RefreshCw class="size-4" />
           {{ adminText('k004q') }}
@@ -179,11 +184,11 @@ onMounted(() => {
 
       <div v-if="loading && !loaded" class="flex h-64 items-center justify-center rounded-lg border text-muted-foreground">{{ adminText('k0046') }}</div>
       <div v-else-if="error" class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{{ error }}</div>
-      <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+      <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
         <Draggable
           v-model="groups"
           item-key="name"
-          class="space-y-5 pb-8"
+          class="min-w-0 space-y-5 pb-8"
           handle=".js-group-handle"
           ghost-class="opacity-40"
           chosen-class="opacity-80"
@@ -203,7 +208,7 @@ onMounted(() => {
                   <span class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{{ group.links.length }}</span>
                 </div>
                 <div class="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="sm" class="h-8 gap-1.5 px-2 text-xs" type="button" @click="openAddLink(groupIndex)">
+                  <Button data-testid="admin-link-add" variant="ghost" size="sm" class="h-8 gap-1.5 px-2 text-xs" type="button" @click="openAddLink(groupIndex)">
                     <Plus class="size-3.5" />
                     {{ adminText('k0094') }}
                   </Button>
@@ -228,11 +233,11 @@ onMounted(() => {
               >
                 <template #item="{ element: link, index: linkIndex }">
                   <article
-                    class="group relative mb-2 inline-flex w-full rounded-md border bg-card px-2.5 py-2 pr-3 transition hover:border-primary/30 md:mr-2 md:w-[calc(33.333%-0.5rem)] xl:w-[calc(25%-0.5rem)] 2xl:w-[calc(20%-0.5rem)]"
+                    class="group relative mb-2 inline-flex w-full flex-wrap rounded-md border bg-card px-2.5 py-2 pr-3 transition hover:border-primary/30 md:mr-2 md:w-[calc(33.333%-0.5rem)] xl:w-[calc(25%-0.5rem)] 2xl:w-[calc(20%-0.5rem)]"
                     :class="(link.status ?? 1) === 0 && 'opacity-65'"
                     :style="{ borderColor: groupTint(group, 0.22) }"
                   >
-                    <GripVertical class="js-link-handle absolute left-1 top-1 size-3.5 cursor-grab text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing" />
+                    <GripVertical class="js-link-handle absolute left-1 top-1 size-3.5 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
                     <div class="flex min-w-0 flex-1 items-start gap-2 pl-1">
                       <div class="relative shrink-0">
                         <img v-if="link.logoUrl" :src="link.logoUrl" class="size-8 rounded-md border border-border/70 object-cover" alt="" :class="(link.status ?? 1) === 0 && 'grayscale'" />
@@ -242,7 +247,7 @@ onMounted(() => {
                         <button
                           type="button"
                           class="absolute -bottom-1 -right-1 rounded-full border p-0.5 shadow-sm transition-all"
-                          :class="(link.status ?? 1) === 0 ? 'bg-background text-muted-foreground hover:bg-muted' : 'bg-primary text-primary-foreground opacity-0 group-hover:opacity-100'"
+                          :class="(link.status ?? 1) === 0 ? 'bg-background text-muted-foreground hover:bg-muted' : 'bg-primary text-primary-foreground'"
                           :title="(link.status ?? 1) === 0 ? adminText('k006x') : adminText('k006y')"
                           @click="toggleLinkStatus(groupIndex, linkIndex, (link.status ?? 1) === 0)"
                         >
@@ -265,7 +270,7 @@ onMounted(() => {
                         <p class="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground">{{ link.desc || link.url }}</p>
                       </div>
                     </div>
-                    <div class="absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div class="mt-2 flex w-full justify-end gap-1">
                       <a
                         :href="link.url"
                         target="_blank"
@@ -279,7 +284,7 @@ onMounted(() => {
                       <AdminActionButton compact :title="adminText('k005j')" @click="openEditLink(groupIndex, linkIndex, link)">
                         <Pencil class="size-3.5" />
                       </AdminActionButton>
-                      <AdminActionButton compact tone="danger" :title="adminText('k005i')" @click="deleteDialog = { type: 'link', groupIndex, linkIndex }">
+                      <AdminActionButton data-testid="admin-link-delete" compact tone="danger" :title="adminText('k005i')" @click="deleteDialog = { type: 'link', groupIndex, linkIndex }">
                         <Trash2 class="size-3.5" />
                       </AdminActionButton>
                     </div>

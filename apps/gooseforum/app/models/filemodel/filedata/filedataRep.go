@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 
 	"github.com/google/uuid"
 )
@@ -32,22 +33,16 @@ type FileResourcePageResult struct {
 	MaxId    int64
 }
 
-var supportedImageTypes = map[string]string{
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".png":  "image/png",
-	".gif":  "image/gif",
-	".webp": "image/webp",
-	".bmp":  "image/bmp",
-}
-
-// CheckImageType returns the image MIME type for supported extensions.
+// CheckImageType returns the canonical image MIME type for a supported
+// filename extension. The authoritative supported set lives in imagepolicy:
+// everything else (svg/html/js/xml/pdf/double extensions) is rejected here too,
+// keeping the storage naming path consistent with the upload gate.
 func CheckImageType(filename string) (string, error) {
-	ext := strings.ToLower(path.Ext(filename))
-	if contentType, ok := supportedImageTypes[ext]; ok {
-		return contentType, nil
+	contentType, ok := imagepolicy.ContentTypeForFilename(filename)
+	if !ok {
+		return "", fmt.Errorf("unsupported image type: %s", path.Ext(filename))
 	}
-	return "", fmt.Errorf("unsupported image type: %s", ext)
+	return contentType, nil
 }
 
 func create(entity *Entity) int64 {
@@ -65,10 +60,12 @@ func SaveFile(userId uint64, name string, fileType string, data []byte) (*Entity
 		return nil, fmt.Errorf("file already exists: %s", name)
 	}
 	entity := &Entity{
-		Name:   name,
-		Type:   fileType,
-		Data:   data,
-		UserId: userId,
+		Name:          name,
+		Type:          fileType,
+		Data:          data,
+		Size:          int64(len(data)),
+		StorageStatus: StorageStatusReady,
+		UserId:        userId,
 	}
 	affected := create(entity)
 	if affected == 0 {
@@ -87,7 +84,7 @@ func SaveFile(userId uint64, name string, fileType string, data []byte) (*Entity
 
 func GetFileByName(name string) (*Entity, error) {
 	entity := GetByName(name)
-	if entity.Id == 0 {
+	if entity.Id == 0 || entity.StorageStatus != StorageStatusReady {
 		return nil, errors.New("file not found")
 	}
 	if storageservice.IsLocalProvider() {
@@ -119,6 +116,88 @@ func DeleteByName(name string) error {
 	return builder().Where(queryopt.Eq(fieldName, name)).Delete(&Entity{}).Error
 }
 
+// DeleteByNameContext removes the file row only; the direct upload lifecycle
+// deletes the provider object separately.
+func DeleteByNameContext(ctx context.Context, name string) error {
+	return builder().WithContext(ctx).Where(queryopt.Eq(fieldName, name)).Delete(&Entity{}).Error
+}
+
+// CreateFileMetadata inserts a pending metadata row for a direct upload. The
+// row carries the expected size and content type so the complete step can
+// verify the uploaded object before flipping it to ready.
+func CreateFileMetadata(ctx context.Context, userId uint64, name string, fileType string, size int64) (*Entity, error) {
+	var count int64
+	result := builder().WithContext(ctx).Where(queryopt.Eq(fieldName, name)).Count(&count)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if count > 0 {
+		return nil, fmt.Errorf("file already exists: %s", name)
+	}
+	entity := &Entity{Name: name, Type: fileType, Size: size, StorageStatus: StorageStatusPending, UserId: userId}
+	result = builder().WithContext(ctx).Create(entity)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, errors.New("failed to save file metadata, possibly duplicate name")
+	}
+	return entity, nil
+}
+
+// GetFileMetadataByNameContext returns the ready metadata row for name without
+// loading the content BLOB.
+func GetFileMetadataByNameContext(ctx context.Context, name string) (*Entity, error) {
+	return getFileMetadataByNameAndStatus(ctx, name, StorageStatusReady)
+}
+
+// GetPendingFileMetadataByNameContext returns the pending metadata row for name.
+func GetPendingFileMetadataByNameContext(ctx context.Context, name string) (*Entity, error) {
+	return getFileMetadataByNameAndStatus(ctx, name, StorageStatusPending)
+}
+
+func getFileMetadataByNameAndStatus(ctx context.Context, name string, status string) (*Entity, error) {
+	var entity Entity
+	err := builder().WithContext(ctx).
+		Select("id, name, assert_type, file_size, storage_status, user_id, created_at, updated_at").
+		Where(queryopt.Eq(fieldName, name)).Where("storage_status = ?", status).First(&entity).Error
+	if err != nil || entity.Id == 0 {
+		return nil, errors.New("file not found")
+	}
+	return &entity, nil
+}
+
+// MarkFileReady flips a pending metadata row to ready after the uploaded
+// object has been verified.
+func MarkFileReady(ctx context.Context, name string) (*Entity, error) {
+	result := builder().WithContext(ctx).Where(queryopt.Eq(fieldName, name)).UpdateColumn("storage_status", StorageStatusReady)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, errors.New("file metadata not found")
+	}
+	return GetFileMetadataByNameContext(ctx, name)
+}
+
+// ListPendingFilesBefore returns pending metadata rows created before the
+// given time, oldest first, capped at limit. Used by the cleanup job to reap
+// interrupted or expired direct uploads.
+func ListPendingFilesBefore(ctx context.Context, before time.Time, limit int) ([]Entity, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	var entities []Entity
+	err := builder().WithContext(ctx).
+		Select("id, name, assert_type, file_size, storage_status, user_id, created_at, updated_at").
+		Where("storage_status = ? AND created_at < ?", StorageStatusPending, before).
+		Order("id ASC").Limit(limit).Find(&entities).Error
+	return entities, err
+}
+
 // QueryById returns rows with id greater than startId, ascending (migration cursor).
 func QueryById(startId uint64, limit int) (entities []*Entity) {
 	builder().Where(queryopt.Gt("id", startId)).Limit(limit).Order(queryopt.Asc("id")).Find(&entities)
@@ -129,6 +208,17 @@ func QueryById(startId uint64, limit int) (entities []*Entity) {
 func CountFiles() int64 {
 	var count int64
 	builder().Count(&count)
+	return count
+}
+
+// CountFilesUpTo returns the number of file rows with id <= cursor. The
+// migration cursor only advances past successfully migrated (or already empty)
+// rows, so this is the task-level cumulative count of migrated objects. It is
+// derived from the persisted cursor instead of per-run local counters, so a
+// worker retry never overwrites the accumulated progress with a partial count.
+func CountFilesUpTo(cursor uint64) int64 {
+	var count int64
+	builder().Where(queryopt.Le("id", cursor)).Count(&count)
 	return count
 }
 
@@ -155,7 +245,7 @@ func FileResourcePage(page, pageSize int) FileResourcePageResult {
 	var list []FileResource
 	builder().
 		Where("id <= ?", upperId).
-		Select("id, name, assert_type AS type, LENGTH(content) AS size, user_id, created_at").
+		Select("id, name, assert_type AS type, COALESCE(file_size, 0) AS size, user_id, created_at").
 		Order("id DESC").
 		Limit(pageSize).
 		Scan(&list)

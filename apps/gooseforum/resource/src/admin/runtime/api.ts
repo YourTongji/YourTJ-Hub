@@ -2,6 +2,9 @@ import { adminText } from '@/admin/runtime/i18n-text'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
+  AdminAgent,
+  AdminAgentCreateResult,
+  AdminAgentRotateResult,
   AdminTaskRow,
   AdminTopic,
   AdminBadge,
@@ -21,7 +24,15 @@ import type {
   HttpNotifySettings,
   MailSettings,
   PageResult,
+  PrivacyPolicyConfig,
   PostingSettings,
+  MCPSettings,
+  AiSummaryModelItem,
+  AiSummarySettings,
+  OnesystemSettings,
+  ScheduleSettings,
+  PkSyncStatusItem,
+  PkMaterializeResult,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -30,22 +41,35 @@ import type {
   SiteSettings,
   SiteStatistics,
   SponsorsConfig,
-  StorageSettings,
   TermsOfServiceConfig,
   UserBadgeOptions,
+  StorageSettings,
+  WikiNamespace,
+  WikiNamespaceTree,
 } from '@/admin/types'
 
 function responseMessage(data: ApiEnvelope<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
 }
 
+function apiError(data: ApiEnvelope<unknown>, fallback: string) {
+  const error = new Error(responseMessage(data, fallback)) as Error & { messageCode?: string }
+  if (typeof data.messageCode === 'string') {
+    error.messageCode = data.messageCode
+  }
+  return error
+}
+
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
+  if (response.status === 204) {
+    return undefined as T
+  }
   const data = (await response.json()) as ApiEnvelope<T>
   if (data.code !== undefined && data.code !== 0) {
-    throw new Error(responseMessage(data, fallback))
+    throw apiError(data, fallback)
   }
   const result = data.result ?? data.data
   return result as T
@@ -98,6 +122,38 @@ async function postEnvelope<T>(url: string, body?: unknown, fallback = adminText
   return data
 }
 
+async function writeJson<T>(method: 'PUT' | 'DELETE', url: string, body?: unknown, fallback = adminText('k000l')): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!response.ok) {
+    let envelopeError: Error | null = null
+    try {
+      const data = (await response.json()) as ApiEnvelope<unknown>
+      if (data.code !== undefined && data.code !== 0) {
+        envelopeError = apiError(data, fallback)
+      }
+    } catch {
+      // Not a JSON envelope; fall back to the generic HTTP status error below.
+    }
+    if (envelopeError) throw envelopeError
+  }
+  return readApiResponse<T>(response, fallback)
+}
+
+function putJson<T>(url: string, body?: unknown, fallback = adminText('k000l')): Promise<T> {
+  return writeJson<T>('PUT', url, body, fallback)
+}
+
+function deleteJson<T>(url: string, fallback = adminText('k000l')): Promise<T> {
+  return writeJson<T>('DELETE', url, undefined, fallback)
+}
+
 export async function getSiteStatistics(): Promise<SiteStatistics> {
   const response = await fetch('/api/forum/get-site-statistics', {
     headers: { Accept: 'application/json' },
@@ -129,7 +185,7 @@ export async function getServerVersion(): Promise<ServerVersion> {
 }
 
 export async function getGithubReleases(): Promise<GithubRelease[]> {
-  const response = await fetch('https://api.github.com/repos/leancodebox/GooseForum/releases', {
+  const response = await fetch('https://api.github.com/repos/YourTongji/YourTJ-Hub/releases', {
     headers: { Accept: 'application/vnd.github+json' },
   })
   if (!response.ok) {
@@ -226,8 +282,8 @@ export function editTopic(data: { topicId: number, processStatus: number }) {
   return postJson<unknown>('/api/admin/topics/edit', data, adminText('k0015'))
 }
 
-export function deleteTopic(id: number) {
-  return postJson<unknown>('/api/admin/topics/delete', { topicId: id }, adminText('k00cd'))
+export function deleteTopic(id: number, reason: string) {
+  return postJson<unknown>('/api/admin/topics/delete', { topicId: id, reason }, adminText('k00cd'))
 }
 
 export function updateTopicPin(data: { topicId: number, pinWeight: number }) {
@@ -326,6 +382,56 @@ export function saveRateLimitSettings(settings: RateLimitSettings) {
   return postJson<unknown>('/api/admin/save-rate-limit-settings', { settings }, adminText('k00ii'))
 }
 
+export function getMCPSettings() {
+  return getJson<MCPSettings>('/api/admin/mcp-settings', adminText('k00mh'))
+}
+
+export function saveMCPSettings(settings: MCPSettings) {
+  return postJson<unknown>('/api/admin/save-mcp-settings', { settings }, adminText('k00mi'))
+}
+
+export function getAiSummarySettings() {
+  return getJson<AiSummarySettings>('/api/admin/ai-summary-settings', adminText('k00p2'))
+}
+
+export function saveAiSummarySettings(settings: AiSummarySettings) {
+  return postJson<unknown>('/api/admin/save-ai-summary-settings', { settings }, adminText('k00p3'))
+}
+
+export function listAiSummaryModels(params: { baseUrl?: string, apiKey?: string }) {
+  return postJson<{ models: AiSummaryModelItem[] }>('/api/admin/ai-summary-models', params, adminText('k00p8'))
+}
+
+export function getOnesystemSettings() {
+  return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
+}
+
+export function saveOnesystemSettings(cookie: string) {
+  return postJson<unknown>('/api/admin/save-onesystem-settings', { cookie }, adminText('k00s1'))
+}
+
+export function syncPkCalendar(term: string, depth = 1) {
+  return postJson<{ started: boolean, calendarId: number, term: string }>(
+    '/api/admin/pk/sync-calendar',
+    { term, depth },
+    adminText('k00s2'),
+  )
+}
+
+export function getPkSyncStatus() {
+  return getJson<PkSyncStatusItem[]>('/api/admin/pk/sync-status', adminText('k00s3'))
+}
+
+export function getScheduleSettings() {
+  return getJson<ScheduleSettings>('/api/admin/schedule-settings', adminText('k00u7'))
+}
+
+export function saveScheduleSettings(settings: ScheduleSettings) {
+  // 契约 AdminSaveScheduleSettingsRequest：body = { settings: { sectionTimes } }。
+  // 曾发裸 { sectionTimes }，后端绑定零值 Settings 后静默存空表（review P1）。
+  return postJson<unknown>('/api/admin/save-schedule-settings', { settings }, adminText('k00u8'))
+}
+
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {
   return postJson<unknown>('/api/admin/save-http-notify-settings', { settings }, adminText('k00ci'))
 }
@@ -366,6 +472,14 @@ export function saveTermsOfService(settings: TermsOfServiceConfig) {
   return postJson<unknown>('/api/admin/save-terms-of-service', { settings }, adminText('k00go'))
 }
 
+export function getPrivacyPolicy() {
+  return getJson<PrivacyPolicyConfig>('/api/admin/privacy-policy', adminText('k00gt'))
+}
+
+export function savePrivacyPolicy(settings: PrivacyPolicyConfig) {
+  return postJson<unknown>('/api/admin/save-privacy-policy', { settings }, adminText('k00gt'))
+}
+
 export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: number) {
   return postJson<{ items: ReviewQueueItem[], total: number, page: number, pageSize: number }>(
     '/api/admin/review-queue',
@@ -387,11 +501,116 @@ export function getExportTasks() {
 }
 
 export function downloadExportTask(taskId: number) {
-  window.open(`/api/admin/data/export/download/${taskId}`, '_blank')
+  window.location.assign(`/api/admin/data/export/download/${taskId}`)
 }
 
 export function importData(file: File) {
   const body = new FormData()
   body.append('file', file)
   return postForm<ImportReport>('/api/admin/data/import', body, adminText('k00hk'))
+}
+
+export function getImportTasks() {
+  return getJson<AdminTaskRow[]>('/api/admin/data/import/tasks', adminText('k00hk'))
+}
+
+export function replayImportTask(taskId: number) {
+  return postJson<AdminTaskRow>(`/api/admin/data/import/tasks/${taskId}/replay`, {}, adminText('k00hk'))
+}
+
+export function getAgentList() {
+  return postJson<AdminAgent[]>('/api/admin/agent-list', {}, adminText('k00k2'))
+}
+
+export function createAgent(data: { username: string, nickname?: string, webhookEndpoint?: string }) {
+  return postJson<AdminAgentCreateResult>('/api/admin/agent-create', data, adminText('k00k3'))
+}
+
+export function updateAgent(data: { agentId: number, nickname?: string, webhookEndpoint?: string, enabled?: number }) {
+  return postJson<AdminAgent>('/api/admin/agent-update', data, adminText('k00k4'))
+}
+
+export function rotateAgentToken(agentId: number) {
+  return postJson<AdminAgentRotateResult>('/api/admin/agent-rotate-token', { agentId }, adminText('k00k5'))
+}
+
+export function disableAgent(agentId: number) {
+  return postJson<unknown>('/api/admin/agent-disable', { agentId }, adminText('k00k6'))
+}
+
+export function getWikiNamespaces() {
+  return getJson<WikiNamespace[]>('/api/wiki/namespaces', adminText('k00n0'))
+}
+
+export function getWikiTree() {
+  return getJson<WikiNamespaceTree[]>('/api/admin/wiki/tree', adminText('k00n2'))
+}
+
+// ---- GitHub SSOT 同步面板 ----
+
+export interface WikiSyncRunView {
+  id: number
+  headSha: string
+  trigger: string
+  status: 'running' | 'success' | 'failed'
+  pagesAdded: number
+  pagesUpdated: number
+  pagesDeleted: number
+  error?: string
+  startedAt: string
+  finishedAt?: string
+}
+
+export interface WikiSyncStatus {
+  enabled: boolean
+  repo: string
+  branch: string
+  headSha: string
+  lastRun?: WikiSyncRunView
+  recentRuns?: WikiSyncRunView[]
+  pages: { total: number, namespaces: number }
+}
+
+export interface WikiSyncAccepted {
+  accepted: boolean
+}
+
+export function getWikiSyncStatus() {
+  return getJson<WikiSyncStatus>('/api/admin/wiki/sync/status', adminText('k00n0'))
+}
+
+export function triggerWikiSync() {
+  return postJson<WikiSyncAccepted>('/api/admin/wiki/sync', {}, adminText('k00n0'))
+}
+
+export function getWikiSyncRuns() {
+  return getJson<WikiSyncRunView[]>('/api/admin/wiki/sync/runs', adminText('k00n0'))
+}
+
+export interface WikiWebhookSecretStatus {
+  configured: boolean
+}
+
+export function getWikiWebhookSecret() {
+  return getJson<WikiWebhookSecretStatus>('/api/admin/wiki/sync/webhook-secret', adminText('k00n0'))
+}
+
+export function saveWikiWebhookSecret(secret: string) {
+  return postJson<unknown>('/api/admin/wiki/sync/webhook-secret', { secret }, adminText('k00n0'))
+}
+
+export interface WikiAssetCDNStatus {
+  cdn: string
+}
+
+export function getWikiAssetCDN() {
+  return getJson<WikiAssetCDNStatus>('/api/admin/wiki/sync/cdn', adminText('k00n0'))
+}
+
+export function saveWikiAssetCDN(cdn: string) {
+  return postJson<unknown>('/api/admin/wiki/sync/cdn', { cdn }, adminText('k00n0'))
+}
+
+export function materializePkCalendar(term: string) {
+  return postJson<PkMaterializeResult>('/api/admin/pk/materialize-calendar', { term }, adminText('materializeFailed'))
 }

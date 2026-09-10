@@ -1,0 +1,280 @@
+<script setup lang="ts">
+// 方案管理条（v2 多方案）：方案下拉切换 + 新增 + 删除（确认）+ 清空当前方案。
+// 对齐 USTC 排课器「我的方案」交互：每套方案独立持有课程与自定义占位。
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ChevronUp, MoreHorizontal, Plus, Trash2 } from '@lucide/vue'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import SiteSelect from '@/site/components/SiteSelect.vue'
+import SchedulePlanCompareDialog from '@/site/components/schedule/SchedulePlanCompareDialog.vue'
+import { MAX_PLANS, useScheduleStore } from '@/site/composables/useScheduleStore'
+
+const { t } = useI18n()
+const store = useScheduleStore()
+
+const props = withDefaults(
+  defineProps<{
+    collapsible?: boolean
+  }>(),
+  {
+    collapsible: false,
+  },
+)
+
+const emit = defineEmits<{
+  'toggle-collapse': []
+}>()
+
+const planOptions = computed(() =>
+  store.state.plans.map((plan) => ({ value: plan.id, label: plan.name })),
+)
+
+/** 达到方案数量上限：禁用「新增方案」并给出提示。 */
+const planLimitReached = computed(() => store.state.plans.length >= MAX_PLANS)
+
+const planValue = computed({
+  get: () => store.state.activePlanId,
+  set: (value: string) => store.switchPlan(value),
+})
+
+// ---- 删除确认 ----
+const pendingDelete = ref(false)
+
+// ---- 「…」更多菜单 ----
+const menuOpen = ref(false)
+const confirmClear = ref(false)
+
+// ---- 重命名方案 ----
+const renameOpen = ref(false)
+const renameName = ref('')
+
+watch(renameOpen, (open) => {
+  if (open) renameName.value = store.state.plans.find((p) => p.id === store.state.activePlanId)?.name ?? ''
+})
+
+function confirmRename() {
+  if (store.renamePlan(store.state.activePlanId, renameName.value)) renameOpen.value = false
+}
+
+// ---- 复制 / 对比 ----
+const compareOpen = ref(false)
+
+function handleDuplicate() {
+  const copy = store.duplicatePlan(store.state.activePlanId)
+  if (copy) store.switchPlan(copy.id)
+}
+
+function handleAdd() {
+  const plan = store.createPlan()
+  if (!plan) return
+  store.switchPlan(plan.id)
+}
+</script>
+
+<template>
+  <div class="gf-panel rounded-2xl border border-line/70 p-3.5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] space-y-2.5">
+    <!-- 顶栏：标题与操作工具条 -->
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-[12px] font-semibold text-base-content/80 shrink-0 select-none">
+          {{ t('schedule.myPlans') }}
+        </span>
+        <span class="inline-flex items-center rounded-md bg-base-200/80 px-1.5 py-0.5 text-[10px] font-medium text-base-content/60 select-none shrink-0">
+          {{ store.state.plans.length }}/{{ MAX_PLANS }}
+        </span>
+      </div>
+
+      <!-- 右侧操作工具组 -->
+      <div class="flex items-center gap-0.5 shrink-0">
+        <!-- 新增方案 -->
+        <button
+          type="button"
+          class="gf-icon-button h-7 w-7 text-base-content/70 hover:text-primary hover:bg-base-200 transition-colors active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="planLimitReached"
+          :aria-label="planLimitReached ? t('schedule.planLimitReached', { n: MAX_PLANS }) : t('schedule.planAdd')"
+          :title="planLimitReached ? t('schedule.planLimitReached', { n: MAX_PLANS }) : t('schedule.planAdd')"
+          @click="handleAdd"
+        >
+          <Plus class="h-3.5 w-3.5" />
+        </button>
+
+        <!-- 删除当前方案 -->
+        <button
+          type="button"
+          class="gf-icon-button h-7 w-7 text-base-content/60 hover:text-error hover:bg-error/10 transition-colors active:scale-[0.96]"
+          :aria-label="t('schedule.planDelete')"
+          :title="t('schedule.planDelete')"
+          @click="pendingDelete = true"
+        >
+          <Trash2 class="h-3.5 w-3.5" />
+        </button>
+
+        <!-- 更多操作（清空当前方案） -->
+        <div class="relative">
+          <button
+            type="button"
+            class="gf-icon-button h-7 w-7 text-base-content/60 hover:text-base-content hover:bg-base-200 transition-colors active:scale-[0.96]"
+            :aria-label="t('schedule.planMore')"
+            :title="t('schedule.planMore')"
+            :aria-expanded="menuOpen"
+            @click="menuOpen = !menuOpen"
+          >
+            <MoreHorizontal class="h-3.5 w-3.5" />
+          </button>
+          <Transition name="gf-menu">
+            <div
+              v-if="menuOpen"
+              class="gf-menu-surface absolute right-0 top-[calc(100%+0.375rem)] z-30 w-48 p-1 shadow-xl backdrop-blur-md"
+            >
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs"
+                @click="menuOpen = false; renameOpen = true"
+              >
+                {{ t('schedule.planRename') }}
+              </button>
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="planLimitReached"
+                :title="planLimitReached ? t('schedule.planLimitReached', { n: MAX_PLANS }) : undefined"
+                @click="menuOpen = false; handleDuplicate()"
+              >
+                {{ t('schedule.planDuplicate') }}
+              </button>
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs"
+                @click="menuOpen = false; compareOpen = true"
+              >
+                {{ t('schedule.planCompare') }}
+              </button>
+              <div class="my-1 h-px bg-line/60" />
+              <button
+                type="button"
+                class="gf-menu-item w-full rounded-md text-xs text-error hover:bg-error/10"
+                @click="menuOpen = false; confirmClear = true"
+              >
+                {{ t('schedule.planClearCurrent') }}
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <!-- 收起折叠按钮 -->
+        <template v-if="collapsible">
+          <div class="h-3.5 w-[1px] bg-line/80 mx-1 shrink-0" />
+          <button
+            type="button"
+            class="gf-icon-button h-7 w-7 text-base-content/60 hover:text-primary hover:bg-base-200 transition-all active:scale-[0.96]"
+            :aria-label="t('schedule.collapseSettings')"
+            :title="t('schedule.collapseSettingsHint')"
+            @click="emit('toggle-collapse')"
+          >
+            <ChevronUp class="h-3.5 w-3.5" />
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- 下栏：方案切换下拉（独占全宽 100%，方案名舒展展示，永不截断） -->
+    <div class="w-full">
+      <SiteSelect
+        v-model="planValue"
+        :options="planOptions"
+        :label="t('schedule.myPlans')"
+        :aria-label="t('schedule.myPlans')"
+      />
+    </div>
+
+    <!-- 删除确认 -->
+    <DialogRoot :open="pendingDelete" @update:open="(open: boolean) => { if (!open) pendingDelete = false }">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent class="fixed left-1/2 top-1/2 z-[2100] w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 outline-none">
+          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg">
+            <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.planDelete') }}</DialogTitle>
+            <DialogDescription class="mt-2 text-[13px] text-base-content/70">
+              {{ t('schedule.planDeleteConfirm', { name: store.state.plans.find((p) => p.id === store.state.activePlanId)?.name ?? '' }) }}
+            </DialogDescription>
+            <div class="mt-4 flex justify-end gap-2">
+              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="pendingDelete = false">
+                {{ t('schedule.cancel') }}
+              </button>
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-danger"
+                @click="store.deletePlan(store.state.activePlanId); pendingDelete = false"
+              >
+                {{ t('schedule.planDelete') }}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
+
+    <!-- 清空当前方案确认 -->
+    <DialogRoot :open="confirmClear" @update:open="(open: boolean) => { if (!open) confirmClear = false }">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent class="fixed left-1/2 top-1/2 z-[2100] w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 outline-none">
+          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg">
+            <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.planClearCurrent') }}</DialogTitle>
+            <DialogDescription class="mt-2 text-[13px] text-base-content/70">
+              {{ t('schedule.planClearConfirm') }}
+            </DialogDescription>
+            <div class="mt-4 flex justify-end gap-2">
+              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="confirmClear = false">
+                {{ t('schedule.cancel') }}
+              </button>
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-danger"
+                @click="store.clearActivePlan(); confirmClear = false"
+              >
+                {{ t('schedule.planClearCurrent') }}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
+
+    <!-- 重命名方案 -->
+    <DialogRoot :open="renameOpen" @update:open="(open: boolean) => { if (!open) renameOpen = false }">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-[2100] bg-black/40" />
+        <DialogContent class="fixed left-1/2 top-1/2 z-[2100] w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2 outline-none">
+          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg">
+            <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.planRename') }}</DialogTitle>
+            <div class="mt-3">
+              <input
+                v-model="renameName"
+                type="text"
+                class="gf-input gf-input-md w-full"
+                :placeholder="t('schedule.planRenamePlaceholder')"
+              />
+            </div>
+            <div class="mt-4 flex justify-end gap-2">
+              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="renameOpen = false">
+                {{ t('schedule.cancel') }}
+              </button>
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-primary"
+                :disabled="!renameName.trim()"
+                @click="confirmRename"
+              >
+                {{ t('schedule.planRenameConfirm') }}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
+
+    <!-- 方案对比 -->
+    <SchedulePlanCompareDialog :open="compareOpen" @close="compareOpen = false" />
+  </div>
+</template>

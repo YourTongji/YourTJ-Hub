@@ -1,13 +1,14 @@
 package topicviewservice
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 )
 
 const (
@@ -39,7 +40,9 @@ func GetViewCounter() *ViewCounter {
 			flushFn:   topics.IncrementViews,
 		}
 		counter.start()
-		closer.RegisterPriority(closer.PriorityFlush, CloseViewCounter)
+		closer.RegisterPriorityContext(closer.PriorityFlush, func(context.Context) error {
+			return CloseViewCounter()
+		})
 		slog.Info("topic view counter started", "flushInterval", viewFlushInterval.String(), "queueSize", viewQueueSize)
 	})
 	return counter

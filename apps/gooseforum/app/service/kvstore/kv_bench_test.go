@@ -3,7 +3,7 @@ package kvstore
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 func useBenchmarkStore(b *testing.B) {

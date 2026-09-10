@@ -1,0 +1,126 @@
+/*
+ * 主题切换动画（View Transitions API + circle mask 扩散）
+ *
+ * 回归修复（引入于 PR #99 / 9d573ec）：
+ * - 去掉 SVG feGaussianBlur：全页根快照 + filter 导致动画期间每帧整页重栅格化
+ *   （trace 中 RasterTask 200–500ms 集群 + 切换瞬间 ~50ms 主线程长任务）
+ * - 时长 1s → 0.5s 弱化；保留 circle mask 扩散，只动画 mask-size 单属性（合成器友好）
+ * - 元素级 CSS transition 的抑制见 site-theme.ts 的 theme-switching class
+ */
+::view-transition-group(root) {
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-new(root) {
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='white'/%3E%3C/svg%3E")
+    center / 0 no-repeat;
+  animation: gf-theme-scale 0.5s;
+  animation-fill-mode: both;
+}
+
+/*
+ * 主题切换期间抑制页面内元素级 transition（导航/标签/按钮上并发 ~45 条
+ * color/background-color/border 过渡，与 view transition 叠加拥塞主线程）。
+ * ::view-transition-* 是伪元素，不受 * 匹配，view transition 动画不受影响。
+ */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
+::view-transition-old(root) {
+  animation: none;
+  animation-fill-mode: both;
+  z-index: -1;
+}
+
+@keyframes gf-theme-scale {
+  to {
+    mask-size: 200vmax;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * 首页 ↔ Wiki 过场动画（机制对齐 codrops/PageFlipLayout 的 PageTurn）
+ *
+ * PageFlipLayout 的「翻页」本质是平面纸页盖入（revealer slide），不是整页
+ * 3D 旋转：纸页沿 x 轴从一侧盖到旧内容上，中点遮满时切换内容，再露出新页。
+ * 此前实现用 0.34s + rotateY(88deg)，整页对折到边缘消失再弹出 = 观感突然；
+ * 现改为：
+ * - 新页做「纸页盖入」：从右缘（前向）或左缘（后向）平铺滑入
+ * - 前缘带纸页厚度投影，落地时投影淡出（模拟一叠纸的厚度）
+ * - 0.7s + Quint easeInOut：起止缓、中段快，滑动全程连续无断点
+ * - 全程只动 transform（合成器友好），不做整页 3D 旋转
+ */
+html.gf-page-flip::view-transition-old(root) {
+  background-color: var(--gf-color-base-200);
+  /* 复位主题切换全局样式：mask 圆形扩散只服务主题切换，翻页用全幅快照 */
+  mask: none;
+  z-index: 1;
+}
+
+html.gf-page-flip::view-transition-new(root) {
+  background-color: var(--gf-color-base-200);
+  mask: none;
+  z-index: 2;
+}
+
+/* 前向：首页 → wiki，纸页从右缘盖入 */
+html.gf-page-flip--next::view-transition-new(root) {
+  animation: gf-page-flip-cover-right 0.7s cubic-bezier(0.86, 0, 0.07, 1) both;
+}
+
+/* 后向：wiki → 首页，纸页从左缘盖入 */
+html.gf-page-flip--prev::view-transition-new(root) {
+  animation: gf-page-flip-cover-left 0.7s cubic-bezier(0.86, 0, 0.07, 1) both;
+}
+
+@keyframes gf-page-flip-cover-right {
+  from {
+    transform: translateX(100%);
+    box-shadow: -48px 0 48px -24px rgb(15 23 42 / 0.5);
+  }
+  55% {
+    box-shadow: -24px 0 28px -16px rgb(15 23 42 / 0.28);
+  }
+  to {
+    transform: translateX(0);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes gf-page-flip-cover-left {
+  from {
+    transform: translateX(-100%);
+    box-shadow: 48px 0 48px -24px rgb(15 23 42 / 0.5);
+  }
+  55% {
+    box-shadow: 24px 0 28px -16px rgb(15 23 42 / 0.28);
+  }
+  to {
+    transform: translateX(0);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* 翻页期间抑制元素级 transition（组件 enter 动画/按钮过渡与 view transition
+   叠加会抖动），与主题切换的 theme-switching 抑制同理。 */
+html.gf-page-flip *,
+html.gf-page-flip *::before,
+html.gf-page-flip *::after {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.gf-page-flip::view-transition-old(root),
+  html.gf-page-flip::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
+}

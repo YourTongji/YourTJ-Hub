@@ -6,89 +6,330 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-09-10
 
 ## Deployment shape
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
-- Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
-  database `[db.file]` stays SQLite); optional Meilisearch; Casdoor planned.
-- **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
-  `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
-- Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
+- Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
+  database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
+  built-in OIDC Provider ([oidc] in config.toml).
+- **Image pipeline**: CI builds the single binary and packages it into an OCI image pushed to GHCR
+  (`ghcr.io/yourtongji/yourtj-hub:<instance>-<sha>`; repo is public, so servers pull anonymously —
+  no registry credentials on the server).
+- **Reverse proxy**: public TLS is terminated by the **1Panel reverse proxy** on the host
+  (port 80/443), which proxies `f.yourtj.de` → `127.0.0.1:5234` (main) and
+  `dev.yourtj.de` → `127.0.0.1:5235` (dev). There is no nginx container in the compose file;
+  backend containers bind `127.0.0.1` only, and only 1Panel/SSH is exposed publicly.
 - **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
-  (`engine.SetTrustedProxies`). If an additional proxy sits in front of the binary, add it to
-  `server.trusted_proxies` in `config.toml` so rate-limit IP attribution cannot be bypassed via
-  a forged `X-Forwarded-For` header.
-- **Two instances on one VM** (Ubuntu 24.04, ssh alias `yourtj`), managed as one compose project:
+  (`engine.SetTrustedProxies`). 1Panel reverse-proxies from localhost, so
+  `server.trusted_proxies` defaults to `["127.0.0.1", "::1"]` (`deploy/config.toml.example`);
+  this lets rate-limit IP attribution use the real client IP via `X-Forwarded-For`
+  without trusting arbitrary networks.
+- **Two instances on one VM** (Debian 12, ssh `root`), managed as one compose project:
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
+- **Wiki 分站（论坛内嵌）**: wiki 由单二进制直接服务（`/wiki` SSR 视图），无独立部署、无独立
+  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。按 issue
+  #219 的用户决策，旧 VitePress 内容不迁移，新原生 Wiki 从空站启动。**存量服务器需退役旧
+  wiki 容器/镜像**（旧 bootstrap 流程初始化过的服务器的 compose 仍可能保留
+  `wiki-main`/`wiki-dev` 服务定义与运行中的 `yourtj-wiki-main`(127.0.0.1:5284)/
+  `yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
+  - main CI 部署会先备份并覆盖 `/opt/yourtj/docker-compose.yaml`，随后
+    `deploy.sh up -d --remove-orphans` 会停删不再出现在当前 compose 中的旧 wiki 容器。
+  - 若要在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
+    （`restart: unless-stopped` 不会复活已 `rm` 的容器）；残留镜像手动清理
+    `docker images | awk '/yourtj-wiki/{print $3}' | xargs -r docker rmi -f`
+    （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
+  - 若反向代理仍把旧 wiki 域名指到 127.0.0.1:5284/5285，退役后需同步摘除路由。
 
-## Server layout (1Panel container orchestration)
+### 静态资产缓存（反向代理注意事项）
 
+单二进制自身负责静态资产与文件下载的缓存头（实现：
+`app/http/httputil/cache.go` + `app/http/middleware/browsercache.go`）。
+`/assets/*` 与 `/static/*` 的挂载级缓存中间件（`AssetsCache`/`BrowserCache`）
+仅在 `app.env=production` 生效，本地/开发响应不带缓存头；`/file/img/*` 与
+下方 PWA 文件（`servePWAStatic`）的缓存头不区分环境，恒定输出：
+
+| 路径 | 2xx 响应头 | 说明 |
+| --- | --- | --- |
+| `/assets/*`（Vite 构建，文件名含内容哈希） | `public, max-age=31536000, immutable`（`AssetsCache`） | 字节变更必然换 URL，二次访问零重验证 |
+| `/static/*`（内嵌静态文件） | `public, max-age=18144000`（`BrowserCache`） | 长公共缓存 |
+| `/file/img/*`（用户/版面图片，成功路径） | `public, max-age=18144000`（`SetLongPublic`） | 文件名内容寻址 |
+| `/sw.js` | `no-cache` | Service Worker 更新必须及时可见 |
+| `/manifest.webmanifest` | `public, max-age=3600` | PWA manifest 短缓存 |
+| `/`（SSR HTML）与 `/api/*` | 路由自控（多为 `no-store`/无缓存头） | 登录态与动态内容，禁止代理层长缓存 |
+| 上述静态挂载的 404/错误 | `no-store`（`DeferCacheHeader` 按最终状态码决定） | 部署回滚窗口不得把缺失 chunk 钉进缓存 |
+
+**反向代理（1Panel/openresty）不得对以上响应追加或覆盖 `cache-control`。**
+nginx `add_header` 是追加而非覆盖：一旦代理层再发一个 `Cache-Control`
+（典型事故：站点 `proxy/*.conf` 里的 `add_header Cache-Control no-cache`），
+浏览器按多个头中最严格语义执行，等价于禁用全部缓存——静态资产每次导航
+全量回源，长缓存完全失效。
+
+1Panel 修复路径：网站 → 全部网站 → 站点设置 → 反向代理，逐个编辑代理条目，
+删除 `add_header Cache-Control ...` 行（同时检查站点 conf.d 主配置）。
+修改保存后 1Panel 自动 reload；手动重载：
+`docker exec <openresty容器> nginx -t && docker exec <openresty容器> nginx -s reload`。
+
+部署/变更后验收（每条响应必须只出现一行 `cache-control`）。统一用 GET 探测
+（丢弃 body、保留响应头）：`/sw.js` 与 `/` 只注册了 GET 处理器，HEAD
+（`curl -I`）会落入 NoRoute 返回 404（HEAD 契约见 `contract_head_http_test.go`）：
+
+```bash
+curl -sS -D - -o /dev/null https://f.yourtj.de/assets/assets/<当前entry>.js   # public, max-age=31536000, immutable
+curl -sS -D - -o /dev/null https://f.yourtj.de/static/pic/icon.webp           # public, max-age=18144000
+curl -sS -D - -o /dev/null https://f.yourtj.de/sw.js                          # no-cache
+curl -sS -D - -o /dev/null https://f.yourtj.de/                               # no-store 系（HTML 不缓存）
 ```
+
+排查技巧：绕过代理直打上游可二分定位注入方——`curl -sI http://127.0.0.1:5234/assets/...`
+（宿主机上执行；上游无头而公网有头 ⇒ 代理层注入）。dev 实例同理
+（`dev.yourtj.de` → `127.0.0.1:5235`）。
+
+### InsightFlare 事件观测
+
+生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载
+InsightFlare SDK，服务端仅在 `setting.IsProduction()` 且隐私政策 `enabled=true` 时注入；站点为
+`https://f.yourtj.de`，固定 `siteId` 为
+`09521282-d1ce-4a88-add6-99c039014def`。统计脚本只放在公共站点布局，管理后台不加载；
+页面级 CSP 的 `script-src` 只额外允许 `https://ana.yourtj.de`，采集请求复用既有的
+HTTPS `connect-src` 放行规则。该 SDK 会把页面访问与性能观测发送到自建的
+`https://ana.yourtj.de`，隐私政策与数据保留口径应与 InsightFlare 站点设置保持一致。
+生产环境的 `/privacy` 页面会在已保存的自定义政策缺少 InsightFlare 数据范围时自动追加标准披露，
+避免历史配置在启用采集后仍然遗漏该说明；修改站点隐私政策时仍需同步维护实际数据保留期限。
+如果 SPA 导航收到 `insightFlareEnabled` 发生变化的新 payload，前端会强制整页刷新，以卸载已加载 SDK
+注册的路由监听，或在重新启用后按新配置加载；已打开页面每分钟检查一次 `/privacy` payload，切回前台和
+bfcache 恢复时立即检查，因此没有发生导航的页面也会自动在状态变化后刷新。
+
+当前 Cloudflare 部署资源由外部 InsightFlare 项目管理，不写入本仓库的凭据或配置文件：
+Worker `insightflare` 绑定 D1、KV、Durable Object、三套 Analytics Engine 和 R2 冷归档，
+`MAIN_SECRET` 与 `BOOTSTRAP_ADMIN_PASSWORD` 以 Worker Secret 管理。资源/Secret 变更应在
+Cloudflare 或 InsightFlare 管理面完成，不要把 Wrangler 本地认证文件、API Token、站点
+采集 Token 或 D1/KV ID 提交到仓库。
+
+部署或变更后，用 GET 验证观测服务与 SDK 可达（不要用 `curl -I`，SDK 端点不保证支持 HEAD）：
+
+```bash
+curl -fsSL https://ana.yourtj.de/healthz
+curl -fsSL -o /dev/null -w '%{http_code}\n' \
+  'https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1'
+```
+
+脚本 URL 的 `v` 参数用于在观测脚本缓存策略变更后强制浏览器重新获取动态脚本；如果脚本缓存契约再次发生不兼容变化，应递增该版本号。
+
+### 旧 VitePress wiki 内容迁移（GitHub 唯一真实源）
+
+论坛 wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑），
+论坛侧只读投影。旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）内容如需
+保留，迁移到 GitHub 仓库后由同步器自动投影：
+
+1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
+   顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
+   （旧站路径映射为 `<namespace>/<path>.md`）。
+2. 旧站的静态资源（图片/附件）随文件一并提交到仓库。同步器只将 `.md` 作为页面投影，
+   但会把页面中的仓库相对资源引用重写为论坛二进制提供的受控
+   `/wiki/_assets/<repository-path>` 路由；不需要 GitHub raw URL。相对页面链接保留 `.md`
+   源文件后缀，投影后会变为无后缀的 `/wiki/...` 路由。作者语义与路径限制见
+   [Wiki authoring](../product/wiki-authoring.md)。
+3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
+   后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
+4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次
+   同步，`/wiki` 导航树核对无误后再退役旧容器与路由（见上文 VitePress 退役）。
+
+### Wiki GitHub 唯一真实源同步
+
+wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑/审核/历史/贡献者），
+论坛只保留只读投影。配置 `[wiki.git]` 后启用（见 `deploy/config.toml.example`）：
+
+```toml
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+schedule = "0 3 * * *"      # 每日定时同步（默认 03:00）
+webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管理端「webhook 验签密钥」设置（securestore 加密落库）
+```
+
+- **同步触发**：进程启动时异步同步一次 + 每日定时（`[wiki.git].schedule`，默认
+  `0 3 * * *`）+ 管理端 `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook
+  （PR merge = push 事件）。
+- **命名空间/页面来源**：命名空间 = 仓库顶层目录名（支持中文等 Unicode 字符，目录
+  消失自动删除命名空间）；页面 = 目录内 `.md` 文件（路径去 `.md` 后缀；frontmatter
+  `title`/`order`/`description` 驱动页面标题/排序与命名空间描述，`index.md` 的
+  description/order 写入命名空间元数据）。任意子目录都会在导航树中保留为可折叠目录节点，
+  不要求 `index.md`；`index.md` 存在时仍是该目录下可直接访问的页面。同步完成后会重算页面
+  到最近祖先索引页的 `parent_id`，所以目录新增、移动、删除或恢复不会保留已删除的父引用。
+- **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
+  - Payload URL：`https://f.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Content type：`application/json`；Secret：与 webhook 验签密钥一致
+    （优先管理端 `/admin/wiki` → 同步面板「Webhook 验签密钥」保存，securestore 加密
+    落库；也可用旧 `[wiki.git].webhook_secret` 明文配置）
+  - 管理端「Webhook 验签密钥」清除后，即使 config.toml 存在旧明文 `webhook_secret` 也会保持禁用（fail-closed，需删除明文配置才可重新启用）。
+  - Events：仅 `push`（PR merge 触发）
+  - 验签：`X-Hub-Signature-256` = HMAC-SHA256(secret, body)，验签失败/未配置返回 403/401。
+- **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
+  （镜像升级后首次同步会保留仓库原始大小写/Unicode——此前实现做小写归一。对混合
+  大小写仓库，首次同步会软删旧的小写路径页面并以仓库实际大小写重建（新 topic，
+  原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响）。
+  URL 首段 = 仓库顶层目录名，重命名目录即改变 URL（旧链接不回退解析）。
+  （同步用全量 `clone --single-branch` + `fetch` + `reset --hard`，**不使用 pull**；
+  全量历史用于页面贡献者统计。存量浅克隆（旧版 `--depth=1`）在下次同步自动
+  `fetch --unshallow` 补全历史并重建全部页面贡献者缓存，升级首轮耗时取决于仓库大小）。
+- **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
+- **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
+  同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）；
+  仓库移除页面 → 页面软删（评论/互动保留），仓库移除顶层目录 → 命名空间自动删除（含贡献者记录）。
+- **崩溃恢复**（issue #290）：进程被杀/重启遗留的 `running` 运行行在下次启动、状态读取（管理端
+  刷新 `/admin/wiki`）或下次同步开始时统一回收为 `failed`，不会永久禁用手动同步；管理端手动
+  同步 accepted 后轮询 `sync/status` + `sync/runs` 直到新 run 行进入终态并刷新页面树（约 5 分钟
+  上限，超时提示手动刷新）。
+- **重命名/移动（issue #288）**：Git 重命名/移动文件（内容不变）后，同步器按正文 `content_hash`
+  唯一匹配收养原页面行——迁移 `path`/`namespace`/`parent_id`、恢复软删并复用原 topic，回复/点赞/
+  收藏/订阅与 watcher 通知全部跟随新路径，旧 URL 不再解析（无重定向）。同 hash 多候选（复制）
+  或内容同时变化时不做猜测：保持「新建 + 软删旧页」的旧行为（互动保留在旧 topic 上）。
+
+## Server layout (Docker Compose)
+
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
-  docker-compose.yaml     # main + dev services (created by init-server.sh)
-  config.toml.example     # template with REPLACE_* placeholders
-  build/
-    Dockerfile            # alpine + binary
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/IMAGE_REPO + POSTGRES_*/MEILI_MASTER_KEY (created by init-server.sh)
+  docker-compose.yaml     # main + dev + postgres + meilisearch services (created by init-server.sh)
+  config.toml.example     # 人类参考副本（权威模板 = 仓库 deploy/config.toml.tmpl）
+  scripts/                # deploy.sh, apply-config.sh, verify-instance.sh, backup-db.sh, sync-db-from-main.sh, pgdsn.sh …
   main/
-    config.toml           # production config (signingKey, db path) — never in git
-    storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
+    config.toml           # production config — CI 渲染产物原子下发，禁止人工 SSH 改（漂移守卫告警）
+    .config.sha256        # 最近一次成功下发的 config SHA-256（apply-config/deploy 写入，verify 比对）
+    storage/              # file.db + logs (uid 1000); PG 部署时 sqlite.db 不产生
   dev/
-    config.toml           # dev config
+    config.toml           # dev config（同上，CI 下发）
+    .config.sha256
     storage/
   snapshots/
-    main/sqlite-*.db      # pre-deploy backups (keep 7) — SQLite 部署
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
-```
 
 ## Branch model & CI/CD
 
 - `dev` is the default branch and the main development line; merges to `dev` trigger
   `.github/workflows/deploy-dev.yml`:
-  1. Build single binary (frontend + go build) on GitHub Actions.
-  2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
+  1. Build single binary (frontend + go build) and push GHCR image `dev-<sha>` on GitHub Actions.
+  2. SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
      or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
-- `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
-  1. Build single binary on GitHub Actions.
+  3. SSH: `deploy.sh dev dev-<sha> 5235` → pull image, compose up, health check, rollback;
+     after a successful deploy the script prunes old images (keeps the newest
+     `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
+     rollback tag).
+     The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
+- `main` is the production site. `Release / main` explicitly dispatches
+  `.github/workflows/deploy-main.yml` on the published server tag; merging main alone does not deploy:
+  1. Build single binary and push GHCR image `main-<sha>` on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
-  3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
-     auto-rollback to previous image tag on failure.
-- **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
-  `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
-  release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
-  (secret `RELEASE_TOKEN`) so `deploy-main` triggers. Run it from Actions → Release to main → Run
-  workflow → choose bump type.
+  3. SSH: `deploy.sh main main-<sha> 5234` → pull image, compose up, health check,
+     auto-rollback to previous image tag on failure; same post-deploy image pruning as dev
+     (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
+- **Release gate — Current**: run `.github/workflows/release-to-main.yml` (`Release / main`)
+  once on `dev` or `main` and select `patch`, `minor` or `major`. It captures the dev/main commits,
+  opens or reuses a `dev` → `main` PR when their trees differ, waits for PR CI, merges with a merge
+  commit, tags that exact commit as `vX.Y.Z`, publishes server binaries and dispatches deployment.
+  The dev branch is retained. Content already promoted to main can be released without another PR;
+  an existing server tag on that commit prevents a second version reservation.
+  - The script requires successful PR runs of `ci-backend.yml`, `ci-frontend.yml`, `ci-contract.yml`
+    and `ci-govulncheck.yml`, and waits for every other reported `ci-*.yml` workflow. It waits for
+    entire workflows, including backend race/PG jobs. Missing core workflows remain pending;
+    failure, cancellation or a skipped whole workflow stops release. Dev push checks, checks for
+    another head, and runs older than the PR or main base commit do not satisfy this gate.
+  - CI is checked explicitly even without repository required-check settings. The merge uses the
+    captured head SHA and respects GitHub merge requirements, including required reviews when
+    configured; it does not use an admin bypass. A draft/closed PR, conflict or changed dev/main
+    snapshot stops release. CI and merge requirements have a 60-minute wait limit. Resolve the
+    reported problem, then start a new run for the intended snapshot.
+  - Tagging uses the returned merge SHA and verifies its parents against the captured main/dev
+    commits. Deployment runs on the published tag, so its binary, image, scripts and rendered
+    config all come from the released source even when main advances. Production deployments are
+    serialized; the deploy workflow rejects branch refs, mobile tags and tags outside main history.
+  - If publishing fails after tagging, rerun the failed publish job so it reuses the prepared tag.
+    For deployment recovery or rollback, dispatch the deploy workflow on the desired existing
+    server tag: `gh workflow run deploy-main.yml --ref vX.Y.Z` (replace with the actual tag).
+    Selecting `main` directly is rejected. Production environment deployment policies must permit
+    server tags if branch/tag restrictions are configured.
+  - `RELEASE_TOKEN` creates and merges PRs and creates tags through GitHub APIs; it needs repository
+    Contents and Pull requests write permissions plus Actions read permission for CI polling
+    (classic PATs need equivalent repository/workflow access). The workflow's `GITHUB_TOKEN`
+    publishes assets and dispatches deployment using its existing Contents/Actions write permissions.
+  Mobile tags use a separate namespace and workflow; see [mobile releases](mobile-releases.md).
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
-- Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- Config is rendered in CI from `deploy/config.toml.tmpl` + `deploy/instances/<env>.json`
+  + GitHub Environments secrets, and applied to the server as an artifact (`CONFIG_FILE`
+  on image deploys, or the standalone `Apply / instance config` workflow / `config-drift-check`
+  for config-only changes). Config changes therefore ship through PRs (template/instances)
+  and Environments secret updates — never ad-hoc SSH edits on the server. The server records
+  each successful apply's SHA-256 in `<instance>/.config.sha256`; `verify-instance.sh` (drift
+  guard) flags manual edits or out-of-band writes.
+- `sync-db-from-main.sh` hard-fails when `main`/`dev` primary DB modes differ (e.g. main already
+  migrated to PG while dev is still SQLite): the sync cannot proceed, and the script refuses to
+  stop the dev container in that state (parse-before-stop guarantee, issue #134). During the PG
+  migration window both instances must be on the same mode before deploying dev.
+- Deploy workflows checkout the repo and upload the deploy scripts (`deploy.sh` plus the ones they
+  depend on: `backup-db.sh` / `sync-db-from-main.sh` and their shared DSN parser `pgdsn.sh`) to
+  `/opt/yourtj/scripts/` before running them, so script fixes reach the server without a
+  manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
+  `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
+  script updates.
 
-## GitHub Actions secrets
+## GitHub Actions Environments secrets
 
-| Secret | Value |
-|---|---|
-| `VM_HOST` | server public IP or hostname (`20.205.27.178`) |
-| `VM_USER` | SSH user (e.g. `yourtj`) |
-| `VM_SSH_KEY` | private key for that user (full PEM, including `-----BEGIN ...` lines) |
+部署与 config 渲染 secrets 按 GitHub **Environments** 分存：`production`（生产）与 `dev`（测试）。
+Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得该环境 secret 与部署审计时间线。
 
-Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
+| Secret | Environments | 用途 |
+|---|---|---|
+| `VM_HOST` / `VM_USER` / `VM_SSH_KEY` / `VM_SSH_PORT` | both | SSH 到部署机（当前同一台 43.108.84.213） |
+| `PG_DSN` | both | `[db.default].url`（key=value 或 URL DSN；main=your**tj_main**，dev=your**tj_dev**；含库密码，勿外泄） |
+| `SIGNING_KEY` | both | `[app].signingKey`（**必须与现网一致**；轮换即全线登出 + TOTP/重置链接失效） |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | both（可选） | `[webpush]` VAPID 密钥对（生成：`yourtj-hub webpush-keys`，见下方 Config & run）；为空 = Web Push 通道关闭；**dev 保持空**（快照同步的订阅/任务行绝不外发推送） |
+| `APNS_KEY_PATH` / `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_BUNDLE_ID` / `APNS_ENVIRONMENT` | both（可选） | `[push.apns]` iOS 原生推送凭据（.p8 token 认证）；为空 = APNs 通道关闭；**dev 保持空**（快照同步的 push_device/任务行绝不外发） |
+| `JPUSH_APP_KEY` / `JPUSH_MASTER_SECRET` | production（可选） | Android 极光及厂商聚合通道；服务端私钥绝不打包到 APK；见 [移动端推送配置](mobile-releases.md#native-push-activation-and-verification) |
+| `FCM_CREDENTIALS_PATH` / `FCM_PROJECT_ID` | both（可选） | `[push.fcm]` Android 原生推送凭据（service-account JSON 路径 + Firebase 项目 id）；为空 = FCM 通道关闭；**dev 保持空** |
+| `MEILI_MASTER_KEY` | both | `[meilisearch].masterkey` |
+| `WIKI_WEBHOOK_SECRET` | both | `[wiki.git].webhook_secret` |
+| `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | both（可选） | Google OAuth；为空时登录入口保持关闭 |
+| `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
+| `RELEASE_TOKEN` | repo-level | release-to-main 创建/合并 dev→main PR、读取 CI 和发布 tag 用 PAT |
+
+> 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
+
+设置：`gh secret set <KEY> --env production`（值经管道从服务器读取，勿回显终端/日志）。
+
+**实例 ↔ GitHub Environment 映射**：部署/巡检 workflow 的 job 一律按此声明 `environment:`，
+从对应环境读取 `VM_*` 与渲染 secrets（不存在仓库级 fallback）：
+- `deploy-dev.yml` / `apply-config.yml(env=dev)` / `config-drift-check.yml(matrix=dev)` → `dev`
+- `deploy-main.yml` / `apply-config.yml(env=main)` / `config-drift-check.yml(matrix=main)` → `production`
+
+> 注意实例名 ≠ GitHub Environment：`main`/`dev` 是 workflow 输入里的实例名，对应 secrets 分别
+> 存在 `production`/`dev` 环境（早期错误映射 `environment: main` 曾命中一个空的 `main` 环境，
+> 本次修复已删除该空环境）。仓库级同名 `VM_*` 已一并移除（此前作为迁移兜底存在）——当前无任何
+> workflow 引用 repo-level `VM_*`；缺环境 secret 时渲染/apply/drift 会 fail-closed，不再静默 fallback。
 
 ## First-time server setup
 
 ```bash
 # on the server, as root (or sudo):
 sudo bash /opt/yourtj/scripts/init-server.sh \
-  https://forum.yourtj.de https://dev.yourtj.de
+  https://f.yourtj.de https://dev.yourtj.de
 ```
 
-This creates `/opt/yourtj/{.env,build,docker-compose.yaml,main,dev}` with randomized signing keys.
-The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
+This creates `/opt/yourtj/{.env,docker-compose.yaml,main,dev}` with randomized signing keys,
+PG/Meili passwords, starts `postgres` + `meilisearch`, and creates the `yourtj_main`/`yourtj_dev`
+databases. The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
+
+**之后**（首次 CI 部署前）：把服务器生成/现网的值回填为 Environments secrets
+（见上表；`init-server.sh` 结尾会打印需回填清单）。config 本身由 CI 渲染下发，服务器
+不再人工生成/维护 `config.toml`；若需在装机阶段本地生成一次，仍可手工跑
+`python3 deploy/render_config.py render --env <env>`（仅本机演练，产物不入库）。
 
 ## Build (local)
 
@@ -101,27 +342,47 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 - Config: `apps/gooseforum/config.toml` locally; on the server `main/config.toml` / `dev/config.toml`.
 - Container-internal port is always `5234`; host mapping via `MAIN_PORT` (5234) / `DEV_PORT` (5235).
 - Health probe: `GET /health` returns 200 when service + main db ping succeed, else 503.
+- Web Push（`[webpush]` 段，可选增强通道）：`vapid_public_key`/`vapid_private_key` 为空 = 通道关闭（dev 保持空）；密钥已配置但格式非法（base64url 解码后公钥非 65B / 私钥非 32B）时 `serve` 启动输出告警并禁用通道（fail-closed，绝不外发）。生成密钥对：`cd apps/gooseforum && go run . webpush-keys`
+- 原生推送（`[push.apns]` / `[push.fcm]` / `[push.jpush]` 段，可选增强通道）：各凭据为空 = 对应通道关闭（dev 保持空，快照同步的 push_device 注册与任务行绝不外发）。APNs 走 token-based `.p8` 认证：`key_path` 指向 `.p8` 文件、`key_id`/`team_id` 取自 Apple Developer 后台、`bundle_id` 为 App Bundle ID、`environment` 为 `sandbox`（开发构建）或 `production`（App Store/TestFlight）。FCM 走 HTTP v1：`credentials_path` 指向 Firebase 项目 service-account JSON、`project_id` 为 Firebase 项目 id（OAuth2 换取 access token 后调用 `messages:send`）。密钥文件在容器内挂载（`APNS_KEY_PATH`/`FCM_CREDENTIALS_PATH` 为容器内路径）；仅填了部分字段时通道按未配置处理（fail-closed，绝不外发）。`GET /api/forum/push/config` 的 `native.apnsEnabled`/`native.fcmEnabled`/`native.jpushEnabled` 反映通道状态。
 
 ## DB migration execution and rollback
 
-- Migrations run at startup (`[db] migration = "on"`); append-only upstream style.
-- **Migration failures now abort startup** (since the issue #8 PG fix): if `AutoMigrate` errors,
-  `serve` exits non-zero instead of continuing with a partial schema. This makes deploy.sh's
-  health-check rollback and container restart policies catch schema problems immediately instead of
-  surfacing as runtime API failures (the original issue #8 login/register outage). It also means a
-  deploy with an incompatible schema change will roll back — rehearse on dev (which syncs main's db)
-  before main.
-- Rollback: `deploy.sh` tags the previous image `yourtj-hub:prev` and re-points the instance on
-  health-check failure; forward-compatible migrations mean an older binary can still start.
-- Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
+- Migrations run at service startup behind a **startup gate** (`[db] migration = "on"`, the default):
+  the HTTP listener binds immediately but every request — including `GET /health` — receives
+  `503 Service Unavailable` with `Retry-After: 5` and the loading page until the schema migration
+  (`app/migration` AutoMigrate) and versioned data migrations complete. Only after success does
+  `serve` boot the business services (workers, cron, OAuth/OIDC init, wiki sync) and open the gate.
+- **Migration failures abort startup** (since the issue #8 PG fix, extended by #370): if `AutoMigrate`
+  or any versioned data migration errors, `serve` reports the error, never opens the gate, shuts down
+  gracefully and **exits non-zero**. exit semantics: a hard failure is fatal (non-zero exit, gate never
+  opened); a deferred data migration (e.g. Meilisearch unavailable, or the cross-instance migration
+  lock held by another instance) is non-fatal — the gate opens and the instance serves with degraded
+  state, retrying deferred migrations on the next start. This makes deploy.sh's health-check rollback
+  and container restart policies catch schema problems immediately instead of surfacing as runtime API
+  failures (the original issue #8 login/register outage). It also means a deploy with an incompatible
+  schema change will roll back — rehearse on dev (which syncs main's db) before main.
+- **Standalone `migrate` command**: `./yourtj-hub migrate` runs schema + versioned data migrations
+  explicitly, so a release step can apply them before traffic-bearing instances start. It exits with
+  a non-zero code on a hard migration failure (with an actionable `lastFailed` message), and exits 0
+  with a "deferred / will retry on next run" message for deferred or lock-held states.
+- **`[db] migration = "off"`**: the operator owns schema. `serve` opens the startup gate immediately
+  (readiness is not gated on migration) and the `migrate` command reports migrations are disabled and
+  exits 0.
+- Rollback: `deploy.sh` tags the previous image `ghcr.io/yourtongji/yourtj-hub:prev` and re-points
+  the instance on health-check failure; forward-compatible migrations mean an older binary can still start.
 
-### Upgrade note: `app.signingKey` is now mandatory
+### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
 Since the issue #8 build, `serve` refuses to start with the built-in default
-signing key (it exits with code 1 instead of silently continuing). Existing
-`config.toml` files created before this change may omit `app.signingKey`;
-**before upgrading an existing instance, add a random signing key** to
-`main/config.toml` and `dev/config.toml`:
+signing key (it exits with code 1 instead of silently continuing). The
+issue #106 build tightens the guard to **fail-closed**: `serve` now also
+refuses any **empty / whitespace-only** value and the deploy template
+placeholder `REPLACE_SIGNING_KEY`, because each of them lets an attacker
+forge password-reset tokens and take over arbitrary accounts (including
+admin). A missing or weak `app.signingKey` is rejected every boot — there is
+no fallback key. Existing `config.toml` files created before this change may
+omit `app.signingKey`; **before upgrading an existing instance, add a random
+signing key** to `main/config.toml` and `dev/config.toml`:
 
 ```toml
 [app]
@@ -132,6 +393,44 @@ Generate one with `openssl rand -base64 32`. Without it the new binary exits
 immediately on startup; `init-server.sh` already generates a random key for
 new installs.
 
+**Rotation after a known/empty-key exposure:** if an instance ever ran with
+the built-in default, the `REPLACE_SIGNING_KEY` placeholder, or an empty
+`app.signingKey`, treat the signing key as compromised and rotate it. The
+symmetric key is shared across three surfaces, so rotation invalidates all of
+them at once: forum JWT sessions (users must sign in again), TOTP secret
+encryption (AES-GCM key is derived from `app.signingKey`; re-encrypt or
+re-enroll TOTP so existing secrets remain decryptable), and any outstanding
+password-reset / activation links. Rotating the key is the only way to retire
+tokens that were minted under the old key.
+
+**Rotation requires a process restart — hot reload is not supported.** The
+signing key feeds more surfaces than the three listed above — it also derives
+the session-cookie signing key (sessionstore) and the OIDC opaque-token key
+(oidcservice). The surfaces capture it at different points: JWT signing and
+session cookies at process start / first use, TOTP encryption on first use, and
+reset/activation and OIDC tokens on every call (fail-closed so a weak key is
+never accepted). With viper's config watcher enabled, editing `app.signingKey`
+at runtime does not rotate them together: the real-time surfaces switch to the
+new key immediately, the captured surfaces keep the old value, and TOTP secrets
+encrypted under the old key can become undecryptable if the key is swapped
+before the first TOTP use. Rotate the key and **restart the process** so all
+surfaces rotate consistently.
+
+### Upgrade note: session Cookie `Secure` is now fail-closed by environment
+
+Before issue #113, the `access_token` and goth session cookies decided the
+`Secure` flag from the `server.url` scheme: anything `http://` dropped `Secure`
+even under `app.env = "production"`. The template default
+`server.url = "http://localhost"` thus produced a session cookie without
+`Secure` on a production build (CWE-614). Since the issue #113 build, the flag
+is fail-closed by environment via `setting.CookieSecure()`: **any `app.env`
+other than `"local"` forces `Secure` regardless of `server.url`**, and the
+binary logs a startup warning when a non-local `server.url` is non-https and
+non-loopback. No `config.toml` change is required for existing instances, but
+operators who relied on plain-http production access (e.g. 0.0.0.0 without a
+TLS-terminating proxy) should switch `server.url` to the https reverse-proxy
+address so browsers actually return the now-`Secure` cookies.
+
 ### Unique-index preflight (user_o_auth provider_uid)
 
 Issue #8 added a unique index on `(provider, provider_uid)` in `user_o_auth`. On databases that
@@ -140,44 +439,68 @@ error and startup continues). Before deploying a build containing this index, ru
 on the live database and clean up any duplicates:
 
 ```sql
--- SQLite / MySQL
-SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
--- PostgreSQL
+-- SQLite / PostgreSQL
 SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
 ```
 
 If duplicates exist, keep the row with the earliest `created_at` (or the one owned by the active
 account) and delete the rest before the upgrade; the index creation will then succeed.
-## PostgreSQL support
 
-Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
-default SQLite and optional MySQL. The file database (`[db.file]`, attachment BLOBs) remains SQLite.
+### Unique username migration preflight
 
-### Enable PostgreSQL
+The `users.username` unique index is shared by human and bot accounts. Before `AutoMigrate` creates
+that index, startup checks an existing `users` table for blank or duplicate usernames. The binary
+does not rewrite identity data automatically: if dirty rows exist, startup exits non-zero with the
+blank-row count, up to ten duplicate usernames, and an instruction to assign non-empty globally
+unique usernames before restarting. Because dev receives a production snapshot, resolve the report
+on the authoritative main dataset, resync dev, and rehearse the migration there before releasing to
+main.
 
-1. Uncomment the `postgres` service in `deploy/docker-compose.yaml` and set `POSTGRES_USER` /
-   `POSTGRES_PASSWORD` in `/opt/yourtj/.env`.
-2. Create **two separate databases** to keep main (production) and dev (test) isolated, matching the
-   SQLite deployment model (dev is one-way synced from main, never written directly):
-   ```bash
-   # 在 postgres 容器内执行
-   docker compose exec postgres psql -U yourtj -d postgres -c \
-     "CREATE DATABASE yourtj_main; CREATE DATABASE yourtj_dev;"
-   ```
-   Do **not** point both instances at the same database — dev migrations/writes would land on
-   production data.
-3. In `main/config.toml` set:
+Operator checks for all supported databases:
+
+```sql
+SELECT COUNT(*) FROM users WHERE username = '';
+SELECT username, COUNT(*) FROM users
+WHERE username <> ''
+GROUP BY username
+HAVING COUNT(*) > 1;
+```
+
+## Database: PostgreSQL default
+
+PostgreSQL 16+ is the default deployment database (`[db.default] connection = "postgres"`,
+`deploy/config.toml.example`). SQLite remains the local development/test default
+(`apps/gooseforum/config.toml`, in-memory tests) and the file database (`[db.file]`, attachment
+BLOBs) is fixed SQLite. MySQL is **not supported** and its connection driver was removed.
+
+### Deploy on PostgreSQL
+
+Fresh installs default to PostgreSQL end to end — `init-server.sh` does the
+provisioning automatically:
+
+1. Generates `POSTGRES_USER` / a random `POSTGRES_PASSWORD` / `POSTGRES_DB` into
+   `/opt/yourtj/.env` (missing keys are appended on existing servers; empty
+   `POSTGRES_PASSWORD` is replaced with a random value).
+2. Starts the `postgres` service (defined in `deploy/docker-compose.yaml`) and waits for it,
+   then creates **two separate databases** — `yourtj_main` and `yourtj_dev` — so main
+   (production) and dev (test) stay isolated (dev is one-way synced from main, never written
+   directly). Do **not** point both instances at the same database — dev migrations/writes
+   would land on production data.
+3. Generates `main/config.toml` / `dev/config.toml` from `deploy/config.toml.example`,
+   substituting `REPLACE_POSTGRES_DSN` with a real DSN per instance:
    ```toml
    [db.default]
    connection = "postgres"
-   url = "host=postgres user=yourtj password=<secret> dbname=yourtj_main port=5432 sslmode=disable"
+   url = "host=postgres user=<user> password=<secret> dbname=yourtj_main port=5432 sslmode=disable"  # dev 用 yourtj_dev
    ```
-   In `dev/config.toml` use the same DSN but `dbname=yourtj_dev`. `host=postgres` is the Compose
-   service name: the forum and postgres containers share the compose network, so `127.0.0.1` inside
-   the forum container would point at the forum container itself and fail to connect.
-   `url` accepts libpq key=value or URL DSN formats.
-4. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
-   versioned data migrations v1-v12 from scratch, then serves.
+   `host=postgres` is the Compose service name: the forum and postgres containers share the
+   compose network, so `127.0.0.1` inside the forum container would point at the forum
+   container itself and fail to connect. `url` accepts libpq key=value or URL DSN formats.
+4. Start the instance (`deploy.sh` / `docker compose up -d main dev`; compose starts
+   `postgres` first via `depends_on: service_healthy`). On first boot the binary runs
+   AutoMigrate (all main-db models) and the versioned data migrations from scratch, then
+   serves.
+
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
 
@@ -229,16 +552,361 @@ instance:
   progress; or run `./bin/yourtj-hub migrate-files --endpoint ... --bucket ... [--clear-after-migrate]`
   on the server. Migration is cursor-driven and resumable; the BLOB column is kept unless
   `--clear-after-migrate` is set, so reads stay correct during/after migration.
+- **帖子图片直传**：配置 S3 提供方后，帖子图片改为浏览器直传——浏览器向
+  `POST /file/img-upload/init` 请求短时效预签名 POST 策略，直接上传到 bucket，再
+  `POST /file/img-upload/complete` 由服务端校验（归属/大小/MIME/解码图片头）后发布；
+  本地提供方保持服务端代理 multipart 上传。bucket 需配置 CORS（精确论坛源 + POST），
+  未完成对象 2 小时后由清理任务移除。详见 [Object storage](object-storage.md)。
 
 ## Data export/import
 
-- Admin panel (数据管理): export users/topics/posts as JSON or CSV via a background task, then
-  download; import JSON with a per-row validation report and idempotent skip.
-- Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
-  (daily cron). Export contains user emails — treat downloads as sensitive.
+- Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
+  topic_user_stat when selected) as JSON or CSV via a background task, then download;
+  upload JSON (maximum 50 MiB) into a staged background task. The task is checksum-addressed and
+  idempotent; identical uploads reuse the same task. The worker applies all rows and topic
+  invariants (post_seq, first/last post pointers, counts, posters) in one database transaction,
+  so validation failures roll back the batch rather than leaving partial data. Staged files use
+  mode `0600`, are deleted after success, and are retained for an explicit replay after failure.
+  Administrators can inspect `GET /api/admin/data/import/tasks` and replay a failed task with
+  `POST /api/admin/data/import/tasks/:taskId/replay`.
+- Export files are written to `data/export/` inside the storage dir with mode 0600
+  (owner-only) and cleaned up after 7 days (daily cron). Export contains user emails —
+  treat downloads as sensitive. Export creation and download are recorded in the
+  operation audit log (`opt_record`, issue #324).
+
+## 管理端设置密钥（issue #324）
+
+- SMTP 密码、对象存储 accessKey/secretKey、HTTP 通知端点 secret 均以 securestore
+  AES-256-GCM 密文落库（与一系统 Cookie / wiki webhook secret 同一模式），管理端
+  GET 仅回显是否已配置，绝不回显明文或密文；保存时密钥字段留空表示保留已存值。
+- 升级到包含 v25 数据迁移的版本后，存量明文密钥会在下次启动时自动加密迁移
+  （幂等；迁移失败不推进版本，下次启动重试）。
+
+## 一系统排课同步（course-pk-sync，issue #186）
+
+将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+> **管理端入口（推荐，issue #248）**：部署实例的排课器学期下拉为空，通常是因为
+> `pk_calendar` 尚无数据且未同步。无需登录服务器，在**管理端 → 设置 → 一系统同步**
+> 页面即可：
+> 1. 配置一系统 Cookie（加密落库，不存明文）；
+> 2. 输入一系统数字学期 ID（如 `121`）或已同步过的学期名（如 `2025-2026-1`）点「立即同步」；
+> 3. 同步在后台执行（`POST /api/admin/pk/sync-calendar`），页面「同步状态」列表每 3s 轮询
+>    `GET /api/admin/pk/sync-status`（`pk_fetch_log` 游标）直至结束，可看到行数/进度/失败原因。
+>
+> 未配置任何 Cookie 来源（管理端设置/`ONESYSTEM_COOKIE` 环境变量）时入口会拒绝触发。
+> 同一学期同步中的并发仍受 fetchlog 1 小时 running 窗口保护（见下）。
+
+**后台物化入口（Current）**：管理端 → 设置 → 一系统同步 →「物化课评目录」，
+选择已同步学期后执行。该入口调用 `POST /api/admin/pk/materialize-calendar`，仅需
+SiteManager 权限，不需要一系统 Cookie；单学期事务提交后展示课程卡/教学班新增和更新数量。
+正在同步或尚未完整抓取的学期会被拒绝；完整抓取后仅物化失败的学期可以独立补跑。
+请求取消或两分钟执行期限到达会回滚未提交的物化事务，可重新执行；该端点将 HTTP
+写期限延长至 130 秒，为事务超时响应留出余量。
+
+管理端「立即同步」自动包含时间片重建与课评物化；这些步骤全部完成后才显示同步成功。
+物化失败会显示失败原因，重试可从完整抓取游标直接补跑，无需重抓已提交页面。
+CLI 的 `--materialize` 仍为显式选项。
+
+CLI 同步（运维 cron 等自动化场景）：
+
+```bash
+# 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
+# 已有记录后才可反查（同一学期同步过一次即可）
+./bin/yourtj-hub course-pk-sync 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
+
+# 连同步前 3 个学期（选课季加频/补历史）
+./bin/yourtj-hub course-pk-sync 121 --depth 3
+
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor/offering + 课程搜索 outbox）
+./bin/yourtj-hub course-pk-sync 121 --materialize
+```
+
+**物化写源（offering 权威写入源，2026 课程沿革）**：`--materialize` 以排课教学班为粒度
+写入课程目录 offering 行（幂等 upsert，按 `teaching_class_id` 定位），并落库
+`course_instructor.teacher_code`；学期自动创建（`term` 按 calendar_id_i18n 幂等 upsert）。
+物化/导入链路**均不写 `offering.status`**（管理端隐藏的教学班不会被物化复活）。
+物化在同一个数据库快照内读取教学班与教师。教师换班保留 offering ID 及评价，
+同步修正本物化链维护的班号别名（人工别名及历史开课仍在使用的班号不抢占），旧/新课程
+的搜索更新与评分统计重建随事务入队。多人授课优先保留仍在教师名单中的原身份教师；
+新班按工号、姓名稳定选择，完整教师名单保留在 offering，不自动改变 `review_scope`。
+管理端和公开目录按班号检索时也查询可见 offering 的 `class_code`，无需依赖别名存在。
+
+历史课评数据包导入（见 `docs/operations/course-import-e2e.md`）保持兼容且从属：
+导入器生成的 offering 行同样携带 `teaching_class_id`，两源共享同一 teaching_class_id
+唯一索引——先物化后导入时导入器复用已有行（不重复建卡）。
+
+**纯本地物化补跑（course-materialize，不依赖一系统 cookie）**：学期已同步到 PK 域但
+物化失败/遗漏时（如 `--materialize` 当时 cookie 失效、网络不可用），无需重新抓一系统，
+直接消费本地 PK 域数据补物化到课程目录：
+
+```bash
+# 物化指定学期：数字 calendarId、标准学期码、一系统中文学期名均可
+# （学期名经 calendar_id_i18n 归一化反查，中文学期名 "2026-2027学年第1学期" 亦支持）
+./bin/yourtj-hub course-materialize 122
+./bin/yourtj-hub course-materialize 2026-2027-1
+./bin/yourtj-hub course-materialize "2026-2027学年第1学期"
+
+# 预检模式（不写库）：校验学期已同步 + 打印教学班统计
+./bin/yourtj-hub course-materialize 122 --dry-run
+```
+
+行为保证：写入前全量解析校验（未同步/错拼的学期 ID 显式报错，不空成功）；重复参数
+自动去重；物化幂等（同 `teaching_class_id` upsert，不写 `status`、不复活隐藏行）。
+学期码规范化：中文学期标记 → 标准码 `YYYY-YYYY-N` 才建 `course_term` 行，无法识别的
+标记（如短学期）保持 `term_id=0` 不建垃圾行。
+
+一系统返回 `newCourseCode` / `newCode` 时，PK 公开查询与课程目录物化以新课号/新班号
+作为当前有效编号；原 `courseCode` / `code` 仍保留为来源证据和历史输入别名。已有同步数据
+无需迁移，补跑 `course-materialize <学期>` 即可按新编号刷新课程目录。
+
+凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
+（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+- 运维 cron（每日，选课季加频；应用内不自造调度器）：
+
+  ```bash
+  # 每日 02:30 同步当前学期
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+  ```
+
+应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，
+可在 `config.toml` 设置 `[cron].enabled = false`；该开关只停止应用内 scheduler，
+不会停用 task queue worker 或手动 CLI。
+
+- 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
+  续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
+  fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
+- 并发防护：同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
+  进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
+- 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
+  需到管理端重新保存。
+
+**卡级课程沿革候选（course-lineage-seed，2026 课改治理）**：`course-lineage-scan`
+（教学班级级 dry-run JSON）产出的候选是 pk_course_detail.id，无法直接落
+`course_relations`（其 from/to 为 course.id）。`course-lineage-seed` 在课程目录
+卡层面（course.id）装配并配对，产出可直接进入管理端「课程沿革」审核面板的
+候选：
+
+```bash
+# dry-run（默认，不写库）：装配全部可见课程卡并报告候选规模
+./bin/yourtj-hub course-lineage-seed
+
+# 把 E1 EQUIVALENT 候选写入 course_relations（status=pending，含证据快照）
+./bin/yourtj-hub course-lineage-seed --write
+
+# 额外写入 E2 SPLIT_FROM / E3 RELATED 家族标注候选（经管理端 approve 后详情页展示）
+./bin/yourtj-hub course-lineage-seed --write --write-family
+
+# 候选明细 JSON（含课程名/证据）输出到 stdout 供离线审核
+./bin/yourtj-hub course-lineage-seed --json
+```
+
+规则（同教师工号组内配对，跨教师同名/同码卡是合法分班不产候选）：
+
+- E1 EQUIVALENT（conf 0.9）：同师 + 归一名称一致 + 学分一致 + 共享一系统课程码
+  （course_code / new_course_code，经 `offering.teaching_class_id` → `pk_course_detail`）
+  → 冗余卡并入规范卡，可经管理端确认后合并（offering/评价/别名迁移、旧卡隐藏）。
+- E2 SPLIT_FROM（conf 0.5）：同师 + 同课程家族 + 变体不同（A1/A2/B、基础/进阶、
+  上/下、实验/理论、generic→A1 层次重组）→ 分层标注，绝不合并。
+- E3 RELATED（conf 0.2）：同师 + 同名 + 学分巨变 → 弱关联标注，供人工核查。
+
+写入幂等：同 (from,to,type) 已存在（含已 approved/ignored/merged）自动跳过，
+不复活已处置的关系；写路径单事务完成，失败整体回滚。
+
+### 学期起止日期（可选，config 维护）
+
+一系统 manualArrange 数据不含学期起止日期。排课器「当前周次」自动定位与学期日期条
+展示依赖 `config.toml [pk.semester_dates]`（键 = 学期标记 `pk_calendar.calendar_id_i18n`，
+如 `2025-2026-1`；值 = start/end 纯日期）。`course-pk-sync` 同步该学期时写入
+`pk_calendar.start_date/end_date`，P1 `/api/pk/calendars` 原样返回（未配置为 null）：
+
+```toml
+[pk.semester_dates."2025-2026-1"]
+start = "2025-09-08"
+end = "2026-01-18"
+```
+
+- 修改日期后需重跑该学期同步（幂等）才会写入数据库。
+- 未配置的学期两列为 NULL，排课器周次仍可手动选择（「当前周次」开关禁用）。
+
+## 服务器迁移 runbook（旧机 → 新机）
+
+旧生产服务器（20.205.27.178, 1Panel）迁移到新机（43.108.84.213, Docker Compose + GHCR）的完整步骤。
+**原则：signingKey 必须原样复制，绝不重新生成**（否则全部会话 / TOTP / 重置链接失效，fail-closed）。
+
+### 0. 前置
+
+- 新机已装 Docker Engine + Compose + 2G swap（`deploy/scripts/init-server.sh` 会在 CI 首次部署时下发，
+  也可手动拷贝 `deploy/` 后在服务器执行）。
+- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先在 GitHub Environments secrets 更新
+  `VM_HOST`（production 与 dev 均改新机 IP）、`VM_USER` → `root`、`VM_SSH_KEY` → 新机 PEM
+  内容，再触发 dev 部署**（workflows 只读 Environments，无 repo 级 fallback）。反代统一由
+  1Panel 承担（自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
+- **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
+  Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
+- 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
+
+### 1. 新机初始化
+
+```bash
+ssh -i ~/Documents/YourTJ_Korean.pem root@43.108.84.213
+mkdir -p /opt/yourtj && cd /opt/yourtj
+# 从仓库拷贝 deploy/ 目录后:
+sudo bash deploy/scripts/init-server.sh https://f.yourtj.de https://dev.yourtj.de
+```
+
+这会生成 `/opt/yourtj/{.env,docker-compose.yaml,main/config.toml,dev/config.toml}`，
+启动 postgres + meilisearch，创建 `yourtj_main` / `yourtj_dev` 数据库。
+
+### 2. 数据迁移（main + dev）
+
+在旧机（1Panel 部署）上导出，再导入新机。**旧机 / 新机 PostgreSQL 版本一致（16）**。
+
+> **⚠️ 旧机是 1Panel 管理**：下列命令假设 compose 项目在 `/opt/yourtj`（与仓库约定一致）。
+> 实际路径以旧机 1Panel 配置为准（1Panel 项目目录可能是 `/opt/1panel/apps/...` 或自定义），
+> 执行前先 `ls` 确认。`docker compose` 命令在 1Panel 的 compose 项目目录下执行；
+> 1Panel 的 compose 版本若为 v1（无 `exec -T` 的 `-T` 参数），去掉 `-T`。
+
+```bash
+# 旧机: 导出主库到宿主机 /tmp(exec -T 流式输出, 重定向在宿主机执行;
+#       若在容器内重定向, 文件落在容器 /tmp, 宿主机 scp 找不到)
+docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_main' > /tmp/yourtj_main.sql
+docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_dev' > /tmp/yourtj_dev.sql
+
+# 旧机 → 新机: 直传
+scp -i ~/Documents/YourTJ_Korean.pem /tmp/yourtj_main.sql /tmp/yourtj_dev.sql \
+  root@43.108.84.213:/tmp/
+
+# 新机: 导入(在 postgres 容器内)
+docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_main' < /tmp/yourtj_main.sql
+docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_dev' < /tmp/yourtj_dev.sql
+```
+
+文件库 `file.db`（SQLite，附件 BLOB）直接拷贝。**注意实际路径是
+`storage/database/file.db`**（见 config.toml `[db.file].path`）：
+
+```bash
+# 旧机: 用 sqlite3 .backup 做一致性快照(实例仍在运行, 直接 scp 活库会拿到 torn copy;
+#       与 backup-db.sh 相同做法; 旧机已装 sqlite3, init-server.sh 也会装)
+sqlite3 /opt/yourtj/main/storage/database/file.db ".backup '/tmp/main-file.db'"
+sqlite3 /opt/yourtj/dev/storage/database/file.db ".backup '/tmp/dev-file.db'"
+# 或直接复用旧机已有的 backup-db.sh(它已做一致性快照):
+#   /opt/yourtj/scripts/backup-db.sh main && scp ... root@<旧机>:/opt/yourtj/snapshots/main/file-*.db /tmp/main-file.db
+
+# 旧机 → 新机
+scp -i ~/Documents/YourTJ_Korean.pem /tmp/main-file.db /tmp/dev-file.db \
+  root@43.108.84.213:/tmp/
+
+# 新机: 安装 + 属主必须是容器内 app uid(1000), 否则附件写入报权限错误
+install -m 0664 /tmp/main-file.db /opt/yourtj/main/storage/database/file.db
+install -m 0664 /tmp/dev-file.db /opt/yourtj/dev/storage/database/file.db
+chown 1000:1000 /opt/yourtj/main/storage/database/file.db /opt/yourtj/dev/storage/database/file.db
+```
+
+### 3. 配置迁移（完整拷贝 + reconcile，关键！）
+
+**不要只复制 signingKey**：`config.toml` 还包含 GitHub OAuth `client_id`/`client_secret`、
+OIDC 设置（含 signing_key_file PEM）、一系统同步 Cookie 密文等，全部需要原样迁移：
+
+```bash
+# 旧机: 完整拷贝两个 config.toml 与 OIDC 密钥文件
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/main/config.toml /tmp/main-config.toml
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /tmp/dev-config.toml
+# 若 [oidc] signing_key_file 启用, 一并拷贝对应 PEM
+
+# 新机: 用旧配置覆盖, 然后 reconcile 以下部署相关键:
+#   - [db.default] url: host 改为 postgres(compose 服务名), 不要沿用旧机 127.0.0.1
+#   - [server] trusted_proxies: 1Panel 本机回源 → ["127.0.0.1", "::1"]
+#   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
+#   - [server] url: 保持 https://f.yourtj.de / https://dev.yourtj.de
+install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
+install -m 0644 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
+```
+
+### 4. 首次部署 + 健康检查
+
+```bash
+# 手动拉取并启动(等价于 CI deploy.sh main main-<sha> 5234)
+cd /opt/yourtj
+IMAGE_KEEP_N=5 bash scripts/deploy.sh main main-<latest-sha> 5234
+IMAGE_KEEP_N=3 bash scripts/deploy.sh dev dev-<latest-sha> 5235
+# 验证
+curl -fsS http://127.0.0.1:5234/health && echo MAIN_OK
+curl -fsS http://127.0.0.1:5235/health && echo DEV_OK
+curl -fsS -H "Host: f.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反代
+```
+
+### 5. Cloudflare SSL 模式 + DNS 切换
+
+**先改 SSL/TLS 模式，再切 DNS**（否则切换瞬间 521/525）：
+
+1. **Cloudflare SSL/TLS 模式**：新旧机均由 1Panel 反代终止 TLS（保持与旧机一致的
+   模式，如 Full (strict)：Cloudflare → origin 走 HTTPS:443）。论坛容器只监听
+   127.0.0.1 回源端口，不直接暴露 80/443。
+2. **DNS**：`f.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
+   改为新机 IP（43.108.84.213）。
+3. 等 TTL 过后从外网验证 `https://f.yourtj.de` 与 `https://dev.yourtj.de` 可达、
+   登录/发帖/附件/搜索 spot-check。
+4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
+5. 更新 GitHub Environments secrets `VM_HOST`（production 与 dev）→ 新机 IP；旧机从 CI 摘除。
+
+### 风险与回滚
+
+- 迁移窗口内的新写入不会进入 dump；**切换前在旧机再跑一次 `backup-db.sh main`** 生成最新快照，
+  接受分钟级数据窗口。
+- **回滚不是简单的 DNS 切回**：DNS 切换到新机后，新机接受了新的发帖/注册/附件写入。
+  若此时切回旧机，这些新写入会丢失。因此回滚前必须**反向同步**：
+  1. 停写：临时把 Cloudflare 页面规则或新机 1Panel 反代置为维护模式（或直接切 DNS 前先接受
+     "最近写入可能丢失" 的窗口）；
+  2. 从新机 `pg_dump yourtj_main/yourtj_dev` 回灌旧机对应库（与 §2 相同方式反向）；
+  3. 把新机 `storage/database/file.db` 拷回旧机对应路径并 `chown 1000:1000`；
+  4. 再切 DNS 回旧机。
+  - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
+- Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（决策
+  [0003](../decisions/0003-aggregate-search-multi-index-pinyin.md)：索引是可重建投影）。
+- 搜索投影任务采用有界重试；Meilisearch 短时不可用时，`topic-search.*`、
+  `user-search.*` 或 `category-search.*` 任务可能进入 `failed`，不会自动无限重试。
+  Meilisearch 恢复后检查 `task_queue`，并运行 `rebuild-search-index` 做一次全量对账；
+  该命令是运维恢复动作，不依赖旧任务仍处于 pending。
+
+## Built-in OIDC configuration
+
+`Current`: the deployment template enables the built-in provider for both instances. CI derives
+`oidc.issuer` from `deploy/instances/<env>.json` (`server_url` + `/api/oauth`): production uses
+`https://f.yourtj.de/api/oauth`, dev uses `https://dev.yourtj.de/api/oauth`. The explicit issuer keeps
+the dev identity endpoint independent of the production database snapshot's site settings.
+
+The registered `yourtj-mobile` client is public (no client secret), requires PKCE S256, and permits
+only `yourtj://callback`. The RS256 key is generated on first initialization at
+`./storage/oidc/signing_key.pem`, inside the instance's persistent storage mount. Preserve that
+file across restarts, image updates and migrations; do not share the key between dev and production.
+Google/GitHub retain their own provider credentials and existing HTTPS OAuth callback URLs;
+enabling the built-in provider does not configure those upstream providers.
+
+Third-party `redirect_uris_globs` match the callback after decoding the outer authorization
+query exactly once. Nested page URLs retain their percent encoding: a callback containing
+`redirect=https%3A%2F%2Fwiki.example.com%2Fguide` needs that encoded domain prefix in its
+pattern. Pin both the callback origin and the nested destination origin (or a known relative
+path prefix); do not permit arbitrary hosts or protocol-relative destinations. Check custom
+client patterns against the callback actually sent by the client when updating the provider.
+Exact mobile callbacks are unaffected. The deployment templates include encoded examples.
+
+Apply through the regular image/config workflow. After the instance restarts, verify discovery:
+
+```bash
+curl --fail --silent --show-error https://dev.yourtj.de/api/oauth/.well-known/openid-configuration
+curl --fail --silent --show-error https://f.yourtj.de/api/oauth/.well-known/openid-configuration
+```
+
+The response must be JSON with the matching instance issuer and authorization/token/JWKS endpoints.
+A 404 means routes were not registered; check the deployed configuration and OIDC startup errors
+(including issuer validation and signing-key storage permissions). To disable the provider, set
+`oidc.enabled = false` in the deployment template and apply/restart through the same workflow.
+Password and Web social login remain separate from that switch.
 
 ## Runbooks to write
 
-- Casdoor production config (domain, certs, client registration)
 - Meilisearch index rebuild, backup
 - Logging & monitoring (config [log] slow SQL, rolling logs; health probes)

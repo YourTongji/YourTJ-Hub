@@ -1,0 +1,8 @@
+{
+  "code": 0,
+  "result": {
+    "secret": "SECRET_REDACTED",
+    "otpauthUrl": "otpauth://totp/yourtj:contract-user?secret=SECRET_REDACTED&issuer=yourtj&algorithm=SHA1&digits=6&period=30"
+  },
+  "messageCode": "common.operation.success"
+}

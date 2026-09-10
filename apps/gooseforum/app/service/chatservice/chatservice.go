@@ -2,15 +2,16 @@ package chatservice
 
 import (
 	"errors"
+	"slices"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/chat/imConversations"
-	"github.com/leancodebox/GooseForum/app/models/chat/imUserChatConfigs"
-	"github.com/leancodebox/GooseForum/app/models/chat/messages"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/unreadservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 	"github.com/samber/lo"
 )
 
@@ -132,7 +133,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 
 		if conv != nil {
 			chatItem.LastMsg = conv.LastMsgContent
-			chatItem.LastMsgTime = conv.LastMsgTime.Format("2006-01-02 15:04:05")
+			chatItem.LastMsgTime = conv.LastMsgTime.Format(time.RFC3339)
 		}
 
 		return chatItem
@@ -172,7 +173,7 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 		msgs = msgs[:limit]
 	}
 	if afterId == 0 {
-		reverseMessages(msgs)
+		slices.Reverse(msgs)
 	}
 
 	list := lo.Map(msgs, func(m messages.Entity, _ int) *vo.MessageVo {
@@ -182,7 +183,7 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 			Content:   m.Content,
 			MsgType:   m.MsgType,
 			IsRead:    m.IsRead,
-			CreatedAt: m.CreatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: m.CreatedAt.Format(time.RFC3339),
 			IsSelf:    m.SenderId == userId,
 		}
 	})
@@ -202,14 +203,15 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 	return result, nil
 }
 
-func reverseMessages(msgs []messages.Entity) {
-	for left, right := 0, len(msgs)-1; left < right; left, right = left+1, right-1 {
-		msgs[left], msgs[right] = msgs[right], msgs[left]
-	}
-}
-
-// MarkRead clears unread state for a conversation.
+// MarkRead 清除指定会话的未读状态。
+//
+// 必须先校验调用方是否为该会话成员，否则任意已认证用户可枚举连续的 convId
+// 越权翻转他人私聊会话的已读状态（issue #111，CWE-639）。校验失败时返回
+// 与 GetMessages 一致的 "conversation not found" 错误语义，且不触碰任何状态。
 func MarkRead(userId, convId uint64) error {
+	if !imUserChatConfigs.CanAccessConversation(userId, convId) {
+		return errors.New("conversation not found")
+	}
 	imUserChatConfigs.ClearUnread(convId, userId)
 	messages.MarkMessagesRead(convId, userId)
 	unreadservice.Invalidate(userId)

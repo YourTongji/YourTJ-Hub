@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm/clause"
 )
 
@@ -24,6 +24,20 @@ func Get(id uint64) (entity Entity) {
 func GetByTopicId(userId, topicId any) (entity Entity) {
 	builder().Where(queryopt.Eq("user_id", userId)).Where(queryopt.Eq("topic_id", topicId)).First(&entity)
 	return
+}
+
+// GetByTopicIDs loads one viewer's interaction state in a single bounded page query.
+func GetByTopicIDs(userID uint64, topicIDs []uint64) (map[uint64]Entity, error) {
+	result := make(map[uint64]Entity)
+	if userID == 0 || len(topicIDs) == 0 {
+		return result, nil
+	}
+	var rows []Entity
+	err := builder().Select("topic_id", "liked_at", "bookmarked_at").Where("user_id = ? AND topic_id IN ?", userID, topicIDs).Find(&rows).Error
+	for _, row := range rows {
+		result[row.TopicId] = row
+	}
+	return result, err
 }
 
 // SetLiked 设置主题点赞状态，返回是否发生了状态迁移（false = 状态未变化或写入失败）。

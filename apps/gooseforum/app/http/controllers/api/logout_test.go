@@ -4,17 +4,20 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	jwt "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 func setupLogoutTestDB(t *testing.T) {
@@ -22,6 +25,8 @@ func setupLogoutTestDB(t *testing.T) {
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{},
+		&userPoints.Entity{},
+		&pointsRecord.Entity{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 	); err != nil {
@@ -29,6 +34,8 @@ func setupLogoutTestDB(t *testing.T) {
 	}
 	conn.Where("1 = 1").Delete(&userSessions.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
+	conn.Where("1 = 1").Delete(&pointsRecord.Entity{})
+	conn.Where("1 = 1").Delete(&userPoints.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
 }
 
@@ -78,6 +85,48 @@ func TestLogoutRevokesSession(t *testing.T) {
 	}
 	if sessionservice.GetValidByJti(jti) != nil {
 		t.Fatal("session row still valid after logout")
+	}
+}
+
+func TestLogoutClearsCookieWhenSessionRevocationFails(t *testing.T) {
+	setupLogoutTestDB(t)
+	if !db.IsSqlite() {
+		t.Skip("requires SQLite trigger support")
+	}
+
+	user, err := userservice.CreateUser("logoutfailure", "password", "logoutfailure@example.com", false)
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	token, jti, err := jwt.CreateSessionToken(user.Id, user.TokenVersion)
+	if err != nil {
+		t.Fatalf("CreateSessionToken() error = %v", err)
+	}
+	if err := sessionservice.Create(user.Id, jti, "test-agent", "127.0.0.1"); err != nil {
+		t.Fatalf("sessionservice.Create() error = %v", err)
+	}
+	conn := db.Connect()
+	if err := conn.Exec("CREATE TRIGGER logout_revoke_failure BEFORE DELETE ON user_sessions BEGIN SELECT RAISE(ABORT, 'forced session revoke failure'); END;").Error; err != nil {
+		t.Fatalf("create failure trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Exec("DROP TRIGGER IF EXISTS logout_revoke_failure").Error; err != nil {
+			t.Errorf("drop failure trigger: %v", err)
+		}
+	})
+
+	c, recorder := newLogoutContext(token)
+	Logout(c)
+
+	var res component.ResultStruct
+	if err := json.Unmarshal(recorder.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if res.Code != component.FAIL {
+		t.Fatalf("response code = %v, want FAIL", res.Code)
+	}
+	if cookie := recorder.Header().Get("Set-Cookie"); !strings.Contains(cookie, "access_token=") {
+		t.Fatalf("logout failure did not clear access_token cookie: %q", cookie)
 	}
 }
 

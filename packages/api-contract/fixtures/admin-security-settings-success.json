@@ -1,0 +1,34 @@
+{
+  "result": {
+    "enableSignup": true,
+    "enableEmailVerification": false,
+    "maxDailySignups": -1,
+    "allowedDomains": [
+      "tongji.edu.cn"
+    ],
+    "reservedUsernames": [
+      "admin",
+      "administrator",
+      "root",
+      "system",
+      "moderator",
+      "developer",
+      "api",
+      "oauth",
+      "settings",
+      "misskey"
+    ],
+    "bannedUsernames": [],
+    "sensitiveWords": [
+      "代开发票",
+      "办证刻章",
+      "枪支弹药",
+      "六合彩",
+      "冰毒",
+      "海洛因"
+    ],
+    "sensitiveAction": "block",
+    "captchaRequired": false
+  },
+  "code": 0
+}

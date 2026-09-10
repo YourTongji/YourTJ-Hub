@@ -4,31 +4,33 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 func TestTopicListCacheReadsTopics(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&topics.Entity{}, &category.Entity{}, &topicCategoryIndex.Entity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&topics.Entity{}, &category.Entity{}, &topicCategoryIndex.Entity{}, &users.EntityComplete{}, &posts.Entity{}); err != nil {
 		t.Fatalf("migrate topic list cache tables: %v", err)
 	}
 	conn.Where("1 = 1").Delete(&topics.Entity{})
 	conn.Where("1 = 1").Delete(&category.Entity{})
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Unscoped().Where("id = ?", 1010).Delete(&posts.Entity{})
 	ClearTopicCategoryCache()
 	ClearTopicListCache()
 
 	now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
 	conn.Create(&users.EntityComplete{Id: 1, Username: "author"})
 	conn.Create(&category.Entity{Id: 3, Name: "General", Slug: "general"})
+	conn.Create(&posts.Entity{Id: 1010, TopicId: 10, PostNo: 1, UserId: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now})
 	conn.Create(&topics.Entity{
 		Id:            10,
 		Title:         "topic title",
@@ -38,6 +40,7 @@ func TestTopicListCacheReadsTopics(t *testing.T) {
 		UserId:        1,
 		Status:        1,
 		ProcessStatus: 0,
+		FirstPostId:   1010,
 		ReplyCount:    2,
 		ViewCount:     9,
 		PinWeight:     7,
@@ -59,6 +62,52 @@ func TestTopicListCacheReadsTopics(t *testing.T) {
 	categoryPage := GetTopicsByCategorySimpleVo(3, "latest", 1)
 	if len(categoryPage.Topics) != 1 || categoryPage.Topics[0].Id != 10 {
 		t.Fatalf("category topic page=%#v, want topic 10", categoryPage.Topics)
+	}
+}
+
+func TestInvalidateTopicListCacheForCategories(t *testing.T) {
+	ClearTopicListCache()
+	defer ClearTopicListCache()
+
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			topicSimpleVoCache.Set(latestTopicsCacheKey(sort, page), TopicSimpleVoPage{}, time.Minute)
+			topicSimpleVoCache.Set(topicsByCategoryCacheKey(3, sort, page), TopicSimpleVoPage{}, time.Minute)
+			topicSimpleVoCache.Set(topicsByCategoryCacheKey(4, sort, page), TopicSimpleVoPage{}, time.Minute)
+		}
+	}
+
+	InvalidateTopicListCacheForCategories(3, 3, 0)
+
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			for _, key := range []string{latestTopicsCacheKey(sort, page), topicsByCategoryCacheKey(3, sort, page)} {
+				loaded := false
+				if _, err := topicSimpleVoCache.GetOrLoadE(key, func() (TopicSimpleVoPage, error) {
+					loaded = true
+					return TopicSimpleVoPage{}, nil
+				}, time.Minute); err != nil {
+					t.Fatalf("reload invalidated key %q: %v", key, err)
+				} else if !loaded {
+					t.Fatalf("key %q remained cached after topic invalidation", key)
+				}
+			}
+		}
+	}
+
+	for page := 1; page <= maxCachedTopicPage; page++ {
+		for _, sort := range topicListSorts {
+			key := topicsByCategoryCacheKey(4, sort, page)
+			loaded := false
+			if _, err := topicSimpleVoCache.GetOrLoadE(key, func() (TopicSimpleVoPage, error) {
+				loaded = true
+				return TopicSimpleVoPage{}, nil
+			}, time.Minute); err != nil {
+				t.Fatalf("read unaffected category key: %v", err)
+			} else if loaded {
+				t.Fatalf("unaffected category page was invalidated: %q", key)
+			}
+		}
 	}
 }
 

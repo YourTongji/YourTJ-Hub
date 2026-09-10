@@ -8,22 +8,26 @@ const tableName = "event_notification"
 
 // Event Types
 const (
-	EventTypeComment   = "comment"    // 主题收到新 post
-	EventTypePostReply = "post_reply" // post 回复通知
-	EventTypeTopicPost = "topic_post" // 关注主题的新 post 通知
-	EventTypeSystem    = "system"     // 系统通知
-	EventTypeFollow    = "follow"     // 关注通知
-	EventTypeBadge     = "badge"      // 徽章通知
-	EventTypeLike      = "like"       // 楼层点赞通知
+	EventTypeComment     = "comment"      // 主题收到新 post
+	EventTypePostReply   = "post_reply"   // post 回复通知
+	EventTypeTopicPost   = "topic_post"   // 关注主题的新 post 通知
+	EventTypeSystem      = "system"       // 系统通知
+	EventTypeFollow      = "follow"       // 关注通知
+	EventTypeBadge       = "badge"        // 徽章通知
+	EventTypeLike        = "like"         // 楼层点赞通知
+	EventTypeWikiUpdated = "wiki_updated" // wiki 页面审核通过后的更新通知
+	EventTypeMention     = "mention"      // @mention 通知（issue #563）
 )
 
 const (
-	TemplateComment   = "notifications.templates.comment"
-	TemplatePostReply = "notifications.templates.postReply"
-	TemplateTopicPost = "notifications.templates.topicPost"
-	TemplateFollow    = "notifications.templates.follow"
-	TemplateBadge     = "notifications.templates.badge"
-	TemplateLike      = "notifications.templates.like"
+	TemplateComment     = "notifications.templates.comment"
+	TemplatePostReply   = "notifications.templates.postReply"
+	TemplateTopicPost   = "notifications.templates.topicPost"
+	TemplateFollow      = "notifications.templates.follow"
+	TemplateBadge       = "notifications.templates.badge"
+	TemplateLike        = "notifications.templates.like"
+	TemplateWikiUpdated = "notifications.templates.wikiUpdated"
+	TemplateMention     = "notifications.templates.mention"
 )
 
 // Future unread-scope design:
@@ -61,15 +65,15 @@ type NotificationPayload struct {
 	TopicId    uint64 `json:"topicId,omitempty"`
 	TopicTitle string `json:"topicTitle,omitempty"`
 	PostId     uint64 `json:"postId,omitempty"`
+	PostNo     uint64 `json:"postNo,omitempty"` // 楼层号：通知链接优先用它稳定定位，缺失时回退 postId 锚点
 	// 其他元数据
 	Extra Extra `json:"metadata"`
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段
+// 统一走 Extra（metadata），不再双写（简化落地中候选1）。
 type NotificationTemplateParams struct {
-	Preview      string `json:"preview,omitempty"`
-	FollowerName string `json:"followerName,omitempty"`
-	BadgeCode    string `json:"badgeCode,omitempty"`
-	BadgeName    string `json:"badgeName,omitempty"`
+	Preview string `json:"preview,omitempty"`
 }
 
 type Extra struct {
@@ -81,14 +85,17 @@ type Extra struct {
 }
 
 type Entity struct {
-	Id        uint64              `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3" json:"id"`
-	UserId    uint64              `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1" json:"userId"` // 接收通知的用户ID
-	Payload   NotificationPayload `gorm:"column:payload;type:json;serializer:json" json:"payload"`                                                                                                            // 通知内容(JSON)
-	EventType string              `gorm:"column:event_type;type:varchar(16);index:idx_user_id_event_type_read;" json:"eventType"`                                                                             // 通知类型
-	IsRead    bool                `gorm:"column:is_read;type:boolean;default:false;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_read_id,priority:2" json:"isRead"`                    // 是否已读
-	ReadAt    *time.Time          `gorm:"column:read_at;type:timestamp;null;" json:"readAt"`                                                                                                                  // 读取时间
-	CreatedAt time.Time           `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`                                                                                                 // 创建时间
-	UpdatedAt time.Time           `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`                                                                                                                 // 更新时间
+	Id     uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_user_id_desc,priority:2;index:idx_user_read_id,priority:3" json:"id"`
+	UserId uint64 `gorm:"column:user_id;type:bigint;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_id_desc,priority:1;index:idx_user_read_id,priority:1" json:"userId"` // 接收通知的用户ID
+	// TopicID 冗余列：与 Payload.TopicId 同步维护，供删除联动按 SQL 过滤而非全表扫描。
+	// 非话题类通知（badge/follow）该列为 0。跨库 JSON 查询语法不一致，SQL 过滤需要此列。
+	TopicID   uint64              `gorm:"column:topic_id;not null;default:0;index:idx_event_notification_topic" json:"-"`
+	Payload   NotificationPayload `gorm:"column:payload;type:json;serializer:json" json:"payload"`                                                                                         // 通知内容(JSON)
+	EventType string              `gorm:"column:event_type;type:varchar(16);index:idx_user_id_event_type_read;" json:"eventType"`                                                          // 通知类型
+	IsRead    bool                `gorm:"column:is_read;type:boolean;default:false;index:idx_user_id_event_type_read;index:idx_user_read;index:idx_user_read_id,priority:2" json:"isRead"` // 是否已读
+	ReadAt    *time.Time          `gorm:"column:read_at;type:timestamp;null;" json:"readAt"`                                                                                               // 读取时间
+	CreatedAt time.Time           `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`                                                                              // 创建时间
+	UpdatedAt time.Time           `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`                                                                                              // 更新时间
 }
 
 func (itself *Entity) TableName() string {

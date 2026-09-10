@@ -1,0 +1,27 @@
+getPublicSiteThemeTokens:
+  get:
+    tags: [Forum]
+    summary: Read the published site theme tokens
+    operationId: getPublicSiteThemeTokens
+    description: |
+      Public read (no auth) of the published site theme, consumed by the mobile
+      app to mirror the admin-published design tokens (mobile Route A). Returns
+      enabled=false, version=0, publishedAt=null and an empty themes array when
+      theming is disabled or nothing has been published yet; clients then keep
+      their built-in theme. Only the published state is exposed: staged drafts
+      (prepublish) and admin-only metadata (theme name/label) are never
+      returned. Token values are the published normalized design tokens (same
+      data source as the /site-theme.css stylesheet).
+    security: []
+    responses:
+      '200':
+        description: Published theme tokens (or the disabled/unpublished shape).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PublicSiteThemeTokensResponse
+            examples:
+              enabled:
+                externalValue: ../fixtures/site-theme-tokens-enabled.json
+              disabled:
+                externalValue: ../fixtures/site-theme-tokens-disabled.json

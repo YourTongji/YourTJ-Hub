@@ -1,0 +1,9 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "common.rateLimited",
+  "params": {
+    "action": "post.delete",
+    "retryAfterSeconds": 30
+  }
+}

@@ -1,0 +1,367 @@
+package markdown2html
+
+import (
+	"cmp"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/yuin/goldmark/ast"
+)
+
+type markdownCompatCase struct {
+	Name        string   `json:"name"`
+	Markdown    string   `json:"markdown"`
+	Contains    []string `json:"contains"`
+	NotContains []string `json:"notContains"`
+}
+
+func TestMarkdownVersions(t *testing.T) {
+	if got := GetPostVersion(); got != 6 {
+		t.Fatalf("GetPostVersion() = %d, want 6", got)
+	}
+	if GetParser() == nil {
+		t.Fatal("GetParser() returned nil")
+	}
+}
+
+func TestMarkdownToHTMLRendersGFM(t *testing.T) {
+	html := MarkdownToHTML("# Title\n\n- [x] done\n\n| A | B |\n|---|---|\n| 1 | 2 |")
+
+	for _, want := range []string{`<h1 id="title">Title</h1>`, `type="checkbox"`, `<table>`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected rendered HTML to contain %q, got %s", want, html)
+		}
+	}
+}
+
+func TestMarkdownToHTMLPreservesMermaidCodeBlockForClientEnhancement(t *testing.T) {
+	html := MarkdownToHTML("```mermaid\ngraph TD\n  A --> B\n```")
+
+	for _, want := range []string{`<pre><code class="language-mermaid">`, "graph TD\n  A --&gt; B"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected Mermaid source HTML to contain %q, got %s", want, html)
+		}
+	}
+}
+
+func TestMarkdownCompatibilityFixtures(t *testing.T) {
+	for _, fixture := range loadMarkdownCompatFixtures(t) {
+		t.Run(fixture.Name, func(t *testing.T) {
+			html := MarkdownToHTML(fixture.Markdown)
+			for _, want := range fixture.Contains {
+				if !strings.Contains(html, want) {
+					t.Fatalf("expected rendered HTML to contain %q, got %s", want, html)
+				}
+			}
+			for _, unwanted := range fixture.NotContains {
+				if strings.Contains(html, unwanted) {
+					t.Fatalf("expected rendered HTML not to contain %q, got %s", unwanted, html)
+				}
+			}
+		})
+	}
+}
+
+func TestPostMarkdownToHTMLNormalizesExternalLinksAndImages(t *testing.T) {
+	html := PostMarkdownToHTML(`[Goose](https://gooseforum.online)
+
+![logo](https://gooseforum.online/logo.png)`)
+
+	if !strings.Contains(html, `target="_blank"`) {
+		t.Fatalf("expected links to open in a new tab, got %s", html)
+	}
+	if !strings.Contains(html, `rel="nofollow ugc noopener noreferrer"`) {
+		t.Fatalf("expected links to include ugc rel, got %s", html)
+	}
+	if !strings.Contains(html, `loading="lazy"`) {
+		t.Fatalf("expected images to lazy load, got %s", html)
+	}
+	if !strings.Contains(html, `decoding="async"`) {
+		t.Fatalf("expected images to decode async, got %s", html)
+	}
+}
+
+func TestPostMarkdownToHTMLKeepsInternalLinksInCurrentPage(t *testing.T) {
+	html := PostMarkdownToHTML(`[topic](/p/post/123)`)
+	if strings.Contains(html, `target="_blank"`) || strings.Contains(html, `rel="nofollow ugc noopener noreferrer"`) {
+		t.Fatalf("expected relative internal link to keep normal navigation, got %s", html)
+	}
+}
+
+func TestNormalizePostHTMLUpdatesExistingAttributes(t *testing.T) {
+	html := normalizePostHTML(`<p><a href="https://example.com" target="_self" rel="next">link</a><img src="/a.png" loading="eager"></p>`)
+
+	for _, want := range []string{`target="_blank"`, `rel="nofollow ugc noopener noreferrer"`, `loading="lazy"`, `decoding="async"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected normalized HTML to contain %q, got %s", want, html)
+		}
+	}
+	if strings.Contains(html, `target="_self"`) || strings.Contains(html, `rel="next"`) || strings.Contains(html, `loading="eager"`) {
+		t.Fatalf("expected existing attributes to be replaced, got %s", html)
+	}
+}
+
+func TestExtractFirstImageURL(t *testing.T) {
+	got := ExtractFirstImageURL("正文\n\n![first](/file/img/first.webp)\n\n![second](https://example.com/second.webp)")
+	if got != "/file/img/first.webp" {
+		t.Fatalf("expected first markdown image, got %q", got)
+	}
+}
+
+func TestExtractFirstImageURLSkipsNonPublicDestinations(t *testing.T) {
+	tests := []string{
+		"",
+		"![blob](blob:https://example.com/id)",
+		"![ftp](ftp://example.com/a.png)",
+		"![bad](http://%zz)",
+		"![relative](images/a.png)",
+	}
+
+	for _, input := range tests {
+		if got := ExtractFirstImageURL(input); got != "" {
+			t.Fatalf("ExtractFirstImageURL(%q) = %q, want empty", input, got)
+		}
+	}
+}
+
+func TestExtractDescriptionSkipsCodeAndImages(t *testing.T) {
+	got := ExtractDescription(`# Heading
+
+短
+
+This is a useful paragraph.
+
+![logo](/logo.png)
+
+`+"```go\nfmt.Println(\"hidden\")\n```"+`
+
+- Another useful point.`, 200)
+
+	if !strings.Contains(got, "Heading") || !strings.Contains(got, "This is a useful paragraph") || !strings.Contains(got, "Another useful point") {
+		t.Fatalf("description missed readable text: %q", got)
+	}
+	if strings.Contains(got, "hidden") || strings.Contains(got, "logo") || strings.Contains(got, "短") {
+		t.Fatalf("description included skipped content: %q", got)
+	}
+}
+
+func TestExtractDescriptionUsesDefaultAndTruncatesRunes(t *testing.T) {
+	input := strings.Repeat("鹅", 210)
+	got := ExtractDescription(input, 0)
+
+	if runeCount := len([]rune(strings.TrimSuffix(got, "..."))); runeCount != 200 {
+		t.Fatalf("description rune count = %d, want 200", runeCount)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("expected truncated description to end with ellipsis, got %q", got)
+	}
+}
+
+func TestExtractDescriptionRt(t *testing.T) {
+	input := "rt,xxxx121"
+	got := ExtractDescription(input, 0)
+
+	if got != input {
+		t.Fatalf("ExtractDescription() = %q, want %q", got, input)
+	}
+}
+
+func TestExtractPreviewConvertsMarkdownToReadableText(t *testing.T) {
+	input := "回复 **重点** [文档](https://example.com) ![截图](/file/image.png)"
+	if got := ExtractPreview(input, 64); got != "回复 重点 文档 [图片]" {
+		t.Fatalf("ExtractPreview() = %q", got)
+	}
+}
+
+func TestExtractPreviewUsesImageFallbackAndTruncatesRunes(t *testing.T) {
+	if got := ExtractPreview("![](/file/image.png)", 64); got != "[图片]" {
+		t.Fatalf("image preview = %q, want [图片]", got)
+	}
+	if got := ExtractPreview(strings.Repeat("鹅", 65), 64); len([]rune(got)) != 64 {
+		t.Fatalf("preview rune count = %d, want 64", len([]rune(got)))
+	}
+}
+
+func TestExtractVisibleTextDoesNotDropMarkdownWrappedWords(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		content string
+	}{
+		{name: "strong", content: "**赌博**"},
+		{name: "emphasis", content: "*赌博*"},
+		{name: "strikethrough", content: "~~赌博~~"},
+		{name: "inline code", content: "`赌博`"},
+		{name: "heading", content: "# 赌博"},
+		{name: "blockquote", content: "> 赌博"},
+		{name: "list", content: "- 赌博"},
+		{name: "link", content: "[赌博](https://example.com)"},
+		{name: "fenced code", content: "```text\n赌博\n```"},
+		{name: "formatting inside word", content: "赌**博**"},
+		{name: "inline code inside word", content: "赌`博`"},
+		{name: "link inside word", content: "赌[博](https://example.com)"},
+		{name: "numeric entity inside word", content: "&#x8D4C;博"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExtractVisibleText(tt.content); !strings.Contains(got, "赌博") {
+				t.Fatalf("ExtractVisibleText(%q) = %q, want 赌博", tt.content, got)
+			}
+		})
+	}
+}
+
+func TestExtractVisibleTextSeparatesMarkdownTableCells(t *testing.T) {
+	visible := ExtractVisibleText("| 赌 | 博 |\n| --- | --- |")
+	if strings.Contains(visible, "赌博") {
+		t.Fatalf("ExtractVisibleText() joined separate table cells: %q", visible)
+	}
+}
+
+func TestFallbackExtractDescription(t *testing.T) {
+	got := fallbackExtractDescription(`# Title
+
+- Useful list item with enough text
+![skip](/image.png)
+`+"```go\nfmt.Println(\"skip\")\n```"+`
+Plain paragraph with enough words`, 18)
+
+	if got != "Useful list item w..." {
+		t.Fatalf("fallbackExtractDescription() = %q", got)
+	}
+}
+
+func TestExtractSearchContentPreservesUsefulMarkdownContext(t *testing.T) {
+	got := ExtractSearchContent(`# Heading
+
+Text with [Goose](https://gooseforum.online) and ` + "`code`" + `.
+
+![logo](/logo.png)
+
+---
+
+<section>hidden html</section>
+
+` + "```go\nhidden()\n```")
+
+	for _, want := range []string{"Heading", "Goose](https://gooseforum.online)", "` code`", "logo](/logo.png)"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("search content missing %q: %q", want, got)
+		}
+	}
+	if strings.Contains(got, "hidden html") || strings.Contains(got, "hidden()") {
+		t.Fatalf("search content included skipped content: %q", got)
+	}
+}
+
+func TestCompactWhitespace(t *testing.T) {
+	got := compactWhitespace("  first  \n\n second\t\n")
+	if got != "first\nsecond" {
+		t.Fatalf("compactWhitespace() = %q", got)
+	}
+}
+
+func TestFindFirstElementAndShouldInsertSpaceFallbacks(t *testing.T) {
+	if got := findFirstElement(nil, "div"); got != nil {
+		t.Fatalf("findFirstElement(nil) = %#v, want nil", got)
+	}
+
+	root := &ast.Document{}
+	if shouldInsertSpace([]ast.Node{root}) {
+		t.Fatal("shouldInsertSpace() should be false outside paragraph/heading")
+	}
+}
+
+func TestExtractFirstImageURLSkipsInlineData(t *testing.T) {
+	got := ExtractFirstImageURL("![inline](data:image/png;base64,abc)\n\n![public](https://example.com/public.webp)")
+	if got != "https://example.com/public.webp" {
+		t.Fatalf("expected first public image, got %q", got)
+	}
+}
+
+func loadMarkdownCompatFixtures(t *testing.T) []markdownCompatCase {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("failed to locate markdown test file")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "..", "..", "testdata", "markdown-compat")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fixtures := make([]markdownCompatCase, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), ".md")
+		markdown, err := os.ReadFile(filepath.Join(root, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		expect, err := os.ReadFile(filepath.Join(root, name+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fixture := markdownCompatCase{Name: name, Markdown: string(markdown)}
+		if err := json.Unmarshal(expect, &fixture); err != nil {
+			t.Fatal(err)
+		}
+		fixtures = append(fixtures, fixture)
+	}
+	slices.SortFunc(fixtures, func(a, b markdownCompatCase) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return fixtures
+}
+
+func TestExtractMentions(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{name: "plain mention", content: "@alice 你好", want: []string{"alice"}},
+		{name: "multiple mentions", content: "@alice @bob 讨论", want: []string{"alice", "bob"}},
+		{name: "repeated mention dedup", content: "@alice @alice @bob", want: []string{"alice", "bob"}},
+		{name: "fenced code excluded", content: "```\n@alice\n```\n@bob", want: []string{"bob"}},
+		{name: "inline code excluded", content: "`@alice` @bob", want: []string{"bob"}},
+		{name: "link label excluded", content: "[@alice](/u/1) @bob", want: []string{"bob"}},
+		{name: "url excluded", content: "https://x.com/@alice 见 @bob", want: []string{"bob"}},
+		{name: "email excluded", content: "foo@example.com @bob", want: []string{"bob"}},
+		{name: "midword at not mention", content: "x@alice", want: nil},
+		{name: "double at not mention", content: "@@alice", want: nil},
+		{name: "underscore username", content: "@user_name 好", want: []string{"user_name"}},
+		{name: "hyphen username", content: "@a-b-c 好", want: []string{"a-b-c"}},
+		{name: "punctuation before at", content: "（@alice）", want: []string{"alice"}},
+		{name: "cjk text before at", content: "请@alice 看一下", want: []string{"alice"}},
+		{name: "no at", content: "没有提及", want: nil},
+		{name: "image alt excluded", content: "![@alice](/img.png) @bob", want: []string{"bob"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractMentions(tt.content)
+			if len(got) == 0 && len(tt.want) == 0 {
+				return
+			}
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Fatalf("ExtractMentions(%q) = %v, want %v", tt.content, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNotificationMentionParsingUsesSourceBoundaries(t *testing.T) {
+	for _, content := range []string{`\@alice`, `$@alice$`, "@" + strings.Repeat("a", 65)} {
+		if got := ExtractMentions(content); len(got) != 0 {
+			t.Errorf("%q: unexpected mentions %v", content, got)
+		}
+	}
+}

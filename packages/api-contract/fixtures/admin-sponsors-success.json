@@ -1,0 +1,33 @@
+{
+  "result": {
+    "sponsors": {
+      "level0": [
+        {
+          "link": "https://example.test",
+          "message": "契约赞助",
+          "avatarUrl": "/static/sponsor.webp",
+          "name": "契约赞助商"
+        }
+      ],
+      "level1": [],
+      "level2": [],
+      "level3": []
+    },
+    "content": {
+      "title": "赞助",
+      "description": "感谢支持"
+    },
+    "contact": {
+      "title": "成为赞助商",
+      "description": "欢迎联系",
+      "buttonText": "联系我们",
+      "buttonLink": "mailto:hi@example.test"
+    },
+    "rules": [
+      {
+        "content": "链接需稳定"
+      }
+    ]
+  },
+  "code": 0
+}

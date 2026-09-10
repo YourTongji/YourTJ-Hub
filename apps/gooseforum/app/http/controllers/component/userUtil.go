@@ -3,14 +3,14 @@ package component
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 var (
@@ -37,19 +37,23 @@ func ValidateUsername(username string) bool {
 	return usernameRegex.MatchString(username)
 }
 
-// ValidatePassword 验证密码复杂度
+// ValidatePassword 验证密码复杂度。
+// 长度按 Unicode 字符（rune）计而不是 UTF-8 字节：契约与用户文案承诺的
+// 「6-64 位」是字符数，字节计数会让中文等多字节密码的最小长度被稀释、
+// 纯中文长密码被误拒为超长（PR #552 review P2）。
 func ValidatePassword(password string, minLength int) error {
 	if minLength <= 0 {
 		minLength = 8
 	}
-	if len(password) < minLength {
+	length := utf8.RuneCountInString(password)
+	if length < minLength {
 		return NewMessageError(
 			MessageAuthPasswordTooShort,
 			fmt.Sprintf("密码长度不能少于%d位", minLength),
 			MessageParams{"minLength": minLength},
 		)
 	}
-	if len(password) > 64 {
+	if length > 64 {
 		return NewMessageError(MessageAuthPasswordTooLong, "密码长度不能超过64位", nil)
 	}
 
@@ -122,7 +126,9 @@ func permissionActionParams(action PermissionAction, fallback string) MessagePar
 	}
 }
 
-// ValidateEmailDomain 验证邮箱域名是否符合白名单限制
+// ValidateEmailDomain 验证邮箱域名是否符合白名单限制。
+// 域名匹配大小写不敏感（DNS 域名本不区分大小写），与 OAuth 信任域名
+// 判定（oauthservice.emailInTrustedDomains）语义一致（PR #167 review）。
 func ValidateEmailDomain(email string) error {
 	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
 	if len(securityConfig.AllowedDomains) == 0 {
@@ -134,9 +140,11 @@ func ValidateEmailDomain(email string) error {
 		return NewMessageError(MessageAuthEmailDomainInvalid, "邮箱格式不正确", nil)
 	}
 
-	domain := parts[1]
-	if slices.Contains(securityConfig.AllowedDomains, domain) {
-		return nil
+	domain := strings.ToLower(parts[1])
+	for _, allowed := range securityConfig.AllowedDomains {
+		if strings.EqualFold(strings.TrimSpace(allowed), domain) {
+			return nil
+		}
 	}
 
 	return NewMessageError(

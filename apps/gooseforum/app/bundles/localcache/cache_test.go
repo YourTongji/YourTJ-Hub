@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 )
 
 func TestCache_GetOrLoad(t *testing.T) {
@@ -158,8 +158,118 @@ func TestCache_DeleteAndClear(t *testing.T) {
 	}
 }
 
+func TestCache_DeleteKeepsOtherKeys(t *testing.T) {
+	c := Cache[string]{}
+	defer stopTestCache(&c)
+
+	c.Set("first", "a", time.Minute)
+	c.Set("second", "b", time.Minute)
+	c.Delete("first")
+
+	loads := 0
+	got, err := c.GetOrLoadE("second", func() (string, error) {
+		loads++
+		return "reloaded", nil
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("GetOrLoadE() error = %v", err)
+	}
+	if got != "b" || loads != 0 {
+		t.Fatalf("unrelated key = %q with %d loads, want cached b with no reload", got, loads)
+	}
+}
+
 func stopTestCache[V any](c *Cache[V]) {
 	if c.cache != nil {
 		c.cache.Stop()
+	}
+}
+
+// TestCache_DeleteDiscardsInFlightLoad pins the epoch-based invalidation
+// guarantee: a load that started before Delete must not write its (stale)
+// result back into the cache. The next read observes the fresh value.
+func TestCache_DeleteDiscardsInFlightLoad(t *testing.T) {
+	c := Cache[string]{}
+	defer stopTestCache(&c)
+
+	firstLoadStarted := make(chan struct{})
+	releaseFirstLoad := make(chan struct{})
+	loadDone := make(chan struct{})
+	loads := 0
+
+	go func() {
+		defer close(loadDone)
+		_, _ = c.GetOrLoadE("key", func() (string, error) {
+			loads++
+			if loads == 1 {
+				close(firstLoadStarted)
+				<-releaseFirstLoad
+				return "stale", nil
+			}
+			return "fresh", nil
+		}, time.Minute)
+	}()
+
+	<-firstLoadStarted
+	c.Delete("key")
+	close(releaseFirstLoad)
+	<-loadDone
+
+	if loads != 2 {
+		t.Fatalf("loads = %d, want 2 (stale load must be retried)", loads)
+	}
+
+	got, err := c.GetOrLoadE("key", func() (string, error) {
+		return "fresh", nil
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("GetOrLoadE() error = %v", err)
+	}
+	if got != "fresh" {
+		t.Fatalf("cached value = %q, want fresh (stale in-flight load must be discarded)", got)
+	}
+}
+
+// TestCache_ClearDiscardsInFlightLoad is the Clear counterpart of the Delete
+// test, covering the same epoch guarantee for whole-cache invalidation.
+func TestCache_ClearDiscardsInFlightLoad(t *testing.T) {
+	c := Cache[string]{}
+	defer stopTestCache(&c)
+
+	firstLoadStarted := make(chan struct{})
+	releaseFirstLoad := make(chan struct{})
+	loadDone := make(chan struct{})
+	loads := 0
+
+	go func() {
+		defer close(loadDone)
+		_, _ = c.GetOrLoadE("key", func() (string, error) {
+			loads++
+			if loads == 1 {
+				close(firstLoadStarted)
+				<-releaseFirstLoad
+				return "stale", nil
+			}
+			return "fresh", nil
+		}, time.Minute)
+	}()
+
+	<-firstLoadStarted
+	c.Clear()
+	close(releaseFirstLoad)
+	<-loadDone
+
+	if loads != 2 {
+		t.Fatalf("loads = %d, want 2 (stale load must be retried)", loads)
+	}
+
+	got, err := c.GetOrLoadE("key", func() (string, error) {
+		return "fresh", nil
+	}, time.Minute)
+	if err != nil {
+		t.Fatalf("GetOrLoadE() error = %v", err)
+	}
+	if got != "fresh" {
+		t.Fatalf("cached value = %q, want fresh", got)
 	}
 }

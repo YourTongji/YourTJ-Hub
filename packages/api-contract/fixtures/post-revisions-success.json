@@ -1,0 +1,22 @@
+{
+  "result": {
+    "postId": 9252,
+    "versions": [
+      {
+        "version": 1,
+        "editor": {
+          "id": 9302,
+          "username": "contract-revision-editor",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "content": "Original reply content",
+        "renderedHTML": "<p>Original reply content</p>\n",
+        "processStatus": 0,
+        "createdAt": "2026-08-01T12:00:00Z"
+      }
+    ],
+    "hasMore": false,
+    "beforeVersion": 0
+  },
+  "code": 0
+}

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { LoaderCircle, Languages, LockKeyhole, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
+import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import PasswordInput from '@/site/components/PasswordInput.vue'
+import SiteSelect from '@/site/components/SiteSelect.vue'
 import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
-import { useSiteTheme } from '@/runtime/site-theme'
+import { useSiteTheme, setThemePreference } from '@/runtime/site-theme'
+import { safeUrl } from '@/runtime/safe-url'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -16,8 +19,10 @@ const page = defineProps<{
 type Mode = 'login' | 'register' | 'forgot'
 
 const { t, locale } = useI18n()
-const { isDark, toggleTheme } = useSiteTheme()
+const { isDark } = useSiteTheme()
 const mode = ref<Mode>(page.props.initialMode || 'login')
+const selectedEmailDomain = ref(page.props.allowedDomains[0] || '')
+const emailDomainOptions = page.props.allowedDomains.map((domain) => ({ value: domain, label: `@${domain}` }))
 const langMenuOpen = ref(false)
 let langCloseTimer: number | undefined
 const twoFactorPending = ref(false)
@@ -68,7 +73,10 @@ const subtitle = computed(() => {
   return t('auth.loginSubtitle')
 })
 
-const showSocial = computed(() => mode.value !== 'forgot')
+// 忘记密码页与 oauthNotice 注册引导页不展示第三方登录入口：后者是被 OAuth
+// 回调按 #531 明确送来密码注册的身份，再点 GitHub/Google 会原样回到本页
+// （PR #552 review P2：避免「按提示注册，却再次回到同一页」的可见循环）。
+const showSocial = computed(() => mode.value !== 'forgot' && !(page.props.oauthNotice && mode.value === 'register'))
 // 仅允许站内相对路径跳转，拒绝 javascript:、//host 及任何含反斜杠的值
 // （浏览器会将 \ 归一化为 /，/\evil.com 会被解析为跨域地址，服务端已同步校验）
 const homeUrl = computed(() => {
@@ -77,7 +85,13 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
-const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.png')
+// 与 AppShell 同一契约：仅 brandType === 'image' 且 URL 通过 safeUrl 消毒时采用
+// 管理端自定义品牌图；默认字标按主题切换（浅色 Light 黑字 / 深色 Dark 白字）。
+// 历史脏配置（brandType=default 但 brandImage 残留旧浅色 PNG）不再短路主题切换。
+const brandImage = computed(() => {
+  const custom = page.layout.site.brandType === 'image' ? safeUrl(page.layout.site.brandImage, 'image') : ''
+  return custom || (isDark.value ? '/static/pic/brand-default-dark.webp' : '/static/pic/brand-default.webp')
+})
 
 onMounted(() => {
   refreshCaptcha()
@@ -160,18 +174,23 @@ async function handleRegister() {
     error.value = t('auth.validation.registerRequired')
     return
   }
+  const email = page.props.allowedDomains.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
   if (registerForm.password !== registerForm.confirmPassword) {
     error.value = t('auth.validation.passwordMismatch')
     return
   }
-  if (!registerForm.agree) {
-    error.value = t('auth.validation.termsRequired')
+  if ((page.props.termsOfServiceEnabled || page.props.privacyPolicyEnabled) && !registerForm.agree) {
+    error.value = page.props.termsOfServiceEnabled && page.props.privacyPolicyEnabled
+      ? t('auth.validation.termsRequired')
+      : page.props.termsOfServiceEnabled
+        ? t('auth.validation.termsOnlyRequired')
+        : t('auth.validation.privacyOnlyRequired')
     return
   }
   loading.register = true
   error.value = ''
   try {
-    const message = await register(registerForm.username, registerForm.email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value), registerForm.website)
+    const message = await register(registerForm.username, email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value), registerForm.website)
     queueFlashMessage(message || t('auth.validation.registerSuccess'), 'success')
     window.location.href = homeUrl.value
   } catch (err) {
@@ -224,11 +243,16 @@ function setLang(lang: Locale) {
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback
 }
+
+function onToggleTheme() {
+  // Toggle between light and dark (manual mode)
+  setThemePreference(isDark.value ? 'light' : 'dark')
+}
 </script>
 
 <template>
   <main class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
-    <!-- 波点动效背景：纯 CSS 点阵 + 慢速漂移（transform 合成层，不影响首屏性能） -->
+    <!-- 波点静态背景：纯 CSS 点阵，无动画，零 GPU 开销 -->
     <div class="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <div class="gf-dot-grid absolute inset-0" />
     </div>
@@ -273,7 +297,7 @@ function errorMessage(err: unknown, fallback: string) {
         class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
         :aria-label="t(isDark ? 'auth.switchToLight' : 'auth.switchToDark')"
         :title="t(isDark ? 'auth.switchToLight' : 'auth.switchToDark')"
-        @click="toggleTheme"
+        @click="onToggleTheme"
       >
         <Sun v-if="isDark" class="h-5 w-5" />
         <Moon v-else class="h-5 w-5" />
@@ -314,6 +338,7 @@ function errorMessage(err: unknown, fallback: string) {
 
           <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
+          <p v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">{{ t('auth.oauthNoAccount') }}</p>
 
           <form v-if="mode === 'login' && twoFactorPending" class="space-y-3" @submit.prevent="handleTotpVerify">
             <div class="flex items-center gap-2 text-sm font-semibold text-base-content">
@@ -351,10 +376,7 @@ function errorMessage(err: unknown, fallback: string) {
             </label>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="loginForm.password" type="password" class="gf-input pl-10" :placeholder="t('auth.password')" autocomplete="current-password" />
-              </span>
+              <PasswordInput v-model="loginForm.password" :placeholder="t('auth.password')" autocomplete="current-password" :label="t('auth.password')" />
             </label>
             <div class="flex gap-3">
               <input v-model.trim="loginForm.captcha" class="gf-input min-w-0 flex-1" :placeholder="t('auth.captcha')" />
@@ -380,26 +402,37 @@ function errorMessage(err: unknown, fallback: string) {
                 <input v-model.trim="registerForm.username" class="gf-input pl-10" :placeholder="t('auth.username')" autocomplete="username" />
               </span>
             </label>
-            <label class="block">
-              <span class="sr-only">{{ t('auth.email') }}</span>
-              <span class="relative block">
-                <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model.trim="registerForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.email')" autocomplete="email" />
+            <div>
+              <label for="register-email" class="sr-only">{{ t('auth.email') }}</label>
+              <span v-if="page.props.allowedDomains.length > 0" class="gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
+                <span class="relative min-w-0 flex-1">
+                  <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
+                  <input id="register-email" v-model.trim="registerForm.email" type="text" inputmode="email" class="h-full w-full bg-transparent pl-10 pr-2 text-base outline-none sm:text-sm" :placeholder="t('auth.emailPrefix')" />
+                </span>
+                <span v-if="page.props.allowedDomains.length === 1" class="flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
+                  @{{ page.props.allowedDomains[0] }}
+                </span>
+                <SiteSelect
+                  v-else
+                  v-model="selectedEmailDomain"
+                  :options="emailDomainOptions"
+                  :label="t('auth.emailDomain')"
+                  align="end"
+                  class="!h-full !w-auto min-w-[8.5rem] max-w-[55%] shrink-0 !rounded-none !border-0 !border-l !bg-base-200/70 !px-2.5 font-medium !ring-0"
+                />
               </span>
-            </label>
+              <span v-else class="relative block">
+                <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
+                <input id="register-email" v-model.trim="registerForm.email" type="email" class="gf-input pl-10" :placeholder="t('auth.email')" autocomplete="email" />
+              </span>
+            </div>
             <label class="block">
               <span class="sr-only">{{ t('auth.password') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="registerForm.password" type="password" class="gf-input pl-10" :placeholder="t('auth.password')" autocomplete="new-password" />
-              </span>
+              <PasswordInput v-model="registerForm.password" :placeholder="t('auth.password')" autocomplete="new-password" :label="t('auth.password')" />
             </label>
             <label class="block">
               <span class="sr-only">{{ t('auth.confirmPassword') }}</span>
-              <span class="relative block">
-                <LockKeyhole class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
-                <input v-model="registerForm.confirmPassword" type="password" class="gf-input pl-10" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" />
-              </span>
+              <PasswordInput v-model="registerForm.confirmPassword" :placeholder="t('auth.confirmPassword')" autocomplete="new-password" :label="t('auth.confirmPassword')" />
             </label>
             <div class="flex gap-3">
               <span class="relative min-w-0 flex-1">
@@ -410,11 +443,15 @@ function errorMessage(err: unknown, fallback: string) {
                 <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
               </button>
             </div>
-            <label class="flex items-start gap-2 text-sm leading-5 text-base-content/55">
+            <label v-if="page.props.termsOfServiceEnabled || page.props.privacyPolicyEnabled" class="flex items-start gap-2 text-sm leading-5 text-base-content/55">
               <input v-model="registerForm.agree" type="checkbox" class="mt-1 h-4 w-4 rounded border-line text-primary focus:ring-primary" />
               <span>
-                {{ t('auth.agreeTerms') }}
-                <a href="/terms" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.termsLink') }}</a>
+                {{ page.props.termsOfServiceEnabled && page.props.privacyPolicyEnabled ? t('auth.agreeTerms') : page.props.termsOfServiceEnabled ? t('auth.agreeTermsOnly') : t('auth.agreePrivacyOnly') }}
+                <a v-if="page.props.termsOfServiceEnabled" href="/terms" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.termsLink') }}</a>
+                <template v-if="page.props.termsOfServiceEnabled && page.props.privacyPolicyEnabled">
+                  <span class="mx-1 text-base-content/40">·</span>
+                </template>
+                <a v-if="page.props.privacyPolicyEnabled" href="/privacy" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.privacyLink') }}</a>
               </span>
             </label>
             <input v-model="registerForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
@@ -479,13 +516,17 @@ function errorMessage(err: unknown, fallback: string) {
                   </svg>
                   GitHub
                 </a>
-                <a v-if="page.props.casdoorUrl" :href="page.props.casdoorUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
-                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.6 7.6a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0ZM12 14.5c-2.5 0-4.5 1-4.5 2.2V18h9v-1.3c0-1.2-2-2.2-4.5-2.2Z" />
+
+                <a v-if="page.props.googleReady" :href="page.props.googleUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.91-4.2 2.91-7.22Z" />
+                    <path fill="#34A853" d="M12 21.72c2.64 0 4.86-.87 6.48-2.36l-3.14-2.45c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.53A9.79 9.79 0 0 0 12 21.72Z" />
+                    <path fill="#FBBC05" d="M6.49 13.77A5.88 5.88 0 0 1 6.18 12c0-.61.11-1.2.31-1.77V7.7H3.24A9.77 9.77 0 0 0 2.2 12c0 1.56.37 3.04 1.04 4.3l3.25-2.53Z" />
+                    <path fill="#EA4335" d="M12 6.17c1.44 0 2.73.5 3.75 1.49l2.81-2.81C16.86 3.28 14.64 2.28 12 2.28a9.79 9.79 0 0 0-8.76 5.42l3.25 2.53C7.27 7.9 9.44 6.17 12 6.17Z" />
                   </svg>
-                  Casdoor
+                  Google
                 </a>
-                <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70">
+                <button v-else type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70" disabled>
                   {{ t('auth.googleUnavailable') }}
                 </button>
               </div>
@@ -503,13 +544,17 @@ function errorMessage(err: unknown, fallback: string) {
             </svg>
             GitHub
           </a>
-          <a v-if="page.props.casdoorUrl" :href="page.props.casdoorUrl" class="gf-button gf-button-md gf-button-secondary w-full">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.6 7.6a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0ZM12 14.5c-2.5 0-4.5 1-4.5 2.2V18h9v-1.3c0-1.2-2-2.2-4.5-2.2Z" />
+
+          <a v-if="page.props.googleReady" :href="page.props.googleUrl" class="gf-button gf-button-md gf-button-secondary w-full">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.91-4.2 2.91-7.22Z" />
+              <path fill="#34A853" d="M12 21.72c2.64 0 4.86-.87 6.48-2.36l-3.14-2.45c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.53A9.79 9.79 0 0 0 12 21.72Z" />
+              <path fill="#FBBC05" d="M6.49 13.77A5.88 5.88 0 0 1 6.18 12c0-.61.11-1.2.31-1.77V7.7H3.24A9.77 9.77 0 0 0 2.2 12c0 1.56.37 3.04 1.04 4.3l3.25-2.53Z" />
+              <path fill="#EA4335" d="M12 6.17c1.44 0 2.73.5 3.75 1.49l2.81-2.81C16.86 3.28 14.64 2.28 12 2.28a9.79 9.79 0 0 0-8.76 5.42l3.25 2.53C7.27 7.9 9.44 6.17 12 6.17Z" />
             </svg>
-            Casdoor
+            Google
           </a>
-          <button type="button" class="gf-button gf-button-md gf-button-secondary w-full cursor-not-allowed opacity-70">
+          <button v-else type="button" class="gf-button gf-button-md gf-button-secondary w-full cursor-not-allowed opacity-70" disabled>
             {{ t('auth.googleUnavailable') }}
           </button>
         </div>
@@ -519,10 +564,10 @@ function errorMessage(err: unknown, fallback: string) {
 </template>
 
 <style scoped>
-/* 波点动效背景：
-   - 纯 CSS radial-gradient 点阵（无图片请求）
-   - 漂移动画仅用 transform（GPU 合成层，不触发重排/重绘）
-   - 80s 慢速循环 + 径向遮罩边缘淡出，视觉柔和、CPU 占用可忽略 */
+/* 波点静态背景：
+   - 纯 CSS radial-gradient 点阵（无图片请求，无动画）
+   - 径向遮罩边缘淡出，视觉柔和
+   - 静态渲染，零 GPU 开销 */
 .gf-dot-grid {
   background-image: radial-gradient(
     circle,
@@ -532,23 +577,6 @@ function errorMessage(err: unknown, fallback: string) {
   background-size: 24px 24px;
   mask-image: radial-gradient(ellipse at center, black 20%, transparent 78%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 78%);
-  animation: gf-dot-drift 80s linear infinite;
-  will-change: transform;
-}
-
-@keyframes gf-dot-drift {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-24px, -24px, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gf-dot-grid {
-    animation: none;
-  }
 }
 
 /* 移动端（<640px）：表单区以圆角卡片呈现，与波点背景区分；

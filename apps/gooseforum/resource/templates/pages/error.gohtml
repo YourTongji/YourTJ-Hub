@@ -6,11 +6,11 @@
 
 {{define "page"}}
 <main>
-    <section>
-        <p>{{.Payload.Props.Code}}</p>
+    <section class="gf-crawler-error">
+        <span class="gf-crawler-error-code" aria-hidden="true">{{.Payload.Props.Code}}</span>
         <h1>{{.Payload.Props.Title}}</h1>
-        <p>{{.Payload.Props.MessageCode}}</p>
-        <p><a href="/">{{ t .Lang "back_home" }}</a></p>
+        <p class="gf-crawler-error-message">{{serverMessage .Lang .Payload.Props.MessageCode .Payload.Props.Params (t .Lang "common.loadFailed")}}</p>
+        <p class="gf-crawler-error-actions"><a href="/">{{ t .Lang "back_home" }}</a></p>
     </section>
 </main>
 {{end}}

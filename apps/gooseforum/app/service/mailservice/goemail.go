@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/wneessen/go-mail"
 )
 
@@ -126,6 +126,41 @@ func SendPasswordResetEmail(to, username, token string, locale ...string) error 
 		return fmt.Errorf("failed to send mail: %w", err)
 	}
 	slog.Debug("密码重置邮件 SMTP 发送成功", "to", to, "username", username)
+	return nil
+}
+
+// SendEmailChangedEmail 发送邮箱变更通知邮件到旧邮箱
+func SendEmailChangedEmail(to, username, newEmail string, locale ...string) error {
+	config := hotdataserve.GetMailSettingsConfigCache()
+	fromName, fromEmail := normalizeSender(config)
+	slog.Debug("准备发送邮箱变更通知邮件", "to", to, "username", username, "newEmail", newEmail, "enableMail", config.EnableMail, "smtpHost", config.SmtpHost, "smtpPort", config.SmtpPort, "fromName", fromName, "fromEmail", fromEmail)
+	if !config.EnableMail {
+		return errors.New("mail settings config is disabled")
+	}
+	message := mail.NewMsg()
+	if err := message.To(to); err != nil {
+		return fmt.Errorf("failed to set To address: %w", err)
+	}
+	message.Subject(i18n.T(emailBodyLang(locale...), "email.changed.subject"))
+	if err := setMessageFrom(message, config); err != nil {
+		return err
+	}
+	body, err := generateEmailChangedEmailBody(username, newEmail, locale...)
+	if err != nil {
+		return fmt.Errorf("生成邮件内容失败: %w", err)
+	}
+	message.SetBodyString(mail.TypeTextHTML, body)
+
+	client, err := buildClientByConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create mail client: %w", err)
+	}
+	defer func() { _ = client.Close() }()
+	if err = client.DialAndSend(message); err != nil {
+		slog.Debug("邮箱变更通知邮件 SMTP 发送失败", "to", to, "username", username, "err", err)
+		return fmt.Errorf("failed to send mail: %w", err)
+	}
+	slog.Debug("邮箱变更通知邮件 SMTP 发送成功", "to", to, "username", username)
 	return nil
 }
 

@@ -74,26 +74,26 @@ spec = "0 3 * * *"                         # 备份时间（Cron 表达式）
 
 ```toml
 [db.default]
-connection = "sqlite"                          # 数据库类型: sqlite, mysql
+connection = "sqlite"                          # 数据库类型: sqlite（本地开发）/ postgres（部署默认）
 path = "./storage/database/sqlite.db"           # SQLite 路径
-url = "user:pass@tcp(host:3306)/db?charset=utf8mb4&parseTime=True&loc=Local"  # MySQL 连接字符串
+url = "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"  # PostgreSQL 连接字符串
 maxIdleConnections = 3                        # 最大空闲连接数
 maxOpenConnections = 5                       # 最大打开连接数
 maxLifeSeconds = 300                          # 连接最大生存时间（秒）
 ```
 
-**SQLite 配置示例：**
+**SQLite 配置示例（本地开发/测试默认）：**
 ```toml
 [db.default]
 connection = "sqlite"
 path = "./storage/database/sqlite.db"
 ```
 
-**MySQL 配置示例：**
+**PostgreSQL 配置示例（部署默认）：**
 ```toml
 [db.default]
-connection = "mysql"
-url = "username:password@tcp(localhost:3306)/gooseforum?charset=utf8mb4&parseTime=True&loc=Local"
+connection = "postgres"
+url = "host=localhost user=gooseforum password=<secret> dbname=gooseforum port=5432 sslmode=disable"
 maxIdleConnections = 10
 maxOpenConnections = 20
 maxLifeSeconds = 3600
@@ -129,6 +129,22 @@ client_secret = ""                # GitHub OAuth App Client Secret
 **配置说明：**
 - 需要在 GitHub Settings > Developer settings > OAuth Apps 创建应用
 - Authorization callback URL: `https://yourdomain.com/api/oauth/github/callback`
+
+### [google] OAuth 配置（可选）
+
+```toml
+[google]
+client_id = ""                    # Google OAuth 客户端 ID
+client_secret = ""                # Google OAuth 客户端密钥
+```
+
+Google 登录仅请求 `openid`、`email`、`profile`。站点设置中的 `siteUrl` 必须是与 Google
+Cloud Console 中登记的重定向 URI 同源的绝对 URL，回调地址为：
+`<siteUrl>/api/auth/google/callback`。本地开发可登记
+`http://localhost:5234/api/auth/google/callback`。
+Google 仅在 userinfo 返回 `verified_email=true` 时将邮箱视为可信，用于绑定既有账号；
+OAuth 不创建新账号（issue #531）——无对应本地账号时统一 302 跳转注册页。修改 Google 凭据后需要重启服务；
+通过管理后台修改 `siteUrl` 会即时刷新 OAuth provider。
 
 ## 🔄 配置文件热重载
 

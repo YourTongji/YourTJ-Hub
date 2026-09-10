@@ -1,15 +1,61 @@
 package topics
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/glebarez/sqlite"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"gorm.io/gorm"
 )
+
+func TestGetWithContextHonorsCancellation(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate topics table: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := GetWithContext(ctx, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetWithContext() err=%v, want context.Canceled", err)
+	}
+}
+
+// TestCantWriteNewBlocksAtConfiguredLimit 覆盖每日新主题上限的边界修正
+// （issue #369）：达到上限即拒绝（count >= maxCount），低于上限放行。
+func TestCantWriteNewBlocksAtConfiguredLimit(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate topics: %v", err)
+	}
+
+	const userID uint64 = 990001
+	conn.Where("user_id = ?", userID).Delete(&Entity{})
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", userID).Delete(&Entity{})
+	})
+
+	now := time.Now()
+	if err := conn.Create(&[]Entity{
+		{Title: "daily limit one", UserId: userID, CreatedAt: now},
+		{Title: "daily limit two", UserId: userID, CreatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create topics: %v", err)
+	}
+
+	if !CantWriteNew(userID, 2) {
+		t.Fatal("CantWriteNew() = false at configured limit")
+	}
+	if CantWriteNew(userID, 3) {
+		t.Fatal("CantWriteNew() = true below configured limit")
+	}
+}
 
 func TestTopicAndPostSchemaMigrates(t *testing.T) {
 	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -48,6 +94,74 @@ func TestTopicAndPostSchemaMigrates(t *testing.T) {
 	}
 }
 
+func TestPublishedQueriesExcludeNonPublicTopics(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}); err != nil {
+		t.Fatalf("migrate published topic tables: %v", err)
+	}
+
+	const (
+		firstTopicID            = uint64(110)
+		secondTopicID           = uint64(120)
+		draftTopicID            = uint64(130)
+		blockedTopicID          = uint64(140)
+		blockedFirstPostTopicID = uint64(150)
+	)
+	topicIDs := []uint64{firstTopicID, secondTopicID, draftTopicID, blockedTopicID, blockedFirstPostTopicID}
+	postIDs := []uint64{1010, 1020, 1030, 1040, 1050}
+	conn.Unscoped().Where("id IN ?", topicIDs).Delete(&Entity{})
+	conn.Unscoped().Where("id IN ?", postIDs).Delete(&posts.Entity{})
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id IN ?", topicIDs).Delete(&Entity{})
+		conn.Unscoped().Where("id IN ?", postIDs).Delete(&posts.Entity{})
+	})
+
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	if err := conn.Create(&[]posts.Entity{
+		{Id: postIDs[0], TopicId: firstTopicID, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[1], TopicId: secondTopicID, PostNo: 1, Content: "second", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[2], TopicId: draftTopicID, PostNo: 1, Content: "draft", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[3], TopicId: blockedTopicID, PostNo: 1, Content: "blocked topic", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[4], TopicId: blockedFirstPostTopicID, PostNo: 1, Content: "blocked first post", ProcessStatus: posts.ProcessStatusBlocked, CreatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create published topic posts: %v", err)
+	}
+	if err := conn.Create(&[]Entity{
+		{Id: firstTopicID, Title: "first", FirstPostId: postIDs[0], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: secondTopicID, Title: "second", FirstPostId: postIDs[1], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: draftTopicID, Title: "draft", FirstPostId: postIDs[2], Status: 0, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: blockedTopicID, Title: "blocked", FirstPostId: postIDs[3], Status: 1, ProcessStatus: ProcessStatusBlocked, CreatedAt: now, UpdatedAt: now},
+		{Id: blockedFirstPostTopicID, Title: "blocked first", FirstPostId: postIDs[4], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create published topics: %v", err)
+	}
+
+	// GetPublishedBeforeID 按 id 倒序（最新优先）分页，且同样过滤草稿/封禁/首帖异常。
+	beforeBatch, err := GetPublishedBeforeID(200, 1)
+	if err != nil {
+		t.Fatalf("GetPublishedBeforeID first batch: %v", err)
+	}
+	if len(beforeBatch) != 1 || beforeBatch[0].Id != secondTopicID {
+		t.Fatalf("before published batch = %#v, want topic %d", beforeBatch, secondTopicID)
+	}
+	beforeBatch2, err := GetPublishedBeforeID(secondTopicID, 10)
+	if err != nil {
+		t.Fatalf("GetPublishedBeforeID second batch: %v", err)
+	}
+	if len(beforeBatch2) != 1 || beforeBatch2[0].Id != firstTopicID {
+		t.Fatalf("second before batch = %#v, want only topic %d", beforeBatch2, firstTopicID)
+	}
+
+	if topic, err := GetPublished(firstTopicID); err != nil || topic.Id != firstTopicID {
+		t.Fatalf("GetPublished(%d) = %#v, err=%v", firstTopicID, topic, err)
+	}
+	for _, id := range []uint64{draftTopicID, blockedTopicID, blockedFirstPostTopicID} {
+		if _, err := GetPublished(id); !errors.Is(err, gorm.ErrRecordNotFound) {
+			t.Fatalf("GetPublished(%d) err=%v, want record not found", id, err)
+		}
+	}
+}
+
 func TestTopicRepositoryParity(t *testing.T) {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}, &topicCategoryIndex.Entity{}); err != nil {
@@ -58,21 +172,34 @@ func TestTopicRepositoryParity(t *testing.T) {
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 
 	now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+	// 首楼：公开列表查询要求 first_post_id 指向未删除、process_status 正常的楼层
+	// （与 GetPublished 口径一致，issue #492），此处补齐真实话题的首楼。
+	conn.Create(&[]posts.Entity{
+		{Id: 1010, TopicId: 10, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: 1020, TopicId: 20, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: 1030, TopicId: 30, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: 1040, TopicId: 40, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		// 孤儿话题 50 的首楼已被软删：主题壳公开但无正文。
+		{Id: 1050, TopicId: 50, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+	})
+	conn.Where("id = ?", 1050).Delete(&posts.Entity{})
 	conn.Create(&[]Entity{
-		{Id: 10, Title: "zeta topic", CategoryIds: []uint64{3}, UserId: 1, Status: 1, ProcessStatus: 0, ReplyCount: 1, ViewCount: 9, PinWeight: 0, CreatedAt: now, UpdatedAt: now},
-		{Id: 20, Title: "alpha topic", CategoryIds: []uint64{4}, UserId: 2, Status: 1, ProcessStatus: 0, ReplyCount: 4, ViewCount: 3, PinWeight: 20, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute)},
-		{Id: 30, Title: "draft topic", CategoryIds: []uint64{3}, UserId: 1, Status: 0, ProcessStatus: 0, CreatedAt: now.Add(2 * time.Minute), UpdatedAt: now.Add(2 * time.Minute)},
-		{Id: 40, Title: "blocked topic", CategoryIds: []uint64{3}, UserId: 1, Status: 1, ProcessStatus: 1, CreatedAt: now.Add(3 * time.Minute), UpdatedAt: now.Add(3 * time.Minute)},
+		{Id: 10, Title: "zeta topic", CategoryIds: []uint64{3}, UserId: 1, Status: 1, ProcessStatus: 0, FirstPostId: 1010, ReplyCount: 1, ViewCount: 9, PinWeight: 0, CreatedAt: now, UpdatedAt: now},
+		{Id: 20, Title: "alpha topic", CategoryIds: []uint64{4}, UserId: 2, Status: 1, ProcessStatus: 0, FirstPostId: 1020, ReplyCount: 4, ViewCount: 3, PinWeight: 20, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute)},
+		{Id: 30, Title: "draft topic", CategoryIds: []uint64{3}, UserId: 1, Status: 0, ProcessStatus: 0, FirstPostId: 1030, CreatedAt: now.Add(2 * time.Minute), UpdatedAt: now.Add(2 * time.Minute)},
+		{Id: 40, Title: "blocked topic", CategoryIds: []uint64{3}, UserId: 1, Status: 1, ProcessStatus: 1, FirstPostId: 1040, CreatedAt: now.Add(3 * time.Minute), UpdatedAt: now.Add(3 * time.Minute)},
+		{Id: 50, Title: "orphan topic", CategoryIds: []uint64{3}, UserId: 3, Status: 1, ProcessStatus: 0, FirstPostId: 1050, CreatedAt: now.Add(4 * time.Minute), UpdatedAt: now.Add(4 * time.Minute)},
 	})
 	conn.Create(&[]topicCategoryIndex.Entity{
 		{TopicId: 10, CategoryId: 3, Effective: 1},
 		{TopicId: 20, CategoryId: 4, Effective: 1},
 		{TopicId: 40, CategoryId: 3, Effective: 1},
+		{TopicId: 50, CategoryId: 3, Effective: 1},
 	})
 
 	page := Page(PageQuery{Page: 1, PageSize: 10, FilterStatus: true, CategoryId: 3, Sort: "new"})
 	if len(page.Data) != 1 || page.Data[0].Id != 10 {
-		t.Fatalf("Page() filtered ids = %#v, want only topic 10", page.Data)
+		t.Fatalf("Page() filtered ids = %#v, want only topic 10 (orphan topic 50 excluded)", page.Data)
 	}
 
 	moderationPage := PageForModeration(ModerationPageQuery{
@@ -140,5 +267,37 @@ func TestTopicRepositoryParity(t *testing.T) {
 	}
 	if got := Get(10); got.ReplyCount != 2 || got.LastPostId != 100 || got.LastPostedAt == nil || !got.LastPostedAt.Equal(previousPostedAt) {
 		t.Fatalf("after DecrementPostFast() topic=%#v", got)
+	}
+}
+
+// PagePendingReview 必须显式排除软删话题：Count 绕过 GORM 软删 scope，
+// 只靠 scope 会导致 total 计入已删话题而 Data 不含（review：subquery passes
+// on soft-deleted topics）。
+func TestPagePendingReviewExcludesSoftDeletedTopics(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate pending review tables: %v", err)
+	}
+	conn.Unscoped().Where("id IN ?", []uint64{210, 220, 230}).Delete(&Entity{})
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id IN ?", []uint64{210, 220, 230}).Delete(&Entity{})
+	})
+
+	now := time.Now()
+	conn.Create(&[]Entity{
+		{Id: 210, Title: "pending live", Status: 1, ProcessStatus: ProcessStatusPending, TopicType: TopicTypeForum, CreatedAt: now, UpdatedAt: now},
+		{Id: 220, Title: "pending soft-deleted", Status: 1, ProcessStatus: ProcessStatusPending, TopicType: TopicTypeForum, CreatedAt: now, UpdatedAt: now},
+		{Id: 230, Title: "pending wiki", Status: 1, ProcessStatus: ProcessStatusPending, TopicType: TopicTypeWiki, CreatedAt: now, UpdatedAt: now},
+	})
+	// 软删 220：直接置 deleted_at（保留 process_status=pending 模拟历史脏数据）。
+	conn.Unscoped().Table("topics").Where("id = ?", 220).
+		Update("deleted_at", now)
+
+	page := PagePendingReview(1, 50)
+	if page.Total != 1 {
+		t.Fatalf("PagePendingReview total=%d, want 1 (soft-deleted excluded from count)", page.Total)
+	}
+	if len(page.Data) != 1 || page.Data[0].Id != 210 {
+		t.Fatalf("PagePendingReview data=%+v, want only live pending topic 210", page.Data)
 	}
 }

@@ -53,7 +53,12 @@ export function formatDate(value: string): string {
 
 function parseDate(value: string): Date {
   const normalized = value.includes('T') ? value : value.replace(' ', 'T')
-  return new Date(normalized)
+  // 无时区标记的字符串按 UTC 墙钟解析（后端 time.DateTime/RFC3339 输出
+  // 均为 UTC 语义）：补 'Z' 避免被 new Date() 按浏览器本地时区误解，
+  // 否则服务器 UTC 与客户端 UTC+8 时相对时间会固定偏移 8 小时。
+  return /[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)
+    ? new Date(normalized)
+    : new Date(`${normalized}Z`)
 }
 
 function isSameDay(a: Date, b: Date): boolean {

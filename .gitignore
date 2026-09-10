@@ -1,9 +1,14 @@
+# 会话产物（cookies / 截图等），不入库
+/.synergy/
+/.agents/local/
+
 research/
 
 # Go
 bin/
 *.exe
 *.test
+deploy/yourtj-hub
 
 # Node（apps/gooseforum/resource 自带 pnpm workspace，产物在 resource/static/dist）
 node_modules/
@@ -17,13 +22,20 @@ apps/gooseforum/config.toml
 # Flutter / Dart
 apps/mobile/**/.dart_tool/
 apps/mobile/**/build/
+apps/mobile/**/test/failures/
 apps/mobile/.melos/
 apps/mobile/.flutter-plugins*
 apps/mobile/.packages
+# 本地 Flutter SDK（workspace 内克隆，仅本地构建用）
+/.flutter-sdk/
 
 # 环境变量
 .env
 deploy/.env
+
+# 配置治理渲染产物（CI 下发用, 不入库）
+deploy/rendered/
+deploy/__pycache__/
 
 # OS
 .DS_Store
@@ -33,3 +45,4 @@ deploy/.env
 .vscode/
 *.swp
 *.tsbuildinfo
+*.iml

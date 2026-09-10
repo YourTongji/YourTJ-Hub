@@ -1,6 +1,6 @@
 package badgeservice
 
-import "github.com/leancodebox/GooseForum/app/models/forum/badges"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 
 const (
 	CodeFirstPost      = "first_post"

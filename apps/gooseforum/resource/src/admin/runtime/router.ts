@@ -8,10 +8,15 @@ const settingsPages = {
   '/admin/settings/security': 'security',
   '/admin/settings/posting': 'posting',
   '/admin/settings/rate-limit': 'rate-limit',
+  '/admin/settings/mcp': 'mcp',
+  '/admin/settings/ai-summary': 'ai-summary',
   '/admin/settings/announcement': 'announcement',
   '/admin/settings/http-notify': 'http-notify',
   '/admin/settings/storage': 'storage',
   '/admin/settings/terms': 'terms',
+  '/admin/settings/privacy': 'privacy',
+  '/admin/settings/onesystem': 'onesystem',
+  '/admin/settings/schedule': 'schedule',
 } as const
 
 export const adminRouter = createRouter({
@@ -24,6 +29,10 @@ export const adminRouter = createRouter({
     {
       path: '/admin/users',
       component: () => import('@/admin/pages/management/UsersManagementPage.vue'),
+    },
+    {
+      path: '/admin/agents',
+      component: () => import('@/admin/pages/management/AgentsManagementPage.vue'),
     },
     {
       path: '/admin/roles',
@@ -40,6 +49,10 @@ export const adminRouter = createRouter({
     {
       path: '/admin/links',
       component: () => import('@/admin/pages/management/LinksManagementPage.vue'),
+    },
+    {
+      path: '/admin/wiki',
+      component: () => import('@/admin/pages/WikiManage.vue'),
     },
     {
       path: '/admin/sponsors',

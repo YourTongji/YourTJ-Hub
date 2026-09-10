@@ -12,7 +12,7 @@
 package redisManager
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/goose/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/goose/preferences"
 )
 
 var (

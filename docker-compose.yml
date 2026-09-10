@@ -23,28 +23,6 @@ services:
     ports:
       - "7700:7700"
 
-  mariadb:
-    image: mariadb:11
-    environment:
-      MYSQL_ROOT_PASSWORD: casdoor
-      MYSQL_DATABASE: casdoor
-    ports:
-      - "13306:3306"
-    volumes:
-      - mariadbdata:/var/lib/mysql
-
-  casdoor:
-    image: casbin/casdoor:latest
-    ports:
-      - "8001:8000"
-    environment:
-      driverName: mysql
-      dataSourceName: "root:casdoor@tcp(mariadb:3306)/"
-      dbName: casdoor
-    depends_on:
-      mariadb:
-        condition: service_healthy
 
 volumes:
   pgdata:
-  mariadbdata:

@@ -1,97 +1,83 @@
-name: release-to-main
+name: Release / main
 
 on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "版本递增类型(patch=x.y.z+1, minor=x.y+1.0, major=x+1.0.0)"
+        description: "Server version increment (waits for PR CI, merges and releases automatically)"
         required: true
         type: choice
-        options:
-          - patch
-          - minor
-          - major
+        options: [patch, minor, major]
 
 permissions:
   contents: write
-  actions: write   # gh workflow run 触发 deploy-main 需要
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: server-release
+  cancel-in-progress: false
 
 jobs:
-  release:
+  prepare:
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 65
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: 计算新版本号
-        id: version
-        run: |
-          set -euo pipefail
-          BUMP="${{ github.event.inputs.bump }}"
-          LATEST_TAG=$(git tag --sort=-v:refname | head -n1 || true)
-          if [ -z "$LATEST_TAG" ]; then
-            MAJOR=0; MINOR=0; PATCH=0
-            echo "latest_tag=(无,首次发布)"
-          else
-            VER=$(echo "$LATEST_TAG" | sed 's/^v//')
-            MAJOR=$(echo "$VER" | cut -d. -f1)
-            MINOR=$(echo "$VER" | cut -d. -f2)
-            PATCH=$(echo "$VER" | cut -d. -f3)
-            echo "latest_tag=$LATEST_TAG"
-          fi
-          case "$BUMP" in
-            patch) PATCH=$((PATCH + 1)) ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-          esac
-          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-          echo "将发布版本: $NEW_VERSION"
-
-      - name: 检查 dev 是否有待发布内容
-        run: |
-          git fetch origin dev main
-          BEHIND=$(git rev-list --count origin/main..origin/dev)
-          echo "dev 领先 main: $BEHIND 个提交"
-          if [ "$BEHIND" -eq 0 ]; then
-            echo "::error::dev 与 main 一致,没有需要发布的内容"
-            exit 1
-          fi
-
-      - name: 合并 dev → main 并打 tag
+      - name: Wait for PR CI, merge dev into main and tag the release
+        id: release
         env:
-          NEW_VERSION: ${{ steps.version.outputs.new_version }}
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          BUMP: ${{ inputs.bump }}
         run: |
-          # 用 PAT 获取真实账号身份提交并 push:
-          # - GITHUB_TOKEN 的 push 不触发其他 workflow
-          # - 作者为 actions-user / GitHub bot 的 push 也不触发(GitHub 防循环规则)
-          # 所以用 PAT 账号身份 commit + push, 保证提交记录真实
-          set -euo pipefail
-          GH_USER=$(curl -sS -H "Authorization: token ${RELEASE_TOKEN}" \
-            https://api.github.com/user | jq -r .login)
-          [ -n "$GH_USER" ] && [ "$GH_USER" != "null" ] || { echo "::error::无法获取 PAT 账号身份"; exit 1; }
-          # GitHub noreply 邮箱, 无需额外 email scope
-          GH_EMAIL="${GH_USER}@users.noreply.github.com"
-          echo "pushing as: ${GH_USER} <${GH_EMAIL}>"
+          python3 scripts/mobile-release/prepare_server.py
 
-          git config user.name "${GH_USER}"
-          git config user.email "${GH_EMAIL}"
-          git checkout -b main origin/main
-          git merge origin/dev --no-ff -m "chore: release $NEW_VERSION from dev"
-          git tag "$NEW_VERSION"
-          REMOTE="https://x-access-token:${RELEASE_TOKEN}@github.com/YourTongji/YourTJ-Hub.git"
-          git push "$REMOTE" main
-          git push "$REMOTE" "$NEW_VERSION"
-          echo "已合并 dev → main 并打 tag $NEW_VERSION"
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: apps/gooseforum/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
+      - name: Install frontend deps
+        working-directory: apps/gooseforum/resource
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建并发布 release 二进制资产
+        uses: goreleaser/goreleaser-action@v7.2.3
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+          workdir: apps/gooseforum
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 触发生产部署(deploy-main)
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          # push 事件对 GITHUB_TOKEN / fine-grained PAT 可能不触发 workflow,
-          # 但 workflow_dispatch 是明确例外, 直接显式触发 deploy-main
-          sleep 5
-          gh workflow run deploy-main.yml --ref main
-          echo "已触发 deploy-main workflow 部署生产"
+          # Dispatch the published tag so every deployment job uses the same
+          # commit as the release binaries, even if main advances meanwhile.
+          gh workflow run deploy-main.yml --ref "$RELEASE_TAG"
+          echo "已触发 deploy-main workflow 部署 $RELEASE_TAG"

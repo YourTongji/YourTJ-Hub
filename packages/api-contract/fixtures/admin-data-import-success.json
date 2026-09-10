@@ -1,0 +1,11 @@
+{
+  "result": {
+    "taskId": 123456,
+    "status": "pending",
+    "errors": [],
+    "importedTables": [
+      "users"
+    ]
+  },
+  "code": 0
+}

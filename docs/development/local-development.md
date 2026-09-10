@@ -6,25 +6,26 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-09
 
 ## Dependencies
 
-- Go 1.26+
+- Go 1.26.6+（`apps/gooseforum/go.mod` 声明 `go 1.26.6` + `toolchain go1.26.8`，issue #447：更早的 patch 含 7 个已修复的 stdlib CVE；默认 `GOTOOLCHAIN=auto` 下旧工具链会自动下载合规版本，设 `GOTOOLCHAIN=local` 则明确报错而非静默编译）
 - Node 24 + pnpm 11 (the forum frontend workspace lives in `apps/gooseforum/resource/` with its own
   pnpm-workspace.yaml; **note**: the home-directory `/Users/yzxoi/pnpm-workspace.yaml` can interfere
   with pnpm's upward lookup — run pnpm from inside `resource/`)
 - Docker + Compose (local dependency services)
-- Flutter SDK (mobile planned, not installed yet)
+- Flutter SDK (mobile; workspace-local clone under `.flutter-sdk/` when external paths are blocked,
+  otherwise a normal install ≥3.27) + melos (`dart pub global activate melos`)
 
 ## Startup
 
 ```bash
-# 1. Start local dependencies (postgres + meilisearch + mariadb + casdoor)
+# 1. Start local dependencies (postgres + meilisearch)
 make dev
 
 # 2. Forum backend (default port 5234)
-#    First-time setup: place a config.toml in apps/gooseforum (gitignored), based on upstream config
+#    First start creates apps/gooseforum/config.toml from the embedded template (gitignored)
 make server        # = cd apps/gooseforum && go run . serve
 
 # 3. Frontend dev server (:3010, vite; run pnpm install first)
@@ -33,6 +34,24 @@ make web           # = cd apps/gooseforum/resource && pnpm dev
 # 4. Production build: resource → static/dist → go build single binary
 make build
 ```
+```bash
+# 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK + melos)
+cd apps/mobile && melos bootstrap   # 首次或依赖变更后
+melos run analyze                    # 全包静态检查
+melos run test                       # 全包测试
+```
+
+## Mobile workspace
+
+- `apps/mobile` is a melos workspace with four packages: `core` (contracts/API client/markdown
+  conversion), `auth` (login/TOTP/OIDC/token storage), `ui_kit` (design tokens + Gf* components),
+  `forum_app` (routes/pages/state). Scripts (`analyze`/`test`/`gen`) are declared in
+  `apps/mobile/pubspec.yaml` under the `melos:` key.
+- Design tokens: `ui_kit/lib/src/theme/tokens.json` is the single derived source of the web design
+  language (source of truth: `apps/gooseforum/resource/src/styles/tokens.css`). **A PR that changes
+  `tokens.css` must update `tokens.json` in the same commit** (contract-style discipline).
+- Mobile contract mirrors live in `core/lib/src/gen/*.dart` (see
+  [contracts-and-data](../architecture/contracts-and-data.md)).
 
 ## Service addresses
 
@@ -40,15 +59,14 @@ make build
 |---|---|---|
 | Forum backend | http://localhost:5234 | config.toml `[server] port` |
 | Frontend dev | http://localhost:3010 | vite, hits backend directly |
-| casdoor | http://localhost:8001 | unified auth (admin/123, dev) |
 | meilisearch | http://localhost:7700 | master key: `yourtj-dev-master-key` |
 | postgres | localhost:5432 | yourtj/yourtj, db yourtj (reserved) |
-| mariadb | localhost:13306 | casdoor-only |
 
 ## Mobile → backend
 
 - iOS simulator: `http://localhost:5234` directly
-- Android emulator: `http://10.0.2.2:5234`
+- Android emulator: ordinary API development may use `http://10.0.2.2:5234`; OIDC must instead use
+  `http://localhost:5234` through `adb reverse` so the issuer remains an allowed loopback URL
 - Physical device: LAN IP (inject baseUrl via dart-define, when mobile lands)
 
 ## Configuration (config.toml)
@@ -57,18 +75,25 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 
 | Section | Note |
 |---|---|
-| `[app]` | env (local binds 127.0.0.1), debug, maintenance, signingKey, cdn_url |
+| `[app]` | env (local binds 127.0.0.1; any non-`local` value forces session-cookie `Secure` even when `server.url` is `http://…` — issue #113), debug, maintenance, signingKey, cdn_url |
 | `[server]` | url, port (default 5234), accessLog, gzip |
-| `[db]` / `[db.default]` / `[db.file]` | SQLite default; main db (`[db.default]`) also supports MySQL and PostgreSQL (issue #11); file db stays SQLite; migration, backup, pool |
+| `[db]` / `[db.default]` / `[db.file]` | SQLite default for local dev/tests; deployments default to PostgreSQL (`[db.default] connection = "postgres"`, issue #11); MySQL is not supported; file db stays SQLite; migration, backup, pool |
 | `[meilisearch]` | url, masterkey (optional search) |
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
 | `[github]` | GitHub OAuth client |
+| `[google]` | Google OAuth client；需要站点设置 `siteUrl` 为与 Google Cloud 完全匹配的绝对回调基址 |
 
-Casdoor OIDC is configured from the `[casdoor]` section in `config.toml`
-(`endpoint` / `client_id` / `client_secret`, see `deploy/config.toml.example`); the values are read at
-startup via preferences and there is no admin-panel UI to change them (set them in the file and
-restart). The OIDC login entry only appears once these are set (`oidcservice.IsConfigured()` gates
-it).
+The built-in OIDC Provider is configured from the `[oidc]` section in `config.toml`
+(`enabled`, `issuer`, `signing_key_file`, `[[oidc.clients]]`, see `deploy/config.toml.example`); the
+values are read at startup via preferences and there is no admin-panel UI to change them (set them in
+the file and restart). The endpoints are mounted under `/api/oauth` only when `oidc.enabled = true`.
+OIDC clients require the issuer to exactly equal the advertised discovery value, and the provider
+only accepts loopback `http` issuers. When `oidc.issuer` is omitted, a loopback `server.url` without
+an explicit port is combined with `server.port`, so the default local issuer is
+`http://localhost:5234/api/oauth`. The Android emulator reaches that exact address through
+`adb reverse tcp:5234 tcp:5234` (see `apps/mobile/scripts/oidc_e2e.sh`); `10.0.2.2` is not a valid
+local issuer. Existing local `config.toml` files keep working without regeneration; set
+`oidc.issuer` explicitly only when the advertised issuer must differ from the derived site URL.
 
 To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
 

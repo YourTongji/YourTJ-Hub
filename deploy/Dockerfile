@@ -1,11 +1,11 @@
 # yourtj-hub 单二进制运行镜像(前端已 go:embed 进二进制)
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata git \
     && adduser -D -u 1000 app
 
 WORKDIR /app
-COPY yourtj-hub /app/yourtj-hub
+COPY --chmod=0755 yourtj-hub /app/yourtj-hub
 
 # 挂载卷:
 #   config.toml -> /app/config.toml (只读)

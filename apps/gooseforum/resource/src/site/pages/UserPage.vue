@@ -10,6 +10,7 @@ import {
   List,
   MessageCircle,
   MessageSquare,
+  Feather,
   PenLine,
   Radio,
   Settings,
@@ -17,6 +18,8 @@ import {
   UserPlus,
 } from '@lucide/vue'
 import { followUser } from '@/runtime/api'
+// 与 UserCard 共享关注状态事实源：本页关注/取关要广播出去，卡片上的变更也要同步回来（issue #593）
+import { broadcastFollowChange, onFollowChange } from '@/runtime/follow-state'
 import { formatDate, formatDateTime, formatNumber, timeAgo } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { topicDescription } from '@/runtime/topic-description'
@@ -50,8 +53,12 @@ const loadMoreSentinel = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | undefined
 
 const displayName = computed(() => page.props.user.nickname || page.props.user.username)
-const bioText = computed(() => page.props.user.bio || page.props.user.signature || t('user.emptyBio'))
-const hasSignature = computed(() => Boolean(page.props.user.signature))
+// 简介行只承载 bio：签名永远以独立签名块呈现，不做 fallback 展示
+const bioText = computed(() => page.props.user.bio || t('user.emptyBio'))
+const hasBio = computed(() => Boolean(page.props.user.bio?.trim()))
+const hasSignature = computed(() => Boolean(page.props.user.signature?.trim()))
+const showStandaloneSignature = computed(() => hasSignature.value)
+const bioIsEmpty = computed(() => !hasBio.value)
 const visibleTopics = computed(() => page.props.topics)
 const visibleBadges = computed(() => page.props.badges.slice(0, 8))
 const activeConnections = computed(() => page.props.activityTab === 'following' ? page.props.following : page.props.followers)
@@ -129,6 +136,7 @@ async function toggleFollow() {
   try {
     await followUser(page.props.user.userId, isFollowing.value)
     isFollowing.value = !isFollowing.value
+    broadcastFollowChange(page.props.user.userId, isFollowing.value)
   } catch (error) {
     followError.value = error instanceof Error ? error.message : t('api.followFailed')
   } finally {
@@ -228,7 +236,15 @@ function observeSentinel() {
   observer.observe(loadMoreSentinel.value)
 }
 
-onMounted(observeSentinel)
+let offFollowChange: (() => void) | undefined
+
+onMounted(() => {
+  observeSentinel()
+  // 用户卡片上的关注/取关广播回来时，同步本页按钮状态
+  offFollowChange = onFollowChange(({ userId, isFollowing: following }) => {
+    if (userId === page.props.user.userId) isFollowing.value = following
+  })
+})
 onActivated(() => {
   void nextTick(observeSentinel)
 })
@@ -237,6 +253,7 @@ onDeactivated(() => {
 })
 onBeforeUnmount(() => {
   observer?.disconnect()
+  offFollowChange?.()
 })
 
 function safeProfileUrl(value?: string) {
@@ -256,38 +273,87 @@ function safeProfileUrl(value?: string) {
 <template>
     <article class="pb-12">
       <section class="gf-card overflow-hidden">
-        <div class="h-20 border-b border-line bg-base-300 bg-cover bg-center sm:h-24" :style="profileCoverStyle" />
-        <div class="px-4 pb-4 sm:px-5">
+        <!-- 封面仅展示；设置封面只在「编辑资料」页（Settings）出现 -->
+        <div class="relative">
+          <div class="h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60" :style="profileCoverStyle" />
+          <!-- 移动端：操作按钮在封面图下方、头像右侧（不遮挡背景图）；桌面端回到信息栏右侧 -->
+          <div class="absolute right-4 top-full z-10 mt-2 flex flex-wrap items-center justify-end gap-2 sm:hidden">
+            <a
+              v-if="page.props.isOwnProfile"
+              :href="page.props.settingsUrl"
+              class="gf-button gf-button-md gf-button-secondary"
+            >
+              <Settings class="h-4 w-4" />
+              {{ t('user.editProfile') }}
+            </a>
+            <a
+              v-else-if="page.props.canMessage"
+              :href="page.props.messageUrl"
+              class="gf-button gf-button-md gf-button-secondary"
+            >
+              <MessageSquare class="h-4 w-4" />
+              {{ t('shell.nav.messages') }}
+            </a>
+            <button
+              v-if="page.props.canFollow"
+              type="button"
+              class="gf-button gf-button-md"
+              :class="isFollowing ? 'bg-base-300 text-base-content hover:bg-base-300' : 'bg-primary text-primary-content hover:bg-primary'"
+              :disabled="followLoading"
+              @click="toggleFollow"
+            >
+              <UserPlus class="h-4 w-4" />
+              {{ followLoading ? t('common.loading') : isFollowing ? t('user.following') : t('user.follow') }}
+            </button>
+          </div>
+        </div>
+        <div class="relative z-0 px-4 pb-4 sm:px-5">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div class="flex min-w-0 gap-4">
+            <!-- 移动端：头像盖封面单独一行，文字全宽在下方（避免长简介挤在头像右侧窄列）；
+                 桌面端：头像与文字并排（文字列 flex-1 舒展），与 Settings 信息栏一致 -->
+            <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-4 sm:flex-1">
               <UserAvatar
                 :src="page.props.user.avatarUrl"
                 :alt="page.props.user.username"
                 :badge="page.props.user.wornBadge"
                 size="large"
                 img-class="rounded-full"
-                class="-mt-9 h-24 w-24 rounded-full border-2 border-base-100 bg-base-100 shadow-sm sm:-mt-10 sm:h-28 sm:w-28"
+                class="-mt-9 h-24 w-24 shrink-0 rounded-full border-2 border-base-100 bg-base-100 shadow-sm sm:-mt-10 sm:h-28 sm:w-28"
               />
-              <div class="min-w-0 pt-3">
-                <div class="flex min-w-0 flex-wrap items-center gap-2">
-                  <h1 class="truncate text-2xl font-bold leading-tight text-base-content">{{ displayName }}</h1>
+              <div class="min-w-0 sm:flex-1 sm:pt-3">
+                <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
+                  <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
                   <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
                   <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
                     <Radio class="h-3 w-3" /> {{ t('user.online') }}
                   </span>
                 </div>
-                <p class="mt-1 text-sm font-medium text-base-content/55">@{{ page.props.user.username }}</p>
-                <p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/75">{{ bioText }}</p>
+                <p class="mt-0.5 text-[13px] font-medium text-base-content/50 sm:mt-1">@{{ page.props.user.username }}</p>
                 <p
-                  v-if="hasSignature && page.props.user.bio"
-                  class="mt-2 max-w-3xl border-l-2 border-primary/40 pl-3 text-sm italic leading-relaxed text-base-content/60"
+                  class="gf-profile-bio mt-2"
+                  :class="{ 'gf-profile-bio--empty': bioIsEmpty }"
                 >
-                  {{ page.props.user.signature }}
+                  {{ bioText }}
                 </p>
+                <aside v-if="showStandaloneSignature" class="gf-profile-signature" :aria-label="t('user.signatureLabel')">
+                  <div class="gf-profile-signature__row">
+                    <Feather class="gf-profile-signature__icon" aria-hidden="true" />
+                    <p class="gf-profile-signature__text">{{ page.props.user.signature }}</p>
+                  </div>
+                  <svg class="gf-profile-signature__squiggle" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+                    <path
+                      d="M2 5 C 10 0, 18 8, 26 5 S 42 8, 50 5 S 66 8, 74 5 S 90 8, 98 5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </aside>
               </div>
             </div>
 
-            <div class="flex shrink-0 flex-wrap items-center gap-2">
+            <div class="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
               <a
                 v-if="page.props.isOwnProfile"
                 :href="page.props.settingsUrl"

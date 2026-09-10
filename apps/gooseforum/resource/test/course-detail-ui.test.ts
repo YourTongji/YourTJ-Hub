@@ -1,0 +1,86 @@
+import { readFileSync } from 'node:fs'
+import { describe, expect, test } from 'vitest'
+
+const detailSource = readFileSync(
+  new URL('../src/site/pages/CourseDetailPage.vue', import.meta.url),
+  'utf8',
+)
+const templateSelectorSource = readFileSync(
+  new URL('../src/site/components/CourseReviewTemplateSelector.vue', import.meta.url),
+  'utf8',
+)
+
+describe('课程详情页 UI 结构', () => {
+  test('桌面端（xl+）评价列表为主列，评分分布/开课记录/相关课程收纳右栏', () => {
+    expect(detailSource).toContain(
+      'xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)]',
+    )
+    expect(detailSource).toContain('xl:order-1')
+    expect(detailSource).toContain('xl:order-2')
+  })
+
+  test('写评价入口只保留在评价列表标题处', () => {
+    expect(detailSource.match(/@click="openCreateForm"/g)).toHaveLength(1)
+  })
+
+  test('写评表单和页面弹层使用全局过渡', () => {
+    expect(detailSource.match(/<Transition name="gf-local-expand">/g)).toHaveLength(1)
+    // 详情页三处弹层：举报评审/模板选择器/撰写评价前置确认（随弹层增补同步维护）
+    expect(detailSource.match(/<Transition name="gf-modal">/g)).toHaveLength(3)
+    expect(templateSelectorSource.match(/<Transition name="gf-modal">/g)).toHaveLength(1)
+  })
+})
+
+// 提取指定函数体（从 `function name(` 到首个顶级右花括号），用于断言语句顺序。
+function functionBody(source: string, name: string): string {
+  const start = source.indexOf(`function ${name}(`)
+  expect(start).toBeGreaterThanOrEqual(0)
+  return source.slice(start, source.indexOf('\n}', start))
+}
+
+describe('课程详情页弹窗键盘可访问性', () => {
+  test('删除确认弹窗具备 Esc 关闭、焦点陷阱与打开即聚焦（对齐举报弹窗）', () => {
+    // Esc + Tab 焦点陷阱：复用举报弹窗 onReportKeydown 的处理模式。
+    expect(detailSource).toContain('@keydown="onDeleteKeydown"')
+    // 打开即聚焦：aria-modal="true" 声明的模态承诺必须在运行时兑现。
+    expect(functionBody(detailSource, 'askRemoveReview')).toContain(
+      'nextTick(() => deleteFocusableEls()[0]?.focus())',
+    )
+  })
+
+  test('分享弹窗聚焦发生在 openShare 异步完成之后（sharePreview 先渲染再聚焦）', () => {
+    const body = functionBody(detailSource, 'openShareDialog')
+    expect(body).toContain('await openShare(review)')
+    // 聚焦的 nextTick 必须排在 await 之后：openShare 置 sharePreview 前，
+    // 弹窗（v-if="sharePreview"）尚未挂载，querySelector 落空即 no-op。
+    expect(body.indexOf('await openShare(review)')).toBeLessThan(body.indexOf('nextTick'))
+  })
+
+  test('分享导出 ref 绑在内层 share-paper 卡片上', () => {
+    // html-to-image 复制被捕获节点自身 computed style：ref 挂在 opacity-0 隐藏容器上
+    // 会把整张导出图变成纯白。对齐 serverless：ref 挂 paper 节点，容器只负责视口外定位。
+    const start = detailSource.indexOf('导出实例')
+    const end = detailSource.indexOf('</Teleport>', start)
+    const exportBlock = detailSource.slice(start, end)
+    const wrapperTag = exportBlock.match(/<div[^>]*opacity-0[^>]*>/)?.[0] ?? ''
+    const paperTag = exportBlock.match(/<div[^>]*share-paper[^>]*>/)?.[0] ?? ''
+    expect(wrapperTag).not.toBe('')
+    expect(paperTag).not.toBe('')
+    expect(wrapperTag).not.toContain('ref="shareExportEl"')
+    expect(paperTag).toContain('ref="shareExportEl"')
+  })
+
+  test('课评编辑器容器不裁切 more 下拉（禁用 overflow-hidden，圆角交给内层 .vditor 继承）', () => {
+    // 包裹层 overflow-hidden 会把 vditor 的 .vditor-hint 下拉一并裁掉，交互不全；
+    // 圆角改由 [&_.vditor]:rounded-[inherit] 实现，下拉可自然溢出到下方表单之上。
+    const start = detailSource.indexOf(':slim-mobile="true"')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const editorBlock = detailSource.slice(detailSource.lastIndexOf('<div', start), start)
+    const wrapperTag = editorBlock.match(/<div[^>]*rounded-\[var\(--gf-radius-box\)\][^>]*>/)?.[0] ?? ''
+    expect(wrapperTag).not.toBe('')
+    expect(wrapperTag).not.toContain('overflow-hidden')
+    expect(wrapperTag).toContain('[&_.vditor]:rounded-[inherit]')
+    // 默认高度 380：300 偏矮，more 下拉长列表在编辑区内可视空间不足
+    expect(detailSource).toContain(':height="380"')
+  })
+})

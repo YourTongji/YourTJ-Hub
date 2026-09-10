@@ -1,0 +1,13 @@
+{
+  "result": [
+    {
+      "id": 42,
+      "ipMasked": "127.0.0.*",
+      "userAgent": "contract-test",
+      "createdAt": 1754496000000,
+      "expiresAt": 1757088000000,
+      "isCurrent": true
+    }
+  ],
+  "code": 0
+}

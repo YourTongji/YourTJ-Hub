@@ -1,0 +1,978 @@
+{
+  "myCourseReviewsTitle": "我的课评",
+  "myCourseReviewsEmpty": "还没有发布课评，去课程目录看看吧。",
+  "myCourseReviewHidden": "这条评价已被隐藏，可在此删除。",
+  "myCourseReviewUnavailable": "课程暂不可访问，你仍可管理自己的评价。",
+  "myCourseReviewOpen": "查看详情",
+  "courseReviewNetworkError": "网络连接失败，请检查网络后重试，已保留你的评价。",
+  "courseReviewUnknownError": "评价未能保存，服务端没有提供具体原因，请稍后重试。",
+  "commonHideKeyboard": "收起键盘",
+  "@@locale": "zh",
+  "appTitle": "YourTJ",
+  "navHome": "首页",
+  "navSearch": "搜索",
+  "navPublish": "发布",
+  "navMessages": "消息",
+  "navProfile": "我的",
+  "commonCancel": "取消",
+  "commonSave": "保存",
+  "commonLoading": "加载中…",
+  "commonLoadMore": "加载更多",
+  "commonRetry": "重试",
+  "commonClose": "关闭",
+  "commonSend": "发送",
+  "commonSearch": "搜索",
+  "commonEdit": "编辑",
+  "commonCurrent": "当前",
+  "commonEmpty": "暂无内容",
+  "commonBack": "返回",
+  "commonBackToTop": "返回顶部",
+  "commonUseLightTheme": "切换浅色模式",
+  "commonUseDarkTheme": "切换深色模式",
+  "timeAgoJustNow": "刚刚",
+  "timeAgoMinutes": "{count} 分钟前",
+  "@timeAgoMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoHours": "{count} 小时前",
+  "@timeAgoHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoDays": "{count} 天前",
+  "@timeAgoDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoWeeks": "{count} 周前",
+  "@timeAgoWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoMonths": "{count} 个月前",
+  "@timeAgoMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoYears": "{count} 年前",
+  "@timeAgoYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authLoginTitle": "登录账号",
+  "authRegisterTitle": "创建新账号",
+  "authForgotTitle": "重置密码",
+  "authLoginSubtitle": "欢迎回来，继续你的讨论和创作。",
+  "authRegisterSubtitle": "创建账号，加入校园里的每一次讨论。",
+  "authForgotSubtitle": "输入邮箱，我们会发送一封重置密码邮件。",
+  "authUsernameOrEmail": "用户名或邮箱",
+  "authUsername": "用户名",
+  "authEmail": "邮箱",
+  "authPassword": "密码",
+  "authNewPassword": "新密码",
+  "authConfirmPassword": "确认密码",
+  "authCaptcha": "验证码",
+  "authForgotPassword": "忘记密码？",
+  "authCreateAccount": "创建账号",
+  "authSendResetEmail": "发送重置邮件",
+  "authBackToLogin": "返回登录",
+  "authTwoFactorTitle": "两步验证",
+  "authTwoFactorCode": "TOTP 验证码",
+  "authVerify": "验证",
+  "authGetCode": "获取验证码",
+  "authOidcLogin": "使用 yourtj 统一登录",
+  "authRegisterSuccess": "注册成功,请登录",
+  "authResetEmailSent": "重置邮件已发送,请查收",
+  "authLoading": "处理中…",
+  "authCacheClearFailed": "清除上一账号离线数据失败,请重试",
+  "authSessionSaveFailed": "安全保存新会话失败,请重试",
+  "loginWelcome": "欢迎回到 YourTJ",
+  "loginModeLogin": "登录",
+  "loginModeRegister": "注册",
+  "loginModeForgot": "找回密码",
+  "publishTitle": "发布话题",
+  "publishEditTitle": "编辑话题",
+  "publishPublish": "发布",
+  "publishSaveDraft": "保存草稿",
+  "publishTitleField": "标题",
+  "publishTitleHint": "请输入标题(5-100 字)",
+  "publishBodyPlaceholder": "正文内容…",
+  "publishTitleRequired": "标题不能为空",
+  "publishContentRequired": "内容不能为空",
+  "publishSuccess": "发布成功",
+  "publishSavedDraft": "已保存为草稿",
+  "publishFailed": "发布失败:{error}",
+  "@publishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishImageFailed": "图片上传失败:{error}",
+  "@publishImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "composePreview": "预览",
+  "composeEdit": "编辑",
+  "publishBodyField": "正文",
+  "publishCategoryRequired": "请至少选择一个分类",
+  "publishPreviewEmpty": "开始输入后，这里会实时显示排版效果",
+  "publishLoadFailed": "编辑器数据加载失败:{error}",
+  "@publishLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishToolBold": "粗体",
+  "publishToolItalic": "斜体",
+  "publishToolStrike": "删除线",
+  "publishToolQuote": "引用",
+  "publishToolCode": "行内代码",
+  "publishToolBulletList": "无序列表",
+  "publishToolOrderedList": "有序列表",
+  "publishToolImage": "添加图片",
+  "publishRemoveImage": "移除图片",
+  "topicReplyTarget": "回复 {name}",
+  "@topicReplyTarget": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "topicTitle": "话题",
+  "topicReply": "回复",
+  "topicReplySuccess": "回复成功",
+  "topicReplyFailed": "回复失败:{error}",
+  "@topicReplyFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicReplyHint": "写下你的评论…",
+  "topicReplyTargetUnavailable": "原回复不可见",
+  "topicReplying": "回复中…(点击取消)",
+  "topicReport": "举报帖子",
+  "topicReportHint": "请描述举报原因",
+  "topicReportSubmit": "提交",
+  "topicReportSubmitted": "举报已提交",
+  "topicReportFailed": "举报失败:{error}",
+  "@topicReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicWatch": "关注话题回复",
+  "topicUnwatch": "取消关注话题回复",
+  "topicReplies": "{count} 回复",
+  "@topicReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "topicNoTitle": "无标题",
+  "profileTitle": "个人主页",
+  "profileFollow": "关注",
+  "profileFollowing": "已关注",
+  "profileTopics": "主题",
+  "profileReplies": "回复",
+  "profileLikes": "获赞",
+  "profileFollowers": "粉丝",
+  "profileFollowingCount": "关注",
+  "profileBadges": "徽章",
+  "profileNoBadges": "暂无徽章",
+  "profileEmptyActivity": "暂无动态",
+  "profileEmptyTopics": "暂无主题",
+  "profileEmptyLikes": "暂无点赞",
+  "profileEmptyBookmarks": "暂无收藏",
+  "profileEmptyFollowing": "暂无关注",
+  "profileEmptyFollowers": "暂无粉丝",
+  "profileNotLoggedIn": "未登录",
+  "messagesTitle": "消息",
+  "messagesEmpty": "还没有私信会话",
+  "messagesEmptyDescription": "从社区里找一个人开始聊聊。",
+  "messagesSearchConversations": "搜索会话",
+  "messagesConversation": "私信对话",
+  "messagesStartChat": "开始聊天",
+  "messagesFirstMessageTo": "给 {user} 发出第一条消息。",
+  "@messagesFirstMessageTo": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesNoMessagesYet": "还没有消息",
+  "messagesEmptyDetail": "暂无消息,说点什么吧",
+  "messagesInputHint": "输入消息…",
+  "messagesSendFailed": "发送失败:{error}",
+  "@messagesSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsTitle": "通知",
+  "notificationsEmpty": "暂无通知",
+  "notificationsMarkAllRead": "全部已读",
+  "notificationsAll": "全部",
+  "notificationsUnread": "未读",
+  "searchTitle": "搜索",
+  "searchHint": "搜索帖子、用户、分类…",
+  "searchEmpty": "输入关键词开始搜索",
+  "searchNoUsers": "没有匹配的用户",
+  "searchNoCategories": "没有匹配的分类",
+  "searchUnavailable": "搜索暂不可用",
+  "searchAll": "全部",
+  "searchTopics": "帖子",
+  "searchUsers": "用户",
+  "searchCategories": "分类",
+  "categoryTitle": "分类",
+  "settingsTitle": "设置",
+  "settingsTabProfile": "资料",
+  "settingsTabAccount": "账户",
+  "settingsTabPrivacy": "隐私",
+  "settingsTabBinding": "绑定",
+  "settingsTabSecurity": "安全",
+  "settingsSectionProfile": "个人资料",
+  "settingsNickname": "昵称",
+  "settingsNicknameEdit": "编辑显示昵称",
+  "settingsBio": "个人简介",
+  "settingsBioEdit": "编辑简介与签名",
+  "settingsAvatar": "头像",
+  "settingsAvatarUpload": "上传头像(前端转 webp)",
+  "settingsAvatarUploading": "上传中…",
+  "settingsAvatarUploadFailed": "头像上传失败:{error}",
+  "@settingsAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsEmail": "邮箱",
+  "settingsEmailEdit": "修改绑定邮箱",
+  "settingsEmailUpdated": "邮箱已更新,请验证",
+  "settingsEmailOAuthReauthRequired": "此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。",
+  "settingsEmailFailed": "邮箱修改失败:{error}",
+  "@settingsEmailFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNewEmail": "新邮箱",
+  "settingsChangePassword": "修改密码",
+  "settingsChangePasswordSub": "更换登录密码",
+  "settingsCurrentPassword": "当前密码",
+  "settingsPasswordUpdated": "密码已更新",
+  "settingsPasswordFailed": "修改失败:{error}",
+  "@settingsPasswordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBadge": "徽章",
+  "settingsBadgeNone": "未佩戴",
+  "settingsBadgeCurrent": "当前:{name}",
+  "@settingsBadgeCurrent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBadgePick": "选择佩戴徽章",
+  "settingsBadgeNoOptions": "暂无可佩戴徽章",
+  "settingsBadgeUpdated": "已更新佩戴徽章",
+  "settingsBadgeFailed": "佩戴失败:{error}",
+  "@settingsBadgeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOAuth": "外部账号关联",
+  "settingsOAuthSub": "GitHub 与 Google 登录关联",
+  "settingsOAuthManage": "OAuth 绑定管理",
+  "settingsOAuthBindings": "OAuth 绑定管理",
+  "settingsBound": "已绑定",
+  "settingsUnbound": "未绑定",
+  "settingsUnbind": "解绑",
+  "settingsUnboundDone": "已解绑",
+  "settingsUnbindFailed": "解绑失败:{error}",
+  "@settingsUnbindFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLoadBindingsFailed": "加载绑定失败:{error}",
+  "@settingsLoadBindingsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrivacyDirect": "私信仅好友可见",
+  "settingsPrivacyLikes": "公开我的点赞",
+  "settingsSessions": "会话管理",
+  "settingsSessionsEmpty": "暂无会话",
+  "settingsRevokeAll": "吊销全部会话",
+  "settingsRevoked": "已吊销会话",
+  "settingsRevokeFailed": "吊销失败:{error}",
+  "@settingsRevokeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRevokeAllDone": "已吊销全部会话",
+  "settingsOpFailed": "操作失败:{error}",
+  "@settingsOpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAppearance": "外观",
+  "settingsDarkMode": "深色模式",
+  "settingsDarkCurrent": "当前:深色",
+  "settingsLightCurrent": "当前:浅色",
+  "settingsAbout": "关于",
+  "settingsAboutVersion": "版本 0.1.0 · 同济大学校园论坛",
+  "settingsEditProfile": "编辑资料",
+  "settingsSignature": "签名",
+  "settingsSaveInfo": "保存",
+  "settingsInfoSaved": "资料已更新",
+  "settingsInfoFailed": "资料更新失败:{error}",
+  "@settingsInfoFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsUserDataLoading": "账户数据加载中,请稍后再试",
+  "settingsFillComplete": "请填写完整",
+  "settingsSecondPhase": "二期接入",
+  "settingsTotpTitle": "两步验证(TOTP)",
+  "settingsTotpEnable": "启用",
+  "settingsTotpDisable": "禁用",
+  "settingsTotpPasswordPrompt": "输入密码以管理 TOTP",
+  "settingsTotpSetupSecret": "在验证器应用中扫描或输入密钥",
+  "settingsTotpCode": "输入 6 位动态验证码",
+  "settingsTotpRecoveryCodes": "恢复码(请妥善保存):",
+  "settingsTotpEnabled": "TOTP 已启用",
+  "settingsTotpDisabled": "TOTP 已禁用",
+  "settingsTotpFailed": "TOTP 操作失败:{error}",
+  "@settingsTotpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsTotpDisableTitle": "禁用 TOTP",
+  "settingsTotpEnableTitle": "启用 TOTP",
+  "settingsTotpPassword": "输入密码",
+  "settingsTotpNext": "下一步",
+  "settingsTotpScanSecret": "扫描或输入密钥",
+  "settingsTotpDone": "完成",
+  "settingsTotpUnavailable": "TOTP 不可用",
+  "draftsTitle": "草稿箱",
+  "draftsEmpty": "暂无草稿",
+  "draftsNew": "新建草稿",
+  "draftsBlocked": "被屏蔽",
+  "draftsMetaCreated": "创建于 {date}",
+  "draftsMetaViews": "{count} 次浏览",
+  "draftsMetaReplies": "{count} 条回复",
+  "messagesNew": "新私信",
+  "messagesSearchUsers": "搜索用户",
+  "messagesNoContactableUsers": "暂无可联系用户",
+  "settingsLogout": "退出登录",
+  "settingsLogoutConfirm": "确定退出 yourtj 吗?",
+  "commonParseFailed": "页面数据解析失败",
+  "commonLoadFailed": "加载失败",
+  "topicEmpty": "暂无话题",
+  "settingsAvatarUploaded": "头像已上传:{url}",
+  "@settingsAvatarUploaded": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsImageDecodeFailed": "图片解码失败",
+  "dateMonthDayTime": "{month}月{day}日 {time}",
+  "@dateMonthDayTime": {
+    "placeholders": {
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
+  "@dateYearMonthDayTime": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "topicFloorSelected": "已跳转到 {floor} 楼",
+  "sortLatest": "最新",
+  "sortHot": "热门",
+  "sortPopular": "流行",
+  "topicFeedModeList": "列表",
+  "topicFeedModeCard": "卡片",
+  "topicNewTopic": "新建话题",
+  "scheduleTitle": "排课器",
+  "scheduleTabTimetable": "方案预览",
+  "scheduleTabPick": "选课",
+  "scheduleTerm": "学期",
+  "scheduleGrade": "年级",
+  "scheduleMajor": "专业",
+  "scheduleSyncLatest": "同步最新",
+  "scheduleDataOutdated": "教务数据已更新，点击同步",
+  "scheduleSyncedTo": "已同步至 {date}",
+  "@scheduleSyncedTo": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleSyncConflictTitle": "排课方案同步冲突",
+  "scheduleSyncConflictBody": "本地与云端的排课方案不一致，保留哪一份？",
+  "scheduleSyncUseCloud": "使用云端",
+  "scheduleSyncKeepLocal": "保留本地",
+  "scheduleWeekAll": "全部周次",
+  "scheduleWeekN": "第 {week} 周",
+  "@scheduleWeekN": {
+    "placeholders": {
+      "week": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleCurrentWeek": "当前周次",
+  "schedulePlanNew": "新建方案",
+  "schedulePlanRename": "重命名方案",
+  "schedulePlanDelete": "删除方案",
+  "schedulePlanClear": "清空课程",
+  "schedulePlanN": "方案 {n}",
+  "@schedulePlanN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleStatsCourses": "{count} 门",
+  "@scheduleStatsCourses": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleStatsCredits": "学分",
+  "scheduleStatsHours": "学时",
+  "scheduleStatsConflicts": "冲突",
+  "scheduleConflictBadge": "冲突",
+  "scheduleConflictWith": "与「{course}」时间冲突",
+  "@scheduleConflictWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleConflictsWith": "与「{course}」等{count}门课程冲突",
+  "@scheduleConflictsWith": {
+    "placeholders": {
+      "course": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scheduleConflictCanAdd": "仍可加入",
+  "scheduleAddCustomEvent": "添加占位",
+  "scheduleCustomEventLabel": "有事",
+  "scheduleExportPng": "导出图片",
+  "scheduleExportCsv": "导出 CSV",
+  "scheduleDegraded": "检索降级中，结果可能不全",
+  "scheduleNoReviewData": "暂无课评数据",
+  "schedulePickClass": "选择教学班",
+  "scheduleCompulsory": "必修",
+  "scheduleOptional": "选修",
+  "scheduleSearchHint": "搜索课名/课号/教师",
+  "scheduleStaged": "备选",
+  "scheduleSelected": "已选",
+  "scheduleRemoveCourse": "退课",
+  "scheduleParityOdd": "单周",
+  "scheduleParityEven": "双周",
+  "scheduleWeeksN": "共{range}周",
+  "@scheduleWeeksN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleDayMon": "周一",
+  "scheduleDayTue": "周二",
+  "scheduleDayWed": "周三",
+  "scheduleDayThu": "周四",
+  "scheduleDayFri": "周五",
+  "scheduleDaySat": "周六",
+  "scheduleDaySun": "周日",
+  "scheduleMorning": "上午",
+  "scheduleAfternoon": "下午",
+  "scheduleEvening": "晚上",
+  "coursesTitle": "课程目录",
+  "coursesSearchHint": "搜索课程",
+  "coursesFilterDepartment": "院系",
+  "coursesFilterTerm": "学期",
+  "coursesFilterCampus": "校区",
+  "coursesFilterInstructor": "教师",
+  "coursesOnlyWithReviews": "只看有评价",
+  "coursesRatingCount": "{count} 条评价",
+  "@coursesRatingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "coursesNoRating": "暂无评分",
+  "courseDetailReviews": "课评",
+  "courseDetailOfferings": "开课班级",
+  "courseDetailLineage": "课程沿革",
+  "courseDetailRelated": "相关课程",
+  "courseDetailAiSummary": "AI 总结",
+  "courseDetailAiSummaryEmpty": "暂无 AI 总结",
+  "courseBookmark": "收藏",
+  "courseBookmarked": "已收藏",
+  "courseWriteReview": "写课评",
+  "reviewAnonymous": "匿名评价",
+  "reviewSubmit": "发布评价",
+  "reviewHelpful": "有用",
+  "reviewsEmpty": "还没有评价",
+  "wikiTitle": "Wiki",
+  "wikiRecent": "最近更新",
+  "wikiEditOnGithub": "在 GitHub 编辑",
+  "wikiToc": "目录",
+  "wikiNamespaces": "命名空间",
+  "wikiViewCount": "{count} 次浏览",
+  "@wikiViewCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsPush": "推送通知",
+  "settingsPushDenied": "系统通知权限未授予，点击前往设置",
+  "settingsFollowSiteTheme": "跟随站点主题",
+  "settingsFollowSiteThemeDesc": "使用服务器下发的站点配色",
+  "entryCourses": "课程",
+  "entrySchedule": "课表",
+  "entryWiki": "Wiki",
+  "navCampus": "校园",
+  "campusTitle": "在同济，发现更多",
+  "campusSubtitle": "选好课，排好每一天，分享你的校园经验。",
+  "campusCoursesHint": "查课程、看评价，选课更有底气",
+  "campusScheduleHint": "多方案排课、冲突提示与课表导出",
+  "campusWikiHint": "校园指南，与大家一起完善的知识库",
+  "publishMoment": "瞬间",
+  "publishQuestion": "提问",
+  "publishArticle": "文章",
+  "publishNext": "下一步",
+  "publishGallery": "先选图片，再记录这一刻",
+  "publishGalleryHint": "最多 9 张，长按拖动排序",
+  "publishFormatting": "文字格式",
+  "publishClassification": "选择分区与标签",
+  "publishLeaveTitle": "保留这次创作？",
+  "publishLeaveBody": "尚有未保存的内容。返回编辑，或放弃本次修改。",
+  "publishDiscard": "放弃修改",
+  "publishContinue": "继续编辑",
+  "publishImageOnlyTitle": "分享此刻",
+  "publishTypeLocked": "编辑已有帖子时保留原类型",
+  "profileMore": "更多功能",
+  "profileContent": "内容管理",
+  "profileTrash": "回收站",
+  "profileSecurity": "账号、安全与隐私",
+  "profileAdmin": "管理工作台",
+  "fabDiscussion": "前往讨论区",
+  "fabRefresh": "刷新并回到顶部",
+  "contentRestore": "恢复",
+  "contentDelete": "删除",
+  "contentPurge": "永久删除",
+  "contentDeleteConfirm": "内容会移入回收站，符合恢复条件时可在 30 天内恢复。",
+  "contentPurgeConfirm": "此操作不可撤销。正文和图片将被永久清除。",
+  "contentPassword": "请输入当前密码以确认操作",
+  "contentSelected": "已选择",
+  "contentSelectAll": "全选当前列表",
+  "contentEmpty": "这里还没有内容",
+  "contentTrashHint": "可恢复的内容保留 30 天；审核移除的内容不能自行恢复。",
+  "commonConfirm": "确认",
+  "adminUnavailable": "管理后台暂不可用。请确认账号有管理权限、登录未过期，并检查网络后重试。",
+  "adminDownloadFailed": "导出下载失败，请稍后重试。",
+  "publishGalleryTooMany": "内容最多支持 9 张图片，请先减少图片或继续使用文章编辑器。",
+  "profileActivity": "动态",
+  "profileBookmarks": "收藏",
+  "profileModeration": "审核工作台",
+  "settingsCloseAccount": "注销账号",
+  "settingsCloseAccountWarning": "注销不可撤销，所有设备都会退出登录。你可以保留匿名化后的历史内容，或请求删除自己的内容；受保留规则限制的内容可能仍会保留。请输入当前账号密码以确认。",
+  "settingsCloseKeepContent": "保留匿名内容",
+  "settingsCloseDeleteContent": "请求删除内容",
+  "publishUndo": "撤销",
+  "publishRedo": "重做",
+  "publishHeading": "标题",
+  "publishToolLink": "插入链接",
+  "publishLinkInvalid": "请输入有效的 http、https 或邮件链接。",
+  "publishPhotoLibrary": "从相册选择",
+  "publishCamera": "拍摄照片",
+  "settingsWebsiteName": "网站名称",
+  "settingsWebsite": "个人网站",
+  "settingsSocialLinks": "社交链接",
+  "settingsProfileLanguage": "资料语言",
+  "settingsInvalidLink": "请输入有效的 http 或 https 链接",
+  "siteInfoTitle": "关于社区",
+  "siteInfoLinks": "友情链接",
+  "siteInfoSponsors": "支持与赞助",
+  "siteInfoTerms": "服务条款",
+  "siteInfoPrivacy": "隐私政策",
+  "siteInfoEmpty": "暂无公开内容",
+  "settingsUsernameHint": "这是用于登录的用户名，需符合站点命名规则。",
+  "settingsUsernameUpdated": "用户名已更新",
+  "settingsPresetAvatar": "选择预设头像",
+  "coursesManagement": "课程管理",
+  "coursesReviewModeration": "课评审核",
+  "settingsCover": "主页封面",
+  "settingsCoverDescription": "选择图片并调整裁切范围",
+  "settingsCoverRemove": "移除封面",
+  "settingsCoverRemoveConfirm": "移除后将恢复默认主页背景。",
+  "settingsCoverMinSize": "请选择至少 1200 × 240 像素的图片",
+  "settingsCoverSafeArea": "中间明亮区域是手机上主要显示的部分；完整横图会保留给宽屏。",
+  "settingsCropHint": "拖动图片调整位置，双指缩放查看效果",
+  "settingsCropPreview": "图片裁切预览",
+  "settingsCropZoom": "缩放",
+  "settingsCropReset": "重置位置",
+  "settingsImageSaved": "图片已更新",
+  "settingsImageTooLarge": "图片不能超过 {maxMb} MB",
+  "@settingsImageTooLarge": {
+    "placeholders": {
+      "maxMb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsOAuthUnavailable": "站点尚未启用",
+  "settingsOAuthOpenBrowser": "在浏览器中管理绑定",
+  "settingsOAuthBrowserHint": "请在浏览器中使用当前账号 @{username} 登录并完成绑定，返回 App 后会刷新绑定状态。",
+  "@settingsOAuthBrowserHint": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "commonRefresh": "刷新",
+  "topicEarliest": "最早",
+  "topicLatest": "最新",
+  "topicEarlierReplies": "加载更早回复",
+  "topicHistory": "修订记录",
+  "topicHistoryUnavailable": "此版本的内容不可见",
+  "topicHistoryEmpty": "暂无修订记录",
+  "topicDeleteConfirm": "确定删除这条内容？可以在回收站中查看可恢复的内容。",
+  "topicModerateBan": "屏蔽内容",
+  "topicModerateUnban": "恢复显示",
+  "topicModerateConfirm": "确定更改这条内容的可见状态？",
+  "topicShare": "分享",
+  "topicEditReply": "编辑回复",
+  "topicRemoved": "这条内容已被删除或移除",
+  "topicBookmark": "收藏",
+  "topicBookmarked": "取消收藏",
+  "topicLike": "点赞",
+  "authEmailPrefix": "邮箱前缀",
+  "authEmailDomain": "邮箱域名",
+  "authAgreePolicies": "我已阅读并同意已发布的协议",
+  "authPasswordMismatch": "两次输入的密码不一致",
+  "schedulerWebTitle": "完整版排课器，请到网页端体验",
+  "schedulerWebAction": "前往 f.yourtj.de",
+  "schedulerPlanDisclaimer": "这是你的选课规划，最终选课结果以教务为准。",
+  "campusExploreCourses": "从同学的真实评价，发现适合你的课",
+  "campusPlanTitle": "把感兴趣的课，排成自己的方案",
+  "campusPlanDescription": "比较教学班、检查时间冲突，再决定怎么选。",
+  "loginGoogle": "使用 Google 登录",
+  "loginGithub": "使用 GitHub 登录",
+  "wikiSearchUnavailable": "搜索暂不可用，你仍可以返回目录浏览。",
+  "wikiSearchHint": "搜索校园知识",
+  "wikiExploreTitle": "你的校园生活指南",
+  "notificationComment": "{actor} 评论了你的主题",
+  "@notificationComment": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationMention": "{actor} 提到了你",
+  "@notificationMention": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationPostReply": "{actor} 回复了你",
+  "@notificationPostReply": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationTopicPost": "{actor} 在你关注的主题中发表了回复",
+  "@notificationTopicPost": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationFollow": "{actor} 关注了你",
+  "@notificationFollow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationLike": "{actor} 赞了你的回复",
+  "@notificationLike": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationWikiUpdated": "{actor} 更新了你关注的 Wiki 页面",
+  "@notificationWikiUpdated": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationBadge": "你获得了“{badge}”徽章",
+  "@notificationBadge": {
+    "placeholders": {
+      "badge": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationNew": "新通知",
+  "notificationSomeone": "有人",
+  "profileRoleAdmin": "管理员",
+  "profileActionSignup": "加入社区",
+  "profileActionPost": "发布主题",
+  "profileActionLike": "点赞",
+  "profileActionFollow": "关注用户",
+  "profileActionComment": "发表回复",
+  "replyQuoteExpand": "展开引用",
+  "replyQuoteCollapse": "收起引用",
+  "notificationBadgeUnnamed": "你获得了一枚新徽章",
+  "settingsAppLanguage": "应用语言",
+  "settingsLanguageSystem": "跟随系统",
+  "scheduleGradeYear": "{year} 级",
+  "@scheduleGradeYear": {
+    "placeholders": {
+      "year": {
+        "type": "String"
+      }
+    }
+  },
+  "schedulePeriods": "节次",
+  "scheduleWeeksLabel": "周次",
+  "schedulePeriodRange": "第 {range} 节",
+  "@schedulePeriodRange": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "courseCopyCreditUnit": "学分",
+  "courseCopyNoTeacher": "无教师",
+  "courseCopyCatalogEmptyTitle": "暂无课程",
+  "courseCopyCatalogEmptyDescription": "课程目录尚未导入。",
+  "courseCopyNoFilterResults": "没有找到符合筛选条件的课程。",
+  "courseCopyNoFilterResultsDescription": "试试调整或清除筛选，查看更广的课程。",
+  "courseCopyClearSearch": "清空搜索",
+  "courseCopyDone": "完成",
+  "courseCopyNoOptions": "暂无可选项",
+  "courseCopySelectedCount": "已选 {count} 项",
+  "@courseCopySelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "courseCopyInstructorInputHint": "输入教师姓名，回车添加",
+  "courseCopyInstructorAdd": "添加",
+  "courseCopyInstructorEmptyHint": "通过上方输入框添加教师",
+  "courseCopyAliasesLabel": "别名：",
+  "courseCopyLegacyNamesLabel": "原名：",
+  "courseCopyReviewScopeTeam": "教学团队",
+  "courseCopyReviewScopeCourse": "课程级评价",
+  "courseCopyTeamInstructorsPrefix": "教学团队 · ",
+  "courseCopyTeamInstructorsSuffix": "等 {count} 位教师",
+  "@courseCopyTeamInstructorsSuffix": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "courseCopyRatingTitle": "课程评分",
+  "courseCopyRatingOutOf": "/ 5.0",
+  "courseCopyNoRatingQuiet": "暂无评分",
+  "courseCopyOfferingsEmpty": "暂无开课记录。",
+  "courseCopyOfferingFocusLabel": "只看该教学班的评价",
+  "courseCopyOfferingFocusClear": "查看全部评价",
+  "courseCopySummaryGenerated": "已生成",
+  "courseCopySummaryKeywords": "关键词",
+  "courseCopySummaryPros": "优点",
+  "courseCopySummaryCons": "缺点",
+  "courseCopySummaryRepresentativeReviews": "代表性评价",
+  "courseCopySummarySentimentPositive": "好评",
+  "courseCopySummarySentimentNeutral": "中立",
+  "courseCopySummarySentimentNegative": "差评",
+  "courseCopySummaryRefresh": "刷新",
+  "courseCopySummaryExpand": "展开",
+  "courseCopySummaryCollapse": "收起",
+  "courseCopySummaryDisclaimer": "以上内容由 AI 基于学生评价自动生成，仅供参考，不构成选课建议。",
+  "courseCopySummaryInsufficient": "评价数量不足，暂无法生成 AI 总结。",
+  "courseCopySummaryLoadFailed": "AI 总结生成失败，请稍后重试。",
+  "courseCopyWriteReviewTitle": "写一条评价",
+  "courseCopyEditReviewTitle": "编辑评价",
+  "courseCopySelectOffering": "选择开课实例",
+  "courseCopyRatingLabel": "评分",
+  "courseCopyContentLabel": "评价内容",
+  "courseCopyContentPlaceholder": "写下你的学习体验、课程质量或给分情况…",
+  "courseCopyRatingRequired": "请选择 1–5 星评分。",
+  "courseCopyContentRequired": "评价内容不能为空。",
+  "courseCopyAnonymousLabel": "匿名发布（对公众隐藏身份）",
+  "courseCopySubmitSuccess": "已提交",
+  "courseCopyUpdateSuccess": "已更新",
+  "courseCopyDelete": "删除",
+  "courseCopyDeleteReviewTitle": "删除评价",
+  "courseCopyConfirmDeleteReview": "确定删除这条评价吗？删除后不可恢复。",
+  "courseCopyReviewDeleted": "评价已删除",
+  "courseCopyOperationFailed": "操作失败，请稍后重试。",
+  "courseCopyReviewsLoadFailed": "评价加载失败，请稍后重试。",
+  "courseCopyAuthorAnonymousLabel": "匿名同学",
+  "courseCopyAuthorLegacyLabel": "历史匿名评价",
+  "courseCopyRelatedTeacherCoursesTitle": "同教师其他课程",
+  "courseCopyRelatedOtherTeachersTitle": "同课程其他教师",
+  "courseCopyRelatedEmpty": "暂无相关内容",
+  "courseCopyRelationEquivalent": "等价",
+  "courseCopyRelationRenamed": "改名",
+  "courseCopyRelationSplit": "拆分",
+  "courseCopyRelationMerged": "合并",
+  "courseCopyRelationRelated": "相关",
+  "courseCopySummaryConsensusStrongRecommend": "强烈推荐",
+  "courseCopySummaryConsensusRecommend": "推荐",
+  "courseCopySummaryConsensusNeutral": "褒贬不一",
+  "courseCopySummaryConsensusCautious": "谨慎选择",
+  "courseCopySummaryConsensusNotRecommend": "不推荐",
+  "courseCopySummaryConsensusTextStrongRecommend": "多数同学强烈推荐这门课程。",
+  "courseCopySummaryConsensusTextRecommend": "多数同学推荐这门课程。",
+  "courseCopySummaryConsensusTextNeutral": "同学们对这门课程的评价褒贬不一。",
+  "courseCopySummaryConsensusTextCautious": "多数同学建议谨慎选择这门课程。",
+  "courseCopySummaryConsensusTextNotRecommend": "多数同学不推荐这门课程。",
+  "topicJoinDiscussion": "参与讨论",
+  "updateCheck": "检查更新",
+  "updateAvailable": "发现新版本",
+  "updateLatest": "已是最新版本",
+  "updateFailed": "暂时无法检查或下载更新，请稍后重试。",
+  "updateDownload": "下载更新",
+  "updateSkip": "忽略此版本",
+  "updateLater": "稍后",
+  "updatePreparing": "正在选择最快的下载来源…",
+  "updateDownloading": "正在下载…",
+  "updateReady": "更新已验证，可以开始安装。",
+  "updateInstall": "安装更新",
+  "updatePermission": "请允许 YourTJ 安装应用，然后返回并再次点击安装。",
+  "updateRetry": "重试",
+  "settingsPushConsent": "开启后通过 Apple（iOS）或极光及手机厂商（Android）发送系统通知，会处理设备推送标识及通知内容。",
+  "settingsPushUnsupported": "此构建尚未配置推送服务",
+  "settingsPushServerDisabled": "服务器尚未启用此设备的推送通道，点击重试",
+  "settingsPushFailed": "推送注册失败，请检查网络后点击重试",
+  "settingsPushPrivacy": "极光推送隐私说明（Android）"
+}

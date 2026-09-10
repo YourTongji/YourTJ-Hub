@@ -1,0 +1,11 @@
+{
+  "result": {
+    "configured": false,
+    "native": {
+      "apnsEnabled": true,
+      "fcmEnabled": false,
+      "jpushEnabled": false
+    }
+  },
+  "code": 0
+}

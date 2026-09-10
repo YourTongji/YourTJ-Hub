@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "admin.data.importInvalidFormat",
+  "params": {
+    "error": "导入文件格式无效"
+  }
+}

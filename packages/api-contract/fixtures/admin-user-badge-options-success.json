@@ -1,0 +1,98 @@
+{
+  "result": {
+    "options": [
+      {
+        "code": "early_member",
+        "type": "system",
+        "grantMode": "manual",
+        "name": "早期成员",
+        "description": "社区早期加入者",
+        "iconType": "asset",
+        "iconKey": "",
+        "iconUrl": "/static/badges/early-member.svg",
+        "color": "cyan",
+        "level": "special",
+        "isEnabled": true,
+        "isWearable": true,
+        "sortOrder": 100
+      },
+      {
+        "code": "contributor",
+        "type": "system",
+        "grantMode": "manual",
+        "name": "贡献者",
+        "description": "为社区建设做出贡献",
+        "iconType": "asset",
+        "iconKey": "",
+        "iconUrl": "/static/badges/contributor.svg",
+        "color": "fuchsia",
+        "level": "special",
+        "isEnabled": true,
+        "isWearable": true,
+        "sortOrder": 110
+      },
+      {
+        "code": "moderator",
+        "type": "system",
+        "grantMode": "manual",
+        "name": "社区维护者",
+        "description": "协助维护社区秩序",
+        "iconType": "asset",
+        "iconKey": "",
+        "iconUrl": "/static/badges/moderator.svg",
+        "color": "emerald",
+        "level": "special",
+        "isEnabled": true,
+        "isWearable": true,
+        "sortOrder": 120
+      },
+      {
+        "code": "sponsor",
+        "type": "system",
+        "grantMode": "manual",
+        "name": "赞助者",
+        "description": "支持社区持续运行",
+        "iconType": "asset",
+        "iconKey": "",
+        "iconUrl": "/static/badges/sponsor.svg",
+        "color": "yellow",
+        "level": "special",
+        "isEnabled": true,
+        "isWearable": true,
+        "sortOrder": 130
+      },
+      {
+        "code": "king",
+        "type": "system",
+        "grantMode": "manual",
+        "name": "King",
+        "description": "社区之王",
+        "iconType": "asset",
+        "iconKey": "",
+        "iconUrl": "/static/badges/king.svg",
+        "color": "amber",
+        "level": "special",
+        "isEnabled": true,
+        "isWearable": true,
+        "sortOrder": 140
+      },
+      {
+        "code": "robot",
+        "type": "system",
+        "grantMode": "manual",
+        "name": "机器人",
+        "description": "你就是机器人！",
+        "iconType": "asset",
+        "iconKey": "",
+        "iconUrl": "/static/badges/robot.svg",
+        "color": "slate",
+        "level": "special",
+        "isEnabled": true,
+        "isWearable": true,
+        "sortOrder": 150
+      }
+    ],
+    "active": []
+  },
+  "code": 0
+}

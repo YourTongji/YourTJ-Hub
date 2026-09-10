@@ -1,0 +1,15 @@
+{
+  "result": {
+    "id": 1201,
+    "title": "期中复习资料汇总",
+    "description": "整理了本学期各科目的复习资料，需要的同学自取。",
+    "categoryId": [3],
+    "userId": 1024,
+    "topicStatus": 1,
+    "processStatus": 0,
+    "createdAt": "2026-08-10T08:00:00Z",
+    "updatedAt": "2026-08-15T09:20:00Z",
+    "content": "整理了本学期各科目的复习资料，**需要的同学自取**。"
+  },
+  "code": 0
+}

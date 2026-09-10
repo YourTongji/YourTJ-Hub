@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-
 	"bytes"
 	"errors"
 	"fmt"
@@ -13,23 +11,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
-	"github.com/leancodebox/GooseForum/app/service/mailservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/tokenservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,6 +52,14 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	userId := req.Params.UserId
 	card, ok := userservice.GetUserCard(userId)
 	if !ok {
+		// 已注销（软删）账号仍可能保留历史内容，渲染专门的注销用户卡片（PRD R10）。
+		if users.IsAccountClosed(userId) {
+			return component.SuccessResponse(&vo.UserCard{
+				UserId:          userId,
+				AvatarUrl:       urlconfig.GetDefaultAvatar(),
+				IsAccountClosed: true,
+			})
+		}
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
 	}
 	currentUserId := req.UserId
@@ -62,18 +72,30 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	return component.SuccessResponse(card)
 }
 
+// emailChangeCooldown 邮箱变更冷静期：变更后 24 小时内新邮箱不能用于密码重置。
+const emailChangeCooldown = 24 * time.Hour
+
 type EditUserEmailReq struct {
-	Email string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 }
 
 // EditUserEmail updates the current user's email and resets activation state.
+// 修改邮箱需要登录密码二次确认（与 ChangePassword 一致），校验失败在触碰数据库前拒绝。
 func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Response {
 	userEntity, err := req.GetUser()
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
 
-	newEmail := req.GetParams().Email
+	if err = algorithm.VerifyEncryptPassword(userEntity.Password, req.Params.Password); err != nil {
+		if userEntity.Email == "" && oauthservice.HasOAuthBinding(userEntity.Id) {
+			return component.FailResponseCode(component.MessageAuthPasswordOAuthRequired, nil)
+		}
+		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+	}
+
+	newEmail := strings.ToLower(strings.TrimSpace(req.GetParams().Email))
 
 	if err := component.ValidateEmailDomain(newEmail); err != nil {
 		return component.FailResponseError(err)
@@ -82,17 +104,35 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 	if users.ExistEmail(newEmail) {
 		return component.FailResponseCode(component.MessageAuthEmailExists, nil)
 	}
+
+	// 保存新邮箱前记录旧邮箱，用于写库成功后向旧地址发送变更通知。
+	oldEmail := userEntity.Email
+	now := time.Now()
 	userEntity.Email = newEmail
 	userEntity.IsActivated = users.ActivationPending
 	userEntity.ActivatedAt = nil
+	userEntity.EmailChangedAt = &now
 
 	err = userservice.SaveUser(&userEntity)
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 
+	// 新邮箱：激活邮件
 	if err = emailactivationservice.SendActivationEmail(&userEntity); err != nil {
 		slog.Info("验证邮件发送失败", "error", err)
+	}
+
+	// 旧邮箱：变更通知（失败只记日志，不阻断成功响应；
+	// 这是受害者得知邮箱被改的主要途径，失败需以 Error 级暴露以便告警/审计）。
+	if err = mailservice.AddToQueue(mailservice.EmailTask{
+		To:       oldEmail,
+		Username: userEntity.Username,
+		NewEmail: newEmail,
+		Type:     "email_changed",
+		Locale:   userEntity.Locale,
+	}); err != nil {
+		slog.Error("邮箱变更通知入队失败", "userId", userEntity.Id, "oldEmail", oldEmail, "error", err)
 	}
 
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
@@ -160,7 +200,7 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 
-	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
+	eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
@@ -182,13 +222,34 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
 
+	// 昵称与用户名同一份保留/禁用名单（整串归一化全等），防冒充性昵称
+	// （"官方/客服/管理员" 等）。昵称非空才检查；空 = 保留系统随机默认。
+	if nickname := strings.TrimSpace(req.Params.Nickname); nickname != "" {
+		if _, err := moderationservice.CheckNicknameAllowed(nickname); err != nil {
+			return component.FailResponseError(err)
+		}
+	}
+	// 个人资料自由文本（bio/signature/website/websiteName）做内容敏感词
+	// 拦截（精确子串，block）。命中即拒并写审核日志，不落库。
+	profileText := strings.Join([]string{
+		req.Params.Bio,
+		req.Params.Signature,
+		req.Params.Website,
+		req.Params.WebsiteName,
+	}, "\n")
+	if words := moderationservice.FindSensitiveWords(profileText); len(words) > 0 {
+		word := words[0]
+		moderationservice.SensitiveContentBlocked(req.UserId, moderationLog.SubjectUserProfile, 0, word, truncateExcerpt(profileText))
+		return component.FailResponseCode(
+			component.MessageContentSensitiveBlocked,
+			component.MessageParams{"word": word, "words": words},
+		)
+	}
+
 	userEntity.Nickname = req.Params.Nickname
-	if req.Params.Bio != "" {
-		userEntity.Bio = req.Params.Bio
-	}
-	if req.Params.Signature != "" {
-		userEntity.Signature = req.Params.Signature
-	}
+	// 全字段覆盖：bio/signature 允许清空（空字符串也要落库）
+	userEntity.Bio = req.Params.Bio
+	userEntity.Signature = req.Params.Signature
 	userEntity.Website = req.Params.Website
 	userEntity.WebsiteName = req.Params.WebsiteName
 	if strings.TrimSpace(req.Params.Locale) != "" {
@@ -200,7 +261,7 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
-	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
+	eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 
@@ -213,9 +274,6 @@ func EditUserProfileCover(req component.BetterRequest[EditUserProfileCoverReq]) 
 	userEntity, err := req.GetUser()
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
-	}
-	if userEntity.RoleId == 0 {
-		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 
 	userEntity.ProfileCoverUrl = strings.TrimSpace(req.Params.ProfileCoverUrl)
@@ -302,7 +360,7 @@ func UploadAvatar(c *gin.Context) {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.UploadControl.NewUserUploadCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.UploadControl.NewUserUploadCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			c.JSON(200, component.FailDataCode(
 				component.MessageUploadCooldown,
 
@@ -334,7 +392,7 @@ func UploadAvatar(c *gin.Context) {
 	if configMaxSize := int64(postingConfig.UploadControl.MaxAttachmentSizeKb) * 1024; configMaxSize > 0 && configMaxSize < maxSize {
 		maxSize = configMaxSize
 	}
-	allowedExts := postingConfig.UploadControl.AuthorizedExtensions
+	allowedExts := imagepolicy.EffectiveAllowedExtensions(postingConfig.UploadControl.AuthorizedExtensions)
 
 	mainData, err := readAvatarUploadFile(files.Main, maxSize, allowedExts)
 	if err != nil {
@@ -444,18 +502,14 @@ func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts
 		)
 	}
 
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if len(allowedExts) > 0 {
-		if !isAllowedExtension(ext, allowedExts) {
-			extensions := strings.Join(allowedExts, ", ")
-			return nil, component.NewMessageError(
-				component.MessageUploadUnsupportedExt,
-				"不支持的文件格式，允许的格式为: "+extensions,
-				component.MessageParams{"extensions": extensions},
-			)
-		}
-	} else if _, err := filedata.CheckImageType(file.Filename); err != nil {
-		return nil, component.NewMessageError(component.MessageUploadUnsupportedImage, "不支持的图片格式，仅支持 JPG、PNG、GIF、WebP、BMP 格式", nil)
+	contentType, err := filedata.CheckImageType(file.Filename)
+	if err != nil || !imagepolicy.IsAllowedExt(filepath.Ext(file.Filename), allowedExts) {
+		extensions := strings.Join(allowedExts, ", ")
+		return nil, component.NewMessageError(
+			component.MessageUploadUnsupportedExt,
+			"不支持的文件格式，允许的格式为: "+extensions,
+			component.MessageParams{"extensions": extensions},
+		)
 	}
 
 	src, err := file.Open()
@@ -464,23 +518,21 @@ func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts
 	}
 	defer func() { _ = src.Close() }()
 
-	header := make([]byte, 512)
-	n, _ := io.ReadFull(src, header)
-	if n > 0 && !isValidImageContent(header[:n]) {
-		return nil, component.NewMessageError(component.MessageUploadInvalidImage, "文件内容不是有效的图片格式", nil)
-	}
-
-	remainingData, err := io.ReadAll(io.LimitReader(src, maxSize-int64(n)+1))
+	fileData, err := io.ReadAll(io.LimitReader(src, maxSize+1))
 	if err != nil {
 		return nil, component.NewMessageError(component.MessageUploadReadFailed, "读取文件失败", nil)
 	}
-	fileData := append(bytes.Clone(header[:n]), remainingData...)
 	if int64(len(fileData)) > maxSize {
 		return nil, component.NewMessageError(
 			component.MessageUploadFileTooLarge,
 			fmt.Sprintf("文件大小超过限制，最大允许%dKB", maxSize/1024),
 			component.MessageParams{"maxSizeKb": maxSize / 1024},
 		)
+	}
+	// 头像与普通图片上传同口径做解码级内容校验（issue #408）：扩展名推出的类型
+	// 必须与 sniff/解码格式一致，伪造内容只回稳定 messageCode。
+	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
+		return nil, component.NewMessageError(component.MessageUploadInvalidImage, "文件内容不是有效的图片格式", nil)
 	}
 	return fileData, nil
 }
@@ -497,6 +549,10 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
+	// 机器人（Agent）账号没有可用密码，也不允许通过改密接口变更。
+	if userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+	}
 	if err = component.ValidatePassword(req.Params.NewPassword, 6); err != nil {
 		return component.FailResponseError(err)
 	}
@@ -512,6 +568,42 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 	}
 
 	return component.SuccessResponseCode("密码修改成功", component.MessageAuthPasswordUpdateSuccess, nil)
+}
+
+// SetPasswordReq is the first-time password setup request (no old password).
+type SetPasswordReq struct {
+	NewPassword string `json:"newPassword" validate:"required"`
+}
+
+// SetPassword 为无本地可用密码的 OAuth 账号首次设置密码（issue #530）。
+// 资格门禁：无邮箱 + 至少一个 OAuth 绑定 + 非 bot。有邮箱的 OAuth 绑定用户
+// 走 forgot-password 邮件重置（旧密码校验保留作为会话劫持防线）。设置成功即
+// SetPassword（TokenVersion++ 全端吊销），客户端需引导重新登录。设密后重复
+// 调用仍允许（登录态本人操作 + password.change 限流），语义为再次改密。
+func SetPassword(req component.BetterRequest[SetPasswordReq]) component.Response {
+	userEntity, err := req.GetUser()
+	if err != nil {
+		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+	// 机器人（Agent）账号没有可用密码，也不允许设置。
+	if userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+	}
+	// 资格门禁：仅无邮箱的 OAuth 绑定账号可免旧密码设密。
+	if userEntity.Email != "" || !oauthservice.HasOAuthBinding(userEntity.Id) {
+		return component.FailResponseCode(component.MessageAuthPasswordSetNotAllowed, nil)
+	}
+	if err = component.ValidatePassword(req.Params.NewPassword, 6); err != nil {
+		return component.FailResponseError(err)
+	}
+
+	userEntity.SetPassword(req.Params.NewPassword)
+	err = userservice.SaveUser(&userEntity)
+	if err != nil {
+		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
+	}
+
+	return component.SuccessResponseCode("密码设置成功，请使用新密码重新登录", component.MessageAuthPasswordUpdateSuccess, nil)
 }
 
 // ForgotPasswordReq is the password reset email request.
@@ -539,12 +631,19 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 	}
 
 	userEntity, err := users.GetByEmail(req.Params.Email)
-	if err != nil {
-		// 为了安全考虑，即使邮箱不存在也返回成功消息
-		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+	if err != nil || userEntity.IsBot() {
+		// 为了安全考虑，即使邮箱不存在（或命中机器人账号）也返回统一成功消息；
+		// 先执行等量 dummy 工作（HMAC 签名 + 同步 noop 入队）抹平响应时间差。
+		return forgotPasswordSilentSuccess(req.Params.Email)
 	}
 
-	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email)
+	// 冷静期：邮箱变更后 24 小时内，新邮箱不能用于密码重置。
+	// 静默返回成功（与邮箱未注册完全一致，无枚举差异），但绝不入队重置邮件，
+	// 防止会话 token 被接管后立刻用新邮箱重置密码。同样先执行等量 dummy 工作对齐耗时。
+	if userEntity.EmailChangedAt != nil && time.Since(*userEntity.EmailChangedAt) < emailChangeCooldown {
+		return forgotPasswordSilentSuccess(req.Params.Email)
+	}
+	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email, userEntity.TokenVersion)
 	if err != nil {
 		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
 	}
@@ -561,6 +660,39 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 		return component.FailResponseCode(component.MessageAuthResetMailSendFailed, nil)
 	}
 
+	return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+}
+
+// dummyTimingUsername 是 forgot-password 等时化 noop 任务中接近真实用户名长度的
+// 固定占位值（用户名上限 32 字符），使 dummy 任务的序列化负载接近已注册路径的
+// reset_password 任务（review #129 P2；不承诺字节级一致）。
+const dummyTimingUsername = "timing-dummy-username-0123456789"
+
+// forgotPasswordSilentSuccess 在"未知邮箱/机器人账号/邮箱变更冷静期"路径返回与
+// 已注册路径一致的响应：先执行与已注册路径同类的工作（一次 HMAC 令牌签名 +
+// 一次同步 task_queue 写入 email.noop 任务，由邮件 worker 静默消费、不发邮件），
+// 抬高攻击者通过响应时间区分邮箱注册状态的测量成本（CWE-208，与 #109/#119 的
+// 等时化思路一致）。dummy 工作失败时返回与已注册路径相同的失败码（令牌生成失败 →
+// auth.passwordReset.tokenCreateFailed、队列写入失败 → auth.passwordReset.mailSendFailed），
+// 使两条路径在任何状态下响应逐字节一致，不残留系统级故障窗口内的枚举信号。
+// 注意：dummy 任务不声称与真实 reset_password 任务字节级负载或时序精确等价——
+// 真实 JWT 长度随 userId/tokenVersion、Locale 随用户设置变化，Type 也因 worker 识别
+// 而异；本函数只保证同类操作 + 相同的失败语义，不承诺精确的时序/负载等价。
+func forgotPasswordSilentSuccess(email string) component.Response {
+	dummyToken, err := tokenservice.GeneratePasswordResetToken(0, email, 0)
+	if err != nil {
+		slog.Error("forgot-password 等时化令牌生成失败", "email", email, "error", err)
+		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
+	}
+	if err := mailservice.AddToQueue(mailservice.EmailTask{
+		To:       email,
+		Username: dummyTimingUsername,
+		Token:    dummyToken,
+		Type:     "noop",
+	}); err != nil {
+		slog.Error("forgot-password 等时化队列写入失败", "email", email, "error", err)
+		return component.FailResponseCode(component.MessageAuthResetMailSendFailed, nil)
+	}
 	return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 }
 
@@ -581,8 +713,19 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
 	}
+	// 机器人（Agent）账号不参与密码重置流程。
+	if userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
+	}
 
 	if userEntity.Email != claims.Email {
+		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
+	}
+
+	// 重置令牌绑定签发时的 token_version（issue #106）：密码变更 / 撤销会自增
+	// token_version，因此旧的重置链接在账户被重置或恢复后立即失效，无法重放。
+	// 仅校验令牌签名与 email 不足以防止伪造链路接管账户。
+	if userEntity.TokenVersion != claims.TokenVersion {
 		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
 	}
 

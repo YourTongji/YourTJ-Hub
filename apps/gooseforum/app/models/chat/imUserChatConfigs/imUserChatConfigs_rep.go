@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 	"gorm.io/gorm"
 )
 

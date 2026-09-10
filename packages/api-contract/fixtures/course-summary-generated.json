@@ -1,0 +1,20 @@
+{
+  "result": {
+    "status": "generated",
+    "summary": {
+      "consensus": "strong_recommend",
+      "keywords": ["给分好", "干货多", "有收获"],
+      "pros": ["老师讲得清楚", "给分宽松", "课程内容实用"],
+      "cons": ["作业量较大"],
+      "representativeReviews": [
+        {
+          "excerpt": "老师讲得很好，作业虽然多但有收获。",
+          "sentiment": "positive"
+        }
+      ]
+    },
+    "generatedAt": "2026-08-13T10:00:00+08:00",
+    "model": "qwen3.6-flash-2026-04-16"
+  },
+  "code": 0
+}

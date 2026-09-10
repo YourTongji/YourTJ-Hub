@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
 )
 
 // TestCheckCaptchaForRequestSubmitTooFast 验证 controller 级提交耗时检测：

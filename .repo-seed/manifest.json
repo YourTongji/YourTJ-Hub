@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "repoSeedVersion": "0.6.2",
+  "lastSyncCommit": null,
+  "config": {
+    "license": "MIT",
+    "branchConvention": "main",
+    "monorepo": false
+  },
+  "governance": {
+    "paths": {
+      "architecture": "docs/architecture/system-overview.md",
+      "testing": "docs/development/testing.md",
+      "decisions": "docs/decisions",
+      "specs": "docs/specs",
+      "postmortems": "docs/postmortems"
+    },
+    "externalSources": {
+      "specs": {
+        "type": "link",
+        "location": "https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/development/pull-requests.md"
+      }
+    }
+  },
+  "capabilities": {
+    "version": 1,
+    "items": {
+      "baseline": {
+        "state": "enabled"
+      },
+      "spec": {
+        "state": "external",
+        "source": {
+          "type": "link",
+          "location": "https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/development/pull-requests.md"
+        }
+      },
+      "decisions": {
+        "state": "enabled",
+        "source": {
+          "type": "link",
+          "location": "https://github.com/YourTongji/YourTJ-Hub/blob/dev/AGENTS.md"
+        }
+      },
+      "postmortems": {
+        "state": "enabled"
+      },
+      "ci": {
+        "state": "external",
+        "assessmentHash": "75fced88632984ba6c9c9c6d1063be1b2f39328c0a055e183f1ef3c73cdbbc6f",
+        "reason": "existing repository mechanism detected during adoption"
+      },
+      "hook": {
+        "state": "external",
+        "assessmentHash": "802c9caa098da6b8c4ef31651249862c852cd6421cbe381395f500d4eee09bc5",
+        "reason": "existing repository mechanism detected during adoption"
+      },
+      "release": {
+        "state": "deferred",
+        "reason": "Commit and release conventions live in AGENTS.md section 5 and docs/development/pull-requests.md; a standalone policy doc would duplicate them",
+        "assessmentHash": "ab3821cfd4e8d9a7a2469e2e0e2a701717b05f8eeb7221ad64a4273447aab51f"
+      },
+      "codeowners": {
+        "state": "deferred",
+        "reason": "Solo-maintained repository; CODEOWNERS review routing adds friction without value today",
+        "assessmentHash": "02e5ba6414331a55fc4993848475a40e4e39f4cc2f59a8c8636492954779c662"
+      },
+      "monorepo": {
+        "state": "deferred",
+        "reason": "Root AGENTS.md governs all packages and apps/gooseforum already carries a subtree AGENTS.md",
+        "assessmentHash": "5acff04a918585ade6a8960f9cc5668be06e98571a9ae5602540d1cfdb8a020b"
+      }
+    }
+  },
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "80dd5409fc611ecee6d5cc66cf2523f377c33a35256f56e1e183a7424a9f3a18",
+      "category": "instruction",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "573138e19d3359c451b7898112a03167e4e7bf356ecd698dc87d933d37de0b96",
+      "category": "instruction",
+      "capability": "baseline"
+    },
+    {
+      "path": "docs/AGENTS.md",
+      "sha256": "923d8936b1f0bcda538d84e3a4a2d04896637ead9eca774bbdbc6929676eab69",
+      "category": "docs",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": "docs/development.md",
+      "sha256": "f2ad91db3a6184970a504e9004d07a9213276cf08f1ee2f2113d63d1eb48e2a7",
+      "category": "docs",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".agents/skills/repo-review/SKILL.md",
+      "sha256": "8c70657e7277f71cf937332dac15e98cedafb9c3c8f5e6b91fa8442c2e34ac1a",
+      "category": "skill",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".agents/skills/repo-governance/SKILL.md",
+      "sha256": "884a9c26f73f07c705e6273cb7bc21ede51917c16a8683e772da61d43ebb90a0",
+      "category": "skill",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/capabilities.mjs",
+      "sha256": "74fc315d590a4d9c491ff4034f298f1288f649b4e00b3303d07bbb6d28adcc51",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/governance-config.mjs",
+      "sha256": "37f39619b0aa082d0107d1c8d91144489c89b01f1b31602d40dc0b3f2500138e",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/audit-governance.mjs",
+      "sha256": "9644fe401ba2eba4b81bbccacb8dee86026267597fa50f9c0efd8a0964df79b8",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/run-gates.mjs",
+      "sha256": "7442033b0a7239fa5bdb5afe91cf1018c9549e2b21be8ee6f595f524be84ed4c",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/verify-doc-links.mjs",
+      "sha256": "130093c964f058c07b0cbb2022f792c4d5fcb6d37884b3ec25e88fe96fc9d17d",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/verify-placeholders.mjs",
+      "sha256": "c8cb05ce91cd15864e1c803327be4c1ddb9c7a4c836f73aa311f02a881c3f961",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/verify-manifest.mjs",
+      "sha256": "0be76f51cc1c873296ef49fe04d79b6370fab6f0c9d723fcfb22cb6966aeca68",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/install-hooks.mjs",
+      "sha256": "fbb14a4889e322ddc4ce326a953c286b70ab881cfbbb8beab9a7bc237dc3b7e8",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "sha256": "1ac78e87b530bcd6ddfc80ba77e54b7fc7bb7f8092ed8eabaae77ab69d433c7c",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".editorconfig",
+      "sha256": "160d086b7d136d5ec7684d5173a8ffc4f2aef97994bfbc46ac3c4af6187a1486",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "949bae289f1c9c7c125320c02e889c6e734974fa9a1870120841b59f8d144c50",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".repo-seed/update-strategy.md",
+      "sha256": "59e7398379df413e36eb508fb1637f787afff55fe5635adc262f2b914a16e686",
+      "category": "meta",
+      "capability": "baseline"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "sha256": "d854d53c10ec62504aee75cf80ae8cf362dd4fd893cbef83117c97d0025dbebf",
+      "category": "github",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": "docs/specs/README.md",
+      "sha256": "44f7428bc4edd4f8557c8bf13777a1e1b4a08cc04cab59e13ad56006504225e6",
+      "category": "docs",
+      "capability": "spec"
+    },
+    {
+      "path": "docs/decisions/README.md",
+      "sha256": "e926f90ee830e8edd84360add7c53e0e8e1a21b3ac85aff649af5b3632d0864e",
+      "category": "docs",
+      "capability": "decisions",
+      "userModified": true
+    },
+    {
+      "path": ".agents/skills/repo-decisions/SKILL.md",
+      "sha256": "48e3cd7b510d91f2dcacabfe062c6bb94acdf9adbcb73d9e3c9cdc6a456b27f9",
+      "category": "skill",
+      "capability": "decisions",
+      "userModified": true
+    },
+    {
+      "path": "docs/postmortems/README.md",
+      "sha256": "2c25abcb13a98f5c3c7f4408665c24c80e47855e5540dfa83b76777e6c46f3c3",
+      "category": "docs",
+      "capability": "postmortems",
+      "userModified": true
+    },
+    {
+      "path": "scripts/verify-postmortems.mjs",
+      "sha256": "9d8d6332aea3e6010fda2c6d5f0715d62ef08e2b0d54734bf0cdde67dbd0e9a2",
+      "category": "gate",
+      "capability": "postmortems"
+    },
+    {
+      "path": "scripts/verify-decisions.mjs",
+      "sha256": "2e100efd61d5b16bbd559988f36e205352716c55662ce4d38d6b9933df1e9ac8",
+      "category": "gate",
+      "capability": "decisions"
+    }
+  ],
+  "artifactPolicy": {
+    "version": 1,
+    "legacy": []
+  }
+}

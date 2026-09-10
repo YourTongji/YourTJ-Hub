@@ -1,0 +1,76 @@
+{
+  "result": {
+    "posts": [
+      {
+        "id": 9401,
+        "topicId": 9400,
+        "postNo": 1,
+        "content": "Question content",
+        "renderedContent": "<p>Question content</p>\n",
+        "processStatus": 0,
+        "isHidden": false,
+        "isAuthorDeleted": false,
+        "isModeratorRemoved": false,
+        "canModerate": false,
+        "author": {
+          "id": 9402,
+          "username": "question-author",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "createdAt": "2026-08-01T12:00:00Z",
+        "replyToPostID": 0,
+        "replyToUserID": 0,
+        "replyToUsername": "",
+        "isOwnPost": false,
+        "updatedAt": "2026-08-01T12:00:00Z",
+        "revisionCount": 0,
+        "likeCount": 0,
+        "isLiked": false,
+        "isBookmarked": false,
+        "isAnswer": false
+      },
+      {
+        "id": 9402,
+        "topicId": 9400,
+        "postNo": 2,
+        "content": "Answer content",
+        "renderedContent": "<p>Answer content</p>\n",
+        "processStatus": 0,
+        "isHidden": false,
+        "isAuthorDeleted": false,
+        "isModeratorRemoved": false,
+        "canModerate": false,
+        "author": {
+          "id": 9403,
+          "username": "answer-author",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "createdAt": "2026-08-01T12:05:00Z",
+        "replyToPostID": 9401,
+        "replyToUserID": 9402,
+        "replyToUsername": "question-author",
+        "isOwnPost": false,
+        "updatedAt": "2026-08-01T12:05:00Z",
+        "revisionCount": 0,
+        "likeCount": 0,
+        "isLiked": false,
+        "isBookmarked": false,
+        "isAnswer": true
+      }
+    ],
+    "replyTargets": [
+      {
+        "id": 9401,
+        "postNo": 1,
+        "username": "question-author"
+      }
+    ],
+    "beforePostNo": 1,
+    "afterPostNo": 2,
+    "hasBefore": false,
+    "hasAfter": false,
+    "total": 2,
+    "maxPostNo": 2
+  },
+  "code": 0
+}

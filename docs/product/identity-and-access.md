@@ -2,27 +2,25 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Partial`; Casdoor OIDC integrated, session/TOTP implemented)
+> Status: Active (auth chain `Partial`; built-in OIDC Provider + password/TOTP/GitHub OAuth/Google OAuth implemented)
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-09-08
 
 ## Identity model
 
-- **Identity's only source = Casdoor (OIDC)**. Casdoor issues id_token with `sub` = numeric user ID
-  (uint64). The forum keeps its own password login only as a legacy path; GitHub OAuth (goth) remains
-  available.
+- **Identity source = the forum's own `users` table** (uint64 numeric ID). The forum built-in OIDC
+  Provider issues standard OIDC tokens with `sub` = the user's numeric ID for a small set of
+  first-party clients (e.g. the course-selection site and the mobile app). Password login, TOTP 2FA
+  GitHub OAuth and Google OAuth (goth) remain available when their provider credentials and absolute
+  site callback URL are configured.
 - **Numeric ID is a hard constraint**: credit's `GetID()` parses sub with `strconv.ParseUint`. A UUID
-  fails to parse and falls back to 0, making all users collide. The OIDC callback enforces this
-  server-side (`ParseUint` failure or a zero `sub` rejects the login). Casdoor must:
-  1. set the app SignupItems ID rule to `Incremental` (self-registered users get auto-increment numeric
-     IDs); and
-  2. explicitly pass numeric `id` when admins create accounts.
-- The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it is
-  not identity truth. Bans/state changes come from Casdoor; the server syncs a local projection via
-  exchange.
-
+  fails to parse and falls back to 0, making all users collide. The OIDC provider enforces this
+  server-side (the `sub` claim is always the numeric `users.id`).
+- The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it
+  is not identity truth and is never issued to external OIDC clients — those receive opaque access
+  tokens scoped to the built-in provider.
 ## Login flows
 
 ### Web
@@ -32,50 +30,273 @@
   code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
-- GitHub OAuth (goth): unchanged; callback binds or signs in and issues a session token.
-- Casdoor OIDC: `GET /api/auth/oidc/login` (PKCE + state + nonce) → Casdoor → callback exchanges code
-  for id_token → verify (iss/aud/nonce/exp) → find or create local user → issue forum JWT. The callback
-  also serves account binding for already-signed-in users (`/settings?tab=binding`).
+- GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
+  requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
+  binding only when the Google userinfo response contains `verified_email=true`. OAuth callbacks
+  never create accounts (issue #531): an identity without an existing provider binding or a
+  bindable same-email account is redirected to the register page with an explanatory notice
+  (`/login?register=true&oauthNotice=1`), and account creation happens only through password
+  registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
+  require a process restart; saving a new site callback URL in the admin console refreshes the
+  providers immediately.
+
+### Built-in OIDC Provider (first-party clients)
+
+- Discovery: `/.well-known/openid-configuration` under the issuer path `/api/oauth`; endpoints:
+  `/authorize`, `/authorize/callback` (login bridge), `/token`, `/userinfo`, `/keys`.
+- Authorization code + PKCE S256 only; `state`, `nonce`, exact redirect-URI matching and code
+  single-use are enforced. The login bridge requires an authenticated forum session and never
+  follows a client-supplied redirect target (open-redirect safe).
+- ID tokens are RS256-signed with a persistent provider key (inline PEM or key file, auto-generated
+  otherwise); `sub` = numeric `users.id`. Opaque access tokens are stored as token-ID rows only.
 
 ### Mobile (Flutter)
 
-1. appauth + PKCE → Casdoor auth page (external browser) → callback with code;
-2. token endpoint exchanges code for id_token (verify nonce);
-3. `POST /api/auth/oidc/exchange` (planned; body: idToken, nonce) → server verifies → returns forum JWT;
-4. JWT stored in Keychain/Keystore (flutter_secure_storage); id_token stays in memory only.
+`Current`: the native login form exposes password, Google and GitHub sign-in. Password login retains
+captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
+`login_hint=google|github` to the existing authorization endpoint. After the OIDC provider validates
+and persists the request, the server may redirect its own login bridge to the selected existing
+OAuth route. Unknown hints and already-authenticated redirects retain the standard flow; browser
+binding, exact redirect matching, nonce and PKCE requirements are unchanged.
+The social OAuth hop retains only the fixed `/api/oauth/authorize/callback?id=…` destination
+in a signed HttpOnly, SameSite=Lax cookie (10-minute lifetime), bound to a fresh OAuth state
+and the selected provider. The callback clears that continuation, validates it and completes
+upstream authentication before resuming OIDC. Callback-supplied redirects are ignored. Ordinary
+Web login returns home; account binding returns to settings. A continuation started as login
+cannot become an account-binding operation if another forum session appears in the browser.
+
+1. AppAuth + PKCE opens the forum built-in OIDC authorization page and receives the callback
+   authorization code; the app retains the matching PKCE verifier and nonce in memory;
+2. the app posts `{code, codeVerifier, nonce, redirectUri}` to `POST /api/auth/oidc/exchange`;
+3. the forum backend requires an exact redirect-URI match against the registered mobile client,
+   redeems the code atomically (single-use, PKCE verified), checks the bound nonce and numeric `sub`,
+   then issues a forum JWT session;
+4. the returned forum JWT is stored in Keychain/Keystore (`flutter_secure_storage`); OIDC tokens are
+   verified server-side and are never persisted by the app.
+
+The App's embedded management browser uses `GET /api/auth/mobile-web-session` with an explicit
+Bearer session. `target=admin|moderation|courseManagement|courseReviews` selects a fixed workspace and checks its
+existing permission; course workspaces require CourseManager or Admin, independently of forum
+moderator access; cookie-only authentication and arbitrary targets are rejected. The endpoint installs
+the same session as an HttpOnly SameSite=Lax cookie and sends a no-store redirect. No token is
+included in the URL, page body or JavaScript. See [mobile experience](mobile-experience.md).
 
 ## Two-factor authentication
 
 - **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
   AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
   single-use; verification attempts are rate-limited per user (10 failures / 15 min).
-- **OAuth/Casdoor logins** do not run forum TOTP; their MFA is handled by Casdoor itself
-  (Casdoor-native TOTP/MFA, Passkey/WebAuthn). This keeps a single identity source for those paths.
-- Passkey: enabled on the Casdoor side (WebAuthn native support); the forum has no WebAuthn code.
+- **GitHub OAuth and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
+  `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
+  may enforce forum TOTP there as well).
 
 ## Account lifecycle
 
-- Registration: Casdoor self-service (Incremental ID) or admin-created (explicit numeric id); forum
-  password registration still available.
+- Registration: forum self-service password registration (with email verification when enabled) is
+  the only account-creation path — social OAuth never provisions accounts (issue #531). The built-in
+  OIDC provider also never creates accounts — it authenticates existing users.
+- Email verification (`enableEmailVerification`): password registration stores the account as
+  `pending` but still issues a session. While the setting is on, authenticated **write**
+  endpoints reject pending accounts before the controller runs with HTTP 403 and the
+  structured `permission.emailRequired` envelope (params actionCode=write) — the same
+  envelope is returned by every `CheckWritableAccount` write endpoint and is parsed by the
+  web client into an actionable activation message. The gate covers content writes and
+  account-security writes (profile, password, OAuth unbind, TOTP setup/enable/disable);
+  recovery writes (resend-activation-email, set-user-email) stay allowed, as do the
+  self-service account-close lifecycle endpoints (the controllers
+  keep their ownership, password, and rate-limit checks) and unread cleanup
+  (notification/chat mark-read only mutates the user's own read state, no content write).
+  Pending accounts can re-login by password or OAuth — a session itself grants no write
+  capability, so re-login only restores the recovery path (resend-activation-email) after
+  the original session expires. Enabling the setting backfills pending manage-role accounts
+  (admin/site/user/… permissions) and activates them immediately through the user-cache
+  refresh path, so the admin console cannot lock itself out; ordinary pending users are left
+  untouched and must still complete the activation email.
+- Username/nickname policy: `reservedUsernames` / `bannedUsernames` are enforced at
+  password registration/rename and at Agent account creation with **normalized whole-string
+  equality** (case folding, NFKC full-width, zero-width stripping, ASCII leetspeak folding):
+  `Admin`, `ａｄｍｉｎ`, `adm1n` all collide with a reserved `admin` while `myadmin` does not.
+  Nicknames edited through the profile share the same lists and equality rule. Reserved entries
+  only block new/renamed accounts and never freeze existing ones; banned entries additionally
+  freeze matching existing accounts (idempotent) when first added by an admin. Agent creation
+  rejects reserved/banned usernames outright; OAuth never provisions accounts (issue #531),
+  so the former GitHub username backoff has no remaining caller. Course reviews
+  and profile free text (bio/signature/website/websiteName) are scanned against `sensitiveWords`
+  (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
+  message for reviews). Built-in defaults ship with an empty banned list and a curated
+  reserved/sensitive bank (see `docs/architecture/contracts-and-data.md`).
 - Session: forum JWT valid 7 days (GooseForum scale, tunable). Every session-scoped token carries a
   `jti` that maps to a row in `user_sessions`; the auth middleware rejects tokens whose session row is
   missing or expired, so revocation is immediate.
 - Revocation: users can list sessions (IP masked, device/UA) in Settings → Security, revoke a single
   session, or sign out of all devices. "Sign out of all devices" also bumps `TokenVersion`, which
-  invalidates every previously issued token as a second line of defense. Ordinary logout deletes the
-  current session row as well, and fails loudly when the revoke errors (no silently surviving token).
-- Password change: `TokenVersion` bumps, invalidating old tokens (existing behavior preserved).
-- Ban/disable: Casdoor's active/forbidden is authoritative; server syncs at exchange and every check.
-- Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
-  deletion before persisting).
+  invalidates every previously issued token as a second line of defense (this also invalidates OIDC
+  opaque access tokens at the userinfo endpoint). Ordinary logout deletes the current session row as
+  well, and fails loudly when the revoke errors (no silently surviving token).
+- Password change: `TokenVersion` bumps, invalidating old tokens and OIDC access tokens.
+- Password reset (forgot/reset password): `Current`. The reset link is a short-lived
+  signed JWT whose claims bind `userId + email + TokenVersion` at issue time; the reset
+  endpoint re-checks all three against the live user row, so a link stops working the
+  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Both
+  `forgot-password` (token issuance) and `reset-password` (token confirmation) are
+  IP-rate-limited; `forgot-password` additionally enforces captcha and a 24-hour
+  email-change cooldown, and a link minted under a previous signing key cannot validate
+  after a key rotation. The signing key is fail-closed: `serve` refuses to boot with an
+  empty, built-in default, or `REPLACE_SIGNING_KEY` value, and password-reset/activation
+  tokens refuse to sign or parse under such a key (issue #106). Key rotation is not
+  hot-reloadable: the signing key is captured at different points across surfaces, so
+  rotating it **requires a process restart** for the invalidation to apply consistently
+  (see `docs/operations/deployment.md`).
+- Password setup for OAuth-linked accounts (`POST /api/set-password`): `Current`
+  (issue #530). An account with no stored email address and at least one OAuth
+  provider binding can set an initial password without the old-password check;
+  every other caller (email-bound OAuth accounts, password accounts, accounts
+  without bindings, bots) fails with `auth.password.setNotAllowed`. Email-bound
+  OAuth accounts keep the forgot-password email flow deliberately — the old
+  password verification there remains the session-hijack defense line. Setup
+  reuses the password-change rate limit (`password.change`), bumps
+  `TokenVersion` on success (all sessions revoked, including the current one),
+  and unlocks the password-gated operations that previously dead-locked
+  email-less OAuth accounts (email change, account close, batch delete, TOTP).
+  The settings page exposes the branch through a server-computed
+  `canSetPassword` prop (same gate, no password-state disclosure); the contract,
+  generated TS types, and the Dart mirror shipped in the same change.
+- Email change: `Current` for password accounts; the current password is verified before any write,
+  the old address receives a notification, and password reset is suppressed for 24 hours after the
+  change. OAuth-only self-service email change is `Partial`: the API and the Web client return
+  a dedicated re-authentication-required message pointing at `POST /api/set-password`
+  (issue #530), and the Web settings page offers that recovery branch through the
+  `canSetPassword` prop. The mobile settings flow does not yet expose set-password (its
+  change-password form still requires the old password), so email-less OAuth users on mobile
+  need the Web settings page or an administrator; administrators retain the console command
+  for recovery.
+- Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
+  exchange path reject frozen accounts.
+- Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
+  restore, batch-delete, and purge their own content; account closure applies the
+  content lifecycle rules, and administrators can export/import supported forum data. Retention,
+  recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
+  services and operations documentation.
+
+## Bot personas (Agents)
+
+- An Agent is exactly one bot persona: a `users` row with `actor_type = bot` plus one `agents` row
+  keyed by the same user id. Bot rows are created by admins; they have no email, no usable password,
+  and no role. Usernames are globally unique across human and bot accounts at the database layer; the
+  admin flow maps uniqueness conflicts to the same username-exists response used by its pre-check.
+- Authentication for Agents is a unique bearer token (`agt_…`) issued at create/rotate time and
+  shown exactly once. The database stores only a SHA-256 hash plus a non-secret 8-char prefix used
+  for efficient lookup; the plaintext token is never logged or stored. The admin UI cannot dismiss an
+  in-flight rotation and resets copy state for every newly issued one-time token.
+- Each Agent has zero or one configurable webhook endpoint. Only public HTTP(S) endpoints are accepted;
+  loopback, private/link-local IPs, IPv6 zone identifiers, credentials, fragments, and legacy numeric IP
+  spellings are rejected. Rotating the token invalidates the old one immediately. Disabling an Agent
+  **revokes** its credential: the stored token hash is cleared, so a leaked token can never validate
+  again, and re-enabling requires an explicit rotation first (the admin UI prompts for it). Token
+  rotation uses a compare-and-swap on the current token prefix so concurrent rotations fail loudly
+  instead of silently dropping one new token. Rotation, disablement, and profile edits update only
+  their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
+  Agent deletion is not supported.
+- Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
+  (goth) login/binding, password change, TOTP setup/enable/disable, and
+  human session creation/listing (the JWT session middleware never resolves a bot user). Admin
+  surfaces cannot grant bot rows roles or moderator grants. Bot personas are excluded from the
+  public user search index; they remain identifiable in forum content and admin surfaces.
+- Agent public API: the six read/write operations (`/api/v1/agent/me`, topic list/create,
+  post list/create, search) are `Current` and covered by the OpenAPI contract; they authenticate
+  only through the opaque `agt_…` bearer token — cookies, human JWTs, session credentials, OAuth,
+  and fallback credentials are never accepted, and every failed credential resolves to the same
+  `auth.required` 401 envelope. Agent writes reuse the human topic/post rate limits (IP + bot
+  userId) and skip only browser-specific honeypot, captcha, and new-user cooldown gates. Topic
+  creation always publishes (`topicStatus=1`).
+- Mention parsing, webhook sending, OAuth/session/scopes for Agents remain `Planned`.
+
+## Credential transport & CSRF boundary
+
+Auth contract for state-changing API requests (issue #406):
+
+- **Browser pages (site + admin SPA, GoHTML SSR views)** authenticate solely with the HttpOnly
+  `access_token` cookie that login flows set (password/TOTP, GitHub/Google OAuth callbacks, OIDC
+  exchange). They issue same-origin relative `fetch()` calls and never send an `Authorization`
+  header. The cookie is `SameSite=Lax` + `Secure` (whenever `app.env != "local"`) and is
+  host-only, so it is only sent to the exact domain that set it.
+- **Non-browser clients** authenticate with an `Authorization: Bearer` header: the mobile app
+  (forum JWT from `POST /api/auth/oidc/exchange`, stored in Keychain/Keystore), Agent `agt_`
+  tokens (`/api/v1/agent/*`, MCP), and curl/scripting API clients. A browser cannot attach these
+  headers cross-site, so bearer-authenticated requests carry no CSRF risk.
+- **Exempt flows**: top-level navigation and `Set-Cookie` flows (login/register/reset, OAuth and
+  OIDC callbacks, `/api/auth/oidc/exchange`) are GET/state-creating entry points that cannot be
+  CSRF'd against an existing session (they create rather than mutate a session). The wiki GitHub
+  webhook authenticates by HMAC signature, not by cookie. `/api/auth/totp/verify` consumes a
+  short-lived challenge cookie that is only issued as the response to a successful password
+  verification, so a cross-site attacker cannot obtain it.
+
+CSRF enforcement (`middleware.CSRFProtection`, mounted per write-route group in `route4api.go`
+before the stateful authentication middleware — never in the global chain):
+
+- Only **state-changing methods (POST/PUT/PATCH/DELETE) that carry the `access_token` cookie**
+  are checked; GET/HEAD/OPTIONS and cookie-less requests (anonymous writes, server-to-server)
+  pass.
+- The gate runs **before `JWTAuthCheck`** on every cookie-write group (`logout`; the
+  `login`/`forum`/`chat`/`admin`/`file` groups), so a rejected cross-site write never reaches the
+  authentication middleware: it cannot refresh a near-expiry JWT, extend its `user_sessions`
+  row, or publish activity events (issue #406 follow-up). Anonymous writes carry no cookie, pass
+  the gate, and keep their usual semantics (`JWTAuthCheck` still answers 401).
+- A request with an `Authorization` header is always exempt (Bearer clients, even when a cookie
+  happens to ride along).
+- The remaining cookie-authenticated writes must present an `Origin` that matches the request's
+  `Host`-derived origin (scheme from TLS or the first `X-Forwarded-Proto` hop so TLS-terminating
+  proxies work; default ports normalized). The host-derived rule keeps multi-domain, LAN-IP,
+  and `localhost` dev deployments working without enumerating origins, because a browser Origin
+  is always the domain the host-only session cookie is scoped to.
+- When `Origin` is missing (legacy browsers that omit it on same-origin POSTs), the `Referer`
+  origin is checked instead; otherwise the request is rejected with HTTP 403 and message code
+  `auth.csrf.rejected`. curl/scripting clients that carry a cookie but no Origin/Referer are
+  rejected fail-closed — they should send `Authorization` instead.
+- **Contract note**: every cookie-authenticated state-changing operation (including read-only
+  operations implemented with POST) declares the HTTP 403 `auth.csrf.rejected` response
+  (`csrfRejected` example) in its OpenAPI operation contract under `paths/`, with one shared
+  response shape: `ApiFailure` envelope, session cookie left untouched. Consumers handle it per
+  operation as documented; an operation that declares `accessTokenCookie` in its security but
+  lacks the 403 is a contract omission. The sole exception is `verifyTotp`
+  (`paths/auth-security.yaml`): it authenticates a short-lived `totp_challenge` token through
+  `TOTPChallengeAuth`, not the session chain, so the CSRF gate is not mounted and no 403 is
+  declared (see the login-flow rationale above).
+
+Rationale for Origin checking instead of a double-submit CSRF token: both web frontends run on
+modern browsers that send `Origin` on every state-changing request, and the host-only +
+`SameSite=Lax` cookie already stops the classic cross-site POST. A double-submit token would add
+a JS-readable cookie surface and frontend plumbing to every write call while contributing almost
+no additional protection for this deployment shape. SameSite alone is not relied on: the Origin
+check additionally covers same-site cross-origin (subdomain) hosts and browsers without SameSite
+support.
 
 ## Security notes
 
-- PKCE required (Casdoor flow); nonce prevents replay; state prevents CSRF on the callback.
-- id_token never persisted; forum JWT goes into an HttpOnly cookie (Secure + SameSite=Lax when the site
-  is served over HTTPS).
-- Enumeration resistance: login errors do not distinguish "user not found / wrong password".
-- Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
+- PKCE S256 required on authorize; nonce prevents replay; state prevents CSRF on the callback; the
+  authorization code is single-use (atomic conditional update) and the login bridge cannot be used as
+  an open redirect.
+- The forum HS256 JWT is never accepted at the OIDC userinfo endpoint (opaque access tokens only).
+- Client secrets are configured server-side and never logged.
+- id_token / access token never persisted by clients; forum JWT goes into an HttpOnly cookie
+  (`Secure` + SameSite=Lax whenever `app.env != "local"`; the Secure flag follows the environment
+  fail-closed rather than the `server.url` scheme, so production cookies stay Secure even when the
+  template default `server.url = "http://localhost"` is left untouched — issue #113).
+- Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
+  unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
+  reveal whether a username/email is registered. Registration collapses username/email-taken into
+  the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
+  `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
+  which field is taken. The registration protocol itself (immediate account creation + session vs.
+  failure) still inherently distinguishes an already-registered email from a fresh one; removing
+  that residual signal would require an async email-verification flow (product decision, issue #124
+  acceptance item 1). Forgot-password answers unknown emails, bots, and the 24-hour email-change
+  cooldown with the same success message after the same class of work as the registered path (one
+  HMAC token signing plus a synchronous `email.noop` task, silently consumed and dropped by the
+  mail worker so it never accumulates), so probing an email's registration status via response
+  time is not reliable (issue #124).
+- Session revocation is implemented as `jti` + `user_sessions` table
+  (decision: [0002](../decisions/0002-jwt-session-revocation-user-sessions.md));
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,
   recovery codes hashed, codes shown exactly once during setup).

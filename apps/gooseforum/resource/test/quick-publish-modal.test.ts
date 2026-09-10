@@ -1,0 +1,413 @@
+// @vitest-environment happy-dom
+import { loadQuickPublishModal, useEverOpenedQuickPublish } from '../src/site/composables/useQuickPublish'
+import { describe, expect, test, vi } from 'vitest'
+import * as api from '../src/runtime/api'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import Draggable from 'vuedraggable'
+import QuickPublishModal from '../src/site/components/QuickPublishModal.vue'
+import { i18n } from '../src/runtime/i18n'
+import { useQuickPublish } from '../src/site/composables/useQuickPublish'
+import type { LayoutPayload } from '@gooseforum/client'
+
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [{ path: '/', component: { template: '<div>home</div>' } }],
+})
+
+const mockLayout: LayoutPayload = {
+  site: { name: 'GooseForum', brandType: 'default', brandText: 'GooseForum' } as any,
+  viewer: { isAuthenticated: true, id: 1, username: 'Tester', avatarUrl: '/avatar.png' } as any,
+  sidebar: {
+    categories: [
+      { id: 101, label: '学术讨论', color: '#10b981', url: '/c/101' },
+      { id: 102, label: '日常生活', color: '#3b82f6', url: '/c/102' },
+    ],
+    activeKey: '',
+  },
+  footer: { links: [], primary: [] },
+  unread: { notifications: 0, messages: 0 },
+  posting: { maxTitleLength: 100 },
+  theme: { enabled: true, current: 'gf-light', themeColor: '#3b82f6' },
+  insightFlareEnabled: false,
+}
+
+describe('QuickPublishModal 组件', () => {
+  test('当 quickPublishOpen 为 true 时弹出模态窗口并展示分类', async () => {
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(1) // 提问类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+
+    // 打开分类选择器后检查分类选项
+    const categoryTrigger = document.body.querySelector(
+      `button[aria-label="${i18n.global.t('publish.modal.addCategoryAndTopic')}"]`,
+    ) as HTMLButtonElement | null
+    expect(categoryTrigger).not.toBeNull()
+    categoryTrigger?.click()
+    await flushPromises()
+    const categoryButtons = document.body.querySelectorAll('button')
+    const categoryTexts = Array.from(categoryButtons).map((b) => b.textContent)
+    expect(categoryTexts.some((t) => t?.includes('学术讨论'))).toBe(true)
+
+    // 关闭弹层
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('新建短文不默认分类，未选分类提交时提示并定位分类选择器', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    const dialog = document.body.querySelector('[role="dialog"]')
+    const categoryTrigger = dialog?.querySelector(
+      `button[aria-label="${i18n.global.t('publish.modal.addCategoryAndTopic')}"]`,
+    ) as HTMLButtonElement | null
+    const titleInput = dialog?.querySelector('input[type="text"]') as HTMLInputElement | null
+
+    expect(vm.categoryIds).toEqual([])
+    expect(categoryTrigger).not.toBeNull()
+    expect(titleInput).not.toBeNull()
+    expect(categoryTrigger!.compareDocumentPosition(titleInput!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    vm.title = '测试标题'
+    vm.content = '测试正文'
+    await vm.handleSubmit()
+    await flushPromises()
+
+    expect(vm.categoryMissing).toBe(true)
+    expect(vm.errorMessage).toBe(i18n.global.t('publish.validation.categoryRequired'))
+    expect(categoryTrigger?.getAttribute('aria-invalid')).toBe('true')
+    expect(categoryTrigger?.className).toContain('border-error')
+    expect(document.activeElement).toBe(categoryTrigger)
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('标题长度使用服务端配置并按 Unicode code point 计数', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(1)
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    const input = dialog?.querySelector('input[type="text"]') as HTMLInputElement | null
+    expect(input).not.toBeNull()
+    expect(input?.hasAttribute('maxlength')).toBe(false)
+
+    input!.value = 'a'.repeat(100)
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(input!.value).toBe('a'.repeat(100))
+
+    const mixed = `${'汉'.repeat(99)}😀`
+    input!.value = mixed
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(input!.value).toBe(mixed)
+    expect(dialog?.textContent).toContain('100/100')
+
+    input!.value = `${mixed}A`
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(input!.value).toBe(mixed)
+    expect(dialog?.textContent).toContain('100/100')
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('图片列表渲染 1, 2... 次序徽章并支持左右移动调整顺序', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    // 注入模拟图片
+    const vm = wrapper.vm as any
+    vm.uploadedImages = [
+      { id: 'img_1', url: '/img/first.webp', alt: 'first' },
+      { id: 'img_2', url: '/img/second.webp', alt: 'second' },
+    ]
+    await flushPromises()
+
+    // 验证次序徽章渲染
+    const badges = document.body.querySelectorAll('span.font-mono')
+    const badgeTexts = Array.from(badges).map((b) => b.textContent?.trim())
+    expect(badgeTexts).toContain('1')
+    expect(badgeTexts).toContain('2')
+
+    // 验证向右移动第一张图片
+    const moveRightBtn = document.body.querySelector(`button[title="${i18n.global.t('publish.modal.moveImageRight')}"]`) as HTMLButtonElement | null
+    expect(moveRightBtn).not.toBeNull()
+    moveRightBtn?.click()
+    await flushPromises()
+
+    // 验证顺序已调换
+    expect(vm.uploadedImages[0].url).toBe('/img/second.webp')
+    expect(vm.uploadedImages[1].url).toBe('/img/first.webp')
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('编辑模式下（openQuickPublishEdit）正确回显标题、正文、分类与图片，并呈现编辑与保存按钮', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublishEdit, closeQuickPublish } = useQuickPublish()
+    openQuickPublishEdit({
+      topicId: 888,
+      contentType: 2, // 瞬间
+      title: '原有瞬间标题',
+      content: '原有瞬间正文内容',
+      categoryIds: [102],
+      images: ['/img/existing1.png'],
+    })
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+
+    // 验证标题回显
+    const titleInput = dialog?.querySelector('input[type="text"]') as HTMLInputElement | null
+    expect(titleInput?.value).toBe('原有瞬间标题')
+
+    // 验证提交按钮文案显示“保存”
+    const submitBtn = dialog?.querySelector('.gf-button-primary')
+    expect(submitBtn?.textContent).toContain(i18n.global.t('common.save'))
+
+    // 验证顶栏徽章显示“编辑瞬间”，且无多余重复的“编辑”后置文案
+    const typeBadge = dialog?.querySelector('span.rounded-full.border')
+    expect(typeBadge?.textContent).toContain('编辑瞬间')
+
+    // 验证移动端缩略图卡片包含放大比例与圆角类名 h-[86px] w-[86px]
+    const imageCard = dialog?.querySelector('.group.relative')
+    expect(imageCard?.className).toContain('h-[86px]')
+    expect(imageCard?.className).toContain('w-[86px]')
+    expect(imageCard?.className).toContain('sm:h-20')
+    expect(imageCard?.className).toContain('rounded-2xl')
+
+    // 验证图片回显
+    const vm = wrapper.vm as any
+    expect(vm.uploadedImages.length).toBe(1)
+    expect(vm.uploadedImages[0].url).toBe('/img/existing1.png')
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('编辑问题模式下左上角徽章显示“编辑问题”', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublishEdit, closeQuickPublish } = useQuickPublish()
+    openQuickPublishEdit({
+      topicId: 999,
+      contentType: 1, // 提问
+      title: '原有问题标题',
+      content: '原有问题内容',
+      categoryIds: [101],
+    })
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    const typeBadge = dialog?.querySelector('span.rounded-full.border')
+    expect(typeBadge?.textContent).toContain('编辑问题')
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('关闭弹层时平滑退场，editPayload 不会立即清空，避免退场动画闪回“快速发布”', async () => {
+    const { openQuickPublishEdit, closeQuickPublish, quickPublishOpen, quickPublishEditPayload } = useQuickPublish()
+    openQuickPublishEdit({
+      topicId: 888,
+      contentType: 2,
+      title: '原有瞬间标题',
+      content: '原有瞬间内容',
+      categoryIds: [101],
+    })
+
+    expect(quickPublishOpen.value).toBe(true)
+    expect(quickPublishEditPayload.value?.topicId).toBe(888)
+
+    // 调用关闭时，弹层立即关闭，但 payload 在退场过渡期仍然存在
+    closeQuickPublish()
+    expect(quickPublishOpen.value).toBe(false)
+    expect(quickPublishEditPayload.value?.topicId).toBe(888)
+
+    // 等待退场过渡结束后被异步清空
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(quickPublishEditPayload.value).toBeNull()
+  })
+  test('多图触控降级：删除/左右移按钮豁免拖拽热区，触屏启用长按延迟与位移阈值', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.uploadedImages = [
+      { id: 'img_1', url: '/img/first.webp', alt: 'first' },
+      { id: 'img_2', url: '/img/second.webp', alt: 'second' },
+    ]
+    await flushPromises()
+
+    // 拖拽列表对触控做点按/拖拽降级配置（issue #455）
+    const draggableWrapper = wrapper.findComponent(Draggable)
+    expect(draggableWrapper.exists()).toBe(true)
+    const attrs = draggableWrapper.vm.$attrs as Record<string, unknown>
+    expect(String(attrs['filter'])).toContain('gf-image-card-btn')
+    expect(attrs['prevent-on-filter']).toBe(false)
+    expect(attrs['delay-on-touch-only']).toBe(true)
+    expect(Number(attrs['delay'])).toBeGreaterThanOrEqual(100)
+    expect(Number(attrs['touch-start-threshold'])).toBeGreaterThan(0)
+
+    // 2 张图 → 删除 ×2 + 右移 ×1 + 左移 ×1，均带豁免类
+    const actionButtons = document.body.querySelectorAll('button.gf-image-card-btn')
+    expect(actionButtons.length).toBe(4)
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('点击缩略图右上角删除按钮可移除对应图片', async () => {
+    i18n.global.locale.value = 'zh'
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    openQuickPublish(2) // 瞬间类型
+
+    const wrapper = mount(QuickPublishModal, {
+      props: { layout: mockLayout },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.uploadedImages = [
+      { id: 'img_1', url: '/img/first.webp', alt: 'first' },
+      { id: 'img_2', url: '/img/second.webp', alt: 'second' },
+    ]
+    await flushPromises()
+
+    const deleteBtn = document.body.querySelector(`button[aria-label="${i18n.global.t('publish.modal.deleteImage')}"]`) as HTMLButtonElement | null
+    expect(deleteBtn).not.toBeNull()
+    deleteBtn?.click()
+    await flushPromises()
+
+    expect(vm.uploadedImages.length).toBe(1)
+    expect(vm.uploadedImages[0].url).toBe('/img/second.webp')
+
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+  })
+})
+
+describe('QuickPublish 懒加载与首开锁存', () => {
+  test('loadQuickPublishModal 重复调用返回同一个缓存 promise', async () => {
+    const first = loadQuickPublishModal()
+    const second = loadQuickPublishModal()
+    expect(first).toBe(second)
+    const mod = await first
+    expect(mod.default).toBe(QuickPublishModal)
+  })
+
+  test('everOpenedQuickPublish 首开后保持 true，closeQuickPublish 不复位', async () => {
+    const everOpened = useEverOpenedQuickPublish()
+    const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+    everOpened.value = false
+
+    expect(everOpened.value).toBe(false)
+    openQuickPublish(1)
+    expect(everOpened.value).toBe(true)
+
+    closeQuickPublish()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(everOpened.value).toBe(true)
+  })
+})
+
+test.each([
+  { limit: 4, body: '汉😀abc', expected: '汉😀ab' },
+  { limit: 30, body: 'a'.repeat(29) + '😀tail', expected: 'a'.repeat(29) + '😀' },
+  { limit: 4, body: '', expected: '' },
+])('automatic moment title respects code points and server limit: $limit / $body', async ({ limit, body, expected }) => {
+  i18n.global.locale.value = 'zh'
+  const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+  openQuickPublish(2)
+  const submit = vi.spyOn(api, 'submitTopic').mockRejectedValue(new Error('stop after capture'))
+  const wrapper = mount(QuickPublishModal, {
+    props: { layout: { ...mockLayout, posting: { maxTitleLength: limit } } },
+    global: { plugins: [i18n, router] },
+    attachTo: document.body,
+  })
+  try {
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.categoryIds = [101]
+    vm.content = body
+    vm.editor = { syncValue: () => body }
+    if (!body) vm.uploadedImages = [{ id: 'image', url: '/file/img/test.png', uploading: false }]
+    await vm.handleSubmit()
+    const expectedTitle = body ? expected : Array.from(i18n.global.t('publish.modal.imageOnlyTitle')).slice(0, limit).join('')
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: expectedTitle }))
+  } finally {
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+    submit.mockRestore()
+  }
+})

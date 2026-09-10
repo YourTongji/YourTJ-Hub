@@ -1,0 +1,19 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 4097,
+        "optUserId": 1024,
+        "optType": 0,
+        "targetType": 1,
+        "targetId": "2049",
+        "optInfo": "{\"messageCode\":\"admin.opt.agent.created\",\"params\":{\"agentId\":2049,\"username\":\"campus-helper-bot\"}}",
+        "createdAt": "2026-08-10T08:00:00Z"
+      }
+    ],
+    "page": 0,
+    "size": 10,
+    "total": 1
+  },
+  "code": 0
+}

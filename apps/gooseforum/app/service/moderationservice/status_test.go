@@ -1,14 +1,15 @@
 package moderationservice
 
 import (
+	"slices"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/reports"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 func TestInvalidateTopicClearsCategoryStatusCache(t *testing.T) {
@@ -38,5 +39,14 @@ func TestInvalidateTopicClearsCategoryStatusCache(t *testing.T) {
 	InvalidateTopic(970010)
 	if got := hasOpenReport(key, []uint64{970003}); !got {
 		t.Fatal("open report cache after invalidation = false, want true")
+	}
+}
+
+func TestUniqueUint64PreservesFirstOccurrenceOrder(t *testing.T) {
+	values := []uint64{17, 3, 17, 9, 3, 1, 9, 5}
+	want := []uint64{17, 3, 9, 1, 5}
+
+	if got := uniqueUint64(values); !slices.Equal(got, want) {
+		t.Fatalf("uniqueUint64(%v) = %v, want %v", values, got, want)
 	}
 }

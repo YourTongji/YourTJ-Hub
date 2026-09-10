@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 func TestBuildEmailActionURL(t *testing.T) {
@@ -51,6 +51,20 @@ func TestGeneratePasswordResetEmailBodyUsesLocale(t *testing.T) {
 	}
 	if !strings.Contains(body, "lang=en&amp;token=token") {
 		t.Fatalf("password reset email body should include lang query, got %q", body)
+	}
+}
+
+func TestGenerateEmailChangedEmailBodyUsesLocale(t *testing.T) {
+	body, err := generateEmailChangedEmailBody("aki", "new@example.com", "en")
+	if err != nil {
+		t.Fatalf("generateEmailChangedEmailBody() error = %v", err)
+	}
+
+	if !strings.Contains(body, "Email address changed") {
+		t.Fatalf("email changed body should use English copy, got %q", body)
+	}
+	if !strings.Contains(body, "new@example.com") {
+		t.Fatalf("email changed body should include the new email address, got %q", body)
 	}
 }
 

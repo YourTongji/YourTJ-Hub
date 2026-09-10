@@ -9,11 +9,12 @@
 package ratelimit
 
 import (
+	"context"
 	"sync"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 )
 
 // Store counts attempts per key inside fixed windows.
@@ -142,7 +143,9 @@ func Default() Store {
 // StartCleanup starts the periodic expired-window cleanup worker.
 func StartCleanup() {
 	cleanupOnce.Do(func() {
-		closer.RegisterPriority(closer.PriorityCache, StopCleanup)
+		closer.RegisterPriorityContext(closer.PriorityCache, func(context.Context) error {
+			return StopCleanup()
+		})
 		cleanupWg.Go(func() {
 			defer paniclog.Recover("ratelimit_cleanup")
 			ticker := time.NewTicker(time.Minute)

@@ -3,7 +3,7 @@ package urlconfig
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 func TestDefaultAvatarUsesCDNWhenConfigured(t *testing.T) {
@@ -106,6 +106,9 @@ func TestStaticRoutes(t *testing.T) {
 func TestDynamicRoutes(t *testing.T) {
 	if got := PostDetail(42); got != "/p/post/42" {
 		t.Fatalf("PostDetail = %q, want /p/post/42", got)
+	}
+	if got := PostMarkdown(42); got != "/p/posts/42.md" {
+		t.Fatalf("PostMarkdown = %q, want /p/posts/42.md", got)
 	}
 	if got := User("alice"); got != "/u/alice" {
 		t.Fatalf("User = %q, want /u/alice", got)
