@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-09
+> Last verified: 2026-09-10
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/3cbdccc7d7b05e6027e8965ed89f19f4e807c081)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/b87c472ef3bccf1d9683efc19c43de78046a4be9)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -120,6 +120,13 @@ Manual publication defaults off; the deployment enables all four automatic execu
 `@oryn-mini fix`, `implement issue`, `rebase`, `cluster #N #M`, `autoclose` and `automerge` are also available to authorized maintainers.
 Slash aliases such as `/review`, `/autofix`, `/rebase`, `/autoclose` and `/automerge` are supported.
 Bot-authored comments skip planning and do not occupy the sweep queue; human commands retain runtime parsing and authority checks.
+Publication compares source fields and the captured discussion/review/check context separately.
+Assignee, project and bot-receipt timestamp updates do not interrupt an otherwise unchanged task;
+changed requirements, code, discussion, labels and command authority still block stale publication.
+A decision-needed repair shows the concrete question and whether host validation ran, and publishes
+no patch. Source/context publication failures identify the changed category in the status receipt.
+See [the freshness decision](../decisions/0016-oryn-semantic-freshness.md).
+
 The operator controls token grants and policy; text in issues/PRs cannot enable repair or merge.
 Disable the event/schedule execution variables to stop new automatic work; use the item's stop command
 for an active task. Preserve receipts when rotating keys or upgrading the runtime.
