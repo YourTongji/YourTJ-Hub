@@ -1,15 +1,28 @@
 name: Deploy / main
 
 on:
-  # 生产部署唯一入口: release-to-main 显式触发, 不监听 push
-  # (防止直接 push main 导致意外/双重复部署)
+  # release-to-main dispatches the published server tag; manual recovery also
+  # selects a server tag. Merging main alone does not deploy production.
   workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a server release tag on main
+        run: |
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Select a server vX.Y.Z tag to deploy production"
+            exit 1
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: ./.github/actions/build-binary
 
   build-image:

@@ -9,6 +9,7 @@ on:
       - ".github/workflows/ci-mobile.yml"
       - ".github/workflows/release-mobile.yml"
       - ".github/workflows/release-to-main.yml"
+      - ".github/workflows/deploy-main.yml"
       - "scripts/mobile-release/**"
   pull_request:
     paths:
@@ -17,6 +18,7 @@ on:
       - ".github/workflows/ci-mobile.yml"
       - ".github/workflows/release-mobile.yml"
       - ".github/workflows/release-to-main.yml"
+      - ".github/workflows/deploy-main.yml"
       - "scripts/mobile-release/**"
 
 concurrency:

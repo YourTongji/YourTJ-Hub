@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Server version increment (requires dev changes merged into main by PR)"
+        description: "Server version increment (waits for PR CI, merges and releases automatically)"
         required: true
         type: choice
         options: [patch, minor, major]
@@ -22,13 +22,14 @@ jobs:
   prepare:
     if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 65
     outputs:
       tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Require dev to reach main through a reviewed PR
+      - name: Wait for PR CI, merge dev into main and tag the release
         id: release
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
@@ -74,9 +75,9 @@ jobs:
       - name: 触发生产部署(deploy-main)
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          # push 事件对 GITHUB_TOKEN / fine-grained PAT 可能不触发 workflow,
-          # 但 workflow_dispatch 是明确例外, 直接显式触发 deploy-main
-          sleep 5
-          gh workflow run deploy-main.yml --ref main
-          echo "已触发 deploy-main workflow 部署生产"
+          # Dispatch the published tag so every deployment job uses the same
+          # commit as the release binaries, even if main advances meanwhile.
+          gh workflow run deploy-main.yml --ref "$RELEASE_TAG"
+          echo "已触发 deploy-main workflow 部署 $RELEASE_TAG"
