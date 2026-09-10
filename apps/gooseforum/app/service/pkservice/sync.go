@@ -26,21 +26,34 @@ const batchRows = 500
 // 从最后已提交页继续（不回滚已成功批次）；AC2 cookie 失效：抓取失败即中止并标记 failed，
 // 已提交批次保留。
 func Sync(ctx context.Context, cookie string, calendarId uint64, depth int, materialize bool) (*SyncReport, error) {
-	return syncWithClaim(ctx, newOnesystemClient(), cookie, calendarId, depth, materialize, nil, false)
+	return SyncForAudience(ctx, cookie, AudienceUndergraduate, calendarId, depth, materialize)
+}
+
+// SyncForAudience 同步指定一系统受众的数据；所有 PK 表使用同一套模型并按受众隔离。
+func SyncForAudience(ctx context.Context, cookie string, audience Audience, calendarId uint64, depth int, materialize bool) (*SyncReport, error) {
+	return syncWithClaimForAudience(ctx, newOnesystemClient(), cookie, audience, calendarId, depth, materialize, nil, false)
 }
 
 // ClaimSyncCalendar 原子认领一个学期的同步租约。管理端在确认请求前调用它，只有取得租约的
 // 请求才能返回 started=true；后台执行会通过 SyncFromClaim 复用同一租约。
 func ClaimSyncCalendar(calendarId uint64) (*pk.FetchLogEntity, bool, error) {
-	return beginOrResumeFetchLog(calendarId)
+	return ClaimSyncCalendarForAudience(AudienceUndergraduate, calendarId)
+}
+
+func ClaimSyncCalendarForAudience(audience Audience, calendarId uint64) (*pk.FetchLogEntity, bool, error) {
+	return beginOrResumeFetchLogForAudience(audience, calendarId)
 }
 
 // SyncFromClaim 使用已由 ClaimSyncCalendar 认领的目标学期租约执行同步。
 func SyncFromClaim(ctx context.Context, cookie string, calendarId uint64, depth int, materialize bool, claim *pk.FetchLogEntity, resume bool) (*SyncReport, error) {
-	if claim == nil || claim.CalendarId != calendarId || claim.Status != pk.FetchStatusRunning {
+	return SyncFromClaimForAudience(ctx, cookie, AudienceUndergraduate, calendarId, depth, materialize, claim, resume)
+}
+
+func SyncFromClaimForAudience(ctx context.Context, cookie string, audience Audience, calendarId uint64, depth int, materialize bool, claim *pk.FetchLogEntity, resume bool) (*SyncReport, error) {
+	if claim == nil || claim.Audience != string(audience) || claim.CalendarId != pk.ScopeID(audience, calendarId) || claim.Status != pk.FetchStatusRunning {
 		return nil, errors.New("无效的排课同步租约")
 	}
-	return syncWithClaim(ctx, newOnesystemClient(), cookie, calendarId, depth, materialize, claim, resume)
+	return syncWithClaimForAudience(ctx, newOnesystemClient(), cookie, audience, calendarId, depth, materialize, claim, resume)
 }
 
 // FailSyncClaim records a terminal failure for a worker that already claimed a sync lease.
@@ -50,21 +63,34 @@ func FailSyncClaim(claim *pk.FetchLogEntity, err error) error {
 
 // syncWith 注入 onesystemClient，便于测试使用本地 httptest 服务。
 func syncWith(ctx context.Context, client *onesystemClient, cookie string, calendarId uint64, depth int, materialize bool) (*SyncReport, error) {
-	return syncWithClaim(ctx, client, cookie, calendarId, depth, materialize, nil, false)
+	return syncWithClaimForAudience(ctx, client, cookie, AudienceUndergraduate, calendarId, depth, materialize, nil, false)
 }
 
 func syncWithClaim(ctx context.Context, client *onesystemClient, cookie string, calendarId uint64, depth int, materialize bool, claimedTarget *pk.FetchLogEntity, claimedTargetResume bool) (*SyncReport, error) {
-	if strings.TrimSpace(cookie) == "" {
-		return nil, errors.New("缺少 ONESYSTEM_COOKIE（一系统 Cookie header），请通过 --onesystem-cookie / ONESYSTEM_COOKIE 环境变量 / 管理端设置提供")
+	return syncWithClaimForAudience(ctx, client, cookie, AudienceUndergraduate, calendarId, depth, materialize, claimedTarget, claimedTargetResume)
+}
+
+func syncWithClaimForAudience(ctx context.Context, client *onesystemClient, cookie string, audience Audience, calendarId uint64, depth int, materialize bool, claimedTarget *pk.FetchLogEntity, claimedTargetResume bool) (*SyncReport, error) {
+	if !audience.Valid() {
+		return nil, fmt.Errorf("无效的一系统数据来源 %q", audience)
 	}
-	if calendarId == 0 {
+	if strings.TrimSpace(cookie) == "" {
+		envName := envOnesystemUndergraduateCookie
+		if audience == AudienceGraduate {
+			envName = envOnesystemGraduateCookie
+		} else {
+			envName += " / " + envOnesystemCookie
+		}
+		return nil, fmt.Errorf("缺少一系统 Cookie（%s），请通过 --onesystem-cookie / %s 环境变量 / 管理端设置提供", audienceLabel(audience), envName)
+	}
+	if !pk.ValidExternalID(calendarId) {
 		return nil, errors.New("calendarId 无效")
 	}
 	if depth < 1 {
 		depth = 1
 	}
 
-	report := &SyncReport{}
+	report := &SyncReport{Audience: string(audience)}
 	start := calendarId - uint64(depth-1)
 	if uint64(depth) > calendarId {
 		start = 1
@@ -76,7 +102,7 @@ func syncWithClaim(ctx context.Context, client *onesystemClient, cookie string, 
 			claim = claimedTarget
 			resume = claimedTargetResume
 		}
-		perCalendar, err := syncOneCalendar(ctx, client, cookie, id, claim, resume, materialize)
+		perCalendar, err := syncOneCalendar(ctx, client, cookie, audience, id, claim, resume, materialize)
 		if err != nil {
 			// 管理端会先认领目标学期；若前置的历史学期失败，必须释放目标租约并留下可见失败，
 			// 否则前端会一直把尚未执行的目标显示为 running。
@@ -117,14 +143,14 @@ type calendarSyncResult struct {
 // syncOneCalendar 同步单个学期：断点判定 → 分页抓取 →（cookie 验证后）清空 → 500 行/批事务写入。
 // 破坏性删除（DeleteCalendarDataTx）只在该学期"全新同步"或"续跑且上一轮仅删未写"时执行，且必须
 // 在首页抓取成功（cookie 有效）之后，避免无效 cookie 摧毁存量数据（AC2）。
-func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string, calendarId uint64, claimedLog *pk.FetchLogEntity, claimedResume bool, materialize bool) (calendarSyncResult, error) {
+func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string, audience Audience, calendarId uint64, claimedLog *pk.FetchLogEntity, claimedResume bool, materialize bool) (calendarSyncResult, error) {
 	var result calendarSyncResult
 
 	log := claimedLog
 	resume := claimedResume
 	if log == nil {
 		var err error
-		log, resume, err = beginOrResumeFetchLog(calendarId)
+		log, resume, err = beginOrResumeFetchLogForAudience(audience, calendarId)
 		if err != nil {
 			return result, err
 		}
@@ -149,7 +175,7 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 
 	// cookie 有效后才清空：全新同步，或续跑且上一轮仅删未写（lastCommittedPage==0 且无写入）时补删。
 	if !resume || (log.LastCommittedPage == 0 && log.RowsWritten == 0) {
-		if err := deleteCalendarData(log, calendarId); err != nil {
+		if err := deleteCalendarDataForAudience(log, audience, calendarId); err != nil {
 			return result, markFailed(log, err)
 		}
 	}
@@ -177,7 +203,7 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 		result.pages++
 		buffer = append(buffer, p.Data.List...)
 		if len(buffer) >= batchRows || page == totalPages {
-			n, err := commitBatch(log, calendarId, buffer, page)
+			n, err := commitBatchForAudience(log, audience, calendarId, buffer, page)
 			if err != nil {
 				return result, markFailed(log, err)
 			}
@@ -188,7 +214,7 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 	}
 	// 单页场景（startPage == totalPages）的收尾。
 	if len(buffer) > 0 {
-		n, err := commitBatch(log, calendarId, buffer, startPage)
+		n, err := commitBatchForAudience(log, audience, calendarId, buffer, startPage)
 		if err != nil {
 			return result, markFailed(log, err)
 		}
@@ -204,7 +230,7 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 // complete. Failed post-processing resumes locally without fetching committed pages.
 func finishCalendarSync(ctx context.Context, log *pk.FetchLogEntity, materialize bool, result *calendarSyncResult) error {
 	var err error
-	result.timeslots, err = rebuildTimeslots(ctx, []uint64{log.CalendarId})
+	result.timeslots, err = rebuildTimeslotsForAudience(ctx, pk.DefaultAudience(log.Audience), []uint64{log.CalendarId})
 	if err != nil {
 		return markFailed(log, fmt.Errorf("重建排课时间片失败：%w", err))
 	}
@@ -240,7 +266,11 @@ const fetchLogStaleWindow = time.Hour
 //     均允许唯一索引含多个 NULL，故 completed/failed 行永不冲突，但同一 calendar 的两条
 //     running 行必然冲突（跨方言，不依赖 PG 专属 partial unique index）。
 func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) {
-	latest, ok := pk.LatestFetchLogByCalendar(calendarId)
+	return beginOrResumeFetchLogForAudience(AudienceUndergraduate, calendarId)
+}
+
+func beginOrResumeFetchLogForAudience(audience Audience, calendarId uint64) (*pk.FetchLogEntity, bool, error) {
+	latest, ok := pk.LatestFetchLogByAudienceCalendar(audience, calendarId)
 	if ok {
 		switch latest.Status {
 		case pk.FetchStatusRunning:
@@ -275,7 +305,7 @@ func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) 
 			return &latest, true, nil
 		}
 	}
-	log, err := pk.CreateFetchLog(calendarId)
+	log, err := pk.CreateFetchLogForAudience(audience, calendarId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, false, errors.New("该学期同步正在进行中（fetchlog running 唯一约束冲突），请勿并发运行；若确已中断请稍后再试")
@@ -301,7 +331,11 @@ func markFailed(log *pk.FetchLogEntity, err error) error {
 // commitBatch 在独立事务中写入一批教学班（约 500 行），成功后推进 fetchlog 游标。
 // 事务失败不影响已提交批次（AC2）。
 func commitBatch(log *pk.FetchLogEntity, calendarId uint64, rows []CourseRaw, committedPage int) (int, error) {
-	n, err := writeBatchWithLeaseTx(log, calendarId, rows)
+	return commitBatchForAudience(log, AudienceUndergraduate, calendarId, rows, committedPage)
+}
+
+func commitBatchForAudience(log *pk.FetchLogEntity, audience Audience, calendarId uint64, rows []CourseRaw, committedPage int) (int, error) {
+	n, err := writeBatchWithLeaseTxForAudience(log, audience, calendarId, rows)
 	if err != nil {
 		return 0, err
 	}
@@ -315,11 +349,15 @@ func commitBatch(log *pk.FetchLogEntity, calendarId uint64, rows []CourseRaw, co
 
 // deleteCalendarData 在单事务内清空某学期排课数据（幂等全量重写前置步骤）。
 func deleteCalendarData(log *pk.FetchLogEntity, calendarId uint64) error {
+	return deleteCalendarDataForAudience(log, AudienceUndergraduate, calendarId)
+}
+
+func deleteCalendarDataForAudience(log *pk.FetchLogEntity, audience Audience, calendarId uint64) error {
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
 			return err
 		}
-		return pk.DeleteCalendarDataTx(tx, calendarId)
+		return pk.DeleteCalendarDataForAudienceTx(tx, audience, calendarId)
 	})
 }
 
@@ -330,6 +368,10 @@ func writeBatchTx(calendarId uint64, rows []CourseRaw) (int, error) {
 
 // writeBatchWithLeaseTx 在单事务内续租并批量 upsert 一批教学班，返回处理行数。
 func writeBatchWithLeaseTx(log *pk.FetchLogEntity, calendarId uint64, rows []CourseRaw) (int, error) {
+	return writeBatchWithLeaseTxForAudience(log, AudienceUndergraduate, calendarId, rows)
+}
+
+func writeBatchWithLeaseTxForAudience(log *pk.FetchLogEntity, audience Audience, calendarId uint64, rows []CourseRaw) (int, error) {
 	var n int
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		if log != nil {
@@ -337,7 +379,7 @@ func writeBatchWithLeaseTx(log *pk.FetchLogEntity, calendarId uint64, rows []Cou
 				return err
 			}
 		}
-		written, err := writeBatchTxInner(tx, calendarId, rows)
+		written, err := writeBatchTxInnerForAudience(tx, audience, calendarId, rows)
 		if err != nil {
 			return err
 		}

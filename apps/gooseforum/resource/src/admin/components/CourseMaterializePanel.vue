@@ -6,18 +6,18 @@ import { materializePkCalendar } from '../runtime/api'
 import { adminText } from '../runtime/i18n-text'
 import type { PkMaterializeResult, PkSyncStatusItem } from '../types'
 
-const props = defineProps<{ calendars: PkSyncStatusItem[], syncing?: boolean }>()
+const props = withDefaults(defineProps<{ calendars: PkSyncStatusItem[], syncing?: boolean, audience?: 'undergraduate' | 'graduate' }>(), { audience: 'undergraduate' })
 const term = ref('')
 const busy = ref(false)
 const error = ref('')
 const result = ref<PkMaterializeResult | null>(null)
-const calendars = computed(() => props.calendars.filter(item => item.calendarName))
+const calendars = computed(() => props.calendars.filter(item => item.calendarName && (item.audience || 'undergraduate') === props.audience))
 const disabled = computed(() => busy.value || props.syncing || !term.value
-  || props.calendars.some(item => String(item.calendarId) === term.value && item.status === 'running'))
+  || calendars.value.some(item => String(item.calendarId) === term.value && item.status === 'running'))
 watch(calendars, items => {
-  if (!term.value && items.length) term.value = String(items[0].calendarId)
+  if (!items.some(item => String(item.calendarId) === term.value)) term.value = items.length ? String(items[0].calendarId) : ''
 }, { immediate: true })
-watch(term, () => { result.value = null; error.value = '' })
+watch([term, () => props.audience], () => { result.value = null; error.value = '' })
 
 async function materialize() {
   if (disabled.value) return
@@ -25,7 +25,9 @@ async function materialize() {
   error.value = ''
   result.value = null
   try {
-    result.value = await materializePkCalendar(term.value)
+    const audience = props.audience
+    const report = await materializePkCalendar(term.value, audience)
+    if (audience === props.audience) result.value = report
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('materializeFailed')
   } finally {

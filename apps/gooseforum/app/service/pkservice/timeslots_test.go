@@ -2,6 +2,7 @@ package pkservice
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 
@@ -86,5 +87,23 @@ func TestRebuildTimeslotsReplacesForCalendar(t *testing.T) {
 	}
 	if total != 6 { // calendar1 4 + calendar2 2
 		t.Errorf("total timeslots = %d, want 6", total)
+	}
+}
+
+func TestRebuildTimeslotsCancelledDoesNotReplaceSnapshot(t *testing.T) {
+	migratePkTables(t)
+	conn := db.Connect()
+	row := pk.TeacherTimeslotEntity{Audience: string(pk.AudienceGraduate), CalendarId: pk.ScopeID(pk.AudienceGraduate, 121), TeachingClassId: pk.ScopeID(pk.AudienceGraduate, 123), OccupyDay: 1, OccupySection: 2}
+	if err := conn.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := rebuildTimeslotsForAudience(ctx, pk.AudienceGraduate, []uint64{121}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled rebuild = %v; want context.Canceled", err)
+	}
+	var count int64
+	if err := conn.Model(&pk.TeacherTimeslotEntity{}).Where("audience = ? AND calendar_id = ?", pk.AudienceGraduate, row.CalendarId).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("snapshot after cancellation = %d, %v; want retained row", count, err)
 	}
 }

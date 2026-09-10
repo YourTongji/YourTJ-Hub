@@ -29,7 +29,7 @@ describe('local course materialization', () => {
     vi.mocked(materializePkCalendar).mockReturnValue(new Promise(resolve => { finish = resolve }))
     wrapper = mount(CourseMaterializePanel, { props: { calendars: [calendar] } })
     await wrapper.get('button').trigger('click')
-    expect(materializePkCalendar).toHaveBeenCalledWith('122')
+    expect(materializePkCalendar).toHaveBeenCalledWith('122', 'undergraduate')
     expect(wrapper.get('button').attributes('disabled')).toBeDefined()
     expect(wrapper.get('select').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
@@ -53,3 +53,14 @@ describe('local course materialization', () => {
     expect(wrapper.find('[role="status"]').exists()).toBe(true)
   })
 })
+
+ test('same calendar ID stays isolated by audience', async () => {
+  vi.mocked(materializePkCalendar).mockResolvedValue(report)
+  wrapper = mount(CourseMaterializePanel, { props: { audience: 'graduate', calendars: [{ ...calendar, audience: 'undergraduate', status: 'running' }, { ...calendar, audience: 'graduate' }] } })
+  expect(wrapper.findAll('option')).toHaveLength(1)
+  expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+  await wrapper.get('button').trigger('click')
+  expect(materializePkCalendar).toHaveBeenCalledWith('122', 'graduate')
+  await wrapper.setProps({ audience: 'undergraduate' })
+  expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+ })

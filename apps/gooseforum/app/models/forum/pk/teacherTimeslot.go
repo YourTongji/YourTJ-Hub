@@ -9,6 +9,7 @@ const teacherTimeslotTableName = "pk_teacher_timeslot"
 // TeacherTimeslotEntity 教师时间片投影：由 pk_teacher.arrange_info_text 解析重建（course-pk-sync 触发），
 // 复合主键与上游 teacher_timeslots 一致，供排课查询按 (calendar, day, section) 反查。
 type TeacherTimeslotEntity struct {
+	Audience        string     `gorm:"primaryKey;column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_timeslot_audience;" json:"audience"`
 	CalendarId      uint64     `gorm:"primaryKey;column:calendar_id;not null;index:idx_pk_timeslot_slot,priority:1;" json:"calendarId"`
 	TeachingClassId uint64     `gorm:"primaryKey;column:teaching_class_id;not null;index:idx_pk_timeslot_class;" json:"teachingClassId"`
 	OccupyDay       int        `gorm:"primaryKey;column:occupy_day;not null;index:idx_pk_timeslot_slot,priority:2;" json:"occupyDay"`

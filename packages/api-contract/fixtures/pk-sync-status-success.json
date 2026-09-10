@@ -3,6 +3,7 @@
     {
       "calendarId": 121,
       "calendarName": "2025-2026-1",
+      "audience": "undergraduate",
       "status": "completed",
       "rowsWritten": 120,
       "totalPages": 12,
@@ -14,6 +15,7 @@
     {
       "calendarId": 120,
       "calendarName": "",
+      "audience": "undergraduate",
       "status": "failed",
       "rowsWritten": 0,
       "totalPages": 3,

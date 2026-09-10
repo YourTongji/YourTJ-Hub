@@ -294,10 +294,13 @@ export interface AiSummaryModelItem {
 
 export interface OnesystemSettings {
   cookieConfigured: boolean
+  cookieConfiguredUndergraduate: boolean
+  cookieConfiguredGraduate: boolean
 }
 
 /** 单个学期的排课数据同步状态（issue #248 管理端同步入口）。 */
 export interface PkSyncStatusItem {
+  audience: 'undergraduate' | 'graduate'
   calendarId: number
   calendarName: string
   status: string

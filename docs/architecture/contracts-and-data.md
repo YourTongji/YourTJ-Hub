@@ -406,3 +406,12 @@ and per-topic documents preserve the stored Markdown source.
 - Docs status words updated in step (docs/README.md).
 
 PK plan uploads support an observed `baseUpdatedAt` revision: an empty string creates only if no snapshot exists, and a stale revision returns HTTP 409 without changing data. Sync clients must send this condition and fetch again before resolving a conflict. The server remains the sole clock source; omission retains unconditional replacement for existing API consumers.
+
+PK source records are isolated by audience. Undergraduate external numeric IDs retain their
+value; graduate IDs use bit 52, and ingestion rejects external IDs outside `1..2^52-1` so both
+namespaces remain exact in browser JSON numbers. `external_id` retains the source value.
+Audience schema upgrades commit column, primary-key and index changes atomically; a failed
+upgrade rolls back so retrying cannot skip legacy index cleanup. Catalog materialization reads
+one audience through a consistent transaction, including its calendars, dictionaries, teachers
+and fetch lease. The admin materialization request carries the selected audience and defaults
+to undergraduate for existing clients.

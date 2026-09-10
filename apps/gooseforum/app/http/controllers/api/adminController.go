@@ -1769,27 +1769,61 @@ func ListAiSummaryModels(req component.BetterRequest[ListAiSummaryModelsReq]) co
 func GetOnesystemSettings(req component.BetterRequest[component.Null]) component.Response {
 	config := hotdataserve.GetOnesystemSettingsConfigCache()
 	return component.SuccessResponse(map[string]any{
-		"cookieConfigured": strings.TrimSpace(config.CookieEncrypted) != "",
+		// 保留 cookieConfigured 供旧客户端读取；新客户端按受众分别展示状态。
+		"cookieConfigured":              strings.TrimSpace(config.CookieEncrypted) != "",
+		"cookieConfiguredUndergraduate": strings.TrimSpace(config.CookieEncrypted) != "",
+		"cookieConfiguredGraduate":      strings.TrimSpace(config.GraduateCookieEncrypted) != "",
 	})
 }
 
 type SaveOnesystemSettingsReq struct {
-	// Cookie 一系统 Cookie header（明文，仅在保存瞬间存在）；留空表示清除已存凭证。
-	Cookie string `json:"cookie" validate:"max=4096"`
+	// 两个字段均为可选：未提交表示保留原值，提交空串表示清除对应受众。
+	UndergraduateCookie *string `json:"undergraduateCookie" validate:"omitempty,max=4096"`
+	GraduateCookie      *string `json:"graduateCookie" validate:"omitempty,max=4096"`
+	// Cookie 兼容旧客户端；仅在新字段都未提交时作为本科凭证处理。
+	Cookie *string `json:"cookie" validate:"omitempty,max=4096"`
 }
 
 // SaveOnesystemSettings 保存一系统 Cookie：securestore 加密后落库（密文经 OneSystemSettingsStorage
 // 持久化，领域结构 json:"-" 防导出泄露），明文不持久化。清除时传空字符串。
 func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]) component.Response {
-	encrypted := ""
-	if cookie := strings.TrimSpace(req.Params.Cookie); cookie != "" {
-		sealed, err := securestore.EncryptPurpose(cookie, securestore.OneSystemCookiePurpose)
-		if err != nil {
-			return component.FailResponseError(fmt.Errorf("加密一系统 Cookie 失败（请确认 app.signingKey 已配置）：%w", err))
-		}
-		encrypted = sealed
+	undergraduate, graduate := req.Params.UndergraduateCookie, req.Params.GraduateCookie
+	if undergraduate == nil && graduate == nil {
+		undergraduate = req.Params.Cookie
 	}
-	return savePageConfig(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsStorage{CookieEncrypted: encrypted}, hotdataserve.ClearOnesystemSettingsConfigCache)
+	seal := func(cookie *string) (string, error) {
+		if cookie == nil {
+			return "", nil
+		}
+		value := strings.TrimSpace(*cookie)
+		if value == "" {
+			return "", nil
+		}
+		sealed, err := securestore.EncryptPurpose(value, securestore.OneSystemCookiePurpose)
+		if err != nil {
+			return "", fmt.Errorf("加密一系统 Cookie 失败（请确认 app.signingKey 已配置）：%w", err)
+		}
+		return sealed, nil
+	}
+	undergraduateSealed, err := seal(undergraduate)
+	if err != nil {
+		return component.FailResponseError(err)
+	}
+	graduateSealed, err := seal(graduate)
+	if err != nil {
+		return component.FailResponseError(err)
+	}
+	pageConfig.UpdateOneSystemSettings(func(storage pageConfig.OneSystemSettingsStorage) pageConfig.OneSystemSettingsStorage {
+		if undergraduate != nil {
+			storage.CookieEncrypted = undergraduateSealed
+		}
+		if graduate != nil {
+			storage.GraduateCookieEncrypted = graduateSealed
+		}
+		return storage
+	})
+	hotdataserve.ClearOnesystemSettingsConfigCache()
+	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }
 
 // GetHttpNotifySettings 获取 HTTP 通知设置：仅回显各端点是否已配置密钥，不回显

@@ -12,6 +12,8 @@ const teacherTableName = "pk_teacher"
 // teacher_timeslots 由它派生重建。
 type TeacherEntity struct {
 	Id              uint64         `gorm:"primaryKey;column:id;not null;" json:"id"`
+	Audience        string         `gorm:"column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_teacher_audience;" json:"audience"`
+	ExternalId      uint64         `gorm:"column:external_id;not null;default:0;index:idx_pk_teacher_external_id;" json:"-"`
 	TeachingClassId uint64         `gorm:"column:teaching_class_id;not null;default:0;index:idx_pk_teacher_class;" json:"teachingClassId"`
 	TeacherCode     string         `gorm:"column:teacher_code;type:varchar(64);not null;default:'';index:idx_pk_teacher_code;" json:"teacherCode"`
 	TeacherName     string         `gorm:"column:teacher_name;type:varchar(128);not null;default:'';index:idx_pk_teacher_name;" json:"teacherName"`

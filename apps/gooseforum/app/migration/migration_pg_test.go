@@ -353,3 +353,24 @@ func assertPointsSourceKeySchema(t *testing.T, db *gorm.DB) {
 		t.Fatalf("duplicate source_key error = %v, want gorm.ErrDuplicatedKey", err)
 	}
 }
+
+// Exercise the actual pre-audience PK tables; a fresh AutoMigrate does not test
+// primary-key replacement, legacy indexes, retained rows or repeated upgrades.
+func TestSchemaPkAudienceUpgradeOnPostgreSQL(t *testing.T) {
+	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
+	if dsn == "" {
+		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL migration test")
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatalf("connect postgres: %v", err)
+	}
+	if err := db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`).Error; err != nil {
+		t.Fatalf("reset schema: %v", err)
+	}
+	assertPkAudienceLegacyDictionaryUpgrade(t, db)
+	assertPkAudienceLegacyConflictKeysUpgrade(t, db)
+	if err := upgradePkAudienceSchema(db); err != nil {
+		t.Fatalf("repeat full PK audience upgrade: %v", err)
+	}
+}

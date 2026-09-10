@@ -29,8 +29,9 @@ const (
 //     「同一 calendar 至多一条 running」的跨方言唯一保证（不依赖方言专属的 partial unique index）。
 type FetchLogEntity struct {
 	Id                uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
+	Audience          string         `gorm:"column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_fetch_log_audience,priority:1;index:uniq_pk_fetch_log_running_key,unique,priority:1;" json:"audience"`
 	CalendarId        uint64         `gorm:"column:calendar_id;not null;default:0;index:idx_pk_fetch_log_calendar;" json:"calendarId"`
-	RunningKey        *uint64        `gorm:"column:running_key;index:uniq_pk_fetch_log_running_key,unique;" json:"-"`
+	RunningKey        *uint64        `gorm:"column:running_key;index:uniq_pk_fetch_log_running_key,unique,priority:2;" json:"-"`
 	Status            string         `gorm:"column:status;type:varchar(32);not null;default:'';" json:"status"`
 	LeaseVersion      int            `gorm:"column:lease_version;not null;default:0;" json:"-"`
 	TotalPages        int            `gorm:"column:total_pages;not null;default:0;" json:"totalPages"`

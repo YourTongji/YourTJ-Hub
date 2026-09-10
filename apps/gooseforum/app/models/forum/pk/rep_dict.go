@@ -7,6 +7,19 @@ import (
 
 // ListCalendars 返回最近 limit 个学期（calendarId 倒序）。
 func ListCalendars(limit int) ([]CalendarEntity, error) {
+	return ListCalendarsForAudience(AudienceUndergraduate, limit)
+}
+
+func ListCalendarsForAudience(audience Audience, limit int) ([]CalendarEntity, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	var entities []CalendarEntity
+	err := calendarBuilder().Where("audience = ?", audience).Order("calendar_id DESC").Limit(limit).Find(&entities).Error
+	return entities, err
+}
+
+func ListAllCalendarsAllAudiences(limit int) ([]CalendarEntity, error) {
 	if limit <= 0 {
 		limit = 8
 	}
@@ -22,15 +35,25 @@ func ListCampuses() ([]CampusEntity, error) {
 
 // ListCampusesTx reads the dictionary in the caller's snapshot.
 func ListCampusesTx(tx *gorm.DB) ([]CampusEntity, error) {
+	return ListCampusesForAudienceTx(tx, AudienceUndergraduate)
+}
+func ListCampusesForAudience(audience Audience) ([]CampusEntity, error) {
+	return ListCampusesForAudienceTx(db.Connect(), audience)
+}
+func ListCampusesForAudienceTx(tx *gorm.DB, audience Audience) ([]CampusEntity, error) {
 	var entities []CampusEntity
-	err := tx.Model(&CampusEntity{}).Order("campus ASC").Find(&entities).Error
+	err := tx.Model(&CampusEntity{}).Where("audience = ?", audience).Order("campus ASC").Find(&entities).Error
 	return entities, err
 }
 
 // ListFaculties 返回全部院系列表（按 code 排序）。
 func ListFaculties() ([]FacultyEntity, error) {
+	return ListFacultiesForAudience(AudienceUndergraduate)
+}
+
+func ListFacultiesForAudience(audience Audience) ([]FacultyEntity, error) {
 	var entities []FacultyEntity
-	err := facultyBuilder().Order("faculty ASC").Find(&entities).Error
+	err := facultyBuilder().Where("audience = ?", audience).Order("faculty ASC").Find(&entities).Error
 	return entities, err
 }
 
@@ -39,9 +62,10 @@ func ListGradesByCalendar(calendarId int) ([]int, error) {
 	var grades []int
 	err := majorBuilder().
 		Select("DISTINCT pk_major.grade").
-		Joins("JOIN pk_major_course mac ON mac.major_id = pk_major.id").
-		Joins("JOIN pk_course_detail cd ON cd.id = mac.course_id").
-		Where("cd.calendar_id = ?", calendarId).
+		Joins("JOIN pk_major_course mac ON mac.audience = pk_major.audience AND mac.major_id = pk_major.id").
+		Joins("JOIN pk_course_detail cd ON cd.audience = mac.audience AND cd.id = mac.course_id").
+		Where("pk_major.audience = ?", AudienceUndergraduate).
+		Where("cd.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 		Where("pk_major.grade > 0").
 		Order("pk_major.grade DESC").
 		Pluck("pk_major.grade", &grades).Error
@@ -62,12 +86,13 @@ func ListMajorsByGrade(grade, calendarId int, hasCalendar bool) ([]MajorOption, 
 	b := majorBuilder().Select("DISTINCT pk_major.code, pk_major.name")
 	if hasCalendar {
 		b = b.
-			Joins("JOIN pk_major_course mac ON mac.major_id = pk_major.id").
-			Joins("JOIN pk_course_detail cd ON cd.id = mac.course_id").
-			Where("cd.calendar_id = ?", calendarId)
+			Joins("JOIN pk_major_course mac ON mac.audience = pk_major.audience AND mac.major_id = pk_major.id").
+			Joins("JOIN pk_course_detail cd ON cd.audience = mac.audience AND cd.id = mac.course_id").
+			Where("cd.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId)))
 	}
 	var options []MajorOption
 	err := b.Where("pk_major.grade = ?", grade).
+		Where("pk_major.audience = ?", AudienceUndergraduate).
 		Order("pk_major.code ASC").
 		Scan(&options).Error
 	if err != nil {
@@ -81,11 +106,12 @@ func GetTargetMajorId(code string, grade, calendarId int) (uint64, error) {
 	var id uint64
 	err := majorBuilder().
 		Select("pk_major.id").
-		Joins("JOIN pk_major_course mac ON mac.major_id = pk_major.id").
-		Joins("JOIN pk_course_detail cd ON cd.id = mac.course_id").
+		Joins("JOIN pk_major_course mac ON mac.audience = pk_major.audience AND mac.major_id = pk_major.id").
+		Joins("JOIN pk_course_detail cd ON cd.audience = mac.audience AND cd.id = mac.course_id").
 		Where("pk_major.code = ?", code).
 		Where("pk_major.grade = ?", grade).
-		Where("cd.calendar_id = ?", calendarId).
+		Where("pk_major.audience = ?", AudienceUndergraduate).
+		Where("cd.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 		Order("pk_major.id DESC").
 		Limit(1).
 		Scan(&id).Error
@@ -101,6 +127,7 @@ func GetNearestMajorId(code string, grade int) (uint64, error) {
 	var id uint64
 	err := majorBuilder().
 		Select("id").
+		Where("audience = ?", AudienceUndergraduate).
 		Where("code = ?", code).
 		Where("grade <= ?", grade).
 		Order("grade DESC, id DESC").
@@ -120,6 +147,7 @@ func ListMajorCourseIds(majorId uint64) ([]uint64, error) {
 	var ids []uint64
 	err := majorCourseBuilder().
 		Select("course_id").
+		Where("audience = ?", AudienceUndergraduate).
 		Where("major_id = ?", majorId).
 		Pluck("course_id", &ids).Error
 	if err != nil {
@@ -143,8 +171,9 @@ func ListOptionalTypesByCalendar(calendarId int, labels []string) ([]CourseNatur
 	var options []CourseNatureOption
 	err := courseNatureByCalendarBuilder().
 		Select("DISTINCT pk_course_nature_by_calendar.course_label_id, pk_course_nature_by_calendar.course_label_name").
-		Joins("JOIN pk_course_detail cd ON cd.course_label_id = pk_course_nature_by_calendar.course_label_id AND cd.calendar_id = pk_course_nature_by_calendar.calendar_id").
-		Where("pk_course_nature_by_calendar.calendar_id = ?", calendarId).
+		Joins("JOIN pk_course_detail cd ON cd.audience = pk_course_nature_by_calendar.audience AND cd.course_label_id = pk_course_nature_by_calendar.course_label_id AND cd.calendar_id = pk_course_nature_by_calendar.calendar_id").
+		Where("pk_course_nature_by_calendar.audience = ?", AudienceUndergraduate).
+		Where("pk_course_nature_by_calendar.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 		Where("pk_course_nature_by_calendar.course_label_name IN ?", labels).
 		Order("pk_course_nature_by_calendar.course_label_id DESC").
 		Scan(&options).Error
@@ -168,10 +197,11 @@ func ListCourseNatureRowsByLabelIds(calendarId int, ids []int) ([]CourseNatureRo
 				effectiveCourseCodeSQL+` AS course_code, pk_course_detail.course_name,
 				 pk_course_detail.course_label_id, pk_course_detail.credit,
 				 f.faculty_i18n, n.course_label_name, ca.campus_i18n`).
-			Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-			Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
-			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-			Where("pk_course_detail.calendar_id = ?", calendarId).
+			Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.audience = pk_course_detail.audience AND n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+			Joins("LEFT JOIN pk_faculty f ON f.audience = pk_course_detail.audience AND f.faculty = pk_course_detail.faculty").
+			Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+			Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+			Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 			Where("pk_course_detail.course_label_id IN ?", part).
 			Order("pk_course_detail.course_label_id DESC, " + effectiveCourseCodeSQL + " ASC").
 			Scan(&batch).Error; err != nil {
@@ -208,7 +238,11 @@ func chunkInt(arr []int, size int) [][]int {
 // ListAllCalendars 返回全部学期（calendarId 倒序），供学期名/中文标记归一化反查
 // （course-pk-sync / course-materialize 的学期参数解析，双向 NormalizeTermLabel 匹配）。
 func ListAllCalendars() ([]CalendarEntity, error) {
+	return ListAllCalendarsForAudience(AudienceUndergraduate)
+}
+
+func ListAllCalendarsForAudience(audience Audience) ([]CalendarEntity, error) {
 	var entities []CalendarEntity
-	err := calendarBuilder().Order("calendar_id DESC").Find(&entities).Error
+	err := calendarBuilder().Where("audience = ?", audience).Order("calendar_id DESC").Find(&entities).Error
 	return entities, err
 }
