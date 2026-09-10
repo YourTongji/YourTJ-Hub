@@ -3,7 +3,7 @@
 //   无需引入 React 运行时；输出 SVG data URI，匿名/历史评价的占位头像在导出图中
 //   同样可用，无跨域问题）
 // - 评价短码（sqid）：与 serverless 后端 sqids@0.3.0 同算法（自定义字母表 + minLength 4），
-//   列表/分享卡展示的 #XXXX 编号两端一致
+//   详情页列表/分享卡与管理端（课程管理评价 tab、课评审核举报队列）展示的 #XXXX 编号三端一致
 // - 导出前的图片内联（html-to-image 不支持跨域资源）：站内同源直接 fetch，
 //   跨域（CDN 前缀）走 wsrv.nl 图像代理重取为 data URL
 
@@ -126,7 +126,7 @@ export function reviewAvatarSrc(author: ReviewAvatarAuthor, reviewId: number, si
 
 // —— 评价短码（sqid）——
 
-const REVIEW_SQID_ALPHABET = 'bcdfghjkmnpqrstvwxyzBCDFGHJKMNPQRSTVWXYZ23456789'
+export const REVIEW_SQID_ALPHABET = 'bcdfghjkmnpqrstvwxyzBCDFGHJKMNPQRSTVWXYZ23456789'
 const reviewSqids = new Sqids({ alphabet: REVIEW_SQID_ALPHABET, minLength: 4 })
 
 export function reviewSqid(reviewId: number): string {
