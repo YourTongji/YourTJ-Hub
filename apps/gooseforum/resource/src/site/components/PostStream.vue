@@ -827,9 +827,9 @@ function qaChainRootId(post: PostPayload): number | null {
   }
   return current?.id ?? null
 }
-// 视图模式：扁平/树状胶囊切换。默认按内容类型（提问=树状，其余=扁平），
-// 用户手动选择按内容类型独立记忆（localStorage，与 home-feed-mode 同一客户端模式）。
-const { viewMode: postViewMode, setViewMode: setPostViewMode } = usePostViewMode(() => props.contentType)
+// 视图模式：扁平/树状胶囊切换。全局单值浏览器偏好（issue #580）：默认扁平，
+// 任一话题切换一次即全站生效并持久化（localStorage，与 home-feed-mode 同一客户端模式）。
+const { viewMode: postViewMode, setViewMode: setPostViewMode } = usePostViewMode()
 
 // 树状视图：真实父子嵌套的回复森林。兜底为根节点平铺（无目标/回复首楼/目标未加载/
 // 祖先链成环或超限/forceFlat），保证内容零丢失；Wiki 页沿用 sortedPosts 过滤结果。
