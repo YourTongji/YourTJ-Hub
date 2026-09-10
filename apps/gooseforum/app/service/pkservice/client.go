@@ -15,12 +15,15 @@ import (
 
 // 与上游一致的一系统请求常量。
 const (
-	onesystemManualArrangeURL = "https://1.tongji.edu.cn/api/arrangementservice/manualArrange/page?profile"
-	onesystemReferer          = "https://1.tongji.edu.cn/taskResultQuery"
-	onesystemUserAgent        = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
-	onesystemPageSize         = 200
-	onesystemMaxAttempts      = 5
-	onesystemRequestTimeout   = 15 * time.Second
+	onesystemHost               = "https://1.tongji.edu.cn"
+	onesystemManualArrangeURL   = onesystemHost + "/api/arrangementservice/manualArrange/page?profile"
+	onesystemEnquiryCoursesPath = "/api/electionservice/student/round/allArrangementCourses"
+	onesystemEnquiryReferer     = onesystemHost + "/EnquiryOfCourses"
+	onesystemReferer            = onesystemHost + "/taskResultQuery"
+	onesystemUserAgent          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+	onesystemPageSize           = 200
+	onesystemMaxAttempts        = 5
+	onesystemRequestTimeout     = 15 * time.Second
 )
 
 var retryableHTTPStatus = map[int]bool{429: true, 500: true, 502: true, 503: true, 504: true}
@@ -71,6 +74,8 @@ type manualArrangePage struct {
 		Total_ int         `json:"total_"`
 		List   []CourseRaw `json:"list"`
 	} `json:"data"`
+	// PageCount 是研究生双层查询合并后的真实最大页数；本科沿用 Data.Total_ 计算。
+	PageCount int `json:"-"`
 }
 
 // onesystemCode 解析一系统响应信封的 code 字段：0 或 200 表示成功，其他表示业务/鉴权失败。
@@ -107,24 +112,40 @@ func (c *onesystemCode) UnmarshalJSON(b []byte) error {
 // onesystemClient 一系统 manualArrange 分页抓取客户端。忽略环境代理（等价上游 trust_env=False），
 // 每页超时 15s，可重试状态（429/500/502/503/504）退避重试至多 5 次。
 type onesystemClient struct {
-	baseURL     string
-	httpClient  *http.Client
-	maxAttempts int
-	backoff     func(attempt int) time.Duration
-	sleep       func(time.Duration)
+	baseURL              string
+	audience             Audience
+	graduateEndpointPath string
+	graduateSeen         map[uint64]struct{}
+	httpClient           *http.Client
+	maxAttempts          int
+	backoff              func(attempt int) time.Duration
+	sleep                func(time.Duration)
 }
 
 // newOnesystemClient 构造默认客户端；测试可通过字段覆盖 baseURL/backoff/sleep。
 func newOnesystemClient() *onesystemClient {
+	return newOnesystemClientForAudience(AudienceUndergraduate)
+}
+
+// newOnesystemClientForAudience 构造按受众选择上游语义的客户端。本科保留旧接口，
+// 研究生改走 EnquiryOfCourses 的 allArrangementCourses，并以 X-Token 鉴权。
+func newOnesystemClientForAudience(audience Audience) *onesystemClient {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil // trust_env=False：不读取 HTTP_PROXY/HTTPS_PROXY
-	return &onesystemClient{
-		baseURL:     onesystemManualArrangeURL,
-		httpClient:  &http.Client{Transport: transport, Timeout: onesystemRequestTimeout},
-		maxAttempts: onesystemMaxAttempts,
-		backoff:     func(attempt int) time.Duration { return backoffDuration(attempt) },
-		sleep:       time.Sleep,
+	client := &onesystemClient{
+		baseURL:      onesystemManualArrangeURL,
+		audience:     audience,
+		graduateSeen: make(map[uint64]struct{}),
+		httpClient:   &http.Client{Transport: transport, Timeout: onesystemRequestTimeout},
+		maxAttempts:  onesystemMaxAttempts,
+		backoff:      func(attempt int) time.Duration { return backoffDuration(attempt) },
+		sleep:        time.Sleep,
 	}
+	if audience == AudienceGraduate {
+		client.baseURL = onesystemHost
+		client.graduateEndpointPath = onesystemEnquiryCoursesPath
+	}
+	return client
 }
 
 // backoffDuration 上游 sleep(min(10s, (1+attempt*2)s))。
@@ -136,8 +157,16 @@ func backoffDuration(attempt int) time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
-// fetchPage 抓取一页。返回解析后的分页结果；非可重试 HTTP 状态返回带状态码与响应体摘要的错误（AC2）。
-func (c *onesystemClient) fetchPage(ctx context.Context, cookie string, calendarId, pageNum, pageSize int) (*manualArrangePage, error) {
+// fetchPage 抓取一页。研究生上游需要分别查询硕士（4）和博士（6），再合并去重；
+// 非可重试 HTTP 状态返回带状态码与响应体摘要的错误（AC2）。
+func (c *onesystemClient) fetchPage(ctx context.Context, credential string, calendarId, pageNum, pageSize int) (*manualArrangePage, error) {
+	if c.audience == AudienceGraduate {
+		return c.fetchGraduatePage(ctx, credential, calendarId, pageNum, pageSize)
+	}
+	return c.fetchUndergraduatePage(ctx, credential, calendarId, pageNum, pageSize)
+}
+
+func (c *onesystemClient) fetchUndergraduatePage(ctx context.Context, cookie string, calendarId, pageNum, pageSize int) (*manualArrangePage, error) {
 	payload := map[string]any{
 		"condition": map[string]any{
 			"trainingLevel":     "",
@@ -156,11 +185,62 @@ func (c *onesystemClient) fetchPage(ctx context.Context, cookie string, calendar
 		return nil, fmt.Errorf("一系统请求序列化失败: %w", err)
 	}
 
+	return c.fetchWithRetry(ctx, cookie, body)
+}
+
+// fetchGraduatePage 查询 allArrangementCourses 的研究生培养层次。接口的 trainingLevel
+// 不是可省略的全量开关，因此硕士/博士各请求一次；同一教学班可能同时出现在两层结果中，
+// 按上游教学班 ID 去重，避免 rowsWritten 和后续关联重复计数。
+func (c *onesystemClient) fetchGraduatePage(ctx context.Context, token string, calendarId, pageNum, pageSize int) (*manualArrangePage, error) {
+	if c.graduateSeen == nil {
+		c.graduateSeen = make(map[uint64]struct{})
+	}
+	merged := &manualArrangePage{}
+	for _, level := range []string{"4", "6"} {
+		payload := map[string]any{
+			"condition": map[string]any{
+				"calendarId":     strconv.Itoa(calendarId),
+				"newCourseCode":  "",
+				"teachClassCode": "",
+				"courseName":     "",
+				"teacherName":    "",
+				"faculty":        "",
+				"nature":         "",
+				"campu":          "",
+				"trainingLevel":  level,
+				"formLearning":   "",
+			},
+			"pageNum_":  pageNum,
+			"pageSize_": pageSize,
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("一系统研究生请求序列化失败: %w", err)
+		}
+
+		page, err := c.fetchWithRetry(ctx, token, body)
+		if err != nil {
+			return nil, err
+		}
+		pages := 1
+		if page.Data.Total_ > 0 {
+			pages = (page.Data.Total_ + pageSize - 1) / pageSize
+		}
+		if pages > merged.PageCount {
+			merged.PageCount = pages
+		}
+		merged.Data.Total_ += page.Data.Total_
+		merged.Data.List = appendUniqueCourses(merged.Data.List, page.Data.List, c.graduateSeen)
+	}
+	return merged, nil
+}
+
+func (c *onesystemClient) fetchWithRetry(ctx context.Context, credential string, body []byte) (*manualArrangePage, error) {
 	var lastErr error
 	attempts := 0
 	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
 		attempts = attempt
-		page, retryable, err := c.tryFetch(ctx, cookie, body)
+		page, retryable, err := c.tryFetch(ctx, credential, body)
 		if err == nil {
 			return page, nil
 		}
@@ -173,16 +253,44 @@ func (c *onesystemClient) fetchPage(ctx context.Context, cookie string, calendar
 	return nil, fmt.Errorf("一系统请求失败（尝试 %d 次后失败）: %w", attempts, lastErr)
 }
 
+func appendUniqueCourses(dst []CourseRaw, src []CourseRaw, seen map[uint64]struct{}) []CourseRaw {
+	for _, course := range src {
+		if course.Id == nil {
+			dst = append(dst, course)
+			continue
+		}
+		id := *course.Id
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		dst = append(dst, course)
+	}
+	return dst
+}
+
 // tryFetch 执行单次 POST；返回 (page, 是否可重试, 错误)。
-func (c *onesystemClient) tryFetch(ctx context.Context, cookie string, body []byte) (*manualArrangePage, bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
+func (c *onesystemClient) tryFetch(ctx context.Context, credential string, body []byte) (*manualArrangePage, bool, error) {
+	requestURL := c.baseURL
+	if c.graduateEndpointPath != "" {
+		requestURL = strings.TrimRight(requestURL, "/") + c.graduateEndpointPath
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, false, fmt.Errorf("构造请求失败: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", onesystemUserAgent)
-	req.Header.Set("Referer", onesystemReferer)
-	req.Header.Set("Cookie", cookie)
+	if c.audience == AudienceGraduate {
+		req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+		req.Header.Set("X-Token", credential)
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
+		req.Header.Set("Accept", "application/json, text/plain, */*")
+		req.Header.Set("Referer", onesystemEnquiryReferer)
+	} else {
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Referer", onesystemReferer)
+		req.Header.Set("Cookie", credential)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

@@ -4057,9 +4057,13 @@ export interface paths {
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Exposure boundary: the response contains only
-         *     configured-state booleans — the stored ciphertext and plaintext cookies
-         *     are never returned. `cookieConfigured` remains the legacy alias for the
-         *     undergraduate credential. JSON binding is lenient: query string and
+         *     configured-state booleans — the stored ciphertext and plaintext
+         *     credentials are never returned. Undergraduate synchronization uses the
+         *     legacy `manualArrange/page?profile` endpoint and a Cookie header; graduate
+         *     synchronization uses `EnquiryOfCourses`/`allArrangementCourses` with an
+         *     X-Token and separate master/PhD queries. `cookieConfigured` remains the
+         *     legacy alias for the undergraduate credential, while
+         *     `xTokenConfiguredGraduate` reports the new graduate credential. JSON binding is lenient: query string and
          *     body are ignored.
          */
         get: operations["adminGetOnesystemSettings"];
@@ -4084,14 +4088,15 @@ export interface paths {
          * Store or clear the 一系统 sync credential
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. The
-         *     submitted plaintext cookies are trimmed, encrypted with
+         *     submitted plaintext credentials are trimmed, encrypted with
          *     purpose-scoped AES-256-GCM keys derived from `app.signingKey`, and only
          *     ciphertext is persisted (plaintext exists only for the duration of the
          *     request). Omitted audience-specific fields retain their current values;
          *     an empty/blank audience-specific field clears only that credential.
          *     The deprecated `cookie` field is accepted as the undergraduate value
-         *     only when neither audience-specific field is supplied. A cookie longer
-         *     than 4096 characters fails request validation with HTTP 200 and
+         *     only when neither audience-specific field is supplied. The deprecated
+         *     `graduateCookie` field is accepted as a graduate X-Token alias. A credential
+         *     longer than 4096 characters fails request validation with HTTP 200 and
          *     `common.request.invalidParams`. If encryption itself fails
          *     (signingKey misconfigured) the response is a generic HTTP 200 `code: 1`
          *     failure with no `messageCode` — the internal error detail is not
@@ -8848,8 +8853,10 @@ export interface components {
             cookieConfigured: boolean;
             /** @description Whether the encrypted undergraduate 一系统 cookie is stored. */
             cookieConfiguredUndergraduate: boolean;
-            /** @description Whether the encrypted graduate 一系统 cookie is stored. */
+            /** @description Legacy configured-state alias for the graduate 一系统 credential. */
             cookieConfiguredGraduate: boolean;
+            /** @description Whether the encrypted graduate 一系统 X-Token is stored. */
+            xTokenConfiguredGraduate: boolean;
         };
         AdminOnesystemSettingsResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminOnesystemSettingsResult"];
@@ -8857,8 +8864,13 @@ export interface components {
         AdminSaveOnesystemSettingsRequest: {
             /** @description Plaintext undergraduate 一系统 Cookie; omitted keeps the current value, blank clears only the undergraduate credential. */
             undergraduateCookie?: string;
-            /** @description Plaintext graduate 一系统 Cookie; omitted keeps the current value, blank clears only the graduate credential. */
+            /**
+             * @deprecated
+             * @description Legacy alias for graduateXToken; the value is treated as an X-Token, not sent as a Cookie header.
+             */
             graduateCookie?: string;
+            /** @description Plaintext graduate 一系统 X-Token (sessionStorage `sessionid`); omitted keeps the current value, blank clears only the graduate credential. */
+            graduateXToken?: string;
             /**
              * @deprecated
              * @description Legacy alias for undergraduateCookie. Used only when neither audience-specific field is supplied.
