@@ -11,6 +11,7 @@ const courseNatureByCalendarTableName = "pk_course_nature_by_calendar"
 
 // CourseNatureEntity 一系统课程性质字典（courseLabelId → 名称）。
 type CourseNatureEntity struct {
+	Audience        string         `gorm:"primaryKey;column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_course_nature_audience;" json:"audience"`
 	CourseLabelId   uint64         `gorm:"primaryKey;column:course_label_id;not null;" json:"courseLabelId"`
 	CourseLabelName string         `gorm:"column:course_label_name;type:varchar(128);not null;default:'';" json:"courseLabelName"`
 	CalendarId      uint64         `gorm:"column:calendar_id;not null;default:0;" json:"calendarId"`
@@ -27,6 +28,7 @@ func (itself *CourseNatureEntity) TableName() string {
 
 // CourseNatureByCalendarEntity 课程性质按学期快照：course-pk-sync 按学期删除重建，保留历史不覆盖全局字典。
 type CourseNatureByCalendarEntity struct {
+	Audience        string     `gorm:"primaryKey;column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_course_nature_calendar_audience;" json:"audience"`
 	CalendarId      uint64     `gorm:"primaryKey;column:calendar_id;not null;" json:"calendarId"`
 	CourseLabelId   uint64     `gorm:"primaryKey;column:course_label_id;not null;" json:"courseLabelId"`
 	CourseLabelName string     `gorm:"column:course_label_name;type:varchar(128);not null;default:'';" json:"courseLabelName"`

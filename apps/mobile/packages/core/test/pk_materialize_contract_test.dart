@@ -5,6 +5,10 @@ import 'package:core/src/gen/pk.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('materialization request preserves the selected audience', () {
+    expect(const PkMaterializeRequest(term: '121', audience: 'graduate').toJson(), {'term': '121', 'audience': 'graduate'});
+    expect(const PkMaterializeRequest(term: '121').toJson()['audience'], 'undergraduate');
+  });
   test('materialization result matches the shared admin fixture', () {
     final file = File(
       '../../../../packages/api-contract/fixtures/pk-materialize-success.json',

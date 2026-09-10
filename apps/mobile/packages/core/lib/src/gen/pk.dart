@@ -617,3 +617,11 @@ class PkMaterializeResult {
         offeringsUpdated: (json['offeringsUpdated'] as num).toInt(),
       );
 }
+
+/// SiteManager-only local materialization request; the audience defaults to undergraduate.
+class PkMaterializeRequest {
+  const PkMaterializeRequest({required this.term, this.audience = 'undergraduate'});
+  final String term;
+  final String audience;
+  Map<String, dynamic> toJson() => {'term': term, 'audience': audience};
+}

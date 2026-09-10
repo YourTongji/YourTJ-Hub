@@ -19,7 +19,7 @@ for (const lang of ['zh', 'en', 'ja', 'de']) {
       const page = await browser.newPage({ viewport: { width, height: 800 } })
       try {
         await page.route('**/api/admin/pk/materialize-calendar', route => {
-          assert.deepEqual(route.request().postDataJSON(), { term: '122' })
+          assert.deepEqual(route.request().postDataJSON(), { term: '122', audience: 'undergraduate' })
           return route.fulfill({ json: { code: 0, result: { calendarId: 122, coursesInserted: 1, coursesUpdated: 3, instructorsInserted: 1, aliasesInserted: 2, aliasesSkipped: 0, offeringsInserted: 1, offeringsUpdated: 3 } } })
         })
         await page.goto(`${origin}/assets/test/fixtures/browser/course-materialize.html?lang=${lang}`)

@@ -8,6 +8,7 @@ const majorCourseTableName = "pk_major_course"
 
 // MajorCourseEntity 专业×教学班关联（一系统 majorList × teachingClassId）。
 type MajorCourseEntity struct {
+	Audience      string     `gorm:"primaryKey;column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_major_course_audience;" json:"audience"`
 	MajorId       uint64     `gorm:"primaryKey;column:major_id;not null;" json:"majorId"`
 	CourseId      uint64     `gorm:"primaryKey;column:course_id;not null;index:idx_pk_major_course_course;" json:"courseId"`
 	SchemaVersion string     `gorm:"column:schema_version;type:varchar(64);not null;default:'';" json:"-"`

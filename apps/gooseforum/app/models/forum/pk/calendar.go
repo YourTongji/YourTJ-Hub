@@ -12,6 +12,8 @@ const calendarTableName = "pk_calendar"
 // calendar_id_i18n 是人类可读学期标记（如 "2025-2026-1"），course-pk-sync 用它做 term↔calendar 解析。
 type CalendarEntity struct {
 	CalendarId     uint64 `gorm:"primaryKey;column:calendar_id;not null;" json:"calendarId"`
+	Audience       string `gorm:"column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_calendar_audience;" json:"audience"`
+	ExternalId     uint64 `gorm:"column:external_id;not null;default:0;index:idx_pk_calendar_external_id;" json:"-"`
 	CalendarIdI18n string `gorm:"column:calendar_id_i18n;type:varchar(64);not null;default:'';index:idx_pk_calendar_i18n;" json:"calendarIdI18n"`
 	// 学期起止日期（可选，纯日期）：一系统 manualArrange 数据不含学期日期，
 	// 由部署 config [pk.semester_dates] 维护，course-pk-sync 命中 calendar_id_i18n 时写入。

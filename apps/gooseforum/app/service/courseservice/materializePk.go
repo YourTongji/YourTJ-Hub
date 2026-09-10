@@ -75,27 +75,38 @@ type pkCourseAgg struct {
 //
 // 边界规则：课程域 owner（本包）读取 PK 域数据（只读），写入本域表。
 func MaterializeFromPk(ctx context.Context, calendarIds []uint64) (*MaterializeReport, error) {
+	return MaterializeFromPkForAudience(ctx, pk.AudienceUndergraduate, calendarIds)
+}
+
+// MaterializeFromPkForAudience 将指定受众的统一 PK 表数据物化到课程目录。
+// 受众只影响 PK 源快照；课程目录继续复用 canonical course，并按 scoped
+// teaching class id 生成互不覆盖的 offering。
+func MaterializeFromPkForAudience(ctx context.Context, audience pk.Audience, calendarIds []uint64) (*MaterializeReport, error) {
 	report := &MaterializeReport{}
 	if len(calendarIds) == 0 {
 		return report, nil
 	}
 
-	return materializeFromPk(ctx, calendarIds, nil)
+	return materializeFromPk(ctx, audience, calendarIds, nil)
 }
 
 // MaterializeFromPkWithLease keeps the sync lease fenced until catalog writes commit.
 func MaterializeFromPkWithLease(ctx context.Context, calendarIds []uint64, claim *pk.FetchLogEntity) (*MaterializeReport, error) {
-	return materializeFromPk(ctx, calendarIds, claim)
+	audience := pk.AudienceUndergraduate
+	if claim != nil {
+		audience = pk.DefaultAudience(claim.Audience)
+	}
+	return materializeFromPk(ctx, audience, calendarIds, claim)
 }
 
-func materializeFromPk(ctx context.Context, calendarIds []uint64, claim *pk.FetchLogEntity) (*MaterializeReport, error) {
+func materializeFromPk(ctx context.Context, audience pk.Audience, calendarIds []uint64, claim *pk.FetchLogEntity) (*MaterializeReport, error) {
 	report := &MaterializeReport{}
 	termCache := map[uint64]uint64{}
 	err := db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := pk.ValidateMaterializeSnapshotTx(tx, calendarIds, claim); err != nil {
+		if err := pk.ValidateMaterializeSnapshotTx(tx, audience, calendarIds, claim); err != nil {
 			return err
 		}
-		aggs, err := aggregatePkCourses(tx, calendarIds)
+		aggs, err := aggregatePkCourses(tx, audience, calendarIds)
 		if err != nil {
 			return err
 		}
@@ -118,7 +129,7 @@ func materializeFromPk(ctx context.Context, calendarIds []uint64, claim *pk.Fetc
 				}
 			}
 			for _, offering := range agg.ClassOfferings {
-				if err := upsertPkOfferingTx(tx, offeringCourseId, offering, instructorCache, termCache, report); err != nil {
+				if err := upsertPkOfferingForAudienceTx(tx, audience, offeringCourseId, offering, instructorCache, termCache, report); err != nil {
 					return err
 				}
 			}
@@ -142,11 +153,11 @@ func materializeFromPk(ctx context.Context, calendarIds []uint64, claim *pk.Fetc
 // 聚合键含院系消歧：无工号身份教师按 (归一姓名, 院系) 分组，跨院系同名教师
 // 不会被并入同组（review Should）；offering 的 Faculty 取该班自身院系。
 // 无教师教学班归入 (code, "") 组（teacher_id=0 卡）。
-func aggregatePkCourses(tx *gorm.DB, calendarIds []uint64) ([]*pkCourseAgg, error) {
+func aggregatePkCourses(tx *gorm.DB, audience pk.Audience, calendarIds []uint64) ([]*pkCourseAgg, error) {
 	var details []pk.CourseDetailEntity
 	var allTeachers []pk.TeacherEntity
 	for _, cid := range calendarIds {
-		rows, err := pk.ListCourseDetailsByCalendarTx(tx, cid)
+		rows, err := pk.ListCourseDetailsByAudienceCalendarTx(tx, audience, cid)
 		if err != nil {
 			return nil, err
 		}
@@ -158,14 +169,14 @@ func aggregatePkCourses(tx *gorm.DB, calendarIds []uint64) ([]*pkCourseAgg, erro
 			classIds = append(classIds, d.Id)
 		}
 		if len(classIds) > 0 {
-			teachers, err := pk.ListTeachersByClassIdsTx(tx, classIds)
+			teachers, err := pk.ListTeachersByAudienceClassIdsTx(tx, audience, classIds)
 			if err != nil {
 				return nil, err
 			}
 			allTeachers = teachers
 		}
 	}
-	faculties, err := pk.ListFacultiesTx(tx)
+	faculties, err := pk.ListFacultiesForAudienceTx(tx, audience)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +184,7 @@ func aggregatePkCourses(tx *gorm.DB, calendarIds []uint64) ([]*pkCourseAgg, erro
 	for _, f := range faculties {
 		facultyI18n[f.Faculty] = f.FacultyI18n
 	}
-	campuses, err := pk.ListCampusesTx(tx)
+	campuses, err := pk.ListCampusesForAudienceTx(tx, audience)
 	if err != nil {
 		return nil, err
 	}
@@ -527,13 +538,17 @@ func createPkInstructorTx(tx *gorm.DB, ref pkTeacherRef, department string, repo
 // 缓存——物化单次运行内同一 calendar 只解析一次（review Should：逐班重复查询在
 // 整学期数万教学班量级下拉长事务持锁时间）。
 func resolveOfferingTermIdTx(tx *gorm.DB, calendarId uint64, termCache map[uint64]uint64) (uint64, error) {
+	return resolveOfferingTermIdForAudienceTx(tx, pk.AudienceUndergraduate, calendarId, termCache)
+}
+
+func resolveOfferingTermIdForAudienceTx(tx *gorm.DB, audience pk.Audience, calendarId uint64, termCache map[uint64]uint64) (uint64, error) {
 	if calendarId == 0 {
 		return 0, nil
 	}
 	if termId, ok := termCache[calendarId]; ok {
 		return termId, nil
 	}
-	cal, err := pk.GetCalendarByIDTx(tx, calendarId)
+	cal, err := pk.GetCalendarByAudienceIDTx(tx, audience, calendarId)
 	if err != nil {
 		// calendar 行缺失/查询失败视为数据不一致：显式报错，不静默写 term_id=0。
 		return 0, fmt.Errorf("materialize: lookup calendar %d: %w", calendarId, err)
@@ -566,6 +581,10 @@ func resolveOfferingTermIdTx(tx *gorm.DB, calendarId uint64, termCache map[uint6
 // resolveOfferingTermIdTx）；不写 status（防止复活管理员隐藏的 offering）。教师 = 该班
 // 全量教师（offering_instructor 全量替换，复用 importer 的 replaceOfferingInstructorsTx）。
 func upsertPkOfferingTx(tx *gorm.DB, courseId uint64, offering *pkOfferingAgg, instructorCache map[string]uint64, termCache map[uint64]uint64, report *MaterializeReport) error {
+	return upsertPkOfferingForAudienceTx(tx, pk.AudienceUndergraduate, courseId, offering, instructorCache, termCache, report)
+}
+
+func upsertPkOfferingForAudienceTx(tx *gorm.DB, audience pk.Audience, courseId uint64, offering *pkOfferingAgg, instructorCache map[string]uint64, termCache map[uint64]uint64, report *MaterializeReport) error {
 	// 先对齐该班教师（填充 instructorCache），再解析教师本地 id。
 	if err := upsertPkInstructorsTx(tx, offering.TeacherRefs, offering.Faculty, instructorCache, report); err != nil {
 		return err
@@ -580,7 +599,7 @@ func upsertPkOfferingTx(tx *gorm.DB, courseId uint64, offering *pkOfferingAgg, i
 	}
 	// term 映射：calendarId → calendar_id_i18n → course_term.code → term id。
 	// 解析结果按 calendarId 缓存（termCache），错误显式上抛。
-	termId, err := resolveOfferingTermIdTx(tx, offering.CalendarId, termCache)
+	termId, err := resolveOfferingTermIdForAudienceTx(tx, audience, offering.CalendarId, termCache)
 	if err != nil {
 		return err
 	}

@@ -33,13 +33,14 @@ func ListMajorCourseRows(calendarId int, code string, grade int) ([]MajorCourseR
 			 pk_course_detail.teaching_language, pk_course_detail.calendar_id,
 			 pk_major.grade, f.faculty_i18n, ca.campus_i18n,
 			 n.course_label_name, l.teaching_language_i18n`).
-		Joins("JOIN pk_major_course mac ON mac.course_id = pk_course_detail.id").
-		Joins("JOIN pk_major ON pk_major.id = mac.major_id").
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language").
-		Where("pk_course_detail.calendar_id = ?", calendarId).
+		Joins("JOIN pk_major_course mac ON mac.audience = pk_course_detail.audience AND mac.course_id = pk_course_detail.id").
+		Joins("JOIN pk_major ON pk_major.audience = mac.audience AND pk_major.id = mac.major_id").
+		Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+		Joins("LEFT JOIN pk_faculty f ON f.audience = pk_course_detail.audience AND f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.audience = pk_course_detail.audience AND n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_language l ON l.audience = pk_course_detail.audience AND l.teaching_language = pk_course_detail.teaching_language").
+		Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 		Where("pk_major.code = ?", code).
 		Where("pk_major.grade <= ?", grade).
 		Order(effectiveCourseCodeSQL + " ASC, " + effectiveClassCodeSQL + " ASC").
@@ -99,9 +100,10 @@ func ListCourseDetailRowsByCodes(calendarId int, codes []string) ([]CourseDetail
 				 pk_course_detail.credit, pk_course_detail.campus,
 				 pk_course_detail.teaching_language, pk_course_detail.faculty,
 				 pk_course_detail.calendar_id, ca.campus_i18n, l.teaching_language_i18n`).
-			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-			Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language").
-			Where("pk_course_detail.calendar_id = ?", calendarId).
+			Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+			Joins("LEFT JOIN pk_language l ON l.audience = pk_course_detail.audience AND l.teaching_language = pk_course_detail.teaching_language").
+			Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+			Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 			Where("("+effectiveCourseCodeSQL+" IN ? OR pk_course_detail.course_code IN ?)", part, part).
 			Order(effectiveCourseCodeSQL + " ASC, " + effectiveClassCodeSQL + " ASC").
 			Scan(&batch).Error; err != nil {
@@ -142,11 +144,12 @@ func ListAllCourseDetailRowsByCodes(calendarId int, codes []string) ([]MajorCour
 				 pk_course_detail.credit, pk_course_detail.campus, pk_course_detail.faculty,
 				 pk_course_detail.teaching_language, pk_course_detail.calendar_id,
 				 f.faculty_i18n, ca.campus_i18n, n.course_label_name, l.teaching_language_i18n`).
-			Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
-			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-			Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-			Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language").
-			Where("pk_course_detail.calendar_id = ?", calendarId).
+			Joins("LEFT JOIN pk_faculty f ON f.audience = pk_course_detail.audience AND f.faculty = pk_course_detail.faculty").
+			Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+			Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.audience = pk_course_detail.audience AND n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+			Joins("LEFT JOIN pk_language l ON l.audience = pk_course_detail.audience AND l.teaching_language = pk_course_detail.teaching_language").
+			Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+			Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(calendarId))).
 			Where("("+effectiveCourseCodeSQL+" IN ? OR pk_course_detail.course_code IN ?)", part, part).
 			Order(effectiveCourseCodeSQL + " ASC, " + effectiveClassCodeSQL + " ASC").
 			Scan(&batch).Error; err != nil {
@@ -171,6 +174,7 @@ func FindCourseDetailByCodeAnyCalendar(code string) (CourseDetailRow, error) {
 			 pk_course_detail.teaching_language, pk_course_detail.faculty,
 			 pk_course_detail.calendar_id, pk_course_detail.new_course_code,
 			 pk_course_detail.new_code`).
+		Where("pk_course_detail.audience = ?", AudienceUndergraduate).
 		Where("("+effectiveCourseCodeSQL+" = ? OR pk_course_detail.course_code = ?)", code, code).
 		Order("pk_course_detail.calendar_id DESC, pk_course_detail.id ASC").
 		Limit(1).
@@ -194,10 +198,11 @@ func ListClassCodesByCourseCode(courseCode string, calendarId uint64) ([]string,
 		return []string{}, nil
 	}
 	b := courseDetailBuilder().
+		Where("pk_course_detail.audience = ?", AudienceUndergraduate).
 		Where("("+effectiveCourseCodeSQL+" = ? OR pk_course_detail.course_code = ?)", code, code).
 		Where(effectiveClassCodeSQL + " <> ''")
 	if calendarId > 0 {
-		b = b.Where("pk_course_detail.calendar_id = ?", calendarId)
+		b = b.Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, calendarId))
 	}
 	var codes []string
 	err := b.Order("pk_course_detail.calendar_id DESC, pk_course_detail.id ASC").
@@ -223,11 +228,12 @@ type CourseSearchQuery struct {
 // searchCourseFilter 应用 P9 高级检索过滤条件，返回带过滤的查询（JOIN 教师行会重复，只用于过滤/DISTINCT）。
 func searchCourseFilter(q CourseSearchQuery) *gorm.DB {
 	b := courseDetailBuilder().
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_teacher ON pk_teacher.teaching_class_id = pk_course_detail.id").
-		Where("pk_course_detail.calendar_id = ?", q.CalendarId)
+		Joins("LEFT JOIN pk_faculty f ON f.audience = pk_course_detail.audience AND f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.audience = pk_course_detail.audience AND ca.campus = pk_course_detail.campus").
+		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.audience = pk_course_detail.audience AND n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_teacher ON pk_teacher.audience = pk_course_detail.audience AND pk_teacher.teaching_class_id = pk_course_detail.id").
+		Where("pk_course_detail.audience = ?", AudienceUndergraduate).
+		Where("pk_course_detail.calendar_id = ?", ScopeID(AudienceUndergraduate, uint64(q.CalendarId)))
 	if q.CourseName != "" {
 		b = b.Where("pk_course_detail.course_name LIKE ?", "%"+q.CourseName+"%")
 	}

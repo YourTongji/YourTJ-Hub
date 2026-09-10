@@ -2,7 +2,8 @@
   "result": {
     "started": true,
     "calendarId": 121,
-    "term": "121"
+    "term": "121",
+    "audience": "undergraduate"
   },
   "code": 0
 }

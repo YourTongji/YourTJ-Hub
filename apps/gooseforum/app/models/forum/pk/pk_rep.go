@@ -6,7 +6,6 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -18,18 +17,28 @@ var ErrFetchLogLeaseLost = errors.New("pk: fetch log lease lost")
 
 // GetCalendarIdByI18n 按学期标记（如 "2025-2026-1"）反查一系统 calendarId。
 func GetCalendarIdByI18n(i18n string) (uint64, bool) {
+	return GetCalendarIdByAudienceI18n(AudienceUndergraduate, i18n)
+}
+
+// GetCalendarIdByAudienceI18n 按受众反查上游 calendar id，并返回外部 id。
+func GetCalendarIdByAudienceI18n(audience Audience, i18n string) (uint64, bool) {
 	var entity CalendarEntity
-	err := calendarBuilder().Where(queryopt.Eq("calendar_id_i18n", i18n)).First(&entity).Error
+	err := calendarBuilder().Where("audience = ? AND calendar_id_i18n = ?", audience, i18n).First(&entity).Error
 	if err != nil || entity.CalendarId == 0 {
 		return 0, false
 	}
-	return entity.CalendarId, true
+	return ExternalID(audience, entity.CalendarId), true
 }
 
 // GetCalendarByID 按 calendarId 返回学期实体（P13 学期 → course_term 映射用）。
 func GetCalendarByID(id uint64) (CalendarEntity, error) {
+	return GetCalendarByAudienceID(AudienceUndergraduate, id)
+}
+
+// GetCalendarByAudienceID 按受众和上游 calendar id 返回学期实体。
+func GetCalendarByAudienceID(audience Audience, id uint64) (CalendarEntity, error) {
 	var entity CalendarEntity
-	err := calendarBuilder().Where(queryopt.Eq("calendar_id", id)).First(&entity).Error
+	err := calendarBuilder().Where("audience = ? AND calendar_id = ?", audience, ScopeID(audience, id)).First(&entity).Error
 	return entity, err
 }
 
@@ -37,15 +46,24 @@ func GetCalendarByID(id uint64) (CalendarEntity, error) {
 // 物化链在事务中解析 term 时必须使用本函数：全局句柄在 SQLite 单连接池下会与事务
 // 互相等待（死锁）。
 func GetCalendarByIDTx(tx *gorm.DB, id uint64) (CalendarEntity, error) {
+	return GetCalendarByAudienceIDTx(tx, AudienceUndergraduate, id)
+}
+
+// GetCalendarByAudienceIDTx 事务内按受众和上游 calendar id 返回学期实体。
+func GetCalendarByAudienceIDTx(tx *gorm.DB, audience Audience, id uint64) (CalendarEntity, error) {
 	var entity CalendarEntity
-	err := tx.Table(calendarTableName).Where(queryopt.Eq("calendar_id", id)).First(&entity).Error
+	err := tx.Table(calendarTableName).Where("audience = ? AND calendar_id = ?", audience, ScopeID(audience, id)).First(&entity).Error
 	return entity, err
 }
 
 // LatestFetchLogByCalendar 返回某学期最近一次同步日志（按 id 倒序取最新）。
 func LatestFetchLogByCalendar(calendarId uint64) (FetchLogEntity, bool) {
+	return LatestFetchLogByAudienceCalendar(AudienceUndergraduate, calendarId)
+}
+
+func LatestFetchLogByAudienceCalendar(audience Audience, calendarId uint64) (FetchLogEntity, bool) {
 	var entity FetchLogEntity
-	err := fetchLogBuilder().Where(queryopt.Eq("calendar_id", calendarId)).Order("id DESC").First(&entity).Error
+	err := fetchLogBuilder().Where("audience = ? AND calendar_id = ?", audience, ScopeID(audience, calendarId)).Order("id DESC").First(&entity).Error
 	if err != nil {
 		return FetchLogEntity{}, false
 	}
@@ -56,10 +74,20 @@ func LatestFetchLogByCalendar(calendarId uint64) (FetchLogEntity, bool) {
 // 新建即占用 running_key 唯一索引（running_key=calendar_id），兜底「两进程同时读不到 running、
 // 各自 Create」的 TOCTOU 竞态（见 FetchLogEntity 注释）。
 func CreateFetchLog(calendarId uint64) (*FetchLogEntity, error) {
+	return CreateFetchLogForAudience(AudienceUndergraduate, calendarId)
+}
+
+// CreateFetchLogForAudience 为指定受众创建同步日志，日志和 running key 与本科隔离。
+func CreateFetchLogForAudience(audience Audience, calendarId uint64) (*FetchLogEntity, error) {
+	if !audience.Valid() || !ValidExternalID(calendarId) {
+		return nil, fmt.Errorf("invalid audience or calendar ID")
+	}
 	now := time.Now()
+	scopedCalendarId := ScopeID(audience, calendarId)
 	entity := &FetchLogEntity{
-		CalendarId:    calendarId,
-		RunningKey:    &calendarId,
+		Audience:      string(audience),
+		CalendarId:    scopedCalendarId,
+		RunningKey:    &scopedCalendarId,
 		Status:        FetchStatusRunning,
 		StartedAt:     &now,
 		SchemaVersion: PKDataSchemaVersion,
@@ -157,11 +185,17 @@ func CleanupOldFetchLogs() error {
 // 全部硬删除：软删行仍占据主键，后续 upsert 冲突会导致"更新了不可见的行"。
 // 注意：必须用 tx 查询教学班 id，避免在事务内走独立连接造成连接池死锁。
 func DeleteCalendarDataTx(tx *gorm.DB, calendarId uint64) error {
-	if err := tx.Unscoped().Where("calendar_id = ?", calendarId).Delete(&TeacherTimeslotEntity{}).Error; err != nil {
+	return DeleteCalendarDataForAudienceTx(tx, AudienceUndergraduate, calendarId)
+}
+
+// DeleteCalendarDataForAudienceTx 只删除指定受众/学期的整组 PK 快照。
+func DeleteCalendarDataForAudienceTx(tx *gorm.DB, audience Audience, calendarId uint64) error {
+	scopedCalendarId := ScopeID(audience, calendarId)
+	if err := tx.Unscoped().Where("audience = ? AND calendar_id = ?", audience, scopedCalendarId).Delete(&TeacherTimeslotEntity{}).Error; err != nil {
 		return fmt.Errorf("pk: delete timeslots: %w", err)
 	}
 	var classIds []uint64
-	if err := tx.Table(courseDetailTableName).Where("calendar_id = ?", calendarId).Pluck("id", &classIds).Error; err != nil {
+	if err := tx.Table(courseDetailTableName).Where("audience = ? AND calendar_id = ?", audience, scopedCalendarId).Pluck("id", &classIds).Error; err != nil {
 		return fmt.Errorf("pk: list course detail ids: %w", err)
 	}
 	const chunkSize = 80
@@ -171,20 +205,20 @@ func DeleteCalendarDataTx(tx *gorm.DB, calendarId uint64) error {
 			end = len(classIds)
 		}
 		chunk := classIds[i:end]
-		if err := tx.Unscoped().Where("teaching_class_id IN ?", chunk).Delete(&TeacherEntity{}).Error; err != nil {
+		if err := tx.Unscoped().Where("audience = ? AND teaching_class_id IN ?", audience, chunk).Delete(&TeacherEntity{}).Error; err != nil {
 			return fmt.Errorf("pk: delete teachers: %w", err)
 		}
-		if err := tx.Unscoped().Where("course_id IN ?", chunk).Delete(&MajorCourseEntity{}).Error; err != nil {
+		if err := tx.Unscoped().Where("audience = ? AND course_id IN ?", audience, chunk).Delete(&MajorCourseEntity{}).Error; err != nil {
 			return fmt.Errorf("pk: delete major courses: %w", err)
 		}
 	}
-	if err := tx.Unscoped().Where("calendar_id = ?", calendarId).Delete(&CourseDetailEntity{}).Error; err != nil {
+	if err := tx.Unscoped().Where("audience = ? AND calendar_id = ?", audience, scopedCalendarId).Delete(&CourseDetailEntity{}).Error; err != nil {
 		return fmt.Errorf("pk: delete course details: %w", err)
 	}
-	if err := tx.Unscoped().Where("calendar_id = ?", calendarId).Delete(&CalendarEntity{}).Error; err != nil {
+	if err := tx.Unscoped().Where("audience = ? AND calendar_id = ?", audience, scopedCalendarId).Delete(&CalendarEntity{}).Error; err != nil {
 		return fmt.Errorf("pk: delete calendar: %w", err)
 	}
-	if err := tx.Unscoped().Where("calendar_id = ?", calendarId).Delete(&CourseNatureByCalendarEntity{}).Error; err != nil {
+	if err := tx.Unscoped().Where("audience = ? AND calendar_id = ?", audience, scopedCalendarId).Delete(&CourseNatureByCalendarEntity{}).Error; err != nil {
 		return fmt.Errorf("pk: delete course nature by calendar: %w", err)
 	}
 	return nil
@@ -192,10 +226,18 @@ func DeleteCalendarDataTx(tx *gorm.DB, calendarId uint64) error {
 
 // DeleteTeacherTimeslotsTx 事务内删除指定学期的时间片（重建前的清空步骤）。
 func DeleteTeacherTimeslotsTx(tx *gorm.DB, calendarIds []uint64) error {
+	return DeleteTeacherTimeslotsForAudienceTx(tx, AudienceUndergraduate, calendarIds)
+}
+
+func DeleteTeacherTimeslotsForAudienceTx(tx *gorm.DB, audience Audience, calendarIds []uint64) error {
 	if len(calendarIds) == 0 {
 		return nil
 	}
-	if err := tx.Where("calendar_id IN ?", calendarIds).Delete(&TeacherTimeslotEntity{}).Error; err != nil {
+	scoped := make([]uint64, 0, len(calendarIds))
+	for _, id := range calendarIds {
+		scoped = append(scoped, ScopeID(audience, id))
+	}
+	if err := tx.Where("audience = ? AND calendar_id IN ?", audience, scoped).Delete(&TeacherTimeslotEntity{}).Error; err != nil {
 		return fmt.Errorf("pk: delete timeslots for calendars: %w", err)
 	}
 	return nil
@@ -223,23 +265,50 @@ func upsertSingleKeyTx(tx *gorm.DB, rows any, pkColumn string) error {
 	onConflict := clause.OnConflict{Columns: []clause.Column{{Name: pkColumn}}, UpdateAll: true}
 	switch v := rows.(type) {
 	case []CourseDetailEntity:
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
 		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
 	case []TeacherEntity:
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
 		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
 	case []CalendarEntity:
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
 		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
 	case []LanguageEntity:
-		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
+		return chunkedUpsertTx(tx, v, clause.OnConflict{Columns: []clause.Column{{Name: "audience"}, {Name: "teaching_language"}}, UpdateAll: true}, upsertChunkSize)
 	case []CourseNatureEntity:
-		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
+		return chunkedUpsertTx(tx, v, clause.OnConflict{Columns: []clause.Column{{Name: "audience"}, {Name: "course_label_id"}}, UpdateAll: true}, upsertChunkSize)
 	case []AssessmentEntity:
-		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
+		return chunkedUpsertTx(tx, v, clause.OnConflict{Columns: []clause.Column{{Name: "audience"}, {Name: "assessment_mode"}}, UpdateAll: true}, upsertChunkSize)
 	case []CampusEntity:
-		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
+		return chunkedUpsertTx(tx, v, clause.OnConflict{Columns: []clause.Column{{Name: "audience"}, {Name: "campus"}}, UpdateAll: true}, upsertChunkSize)
 	case []FacultyEntity:
-		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
+		return chunkedUpsertTx(tx, v, clause.OnConflict{Columns: []clause.Column{{Name: "audience"}, {Name: "faculty"}}, UpdateAll: true}, upsertChunkSize)
 	case []MajorEntity:
-		return chunkedUpsertTx(tx, v, onConflict, upsertChunkSize)
+		for i := range v {
+			v[i].Audience = string(DefaultAudience(v[i].Audience))
+		}
+		return chunkedUpsertTx(tx, v, clause.OnConflict{Columns: []clause.Column{{Name: "audience"}, {Name: "name"}}, UpdateAll: true}, upsertChunkSize)
 	default:
 		return fmt.Errorf("pk: unsupported upsert type %T", rows)
 	}
@@ -290,8 +359,11 @@ func UpsertCourseNatureByCalendarTx(tx *gorm.DB, rows []CourseNatureByCalendarEn
 	if len(rows) == 0 {
 		return nil
 	}
+	for i := range rows {
+		rows[i].Audience = string(DefaultAudience(rows[i].Audience))
+	}
 	onConflict := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "calendar_id"}, {Name: "course_label_id"}},
+		Columns:   []clause.Column{{Name: "audience"}, {Name: "calendar_id"}, {Name: "course_label_id"}},
 		UpdateAll: true,
 	}
 	return chunkedUpsertTx(tx, rows, onConflict, upsertChunkSize)
@@ -331,8 +403,13 @@ func UpsertMajorsTx(tx *gorm.DB, rows []MajorEntity) error {
 
 // GetMajorIdByNameTx 事务内按 name 查找专业 id。
 func GetMajorIdByNameTx(tx *gorm.DB, name string) (uint64, error) {
+	return GetMajorIdByAudienceNameTx(tx, AudienceUndergraduate, name)
+}
+
+// GetMajorIdByAudienceNameTx 事务内按受众和名称查找专业。
+func GetMajorIdByAudienceNameTx(tx *gorm.DB, audience Audience, name string) (uint64, error) {
 	var entity MajorEntity
-	if err := tx.Where(queryopt.Eq("name", name)).First(&entity).Error; err != nil {
+	if err := tx.Where("audience = ? AND name = ?", audience, name).First(&entity).Error; err != nil {
 		return 0, err
 	}
 	return entity.Id, nil
@@ -343,8 +420,11 @@ func UpsertMajorCoursesTx(tx *gorm.DB, rows []MajorCourseEntity) error {
 	if len(rows) == 0 {
 		return nil
 	}
+	for i := range rows {
+		rows[i].Audience = string(DefaultAudience(rows[i].Audience))
+	}
 	onConflict := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "major_id"}, {Name: "course_id"}},
+		Columns:   []clause.Column{{Name: "audience"}, {Name: "major_id"}, {Name: "course_id"}},
 		DoNothing: true,
 	}
 	if err := chunkedUpsertTx(tx, rows, onConflict, upsertChunkSize); err != nil {
@@ -357,6 +437,7 @@ func UpsertMajorCoursesTx(tx *gorm.DB, rows []MajorCourseEntity) error {
 
 // TeacherTimeslotSourceRow 重建 teacher_timeslots 的源行（teacher JOIN coursedetail）。
 type TeacherTimeslotSourceRow struct {
+	Audience        string
 	CalendarId      uint64
 	TeachingClassId uint64
 	TeacherCode     string
@@ -366,12 +447,21 @@ type TeacherTimeslotSourceRow struct {
 
 // ListTeacherTimeslotSource 列出指定学期重建时间片所需的全部源行。
 func ListTeacherTimeslotSource(calendarIds []uint64) ([]TeacherTimeslotSourceRow, error) {
+	return ListTeacherTimeslotSourceForAudience(AudienceUndergraduate, calendarIds)
+}
+
+func ListTeacherTimeslotSourceForAudience(audience Audience, calendarIds []uint64) ([]TeacherTimeslotSourceRow, error) {
 	var rows []TeacherTimeslotSourceRow
-	b := db.Connect().Table(teacherTableName + " AS t").
-		Select("cd.calendar_id AS calendar_id, t.teaching_class_id AS teaching_class_id, t.teacher_code AS teacher_code, t.teacher_name AS teacher_name, t.arrange_info_text AS arrange_info_text").
-		Joins("JOIN " + courseDetailTableName + " AS cd ON cd.id = t.teaching_class_id")
+	b := db.Connect().Table(teacherTableName+" AS t").
+		Select("cd.audience AS audience, cd.calendar_id AS calendar_id, t.teaching_class_id AS teaching_class_id, t.teacher_code AS teacher_code, t.teacher_name AS teacher_name, t.arrange_info_text AS arrange_info_text").
+		Joins("JOIN "+courseDetailTableName+" AS cd ON cd.audience = t.audience AND cd.id = t.teaching_class_id").
+		Where("cd.audience = ?", audience)
 	if len(calendarIds) > 0 {
-		b = b.Where("cd.calendar_id IN ?", calendarIds)
+		scoped := make([]uint64, 0, len(calendarIds))
+		for _, id := range calendarIds {
+			scoped = append(scoped, ScopeID(audience, id))
+		}
+		b = b.Where("cd.calendar_id IN ?", scoped)
 	}
 	if err := b.Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("pk: list timeslot source: %w", err)
@@ -381,14 +471,22 @@ func ListTeacherTimeslotSource(calendarIds []uint64) ([]TeacherTimeslotSourceRow
 
 // ReplaceTeacherTimeslotsTx 事务内重建指定学期的时间片：先清空再批量 upsert（分块避免参数超限）。
 func ReplaceTeacherTimeslotsTx(tx *gorm.DB, calendarIds []uint64, rows []TeacherTimeslotEntity) error {
-	if err := DeleteTeacherTimeslotsTx(tx, calendarIds); err != nil {
+	return ReplaceTeacherTimeslotsForAudienceTx(tx, AudienceUndergraduate, calendarIds, rows)
+}
+
+// ReplaceTeacherTimeslotsForAudienceTx 重建指定受众的时间片投影。
+func ReplaceTeacherTimeslotsForAudienceTx(tx *gorm.DB, audience Audience, calendarIds []uint64, rows []TeacherTimeslotEntity) error {
+	if err := DeleteTeacherTimeslotsForAudienceTx(tx, audience, calendarIds); err != nil {
 		return err
 	}
 	if len(rows) == 0 {
 		return nil
 	}
+	for i := range rows {
+		rows[i].Audience = string(DefaultAudience(rows[i].Audience))
+	}
 	onConflict := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "calendar_id"}, {Name: "teaching_class_id"}, {Name: "occupy_day"}, {Name: "occupy_section"}, {Name: "teacher_code"}, {Name: "teacher_name"}},
+		Columns:   []clause.Column{{Name: "audience"}, {Name: "calendar_id"}, {Name: "teaching_class_id"}, {Name: "occupy_day"}, {Name: "occupy_section"}, {Name: "teacher_code"}, {Name: "teacher_name"}},
 		UpdateAll: true,
 	}
 	if err := chunkedUpsertTx(tx, rows, onConflict, upsertChunkSize); err != nil {
@@ -406,8 +504,14 @@ func ListCourseDetailsByCalendar(calendarId uint64) ([]CourseDetailEntity, error
 
 // ListCourseDetailsByCalendarTx reads a calendar in the caller's consistent snapshot.
 func ListCourseDetailsByCalendarTx(tx *gorm.DB, calendarId uint64) ([]CourseDetailEntity, error) {
+	return ListCourseDetailsByAudienceCalendarTx(tx, AudienceUndergraduate, calendarId)
+}
+func ListCourseDetailsByAudienceCalendar(audience Audience, calendarId uint64) ([]CourseDetailEntity, error) {
+	return ListCourseDetailsByAudienceCalendarTx(db.Connect(), audience, calendarId)
+}
+func ListCourseDetailsByAudienceCalendarTx(tx *gorm.DB, audience Audience, calendarId uint64) ([]CourseDetailEntity, error) {
 	var entities []CourseDetailEntity
-	if err := tx.Model(&CourseDetailEntity{}).Where(queryopt.Eq("calendar_id", calendarId)).Order("id ASC").Find(&entities).Error; err != nil {
+	if err := tx.Model(&CourseDetailEntity{}).Where("audience = ? AND calendar_id = ?", audience, ScopeID(audience, calendarId)).Order("id ASC").Find(&entities).Error; err != nil {
 		return nil, fmt.Errorf("pk: list course details: %w", err)
 	}
 	return entities, nil
@@ -417,6 +521,10 @@ func ListCourseDetailsByCalendarTx(tx *gorm.DB, calendarId uint64) ([]CourseDeta
 // 卡级沿革候选装配：course_offering.teaching_class_id → pk_course_detail 的一系统
 // course_code / new_course_code，用于判定冗余卡共享课程码）。
 func ListCourseDetailsByIDs(ids []uint64) ([]CourseDetailEntity, error) {
+	return ListCourseDetailsByAudienceIDs(AudienceUndergraduate, ids)
+}
+
+func ListCourseDetailsByAudienceIDs(audience Audience, ids []uint64) ([]CourseDetailEntity, error) {
 	var all []CourseDetailEntity
 	const chunkSize = 80
 	for i := 0; i < len(ids); i += chunkSize {
@@ -425,7 +533,11 @@ func ListCourseDetailsByIDs(ids []uint64) ([]CourseDetailEntity, error) {
 			end = len(ids)
 		}
 		var chunk []CourseDetailEntity
-		if err := courseDetailBuilder().Where("id IN ?", ids[i:end]).Find(&chunk).Error; err != nil {
+		scoped := make([]uint64, 0, end-i)
+		for _, id := range ids[i:end] {
+			scoped = append(scoped, ScopeID(audience, id))
+		}
+		if err := courseDetailBuilder().Where("audience = ? AND id IN ?", audience, scoped).Find(&chunk).Error; err != nil {
 			return nil, fmt.Errorf("pk: list course details by ids: %w", err)
 		}
 		all = append(all, chunk...)
@@ -440,6 +552,12 @@ func ListTeachersByClassIds(classIds []uint64) ([]TeacherEntity, error) {
 
 // ListTeachersByClassIdsTx returns a stable order independent of upstream row IDs.
 func ListTeachersByClassIdsTx(tx *gorm.DB, classIds []uint64) ([]TeacherEntity, error) {
+	return ListTeachersByAudienceClassIdsTx(tx, AudienceUndergraduate, classIds)
+}
+func ListTeachersByAudienceClassIds(audience Audience, classIds []uint64) ([]TeacherEntity, error) {
+	return ListTeachersByAudienceClassIdsTx(db.Connect(), audience, classIds)
+}
+func ListTeachersByAudienceClassIdsTx(tx *gorm.DB, audience Audience, classIds []uint64) ([]TeacherEntity, error) {
 	var all []TeacherEntity
 	const chunkSize = 80
 	for i := 0; i < len(classIds); i += chunkSize {
@@ -447,8 +565,12 @@ func ListTeachersByClassIdsTx(tx *gorm.DB, classIds []uint64) ([]TeacherEntity, 
 		if end > len(classIds) {
 			end = len(classIds)
 		}
+		scopedIDs := make([]uint64, end-i)
+		for j, id := range classIds[i:end] {
+			scopedIDs[j] = ScopeID(audience, id)
+		}
 		var chunk []TeacherEntity
-		if err := tx.Model(&TeacherEntity{}).Where("teaching_class_id IN ?", classIds[i:end]).Order("teacher_code ASC, teacher_name ASC, id ASC").Find(&chunk).Error; err != nil {
+		if err := tx.Model(&TeacherEntity{}).Where("audience = ? AND teaching_class_id IN ?", audience, scopedIDs).Order("teacher_code ASC, teacher_name ASC, id ASC").Find(&chunk).Error; err != nil {
 			return nil, fmt.Errorf("pk: list teachers: %w", err)
 		}
 		all = append(all, chunk...)
@@ -458,8 +580,12 @@ func ListTeachersByClassIdsTx(tx *gorm.DB, classIds []uint64) ([]TeacherEntity, 
 
 // ListFacultiesTx 返回院系字典（faculty → faculty_i18n），供物化填充 department。
 func ListFacultiesTx(tx *gorm.DB) ([]FacultyEntity, error) {
+	return ListFacultiesForAudienceTx(tx, AudienceUndergraduate)
+}
+
+func ListFacultiesForAudienceTx(tx *gorm.DB, audience Audience) ([]FacultyEntity, error) {
 	var entities []FacultyEntity
-	if err := tx.Table(facultyTableName).Find(&entities).Error; err != nil {
+	if err := tx.Table(facultyTableName).Where("audience = ?", audience).Find(&entities).Error; err != nil {
 		return nil, fmt.Errorf("pk: list faculties: %w", err)
 	}
 	return entities, nil

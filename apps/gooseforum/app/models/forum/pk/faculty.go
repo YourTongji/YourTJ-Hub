@@ -10,6 +10,7 @@ const facultyTableName = "pk_faculty"
 
 // FacultyEntity 一系统院系字典（faculty → I18n）。
 type FacultyEntity struct {
+	Audience      string         `gorm:"primaryKey;column:audience;type:varchar(32);not null;default:'undergraduate';index:idx_pk_faculty_audience;" json:"audience"`
 	Faculty       string         `gorm:"primaryKey;column:faculty;type:varchar(255);not null;" json:"faculty"`
 	FacultyI18n   string         `gorm:"column:faculty_i18n;type:varchar(255);not null;default:'';" json:"facultyI18n"`
 	CalendarId    uint64         `gorm:"column:calendar_id;not null;default:0;" json:"calendarId"`

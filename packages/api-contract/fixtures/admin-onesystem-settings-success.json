@@ -1,6 +1,8 @@
 {
   "result": {
-    "cookieConfigured": false
+    "cookieConfigured": false,
+    "cookieConfiguredUndergraduate": false,
+    "cookieConfiguredGraduate": false
   },
   "code": 0
 }

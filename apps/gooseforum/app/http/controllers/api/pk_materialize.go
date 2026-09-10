@@ -13,7 +13,8 @@ import (
 )
 
 type MaterializePkCalendarReq struct {
-	Term string `json:"term" validate:"required"`
+	Term     string `json:"term" validate:"required"`
+	Audience string `json:"audience"`
 }
 
 type MaterializePkCalendarResult struct {
@@ -27,7 +28,11 @@ const materializePkTimeout = 2 * time.Minute
 // Request cancellation rolls back the transaction; repeating a completed request
 // is idempotent. Unlike a sync, it never requires or fetches an upstream cookie.
 func MaterializePkCalendar(req component.BetterRequest[MaterializePkCalendarReq]) component.Response {
-	id, _, err := pkservice.ResolveSyncTerm(req.Params.Term)
+	audience, err := pkservice.ParseAudience(req.Params.Audience)
+	if err != nil {
+		return component.FailResponseError(err)
+	}
+	id, _, err := pkservice.ResolveSyncTermForAudience(audience, req.Params.Term)
 	if err != nil {
 		return component.FailResponseError(err)
 	}
@@ -43,7 +48,7 @@ func MaterializePkCalendar(req component.BetterRequest[MaterializePkCalendarReq]
 	}
 	ctx, cancel := context.WithTimeout(ctx, materializePkTimeout)
 	defer cancel()
-	report, err := courseservice.MaterializeFromPk(ctx, []uint64{id})
+	report, err := courseservice.MaterializeFromPkForAudience(ctx, audience, []uint64{id})
 	if err != nil {
 		return component.FailResponseError(err)
 	}

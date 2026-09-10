@@ -110,6 +110,8 @@ Before expanding features, close these baselines (avoid building on a wrong foun
 2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
    become a new source of contract drift.
 
+一系统受众隔离（`Current`）：本科与研究生分别保存凭据、同步状态和课程快照；管理端同步后的课评物化及本地补跑均使用所选受众，学期编号相同也不会读取另一受众的数据。公开排课查询继续默认本科，研究生快照通过管理端同步和共享课评目录使用。
+
 快速发布本地草稿（`Current`）：按登录账号、内容类型和编辑话题隔离，保留七天；无法确定所有者的旧键不恢复。输入防抖暂存并在刷新离开前立即刷新存储；清空全部输入时清理旧暂存。恢复的未发布草稿和正在上传的图片仍触发离开确认，确认打开时焦点进入「继续编辑」，Tab 留在确认按钮内。
 
 编辑器 @补全（`Current`）：回复编辑器、完整发布页与快捷发布弹层共用候选查询、键盘选择和候选列表；窄屏停靠列表可滚动并支持点击最后一项，关闭弹层时清理候选会话与编辑器 aria 状态。

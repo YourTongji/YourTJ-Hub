@@ -10,18 +10,18 @@ import (
 // ValidateMaterializeSnapshotTx rejects partial imports. With repeatable-read
 // isolation, a sync starting later cannot mix old classes with new teachers.
 // The active sync may read its own completed fetch under its fenced lease.
-func ValidateMaterializeSnapshotTx(tx *gorm.DB, calendars []uint64, claim *FetchLogEntity) error {
+func ValidateMaterializeSnapshotTx(tx *gorm.DB, audience Audience, calendars []uint64, claim *FetchLogEntity) error {
 	if claim != nil {
 		if err := RenewFetchLogLeaseTx(tx, claim); err != nil {
 			return err
 		}
 	}
 	for _, id := range calendars {
-		if _, err := GetCalendarByIDTx(tx, id); err != nil {
+		if _, err := GetCalendarByAudienceIDTx(tx, audience, id); err != nil {
 			return fmt.Errorf("materialize: lookup calendar %d（尚未同步到本地）: %w", id, err)
 		}
 		var log FetchLogEntity
-		err := tx.Model(&FetchLogEntity{}).Where("calendar_id = ?", id).Order("id DESC").First(&log).Error
+		err := tx.Model(&FetchLogEntity{}).Where("audience = ? AND calendar_id = ?", audience, ScopeID(audience, id)).Order("id DESC").First(&log).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			continue
 		} // Imported historical snapshots have no fetch log.
