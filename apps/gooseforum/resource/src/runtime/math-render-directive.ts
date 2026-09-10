@@ -2,7 +2,7 @@ import type { ObjectDirective } from 'vue'
 import { extractMathSegments } from './math-segments'
 
 /**
- * Vue directive that renders Markdown math ($...$ / $$...$$) as KaTeX.
+ * Vue directive that renders supported Markdown and LaTeX math delimiters as KaTeX.
  *
  * Mirrors the code-highlight directive: content is decorated in place, KaTeX
  * is loaded lazily only after a marker is detected, and a load failure leaves

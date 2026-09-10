@@ -41,6 +41,19 @@ describe('math protection', () => {
     expect(html).not.toContain('<p>$$</p>')
   })
 
+  test('keeps LaTeX delimiters intact through preview rendering', () => {
+    const html = renderMarkdownPreview('inline \\(x+y\\) and display \\[z^2\\]')
+    expect(html).toContain('\\(x+y\\)')
+    expect(html).toContain('\\[z^2\\]')
+    expect(html).not.toContain('@@YOURTJ_MATH_')
+  })
+
+  test('keeps begin/end math environments intact through preview rendering', () => {
+    const html = renderMarkdownPreview('\\begin{equation}E=mc^2\\end{equation}')
+    expect(html).toContain('\\begin{equation}')
+    expect(html).toContain('\\end{equation}')
+    expect(html).not.toContain('@@YOURTJ_MATH_')
+  })
   test('restores math inside inline code without leaking placeholders', () => {
     const html = renderMarkdownPreview('`$x$`')
 

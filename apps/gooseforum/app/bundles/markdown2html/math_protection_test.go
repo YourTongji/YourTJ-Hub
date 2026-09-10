@@ -69,6 +69,28 @@ func assertNoHTMLInjection(t *testing.T, got string) {
 	walk(root)
 }
 
+func TestMathProtectionSupportsLatexDelimiters(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{in: `\(x+y\)`, want: `\(x+y\)`},
+		{in: `\[x+y\]`, want: `\[x+y\]`},
+		{in: `\begin{equation}E=mc^2\end{equation}`, want: `\begin{equation}E=mc^2\end{equation}`},
+		{in: `\begin{align}a b\end{align}`, want: `\begin{align}a b\end{align}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			got := MarkdownToHTML(tc.in)
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("rendered HTML missing %q: %s", tc.want, got)
+			}
+			if strings.Contains(got, "@@YOURTJ_MATH_") {
+				t.Fatalf("math placeholder leaked into rendered HTML: %s", got)
+			}
+		})
+	}
+}
 func TestMathProtectionKeepsInlineMathFromEmphasis(t *testing.T) {
 	html := MarkdownToHTML("$a*b*c$")
 
@@ -107,5 +129,18 @@ func TestMathProtectionEscapesAttributeBreakoutInsideLinkText(t *testing.T) {
 	assertNoHTMLInjection(t, got)
 	if !strings.Contains(got, `<a href="https://example.com">`) {
 		t.Fatalf("link itself was not preserved: %s", got)
+	}
+}
+
+func TestMathProtectionLatexBoundaries(t *testing.T) {
+	for _, source := range []string{`\\(x\\)`, `\\[x\\]`, `\(x`, `\[x`, `\begin{align}x`, `\(\)`, `\[ \]`, `\begin{multline}x\end{multline}`} {
+		if got := extractMathSegments(source); len(got) != 0 {
+			t.Errorf("extract %q = %+v; want literal", source, got)
+		}
+	}
+	const source = `\begin{pmatrix}a&b\\c&d\end{pmatrix}`
+	got := extractMathSegments(source)
+	if len(got) != 1 || got[0].text != source {
+		t.Fatalf("matrix environment lost: %+v", got)
 	}
 }
