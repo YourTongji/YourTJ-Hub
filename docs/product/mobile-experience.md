@@ -275,3 +275,18 @@ editable visual counterpart, not an alternative API or permission model. The mai
 [06 Mobile · Unified](https://www.figma.com/design/eLF6vFbmdwDQXec1IyuA4X/YourTJ_Mob_App_Design?node-id=284-302). Native device behavior,
 Linux-rendered goldens, distribution and additional locales have independent verification gates;
 local widget tests do not imply those gates passed.
+
+## System notifications
+
+- `Partial`: iOS uses direct APNs; Android uses JPush with selected OEM offline adapters and does not
+  require Google Play services. Provider credentials, signing profiles and physical-device delivery
+  remain deployment requirements; app-local notification lists are independent of system delivery.
+- `Current`: Settings retains the push entry with a provider-processing disclosure and shows missing
+  build configuration, unavailable server channels, permission denial and registration failure.
+  Explicit enable requests system permission. Resume checks existing authorization without repeatedly
+  prompting; a non-empty token and successful API registration are required to display enabled.
+- `Current`: notifications use the existing event copy and only navigate to supported in-app topic,
+  profile and notification routes. Logout stops native delivery and attempts server unbinding;
+  the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
+- See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
+  for credentials, supported OEMs and delivery limitations.

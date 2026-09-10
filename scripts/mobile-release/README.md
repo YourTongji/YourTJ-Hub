@@ -23,3 +23,8 @@ The publish commands mutate external services. `--verify-only` on the Android pu
 checksums only. Build logs and outputs belong under ignored `apps/mobile/build/release/`; private inputs
 must come from an ignored local file or the CI runner's private temporary directory. Tests never print
 real review contacts, passwords or signing material.
+
+Native push activation and client/provider credential separation are documented in
+[mobile release operations](../../docs/operations/mobile-releases.md#native-push-activation-and-verification).
+`prepare_push.py` validates Android client-only identifiers and selected OEM adapters before signing;
+`build_ios.py` requires a production APNs entitlement in the distribution profile.

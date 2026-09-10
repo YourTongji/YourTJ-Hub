@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from build_ios import validate_profile
+from build_ios import validate_profile, validate_app_entitlements
 
 
 class DistributionProfileTest(unittest.TestCase):
@@ -11,11 +11,27 @@ class DistributionProfileTest(unittest.TestCase):
             "UUID": "ad5aac45-d8c0-4efa-bad7-cd8e4023afd5",
             "ExpirationDate": datetime.datetime(2027, 1, 1),
             "TeamIdentifier": ["4HJTS3G3T2"],
-            "Entitlements": {"application-identifier": "4HJTS3G3T2.tj.yourtj.forumApp", "get-task-allow": False},
+            "Entitlements": {"application-identifier": "4HJTS3G3T2.tj.yourtj.forumApp", "get-task-allow": False, "aps-environment": "production"},
         }
 
     def test_app_store_profile(self):
         validate_profile(self.profile, "4HJTS3G3T2", self.now)
+
+    def test_exported_app_requires_push_entitlement(self):
+        valid = self.profile["Entitlements"].copy()
+        validate_app_entitlements(valid, "4HJTS3G3T2")
+        for field, value in [("aps-environment", None), ("aps-environment", "development"), ("application-identifier", "other.app")]:
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                validate_app_entitlements({**valid, field: value}, "4HJTS3G3T2")
+
+    def test_requires_production_push_entitlement(self):
+        for environment in (None, "development"):
+            with self.subTest(environment=environment):
+                self.profile["Entitlements"].pop("aps-environment", None)
+                if environment:
+                    self.profile["Entitlements"]["aps-environment"] = environment
+                with self.assertRaises(ValueError):
+                    validate_profile(self.profile, "4HJTS3G3T2", self.now)
 
     def test_rejects_wrong_team_bundle_expiry_or_profile_type(self):
         from copy import deepcopy

@@ -6872,15 +6872,22 @@ export interface components {
         NativePushChannels: {
             /** @description True when [push.apns] credentials are configured so the iOS APNs channel is enabled. */
             apnsEnabled: boolean;
+            /** @description True when the Android JPush delivery channel is configured. */
+            jpushEnabled: boolean;
             /** @description True when [push.fcm] credentials are configured so the Android FCM channel is enabled. */
             fcmEnabled: boolean;
         };
         PushDeviceRegisterRequest: {
             /**
-             * @description ios routes to APNs, android to FCM.
+             * @description Device OS; provider selects its compatible delivery channel.
              * @enum {string}
              */
             platform: "ios" | "android";
+            /**
+             * @description Delivery provider. iOS only accepts apns; Android accepts fcm or jpush. Omission preserves legacy ios=apns, android=fcm behavior.
+             * @enum {string}
+             */
+            provider?: "apns" | "fcm" | "jpush";
             /** @description Push-service device token (APNs device token or FCM registration token); globally unique — re-registering from the same device converges the row to the current user. */
             token: string;
         };

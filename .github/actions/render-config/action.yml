@@ -39,6 +39,34 @@ inputs:
     description: AI_API_KEY（ai_summary.api_key；可空，AI 总结默认关闭）
     required: false
     default: ""
+  apns-key-path:
+    description: Optional production push configuration APNS_KEY_PATH
+    required: false
+    default: ""
+  apns-key-id:
+    description: Optional production push configuration APNS_KEY_ID
+    required: false
+    default: ""
+  apns-team-id:
+    description: Optional production push configuration APNS_TEAM_ID
+    required: false
+    default: ""
+  apns-bundle-id:
+    description: Optional production push configuration APNS_BUNDLE_ID
+    required: false
+    default: ""
+  apns-environment:
+    description: Optional production push configuration APNS_ENVIRONMENT
+    required: false
+    default: ""
+  jpush-app-key:
+    description: Optional production push configuration JPUSH_APP_KEY
+    required: false
+    default: ""
+  jpush-master-secret:
+    description: Optional production push configuration JPUSH_MASTER_SECRET
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -56,6 +84,13 @@ runs:
         GOOGLE_CLIENT_ID: ${{ inputs.google-client-id }}
         GOOGLE_CLIENT_SECRET: ${{ inputs.google-client-secret }}
         AI_API_KEY: ${{ inputs.ai-api-key }}
+        APNS_KEY_PATH: ${{ inputs.apns-key-path }}
+        APNS_KEY_ID: ${{ inputs.apns-key-id }}
+        APNS_TEAM_ID: ${{ inputs.apns-team-id }}
+        APNS_BUNDLE_ID: ${{ inputs.apns-bundle-id }}
+        APNS_ENVIRONMENT: ${{ inputs.apns-environment }}
+        JPUSH_APP_KEY: ${{ inputs.jpush-app-key }}
+        JPUSH_MASTER_SECRET: ${{ inputs.jpush-master-secret }}
       run: |
         set -euo pipefail
         mkdir -p deploy/rendered

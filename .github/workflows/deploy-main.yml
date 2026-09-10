@@ -46,6 +46,13 @@ jobs:
           google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
           google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ai-api-key: ${{ secrets.AI_API_KEY }}
+          apns-key-path: ${{ secrets.APNS_KEY_PATH }}
+          apns-key-id: ${{ secrets.APNS_KEY_ID }}
+          apns-team-id: ${{ secrets.APNS_TEAM_ID }}
+          apns-bundle-id: ${{ secrets.APNS_BUNDLE_ID }}
+          apns-environment: ${{ secrets.APNS_ENVIRONMENT }}
+          jpush-app-key: ${{ secrets.JPUSH_APP_KEY }}
+          jpush-master-secret: ${{ secrets.JPUSH_MASTER_SECRET }}
       # 上传到 run-specific 路径, 避免与 deploy-dev 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to prod host

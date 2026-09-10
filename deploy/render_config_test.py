@@ -180,6 +180,15 @@ check(
 )
 check("summarize 输出含键名与长度", "SIGNING_KEY" in sum_text and "len=32" in sum_text)
 
+# Native channels remain disabled without credentials and preserve escaped server secrets.
+native_empty = tomllib.loads(rc.render(real_tmpl, values))["push"]
+check_eq("unconfigured APNs path", "", native_empty["apns"]["key_path"])
+check_eq("unconfigured JPush secret", "", native_empty["jpush"]["master_secret"])
+push_values = {**values, "APNS_KEY_PATH": "/app/storage/push/AuthKey.p8", "APNS_KEY_ID": "KEY", "APNS_TEAM_ID": "TEAM", "APNS_BUNDLE_ID": "tj.yourtj.forumApp", "APNS_ENVIRONMENT": "production", "JPUSH_APP_KEY": "test-app-key", "JPUSH_MASTER_SECRET": 'test-secret"with\\escapes'}
+native = tomllib.loads(rc.render(real_tmpl, push_values))["push"]
+check_eq("production APNs environment", "production", native["apns"]["environment"])
+check_eq("JPush secret round trip", push_values["JPUSH_MASTER_SECRET"], native["jpush"]["master_secret"])
+
 # main 场景: GH 凭据未设 → 必须失败（fail-closed 生产）
 fake_main = {
     "instance": "main",

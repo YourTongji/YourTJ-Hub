@@ -46,3 +46,62 @@ jobs:
         run: dart run melos run test
       - name: Release script regression tests
         run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
+
+  native-build:
+    name: Native build / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            runner: ubuntu-latest
+          - platform: ios
+            runner: macos-26
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.9
+          cache: true
+      - name: Bootstrap
+        working-directory: apps/mobile
+        run: dart pub get
+      - name: Configure build-only OEM identifiers (never distributed)
+        if: matrix.platform == 'android'
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          android = Path('apps/mobile/packages/forum_app/android')
+          values = {'JPUSH_APPKEY': '000000000000000000000000', 'VENDORS': 'huawei,xiaomi,oppo,vivo,honor,meizu'}
+          for vendor, keys in {'XIAOMI': ['APPID', 'APPKEY'], 'OPPO': ['APPID', 'APPKEY', 'APPSECRET'], 'VIVO': ['APPID', 'APPKEY'], 'HONOR': ['APPID'], 'MEIZU': ['APPID', 'APPKEY']}.items():
+              for key in keys:
+                  values[vendor + '_' + key] = '100000000'
+          (android / 'push.properties').write_text(''.join(k + '=' + v + '\n' for k, v in values.items()))
+          (android / 'app/agconnect-services.json').write_text(json.dumps({'configuration_version': '1.0', 'region': 'CN', 'client': {'app_id': '100000000', 'cp_id': '100000000', 'client_id': '100000000', 'client_secret': 'build-only', 'api_key': 'build-only', 'package_name': 'tj.yourtj.forum_app'}}))
+          PYTHON
+      - name: Compile and shrink Android with all six OEM adapters
+        if: matrix.platform == 'android'
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/build-only.jks" -storepass android -keypass android -alias build-only -dname "CN=CI Build Only" -keyalg RSA -keysize 2048 -validity 2
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          Path('android/key.properties').write_text('storeFile=' + os.environ['RUNNER_TEMP'] + '/build-only.jks\nstorePassword=android\nkeyPassword=android\nkeyAlias=build-only\n')
+          PYTHON
+          flutter build apk --release --target-platform android-arm64
+      - name: Compile iOS APNs bridge
+        if: matrix.platform == 'ios'
+        working-directory: apps/mobile/packages/forum_app
+        run: flutter build ios --simulator --debug --no-codesign --no-pub

@@ -16,6 +16,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "apps/mobile/packages/forum_app"
@@ -34,8 +35,31 @@ def validate_profile(profile, team, now=None):
         raise ValueError("Distribution profile has the wrong app identifier")
     if entitlements.get("get-task-allow") or profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices"):
         raise ValueError("An App Store distribution profile is required")
+    if entitlements.get("aps-environment") != "production":
+        raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
     if not re.fullmatch(r"[A-Fa-f0-9-]{36}", profile["UUID"]):
         raise ValueError("Invalid provisioning profile UUID")
+
+
+def validate_app_entitlements(entitlements, team):
+    if entitlements.get("application-identifier") != f"{team}.{BUNDLE_ID}" or entitlements.get("aps-environment") != "production":
+        raise ValueError("Exported app must carry the correct application identifier and production APNs entitlement")
+
+
+def validate_exported_ipa(path, team):
+    # Inspect the signed artifact, not just its provisioning input.
+    with tempfile.TemporaryDirectory(prefix="yourtj-ipa-check-") as temporary:
+        with zipfile.ZipFile(path) as archive:
+            for name in archive.namelist():
+                parts = Path(name)
+                if parts.is_absolute() or ".." in parts.parts:
+                    raise ValueError("Invalid IPA archive path")
+            archive.extractall(temporary)
+        apps = list((Path(temporary) / "Payload").glob("*.app"))
+        if len(apps) != 1:
+            raise ValueError("Expected exactly one exported iOS application")
+        raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(apps[0])], stderr=subprocess.DEVNULL)
+        validate_app_entitlements(plistlib.loads(raw), team)
 
 
 def security(*args):
@@ -51,8 +75,12 @@ def main():
     team = os.environ["IOS_TEAM_ID"]
     version = os.environ["MOBILE_VERSION"]
     number = os.environ["MOBILE_BUILD_NUMBER"]
+    if entitlements.get("aps-environment") != "production":
+        raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
     if not re.fullmatch(r"[A-Z0-9]{10}", team):
         raise ValueError("Invalid Apple team ID")
+    if entitlements.get("aps-environment") != "production":
+        raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number):
         raise ValueError("Invalid mobile version/build number")
     profile_path = Path(os.environ["IOS_PROFILE_PATH"]).resolve()
@@ -120,6 +148,10 @@ def main():
                     result = subprocess.run(["xcodebuild", *args], cwd=APP, stdout=log, stderr=subprocess.STDOUT)
                 if result.returncode:
                     raise RuntimeError(f"iOS {name} failed; inspect {output / (name + '.log')}")
+            artifacts = list((output / "ios").glob("*.ipa"))
+            if len(artifacts) != 1:
+                raise ValueError("Expected one IPA after export")
+            validate_exported_ipa(artifacts[0], team)
         finally:
             # Attempt every cleanup even when a keychain operation fails.
             with ExitStack() as cleanup:

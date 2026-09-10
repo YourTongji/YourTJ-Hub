@@ -3629,6 +3629,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get updateRetry;
+
+  /// No description provided for @settingsPushConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable system notifications via Apple (iOS) or JPush and device vendors (Android). These services process push identifiers and notification content.'**
+  String get settingsPushConsent;
+
+  /// No description provided for @settingsPushUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Push is not configured in this build'**
+  String get settingsPushUnsupported;
+
+  /// No description provided for @settingsPushServerDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has not enabled this delivery channel. Tap to retry.'**
+  String get settingsPushServerDisabled;
+
+  /// No description provided for @settingsPushFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Push registration failed. Check your connection and tap to retry.'**
+  String get settingsPushFailed;
+
+  /// No description provided for @settingsPushPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'JPush privacy policy (Android)'**
+  String get settingsPushPrivacy;
 }
 
 class _AppLocalizationsDelegate
