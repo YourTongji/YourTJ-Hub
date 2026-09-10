@@ -220,7 +220,9 @@ entitlement; debug development signatures use the sandbox service.
 Provision the APNs `.p8` under the production instance's persistent storage directory, readable only
 by the application UID. Set the production environment secrets `APNS_KEY_PATH` (the **container**
 path), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_ENVIRONMENT=production`. The deployment
-workflow passes these to the configuration renderer. A path setting does not upload the file;
+workflow and **Apply / instance config** (when targeting `main`) pass these to the configuration
+renderer; config-only applies preserve the same provider settings. Both entry points keep dev
+delivery disabled. A path setting does not upload the file;
 provision it before deployment. Keep old key files during credential rotation so deployment rollback
 can restore the previous configuration. Never copy the private key to dev or into an IPA.
 

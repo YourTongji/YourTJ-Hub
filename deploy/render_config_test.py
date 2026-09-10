@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -334,6 +335,26 @@ with tempfile.TemporaryDirectory() as td:
     )
     check("坏模板端到端拒绝（exit != 0）", proc.returncode != 0)
     check("坏模板不产出文件", not os.path.exists(bad_out))
+
+# Both production entry points must preserve provider configuration; a config-only
+# apply otherwise silently disables push. Dev must not contact production devices.
+workflow_dir = os.path.join(HERE, "..", ".github", "workflows")
+with open(os.path.join(workflow_dir, "deploy-main.yml")) as f:
+    deploy_workflow = f.read()
+with open(os.path.join(workflow_dir, "apply-config.yml")) as f:
+    apply_workflow = f.read()
+push_bindings = re.findall(
+    r"^\s+((?:apns|jpush)-[\w-]+): \$\{\{ secrets\.(\w+) \}\}$",
+    deploy_workflow,
+    re.MULTILINE,
+)
+check("production deploy exposes push configuration", bool(push_bindings))
+for field, secret in push_bindings:
+    check(
+        f"config apply preserves {field} only for main",
+        f"{field}: ${{{{ github.event.inputs.env == 'main' && secrets.{secret} || '' }}}}"
+        in apply_workflow,
+    )
 
 print(f"\n{'-' * 40}\nrender_config_test: {PASS} passed, {FAIL} failed")
 raise SystemExit(1 if FAIL else 0)
