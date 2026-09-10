@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/b87c472ef3bccf1d9683efc19c43de78046a4be9)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/1ac66592ee6878f960d693cd82892f221472595e)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
@@ -120,12 +120,15 @@ Manual publication defaults off; the deployment enables all four automatic execu
 `@oryn-mini fix`, `implement issue`, `rebase`, `cluster #N #M`, `autoclose` and `automerge` are also available to authorized maintainers.
 Slash aliases such as `/review`, `/autofix`, `/rebase`, `/autoclose` and `/automerge` are supported.
 Bot-authored comments skip planning and do not occupy the sweep queue; human commands retain runtime parsing and authority checks.
-Publication compares source fields and the captured discussion/review/check context separately.
-Assignee, project and bot-receipt timestamp updates do not interrupt an otherwise unchanged task;
-changed requirements, code, discussion, labels and command authority still block stale publication.
-A decision-needed repair shows the concrete question and whether host validation ran, and publishes
-no patch. Source/context publication failures identify the changed category in the status receipt.
-See [the freshness decision](../decisions/0016-oryn-semantic-freshness.md).
+Admitted work is interrupted by explicit authorized stop commands, edits to its original command,
+revoked author permission, changes to Issue/PR title or body, and new head/base commits. Ordinary
+comments, CI/review status, labels, assignees and project updates do not discard completed work.
+Protected labels filter new admissions; use `@oryn-mini stop` to interrupt a running task.
+Publication still requires live source/command checks, repository access and an open/unlocked target.
+Merge separately verifies current checks, mergeability and independent approval; unmet conditions
+publish a waiting report rather than fail the review. Reports identify discussion and CI as the
+snapshot used for that run. A decision-needed repair shows its question and actual validation status.
+See [the task interruption decision](../decisions/0017-oryn-task-interruption.md).
 
 The operator controls token grants and policy; text in issues/PRs cannot enable repair or merge.
 Disable the event/schedule execution variables to stop new automatic work; use the item's stop command
