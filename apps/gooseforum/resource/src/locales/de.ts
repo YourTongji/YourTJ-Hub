@@ -504,6 +504,8 @@ export default {
     syncMergeLimit: 'Die zusammengeführten Pläne überschreiten das Speicherlimit. Lokale Änderungen bleiben erhalten. Anzahl oder Größe der Pläne reduzieren und erneut versuchen.',
     syncAutoRestored: 'Cloud- und lokale Pläne unterscheiden sich. Lokale Pläne erhalten als: {name}',
     planAutoRestoreName: '[Automatisch wiederhergestellt] Plan {n}',
+    syncAdopted: 'Neueste Pläne aus der Cloud übernommen',
+    syncFailed: 'Plansync nicht abgeschlossen. Netzwerk prüfen und erneut versuchen',
     loading: 'Wird geladen…',
     emptyRequired: 'Keine Pflichtkurse verfügbar',
     emptyOptional: 'Keine Wahlkurse verfügbar',

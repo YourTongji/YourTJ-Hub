@@ -100,11 +100,16 @@ export const PK_SYNC_DEBOUNCE_MS = 3000
 /** 定时自动保存/网络恢复重试心跳（ms）。 */
 export const PK_SYNC_AUTOSAVE_MS = 10000
 
+/** 进页对账结果（#571）：供「同步最新」按钮与进页提示反映方案层同步结果。
+ *  merged=分歧已按云端为主合并；adopted=已整包采用云端；uploaded=本地方案已上传；
+ *  idle=两端一致无需动作；blocked=合并超出容量受限；failed=对账未完成（网络/未登录/写入失败）。 */
+export type PkSyncReconcileResult = 'merged' | 'adopted' | 'uploaded' | 'idle' | 'blocked' | 'failed'
 export interface ScheduleSyncController {
   /** 自动恢复提示：非空 = 云端分歧时本地方案已保留为恢复方案（页面 flash 后清空）。 */
   readonly notice: ShallowRef<string | null>
-  /** 进页同步：GET 对账，干净本地采用新云端，有本地修改时上传或保留分歧。网络失败静默，由心跳重试。 */
-  syncOnPageEnter(): Promise<void>
+  /** 进页同步：GET 对账，干净本地采用新云端，分歧本地并入自动恢复合并（云端为主，
+   *  #571/#573），空本地绝不覆盖非空云端。网络失败静默，由心跳重试。返回对账结果。 */
+  syncOnPageEnter(): Promise<PkSyncReconcileResult>
   /** 本地方案变更入口（store.solidify 尾部钩子）：标脏 + 防抖 PUT。 */
   onLocalChange(): void
   /** best-effort 冲刷未落盘的防抖 PUT（visibilitychange hidden / 离页）。 */
@@ -170,8 +175,16 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     return JSON.stringify(store.state.plans) !== JSON.stringify(cloudPlans)
   }
 
-  /** 云端分歧合并（#573）：云端为主，本地方案克隆为「[本地自动恢复]方案x」追加保留，
-   *  然后上传合并快照。仅在本地有未上传变更（dirty）时调用，避免本地数据被覆盖丢失。 */
+  /** 本地方案数组与云端方案数组是否不同（不看 dirty/同步时钟；空本地保护判断用）。
+   *  云端无方案（[]）时不视为分歧：空对空无需保护，正常上传即可。 */
+  function localPlansDifferFromCloud(snapshot: PkSyncRemoteSnapshot): boolean {
+    const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
+    return cloudPlans.length > 0 && JSON.stringify(store.state.plans) !== JSON.stringify(cloudPlans)
+  }
+
+  /** 云端分歧合并（#571/#573）：云端为主，本地方案克隆为「[本地自动恢复]方案x」追加保留，
+   *  然后上传合并快照。对 dirty 的离线编辑与从未云同步的本地方案（无 syncedAt）都调用，
+   *  避免本地数据被云端覆盖或本地盲传覆盖云端。 */
   async function mergeAndUpload(snapshot: PkSyncRemoteSnapshot): Promise<boolean> {
     const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
     const recoveryPlans = clonePlansAsAutoRestore(store.state.plans, cloudPlans)
@@ -262,7 +275,9 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         await mergeAndUpload(snapshot)
         return
       }
-      if (isLocalEmpty() && !dirty && !store.isSyncDirty()) {
+      if (isLocalEmpty() && localPlansDifferFromCloud(snapshot)) {
+        // 空本地（含对账完成前标脏的瞬态窗口）且方案内容与云端不同：采用云端，
+        // 绝不把空方案回灌覆盖非空云端（#571）。内容一致时仍走默认上传以保留本地意图。
         store.applyRemoteSnapshot(snapshot)
         dirty = !store.markSynced(snapshot.updatedAt)
         reconciled = true
@@ -322,8 +337,8 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     return !dirty
   }
 
-  async function syncOnPageEnter(): Promise<void> {
-    if (!enabled || entering) return
+  async function syncOnPageEnter(): Promise<PkSyncReconcileResult> {
+    if (!enabled || entering) return 'idle'
     const run = generation
     entering = true
     reconciled = false
@@ -333,9 +348,9 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     try {
       // A reconciliation never races a previous upload or adopts its obsolete base.
       if (putting) await putting
-      if (!enabled || generation !== run) return
+      if (!enabled || generation !== run) return 'failed'
       const snapshot = await deps.transport.fetchCloudSnapshot()
-      if (!enabled || generation !== run) return
+      if (!enabled || generation !== run) return 'failed'
       baseUpdatedAt = snapshot?.updatedAt ?? ''
       const previousOwner = store.getSyncOwner()
       if (previousOwner && previousOwner !== owner) {
@@ -346,31 +361,25 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         } else {
           // Retain ownership across reloads and edits until the user explicitly
           // chooses to save these local plans to the currently signed-in account.
-          return
+          return 'idle'
         }
         store.setSyncOwner(owner)
         reconciled = true
-        return
+        return 'adopted'
       }
-      if (!store.setSyncOwner(owner)) return
+      if (!store.setSyncOwner(owner)) return 'failed'
       if (snapshot === null) {
         reconciled = true
         if (!isLocalEmpty() || dirty) {
           dirty = true
           store.markSyncDirty()
-          await pushSnapshot()
+          return (await pushSnapshot()) ? 'uploaded' : 'failed'
         }
-        return
-      }
-      if (!dirty && !store.isSyncDirty() && !store.getSyncedAt() && isLocalEmpty()) {
-        store.applyRemoteSnapshot(snapshot)
-        dirty = !store.markSynced(snapshot.updatedAt)
-        reconciled = true
-        return
+        return 'idle'
       }
       if (!dirty && !store.isSyncDirty() && store.getSyncedAt() === snapshot.updatedAt) {
         reconciled = true
-        return
+        return 'idle'
       }
       // A known, clean local revision is a cache. Adopt newer cloud data instead
       // of publishing stale content over another device's edits.
@@ -378,19 +387,41 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         store.applyRemoteSnapshot(snapshot)
         dirty = !store.markSynced(snapshot.updatedAt)
         reconciled = true
-        return
+        return 'adopted'
       }
-      // Unsynced local edits are preserved when the cloud has diverged.
-      if (dirty && store.getSyncedAt() !== snapshot.updatedAt && plansDiverge(snapshot)) {
-        await mergeAndUpload(snapshot)
-        return
+      if (isLocalEmpty() && localPlansDifferFromCloud(snapshot)) {
+        // 空本地（含对账完成前标脏的瞬态窗口）且方案内容与云端不同：整包采用云端，
+        // 绝不把空方案回灌覆盖非空云端（#571）。方案一致时（仅周次/专业等元数据差异）
+        // 上传无害，保持原上传路径以保留本地意图。
+        store.applyRemoteSnapshot(snapshot)
+        dirty = !store.markSynced(snapshot.updatedAt)
+        reconciled = true
+        return 'adopted'
+      }
+      // Divergent local state never overwrites the cloud: dirty edits (offline
+      // window) and never-synced locals (#571, e.g. plans made before login) are
+      // both preserved as recovery clones while cloud data stays authoritative.
+      if (
+        (dirty || !store.getSyncedAt()) &&
+        store.getSyncedAt() !== snapshot.updatedAt &&
+        plansDiverge(snapshot)
+      ) {
+        return (await mergeAndUpload(snapshot)) ? 'merged' : 'blocked'
+      }
+      if (!store.getSyncedAt()) {
+        // 从未云同步且内容与云端一致：采用云端建立同步时钟（零 PUT）。
+        store.applyRemoteSnapshot(snapshot)
+        dirty = !store.markSynced(snapshot.updatedAt)
+        reconciled = true
+        return 'adopted'
       }
       reconciled = true
       dirty = true
       store.markSyncDirty()
-      await pushSnapshot()
+      return (await pushSnapshot()) ? 'uploaded' : 'failed'
     } catch (err) {
       if (generation === run && err instanceof PkSyncError && err.status === 401) authStopped = true
+      return 'failed'
     } finally {
       if (generation === run) entering = false
     }

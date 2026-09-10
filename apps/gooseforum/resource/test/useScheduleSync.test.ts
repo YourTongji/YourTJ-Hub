@@ -23,8 +23,9 @@ function autoRestoreName(n: number): string {
 }
 
 // 云同步状态机（useScheduleSync）单测：传输层注入 fake，vi.useFakeTimers 驱动
-// 防抖/心跳语义。覆盖（#573）：进页总是上传本地、云端分歧自动恢复（保留本地为
-// 「[本地自动恢复]方案x」）、网络错误心跳自动补传、手动保存 saveNow、账号切换
+// 防抖/心跳语义。覆盖（#573/#571）：进页对账（云端为主：干净本地采用云端、从未
+// 云同步的分歧本地并入自动恢复合并保留为「[本地自动恢复]方案x」、空本地绝不覆盖
+// 非空云端）、对账结果返回值、网络错误心跳自动补传、手动保存 saveNow、账号切换
 // 不自动上传上一账号方案、applyingRemote 防回灌、400/401 停止、登出停止、
 // visibility 冲刷、未登录零网络。
 
@@ -183,20 +184,24 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
   })
 
-  test('进页：本机非空 + syncedAt 不一致 → 默认总是上传本机（不再弹冲突窗）', async () => {
+  test('进页：从未云同步的非空本地方案与云端分歧 → 并入自动恢复合并，云端为主（#571）', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()
     seedLocalContent(store)
     fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
     putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
 
-    await controller.syncOnPageEnter()
+    const result = await controller.syncOnPageEnter()
 
-    expect(controller.notice.value).toBeNull()
+    expect(result).toBe('merged')
+    expect(controller.notice.value).not.toBeNull()
+    // 云端为主：云端方案在前，本地方案克隆为恢复方案追加保留（不盲传覆盖云端）。
+    expect(store.state.plans).toHaveLength(2)
+    expect(store.state.plans[0]?.id).toBe('plan_cloud')
+    expect(store.state.plans[1]?.name).toBe(autoRestoreName(2))
+    expect(store.state.plans[1]?.stagedCourses[0]?.courseCode).toBe('122004')
     expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
-    const payload = putCloudSnapshot.mock.calls[0][0]
-    expect(payload.plans[0]?.stagedCourses[0]?.courseCode).toBe('122004')
-    expect(payload.baseUpdatedAt).toBe(UPDATED_AT)
+    expect(putCloudSnapshot.mock.calls[0][0].plans).toHaveLength(2)
     expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
     expect(controller.isDirty()).toBe(false)
   })
@@ -353,7 +358,7 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     controller.start()
     fetchCloudSnapshot.mockRejectedValue(new PkSyncError('未登录', 401, 'unauthenticated'))
 
-    await expect(controller.syncOnPageEnter()).resolves.toBeUndefined()
+    await expect(controller.syncOnPageEnter()).resolves.toBe('failed')
     expect(controller.notice.value).toBeNull()
     // 401 停摆：心跳不再重试对账。
     await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
@@ -614,6 +619,97 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     expect(controller.notice.value).not.toBeNull()
     expect(store.state.plans).toHaveLength(2)
   })
+
+  test('进页：从未云同步的本地方案与云端一致 → 采用云端建立时钟，不产生恢复方案（#571）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    // 云端快照取自本机当前状态（深拷贝）：内容一致但从未 markSynced（无 syncedAt）。
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({ plans: JSON.parse(JSON.stringify(store.state.plans)) }))
+
+    const result = await controller.syncOnPageEnter()
+
+    expect(result).toBe('adopted')
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.getSyncedAt()).toBe(UPDATED_AT)
+    expect(controller.notice.value).toBeNull()
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+  })
+
+  test('进页：空脏本地 + 云端非空 → 采用云端，绝不上传空方案覆盖云端（#571）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    controller.onLocalChange() // 对账完成前的瞬态窗口：本地为空但已标脏
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+
+    const result = await controller.syncOnPageEnter()
+
+    expect(result).toBe('adopted')
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(store.state.plans[0]?.id).toBe('plan_cloud')
+    expect(store.getSyncedAt()).toBe(UPDATED_AT)
+    expect(controller.isDirty()).toBe(false)
+    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS * 2)
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+  })
+
+  test('进页对账返回结果：云端空+本机非空 → uploaded；时钟一致 → idle；GET 失败 → failed', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    fetchCloudSnapshot.mockResolvedValue(null)
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT })
+    await expect(controller.syncOnPageEnter()).resolves.toBe('uploaded')
+
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({ updatedAt: UPDATED_AT }))
+    await expect(controller.syncOnPageEnter()).resolves.toBe('idle')
+
+    fetchCloudSnapshot.mockRejectedValue(new PkSyncError('offline', 0, 'network'))
+    await expect(controller.syncOnPageEnter()).resolves.toBe('failed')
+  })
+
+  test('409 后重对账：空脏本地不覆盖非空云端，采用云端（#571）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({
+      'pk.syncedAt': JSON.stringify(UPDATED_AT),
+    })
+    controller.start()
+    seedLocalContent(store)
+    store.solidify() // 建立含课程的落盘基线（否则清空后 payload 无变化、钩子不触发）
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+    await controller.syncOnPageEnter()
+
+    // 清空内容（空本地，dirty）后 PUT 撞 409，云端同时被其他端推进。
+    // clearStagedAndSelectedCourses 不走 solidify，显式触发：此时 payload 与基线
+    // 不同 → 钩子生效，进入防抖上传。
+    store.clearStagedAndSelectedCourses()
+    store.solidify()
+    putCloudSnapshot.mockRejectedValueOnce(new PkSyncError('conflict', 409, 'rejected'))
+    const CLOUD_3 = '2025-09-03T00:00:00.000000000Z'
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: [{
+        id: 'plan_other',
+        name: defaultPlanName(1),
+        createdAt: 3,
+        stagedCourses: [{ courseCode: '199999', courseName: '他端新课', courseNameReserved: '他端新课', credit: 2, courseType: '必', courseNature: [], teacher: [], status: 0, courseDetail: [] }],
+        selectedCourses: [],
+        customEvents: [],
+      }],
+      activePlanId: 'plan_other',
+      updatedAt: CLOUD_3,
+    }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: CLOUD_3 })
+
+    await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
+    await vi.advanceTimersByTimeAsync(0)
+    // PUT #1 = 首次对账上传课程内容；PUT #2 = 清空后的防抖上传（撞 409）。
+    // 关键保护：409 重对账发现空脏本地与云端分歧 → 采用云端，不再第三次回传空方案。
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(putCloudSnapshot.mock.calls[1][0].plans[0]?.stagedCourses).toHaveLength(0)
+    expect(store.state.plans[0]?.id).toBe('plan_other')
+    expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
+    expect(store.getSyncedAt()).toBe(CLOUD_3)
+  })
 })
 
 describe('sync review regressions', () => {
@@ -705,10 +801,11 @@ test('oversized conflict recovery keeps both local and cloud sources intact', as
     selectedCourses: [], stagedCourses: [], customEvents: [],
   })) })
   fetchCloudSnapshot.mockResolvedValue(cloud)
-  await controller.syncOnPageEnter()
+  const result = await controller.syncOnPageEnter()
   await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS * 2)
   expect(store.snapshotForSync()).toEqual(local)
   expect(controller.mergeBlocked.value).toBe(true)
   expect(putCloudSnapshot).not.toHaveBeenCalled()
   expect(controller.isDirty()).toBe(true)
+  expect(result).toBe('blocked')
 })

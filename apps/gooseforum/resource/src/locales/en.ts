@@ -504,6 +504,8 @@ export default {
     syncMergeLimit: 'Merged plans exceed the storage limit. Local edits are preserved. Reduce the number or size of plans and try again.',
     syncAutoRestored: 'Cloud and local plans differ. Local plans preserved as: {name}',
     planAutoRestoreName: '[Auto-recovered] Plan {n}',
+    syncAdopted: 'Adopted the latest plans from the cloud',
+    syncFailed: 'Plan sync did not complete. Check your network and try again',
     loading: 'Loading…',
     emptyRequired: 'No required courses available',
     emptyOptional: 'No elective courses available',

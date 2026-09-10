@@ -506,6 +506,8 @@ export default {
     syncMergeLimit: '云端与本地方案合并后超出容量限制。本地修改已保留，请减少方案数量或内容后重试。',
     syncAutoRestored: '检测到云端与本地的排课方案不同，已自动保留本地方案：{name}',
     planAutoRestoreName: '[本地自动恢复]方案 {n}',
+    syncAdopted: '已采用云端最新排课方案',
+    syncFailed: '云端方案同步未完成，请检查网络后重试',
     loading: '正在加载…',
     emptyRequired: '暂无计划内课程',
     emptyOptional: '暂无通识选修课',
