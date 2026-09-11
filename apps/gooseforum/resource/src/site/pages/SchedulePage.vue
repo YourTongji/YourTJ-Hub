@@ -151,36 +151,49 @@ function allPlansCourseCodes(): { majorCodes: string[]; otherCodes: string[] } {
 
 async function syncLatest() {
   if (syncing.value) return // 防重入
-  // 同步最新（#573）：按钮常驻可见，点击后重跑云端方案同步（GET + 总是上传本地），
-  // 再刷新课程信息；两者互不阻塞。
-  void scheduleSync.syncOnPageEnter()
+  // 同步最新（#573）：点击后重跑云端方案对账（GET + 云端为主合并/上传），
+  // 并刷新课程元数据；两者并行互不阻塞，完成后按对账结果补提示（#571）。
+  const reconcilePromise = scheduleSync.syncOnPageEnter()
   const calendarId = store.state.majorSelected.calendarId
   const { majorCodes, otherCodes } = allPlansCourseCodes()
+  let metaOk = true
   if (calendarId === undefined || (majorCodes.length === 0 && otherCodes.length === 0)) {
     store.syncLatestData()
-    flash(t('schedule.syncSuccess'), 'success')
-    return
+  } else {
+    const grade = store.state.majorSelected.grade
+    const major = store.state.majorSelected.major
+
+    syncing.value = true
+    try {
+      const result = await syncPkCourseInfo({
+        calendarId,
+        majorCourseCodes: majorCodes,
+        otherCourseCodes: otherCodes,
+        majorInfo: { grade: grade ?? 0, code: major ?? '' },
+      })
+
+      // 各方案按课号命中替换详情，保留各方案自己的排课状态。
+      store.applySyncToAllPlans(result)
+    } catch (err) {
+      metaOk = false
+      flash(err instanceof Error ? err.message : t('schedule.loadFailed'), 'error')
+    } finally {
+      syncing.value = false
+    }
   }
 
-  const grade = store.state.majorSelected.grade
-  const major = store.state.majorSelected.major
-
-  syncing.value = true
-  try {
-    const result = await syncPkCourseInfo({
-      calendarId,
-      majorCourseCodes: majorCodes,
-      otherCourseCodes: otherCodes,
-      majorInfo: { grade: grade ?? 0, code: major ?? '' },
-    })
-
-    // 各方案按课号命中替换详情，保留各方案自己的排课状态。
-    store.applySyncToAllPlans(result)
+  // 方案层对账结果提示（#571）：merged 已由 notice watch 提示，blocked 已由
+  // mergeBlocked watch 提示错误（此处不再叠加成功提示）；uploaded/idle 由元数据的
+  // syncSuccess 覆盖；adopted/failed 此处显式补提示。
+  const reconcile = await reconcilePromise
+  if (reconcile === 'adopted') {
+    flash(t('schedule.syncAdopted'), 'success')
+  } else if (reconcile === 'failed') {
+    flash(t('schedule.syncFailed'), 'error')
+  } else if (reconcile === 'blocked') {
+    // 容量受限：mergeBlocked watch 已 flash 错误，保持静默避免「同步成功」误导。
+  } else if (metaOk) {
     flash(t('schedule.syncSuccess'), 'success')
-  } catch (err) {
-    flash(err instanceof Error ? err.message : t('schedule.loadFailed'), 'error')
-  } finally {
-    syncing.value = false
   }
 }
 
@@ -297,7 +310,7 @@ onMounted(() => {
   // viewer 可为 undefined（e2e fixture / 轻量宿主传空 layout），视为未登录。
   if (pageProps.layout.viewer?.isAuthenticated) {
     startScheduleSync(pageProps.layout.viewer.id)
-    // loadSolidify 完成后进页同步：云端空自动上传 / 本地空整包采用 / 分歧弹窗二选一。
+    // loadSolidify 完成后进页对账：云端空自动上传 / 本地空或干净本地采用云端 / 分歧自动恢复合并。
     void scheduleSync.syncOnPageEnter()
   }
 })

@@ -504,6 +504,8 @@ export default {
     syncMergeLimit: '統合後のプランが保存上限を超えます。ローカルの変更は保持されています。プランの数やサイズを減らして再試行してください。',
     syncAutoRestored: 'クラウドとローカルのプランが異なるため、ローカルのプランを保存しました：{name}',
     planAutoRestoreName: '[自動復元]プラン {n}',
+    syncAdopted: 'クラウドの最新プランを取り込みました',
+    syncFailed: 'プランの同期が完了しませんでした。ネットワークを確認して再試行してください',
     loading: '読み込み中…',
     emptyRequired: '予定内の授業はありません',
     emptyOptional: '一般教養の授業はありません',
