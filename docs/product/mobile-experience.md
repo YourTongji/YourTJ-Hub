@@ -24,6 +24,12 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   compact vertical padding and one timestamp; embedded Markdown uses smaller paragraph margins
   so short replies do not acquire a large empty footer.
 
+- `Current`: pushed pages use platform-native transitions on iOS — the system
+  Cupertino page transition with the interactive edge-swipe back gesture, so
+  secondary pages (topic, course, Wiki, settings) can be swiped closed from the
+  left edge. Android keeps the web-mirrored fade/rise transition. Horizontal
+  scroll rails keep working; the back gesture only claims the narrow left-edge
+  band.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use icon-only
   navigation with accessible labels. Search is a pushed page, reachable from Home. Campus links to
   the native course catalog, scheduler and Wiki; returning preserves the selected destination.

@@ -99,6 +99,9 @@ abstract final class GfMotion {
 
 /// Page transition matching the web page-enter motion (motion.css
 /// `gf-page-enter`: 0.22s standard ease, subtle fade + 4px rise).
+///
+/// Android-only since #642: iOS maps to CupertinoPageTransitionsBuilder in
+/// gfThemeData so the system edge-swipe back gesture stays interactive.
 class GfPageTransitionsBuilder extends PageTransitionsBuilder {
   const GfPageTransitionsBuilder();
 
