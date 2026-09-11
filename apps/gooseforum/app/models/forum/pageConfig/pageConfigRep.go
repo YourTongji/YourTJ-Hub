@@ -54,6 +54,7 @@ func GetConfigByPageType[T any](pageType string, defaultValue T) T {
 
 // GetSecuritySettingsConfig 读取安全配置并兼容旧配置缺少每日注册上限字段。
 func GetSecuritySettingsConfig(defaultValue SecurityAndRegistration) SecurityAndRegistration {
+	normalizeSecurityLists(&defaultValue)
 	entity := GetByPageType(SecuritySettings)
 	if entity.Id == 0 {
 		return defaultValue
@@ -71,7 +72,28 @@ func GetSecuritySettingsConfig(defaultValue SecurityAndRegistration) SecurityAnd
 		config.MaxDailySignups = defaultValue.MaxDailySignups
 	}
 	config.MaxDailySignups = max(config.MaxDailySignups, -1)
+	// 列表字段保证非 nil（issue #643）：存量行缺键/显式 null 解码为 nil，
+	// JSON 序列化会产出 null，违反 required string[] 契约并使登录页白屏。
+	normalizeSecurityLists(&config)
 	return config
+}
+
+// normalizeSecurityLists 就地保证安全配置四个列表字段非 nil（issue #643）。
+// 默认值与存量行两条读取路径统一收口，保证 JSON 序列化不产出 null，
+// /login payload 与管理端回显始终满足 OpenAPI required string[] 契约。
+func normalizeSecurityLists(config *SecurityAndRegistration) {
+	if config.AllowedDomains == nil {
+		config.AllowedDomains = []string{}
+	}
+	if config.ReservedUsernames == nil {
+		config.ReservedUsernames = []string{}
+	}
+	if config.BannedUsernames == nil {
+		config.BannedUsernames = []string{}
+	}
+	if config.SensitiveWords == nil {
+		config.SensitiveWords = []string{}
+	}
 }
 
 // GetPostingSettingsConfig 读取发布内容设置（issue #369，上游 c47cff94）。
