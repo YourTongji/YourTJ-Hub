@@ -182,35 +182,110 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     return cloudPlans.length > 0 && JSON.stringify(store.state.plans) !== JSON.stringify(cloudPlans)
   }
 
-  /** 云端分歧合并（#571/#573）：云端为主，本地方案克隆为「[本地自动恢复]方案x」追加保留，
-   *  然后上传合并快照。对 dirty 的离线编辑与从未云同步的本地方案（无 syncedAt）都调用，
-   *  避免本地数据被云端覆盖或本地盲传覆盖云端。 */
-  async function mergeAndUpload(snapshot: PkSyncRemoteSnapshot): Promise<boolean> {
-    const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
-    const recoveryPlans = clonePlansAsAutoRestore(store.state.plans, cloudPlans)
-    const merged = {
-      ...snapshot,
-      plans: [...cloudPlans, ...recoveryPlans],
+  /** 云端分歧合并（#571/#573）：云端为主，本地方案克隆为「[本地自动恢复]方案x」追加上传。
+   *  先上传后落盘：PUT 成功才把合并结果写入本地；失败路径本地保持合并前状态，
+   *  重试/重载从同一份本地源重新克隆，恢复方案不翻倍（幂等，#571 review）。
+   *  409 时以最新云端在函数内有界重试合并（本地源不变）；上传期间用户又编辑时不落盘
+   *  合并快照，并强制下轮走完整重对账重新合并（避免心跳盲传本地盖掉云端合并结果）。
+   *  返回 merged（上传成功）/ blocked（超出容量）/ failed（上传失败，由重对账兜底重试）。 */
+  async function mergeAndUpload(snapshot: PkSyncRemoteSnapshot): Promise<'merged' | 'blocked' | 'failed'> {
+    if (putting) await putting
+    const run = generation
+    let current = snapshot
+    // 409 重试上限：每次 409 都意味着云端被其他端推进；超出按失败交由重对账兜底。
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const cloudPlans = Array.isArray(current.plans) ? current.plans : []
+      const recoveryPlans = clonePlansAsAutoRestore(store.state.plans, cloudPlans)
+      const mergedPlans = [...cloudPlans, ...recoveryPlans]
+      const merged = { ...current, plans: mergedPlans }
+      // Never attempt an upload the server cannot accept.
+      if (mergedPlans.length > MAX_PLANS || new TextEncoder().encode(JSON.stringify(merged)).length > 1024 * 1024) {
+        mergeBlocked.value = true
+        rejected = true
+        reconciled = false
+        return 'blocked'
+      }
+      const payload = {
+        plans: mergedPlans,
+        activePlanId: current.activePlanId,
+        majorSelected: current.majorSelected,
+        weekView: current.weekView,
+        baseUpdatedAt: current.updatedAt,
+      } as PkSyncPayload
+      baseUpdatedAt = current.updatedAt
+      reconciled = true
+      const revision = seq
+      let conflict = false
+      let uploadedAt = ''
+      putting = (async (): Promise<boolean> => {
+        try {
+          const { updatedAt } = await deps.transport.putCloudSnapshot(payload)
+          if (!enabled || generation !== run) return false
+          if (!updatedAt) throw new Error('Missing sync revision')
+          baseUpdatedAt = updatedAt
+          uploadedAt = updatedAt
+          return true
+        } catch (err) {
+          if (!enabled || generation !== run) return false
+          if (err instanceof PkSyncError) {
+            if (err.status === 409) conflict = true
+            else if (err.kind === 'unauthenticated') authStopped = true
+            else if (err.status === 400 || err.status === 403) {
+              console.warn('[pk-sync] 合并上传被拒绝：', err.message)
+              rejected = true
+            }
+            // 网络错误：本地保持合并前状态，心跳/重对账从同一本地源重试。
+          }
+          // 失败不落盘：重试/重载天然幂等（#571 review）。
+          return false
+        }
+      })()
+      const uploaded = await putting
+      putting = null
+      if (uploaded) {
+        if (revision === seq) {
+          // 上传成功才落盘合并结果（applyingRemote 守卫下原子替换，不触发钩子/回灌）。
+          store.applyRemoteSnapshot({
+            plans: mergedPlans,
+            activePlanId: current.activePlanId,
+            majorSelected: current.majorSelected,
+            weekView: current.weekView,
+          })
+          notice.value = recoveryPlans.map((plan) => plan.name).join('、')
+          dirty = !store.markSynced(uploadedAt)
+        } else {
+          // 上传期间用户又编辑：不落盘合并快照（避免覆盖新编辑），置 reconciled=false
+          // 让下轮走完整重对账重新合并，而不是盲传本地盖掉云端刚合并的结果。
+          dirty = true
+          store.markSyncDirty()
+          reconciled = false
+        }
+        return 'merged'
+      }
+      if (!conflict) {
+        // 失败（网络/其他非 409）：置回未对账，让心跳重跑完整对账，从同一份
+        // 未落盘的本地源重新合并（幂等）。不可标 dirty 走 pushSnapshot——那会
+        // 盲传本地快照覆盖云端（#571 review）。
+        reconciled = false
+        return 'failed'
+      }
+      // 云端版本已前进：拉取最新云端，从同一份未落盘的本地源重试合并（不翻倍）。
+      try {
+        const newer = await deps.transport.fetchCloudSnapshot()
+        if (!enabled || generation !== run) return 'failed'
+        if (newer === null) {
+          // 云端已被清空：交由重对账按「云端空 + 本地非空」路径重新上传本地。
+          reconciled = false
+          return 'failed'
+        }
+        current = newer
+      } catch {
+        reconciled = false
+        return 'failed'
+      }
     }
-    // Never replace the local draft with a snapshot the server cannot accept.
-    if (merged.plans.length > MAX_PLANS || new TextEncoder().encode(JSON.stringify(merged)).length > 1024 * 1024) {
-      mergeBlocked.value = true
-      rejected = true
-      reconciled = false
-      return false
-    }
-    baseUpdatedAt = snapshot.updatedAt
-    store.applyRemoteSnapshot({
-      plans: [...cloudPlans, ...recoveryPlans],
-      activePlanId: snapshot.activePlanId,
-      majorSelected: snapshot.majorSelected,
-      weekView: snapshot.weekView,
-    })
-    notice.value = recoveryPlans.map((plan) => plan.name).join('、')
-    reconciled = true
-    dirty = true
-    store.markSyncDirty()
-    return pushSnapshot()
+    reconciled = false
+    return 'failed'
   }
 
   async function pushSnapshot(): Promise<boolean> {
@@ -406,7 +481,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         store.getSyncedAt() !== snapshot.updatedAt &&
         plansDiverge(snapshot)
       ) {
-        return (await mergeAndUpload(snapshot)) ? 'merged' : 'blocked'
+        return mergeAndUpload(snapshot)
       }
       if (!store.getSyncedAt()) {
         // 从未云同步且内容与云端一致：采用云端建立同步时钟（零 PUT）。

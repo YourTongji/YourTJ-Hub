@@ -613,6 +613,8 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     store.solidify()
     await vi.advanceTimersByTimeAsync(PK_SYNC_DEBOUNCE_MS)
     expect(putCloudSnapshot).not.toHaveBeenCalled()
+    // 修复后 notice 仅在合并上传成功后给出：补 PUT 成功桩（本用例聚焦 GET 挂起语义）。
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
     resolve(makeSnapshot())
     await entering
     // 对账完成：本机 dirty + 内容分歧 → 恢复方案 + 合并上传。
@@ -709,6 +711,73 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     expect(store.state.plans[0]?.id).toBe('plan_other')
     expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
     expect(store.getSyncedAt()).toBe(CLOUD_3)
+  })
+
+  test('合并 PUT 网络失败：本地保持合并前状态，重对账重新合并不翻倍（#571 review）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    store.solidify()
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot())
+    putCloudSnapshot.mockRejectedValueOnce(new PkSyncError('offline', 0, 'network'))
+
+    // 上传失败必须返回 failed（而非 blocked），且合并结果不落盘到本地。
+    await expect(controller.syncOnPageEnter()).resolves.toBe('failed')
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.state.plans[0]?.stagedCourses).toHaveLength(1)
+    expect(store.getSyncedAt()).toBe('')
+
+    // 心跳重对账（失败未落盘，与「失败后刷新页面」是同一条重放路径）
+    // → 从同一份本地源重新合并，恢复方案恰好一套。
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS)
+
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(store.state.plans).toHaveLength(2)
+    expect(store.state.plans[0]?.id).toBe('plan_cloud')
+    expect(store.state.plans[1]?.name).toBe(autoRestoreName(2))
+    expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
+  })
+
+  test('合并 PUT 409：立即以新云端版本重对账重合并，恢复方案不翻倍（#571 review）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    store.solidify()
+    fetchCloudSnapshot.mockResolvedValueOnce(makeSnapshot())
+    putCloudSnapshot.mockRejectedValueOnce(new PkSyncError('conflict', 409, 'rejected'))
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({ updatedAt: UPDATED_AT_2 }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+
+    await expect(controller.syncOnPageEnter()).resolves.toBe('merged')
+
+    // 第一次 PUT 以 UPDATED_AT 为 base 撞 409，立即重对账后以 UPDATED_AT_2 重合并成功。
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(putCloudSnapshot.mock.calls[0][0].baseUpdatedAt).toBe(UPDATED_AT)
+    expect(putCloudSnapshot.mock.calls[1][0].baseUpdatedAt).toBe(UPDATED_AT_2)
+    expect(store.state.plans).toHaveLength(2)
+    expect(store.state.plans[1]?.name).toBe(autoRestoreName(2))
+    expect(store.getSyncedAt()).toBe(UPDATED_AT_2)
+  })
+
+  test('恢复方案序号接续云端已有恢复方案名（#571 review）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: [
+        { id: 'cloud_1', name: defaultPlanName(1), createdAt: 1, stagedCourses: [], selectedCourses: [], customEvents: [] },
+        { id: 'cloud_2', name: autoRestoreName(2), createdAt: 2, stagedCourses: [], selectedCourses: [], customEvents: [] },
+      ],
+      activePlanId: 'cloud_1',
+    }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_2 })
+
+    store.solidify()
+    await controller.syncOnPageEnter()
+
+    expect(store.state.plans).toHaveLength(3)
+    expect(store.state.plans[2]?.name).toBe(autoRestoreName(3))
   })
 })
 

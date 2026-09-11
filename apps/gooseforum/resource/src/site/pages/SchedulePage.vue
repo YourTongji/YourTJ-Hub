@@ -182,13 +182,16 @@ async function syncLatest() {
     }
   }
 
-  // 方案层对账结果提示（#571）：merged/blocked 已由 notice/mergeBlocked watch 提示，
-  // uploaded/idle 由元数据的 syncSuccess 覆盖；adopted/failed 此处显式补提示。
+  // 方案层对账结果提示（#571）：merged 已由 notice watch 提示，blocked 已由
+  // mergeBlocked watch 提示错误（此处不再叠加成功提示）；uploaded/idle 由元数据的
+  // syncSuccess 覆盖；adopted/failed 此处显式补提示。
   const reconcile = await reconcilePromise
   if (reconcile === 'adopted') {
     flash(t('schedule.syncAdopted'), 'success')
   } else if (reconcile === 'failed') {
     flash(t('schedule.syncFailed'), 'error')
+  } else if (reconcile === 'blocked') {
+    // 容量受限：mergeBlocked watch 已 flash 错误，保持静默避免「同步成功」误导。
   } else if (metaOk) {
     flash(t('schedule.syncSuccess'), 'success')
   }

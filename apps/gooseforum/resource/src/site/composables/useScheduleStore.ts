@@ -169,13 +169,20 @@ function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${planSeq.toString(36)}`
 }
 
-/** 从默认方案名（如「方案 {n}」）提取序号；自定义名/旧数据不匹配时返回 0。 */
+/** 从默认方案名（「方案 {n}」）或自动恢复方案名（「[本地自动恢复]方案 {n}」）提取序号；
+ *  自定义名/旧数据不匹配时返回 0。两类模板统一取最大值，恢复方案克隆才能接续
+ *  云端已有的恢复方案序号，避免重合并时序号回卷撞名（#571 review）。 */
 function planNameIndex(name: string): number {
-  const template = i18n.global.t('schedule.planDefaultName', { n: '{n}' })
-  const [prefix, suffix] = template.split('{n}')
-  if (!name.startsWith(prefix) || !name.endsWith(suffix)) return 0
-  const digits = name.slice(prefix.length, name.length - suffix.length)
-  return /^\d+$/.test(digits) ? Number(digits) : 0
+  const indexFrom = (template: string): number => {
+    const [prefix, suffix] = template.split('{n}')
+    if (!name.startsWith(prefix) || !name.endsWith(suffix)) return 0
+    const digits = name.slice(prefix.length, name.length - suffix.length)
+    return /^\d+$/.test(digits) ? Number(digits) : 0
+  }
+  return Math.max(
+    indexFrom(i18n.global.t('schedule.planDefaultName', { n: '{n}' })),
+    indexFrom(i18n.global.t('schedule.planAutoRestoreName', { n: '{n}' })),
+  )
 }
 
 /**
