@@ -518,7 +518,10 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 	switch req.Params.ContentType {
 	case reports.TargetTopic:
 		topic := topics.UnscopedGet(req.Params.ContentID)
-		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive {
+		// 仅「ACTIVE 且未 PURGED」与不存在的目标拒绝：PURGED 是取证对象
+		// （MADR-0021）；ACTIVE 自回帖经 MarkPurgedOwned 退役后 retention
+		// 已置 PURGED，同样按 retention 放行（review P2）。
+		if topic.Id == 0 || (topic.VisibilityStatus == topics.VisibilityActive && topic.RetentionStatus != topics.RetentionPurged) {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
@@ -542,7 +545,9 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		}
 	case reports.TargetPost:
 		post := posts.UnscopedGet(req.Params.ContentID)
-		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive {
+		// ACTIVE 自回帖经 MarkPurgedOwned 退役后 retention=PURGED 而
+		// visibility 仍为 ACTIVE——取证视图按 retention 放行（review P2）。
+		if post.Id == 0 || (post.VisibilityStatus == posts.VisibilityActive && post.RetentionStatus != posts.RetentionPurged) {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
 		topic := topics.UnscopedGet(post.TopicId)
@@ -690,7 +695,13 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 			snapshot.TopicId = topic.Id
 			snapshot.TopicTitle = topic.Title
 			snapshot.TargetURL = urlconfig.PostDetail(topic.Id)
-			snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
+			if topic.VisibilityStatus == topics.VisibilityActive {
+				snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
+			} else {
+				// 目标不可见（已删/治理删除/PURGED）：审计摘要取举报时刻快照，
+				// 不回显保留正文（MADR-0021 取证纪律，与举报列表同源 review）。
+				snapshot.Excerpt = record.EvidenceSnapshot.Excerpt
+			}
 		}
 	case reports.TargetPost:
 		post := posts.Get(record.TargetId)
@@ -700,7 +711,11 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 			snapshot.TopicTitle = topic.Title
 			snapshot.PostNo = post.PostNo
 			snapshot.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(post.TopicId), post.Id)
-			snapshot.Excerpt = moderationExcerpt(post.Content)
+			if topic.Id > 0 && topic.VisibilityStatus == topics.VisibilityActive && post.VisibilityStatus == posts.VisibilityActive {
+				snapshot.Excerpt = moderationExcerpt(post.Content)
+			} else {
+				snapshot.Excerpt = record.EvidenceSnapshot.Excerpt
+			}
 		}
 	case reports.TargetCourseReview:
 		review, err := course.GetReview(record.TargetId)
@@ -1136,10 +1151,19 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 			if topic.Id > 0 {
 				item.Title = topic.Title
 			}
-			item.Excerpt = moderationExcerpt(post.Content)
-			item.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(topicID), post.Id)
 			if topic.Id == 0 || topic.VisibilityStatus != topics.VisibilityActive || post.VisibilityStatus != posts.VisibilityActive {
+				// 目标不可见（已删/治理删除/PURGED）：一律回退举报时刻快照。
+				// 数据保留（MADR-0021）后 PURGED 行 live 正文留存，列表摘要
+				// 不得绕过取证视图的理由+审计纪律（review P1）。
 				item.TargetDeleted = true
+				if item.Title == "" {
+					item.Title = record.EvidenceSnapshot.Title
+				}
+				item.Excerpt = record.EvidenceSnapshot.Excerpt
+				item.TargetURL = record.EvidenceSnapshot.TargetURL
+			} else {
+				item.Excerpt = moderationExcerpt(post.Content)
+				item.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(topicID), post.Id)
 			}
 		}
 	}

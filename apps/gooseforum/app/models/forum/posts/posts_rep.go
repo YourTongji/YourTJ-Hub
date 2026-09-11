@@ -357,6 +357,10 @@ func MarkPurged(id uint64) error {
 // MarkPurgedOwned permits the topic owner purge path to purge an ACTIVE reply
 // while still requiring ownership and a lifecycle state that has not already
 // been purged. Body fields are kept (data-retention final state, MADR-0021).
+// ACTIVE replies additionally flip to USER_DELETED so the purged row leaves
+// every ACTIVE-visibility read path（我的内容列表/楼层窗口/#492 可见性级联），
+// while the audited forensic view still returns it（review P2）；已处于
+// USER_DELETED/MODERATOR_REMOVED 的行保持原删除来源语义不变。
 func MarkPurgedOwned(id uint64, ownerID uint64) error {
 	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
 		Where(queryopt.Eq("user_id", ownerID)).
@@ -365,6 +369,10 @@ func MarkPurgedOwned(id uint64, ownerID uint64) error {
 		Updates(map[string]any{
 			"deleted_at":       time.Now(),
 			"retention_status": RetentionPurged,
+			"visibility_status": gorm.Expr(
+				"CASE WHEN visibility_status = ? THEN ? ELSE visibility_status END",
+				VisibilityActive, VisibilityUserDeleted,
+			),
 		})
 	if result.Error != nil {
 		return result.Error

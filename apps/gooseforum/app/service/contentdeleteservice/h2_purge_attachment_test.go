@@ -66,6 +66,9 @@ func TestPurgeTopicCleansOwnerPostsAndHardensOtherAttachments(t *testing.T) {
 	if owner.RetentionStatus != posts.RetentionPurged {
 		t.Fatalf("owner post not purged: %s", owner.RetentionStatus)
 	}
+	if owner.VisibilityStatus != posts.VisibilityUserDeleted {
+		t.Fatalf("purged ACTIVE self-reply must leave ACTIVE visibility paths (review P2): %s", owner.VisibilityStatus)
+	}
 	if owner.Content != "author own reply" {
 		t.Fatalf("purged owner post content must be retained (MADR-0021): %q", owner.Content)
 	}

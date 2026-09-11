@@ -41,9 +41,9 @@ func HasActiveReferences(fileName string) bool {
 }
 
 // RetireTargetFiles 内容永久删除/过期时退役附件引用：引用置 PURGED，附件
-// 本体保留在存储中（删除终态数据保留，MADR-0021 / issue #555）。PURGED 引用
-// 不构成公开下载授权（fileController 按 ACTIVE 引用判权），取证查看经
-// view-deleted-content 审计通道进行，附件随正文一并留存可查。
+// 字节保留在存储中（删除终态数据保留，MADR-0021 / issue #555）。PURGED 引用
+// 不构成公开下载授权（fileController 按 ACTIVE 引用判权）；取证视图当前
+// 仅返回文本正文，附件字节的取证回显是后续增强——留存不等于现有读路径可访问。
 func RetireTargetFiles(ref TargetRef) {
 	if err := fileUsage.MarkTargetPurged(ref.TargetType, ref.TargetID); err != nil {
 		slog.Error("retire file usages failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)

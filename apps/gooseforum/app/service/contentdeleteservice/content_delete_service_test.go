@@ -789,3 +789,34 @@ func zzCleanupContent(t *testing.T, conn *gorm.DB, ids []uint64) {
 		conn.Unscoped().Where("id IN ?", ids).Delete(&topics.Entity{})
 	})
 }
+
+// 回归（review P2）：PURGED 是终态（sink state，MADR-0021）——治理删除/
+// 用户删除不得把终态话题改写回 RECOVERABLE，否则「治理删除 → 管理端恢复」
+// 通道可复活已永久删除的内容并公开渲染保留标题。
+func TestPurgedTopicIsSinkStateForDeletionTransitions(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	const topicID = uint64(949800)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, topicID, false)
+	zzCleanupContent(t, conn, []uint64{topicID, topicID + 100})
+
+	if err := DeleteTopicByUser(authorID, topicID); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if err := PurgeContent(authorID, ContentTypeTopic, topicID, "user_purge"); err != nil {
+		t.Fatalf("PurgeContent: %v", err)
+	}
+	if purged := topics.UnscopedGet(topicID); purged.RetentionStatus != topics.RetentionPurged {
+		t.Fatalf("precondition: topic retention = %s, want PURGED", purged.RetentionStatus)
+	}
+
+	if err := topics.MarkUserDeleted(topicID, authorID, "retry delete"); err == nil {
+		t.Fatal("MarkUserDeleted must refuse PURGED topic (sink state, MADR-0021)")
+	}
+	if err := topics.MarkModeratorRemoved(topicID, topicID+99, "moderation retry"); err == nil {
+		t.Fatal("MarkModeratorRemoved must refuse PURGED topic (sink state, MADR-0021)")
+	}
+	got := topics.UnscopedGet(topicID)
+	if got.RetentionStatus != topics.RetentionPurged {
+		t.Fatalf("purged topic was mutated by deletion transition: %s/%s", got.VisibilityStatus, got.RetentionStatus)
+	}
+}

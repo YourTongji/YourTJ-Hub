@@ -26,16 +26,16 @@ issue #555 记录了项目组的三项决策：删除终态改为「用户不可
 
 ## Decision Outcome
 
-1. **状态翻转即终态**：`posts.MarkPurged`/`MarkPurgedOwned`、`topics.MarkPurged` 只做 `RECOVERABLE → PURGED` 状态翻转并置 `deleted_at`；正文、渲染 HTML、版本快照、标题、摘要与图片引用全部保留。`MarkPrivacyErased`（#492 无楼话题联动下架的后端标记）同样保留数据，仅状态下架。
-2. **附件退役不销毁**：`PurgeTargetFiles` 更名 `RetireTargetFiles`——引用置 PURGED、不再物理删除文件本体；`ExpireRecoveringFiles` 只退役引用。公开下载授权继续由 ACTIVE 引用判定（`/file/img/*` 控制器），PURGED 附件字节仅经取证通道可查。
-3. **取证视图放开 PURGED**：`view-deleted-content` 对 PURGED 目标返回保留的标题与正文；鉴权、理由必填与双审计保持不变。仍拒绝的只有 ACTIVE（未删除）与不存在的目标。
+1. **状态翻转即终态**：`posts.MarkPurged`/`MarkPurgedOwned`、`topics.MarkPurged` 只做 `RECOVERABLE → PURGED` 状态翻转并置 `deleted_at`；正文、渲染 HTML、版本快照、标题、摘要与图片引用全部保留。`MarkPrivacyErased`（#492 无楼话题联动下架的后端标记）同样保留数据，仅状态下架。**PURGED 是 sink state**：`MarkUserDeleted`/`MarkModeratorRemoved` 拒绝改写 PURGED 行，治理删除→恢复通道无法复活终态内容；`MarkPurgedOwned` 对 ACTIVE 自回帖同时把 visibility 翻转为 `USER_DELETED`，保证 PURGED 行不留在任何 ACTIVE 可见性读路径上。
+2. **附件退役不销毁**：`PurgeTargetFiles` 更名 `RetireTargetFiles`——引用置 PURGED、不再物理删除文件本体；`ExpireRecoveringFiles` 只退役引用。公开下载授权继续由 ACTIVE 引用判定（`/file/img/*` 控制器）；取证视图当前仅返回文本正文，附件字节的取证回显是后续增强——留存不等于现有读路径可访问。
+3. **取证视图放开 PURGED**：`view-deleted-content` 对 PURGED 目标返回保留的标题与正文；鉴权、理由必填与双审计保持不变。仍拒绝的只有 ACTIVE 且未 PURGED（未删除）与不存在的目标。
 4. **用户侧不可见由既有读路径保证**：公开列表/详情/搜索投影/LLMS 导出/Agent API 均按 `visibility_status=ACTIVE` 过滤；「最近删除」列表按 `retention_status != PURGED` 过滤。新增任何读路径必须显式过滤 PURGED（评审红线）。
 5. **契约描述同步**：`purgeContent` 与 `viewDeletedContent` 的契约描述改为数据保留语义；不新增/删除路径，生成的 TS 类型无结构变化。
 6. **存量明确接受**：切换上线前已被销毁的 PURGED 行原文不可追回，取证视野仅覆盖切换后的删除。
 
 ### Consequences
 
-- Good: 取证闭环（正文 + 附件字节留存，经审计通道可还原）；零 schema 变更；删除的即时性与用户信任模型不变；#577 移除隐私擦除后不再有绕过生命周期的销毁通道，R4 降级在安全上自洽。
+- Good: 取证闭环（文本经取证视图的理由+审计通道可还原；附件字节留存待回显能力）；零 schema 变更；删除的即时性与用户信任模型不变；#577 移除隐私擦除后不再有绕过生命周期的销毁通道，R4 降级在安全上自洽。
 - Trade-off: 数据库与附件存储随删除增长，不再收缩；数据暴露面从「审计日志」扩大到「保留的原文行」——任何绕过 visibility 过滤的新读路径都可能泄露 PURGED 原文（见决策 4 的评审红线）；「过期冻结」与「主动清除」共用 PURGED 态，语义靠 `visibility_status`/`delete_reason` 区分。
 - 合规口径：产品对用户的删除承诺从「彻底删除」变为「不可恢复地移除（数据按治理需要留存）」，服务条款/隐私政策为管理端可配置内容，随内容运营同步修订。
 - 后续增强（非本期）：路线 b 的不可篡改快照归档、取证附件回显、长期保留策略与存储成本评估。

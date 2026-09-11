@@ -685,26 +685,41 @@ func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
 	return
 }
 
-// MarkDeleted 将主题标记为用户删除，进入 30 天恢复窗口。
+// MarkUserDeleted 将主题标记为用户删除，进入 30 天恢复窗口。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE 再经恢复
+// 通道复活（review P2），未命中即返回未找到错误。
 func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityUserDeleted,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	return markDeletedTransition(id, VisibilityUserDeleted, deletedBy, reason)
 }
 
 // MarkModeratorRemoved 将主题标记为管理员删除，作者不可自行恢复。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review P2）。
 func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityModeratorRemoved,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	return markDeletedTransition(id, VisibilityModeratorRemoved, deletedBy, reason)
+}
+
+// markDeletedTransition applies a RECOVERABLE-phase deletion transition and
+// refuses PURGED rows (sink state, MADR-0021): zero rows affected reports
+// gorm.ErrRecordNotFound so callers surface a failure instead of silently
+// rewriting a final-state topic.
+func markDeletedTransition(id uint64, visibility string, deletedBy uint64, reason string) error {
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": visibility,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // Restore 恢复主题：清除软删标记并回到正常生命周期。

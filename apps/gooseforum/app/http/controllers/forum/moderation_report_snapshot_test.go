@@ -350,3 +350,78 @@ func TestViewDeletedContentAllowsPurgedTarget(t *testing.T) {
 		t.Fatalf("purged topic view must retain title/content for forensics: %#v", view)
 	}
 }
+
+// R6+MADR-0021（review P1 回归）：数据保留后 PURGED 行的 live 正文留存，
+// 举报列表对不可见目标必须回退举报时刻快照，不得回显 live 正文——
+// 否则列表摘要绕过取证视图「理由 + EvidenceViewed 审计」纪律。
+func TestModerationReportListUsesSnapshotForInvisiblePost(t *testing.T) {
+	conn := setupReportSnapshotTestDB(t)
+	authorID, moderatorID, reporterID, topicID, _ := seedReportSnapshotTopic(t, conn, 9_600_500_000)
+
+	replyID := topicID + 60
+	now := time.Now()
+	if err := conn.Create(&posts.Entity{
+		Id:               replyID,
+		TopicId:          topicID,
+		PostNo:           2,
+		UserId:           authorID,
+		Content:          "original reply body for snapshot",
+		VisibilityStatus: posts.VisibilityActive,
+		RetentionStatus:  posts.RetentionNormal,
+		ProcessStatus:    posts.ProcessStatusNormal,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}).Error; err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id = ?", replyID).Delete(&posts.Entity{})
+	})
+
+	createRes := CreateReport(component.BetterRequest[CreateReportReq]{
+		UserId: reporterID,
+		Params: CreateReportReq{TargetType: reports.TargetPost, TargetId: replyID, Reason: reports.ReasonSpam},
+	})
+	if createRes.Data.Code != component.SUCCESS {
+		t.Fatalf("CreateReport failed: %#v", createRes)
+	}
+
+	// 模拟数据保留终态：PURGED 行正文留存且 live 内容被后续篡改，
+	// 用于区分「列表摘要来自快照」还是「来自 live 行」。
+	if err := conn.Model(&posts.Entity{}).Unscoped().Where("id = ?", replyID).
+		Updates(map[string]any{
+			"content":           "MUTATED live body",
+			"visibility_status": posts.VisibilityUserDeleted,
+			"retention_status":  posts.RetentionPurged,
+		}).Error; err != nil {
+		t.Fatalf("mutate reply into purged state: %v", err)
+	}
+
+	listRes := ModerationReportList(component.BetterRequest[ModerationReportListReq]{
+		UserId: moderatorID,
+		Params: ModerationReportListReq{Status: reports.StatusOpen},
+	})
+	if listRes.Data.Code != component.SUCCESS {
+		t.Fatalf("ModerationReportList failed: %#v", listRes)
+	}
+	payload, ok := listRes.Data.Result.(ModerationReportListResponse)
+	if !ok {
+		t.Fatalf("result type = %T", listRes.Data.Result)
+	}
+	var found *ModerationReportItem
+	for i := range payload.Items {
+		if payload.Items[i].TargetID == replyID {
+			found = &payload.Items[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("report for reply %d missing from list: %#v", replyID, payload.Items)
+	}
+	if !found.TargetDeleted {
+		t.Fatalf("invisible target must be flagged targetDeleted: %#v", found)
+	}
+	if found.Excerpt != "original reply body for snapshot" {
+		t.Fatalf("report excerpt must come from evidence snapshot, not retained live content (review P1): %q", found.Excerpt)
+	}
+}
