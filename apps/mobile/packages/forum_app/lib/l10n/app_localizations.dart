@@ -2952,6 +2952,54 @@ abstract class AppLocalizations {
   /// **'{actor} mentioned you'**
   String notificationMention(String actor);
 
+  /// No description provided for @mentionListboxLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Mention users'**
+  String get mentionListboxLabel;
+
+  /// No description provided for @mentionLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching users…'**
+  String get mentionLoading;
+
+  /// No description provided for @mentionNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching users'**
+  String get mentionNoResults;
+
+  /// No description provided for @mentionSearchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'User search failed, keep typing'**
+  String get mentionSearchFailed;
+
+  /// No description provided for @mentionKeepTyping.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep typing to search users'**
+  String get mentionKeepTyping;
+
+  /// No description provided for @mentionTagReplyTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Replying to'**
+  String get mentionTagReplyTarget;
+
+  /// No description provided for @mentionTagTopicAuthor.
+  ///
+  /// In en, this message translates to:
+  /// **'Topic author'**
+  String get mentionTagTopicAuthor;
+
+  /// No description provided for @mentionTagParticipant.
+  ///
+  /// In en, this message translates to:
+  /// **'Participant'**
+  String get mentionTagParticipant;
+
   /// No description provided for @notificationPostReply.
   ///
   /// In en, this message translates to:

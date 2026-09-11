@@ -492,6 +492,14 @@
   "wikiExploreTitle": "キャンパスの案内役",
   "notificationComment": "{actor}があなたのトピックにコメントしました",
   "notificationMention": "{actor}があなたにメンションしました",
+  "mentionListboxLabel": "ユーザーをメンション",
+  "mentionLoading": "ユーザーを検索中…",
+  "mentionNoResults": "一致するユーザーがいません",
+  "mentionSearchFailed": "ユーザー検索に失敗しました。入力を続けてください",
+  "mentionKeepTyping": "入力を続けてユーザーを検索",
+  "mentionTagReplyTarget": "返信先",
+  "mentionTagTopicAuthor": "トピック作成者",
+  "mentionTagParticipant": "参加者",
   "@notificationMention": {
     "placeholders": {
       "actor": {
