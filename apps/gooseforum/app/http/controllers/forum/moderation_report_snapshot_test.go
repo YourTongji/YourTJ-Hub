@@ -425,3 +425,46 @@ func TestModerationReportListUsesSnapshotForInvisiblePost(t *testing.T) {
 		t.Fatalf("report excerpt must come from evidence snapshot, not retained live content (review P1): %q", found.Excerpt)
 	}
 }
+
+// review should（MADR-0021）：治理日志（举报处理）对软删话题也要取到行并回退
+// 举报时刻快照——此前用软删作用域的 topics.Get 读取，软删行被过滤成空导致
+// 「不可见回退」分支不可达、审计摘要落空。现在 UnscopedGet 与举报列表路径对齐。
+func TestReportStatusLogFallsBackToSnapshotForSoftDeletedTopic(t *testing.T) {
+	conn := setupReportSnapshotTestDB(t)
+	authorID, moderatorID, reporterID, topicID, _ := seedReportSnapshotTopic(t, conn, 9_600_600_000)
+
+	createRes := CreateReport(component.BetterRequest[CreateReportReq]{
+		UserId: reporterID,
+		Params: CreateReportReq{TargetType: reports.TargetTopic, TargetId: topicID, Reason: reports.ReasonSpam},
+	})
+	if createRes.Data.Code != component.SUCCESS {
+		t.Fatalf("CreateReport failed: %#v", createRes)
+	}
+	var created reports.Entity
+	conn.Where("target_type = ? AND target_id = ?", reports.TargetTopic, topicID).First(&created)
+	if created.Id == 0 {
+		t.Fatal("report row missing")
+	}
+
+	// 作者软删话题（deleted_at 置位）后版主处理举报：审计摘要应取举报时刻快照。
+	if err := contentdeleteservice.DeleteTopicByUser(authorID, topicID); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if res := UpdateModerationReportStatus(component.BetterRequest[ModerationReportStatusReq]{
+		UserId: moderatorID,
+		Params: ModerationReportStatusReq{Id: created.Id, Action: "resolve"},
+	}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("UpdateModerationReportStatus failed: %#v", res)
+	}
+
+	var logs []moderationLog.Entity
+	conn.Where("action = ? AND subject_type = ? AND subject_id = ?",
+		moderationLog.ActionReportResolved, moderationLog.SubjectReport, created.Id).Find(&logs)
+	if len(logs) != 1 {
+		t.Fatalf("report resolved logs = %d, want 1", len(logs))
+	}
+	excerpt, _ := logs[0].Payload.Params["excerpt"].(string)
+	if excerpt != "被举报话题摘要" {
+		t.Fatalf("audit excerpt must fall back to evidence snapshot for soft-deleted topic (review should): %q", excerpt)
+	}
+}

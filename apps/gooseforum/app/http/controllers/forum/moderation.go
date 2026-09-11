@@ -690,7 +690,10 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 	}
 	switch record.TargetType {
 	case reports.TargetTopic:
-		topic := topics.Get(record.TargetId)
+		// UnscopedGet 对齐举报列表路径（reportBatchMaps 用 Unscoped 批量加载）：
+		// 软删/PURGED 话题行会被 Get 的软删作用域过滤成空行，导致下方
+		// 「不可见回退举报快照」分支不可达、审计摘要落空（review should）。
+		topic := topics.UnscopedGet(record.TargetId)
 		if topic.Id > 0 {
 			snapshot.TopicId = topic.Id
 			snapshot.TopicTitle = topic.Title
@@ -704,9 +707,11 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 			}
 		}
 	case reports.TargetPost:
-		post := posts.Get(record.TargetId)
+		// 同话题分支：Unscoped 读取，软删行（deleted_at 置位，非墓碑）也要走
+		// 快照回退，而不是整块跳过导致审计摘要/标题落空（review should）。
+		post := posts.UnscopedGet(record.TargetId)
 		if post.Id > 0 {
-			topic := topics.Get(post.TopicId)
+			topic := topics.UnscopedGet(post.TopicId)
 			snapshot.TopicId = post.TopicId
 			snapshot.TopicTitle = topic.Title
 			snapshot.PostNo = post.PostNo

@@ -1880,8 +1880,8 @@ export interface paths {
          * @description Soft-deletes up to 50 caller-owned topics or replies in one call, each
          *     entering the standard 30-day recovery window (same semantics as the
          *     single-delete endpoints). Deletions are rate-gated per account: more than
-         *     20 deletions within 10 minutes — single deletes, purges and privacy
-         *     erases count into the same window — fail with
+         *     20 deletions within 10 minutes — single deletes and purges count into
+         *     the same window — fail with
          *     `content.batchDelete.confirmRequired` (HTTP 200, params.count carries the
          *     projected total); the caller retries with force=true plus the current
          *     password as second factor (a wrong password fails with
@@ -1916,8 +1916,9 @@ export interface paths {
          *     be restored) and blanks notification previews; moderation evidence
          *     snapshots and audit logs are retained. The final state is data retention
          *     (MADR-0021, issue #555): bodies/titles and attachment bytes are kept in
-         *     the database and storage for moderator forensics via
-         *     view-deleted-content (reason + audited), invisible to all user-side
+         *     the database and storage — the audited view-deleted-content (reason +
+         *     moderation-log audit) returns the retained text, and attachment bytes
+         *     await a future audited echo; nothing is exposed on user-side
          *     read paths, so deletion still reads as deletion to users. Purging a
          *     topic also purges the caller's own replies under it and any replies
          *     already in the deletion lifecycle (same retention semantics); other
@@ -2592,7 +2593,9 @@ export interface paths {
          *     (governance) deletion: the topic is soft-deleted into the moderator-removed
          *     state — never hard-deleted — and only the admin console can restore it; the
          *     author cannot. Re-deleting an already moderator-removed topic is an idempotent
-         *     success that keeps the original deletion metadata. Wiki subsite topics are
+         *     success that keeps the original deletion metadata; a topic the author already
+         *     permanently purged (retention PURGED, MADR-0021) is likewise an idempotent
+         *     success — the terminal state is never rewritten. Wiki subsite topics are
          *     rejected with `topic.operationDenied` (HTTP 200). Unknown topics fail with
          *     `topic.notFound` (HTTP 200); a blank reason fails with
          *     `common.request.invalidParams` (HTTP 200); persistence failures surface as

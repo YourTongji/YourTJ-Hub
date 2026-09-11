@@ -201,14 +201,27 @@ func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
 }
 
 // MarkUserDeleted 将回复标记为用户删除，进入 30 天恢复窗口。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review nit，
+// 与 topics 侧守卫对齐）；未命中返回未找到错误，防御未来新调用方漏判——
+// DeletePostByUser 的幂等分支仍在其上层先行处理。
 func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityUserDeleted,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": VisibilityUserDeleted,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkUserDeletedTx marks a post as user-deleted in the caller's transaction.
@@ -221,14 +234,25 @@ func MarkUserDeletedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) 
 // 墓碑态行不置 deleted_at（保持讨论树可见），以 updated_at 作为删除时刻的近似：
 // 必须显式写入 updated_at=now（builder() 走 Table()，GORM 的 Updates(map) 不会自动
 // 填充 autoUpdateTime），否则 30 天恢复窗口会按最后一次编辑时间判定而立即失效。
+// PURGED 是终态（MADR-0021）：守卫拒绝改写终态行（与 topics 侧对齐）。
 func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"updated_at":        time.Now(),
-		"visibility_status": VisibilityUserDeleted,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"updated_at":        time.Now(),
+			"visibility_status": VisibilityUserDeleted,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkUserDeletedKeepVisibleTx marks a post as a user-deleted tombstone in the
@@ -238,28 +262,52 @@ func MarkUserDeletedKeepVisibleTx(tx *gorm.DB, id uint64, deletedBy uint64, reas
 }
 
 // MarkDeletedKeepVisible 标记回复为删除但保留行可见（墓碑态），visibility 区分用户/管理员来源。
+// PURGED 是终态（MADR-0021）：守卫拒绝改写终态行；调用方（DeleteTopicAs 话题级联）
+// 只处理 RECOVERABLE 阶段的首楼，守卫仅防御未来新调用方漏判。
 func MarkDeletedKeepVisible(id uint64, visibility string, deletedBy uint64, reason string) error {
 	if visibility == "" {
 		visibility = VisibilityUserDeleted
 	}
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"updated_at":        time.Now(),
-		"visibility_status": visibility,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"updated_at":        time.Now(),
+			"visibility_status": visibility,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkModeratorRemoved 将回复标记为管理员删除，作者不可自行恢复。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review nit）；
+// 未命中返回未找到错误，DeletePostAsModerator 的幂等分支在其上层先行处理。
 func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityModeratorRemoved,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": VisibilityModeratorRemoved,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkModeratorRemovedTx marks a post as moderator-deleted in the caller's
@@ -280,7 +328,13 @@ func markDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, 
 	} else {
 		values["updated_at"] = time.Now()
 	}
-	result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(values)
+	// PURGED 是终态（MADR-0021）：守卫拒绝把终态行改写回 RECOVERABLE；
+	// 调用方（DeletePostByUser/DeletePostAsModerator）的幂等分支先行处理，
+	// 本守卫仅防御未来新调用方漏判（与 topics 侧 markDeletedTransition 对齐）。
+	result := tx.Table(tableName).Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(values)
 	if result.Error != nil {
 		return result.Error
 	}

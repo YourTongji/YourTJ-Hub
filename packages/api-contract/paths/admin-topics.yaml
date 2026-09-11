@@ -190,7 +190,9 @@ adminDeleteTopic:
       (governance) deletion: the topic is soft-deleted into the moderator-removed
       state — never hard-deleted — and only the admin console can restore it; the
       author cannot. Re-deleting an already moderator-removed topic is an idempotent
-      success that keeps the original deletion metadata. Wiki subsite topics are
+      success that keeps the original deletion metadata; a topic the author already
+      permanently purged (retention PURGED, MADR-0021) is likewise an idempotent
+      success — the terminal state is never rewritten. Wiki subsite topics are
       rejected with `topic.operationDenied` (HTTP 200). Unknown topics fail with
       `topic.notFound` (HTTP 200); a blank reason fails with
       `common.request.invalidParams` (HTTP 200); persistence failures surface as

@@ -630,6 +630,12 @@ func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response
 	if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
 		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 	}
+	// 幂等：PURGED 是删除终态（MADR-0021，issue #555）：作者已永久删除的话题
+	// 重复删除直接成功，不穿透 repo 层 sink-state 守卫返回笼统的「删除话题失败」
+	// （与 DeletePostAsModerator 对 PURGED 的幂等语义对齐，review should）。
+	if topic.RetentionStatus == topics.RetentionPurged {
+		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
+	}
 
 	reason := strings.TrimSpace(req.Params.Reason)
 	if reason == "" {
