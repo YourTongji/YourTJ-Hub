@@ -215,9 +215,26 @@ func clearTopicCaches(topicID uint64, categoryIDs ...uint64) {
 	slog.Debug("topic delete caches cleared", "topicId", topicID)
 }
 
+// IsSelfDeletedRecoverableReply 判断帖子是否处于「作者本人删除、仍在恢复窗口内」
+// 的可恢复软删态——重复删除应返回 post.alreadyDeleted 的唯一形态。话题级联删除的
+// 首楼（PostNo<=1）、已 PURGED、管理删除与隐私擦除行均不满足本谓词，保持
+// post.notFound / operationDenied 语义。控制器预检（DeletePost）与 DeletePostByUser
+// 行锁幂等分支共用本谓词，避免两处条件漂移（review nit）。
+func IsSelfDeletedRecoverableReply(post posts.Entity, userID uint64) bool {
+	return post.UserId == userID &&
+		post.PostNo > 1 &&
+		post.VisibilityStatus == posts.VisibilityUserDeleted &&
+		post.DeletedBy == userID &&
+		post.RetentionStatus == posts.RetentionRecoverable
+}
+
 // DeletePostByUser 删除自己的回复（R2）。
 //   - 无子回复：软删，直接消失。
 //   - 有子回复：墓碑态（保留行可见，正文由前端渲染为占位），讨论树完整。
+//
+// 重复删除（并发或批量路径）返回 post.alreadyDeleted 错误而非幂等成功：
+// 行锁内的分类保证只有一个请求真正执行删除副作用，第二个请求报错退出，
+// 不再重复触发 ContentDeletedEvent/审计/审核日志（issue #553 review 修复）。
 func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	var post posts.Entity
 	var result DeletePostResult
@@ -243,8 +260,8 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 		}
 		result.HasChildren = hasChildren
 		if post.VisibilityStatus != posts.VisibilityActive || post.RetentionStatus != posts.RetentionNormal {
-			if post.VisibilityStatus == posts.VisibilityUserDeleted && post.DeletedBy == userID {
-				return nil
+			if IsSelfDeletedRecoverableReply(post, userID) {
+				return component.NewMessageError(component.MessagePostAlreadyDeleted, "回复已删除，无需重复操作", nil)
 			}
 			return component.NewMessageError(component.MessageTopicOperationDenied, "该回复已被处理", nil)
 		}

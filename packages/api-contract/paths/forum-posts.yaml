@@ -164,14 +164,18 @@ deletePost:
     summary: Soft-delete an own reply post
     operationId: deletePost
     description: |
-      Soft-deletes a reply (postNo 2 or higher) owned by the caller; deletion is
-      idempotent and keeps a tombstone so the discussion tree stays intact. The topic
-      first post is rejected as `post.notFound` (delete the topic instead). JSON binding
-      is lenient: a malformed body binds to zero values and fails as `post.notFound`
-      (HTTP 200). Burst deletion beyond the server threshold requires force+password
-      confirmation (`content.batchDelete.confirmRequired`, params count; a wrong
-      password fails with `auth.credentials.invalid`). Other business failures:
-      `topic.operationDenied` for someone else's post.
+      Soft-deletes a reply (postNo 2 or higher) owned by the caller and keeps a
+      tombstone so the discussion tree stays intact. Repeating the deletion of an
+      already self-deleted reply fails with `post.alreadyDeleted` (HTTP 200,
+      issue #553). The topic first post is rejected with `post.firstPostUndeletable`
+      (delete the topic instead). JSON binding is lenient: a malformed body binds
+      to zero values and fails as `post.notFound` (HTTP 200). Unknown ids — and
+      non-ACTIVE replies owned by someone else — also fail with `post.notFound`,
+      so the existence of deleted content is not revealed to non-owners. Burst
+      deletion beyond the server threshold requires force+password confirmation
+      (`content.batchDelete.confirmRequired`, params count; a wrong password fails
+      with `auth.credentials.invalid`). Other business failures:
+      `topic.operationDenied` for someone else's active post.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -193,6 +197,10 @@ deletePost:
                 externalValue: ../fixtures/post-delete-success.json
               postNotFound:
                 externalValue: ../fixtures/admin-post-delete-post-not-found.json
+              postAlreadyDeleted:
+                externalValue: ../fixtures/post-delete-already-deleted.json
+              firstPostUndeletable:
+                externalValue: ../fixtures/post-delete-first-post-undeletable.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

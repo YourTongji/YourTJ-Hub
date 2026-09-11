@@ -667,14 +667,18 @@ export interface paths {
         put?: never;
         /**
          * Soft-delete an own reply post
-         * @description Soft-deletes a reply (postNo 2 or higher) owned by the caller; deletion is
-         *     idempotent and keeps a tombstone so the discussion tree stays intact. The topic
-         *     first post is rejected as `post.notFound` (delete the topic instead). JSON binding
-         *     is lenient: a malformed body binds to zero values and fails as `post.notFound`
-         *     (HTTP 200). Burst deletion beyond the server threshold requires force+password
-         *     confirmation (`content.batchDelete.confirmRequired`, params count; a wrong
-         *     password fails with `auth.credentials.invalid`). Other business failures:
-         *     `topic.operationDenied` for someone else's post.
+         * @description Soft-deletes a reply (postNo 2 or higher) owned by the caller and keeps a
+         *     tombstone so the discussion tree stays intact. Repeating the deletion of an
+         *     already self-deleted reply fails with `post.alreadyDeleted` (HTTP 200,
+         *     issue #553). The topic first post is rejected with `post.firstPostUndeletable`
+         *     (delete the topic instead). JSON binding is lenient: a malformed body binds
+         *     to zero values and fails as `post.notFound` (HTTP 200). Unknown ids — and
+         *     non-ACTIVE replies owned by someone else — also fail with `post.notFound`,
+         *     so the existence of deleted content is not revealed to non-owners. Burst
+         *     deletion beyond the server threshold requires force+password confirmation
+         *     (`content.batchDelete.confirmRequired`, params count; a wrong password fails
+         *     with `auth.credentials.invalid`). Other business failures:
+         *     `topic.operationDenied` for someone else's active post.
          */
         post: operations["deletePost"];
         delete?: never;
@@ -6431,7 +6435,7 @@ export interface components {
         DeletePostRequest: {
             /**
              * Format: uint64
-             * @description Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+             * @description Reply posts only. The topic first post fails with `post.firstPostUndeletable`, an already self-deleted reply fails with `post.alreadyDeleted`, and unknown ids fail with `post.notFound` (HTTP 200).
              */
             postId: number;
             /** @description Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`). */
