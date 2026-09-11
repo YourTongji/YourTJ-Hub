@@ -4,6 +4,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import TopicCardActions from '../src/site/components/TopicCardActions.vue'
 import TopicList from '../src/site/components/TopicList.vue'
+import TopicFeedMeta from '../src/site/components/TopicFeedMeta.vue'
+import TopicFeedPreview from '../src/site/components/TopicFeedPreview.vue'
 import type { TopicPayload } from '@gooseforum/client'
 import zh from '../src/locales/zh'
 
@@ -176,6 +178,27 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(cardLink.classes()).toContain('absolute')
     expect(cardLink.attributes('href')).toBe('/p/42')
     expect(view.findComponent(TopicCardActions).exists()).toBe(true)
+  })
+
+  it('卡片视图合并为单行：meta 统计行隐藏，回复/浏览各只出现一次', () => {
+    const view = mount(TopicList, {
+      props: { topics: [baseTopic()], feedMode: 'card' },
+      global: { plugins: [i18n] },
+    })
+    expect(view.findComponent(TopicFeedMeta).props('showStats')).toBe(false)
+    // 只数叶子数字 span（tabular-nums）：外层容器 span 的 text() 会继承内层文本，
+    // 直接 findAll('span') 会把容器本身也算作一次。
+    const counts = view.findAll('span.tabular-nums').map((s) => s.text())
+    expect(counts.filter((t) => t === '7')).toHaveLength(1)
+    expect(counts.filter((t) => t === '100')).toHaveLength(1)
+  })
+
+  it('默认（悬停预览）仍保留 meta 统计行', () => {
+    const view = mount(TopicFeedPreview, {
+      props: { topic: baseTopic() },
+      global: { plugins: [i18n] },
+    })
+    expect(view.findComponent(TopicFeedMeta).props('showStats')).toBe(true)
   })
 
   it('表格视图不渲染快捷互动条', () => {

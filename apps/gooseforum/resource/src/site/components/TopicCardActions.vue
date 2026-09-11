@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bookmark, Heart, MessageSquare } from '@lucide/vue'
+import { Bookmark, Eye, Heart, MessageSquare } from '@lucide/vue'
+import { formatNumber } from '@/runtime/format'
 import { bookmarkTopic, likeTopic } from '@/runtime/api'
 import type { TopicPayload } from '@gooseforum/client'
 
@@ -115,13 +116,22 @@ async function toggleBookmark() {
     >
       <Bookmark class="h-4 w-4" :class="bookmarked ? 'fill-current' : ''" />
     </button>
-    <a
-      :href="commentUrl"
-      class="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content"
-      :title="t('topic.reply')"
-    >
-      <MessageSquare class="h-4 w-4" />
-      <span class="tabular-nums">{{ topic.replyCount }}</span>
-    </a>
+    <div class="ml-auto flex items-center gap-0.5">
+      <a
+        :href="commentUrl"
+        class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content"
+        :title="t('topic.reply')"
+      >
+        <MessageSquare class="h-4 w-4" />
+        <span class="tabular-nums">{{ formatNumber(topic.replyCount) }}</span>
+      </a>
+      <span
+        class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"
+        :title="t('topicList.columns.views')"
+      >
+        <Eye class="h-4 w-4" />
+        <span class="tabular-nums">{{ formatNumber(topic.viewCount) }}</span>
+      </span>
+    </div>
   </div>
 </template>

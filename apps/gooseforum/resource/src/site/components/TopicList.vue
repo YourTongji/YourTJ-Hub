@@ -73,7 +73,7 @@ function applyInteraction(
         :key="topic.id"
         class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
       >
-        <TopicFeedPreview :topic="topic" compact class="pointer-events-none" />
+        <TopicFeedPreview :topic="topic" compact :show-stats="false" class="pointer-events-none" />
         <!-- stretched-link：整卡可点，互动按钮浮于遮罩之上，避免嵌套交互元素 -->
         <a
           :href="topic.url"
