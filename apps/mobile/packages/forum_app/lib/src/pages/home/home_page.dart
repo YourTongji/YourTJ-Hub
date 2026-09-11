@@ -27,6 +27,16 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
+/// 单条互动 override：null 字段表示该动作不触碰对应状态；epoch 用于在合并时
+/// 丢弃跨离线缓存会话（登出/换号）残留的乐观状态。
+typedef _InteractionOverride = ({
+  int revision,
+  int epoch,
+  bool? liked,
+  bool? bookmarked,
+  int? likeCount,
+});
+
 class _HomePageState extends ConsumerState<HomePage> {
   static const String _feedModeKey = 'goose:home-feed-mode';
 
@@ -35,8 +45,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   int _loadSequence = 0;
   int _interactionRevision = 0;
   final _pendingInteractions = <(int, bool)>{};
-  final _interactionOverrides =
-      <int, ({int revision, bool? liked, bool? bookmarked, int? likeCount})>{};
+  final _interactionOverrides = <int, _InteractionOverride>{};
 
   // Only writes completed after a read started override that response. A later
   // refresh (including returning from topic detail) remains authoritative.
@@ -48,6 +57,11 @@ class _HomePageState extends ConsumerState<HomePage> {
   TopicPayload _mergeInteraction(TopicPayload topic, int readRevision) {
     final update = _interactionOverrides[topic.id];
     if (update == null) return topic;
+    // 跨会话的乐观 override 不折叠到新会话数据上。
+    if (update.epoch != ref.read(offlineCacheEpochProvider)) {
+      _interactionOverrides.remove(topic.id);
+      return topic;
+    }
     if (update.revision <= readRevision) {
       _interactionOverrides.remove(topic.id);
       return topic;
@@ -194,9 +208,39 @@ class _HomePageState extends ConsumerState<HomePage> {
     bool target, {
     bool bookmark = false,
   }) async {
+    if (!mounted) return false;
     final key = (topic.id, bookmark);
     if (!_pendingInteractions.add(key)) return false;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final index = _topics.indexWhere((t) => t.id == topic.id);
+    final current = index >= 0 ? _topics[index] : topic;
+    // 乐观更新先于请求落盘：图标与点赞计数立即切换并记录 override（并发刷新
+    // 据此折叠）；失败或过期会话按字段回滚快照，避免与服务端权威刷新双计。
+    final snapshot = (
+      liked: current.liked,
+      bookmarked: current.bookmarked,
+      likeCount: current.likeCount,
+      override: _interactionOverrides[topic.id],
+    );
+    final optimistic = (
+      revision: ++_interactionRevision,
+      epoch: epoch,
+      liked: bookmark ? snapshot.override?.liked : target,
+      bookmarked: bookmark ? target : snapshot.override?.bookmarked,
+      likeCount: bookmark
+          ? snapshot.override?.likeCount
+          : math.max(0, snapshot.likeCount + (target ? 1 : -1)),
+    );
+    setState(() {
+      _interactionOverrides[topic.id] = optimistic;
+      if (index >= 0) {
+        _topics[index] = _topics[index].copyWith(
+          liked: optimistic.liked ?? _topics[index].liked,
+          bookmarked: optimistic.bookmarked ?? _topics[index].bookmarked,
+          likeCount: optimistic.likeCount ?? _topics[index].likeCount,
+        );
+      }
+    });
     try {
       final repository = ref.read(topicRepositoryProvider);
       final success = bookmark
@@ -211,37 +255,12 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (!success ||
           !mounted ||
           epoch != ref.read(offlineCacheEpochProvider)) {
+        _rollbackInteraction(topic.id, bookmark, snapshot);
         return false;
       }
-      final previous = _interactionOverrides[topic.id];
-      // 增量基于列表当前值而非闭包捕获的旧 payload：连续快速点击时不丢步。
-      final currentLikeCount = _topics
-          .firstWhere((t) => t.id == topic.id, orElse: () => topic)
-          .likeCount;
-      final update = (
-        revision: ++_interactionRevision,
-        liked: bookmark ? previous?.liked : target,
-        bookmarked: bookmark ? target : previous?.bookmarked,
-        likeCount: bookmark
-            ? previous?.likeCount
-            : math.max(0, currentLikeCount + (target ? 1 : -1)),
-      );
-      setState(() {
-        _interactionOverrides[topic.id] = update;
-        for (var i = 0; i < _topics.length; i++) {
-          if (_topics[i].id == topic.id) {
-            _topics[i] = _topics[i].copyWith(
-              liked: bookmark ? _topics[i].liked : target,
-              bookmarked: bookmark ? target : _topics[i].bookmarked,
-              likeCount: bookmark
-                  ? _topics[i].likeCount
-                  : math.max(0, _topics[i].likeCount + (target ? 1 : -1)),
-            );
-          }
-        }
-      });
       return true;
     } catch (error) {
+      _rollbackInteraction(topic.id, bookmark, snapshot);
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         showGfToast(
           context,
@@ -253,6 +272,39 @@ class _HomePageState extends ConsumerState<HomePage> {
     } finally {
       _pendingInteractions.remove(key);
     }
+  }
+
+  /// 回滚乐观更新：只还原本次动作触碰的字段（不覆盖并发落定的另一类互动）。
+  /// 跨会话同样撤销本地翻转，避免旧会话的乐观状态悬挂到新会话列表上。
+  void _rollbackInteraction(
+    int topicId,
+    bool bookmark,
+    ({
+      bool? liked,
+      bool? bookmarked,
+      int likeCount,
+      _InteractionOverride? override,
+    })
+    snapshot,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      if (snapshot.override == null) {
+        _interactionOverrides.remove(topicId);
+      } else {
+        _interactionOverrides[topicId] = snapshot.override!;
+      }
+      final index = _topics.indexWhere((t) => t.id == topicId);
+      if (index >= 0) {
+        _topics[index] = _topics[index].copyWith(
+          liked: bookmark ? _topics[index].liked : snapshot.liked,
+          bookmarked: bookmark
+              ? snapshot.bookmarked
+              : _topics[index].bookmarked,
+          likeCount: bookmark ? _topics[index].likeCount : snapshot.likeCount,
+        );
+      }
+    });
   }
 
   void _switchSort(String sort) {

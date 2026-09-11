@@ -94,6 +94,28 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(likeButton.text()).toBe('9')
   })
 
+  it('评论链接容错处理带 query 的 url', async () => {
+    const view = mountActions(baseTopic({ url: '/p/42?from=hot' }))
+    expect(view.find('a[href="/p/42?from=hot&reply=1"]').exists()).toBe(true)
+  })
+
+  it('成功互动回写共享 topic，重挂载实例读到最新状态（card↔table 切换场景）', async () => {
+    const topic = baseTopic()
+    vi.mocked(likeTopic).mockResolvedValueOnce(true)
+    const view = mount(TopicList, {
+      props: { topics: [topic], feedMode: 'card' },
+      global: { plugins: [i18n], stubs: { TopicFeedPreview: true } },
+    })
+    await view
+      .findComponent(TopicCardActions)
+      .find('button[title="点赞"]')
+      .trigger('click')
+    await flushPromises()
+    // 父级数组中的共享对象已被回写：重建实例（如切换视图）初始化即读到新状态。
+    expect(topic.liked).toBe(true)
+    expect(topic.likeCount).toBe(6)
+  })
+
   it('点赞乐观更新 +1，成功后保持并调用 action=1', async () => {
     vi.mocked(likeTopic).mockResolvedValueOnce(true)
     const view = mountActions(baseTopic())

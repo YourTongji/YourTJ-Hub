@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bookmark, Heart, MessageSquare } from '@lucide/vue'
 import { bookmarkTopic, likeTopic } from '@/runtime/api'
@@ -9,6 +9,10 @@ import type { TopicPayload } from '@gooseforum/client'
 // liked/bookmarked 缺席（访客或状态不可用）时点击引导登录，不假设 false。
 // 点赞乐观更新 ±1，失败回滚；语义与详情页 PostStream 一致（action 1/2 幂等切换）。
 const props = defineProps<{ topic: TopicPayload }>()
+
+const emit = defineEmits<{
+  interacted: [patch: { liked?: boolean; bookmarked?: boolean; likeCount?: number }]
+}>()
 
 const { t } = useI18n()
 
@@ -30,7 +34,12 @@ watch(
   },
 )
 
-const commentUrl = `${props.topic.url}?reply=1`
+// topic.url 当前不带 query；容错拼接，未来带 query 时不会产生 "??reply=1"。
+const commentUrl = computed(() =>
+  props.topic.url.includes('?')
+    ? `${props.topic.url}&reply=1`
+    : `${props.topic.url}?reply=1`,
+)
 
 function jumpToLogin() {
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
@@ -51,6 +60,7 @@ async function toggleLike() {
   likeCount.value = Math.max(0, previousCount + (nextLiked ? 1 : -1))
   try {
     await likeTopic(props.topic.id, nextLiked ? 1 : 2)
+    emit('interacted', { liked: nextLiked, likeCount: likeCount.value })
   } catch {
     liked.value = previousLiked
     likeCount.value = previousCount
@@ -71,6 +81,7 @@ async function toggleBookmark() {
   bookmarked.value = nextBookmarked
   try {
     await bookmarkTopic(props.topic.id, nextBookmarked ? 1 : 2)
+    emit('interacted', { bookmarked: nextBookmarked })
   } catch {
     bookmarked.value = previousBookmarked
   } finally {

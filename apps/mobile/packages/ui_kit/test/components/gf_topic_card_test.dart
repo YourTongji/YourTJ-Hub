@@ -36,6 +36,53 @@ void main() {
     expect(tester.getSize(find.byType(GfTopicCard)).height, lessThan(150));
   });
 
+  testWidgets('like action updates the shown count and keeps it on failure', (
+    tester,
+  ) async {
+    var liked = false;
+    var likeCount = 5;
+    var succeed = true;
+    await tester.pumpWidget(
+      gfApp(
+        StatefulBuilder(
+          builder: (context, setState) => SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Campus',
+              description: 'A short preview',
+              authorName: 'Student',
+              authorAvatarUrl: '',
+              imageUrls: const [],
+              categories: const [],
+              activityText: 'now',
+              replyCount: 4,
+              viewCount: 12,
+              likeCount: likeCount,
+              liked: liked,
+              likeTooltip: '点赞',
+              onLike: (target) async {
+                if (!succeed) return false;
+                setState(() {
+                  liked = target;
+                  likeCount += target ? 1 : -1;
+                });
+                return true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('5'), findsOneWidget);
+    await tester.tap(find.byTooltip('点赞'));
+    await tester.pumpAndSettle();
+    expect(find.text('6'), findsOneWidget);
+    succeed = false;
+    await tester.tap(find.byTooltip('点赞'));
+    await tester.pumpAndSettle();
+    expect(find.text('6'), findsOneWidget);
+  });
+
   testWidgets(
     'compact feed remains readable on narrow screens with large text',
     (tester) async {
