@@ -70,15 +70,6 @@ func MarkTargetPurged(targetType string, targetId uint64) error {
 		}).Error
 }
 
-// ListByTarget returns all attachment references for one content target.
-func ListByTarget(targetType string, targetId uint64) (entities []Entity, err error) {
-	err = builder().
-		Where(queryopt.Eq("target_type", targetType)).
-		Where(queryopt.Eq("target_id", targetId)).
-		Find(&entities).Error
-	return
-}
-
 // HasAnyReferences reports whether the file has at least one usage row.
 // This lets public file serving distinguish legacy untracked uploads from a
 // tracked file whose content references have all been revoked. upload_owner
@@ -100,19 +91,6 @@ func ListExpiredRecovering(before time.Time, limit int) (entities []Entity) {
 		Limit(limit).
 		Find(&entities)
 	return
-}
-
-// HasLiveReferences 判断文件是否仍被 ACTIVE/RECOVERING 的引用使用。
-// upload_owner 行是归属审计记录而非内容引用，不参与该判定（否则会使
-// 已删除内容的文件永不进入物理清理）。
-func HasLiveReferences(fileName string) bool {
-	var count int64
-	builder().
-		Where(queryopt.Eq("file_name", fileName)).
-		Where(queryopt.In("status", []string{UsageStatusActive, UsageStatusRecovering})).
-		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
-		Count(&count)
-	return count > 0
 }
 
 // HasActiveReferences reports whether a file is referenced by content that is

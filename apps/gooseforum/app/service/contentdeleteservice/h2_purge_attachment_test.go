@@ -9,8 +9,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 )
 
-// 回归 H2：永久删除话题后，作者本人的回复（含 ACTIVE 自回帖）正文清空且附件不再
-// 可下载；他人仍 ACTIVE 的回复正文保留（PRD 不删他人内容）但其附件不得再公开访问。
+// 回归 H2（MADR-0021 后语义）：永久删除话题后，作者本人的回复（含 ACTIVE 自回帖）
+// 置 PURGED 但正文保留（数据保留终态，取证经 view-deleted-content）；附件引用
+// 退役（不再 ACTIVE，切断公开下载），附件本体保留。他人仍 ACTIVE 的回复正文
+// 保留（PRD 不删他人内容），其附件引用同样不得再公开访问。
 func TestPurgeTopicCleansOwnerPostsAndHardensOtherAttachments(t *testing.T) {
 	conn := setupContentDeleteTestDB(t)
 	if err := conn.AutoMigrate(&fileUsage.Entity{}); err != nil {
@@ -51,15 +53,24 @@ func TestPurgeTopicCleansOwnerPostsAndHardensOtherAttachments(t *testing.T) {
 		t.Fatalf("topic not purged: %s", topic.RetentionStatus)
 	}
 
-	// 作者首楼（墓碑）→ PURGED 空正文
+	// 作者首楼（墓碑）→ PURGED，正文保留（数据保留，取证可还原）
 	first := posts.UnscopedGet(topicID + 100)
-	if first.RetentionStatus != posts.RetentionPurged || first.Content != "" {
-		t.Fatalf("owner first post not purged: %s content=%q", first.RetentionStatus, first.Content)
+	if first.RetentionStatus != posts.RetentionPurged {
+		t.Fatalf("owner first post not purged: %s", first.RetentionStatus)
 	}
-	// 作者自回帖（原 ACTIVE）→ PURGED 空正文，附件不再 ACTIVE
+	if first.Content != "first post body" {
+		t.Fatalf("purged first post content must be retained (MADR-0021): %q", first.Content)
+	}
+	// 作者自回帖（原 ACTIVE）→ PURGED，正文保留，附件引用不再 ACTIVE
 	owner := posts.UnscopedGet(ownerPostID)
-	if owner.RetentionStatus != posts.RetentionPurged || owner.Content != "" {
-		t.Fatalf("owner post not purged: %s content=%q", owner.RetentionStatus, owner.Content)
+	if owner.RetentionStatus != posts.RetentionPurged {
+		t.Fatalf("owner post not purged: %s", owner.RetentionStatus)
+	}
+	if owner.VisibilityStatus != posts.VisibilityUserDeleted {
+		t.Fatalf("purged ACTIVE self-reply must leave ACTIVE visibility paths (review P2): %s", owner.VisibilityStatus)
+	}
+	if owner.Content != "author own reply" {
+		t.Fatalf("purged owner post content must be retained (MADR-0021): %q", owner.Content)
 	}
 	var ownerUsage fileUsage.Entity
 	if err := conn.Where("file_name = ?", "owner-img.png").First(&ownerUsage).Error; err != nil {

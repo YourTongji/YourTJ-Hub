@@ -322,8 +322,9 @@ func TestViewDeletedContentRequiresReasonAndAudits(t *testing.T) {
 	_ = activeRes
 }
 
-// R7+R12：永久删除（PURGED）的内容不可再被版主"查看已删除内容"（应返回 404 语义）。
-func TestViewDeletedContentRejectsPurgedTarget(t *testing.T) {
+// R7+R12+MADR-0021：删除终态为数据保留后，永久删除（PURGED）的内容
+// 必须仍可被版主"查看已删除内容"取证（理由+双审计不变），正文完整返回。
+func TestViewDeletedContentAllowsPurgedTarget(t *testing.T) {
 	conn := setupReportSnapshotTestDB(t)
 	authorID, moderatorID, _, topicID, _ := seedReportSnapshotTopic(t, conn, 9_700_001_000)
 
@@ -338,10 +339,132 @@ func TestViewDeletedContentRejectsPurgedTarget(t *testing.T) {
 		UserId: moderatorID,
 		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: topicID, Reason: "audit"},
 	})
-	if res.Data.Code == component.SUCCESS {
-		t.Fatalf("expected purged target view to fail: %#v", res)
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("expected purged target view to succeed (data retention, MADR-0021): %#v", res)
 	}
-	if res.Data.MessageCode != component.MessageTopicNotFound {
-		t.Fatalf("messageCode = %s, want %s", res.Data.MessageCode, component.MessageTopicNotFound)
+	view, ok := res.Data.Result.(ModerationDeletedContentView)
+	if !ok {
+		t.Fatalf("unexpected view payload: %#v", res.Data.Result)
+	}
+	if view.Title == "" || view.Content == "" {
+		t.Fatalf("purged topic view must retain title/content for forensics: %#v", view)
+	}
+}
+
+// R6+MADR-0021（review P1 回归）：数据保留后 PURGED 行的 live 正文留存，
+// 举报列表对不可见目标必须回退举报时刻快照，不得回显 live 正文——
+// 否则列表摘要绕过取证视图「理由 + EvidenceViewed 审计」纪律。
+func TestModerationReportListUsesSnapshotForInvisiblePost(t *testing.T) {
+	conn := setupReportSnapshotTestDB(t)
+	authorID, moderatorID, reporterID, topicID, _ := seedReportSnapshotTopic(t, conn, 9_600_500_000)
+
+	replyID := topicID + 60
+	now := time.Now()
+	if err := conn.Create(&posts.Entity{
+		Id:               replyID,
+		TopicId:          topicID,
+		PostNo:           2,
+		UserId:           authorID,
+		Content:          "original reply body for snapshot",
+		VisibilityStatus: posts.VisibilityActive,
+		RetentionStatus:  posts.RetentionNormal,
+		ProcessStatus:    posts.ProcessStatusNormal,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}).Error; err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id = ?", replyID).Delete(&posts.Entity{})
+	})
+
+	createRes := CreateReport(component.BetterRequest[CreateReportReq]{
+		UserId: reporterID,
+		Params: CreateReportReq{TargetType: reports.TargetPost, TargetId: replyID, Reason: reports.ReasonSpam},
+	})
+	if createRes.Data.Code != component.SUCCESS {
+		t.Fatalf("CreateReport failed: %#v", createRes)
+	}
+
+	// 模拟数据保留终态：PURGED 行正文留存且 live 内容被后续篡改，
+	// 用于区分「列表摘要来自快照」还是「来自 live 行」。
+	if err := conn.Model(&posts.Entity{}).Unscoped().Where("id = ?", replyID).
+		Updates(map[string]any{
+			"content":           "MUTATED live body",
+			"visibility_status": posts.VisibilityUserDeleted,
+			"retention_status":  posts.RetentionPurged,
+		}).Error; err != nil {
+		t.Fatalf("mutate reply into purged state: %v", err)
+	}
+
+	listRes := ModerationReportList(component.BetterRequest[ModerationReportListReq]{
+		UserId: moderatorID,
+		Params: ModerationReportListReq{Status: reports.StatusOpen},
+	})
+	if listRes.Data.Code != component.SUCCESS {
+		t.Fatalf("ModerationReportList failed: %#v", listRes)
+	}
+	payload, ok := listRes.Data.Result.(ModerationReportListResponse)
+	if !ok {
+		t.Fatalf("result type = %T", listRes.Data.Result)
+	}
+	var found *ModerationReportItem
+	for i := range payload.Items {
+		if payload.Items[i].TargetID == replyID {
+			found = &payload.Items[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("report for reply %d missing from list: %#v", replyID, payload.Items)
+	}
+	if !found.TargetDeleted {
+		t.Fatalf("invisible target must be flagged targetDeleted: %#v", found)
+	}
+	if found.Excerpt != "original reply body for snapshot" {
+		t.Fatalf("report excerpt must come from evidence snapshot, not retained live content (review P1): %q", found.Excerpt)
+	}
+}
+
+// review should（MADR-0021）：治理日志（举报处理）对软删话题也要取到行并回退
+// 举报时刻快照——此前用软删作用域的 topics.Get 读取，软删行被过滤成空导致
+// 「不可见回退」分支不可达、审计摘要落空。现在 UnscopedGet 与举报列表路径对齐。
+func TestReportStatusLogFallsBackToSnapshotForSoftDeletedTopic(t *testing.T) {
+	conn := setupReportSnapshotTestDB(t)
+	authorID, moderatorID, reporterID, topicID, _ := seedReportSnapshotTopic(t, conn, 9_600_600_000)
+
+	createRes := CreateReport(component.BetterRequest[CreateReportReq]{
+		UserId: reporterID,
+		Params: CreateReportReq{TargetType: reports.TargetTopic, TargetId: topicID, Reason: reports.ReasonSpam},
+	})
+	if createRes.Data.Code != component.SUCCESS {
+		t.Fatalf("CreateReport failed: %#v", createRes)
+	}
+	var created reports.Entity
+	conn.Where("target_type = ? AND target_id = ?", reports.TargetTopic, topicID).First(&created)
+	if created.Id == 0 {
+		t.Fatal("report row missing")
+	}
+
+	// 作者软删话题（deleted_at 置位）后版主处理举报：审计摘要应取举报时刻快照。
+	if err := contentdeleteservice.DeleteTopicByUser(authorID, topicID); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if res := UpdateModerationReportStatus(component.BetterRequest[ModerationReportStatusReq]{
+		UserId: moderatorID,
+		Params: ModerationReportStatusReq{Id: created.Id, Action: "resolve"},
+	}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("UpdateModerationReportStatus failed: %#v", res)
+	}
+
+	var logs []moderationLog.Entity
+	conn.Where("action = ? AND subject_type = ? AND subject_id = ?",
+		moderationLog.ActionReportResolved, moderationLog.SubjectReport, created.Id).Find(&logs)
+	if len(logs) != 1 {
+		t.Fatalf("report resolved logs = %d, want 1", len(logs))
+	}
+	excerpt, _ := logs[0].Payload.Params["excerpt"].(string)
+	if excerpt != "被举报话题摘要" {
+		t.Fatalf("audit excerpt must fall back to evidence snapshot for soft-deleted topic (review should): %q", excerpt)
 	}
 }

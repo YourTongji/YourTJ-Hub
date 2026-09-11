@@ -502,6 +502,9 @@ type ModerationDeletedContentView struct {
 
 // ViewDeletedContent 版主查看已删除内容原文：必须提供理由，写审计日志（R7）。
 // 全局版主/管理员可查看其作用域内的已删内容；分类版主仅可查看其分类内的内容。
+// 删除终态为数据保留（MADR-0021，issue #555）：PURGED 不再拒绝查看——
+// 永久删除/过期冻结后正文与附件保留在库中，正是取证视图要还原的对象；
+// 仍不可见的只有 ACTIVE（未删除）与不存在的目标。
 func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) component.Response {
 	if !moderationservice.CanAccessModeration(req.UserId) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
@@ -515,7 +518,10 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 	switch req.Params.ContentType {
 	case reports.TargetTopic:
 		topic := topics.UnscopedGet(req.Params.ContentID)
-		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive || topic.RetentionStatus == topics.RetentionPurged {
+		// 仅「ACTIVE 且未 PURGED」与不存在的目标拒绝：PURGED 是取证对象
+		// （MADR-0021）；ACTIVE 自回帖经 MarkPurgedOwned 退役后 retention
+		// 已置 PURGED，同样按 retention 放行（review P2）。
+		if topic.Id == 0 || (topic.VisibilityStatus == topics.VisibilityActive && topic.RetentionStatus != topics.RetentionPurged) {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
@@ -539,7 +545,9 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		}
 	case reports.TargetPost:
 		post := posts.UnscopedGet(req.Params.ContentID)
-		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive || post.RetentionStatus == posts.RetentionPurged {
+		// ACTIVE 自回帖经 MarkPurgedOwned 退役后 retention=PURGED 而
+		// visibility 仍为 ACTIVE——取证视图按 retention 放行（review P2）。
+		if post.Id == 0 || (post.VisibilityStatus == posts.VisibilityActive && post.RetentionStatus != posts.RetentionPurged) {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
 		topic := topics.UnscopedGet(post.TopicId)
@@ -682,22 +690,37 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 	}
 	switch record.TargetType {
 	case reports.TargetTopic:
-		topic := topics.Get(record.TargetId)
+		// UnscopedGet 对齐举报列表路径（reportBatchMaps 用 Unscoped 批量加载）：
+		// 软删/PURGED 话题行会被 Get 的软删作用域过滤成空行，导致下方
+		// 「不可见回退举报快照」分支不可达、审计摘要落空（review should）。
+		topic := topics.UnscopedGet(record.TargetId)
 		if topic.Id > 0 {
 			snapshot.TopicId = topic.Id
 			snapshot.TopicTitle = topic.Title
 			snapshot.TargetURL = urlconfig.PostDetail(topic.Id)
-			snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
+			if topic.VisibilityStatus == topics.VisibilityActive {
+				snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
+			} else {
+				// 目标不可见（已删/治理删除/PURGED）：审计摘要取举报时刻快照，
+				// 不回显保留正文（MADR-0021 取证纪律，与举报列表同源 review）。
+				snapshot.Excerpt = record.EvidenceSnapshot.Excerpt
+			}
 		}
 	case reports.TargetPost:
-		post := posts.Get(record.TargetId)
+		// 同话题分支：Unscoped 读取，软删行（deleted_at 置位，非墓碑）也要走
+		// 快照回退，而不是整块跳过导致审计摘要/标题落空（review should）。
+		post := posts.UnscopedGet(record.TargetId)
 		if post.Id > 0 {
-			topic := topics.Get(post.TopicId)
+			topic := topics.UnscopedGet(post.TopicId)
 			snapshot.TopicId = post.TopicId
 			snapshot.TopicTitle = topic.Title
 			snapshot.PostNo = post.PostNo
 			snapshot.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(post.TopicId), post.Id)
-			snapshot.Excerpt = moderationExcerpt(post.Content)
+			if topic.Id > 0 && topic.VisibilityStatus == topics.VisibilityActive && post.VisibilityStatus == posts.VisibilityActive {
+				snapshot.Excerpt = moderationExcerpt(post.Content)
+			} else {
+				snapshot.Excerpt = record.EvidenceSnapshot.Excerpt
+			}
 		}
 	case reports.TargetCourseReview:
 		review, err := course.GetReview(record.TargetId)
@@ -1133,10 +1156,19 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 			if topic.Id > 0 {
 				item.Title = topic.Title
 			}
-			item.Excerpt = moderationExcerpt(post.Content)
-			item.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(topicID), post.Id)
 			if topic.Id == 0 || topic.VisibilityStatus != topics.VisibilityActive || post.VisibilityStatus != posts.VisibilityActive {
+				// 目标不可见（已删/治理删除/PURGED）：一律回退举报时刻快照。
+				// 数据保留（MADR-0021）后 PURGED 行 live 正文留存，列表摘要
+				// 不得绕过取证视图的理由+审计纪律（review P1）。
 				item.TargetDeleted = true
+				if item.Title == "" {
+					item.Title = record.EvidenceSnapshot.Title
+				}
+				item.Excerpt = record.EvidenceSnapshot.Excerpt
+				item.TargetURL = record.EvidenceSnapshot.TargetURL
+			} else {
+				item.Excerpt = moderationExcerpt(post.Content)
+				item.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(topicID), post.Id)
 			}
 		}
 	}

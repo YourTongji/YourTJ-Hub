@@ -8,7 +8,6 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -202,14 +201,27 @@ func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
 }
 
 // MarkUserDeleted 将回复标记为用户删除，进入 30 天恢复窗口。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review nit，
+// 与 topics 侧守卫对齐）；未命中返回未找到错误，防御未来新调用方漏判——
+// DeletePostByUser 的幂等分支仍在其上层先行处理。
 func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityUserDeleted,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": VisibilityUserDeleted,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkUserDeletedTx marks a post as user-deleted in the caller's transaction.
@@ -222,14 +234,25 @@ func MarkUserDeletedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason string) 
 // 墓碑态行不置 deleted_at（保持讨论树可见），以 updated_at 作为删除时刻的近似：
 // 必须显式写入 updated_at=now（builder() 走 Table()，GORM 的 Updates(map) 不会自动
 // 填充 autoUpdateTime），否则 30 天恢复窗口会按最后一次编辑时间判定而立即失效。
+// PURGED 是终态（MADR-0021）：守卫拒绝改写终态行（与 topics 侧对齐）。
 func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"updated_at":        time.Now(),
-		"visibility_status": VisibilityUserDeleted,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"updated_at":        time.Now(),
+			"visibility_status": VisibilityUserDeleted,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkUserDeletedKeepVisibleTx marks a post as a user-deleted tombstone in the
@@ -239,28 +262,52 @@ func MarkUserDeletedKeepVisibleTx(tx *gorm.DB, id uint64, deletedBy uint64, reas
 }
 
 // MarkDeletedKeepVisible 标记回复为删除但保留行可见（墓碑态），visibility 区分用户/管理员来源。
+// PURGED 是终态（MADR-0021）：守卫拒绝改写终态行；调用方（DeleteTopicAs 话题级联）
+// 只处理 RECOVERABLE 阶段的首楼，守卫仅防御未来新调用方漏判。
 func MarkDeletedKeepVisible(id uint64, visibility string, deletedBy uint64, reason string) error {
 	if visibility == "" {
 		visibility = VisibilityUserDeleted
 	}
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"updated_at":        time.Now(),
-		"visibility_status": visibility,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"updated_at":        time.Now(),
+			"visibility_status": visibility,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkModeratorRemoved 将回复标记为管理员删除，作者不可自行恢复。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review nit）；
+// 未命中返回未找到错误，DeletePostAsModerator 的幂等分支在其上层先行处理。
 func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityModeratorRemoved,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": VisibilityModeratorRemoved,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkModeratorRemovedTx marks a post as moderator-deleted in the caller's
@@ -281,7 +328,13 @@ func markDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, 
 	} else {
 		values["updated_at"] = time.Now()
 	}
-	result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(values)
+	// PURGED 是终态（MADR-0021）：守卫拒绝把终态行改写回 RECOVERABLE；
+	// 调用方（DeletePostByUser/DeletePostAsModerator）的幂等分支先行处理，
+	// 本守卫仅防御未来新调用方漏判（与 topics 侧 markDeletedTransition 对齐）。
+	result := tx.Table(tableName).Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(values)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -335,72 +388,68 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
-// 同时清空正文与版本历史正文，且二者在同一事务内完成：
-// 任一步失败整体回滚并返回错误，杜绝"帖子行已清空、版本快照仍留原文"
-// 的部分成功状态（版本快照不得绕过删除留存原文）。
+// 删除终态为数据保留（MADR-0021，issue #555）：只做状态翻转，正文与版本快照
+// 保留在库中供管理员取证（view-deleted-content，理由+双审计）。用户侧读路径
+// 全部按 visibility_status 过滤，PURGED 行不可见，体验仍是"删除即删除"。
 func MarkPurged(id uint64) error {
-	return db.Connect().Transaction(func(tx *gorm.DB) error {
-		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
-			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Updates(map[string]any{
-				"deleted_at":       time.Now(),
-				"retention_status": RetentionPurged,
-				"content":          "",
-				"rendered_html":    "",
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
-		return postRevisions.BlankContentByPostIdTx(tx, id)
-	})
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
-// MarkPurgedOwned permits the topic owner purge path to erase an ACTIVE reply
+// MarkPurgedOwned permits the topic owner purge path to purge an ACTIVE reply
 // while still requiring ownership and a lifecycle state that has not already
-// been purged. Post row update and revision blanking share one transaction.
+// been purged. Body fields are kept (data-retention final state, MADR-0021).
+// ACTIVE replies additionally flip to USER_DELETED so the purged row leaves
+// every ACTIVE-visibility read path（我的内容列表/楼层窗口/#492 可见性级联），
+// while the audited forensic view still returns it（review P2）；已处于
+// USER_DELETED/MODERATOR_REMOVED 的行保持原删除来源语义不变。
 func MarkPurgedOwned(id uint64, ownerID uint64) error {
-	return db.Connect().Transaction(func(tx *gorm.DB) error {
-		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
-			Where(queryopt.Eq("user_id", ownerID)).
-			Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Where(queryopt.Ne("retention_status", RetentionPurged)).
-			Updates(map[string]any{
-				"deleted_at":       time.Now(),
-				"retention_status": RetentionPurged,
-				"content":          "",
-				"rendered_html":    "",
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
-		return postRevisions.BlankContentByPostIdTx(tx, id)
-	})
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("user_id", ownerID)).
+		Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+			"visibility_status": gorm.Expr(
+				"CASE WHEN visibility_status = ? THEN ? ELSE visibility_status END",
+				VisibilityActive, VisibilityUserDeleted,
+			),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
-// MarkPrivacyErased immediately hides and blanks a user's reply.
-// Post row update and revision blanking share one transaction.
+// MarkPrivacyErased immediately hides a user's reply and makes it unrecoverable.
+// This is the backend fallback of the postless-topic cascade takedown
+// (issue #492); the visibility state stays distinct from moderator removal so
+// governance records can distinguish the origin. Body fields are kept for
+// forensic access (MADR-0021).
 func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
-	return db.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-			"deleted_at":        time.Now(),
-			"visibility_status": VisibilityAccountAnonymized,
-			"retention_status":  RetentionPurged,
-			"deleted_by":        erasedBy,
-			"delete_reason":     reason,
-			"content":           "",
-			"rendered_html":     "",
-		}).Error; err != nil {
-			return err
-		}
-		return postRevisions.BlankContentByPostIdTx(tx, id)
-	})
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityAccountAnonymized,
+		"retention_status":  RetentionPurged,
+		"deleted_by":        erasedBy,
+		"delete_reason":     reason,
+	}).Error
 }
 
 // ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。
