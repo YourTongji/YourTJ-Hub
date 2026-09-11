@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 )
 
 func TestUpdateTopicStatusHTTPContract(t *testing.T) {
@@ -194,6 +196,14 @@ func TestFollowUserHTTPContract(t *testing.T) {
 			t.Fatalf("self follow status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "follow-user-self-follow.json"))
+		// 守卫必须先于副作用生效：不得出现自关注行，也不得累加任何一侧计数。
+		if followRow := userFollow.GetByUserId(user.Id, user.Id); followRow.Id != 0 {
+			t.Fatalf("self follow created a user_follow row: %+v", followRow)
+		}
+		stats := userStatistics.Get(user.Id)
+		if stats.FollowingCount != 0 || stats.FollowerCount != 0 {
+			t.Fatalf("self follow moved counters: following=%d follower=%d", stats.FollowingCount, stats.FollowerCount)
+		}
 	})
 
 	t.Run("self unfollow stays an idempotent success", func(t *testing.T) {

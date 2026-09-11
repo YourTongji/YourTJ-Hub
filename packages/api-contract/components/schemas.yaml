@@ -2765,7 +2765,7 @@ FollowUserRequest:
       type: integer
       format: uint64
       minimum: 1
-      description: Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue #594).
+      description: "Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue #594)."
     action:
       type: integer
       enum: [1, 2]

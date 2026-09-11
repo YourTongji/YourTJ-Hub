@@ -6510,7 +6510,7 @@ export interface components {
         FollowUserRequest: {
             /**
              * Format: uint64
-             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue
+             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue #594).
              */
             id: number;
             /**
