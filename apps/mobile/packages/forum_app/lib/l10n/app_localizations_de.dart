@@ -884,6 +884,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get sortPopular => 'Beliebt';
 
   @override
+  String get commentSortAsc => 'Älteste zuerst';
+
+  @override
+  String get commentSortDesc => 'Neueste zuerst';
+
+  @override
+  String get commentSortOnlyOp => 'Nur Autor';
+
+  @override
+  String get topicOpRepliesEmpty => 'Noch keine Antworten des Autors';
+
+  @override
+  String get topicLaterReplies => 'Neuere Antworten laden';
+
+  @override
   String get topicFeedModeList => 'Liste';
 
   @override

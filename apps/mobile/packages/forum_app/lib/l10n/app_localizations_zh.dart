@@ -862,6 +862,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sortPopular => '流行';
 
   @override
+  String get commentSortAsc => '正序';
+
+  @override
+  String get commentSortDesc => '倒序';
+
+  @override
+  String get commentSortOnlyOp => '只看楼主';
+
+  @override
+  String get topicOpRepliesEmpty => '楼主还没有回复';
+
+  @override
+  String get topicLaterReplies => '加载更新回复';
+
+  @override
   String get topicFeedModeList => '列表';
 
   @override

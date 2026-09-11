@@ -775,6 +775,53 @@ Map<String, dynamic> anchoredTopicPayloadJson() {
   return json;
 }
 
+/// 三楼作者改为话题楼主(alice),供「只看楼主」过滤断言。
+Map<String, dynamic> opReplyTopicPayloadJson() {
+  final Map<String, dynamic> json = topicDetailPayloadJson();
+  final Map<String, dynamic> props = json['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> stream =
+      props['postStream'] as Map<String, dynamic>;
+  final List<dynamic> posts = stream['posts'] as List<dynamic>;
+  (posts[2] as Map<String, dynamic>)['author'] = <String, dynamic>{
+    'id': 1,
+    'username': 'alice',
+    'avatarUrl': '',
+  };
+  return json;
+}
+
+/// 记录 after 游标并返回楼主的三楼回复(供「只看楼主」自动扫描断言)。
+class OpScanTopicRepository extends TopicRepository {
+  OpScanTopicRepository(super.client);
+
+  final List<int?> cursors = <int?>[];
+
+  @override
+  Future<PostWindowPayload> getPostWindow({
+    required int topicId,
+    int? anchorPostId,
+    int? anchorPostNo,
+    int? beforePostNo,
+    int? afterPostNo,
+    int? limit,
+  }) async {
+    cursors.add(afterPostNo);
+    return PostWindowPayload(
+      posts: <PostPayload>[
+        makePostPayload(9003, 3, '楼主在第三楼的回复').copyWith(
+          author: UserBriefPayload(id: 1, username: 'alice', avatarUrl: ''),
+        ),
+      ],
+      replyTargets: const <ReplyTargetPayload>[],
+      afterPostNo: 3,
+      hasBefore: false,
+      hasAfter: false,
+      total: 3,
+      maxPostNo: 3,
+    );
+  }
+}
+
 /// 记录 search 调用 page 的 TopicRepository。
 
 class ActivatingConversationPageRepository extends CountingPageRepository {
@@ -2259,6 +2306,152 @@ void main() {
       expect(textField.focusNode, isNotNull);
       expect(textField.focusNode!.hasFocus, isTrue);
       expect(textField.controller!.text, '@bob ');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+  });
+
+  group('评论排序', () {
+    testWidgets('倒序胶囊本地翻转楼层顺序且不重新请求', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RedesignPageRepository repo = RedesignPageRepository(
+        client,
+        topicPayload: topicDetailPayloadJson(),
+      );
+      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      // 正序:二楼在三楼之上。
+      expect(
+        tester.getTopLeft(find.text('独立回复')).dy,
+        lessThan(tester.getTopLeft(find.text('嵌套回复')).dy),
+      );
+      final int fetchesBefore = repo.paths.length;
+
+      await tester.tap(find.text('倒序'));
+      await tester.pumpAndSettle();
+
+      // 倒序:三楼翻到二楼之上,且没有发起新的 page 请求。
+      expect(
+        tester.getTopLeft(find.text('嵌套回复')).dy,
+        lessThan(tester.getTopLeft(find.text('独立回复')).dy),
+      );
+      expect(repo.paths.length, fetchesBefore);
+
+      await tester.tap(find.text('正序'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('独立回复')).dy,
+        lessThan(tester.getTopLeft(find.text('嵌套回复')).dy),
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('只看楼主过滤他人回复,无楼主回复时展示空态', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RedesignPageRepository repo = RedesignPageRepository(
+        client,
+        topicPayload: topicDetailPayloadJson(),
+      );
+      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('楼主还没有回复'), findsOneWidget);
+      expect(find.text('独立回复'), findsNothing);
+      expect(find.text('嵌套回复'), findsNothing);
+
+      // 切回正序恢复全部楼层。
+      await tester.tap(find.text('正序'));
+      await tester.pumpAndSettle();
+      expect(find.text('独立回复'), findsOneWidget);
+      expect(find.text('嵌套回复'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('只看楼主直接过滤已加载窗口中的楼主回复', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RedesignPageRepository repo = RedesignPageRepository(
+        client,
+        topicPayload: opReplyTopicPayloadJson(),
+      );
+      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+      final int fetchesBefore = repo.paths.length;
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      // 三楼是楼主回复:直接过滤显示,他人二楼消失,且未发起窗口请求。
+      expect(find.text('嵌套回复'), findsOneWidget);
+      expect(find.text('独立回复'), findsNothing);
+      expect(repo.paths.length, fetchesBefore);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('只看楼主自动扫描窗口直到出现楼主回复', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final OpScanTopicRepository topicRepo = OpScanTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: PagedTopicPageRepository(client),
+        topicRepo: topicRepo,
+      );
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('二楼内容'), findsOneWidget);
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      // 自动扫描用 after=2 拉取窗口,楼主三楼回复出现,他人二楼被过滤。
+      expect(topicRepo.cursors, [2]);
+      expect(find.text('楼主在第三楼的回复'), findsOneWidget);
+      expect(find.text('二楼内容'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));

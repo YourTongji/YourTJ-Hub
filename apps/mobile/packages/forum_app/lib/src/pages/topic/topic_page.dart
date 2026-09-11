@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,9 @@ class TopicPage extends ConsumerStatefulWidget {
   ConsumerState<TopicPage> createState() => _TopicPageState();
 }
 
+/// 评论排序(移动端评论胶囊):正序/倒序/只看楼主。
+enum CommentSort { asc, desc, onlyOp }
+
 class _TopicPageState extends ConsumerState<TopicPage> {
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
   bool _viewerAuthenticated = false;
@@ -45,6 +49,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   final List<PostPayload> _posts = [];
   int? _afterPostNo;
   bool _hasMorePosts = false;
+  CommentSort _sort = CommentSort.asc;
+  bool _opScanning = false;
 
   // 互动状态(乐观更新)。
   bool _liked = false;
@@ -85,6 +91,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     if (widget.topicId != oldWidget.topicId ||
         widget.initialPostNo != oldWidget.initialPostNo) {
       _railOpen = false;
+      _sort = CommentSort.asc;
       _composerOpen = false;
       _replyController.clear();
       _replyImageUrl = null;
@@ -244,19 +251,24 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
+  /// 倒序模式翻转列表语义:列表底部加载的是更早楼层(before 游标),
+  /// 顶部按钮加载更新楼层(after 游标);正序/只看楼主保持原方向。
   Future<void> _loadMore({bool earlier = false}) async {
-    if (_loadingMore || (earlier ? !_hasEarlierPosts : !_hasMorePosts)) return;
+    final bool fetchEarlier = _sort == CommentSort.desc ? !earlier : earlier;
+    if (_loadingMore || (fetchEarlier ? !_hasEarlierPosts : !_hasMorePosts)) {
+      return;
+    }
     final generation = _windowGeneration;
     final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingMore = true);
     try {
-      final previous = earlier ? _beforePostNo : _afterPostNo;
+      final previous = fetchEarlier ? _beforePostNo : _afterPostNo;
       final window = await ref
           .read(topicRepositoryProvider)
           .getPostWindow(
             topicId: widget.topicId,
-            beforePostNo: earlier ? _beforePostNo : null,
-            afterPostNo: earlier ? null : _afterPostNo,
+            beforePostNo: fetchEarlier ? _beforePostNo : null,
+            afterPostNo: fetchEarlier ? null : _afterPostNo,
           );
       if (!mounted ||
           generation != _windowGeneration ||
@@ -270,11 +282,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           _replyTargets[target.id] = target;
         }
         final next =
-            (earlier ? window.beforePostNo : window.afterPostNo) ?? previous;
+            (fetchEarlier ? window.beforePostNo : window.afterPostNo) ??
+            previous;
         final advanced =
             next != null &&
-            (previous == null || (earlier ? next < previous : next > previous));
-        if (earlier) {
+            (previous == null ||
+                (fetchEarlier ? next < previous : next > previous));
+        if (fetchEarlier) {
           _beforePostNo = next;
           _hasEarlierPosts =
               window.posts.isNotEmpty && window.hasBefore && advanced;
@@ -298,6 +312,50 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       if (mounted && generation == _windowGeneration) {
         setState(() => _loadingMore = false);
       }
+    }
+  }
+
+  /// 切换评论排序:正序/倒序复用已加载窗口本地翻转,不重新请求;
+  /// 只看楼主在切到该模式时自动向后扫描窗口,直到出现楼主回复或没有更多楼层。
+  void _setCommentSort(CommentSort sort) {
+    if (_sort == sort) return;
+    setState(() => _sort = sort);
+    if (sort == CommentSort.onlyOp) {
+      unawaited(_scanForOpReplies());
+    }
+  }
+
+  bool _hasOpReply() {
+    final int authorId = _page.valueOrNull?.topic.author.id ?? 0;
+    if (authorId <= 0) return false;
+    for (final PostPayload post in _posts) {
+      // 主帖(postNo 1)总是楼主所发,只看回复楼层,否则扫描永远提前退出。
+      if (post.postNo > 1 && post.author.id == authorId) return true;
+    }
+    return false;
+  }
+
+  /// 只看楼主自动扫描:窗口内没有楼主回复时持续加载更晚楼层,
+  /// 直到找到楼主回复、没有更多楼层或加载不再推进(避免死循环)。
+  Future<void> _scanForOpReplies() async {
+    if (_opScanning) return;
+    _opScanning = true;
+    final generation = _windowGeneration;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    try {
+      var previousCount = _posts.length;
+      while (mounted &&
+          generation == _windowGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          _sort == CommentSort.onlyOp &&
+          _hasMorePosts &&
+          !_hasOpReply()) {
+        await _loadMore();
+        if (!mounted || _posts.length == previousCount) break;
+        previousCount = _posts.length;
+      }
+    } finally {
+      _opScanning = false;
     }
   }
 
@@ -654,13 +712,23 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
-  /// 楼层平铺：除主帖外全部楼层按 postNo 升序线性展示；
-  /// replyToPostId 仅用于引用块、通知路由与回答标记，不再用于分组嵌套。
+  /// 楼层平铺:除主帖外全部楼层线性展示;排序由评论胶囊决定——
+  /// 正序按 postNo 升序,倒序降序,只看楼主仅保留话题作者的楼层。
+  /// replyToPostId 仅用于引用块、通知路由与回答标记,不再用于分组嵌套。
   List<PostPayload> _visiblePosts({PostPayload? mainPost}) {
-    final List<PostPayload> replyPosts = <PostPayload>[
-      for (final PostPayload post in _posts)
-        if (post.id != mainPost?.id) post,
-    ]..sort((PostPayload a, PostPayload b) => a.postNo.compareTo(b.postNo));
+    final int authorId = _sort == CommentSort.onlyOp
+        ? _page.valueOrNull?.topic.author.id ?? 0
+        : 0;
+    final List<PostPayload> replyPosts =
+        <PostPayload>[
+          for (final PostPayload post in _posts)
+            if (post.id != mainPost?.id)
+              if (authorId <= 0 || post.author.id == authorId) post,
+        ]..sort(
+          (PostPayload a, PostPayload b) => _sort == CommentSort.desc
+              ? b.postNo.compareTo(a.postNo)
+              : a.postNo.compareTo(b.postNo),
+        );
     return replyPosts;
   }
 
@@ -759,23 +827,33 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               key: _discussionKey,
                               child: _ReplySectionHeader(
                                 count: props.topic.replyCount,
+                                sort: _sort,
+                                onSortChanged: _setCommentSort,
                               ),
                             ),
                           ),
-                          if (_hasEarlierPosts)
+                          if (_sort == CommentSort.desc
+                              ? _hasMorePosts
+                              : _hasEarlierPosts)
                             SliverToBoxAdapter(
                               child: TextButton(
                                 onPressed: _loadingMore
                                     ? null
                                     : () => _loadMore(earlier: true),
-                                child: Text(l10n.topicEarlierReplies),
+                                child: Text(
+                                  _sort == CommentSort.desc
+                                      ? l10n.topicLaterReplies
+                                      : l10n.topicEarlierReplies,
+                                ),
                               ),
                             ),
                           if (replyPosts.isEmpty)
                             SliverToBoxAdapter(
                               child: GfEmpty(
                                 icon: Icons.forum_outlined,
-                                message: l10n.topicReplies(0),
+                                message: _sort == CommentSort.onlyOp
+                                    ? l10n.topicOpRepliesEmpty
+                                    : l10n.topicReplies(0),
                                 description: l10n.topicReplyHint,
                               ),
                             )
@@ -815,7 +893,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                           SliverToBoxAdapter(
                             child: GfListFooter(
                               loading: _loadingMore,
-                              hasMore: _hasMorePosts,
+                              hasMore: _sort == CommentSort.desc
+                                  ? _hasEarlierPosts
+                                  : _hasMorePosts,
                               onLoadMore: _loadMore,
                             ),
                           ),
@@ -1198,20 +1278,88 @@ class _TopicHeader extends StatelessWidget {
 }
 
 class _ReplySectionHeader extends StatelessWidget {
-  const _ReplySectionHeader({required this.count});
+  const _ReplySectionHeader({
+    required this.count,
+    required this.sort,
+    required this.onSortChanged,
+  });
 
   final int count;
+  final CommentSort sort;
+  final ValueChanged<CommentSort> onSortChanged;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       child: Row(
         children: <Widget>[
-          Text(
-            AppLocalizations.of(context).topicReplies(count),
-            style: GfTheme.typographyOf(context).title3,
+          Expanded(
+            child: Text(
+              l10n.topicReplies(count),
+              style: GfTheme.typographyOf(context).title3,
+            ),
           ),
+          const SizedBox(width: 8),
+          _CommentSortCapsule(sort: sort, onChanged: onSortChanged),
+        ],
+      ),
+    );
+  }
+}
+
+/// 评论排序胶囊(正序/倒序/只看楼主):镜像 GfSegmented 的视觉规格
+/// (base-200 轨道 + field 圆角 + 32px 项 + 选中态 base100/primary),
+/// 但按内容自适应宽度,可与标题同排展示。
+class _CommentSortCapsule extends StatelessWidget {
+  const _CommentSortCapsule({required this.sort, required this.onChanged});
+
+  final CommentSort sort;
+  final ValueChanged<CommentSort> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfRadii radii = GfTheme.radiiOf(context);
+
+    Widget item(CommentSort value, String label) {
+      final bool selected = value == sort;
+      return InkWell(
+        onTap: selected ? null : () => onChanged(value),
+        borderRadius: BorderRadius.circular(radii.field - 2),
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected
+                  ? colors.primary
+                  : colors.baseContent.withValues(alpha: 0.55),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: colors.base200,
+        borderRadius: BorderRadius.circular(radii.field),
+        border: Border.all(color: colors.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          item(CommentSort.asc, l10n.commentSortAsc),
+          item(CommentSort.desc, l10n.commentSortDesc),
+          item(CommentSort.onlyOp, l10n.commentSortOnlyOp),
         ],
       ),
     );

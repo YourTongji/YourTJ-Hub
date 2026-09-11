@@ -9,6 +9,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../format.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../server_messages.dart';
 import '../../widgets/skeletons.dart';
@@ -59,6 +60,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
   GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
+  List<CategoryNavPayload> _categories = const <CategoryNavPayload>[];
   final GfScrollToTopController _scrollToTopController =
       GfScrollToTopController();
   late final GfTabScrollRegistry _tabScrollRegistry;
@@ -138,6 +140,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       setState(() {
         _page = AsyncValue.data(props);
+        _categories = payload.layout.sidebar.categories;
         _topics.clear();
         _topics.addAll(_mergeInteractions(props.topics, revision));
       });
@@ -260,10 +263,11 @@ class _HomePageState extends ConsumerState<HomePage> {
           onPressed: () => context.push('/search'),
         ),
       ],
-      toolbarHeight: 44,
+      toolbarHeight: _categories.isEmpty ? 44 : 84,
       toolbar: _page.hasValue
           ? _HomeToolbar(
               props: _page.requireValue,
+              categories: _categories,
               selected: _sort,
               feedMode: _feedMode,
               onSelected: _switchSort,
@@ -308,6 +312,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 class _HomeToolbar extends ConsumerWidget {
   const _HomeToolbar({
     required this.props,
+    required this.categories,
     required this.selected,
     required this.feedMode,
     required this.onSelected,
@@ -315,6 +320,7 @@ class _HomeToolbar extends ConsumerWidget {
   });
 
   final HomeProps props;
+  final List<CategoryNavPayload> categories;
   final String selected;
   final GfTopicFeedMode feedMode;
   final ValueChanged<String> onSelected;
@@ -340,41 +346,80 @@ class _HomeToolbar extends ConsumerWidget {
     // already has a persistent center entry in the bottom navigation.
     return Container(
       color: colors.base100,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Expanded(
-            child: GfTabBar(
-              tabs: <GfTab>[
-                for (final tab in props.tabs)
-                  GfTab(
-                    // 后端 tabs[].label 可能为空(web 端按 key fallback 到
-                    // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
-                    label: _sortTabLabel(context, tab.key, tab.label ?? ''),
-                    value: tab.key,
+          // 44px 紧约束行:与原单行工具栏等高,防止 48px 固有的
+          // PopupMenuButton 撑破 toolbarHeight(44+40=84)。
+          SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(
+                    child: GfTabBar(
+                      tabs: <GfTab>[
+                        for (final tab in props.tabs)
+                          GfTab(
+                            // 后端 tabs[].label 可能为空(web 端按 key fallback 到
+                            // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
+                            label: _sortTabLabel(
+                              context,
+                              tab.key,
+                              tab.label ?? '',
+                            ),
+                            value: tab.key,
+                          ),
+                      ],
+                      selected: effective,
+                      onSelected: (Object value) => onSelected(value as String),
+                    ),
                   ),
-              ],
-              selected: effective,
-              onSelected: (Object value) => onSelected(value as String),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<GfTopicFeedMode>(
+                    tooltip: l10n.topicFeedModeList,
+                    icon: const GfSymbol('sliders-horizontal', size: 20),
+                    onSelected: onFeedModeSelected,
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: GfTopicFeedMode.list,
+                        child: Text(l10n.topicFeedModeList),
+                      ),
+                      PopupMenuItem(
+                        value: GfTopicFeedMode.card,
+                        child: Text(l10n.topicFeedModeCard),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          PopupMenuButton<GfTopicFeedMode>(
-            tooltip: l10n.topicFeedModeList,
-            icon: const GfSymbol('sliders-horizontal', size: 20),
-            onSelected: onFeedModeSelected,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: GfTopicFeedMode.list,
-                child: Text(l10n.topicFeedModeList),
+          // 分类快捷入口(与 web 侧边栏 categories 同源):横向滑动 pills,
+          // 点击跳转分类页;后端未配置分类时整行不占位。
+          if (categories.isNotEmpty)
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                itemCount: categories.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (BuildContext context, int index) {
+                  final CategoryNavPayload category = categories[index];
+                  return _CategoryPill(
+                    label: category.label,
+                    color: colorFromHex(category.color),
+                    onTap: () => context.push(category.url),
+                  );
+                },
               ),
-              PopupMenuItem(
-                value: GfTopicFeedMode.card,
-                child: Text(l10n.topicFeedModeCard),
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -391,5 +436,56 @@ class _HomeToolbar extends ConsumerWidget {
       'popular' => l10n.sortPopular,
       _ => key,
     };
+  }
+}
+
+/// 首页顶栏分类入口 pill:色点 + 分类名,镜像 GfChip 的视觉规格,
+/// 但可点击并按内容自适应宽度,横向滑动承载多个分类。
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    return Material(
+      color: colors.base300,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: colors.baseContent.withValues(alpha: 0.75),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
