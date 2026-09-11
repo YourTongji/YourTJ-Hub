@@ -805,13 +805,16 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-	// 非活跃行不向探测者泄露存在性或治理动作：仅属主本人对本人删除（与 service
-	// 幂等分支同条件）返回 alreadyDeleted；其余（管理员删除/级联删除/已清空/
-	// 隐私擦除）一律保持 post.notFound。
+	// 非活跃行不向任何人泄露状态：仅属主重复删除「自己删的、仍在恢复窗口内的
+	// 回复」返回 alreadyDeleted；首楼被话题删除级联（USER_DELETED+DeletedBy=属主）、
+	// 已 PURGED 的自删行、管理删除/隐私擦除行一律保持 post.notFound（review 修复：
+	// 之前的条件会把级联删除的首楼误报为 alreadyDeleted）。
 	if postEntity.VisibilityStatus != posts.VisibilityActive {
 		if postEntity.UserId == req.UserId &&
+			postEntity.PostNo > 1 &&
 			postEntity.VisibilityStatus == posts.VisibilityUserDeleted &&
-			postEntity.DeletedBy == req.UserId {
+			postEntity.DeletedBy == req.UserId &&
+			postEntity.RetentionStatus == posts.RetentionRecoverable {
 			return component.FailResponseCode(component.MessagePostAlreadyDeleted, nil)
 		}
 		return component.FailResponseCode(component.MessagePostNotFound, nil)

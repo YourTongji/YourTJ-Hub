@@ -2,7 +2,8 @@ package api
 
 // issue #553：回复删除端点的错误语义细分。
 // 重复删除保留错误但返回 post.alreadyDeleted；首楼返回 post.firstPostUndeletable；
-// 非属主探测已删行保持 post.notFound（不泄露已删内容存在性）。
+// 非属主探测已删行保持 post.notFound（不泄露已删内容存在性）；
+// 级联删除的首楼与已 PURGED 的自删行同样保持 post.notFound（Codex review 修复）。
 
 import (
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
@@ -60,6 +62,57 @@ func TestDeletePostRejectsFirstPostWithDedicatedCode(t *testing.T) {
 	res := DeletePost(component.BetterRequest[DeletePostReq]{UserId: userID, Params: DeletePostReq{PostId: firstPostID}})
 	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostFirstPostUndeletable {
 		t.Fatalf("first post delete = code=%v msg=%v, want FAIL/MessagePostFirstPostUndeletable", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+// Codex review 修复回归：首楼被话题删除级联为 USER_DELETED+DeletedBy=属主时，
+// 重复删除首楼必须保持 post.notFound（不是 alreadyDeleted，也不是 firstPostUndeletable）。
+func TestDeletePostTopicCascadedFirstPostKeepsNotFound(t *testing.T) {
+	conn := setupLLMSCacheTestDB(t)
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 9_505_000_000
+	userID := base + 1
+	topicID := base + 2
+	firstPostID := base + 3
+	createPostDeleteTestUser(t, conn, userID)
+	createLLMSCacheTopic(t, conn, topicID, firstPostID, userID, "Cascaded first post topic", "first post body", nil)
+	// 模拟话题删除对首楼的级联墓碑（DeleteTopicByUser 有回复分支的写法）。
+	if err := conn.Unscoped().Model(&posts.Entity{}).Where("id = ?", firstPostID).Updates(map[string]any{
+		"visibility_status": posts.VisibilityUserDeleted,
+		"retention_status":  posts.RetentionRecoverable,
+		"deleted_by":        userID,
+		"delete_reason":     fmt.Sprintf("topic_delete:%d", topicID),
+	}).Error; err != nil {
+		t.Fatalf("cascade first post: %v", err)
+	}
+
+	res := DeletePost(component.BetterRequest[DeletePostReq]{UserId: userID, Params: DeletePostReq{PostId: firstPostID}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("cascaded first post delete = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+// Codex review 修复回归：已 PURGED 的自删回复不再返回 alreadyDeleted，保持 post.notFound。
+func TestDeletePostPurgedSelfDeletedReplyKeepsNotFound(t *testing.T) {
+	conn := setupLLMSCacheTestDB(t)
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 9_506_000_000
+	userID := base + 1
+	topicID := base + 2
+	firstPostID := base + 3
+	replyID := base + 4
+	createPostDeleteTestUser(t, conn, userID)
+	createLLMSCacheTopic(t, conn, topicID, firstPostID, userID, "Purged reply topic", "first post body", nil)
+	createLLMSCacheReply(t, conn, replyID, topicID, userID, 2, "reply purged after delete")
+	deleted := DeletePost(component.BetterRequest[DeletePostReq]{UserId: userID, Params: DeletePostReq{PostId: replyID}})
+	if deleted.Data.Code != component.SUCCESS {
+		t.Fatalf("author delete = code=%v msg=%v, want SUCCESS", deleted.Data.Code, deleted.Data.MessageCode)
+	}
+	if err := conn.Unscoped().Model(&posts.Entity{}).Where("id = ?", replyID).Update("retention_status", posts.RetentionPurged).Error; err != nil {
+		t.Fatalf("mark purged: %v", err)
+	}
+
+	res := DeletePost(component.BetterRequest[DeletePostReq]{UserId: userID, Params: DeletePostReq{PostId: replyID}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("purged reply delete = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
 	}
 }
 
