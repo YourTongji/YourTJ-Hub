@@ -639,6 +639,26 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     expect(putCloudSnapshot).not.toHaveBeenCalled()
   })
 
+  test('进页：从未云同步且课程内容一致、仅方案名/id 不同 → 仍采用云端建立时钟（零 PUT，不误走合并）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    // 课程内容（staged/selected/customEvents）完全相同，但方案名与 id 与云端不同。
+    const localContent = JSON.parse(JSON.stringify(store.state.plans)) as typeof store.state.plans
+    localContent[0]!.name = '我的自定义方案名'
+    localContent[0]!.id = 'plan_local_custom'
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: localContent,
+    }))
+
+    const result = await controller.syncOnPageEnter()
+
+    expect(result).toBe('adopted')
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(store.state.plans[0]?.id).toBe('plan_local_custom')
+    expect(store.getSyncedAt()).toBe(UPDATED_AT)
+  })
+
   test('进页：空脏本地 + 云端非空 → 采用云端，绝不上传空方案覆盖云端（#571）', async () => {
     const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
     controller.start()

@@ -4,7 +4,7 @@
 // guard every PUT; dirty local state survives page exit and transient failures.
 
 import { shallowRef, type ShallowRef } from 'vue'
-import { clonePlansAsAutoRestore, MAX_PLANS, setSolidifyHook, useScheduleStore } from './useScheduleStore'
+import { clonePlansAsAutoRestore, MAX_PLANS, planListContentKey, setSolidifyHook, useScheduleStore } from './useScheduleStore'
 
 import type { components } from '@gooseforum/client/openapi'
 
@@ -167,19 +167,20 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     }, PK_SYNC_DEBOUNCE_MS)
   }
 
-  /** 本地与云端方案内容是否完全不同（JSON 比较；空/缺失任一侧不算分歧）。 */
+  /** 本地与云端方案内容是否不同（按方案内容签名比较，忽略 id/name 等身份字段；
+   *  与恢复克隆的内容指纹去重口径一致，#571）。空/缺失任一侧不算分歧。 */
   function plansDiverge(snapshot: PkSyncRemoteSnapshot): boolean {
     const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
     if (cloudPlans.length === 0) return false
     if (isLocalEmpty()) return false
-    return JSON.stringify(store.state.plans) !== JSON.stringify(cloudPlans)
+    return planListContentKey(store.state.plans) !== planListContentKey(cloudPlans)
   }
 
   /** 本地方案数组与云端方案数组是否不同（不看 dirty/同步时钟；空本地保护判断用）。
    *  云端无方案（[]）时不视为分歧：空对空无需保护，正常上传即可。 */
   function localPlansDifferFromCloud(snapshot: PkSyncRemoteSnapshot): boolean {
     const cloudPlans = Array.isArray(snapshot.plans) ? snapshot.plans : []
-    return cloudPlans.length > 0 && JSON.stringify(store.state.plans) !== JSON.stringify(cloudPlans)
+    return cloudPlans.length > 0 && planListContentKey(store.state.plans) !== planListContentKey(cloudPlans)
   }
 
   /** 云端分歧合并（#571/#573）：云端为主，本地方案克隆为「[本地自动恢复]方案x」追加上传。

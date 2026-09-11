@@ -213,6 +213,13 @@ function planContentKey(plan: PkPlan): string {
   return JSON.stringify([plan.stagedCourses, plan.selectedCourses, plan.customEvents])
 }
 
+/** 方案数组内容签名（逐方案 planContentKey 顺序拼接）。云同步分歧判定用：比较时忽略
+ *  id/name/createdAt 等身份字段，只看课程内容，内容一致即不视为分歧（#571：内容一致的
+ *  从未云同步本地直接采用云端建立时钟，零 PUT，与恢复克隆的内容指纹去重口径一致）。 */
+export function planListContentKey(plans: PkPlan[]): string {
+  return JSON.stringify(plans.map(planContentKey))
+}
+
 /**
  * 推导下一个方案名：取现存方案序号最大值 +1（无匹配序号时从 1 开始）。
  * plans 传「保留后」的方案集合：删最后一个时传空数组 → 新方案回到「方案 1」，
