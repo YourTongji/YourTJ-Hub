@@ -159,3 +159,20 @@ func TestDeletePostNonOwnerActiveReplyKeepsOperationDenied(t *testing.T) {
 		t.Fatalf("non-owner active delete = code=%v msg=%v, want FAIL/MessageTopicOperationDenied", res.Data.Code, res.Data.MessageCode)
 	}
 }
+
+// review blocker 回归：首楼恒为 ACTIVE，非属主探测隐藏话题的首楼必须得到
+// post.notFound（而非 firstPostUndeletable 泄露隐藏话题存在性）；话题可见性
+// 守卫先行后，属主仍见 firstPostUndeletable。镜像 TestDeletePostRejectsHiddenTopic。
+func TestDeletePostHiddenTopicFirstPostAntiEnumeration(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	_, firstPostID := visibilityRejectionFixture(t, conn, 0, 1561, 1562, 5260, 6260)
+
+	prober := DeletePost(component.BetterRequest[DeletePostReq]{UserId: 1562, Params: DeletePostReq{PostId: firstPostID}})
+	if prober.Data.Code != component.FAIL || prober.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("non-owner probe hidden-topic first post = code=%v msg=%v, want FAIL/MessagePostNotFound", prober.Data.Code, prober.Data.MessageCode)
+	}
+	author := DeletePost(component.BetterRequest[DeletePostReq]{UserId: 1561, Params: DeletePostReq{PostId: firstPostID}})
+	if author.Data.Code != component.FAIL || author.Data.MessageCode != component.MessagePostFirstPostUndeletable {
+		t.Fatalf("author delete hidden-topic first post = code=%v msg=%v, want FAIL/MessagePostFirstPostUndeletable", author.Data.Code, author.Data.MessageCode)
+	}
+}
