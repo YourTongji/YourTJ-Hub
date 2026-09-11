@@ -36,9 +36,10 @@ func runMockTopics(cmd *cobra.Command, args []string) {
 		req := component.BetterRequest[api.WriteTopicReq]{
 			UserId: user.Id,
 			Params: api.WriteTopicReq{
-				Title:      fmt.Sprintf("测试文章 %03d - %s", i, time.Now().Format("15:04:05")),
-				Content:    fmt.Sprintf("这是第 %d 篇自动生成的测试文章内容。\n\n生成时间: %s\n作者: %s", i, time.Now().Format(time.RFC3339), user.Username),
-				CategoryId: []uint64{1}, // Default to first category
+				Title:       fmt.Sprintf("测试文章 %03d - %s", i, time.Now().Format("15:04:05")),
+				Content:     fmt.Sprintf("这是第 %d 篇自动生成的测试文章内容。\n\n生成时间: %s\n作者: %s", i, time.Now().Format(time.RFC3339), user.Username),
+				CategoryId:  []uint64{1}, // Default to first category
+				TopicStatus: 1,           // 已发布：mock 数据应进入公开列表（issue #645）
 			},
 		}
 
