@@ -1774,48 +1774,55 @@ func ListAiSummaryModels(req component.BetterRequest[ListAiSummaryModelsReq]) co
 // GetOnesystemSettings 获取一系统同步凭证配置：仅返回是否已配置，不回显密文或明文。
 func GetOnesystemSettings(req component.BetterRequest[component.Null]) component.Response {
 	config := hotdataserve.GetOnesystemSettingsConfigCache()
+	graduateConfigured := strings.TrimSpace(config.GraduateXTokenEncrypted) != "" || strings.TrimSpace(config.GraduateCookieEncrypted) != ""
 	return component.SuccessResponse(map[string]any{
-		// 保留 cookieConfigured 供旧客户端读取；新客户端按受众分别展示状态。
+		// 保留 cookieConfigured* 供旧客户端读取；新客户端按凭证类型/受众分别展示状态。
 		"cookieConfigured":              strings.TrimSpace(config.CookieEncrypted) != "",
 		"cookieConfiguredUndergraduate": strings.TrimSpace(config.CookieEncrypted) != "",
-		"cookieConfiguredGraduate":      strings.TrimSpace(config.GraduateCookieEncrypted) != "",
+		"cookieConfiguredGraduate":      graduateConfigured,
+		"xTokenConfiguredGraduate":      strings.TrimSpace(config.GraduateXTokenEncrypted) != "",
 	})
 }
 
 type SaveOnesystemSettingsReq struct {
 	// 两个字段均为可选：未提交表示保留原值，提交空串表示清除对应受众。
 	UndergraduateCookie *string `json:"undergraduateCookie" validate:"omitempty,max=4096"`
-	GraduateCookie      *string `json:"graduateCookie" validate:"omitempty,max=4096"`
+	GraduateXToken      *string `json:"graduateXToken" validate:"omitempty,max=4096"`
+	// GraduateCookie 是旧版 API 别名；其值按研究生 X-Token 处理，不再发送 Cookie 头。
+	GraduateCookie *string `json:"graduateCookie" validate:"omitempty,max=4096"`
 	// Cookie 兼容旧客户端；仅在新字段都未提交时作为本科凭证处理。
 	Cookie *string `json:"cookie" validate:"omitempty,max=4096"`
 }
 
-// SaveOnesystemSettings 保存一系统 Cookie：securestore 加密后落库（密文经 OneSystemSettingsStorage
+// SaveOnesystemSettings 保存一系统凭证：securestore 加密后落库（密文经 OneSystemSettingsStorage
 // 持久化，领域结构 json:"-" 防导出泄露），明文不持久化。清除时传空字符串。
 func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]) component.Response {
-	undergraduate, graduate := req.Params.UndergraduateCookie, req.Params.GraduateCookie
+	undergraduate, graduate := req.Params.UndergraduateCookie, req.Params.GraduateXToken
+	if graduate == nil {
+		graduate = req.Params.GraduateCookie
+	}
 	if undergraduate == nil && graduate == nil {
 		undergraduate = req.Params.Cookie
 	}
-	seal := func(cookie *string) (string, error) {
-		if cookie == nil {
+	seal := func(value *string, purpose string) (string, error) {
+		if value == nil {
 			return "", nil
 		}
-		value := strings.TrimSpace(*cookie)
-		if value == "" {
+		plain := strings.TrimSpace(*value)
+		if plain == "" {
 			return "", nil
 		}
-		sealed, err := securestore.EncryptPurpose(value, securestore.OneSystemCookiePurpose)
+		sealed, err := securestore.EncryptPurpose(plain, purpose)
 		if err != nil {
-			return "", fmt.Errorf("加密一系统 Cookie 失败（请确认 app.signingKey 已配置）：%w", err)
+			return "", fmt.Errorf("加密一系统凭证失败（请确认 app.signingKey 已配置）：%w", err)
 		}
 		return sealed, nil
 	}
-	undergraduateSealed, err := seal(undergraduate)
+	undergraduateSealed, err := seal(undergraduate, securestore.OneSystemCookiePurpose)
 	if err != nil {
 		return component.FailResponseError(err)
 	}
-	graduateSealed, err := seal(graduate)
+	graduateSealed, err := seal(graduate, securestore.OneSystemXTokenPurpose)
 	if err != nil {
 		return component.FailResponseError(err)
 	}
@@ -1824,7 +1831,8 @@ func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]
 			storage.CookieEncrypted = undergraduateSealed
 		}
 		if graduate != nil {
-			storage.GraduateCookieEncrypted = graduateSealed
+			storage.GraduateXTokenEncrypted = graduateSealed
+			storage.GraduateCookieEncrypted = ""
 		}
 		return storage
 	})

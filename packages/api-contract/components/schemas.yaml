@@ -7835,7 +7835,7 @@ AdminSaveHttpNotifySettingsRequest:
 
 AdminOnesystemSettingsResult:
   type: object
-  required: [cookieConfigured, cookieConfiguredUndergraduate, cookieConfiguredGraduate]
+  required: [cookieConfigured, cookieConfiguredUndergraduate, cookieConfiguredGraduate, xTokenConfiguredGraduate]
   properties:
     cookieConfigured:
       type: boolean
@@ -7845,7 +7845,10 @@ AdminOnesystemSettingsResult:
       description: Whether the encrypted undergraduate 一系统 cookie is stored.
     cookieConfiguredGraduate:
       type: boolean
-      description: Whether the encrypted graduate 一系统 cookie is stored.
+      description: Legacy configured-state alias for the graduate 一系统 credential.
+    xTokenConfiguredGraduate:
+      type: boolean
+      description: Whether the encrypted graduate 一系统 X-Token is stored.
   additionalProperties: false
 
 AdminOnesystemSettingsResponse:
@@ -7867,7 +7870,12 @@ AdminSaveOnesystemSettingsRequest:
     graduateCookie:
       type: string
       maxLength: 4096
-      description: Plaintext graduate 一系统 Cookie; omitted keeps the current value, blank clears only the graduate credential.
+      deprecated: true
+      description: Legacy alias for graduateXToken; the value is treated as an X-Token, not sent as a Cookie header.
+    graduateXToken:
+      type: string
+      maxLength: 4096
+      description: Plaintext graduate 一系统 X-Token (sessionStorage `sessionid`); omitted keeps the current value, blank clears only the graduate credential.
     cookie:
       type: string
       maxLength: 4096

@@ -268,3 +268,64 @@ func TestFetchPageCodeBoundary(t *testing.T) {
 		t.Fatal("expected error on non-numeric code (fail-closed)")
 	}
 }
+
+func TestGraduateFetchPageUsesEnquiryOfCoursesAndBothTrainingLevels(t *testing.T) {
+	var levels []string
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != "/api/electionservice/student/round/allArrangementCourses" {
+			t.Errorf("path = %q, want allArrangementCourses endpoint", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Token"); got != "graduate-token" {
+			t.Errorf("X-Token = %q, want graduate credential", got)
+		}
+		if got := r.Header.Get("Cookie"); got != "" {
+			t.Errorf("graduate request should not require Cookie header, got %q", got)
+		}
+		if got := r.Header.Get("Referer"); got != onesystemEnquiryReferer {
+			t.Errorf("Referer = %q, want %q", got, onesystemEnquiryReferer)
+		}
+
+		var payload struct {
+			Condition struct {
+				CalendarID    string `json:"calendarId"`
+				TrainingLevel string `json:"trainingLevel"`
+			} `json:"condition"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if payload.Condition.CalendarID != "121" {
+			t.Errorf("calendarId = %q, want 121", payload.Condition.CalendarID)
+		}
+		levels = append(levels, payload.Condition.TrainingLevel)
+
+		list := []CourseRaw{rawCourse(1, "M001")}
+		total := 1
+		if payload.Condition.TrainingLevel == "6" {
+			list = append(list, rawCourse(2, "P002"))
+			total = 2
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(pageResponse(total, list)))
+	}))
+	t.Cleanup(srv.Close)
+
+	c := newOnesystemClientForAudience(AudienceGraduate)
+	c.baseURL = srv.URL
+	c.maxAttempts = 1
+	page, err := c.fetchPage(context.Background(), "graduate-token", 121, 1, 200)
+	if err != nil {
+		t.Fatalf("graduate fetchPage: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("upstream calls = %d, want one call per graduate training level", calls)
+	}
+	if strings.Join(levels, ",") != "4,6" {
+		t.Fatalf("training levels = %v, want [4 6]", levels)
+	}
+	if len(page.Data.List) != 2 {
+		t.Fatalf("graduate list len = %d, want duplicate-free 2", len(page.Data.List))
+	}
+}

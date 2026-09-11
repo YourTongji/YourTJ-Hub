@@ -406,7 +406,7 @@ export function getOnesystemSettings() {
   return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
 }
 
-export function saveOnesystemSettings(settings: { undergraduateCookie?: string, graduateCookie?: string }) {
+export function saveOnesystemSettings(settings: { undergraduateCookie?: string, graduateXToken?: string }) {
   return postJson<unknown>('/api/admin/save-onesystem-settings', settings, adminText('k00s1'))
 }
 

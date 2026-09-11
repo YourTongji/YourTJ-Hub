@@ -229,6 +229,62 @@ func TestSyncAC1IdempotentRerun(t *testing.T) {
 	}
 }
 
+func TestGraduateSyncMergesTrainingLevelsWithoutDuplicateRows(t *testing.T) {
+	migratePkTables(t)
+	var levels []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != onesystemEnquiryCoursesPath {
+			t.Errorf("path = %q, want %q", r.URL.Path, onesystemEnquiryCoursesPath)
+		}
+		if got := r.Header.Get("X-Token"); got != "graduate-token" {
+			t.Errorf("X-Token = %q, want graduate-token", got)
+		}
+		var payload struct {
+			Condition struct {
+				TrainingLevel string `json:"trainingLevel"`
+			} `json:"condition"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode graduate request: %v", err)
+		}
+		levels = append(levels, payload.Condition.TrainingLevel)
+		list := []CourseRaw{rawCourse(1, "M001")}
+		total := 1
+		if payload.Condition.TrainingLevel == "6" {
+			list = append(list, rawCourse(2, "P002"))
+			total = 2
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(pageResponse(total, list)))
+	}))
+	defer srv.Close()
+	client := newOnesystemClientForAudience(AudienceGraduate)
+	client.baseURL = srv.URL
+	client.maxAttempts = 1
+
+	const calendarID uint64 = 121
+	report, err := syncWithClaimForAudience(context.Background(), client, "graduate-token", AudienceGraduate, calendarID, 1, false, nil, false)
+	if err != nil {
+		t.Fatalf("graduate sync: %v", err)
+	}
+	if report.TeachingClassInserted != 2 {
+		t.Errorf("graduate rows written = %d, want 2 after deduplication", report.TeachingClassInserted)
+	}
+	if strings.Join(levels, ",") != "4,6" {
+		t.Errorf("training levels = %v, want [4 6]", levels)
+	}
+	log, ok := pk.LatestFetchLogByAudienceCalendar(AudienceGraduate, calendarID)
+	if !ok {
+		t.Fatal("graduate fetch log not found")
+	}
+	if log.RowsWritten != 2 || log.TotalPages != 1 {
+		t.Errorf("graduate fetch log rows/pages = %d/%d, want 2/1", log.RowsWritten, log.TotalPages)
+	}
+	if got := countCourseDetails(t, pk.ScopeID(AudienceGraduate, calendarID)); got != 2 {
+		t.Errorf("graduate course details = %d, want 2", got)
+	}
+}
+
 func TestSyncAC2CookieFailureKeepsCommittedBatches(t *testing.T) {
 	migratePkTables(t)
 	fake := &fakeOneSystem{courses: genCourses(1200), cookieOK: true, failPages: map[int]int{4: http.StatusUnauthorized}}
