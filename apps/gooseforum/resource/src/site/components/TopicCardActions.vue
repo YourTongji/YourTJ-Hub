@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bookmark, Heart, MessageSquare } from '@lucide/vue'
 import { bookmarkTopic, likeTopic } from '@/runtime/api'
@@ -17,6 +17,18 @@ const bookmarked = ref(props.topic.bookmarked)
 const likeCount = ref(props.topic.likeCount)
 const actingLike = ref(false)
 const actingBookmark = ref(false)
+
+// 就地刷新（排序切换/静默重载）按 topic.id 复用实例：非操作中跟随服务端 payload，
+// 避免卡片状态过期；操作进行中跳过，完成后由下一次刷新收敛（对齐移动端 override 语义）。
+watch(
+  () => props.topic,
+  (next) => {
+    if (actingLike.value || actingBookmark.value) return
+    liked.value = next.liked
+    bookmarked.value = next.bookmarked
+    likeCount.value = next.likeCount
+  },
+)
 
 const commentUrl = `${props.topic.url}?reply=1`
 

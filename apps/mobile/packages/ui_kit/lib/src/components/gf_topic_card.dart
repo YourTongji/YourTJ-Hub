@@ -340,7 +340,10 @@ class _GfTopicCardState extends State<GfTopicCard>
               icon: Icons.chat_bubble_outline,
               value: '${widget.replyCount}',
             ),
-            _Metric(icon: Icons.favorite_border, value: '${widget.likeCount}'),
+            _Metric(
+              icon: Icons.thumb_up_outlined,
+              value: '${widget.likeCount}',
+            ),
             _Metric(
               icon: Icons.visibility_outlined,
               value: '${widget.viewCount}',

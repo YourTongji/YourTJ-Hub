@@ -35,7 +35,7 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   up to three previews with a total count. Tapping opens the full gallery with zoom.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics, and the like metric shows the topic's total like count. A successful action
-  updates its selected icon immediately and optimistic likes adjust the shown total by one;
+  updates its selected icon immediately and successful likes adjust the shown total by one;
   failed actions preserve the previous state and count and show the localized error. Home summaries
   batch-load the viewer's like/bookmark state; absent state (anonymous, unavailable or older
   servers) suppresses the shortcuts. Selected states survive offscreen card recycling, and

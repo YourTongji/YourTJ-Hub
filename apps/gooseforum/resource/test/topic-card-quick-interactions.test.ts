@@ -86,6 +86,14 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(commentLink.text()).toContain('7')
   })
 
+  it('就地刷新时跟随 props 更新状态与计数', async () => {
+    const view = mountActions(baseTopic())
+    await view.setProps({ topic: baseTopic({ liked: true, likeCount: 9 }) })
+    const likeButton = view.find('button[title="点赞"]')
+    expect(likeButton.classes()).toContain('text-error')
+    expect(likeButton.text()).toBe('9')
+  })
+
   it('点赞乐观更新 +1，成功后保持并调用 action=1', async () => {
     vi.mocked(likeTopic).mockResolvedValueOnce(true)
     const view = mountActions(baseTopic())
