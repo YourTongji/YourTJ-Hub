@@ -2,12 +2,11 @@
 // - boring-avatars beam 变体的纯 TS 移植（与 YourTJCourse-Serverless 前端同库同版本，
 //   无需引入 React 运行时；输出 SVG data URI，匿名/历史评价的占位头像在导出图中
 //   同样可用，无跨域问题）
-// - 评价短码（sqid）：与 serverless 后端 sqids@0.3.0 同算法（自定义字母表 + minLength 4），
-//   详情页列表/分享卡与管理端（课程管理评价 tab、课评审核举报队列）展示的 #XXXX 编号三端一致
+// - 评价短码（sqid）：实现与常量在 course-review-sqid.ts（与 serverless 后端 sqids@0.3.0 同算法），
+//   管理端页面直接引它，避免懒加载管理路由连带本模块的图片导出依赖；此处 re-export 供详情页/分享卡沿用
 // - 导出前的图片内联（html-to-image 不支持跨域资源）：站内同源直接 fetch，
 //   跨域（CDN 前缀）走 wsrv.nl 图像代理重取为 data URL
 
-import Sqids from 'sqids'
 import { toJpeg, toPng } from 'html-to-image'
 
 // serverless 前端同款配色：深主色 + 蓝/白/琥珀/绿 辅色，beam 变体背景据此轮换。
@@ -126,12 +125,7 @@ export function reviewAvatarSrc(author: ReviewAvatarAuthor, reviewId: number, si
 
 // —— 评价短码（sqid）——
 
-export const REVIEW_SQID_ALPHABET = 'bcdfghjkmnpqrstvwxyzBCDFGHJKMNPQRSTVWXYZ23456789'
-const reviewSqids = new Sqids({ alphabet: REVIEW_SQID_ALPHABET, minLength: 4 })
-
-export function reviewSqid(reviewId: number): string {
-  return reviewSqids.encode([reviewId])
-}
+export { REVIEW_SQID_ALPHABET, reviewSqid } from './course-review-sqid'
 
 // —— 图片内联（html-to-image 导出前置）——
 

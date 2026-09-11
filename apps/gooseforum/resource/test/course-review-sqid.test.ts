@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { REVIEW_SQID_ALPHABET, reviewSqid } from '../src/site/utils/course-review-share'
+import { REVIEW_SQID_ALPHABET, reviewSqid } from '../src/site/utils/course-review-sqid'
 
 // issue #628 验收：评价短码的字母表与 minLength 必须与 YourTJCourse-Serverless
 // 端（sqids@0.3.0，同字母表 + minLength 4）保持一致，同一 review id 三端同码。

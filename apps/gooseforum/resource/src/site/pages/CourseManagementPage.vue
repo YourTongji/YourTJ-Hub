@@ -29,7 +29,7 @@ import {
 import EmptyState from '@/site/components/EmptyState.vue'
 import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
-import { reviewSqid } from '@/site/utils/course-review-share'
+import { reviewSqid } from '@/site/utils/course-review-sqid'
 import type { CourseManagementPageProps, LayoutPayload } from '@gooseforum/client'
 
 const page = defineProps<{

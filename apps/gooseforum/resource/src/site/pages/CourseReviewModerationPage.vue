@@ -13,7 +13,7 @@ import { formatDateTime } from '@/runtime/format'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
-import { reviewSqid } from '@/site/utils/course-review-share'
+import { reviewSqid } from '@/site/utils/course-review-sqid'
 import type { CourseReviewModerationPageProps, LayoutPayload } from '@gooseforum/client'
 
 const page = defineProps<{
