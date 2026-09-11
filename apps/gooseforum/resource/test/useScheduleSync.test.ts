@@ -42,6 +42,7 @@ function makeStorage(initial: Record<string, string> = {}) {
 
 const UPDATED_AT = '2025-09-01T00:00:00.000000000Z'
 const UPDATED_AT_2 = '2025-09-02T00:00:00.000000000Z'
+const UPDATED_AT_3 = '2025-09-03T00:00:00.000000000Z'
 
 /** 云端快照构造（wire 形状，镜像契约 fixtures/pk-plans-get-success.json）。 */
 function makeSnapshot(overrides: Partial<PkSyncRemoteSnapshot> = {}): PkSyncRemoteSnapshot {
@@ -778,6 +779,48 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
 
     expect(store.state.plans).toHaveLength(3)
     expect(store.state.plans[2]?.name).toBe(autoRestoreName(3))
+  })
+
+  test('合并 PUT 在途期间用户编辑：重对账按内容去重，不重复克隆已上传方案（#571 review）', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalContent(store)
+    store.solidify()
+    fetchCloudSnapshot.mockResolvedValueOnce(makeSnapshot())
+    // PUT 成功返回，但在途期间用户编辑（seq 推进）→ 合并快照不落盘，本地保持原方案。
+    putCloudSnapshot.mockImplementationOnce(async () => {
+      store.setWeekView({ week: 2, useCurrent: false })
+      return { updatedAt: UPDATED_AT_2 }
+    })
+    await expect(controller.syncOnPageEnter()).resolves.toBe('merged')
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.getSyncedAt()).toBe('')
+
+    // 上一轮合并已落云端（含与本地方案内容相同的恢复克隆），本地未感知（未落盘）。
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: [
+        makeSnapshot().plans[0],
+        {
+          id: 'cloud_clone',
+          name: autoRestoreName(2),
+          createdAt: 1725000000001,
+          stagedCourses: JSON.parse(JSON.stringify(store.state.plans[0]?.stagedCourses)),
+          selectedCourses: [],
+          customEvents: [],
+        },
+      ],
+      updatedAt: UPDATED_AT_2,
+    }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_3 })
+
+    // 心跳重对账 → 重新合并：内容已在云端的方案跳过克隆，不产生重复恢复方案。
+    await vi.advanceTimersByTimeAsync(PK_SYNC_AUTOSAVE_MS)
+
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(2)
+    expect(putCloudSnapshot.mock.calls[1][0].plans).toHaveLength(2)
+    expect(store.state.plans).toHaveLength(2)
+    expect(store.state.plans[1]?.name).toBe(autoRestoreName(2))
+    expect(store.getSyncedAt()).toBe(UPDATED_AT_3)
   })
 })
 
