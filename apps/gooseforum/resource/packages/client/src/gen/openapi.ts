@@ -802,7 +802,11 @@ export interface paths {
          * @description Set-semantics and idempotent: repeating the same transition returns true without
          *     double counting. JSON binding is lenient: a malformed body binds to zero values
          *     and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
-         *     Business failures: `user.notFound`, `common.request.invalidParams`.
+         *     Following yourself (id equals the authenticated user with action 1) is rejected
+         *     before any follow row, counter, or notification is touched (issue #594); the
+         *     unfollow action (2) stays an idempotent success so legacy self-follow rows can
+         *     be cleared through the same endpoint.
+         *     Business failures: `user.notFound`, `user.selfFollow`, `common.request.invalidParams`.
          */
         post: operations["followUser"];
         delete?: never;
@@ -6506,7 +6510,7 @@ export interface components {
         FollowUserRequest: {
             /**
              * Format: uint64
-             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200).
+             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue #594).
              */
             id: number;
             /**

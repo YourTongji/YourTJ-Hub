@@ -1034,6 +1034,11 @@ type FollowUserReq struct {
 }
 
 func FollowUser(req component.BetterRequest[FollowUserReq]) component.Response {
+	// 不能关注自己（issue #594）：在触碰关注关系、统计与通知前直接拒绝。
+	// 仅拦截 action=1（关注）；action=2（取消）保持幂等成功，便于存量自关注行自愈。
+	if req.Params.Id == req.UserId && req.Params.Action == 1 {
+		return component.FailResponseCode(component.MessageUserSelfFollow, nil)
+	}
 	userEntity, _ := users.Get(req.Params.Id)
 	if userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserNotFound, nil)

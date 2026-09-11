@@ -38,6 +38,7 @@ const (
 	MessageRouteNotFound        MessageCode = "route.notFound"               // 路由未定义。
 	MessageUserFetchFailed      MessageCode = "user.fetchFailed"             // 当前用户信息读取失败。
 	MessageUserNotFound         MessageCode = "user.notFound"                // 用户不存在。
+	MessageUserSelfFollow       MessageCode = "user.selfFollow"              // 不能关注自己（issue #594）。
 	MessageUserUpdateFailed     MessageCode = "user.updateFailed"            // 用户信息保存失败。
 	MessageUserUpdateSuccess    MessageCode = "user.updateSuccess"           // 用户信息保存成功。
 )

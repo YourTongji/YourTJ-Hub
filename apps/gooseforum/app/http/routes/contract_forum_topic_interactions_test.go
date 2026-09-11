@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 )
 
 func TestUpdateTopicStatusHTTPContract(t *testing.T) {
@@ -181,6 +183,36 @@ func TestFollowUserHTTPContract(t *testing.T) {
 		recorder := serveJSON(router, "/api/forum/follow-user", body, contractSessionToken(t, follower))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("follow user status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+	})
+
+	t.Run("self follow returns a dedicated business failure", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := fmt.Sprintf(`{"id":%d,"action":1}`, user.Id)
+		recorder := serveJSON(router, "/api/forum/follow-user", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("self follow status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "follow-user-self-follow.json"))
+		// 守卫必须先于副作用生效：不得出现自关注行，也不得累加任何一侧计数。
+		if followRow := userFollow.GetByUserId(user.Id, user.Id); followRow.Id != 0 {
+			t.Fatalf("self follow created a user_follow row: %+v", followRow)
+		}
+		stats := userStatistics.Get(user.Id)
+		if stats.FollowingCount != 0 || stats.FollowerCount != 0 {
+			t.Fatalf("self follow moved counters: following=%d follower=%d", stats.FollowingCount, stats.FollowerCount)
+		}
+	})
+
+	t.Run("self unfollow stays an idempotent success", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		body := fmt.Sprintf(`{"id":%d,"action":2}`, user.Id)
+		recorder := serveJSON(router, "/api/forum/follow-user", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("self unfollow status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
