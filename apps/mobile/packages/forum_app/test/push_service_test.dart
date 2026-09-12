@@ -271,6 +271,23 @@ void main() {
     await controller().refresh();
     expect(driver.requests, 1);
   });
+  test('queued enable suppresses the first-launch auto-request', () async {
+    SharedPreferences.setMockInitialValues({});
+    repo.pendingSession = Completer<void>();
+    await settle();
+    final enabling = controller().enable();
+    await settle();
+    repo.pendingSession!.complete();
+    await enabling;
+    await settle();
+    // The queued explicit enable performs the single prompt itself; the
+    // startup refresh that was still in flight must not request again.
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
+    expect(repo.registered, ['ios:apns:native-token']);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('push_permission_requested'), true);
+  });
   test('Android first launch never auto-requests permission', () async {
     SharedPreferences.setMockInitialValues({});
     driver.transport = 'jpush';
