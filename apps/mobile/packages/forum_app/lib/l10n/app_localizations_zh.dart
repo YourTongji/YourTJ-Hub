@@ -1546,6 +1546,30 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get mentionListboxLabel => '提到用户';
+
+  @override
+  String get mentionLoading => '正在搜索用户…';
+
+  @override
+  String get mentionNoResults => '没有匹配的用户';
+
+  @override
+  String get mentionSearchFailed => '搜索用户失败，可继续输入';
+
+  @override
+  String get mentionKeepTyping => '继续输入以搜索用户';
+
+  @override
+  String get mentionTagReplyTarget => '正在回复';
+
+  @override
+  String get mentionTagTopicAuthor => '主题作者';
+
+  @override
+  String get mentionTagParticipant => '参与者';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor 回复了你';
   }

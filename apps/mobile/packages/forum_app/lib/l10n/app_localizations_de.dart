@@ -1599,6 +1599,31 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get mentionListboxLabel => 'Benutzer erwähnen';
+
+  @override
+  String get mentionLoading => 'Benutzer werden gesucht…';
+
+  @override
+  String get mentionNoResults => 'Keine passenden Benutzer';
+
+  @override
+  String get mentionSearchFailed =>
+      'Benutzersuche fehlgeschlagen, weiter tippen';
+
+  @override
+  String get mentionKeepTyping => 'Weiter tippen, um Benutzer zu suchen';
+
+  @override
+  String get mentionTagReplyTarget => 'Antworte auf';
+
+  @override
+  String get mentionTagTopicAuthor => 'Themenersteller';
+
+  @override
+  String get mentionTagParticipant => 'Teilnehmer';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor hat dir geantwortet';
   }

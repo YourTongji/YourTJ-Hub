@@ -786,6 +786,14 @@
     }
   },
   "notificationMention": "{actor} mentioned you",
+  "mentionListboxLabel": "Mention users",
+  "mentionLoading": "Searching users…",
+  "mentionNoResults": "No matching users",
+  "mentionSearchFailed": "User search failed, keep typing",
+  "mentionKeepTyping": "Keep typing to search users",
+  "mentionTagReplyTarget": "Replying to",
+  "mentionTagTopicAuthor": "Topic author",
+  "mentionTagParticipant": "Participant",
   "@notificationMention": {
     "placeholders": {
       "actor": {

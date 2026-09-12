@@ -96,6 +96,23 @@ errors discard stale candidates, caret operations stay within the editable root,
 position and accessible option references follow the current session. Code and links suppress
 suggestions; insertion preserves plain `@username` Markdown with a trailing space.
 
+### Mobile editor mentions
+
+`Current`: The Flutter reply composer suggests users after `@` with Web-identical token
+boundaries, local context (reply target, topic author, loaded participants) and match
+ranking. Only `@` shows up to five local candidates; further input debounces server
+search through `/api/forum/search?scope=users`, discards stale responses, dedupes by
+user id and excludes the viewer. The candidate sheet lives above the software keyboard
+inside the composer column, shrinks to the remaining viewport height above the keyboard,
+scrolls independently with 52dp rows, and search failures
+keep local matches editable and show an error even when local candidates remain. Updating the
+reply target re-ranks the current search results without discarding them. Physical-key support covers arrow selection, Enter commit
+and Escape that closes candidates without deleting the query; unhandled keys and the
+system back channel are never intercepted. Insertion replaces the query with plain
+`@username` Markdown plus a trailing space and lands the caret after it; row semantics
+announce nickname, `@username` and the context role, and the sheet stays usable at
+320 logical px with 2.0 text scale.
+
 ### Posting length limits
 
 `Current`: Forum topic titles, topic bodies and reply creation/editing enforce configured

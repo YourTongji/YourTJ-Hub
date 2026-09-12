@@ -19,6 +19,9 @@ import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 import 'post_actions.dart';
 import 'topic_actions.dart';
+import 'mention_panel.dart';
+import 'mention_search.dart';
+import 'mention_session.dart';
 
 /// 话题详情页(web TopicPage.vue 的移动端形态):
 /// 话题信息 + 帖子流(分页)+ markdown 渲染 + 图片查看器 + 互动(点赞/收藏/关注/评论)。
@@ -60,7 +63,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
 
   // 轻量 Markdown 回复输入。
   final TextEditingController _replyController = TextEditingController();
-  final FocusNode _replyFocus = FocusNode();
+  late final FocusNode _replyFocus = FocusNode(
+    onKeyEvent: _replyMentionKeyEvent,
+  );
   bool _replying = false;
   CaptchaPayload? _replyCaptcha;
   final _replyCaptchaCode = TextEditingController();
@@ -70,6 +75,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   String? _replyImageUrl;
   String? _replyTargetName;
   String? _replyMentionPrefix;
+
+  // @mention 候选会话(issue #565):token/候选/防抖逻辑在 mention_session.dart。
+  late final MentionSessionController _mentionSession;
+  int _viewerId = 0;
 
   // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
   bool _composerOpen = false;
@@ -82,6 +91,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   @override
   void initState() {
     super.initState();
+    _mentionSession = MentionSessionController(
+      searchUsers: ref.read(mentionUserSearchProvider),
+    );
+    _replyController.addListener(_onReplyValueChanged);
+    _replyFocus.addListener(_onReplyFocusChanged);
     _load(postNo: widget.initialPostNo);
   }
 
@@ -98,6 +112,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       _replyToPostId = 0;
       _replyTargetName = null;
       _replyMentionPrefix = null;
+      _mentionSession.close();
       _load(postNo: widget.initialPostNo);
     }
   }
@@ -107,6 +122,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     _replyController.dispose();
     _replyCaptchaCode.dispose();
     _replyFocus.dispose();
+    _mentionSession.dispose();
     super.dispose();
   }
 
@@ -152,6 +168,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       setState(() {
         _page = AsyncValue.data(props);
         _viewerAuthenticated = payload.layout.viewer.isAuthenticated;
+        _viewerId = payload.layout.viewer.id;
         _posts.clear();
         _posts.addAll(props.postStream.posts);
         _replyTargets
@@ -208,6 +225,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         setState(() {
           _page = AsyncValue.data(props);
           _viewerAuthenticated = cached!.layout.viewer.isAuthenticated;
+          _viewerId = cached.layout.viewer.id;
           _posts.clear();
           _posts.addAll(props.postStream.posts);
           _replyTargets
@@ -448,6 +466,91 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       _topicAvailable &&
       (_page.valueOrNull?.permissions.canPost == true || !_viewerAuthenticated);
 
+  /// 编辑值变化:基于 caret 前文本驱动 @mention 会话(选区/无 caret 时关闭)。
+  void _onReplyValueChanged() {
+    if (!_composerOpen) return;
+    final TextEditingValue value = _replyController.value;
+    final int base = value.selection.baseOffset;
+    final int extent = value.selection.extentOffset;
+    if (base < 0 || base != extent) {
+      _mentionSession.handleValue(null);
+      return;
+    }
+    _mentionSession.handleValue(
+      value.text.substring(0, base.clamp(0, value.text.length)),
+    );
+  }
+
+  /// 焦点丢失(键盘收起/点按他处)关闭候选会话,不劫持系统返回。
+  void _onReplyFocusChanged() {
+    if (!_replyFocus.hasFocus) _mentionSession.close();
+  }
+
+  /// 物理键盘:↑/↓ 移动 active、Enter 选中、Escape 只关候选不删 @query。
+  KeyEventResult _replyMentionKeyEvent(FocusNode node, KeyEvent event) {
+    return handleMentionKeyEvent(
+      session: _mentionSession,
+      controller: _replyController,
+      event: event,
+      onSelect: _selectMentionCandidate,
+    );
+  }
+
+  /// 选中候选:原位替换 @query 为 @username(补单个空格),selection 落在插入后。
+  void _selectMentionCandidate(MentionToken token, MentionUser user) {
+    _replyController.value = applyMentionReplacement(
+      _replyController.value,
+      MentionReplacement(
+        start: token.start,
+        length: token.length,
+        replacement: '@${user.username} ',
+      ),
+    );
+  }
+
+  MentionUser _toMentionUser(UserBriefPayload user, MentionTag tag) {
+    return MentionUser(
+      id: user.id,
+      username: user.username,
+      nickname: user.nickname,
+      avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+      tag: tag,
+    );
+  }
+
+  /// 本地上下文候选:回复目标 > 主题作者 > 已加载参与者(匿名/无效 id 排除)。
+  List<MentionUser> _mentionLocalUsers() {
+    final TopicDetailProps? props = _page.valueOrNull;
+    if (props == null) return const <MentionUser>[];
+    final List<MentionUser> users = <MentionUser>[];
+    if (_replyToPostId != 0) {
+      for (final PostPayload post in _posts) {
+        if (post.id == _replyToPostId) {
+          if (!post.isAnonymous && post.author.id > 0) {
+            users.add(_toMentionUser(post.author, MentionTag.replyTarget));
+          }
+          break;
+        }
+      }
+    }
+    if (props.topic.author.id > 0) {
+      users.add(_toMentionUser(props.topic.author, MentionTag.topicAuthor));
+    }
+    for (final UserBriefPayload participant in props.topic.participants) {
+      if (participant.id > 0) {
+        users.add(_toMentionUser(participant, MentionTag.participant));
+      }
+    }
+    return users;
+  }
+
+  void _syncMentionContext() {
+    _mentionSession.updateContext(
+      local: _mentionLocalUsers(),
+      currentUserId: _viewerId,
+    );
+  }
+
   void _openComposer({PostPayload? replyTo}) {
     if (!_canReply) return;
     if (_page.valueOrNull?.permissions.canPost != true) {
@@ -466,6 +569,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     } else if (_replyController.text.trim().isEmpty) {
       _replyController.clear();
     }
+    _syncMentionContext();
     setState(() {
       _composerOpen = true;
       _railOpen = false;
@@ -491,11 +595,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     _replyToPostId = 0;
     _replyTargetName = null;
     _replyMentionPrefix = null;
+    _syncMentionContext();
   }
 
   void _closeComposer() {
     _replyFocus.unfocus();
     _clearReplyTarget();
+    _mentionSession.close();
     setState(() => _composerOpen = false);
   }
 
@@ -930,128 +1036,171 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                 left: 12,
                 right: 12,
                 bottom: 12,
+                // Bound the open composer to the keyboard-resized viewport.
+                top: _composerOpen ? 0 : null,
                 child: SafeArea(
                   top: false,
-                  child: Center(
-                    child: _composerOpen
-                        ? ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 560),
-                            child: ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: _replyController,
-                              builder: (context, value, _) {
-                                return GfPostComposer(
-                                  hideKeyboardLabel: l10n.commonHideKeyboard,
-                                  onCollapse: _closeComposer,
-                                  collapseLabel: l10n.commonCancel,
-                                  controller: _replyController,
-                                  focusNode: _replyFocus,
-                                  targetName: _replyTargetName,
-                                  targetLabel: _replyTargetName == null
-                                      ? null
-                                      : l10n.topicReplyTarget(
-                                          _replyTargetName!,
-                                        ),
-                                  onCloseTarget: () {
-                                    _clearReplyTarget();
-                                    setState(() {});
-                                  },
-                                  onPickImage: _pickReplyImage,
-                                  imageTooltip: l10n.publishToolImage,
-                                  imageUrl: _replyImageUrl == null
-                                      ? null
-                                      : resolveApiAssetUrl(_replyImageUrl!),
-                                  onRemoveImage: _removeReplyImage,
-                                  removeImageTooltip: l10n.publishRemoveImage,
-                                  uploading: _uploadingReplyImage,
-                                  publishing: _replying,
-                                  canPublish: value.text.trim().isNotEmpty,
-                                  publishLabel: l10n.commonSend,
-                                  hintText: l10n.topicReplyHint,
-                                  onPublish: _submitReply,
-                                  toolbar: _replyCaptcha == null
-                                      ? null
-                                      : Row(
-                                          children: [
-                                            InkWell(
-                                              onTap: _replyCaptchaLoading
-                                                  ? null
-                                                  : _loadReplyCaptcha,
-                                              child: Image.memory(
-                                                base64Decode(
-                                                  _replyCaptcha!.captchaImg
-                                                      .split(',')
-                                                      .last,
-                                                ),
-                                                width: 80,
-                                                height: 42,
-                                                fit: BoxFit.contain,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: TextField(
-                                                key: const Key('reply-captcha'),
-                                                controller: _replyCaptchaCode,
-                                                decoration: InputDecoration(
-                                                  labelText: l10n.authCaptcha,
-                                                ),
-                                                textCapitalization:
-                                                    TextCapitalization
-                                                        .characters,
-                                              ),
-                                            ),
-                                            IconButton(
-                                              tooltip: l10n.commonRefresh,
-                                              onPressed: _replyCaptchaLoading
-                                                  ? null
-                                                  : _loadReplyCaptcha,
-                                              icon: const Icon(Icons.refresh),
-                                            ),
-                                          ],
-                                        ),
-                                );
-                              },
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: <Widget>[
+                        if (_composerOpen)
+                          Flexible(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 560),
+                              child: ListenableBuilder(
+                                listenable: _mentionSession,
+                                builder: (context, _) => MentionCandidatesPanel(
+                                  session: _mentionSession,
+                                  messages: MentionPanelMessages(
+                                    listboxLabel: l10n.mentionListboxLabel,
+                                    loading: l10n.mentionLoading,
+                                    noResults: l10n.mentionNoResults,
+                                    searchFailed: l10n.mentionSearchFailed,
+                                    keepTyping: l10n.mentionKeepTyping,
+                                    tagReplyTarget: l10n.mentionTagReplyTarget,
+                                    tagTopicAuthor: l10n.mentionTagTopicAuthor,
+                                    tagParticipant: l10n.mentionTagParticipant,
+                                  ),
+                                  onSelect: _selectMentionCandidate,
+                                ),
+                              ),
                             ),
-                          )
-                        : GfFloatingControls(
-                            joinLabel: l10n.topicJoinDiscussion,
-                            actions: <GfTopicAction>[
-                              if (_topicAvailable) ...[
-                                GfTopicAction(
-                                  icon: Icons.favorite_border,
-                                  symbol: _liked ? 'heart-filled' : 'heart',
-                                  active: _liked,
-                                  activeColor: colors.error,
-                                  onTap: _toggleLike,
-                                ),
-                                GfTopicAction(
-                                  icon: Icons.bookmark_border,
-                                  symbol: _bookmarked
-                                      ? 'bookmark-filled'
-                                      : 'bookmark',
-                                  active: _bookmarked,
-                                  activeColor: colors.warning,
-                                  onTap: _toggleBookmark,
-                                ),
-                                GfTopicAction(
-                                  icon: _watched
-                                      ? Icons.notifications
-                                      : Icons.notifications_none,
-                                  symbol: 'bell',
-                                  active: _watched,
-                                  activeColor: colors.primary,
-                                  onTap: _toggleWatch,
-                                ),
-                              ],
-                            ],
-                            onOpenReply: _canReply
-                                ? () => _openComposer()
-                                : null,
-                            currentNo: _currentFloor,
-                            maxNo: props.postStream.maxPostNo,
-                            onFloorTap: () =>
-                                setState(() => _railOpen = !_railOpen),
                           ),
+                        _composerOpen
+                            ? ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 560,
+                                ),
+                                child: ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: _replyController,
+                                  builder: (context, value, _) {
+                                    return GfPostComposer(
+                                      hideKeyboardLabel:
+                                          l10n.commonHideKeyboard,
+                                      onCollapse: _closeComposer,
+                                      collapseLabel: l10n.commonCancel,
+                                      controller: _replyController,
+                                      focusNode: _replyFocus,
+                                      targetName: _replyTargetName,
+                                      targetLabel: _replyTargetName == null
+                                          ? null
+                                          : l10n.topicReplyTarget(
+                                              _replyTargetName!,
+                                            ),
+                                      onCloseTarget: () {
+                                        _clearReplyTarget();
+                                        setState(() {});
+                                      },
+                                      onPickImage: _pickReplyImage,
+                                      imageTooltip: l10n.publishToolImage,
+                                      imageUrl: _replyImageUrl == null
+                                          ? null
+                                          : resolveApiAssetUrl(_replyImageUrl!),
+                                      onRemoveImage: _removeReplyImage,
+                                      removeImageTooltip:
+                                          l10n.publishRemoveImage,
+                                      uploading: _uploadingReplyImage,
+                                      publishing: _replying,
+                                      canPublish: value.text.trim().isNotEmpty,
+                                      publishLabel: l10n.commonSend,
+                                      hintText: l10n.topicReplyHint,
+                                      onPublish: _submitReply,
+                                      toolbar: _replyCaptcha == null
+                                          ? null
+                                          : Row(
+                                              children: [
+                                                InkWell(
+                                                  onTap: _replyCaptchaLoading
+                                                      ? null
+                                                      : _loadReplyCaptcha,
+                                                  child: Image.memory(
+                                                    base64Decode(
+                                                      _replyCaptcha!.captchaImg
+                                                          .split(',')
+                                                          .last,
+                                                    ),
+                                                    width: 80,
+                                                    height: 42,
+                                                    fit: BoxFit.contain,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: TextField(
+                                                    key: const Key(
+                                                      'reply-captcha',
+                                                    ),
+                                                    controller:
+                                                        _replyCaptchaCode,
+                                                    decoration: InputDecoration(
+                                                      labelText:
+                                                          l10n.authCaptcha,
+                                                    ),
+                                                    textCapitalization:
+                                                        TextCapitalization
+                                                            .characters,
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  tooltip: l10n.commonRefresh,
+                                                  onPressed:
+                                                      _replyCaptchaLoading
+                                                      ? null
+                                                      : _loadReplyCaptcha,
+                                                  icon: const Icon(
+                                                    Icons.refresh,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                    );
+                                  },
+                                ),
+                              )
+                            : GfFloatingControls(
+                                joinLabel: l10n.topicJoinDiscussion,
+                                actions: <GfTopicAction>[
+                                  if (_topicAvailable) ...[
+                                    GfTopicAction(
+                                      icon: Icons.favorite_border,
+                                      symbol: _liked ? 'heart-filled' : 'heart',
+                                      active: _liked,
+                                      activeColor: colors.error,
+                                      onTap: _toggleLike,
+                                    ),
+                                    GfTopicAction(
+                                      icon: Icons.bookmark_border,
+                                      symbol: _bookmarked
+                                          ? 'bookmark-filled'
+                                          : 'bookmark',
+                                      active: _bookmarked,
+                                      activeColor: colors.warning,
+                                      onTap: _toggleBookmark,
+                                    ),
+                                    GfTopicAction(
+                                      icon: _watched
+                                          ? Icons.notifications
+                                          : Icons.notifications_none,
+                                      symbol: 'bell',
+                                      active: _watched,
+                                      activeColor: colors.primary,
+                                      onTap: _toggleWatch,
+                                    ),
+                                  ],
+                                ],
+                                onOpenReply: _canReply
+                                    ? () => _openComposer()
+                                    : null,
+                                currentNo: _currentFloor,
+                                maxNo: props.postStream.maxPostNo,
+                                onFloorTap: () =>
+                                    setState(() => _railOpen = !_railOpen),
+                              ),
+                      ],
+                    ),
                   ),
                 ),
               ),

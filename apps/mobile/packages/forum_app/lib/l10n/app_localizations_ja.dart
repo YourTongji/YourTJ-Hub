@@ -1549,6 +1549,30 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get mentionListboxLabel => 'ユーザーをメンション';
+
+  @override
+  String get mentionLoading => 'ユーザーを検索中…';
+
+  @override
+  String get mentionNoResults => '一致するユーザーがいません';
+
+  @override
+  String get mentionSearchFailed => 'ユーザー検索に失敗しました。入力を続けてください';
+
+  @override
+  String get mentionKeepTyping => '入力を続けてユーザーを検索';
+
+  @override
+  String get mentionTagReplyTarget => '返信先';
+
+  @override
+  String get mentionTagTopicAuthor => 'トピック作成者';
+
+  @override
+  String get mentionTagParticipant => '参加者';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actorがあなたに返信しました';
   }
