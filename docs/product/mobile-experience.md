@@ -308,8 +308,11 @@ local widget tests do not imply those gates passed.
   remain deployment requirements; app-local notification lists are independent of system delivery.
 - `Current`: Settings retains the push entry with a provider-processing disclosure and shows missing
   build configuration, unavailable server channels, permission denial and registration failure.
-  Explicit enable requests system permission. Resume checks existing authorization without repeatedly
-  prompting; a non-empty token and successful API registration are required to display enabled.
+  On iOS the first launch after login requests the system permission once; granting it counts as
+  push consent and enables delivery without visiting Settings. Android keeps explicit opt-in —
+  the JPush SDK is never initialized before the user enables push. Explicit enable requests system
+  permission. Resume checks existing authorization without repeatedly prompting; a non-empty token
+  and successful API registration are required to display enabled.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.
