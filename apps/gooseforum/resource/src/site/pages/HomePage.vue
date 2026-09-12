@@ -616,7 +616,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <TopicList :topics="topics" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
+        <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
           <template #empty>
             <EmptyState v-if="!hasTopics" :icon="UsersRound" :title="t('topicList.emptyTitle')" :description="t('topicList.emptyDescription')" />
           </template>

@@ -79,6 +79,63 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     vi.resetAllMocks()
   })
 
+  it('pending action survives card/table remount and prevents duplicates', async () => {
+    let complete!: (value: boolean) => void
+    vi.mocked(likeTopic).mockReturnValue(new Promise(resolve => { complete = resolve }))
+    const topic = baseTopic()
+    wrapper = mount(TopicList, {
+      props: { topics: [topic], feedMode: 'card', viewerId: 1 },
+      global: { plugins: [i18n], stubs: { TopicFeedPreview: true, TopicRow: true } },
+    })
+    await wrapper.find('button[title="点赞"]').trigger('click')
+    await wrapper.setProps({ feedMode: 'table' })
+    await wrapper.setProps({ feedMode: 'card' })
+    expect(wrapper.find('button[title="点赞"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('button[title="点赞"]').text()).toBe('6')
+    complete(true)
+    await flushPromises()
+    expect(topic.liked).toBe(true)
+    expect(wrapper.find('button[title="点赞"]').text()).toBe('6')
+  })
+
+  it('refresh updates unrelated fields and failed action uses the refreshed count', async () => {
+    let reject!: (reason: Error) => void
+    vi.mocked(likeTopic).mockReturnValue(new Promise((_, fail) => { reject = fail }))
+    const view = mountActions(baseTopic())
+    await view.find('button[title="点赞"]').trigger('click')
+    await view.setProps({ topic: baseTopic({ bookmarked: true, likeCount: 10 }) })
+    expect(view.findAll('button')[1].attributes('aria-pressed')).toBe('true')
+    reject(new Error('network failed'))
+    await flushPromises()
+    expect(view.find('button[title="点赞"]').text()).toBe('10')
+    expect(view.find('[role="alert"]').text()).toContain('network failed')
+  })
+
+  it('old viewer completion cannot mutate the new viewer topic', async () => {
+    let complete!: (value: boolean) => void
+    vi.mocked(likeTopic).mockReturnValue(new Promise(resolve => { complete = resolve }))
+    wrapper = mount(TopicList, {
+      props: { topics: [baseTopic()], feedMode: 'card', viewerId: 1 },
+      global: { plugins: [i18n], stubs: { TopicFeedPreview: true } },
+    })
+    await wrapper.find('button[title="点赞"]').trigger('click')
+    const next = baseTopic({ liked: false, likeCount: 20 })
+    await wrapper.setProps({ topics: [next], viewerId: 2 })
+    complete(true)
+    await flushPromises()
+    expect(wrapper.find('button[title="点赞"]').text()).toBe('20')
+    expect(next.liked).toBe(false)
+  })
+
+  it('false API result rolls back and exposes a failure', async () => {
+    vi.mocked(likeTopic).mockResolvedValue(false)
+    const view = mountActions(baseTopic())
+    await view.find('button[title="点赞"]').trigger('click')
+    await flushPromises()
+    expect(view.find('button[title="点赞"]').text()).toBe('5')
+    expect(view.find('[role="alert"]').exists()).toBe(true)
+  })
+
   it('渲染点赞计数、回复计数与评论入口', () => {
     const view = mountActions(baseTopic())
     const likeButton = view.find('button[title="点赞"]')
