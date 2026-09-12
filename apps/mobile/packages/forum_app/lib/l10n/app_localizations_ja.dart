@@ -873,6 +873,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commentSortOnlyOp => '投稿者のみ';
 
   @override
+  String get topicOpRepliesPending => '読み込み済みの範囲に投稿者の返信はありません。続きを読み込めます。';
+
+  @override
   String get topicOpRepliesEmpty => '投稿者の返信はまだありません';
 
   @override

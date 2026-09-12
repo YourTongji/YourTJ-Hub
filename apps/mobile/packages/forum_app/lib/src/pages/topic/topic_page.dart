@@ -339,6 +339,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   /// 仍未命中且存在更早楼层时再向前(before 游标)反向扫描——
   /// 深链/跳楼落在中间窗口时楼主回复可能在当前窗口之前,
   /// 双向扫尽后才允许空态,保证「楼主还没有回复」真实可信。
+  /// 每轮最多扫描 5 个窗口；余下窗口由加载更多继续，避免长话题自动全量下载。
   /// 每一步都带推进保护,加载不再前进即终止(避免死循环)。
   Future<void> _scanForOpReplies() async {
     if (_opScanning) return;
@@ -350,12 +351,14 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         generation == _windowGeneration &&
         epoch == ref.read(offlineCacheEpochProvider) &&
         _sort == CommentSort.onlyOp;
+    var remainingWindows = 5;
     try {
       for (final bool backward in const <bool>[false, true]) {
         var previousCount = _posts.length;
         while (active() &&
             !_hasOpReply() &&
             (backward ? _hasEarlierPosts : _hasMorePosts)) {
+          if (remainingWindows-- == 0) return;
           await _loadMore(earlier: backward);
           if (!active() || _posts.length == previousCount) break;
           previousCount = _posts.length;
@@ -860,7 +863,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               child: GfEmpty(
                                 icon: Icons.forum_outlined,
                                 message: _sort == CommentSort.onlyOp
-                                    ? l10n.topicOpRepliesEmpty
+                                    ? (_hasEarlierPosts || _hasMorePosts
+                                          ? l10n.topicOpRepliesPending
+                                          : l10n.topicOpRepliesEmpty)
                                     : l10n.topicReplies(0),
                                 description: l10n.topicReplyHint,
                               ),
@@ -904,7 +909,12 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               hasMore: _sort == CommentSort.desc
                                   ? _hasEarlierPosts
                                   : _hasMorePosts,
-                              onLoadMore: _loadMore,
+                              onLoadMore: () async {
+                                await _loadMore();
+                                if (_sort == CommentSort.onlyOp) {
+                                  await _scanForOpReplies();
+                                }
+                              },
                             ),
                           ),
                           const SliverToBoxAdapter(
@@ -1301,15 +1311,16 @@ class _ReplySectionHeader extends StatelessWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
         children: <Widget>[
-          Expanded(
-            child: Text(
-              l10n.topicReplies(count),
-              style: GfTheme.typographyOf(context).title3,
-            ),
+          Text(
+            l10n.topicReplies(count),
+            style: GfTheme.typographyOf(context).title3,
           ),
-          const SizedBox(width: 8),
           _CommentSortCapsule(sort: sort, onChanged: onSortChanged),
         ],
       ),
@@ -1334,21 +1345,24 @@ class _CommentSortCapsule extends StatelessWidget {
 
     Widget item(CommentSort value, String label) {
       final bool selected = value == sort;
-      return InkWell(
-        onTap: selected ? null : () => onChanged(value),
-        borderRadius: BorderRadius.circular(radii.field - 2),
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected
-                  ? colors.primary
-                  : colors.baseContent.withValues(alpha: 0.55),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+      return Semantics(
+        selected: selected,
+        button: true,
+        child: InkWell(
+          onTap: selected ? null : () => onChanged(value),
+          borderRadius: BorderRadius.circular(radii.field - 2),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected
+                    ? colors.primary
+                    : colors.baseContent.withValues(alpha: 0.55),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),
@@ -1362,8 +1376,7 @@ class _CommentSortCapsule extends StatelessWidget {
         borderRadius: BorderRadius.circular(radii.field),
         border: Border.all(color: colors.line),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
         children: <Widget>[
           item(CommentSort.asc, l10n.commentSortAsc),
           item(CommentSort.desc, l10n.commentSortDesc),

@@ -893,6 +893,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commentSortOnlyOp => 'Nur Autor';
 
   @override
+  String get topicOpRepliesPending =>
+      'Im geladenen Bereich gibt es keine Antworten des Autors. Lade weitere Beiträge.';
+
+  @override
   String get topicOpRepliesEmpty => 'Noch keine Antworten des Autors';
 
   @override

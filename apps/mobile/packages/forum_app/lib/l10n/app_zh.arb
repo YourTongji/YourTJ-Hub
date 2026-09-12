@@ -483,6 +483,7 @@
   "commentSortAsc": "正序",
   "commentSortDesc": "倒序",
   "commentSortOnlyOp": "只看楼主",
+  "topicOpRepliesPending": "已加载楼层暂无楼主回复，可继续加载。",
   "topicOpRepliesEmpty": "楼主还没有回复",
   "topicLaterReplies": "加载更新回复",
   "topicFeedModeList": "列表",

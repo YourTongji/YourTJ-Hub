@@ -791,6 +791,32 @@ Map<String, dynamic> opReplyTopicPayloadJson() {
 }
 
 /// 记录 after 游标并返回楼主的三楼回复(供「只看楼主」自动扫描断言)。
+class LongOpScanTopicRepository extends TopicRepository {
+  LongOpScanTopicRepository(super.client);
+  int calls = 0;
+  @override
+  Future<PostWindowPayload> getPostWindow({
+    required int topicId,
+    int? anchorPostId,
+    int? anchorPostNo,
+    int? beforePostNo,
+    int? afterPostNo,
+    int? limit,
+  }) async {
+    calls++;
+    final next = (afterPostNo ?? 2) + 1;
+    return PostWindowPayload(
+      posts: [makePostPayload(9000 + next, next, 'other $next')],
+      replyTargets: [],
+      afterPostNo: next,
+      hasAfter: calls < 12,
+      hasBefore: false,
+      total: 5000,
+      maxPostNo: 5000,
+    );
+  }
+}
+
 class OpScanTopicRepository extends TopicRepository {
   OpScanTopicRepository(super.client);
 
@@ -2385,6 +2411,76 @@ void main() {
   });
 
   group('评论排序', () {
+    testWidgets('sort controls fit 320px and enlarged English text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final container = await makeContainer(
+        pageRepo: RedesignPageRepository(
+          client,
+          topicPayload: topicDetailPayloadJson(),
+        ),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: const TopicPage(topicId: 100),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets(
+      'author scan is bounded and never claims empty while windows remain',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final topics = LongOpScanTopicRepository(client);
+        final container = await makeContainer(
+          pageRepo: RedesignPageRepository(
+            client,
+            topicPayload: pagedTopicPayloadJson(),
+          ),
+          topicRepo: topics,
+        );
+        await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('只看楼主'));
+        await tester.pumpAndSettle();
+        expect(topics.calls, lessThanOrEqualTo(5));
+        expect(find.text('楼主还没有回复'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+
     testWidgets('倒序胶囊本地翻转楼层顺序且不重新请求', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1;

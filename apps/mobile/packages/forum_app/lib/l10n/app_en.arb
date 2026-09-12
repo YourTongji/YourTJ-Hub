@@ -483,6 +483,7 @@
   "commentSortAsc": "Oldest first",
   "commentSortDesc": "Newest first",
   "commentSortOnlyOp": "OP only",
+  "topicOpRepliesPending": "No author replies in the loaded window. Load more to continue.",
   "topicOpRepliesEmpty": "No replies from the author yet",
   "topicLaterReplies": "Load newer replies",
   "topicFeedModeList": "List",

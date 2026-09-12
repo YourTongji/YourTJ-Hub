@@ -265,6 +265,7 @@
   "commentSortAsc": "Älteste zuerst",
   "commentSortDesc": "Neueste zuerst",
   "commentSortOnlyOp": "Nur Autor",
+  "topicOpRepliesPending": "Im geladenen Bereich gibt es keine Antworten des Autors. Lade weitere Beiträge.",
   "topicOpRepliesEmpty": "Noch keine Antworten des Autors",
   "topicLaterReplies": "Neuere Antworten laden",
   "topicFeedModeList": "Liste",

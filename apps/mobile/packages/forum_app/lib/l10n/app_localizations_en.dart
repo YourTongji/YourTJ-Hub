@@ -884,6 +884,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commentSortOnlyOp => 'OP only';
 
   @override
+  String get topicOpRepliesPending =>
+      'No author replies in the loaded window. Load more to continue.';
+
+  @override
   String get topicOpRepliesEmpty => 'No replies from the author yet';
 
   @override

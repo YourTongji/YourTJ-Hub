@@ -871,6 +871,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commentSortOnlyOp => '只看楼主';
 
   @override
+  String get topicOpRepliesPending => '已加载楼层暂无楼主回复，可继续加载。';
+
+  @override
   String get topicOpRepliesEmpty => '楼主还没有回复';
 
   @override

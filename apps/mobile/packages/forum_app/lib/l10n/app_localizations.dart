@@ -1692,6 +1692,12 @@ abstract class AppLocalizations {
   /// **'OP only'**
   String get commentSortOnlyOp;
 
+  /// No description provided for @topicOpRepliesPending.
+  ///
+  /// In en, this message translates to:
+  /// **'No author replies in the loaded window. Load more to continue.'**
+  String get topicOpRepliesPending;
+
   /// No description provided for @topicOpRepliesEmpty.
   ///
   /// In en, this message translates to:

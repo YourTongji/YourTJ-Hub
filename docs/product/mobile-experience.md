@@ -68,9 +68,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   first, author only. Oldest and newest flip the loaded window locally without refetching; in
   newest-first order the list footer loads earlier floors and the top control loads newer ones.
   Author-only filters the loaded window to the topic author and automatically scans the remaining
-  stream — later windows first, then earlier ones — until an author reply appears or both
-  directions are exhausted; an empty filtered view shows a dedicated empty state and switching
-  back restores every floor.
+  stream — later windows first, then earlier ones — for at most five windows per automatic scan.
+  Loading more continues the search. While windows remain, an empty filtered view invites further
+  loading; it only reports no author replies once both directions are exhausted. Switching back
+  restores every loaded floor. Sort controls wrap with narrow screens and enlarged text.
 
 - `Current`: topic and reply authors open their public profiles. Owners can edit/delete their
   content; replies support likes, bookmarks, sharing and paginated revision history. Moderation
