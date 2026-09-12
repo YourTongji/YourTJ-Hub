@@ -21,8 +21,11 @@ type Mode = 'login' | 'register' | 'forgot'
 const { t, locale } = useI18n()
 const { isDark } = useSiteTheme()
 const mode = ref<Mode>(page.props.initialMode || 'login')
-const selectedEmailDomain = ref(page.props.allowedDomains[0] || '')
-const emailDomainOptions = page.props.allowedDomains.map((domain) => ({ value: domain, label: `@${domain}` }))
+// issue #643：空白名单时后端（存量配置行缺键）会把 allowedDomains 序列化为
+// null，setup 直接解引用曾导致整页白屏；归一化为数组后再使用。
+const allowedDomains = computed(() => page.props.allowedDomains ?? [])
+const selectedEmailDomain = ref(allowedDomains.value[0] || '')
+const emailDomainOptions = allowedDomains.value.map((domain) => ({ value: domain, label: `@${domain}` }))
 const langMenuOpen = ref(false)
 let langCloseTimer: number | undefined
 const twoFactorPending = ref(false)
@@ -174,7 +177,7 @@ async function handleRegister() {
     error.value = t('auth.validation.registerRequired')
     return
   }
-  const email = page.props.allowedDomains.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
+  const email = allowedDomains.value.length ? `${registerForm.email}@${selectedEmailDomain.value}` : registerForm.email
   if (registerForm.password !== registerForm.confirmPassword) {
     error.value = t('auth.validation.passwordMismatch')
     return
@@ -404,13 +407,13 @@ function onToggleTheme() {
             </label>
             <div>
               <label for="register-email" class="sr-only">{{ t('auth.email') }}</label>
-              <span v-if="page.props.allowedDomains.length > 0" class="gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
+              <span v-if="allowedDomains.length > 0" class="gf-input flex overflow-hidden !p-0 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
                 <span class="relative min-w-0 flex-1">
                   <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/55" />
                   <input id="register-email" v-model.trim="registerForm.email" type="text" inputmode="email" class="h-full w-full bg-transparent pl-10 pr-2 text-base outline-none sm:text-sm" :placeholder="t('auth.emailPrefix')" />
                 </span>
-                <span v-if="page.props.allowedDomains.length === 1" class="flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
-                  @{{ page.props.allowedDomains[0] }}
+                <span v-if="allowedDomains.length === 1" class="flex shrink-0 items-center border-l border-line bg-base-200/70 px-3 text-sm font-medium text-base-content/70">
+                  @{{ allowedDomains[0] }}
                 </span>
                 <SiteSelect
                   v-else
