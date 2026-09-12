@@ -5,12 +5,14 @@ import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
@@ -128,7 +130,11 @@ class _CaptchaAuthRepository extends AuthRepository {
   );
 }
 
-PagePayload _publishPayload({required bool editing, int contentType = 0}) {
+PagePayload _publishPayload({
+  required bool editing,
+  int contentType = 0,
+  String? content,
+}) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
     'props': <String, dynamic>{
@@ -142,7 +148,7 @@ PagePayload _publishPayload({required bool editing, int contentType = 0}) {
       ],
       'topic': <String, dynamic>{
         'title': editing ? '原始标题' : '',
-        'content': editing ? '## 预览标题\n\n**正文内容**' : '',
+        'content': editing ? (content ?? '## 预览标题\n\n**正文内容**') : '',
         'categoryIds': editing ? <int>[2] : null,
         'topicStatus': editing ? 1 : 0,
         'contentType': contentType,
@@ -198,6 +204,7 @@ void main() {
     required bool editing,
     String editQueryKey = 'topicId',
     int contentType = 0,
+    String? content,
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
@@ -210,7 +217,11 @@ void main() {
     );
     final _PublishPageRepository pageRepository = _PublishPageRepository(
       client,
-      _publishPayload(editing: editing, contentType: contentType),
+      _publishPayload(
+        editing: editing,
+        contentType: contentType,
+        content: content,
+      ),
     );
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
@@ -609,5 +620,55 @@ void main() {
     await tester.pump();
     expect(find.text('标题不能为空'), findsOneWidget);
     expect(find.byType(GfStatusMessage), findsOneWidget);
+  });
+  testWidgets('正文图片支持长按拖拽到其他段落', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+    );
+    expect(find.text('长按正文图片，可拖动到任意段落位置'), findsOneWidget);
+
+    QuillController controllerOfEditor() =>
+        tester.widget<QuillEditor>(find.byType(QuillEditor)).controller;
+
+    String flatOf(Document document) => document
+        .toDelta()
+        .toList()
+        .map((Operation op) => op.data is String ? op.data as String : '\uFFFC')
+        .join();
+
+    final QuillController controller = controllerOfEditor();
+    final String before = flatOf(controller.document);
+    expect(before.indexOf('\uFFFC'), greaterThan(before.indexOf('第一段')));
+    expect(before.indexOf('\uFFFC'), lessThan(before.indexOf('第三段')));
+
+    final Finder draggable = find.descendant(
+      of: find.byType(QuillEditor),
+      matching: find.byType(LongPressDraggable<ComposerImageDragPayload>),
+    );
+    expect(draggable, findsOneWidget);
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(draggable),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveBy(const Offset(0, 140));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    final String after = flatOf(controllerOfEditor().document);
+    expect(after, isNot(before));
+    // Drop semantics: the image lands directly below the dropped-on
+    // paragraph — dragging onto 第三段 moves the image after it.
+    expect(after.indexOf('\uFFFC'), greaterThan(after.indexOf('第三段')));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
   });
 }

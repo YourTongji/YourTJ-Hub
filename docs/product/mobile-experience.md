@@ -152,6 +152,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: simple galleries support up to nine uploaded images, reordering and removal. Images
   survive switching to the article editor. Switching back extracts images into the gallery and
   plain text into the body; conversion is rejected when more than nine images would be lost.
+- `Current`: article body images support long-press dragging to any
+  paragraph: the image lands below the paragraph it is dropped on, the move
+  is a single undo step, and long document drags auto-scroll at the editor
+  edges.
 - `Current`: Next opens the preview/classification step. Up to three existing categories can be
   selected below the rendered image/title/body preview. Publish writes only after this step; saving a draft retains the server's title,
   body and classification requirements. Moments can derive their title from the first text line.

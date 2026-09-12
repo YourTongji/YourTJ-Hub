@@ -1215,6 +1215,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishGalleryHint => '最大9枚。長押しして並べ替えられます。';
 
   @override
+  String get publishBodyDragHint => '本文の画像を長押しして、任意の段落位置へドラッグできます';
+
+  @override
   String get publishFormatting => '書式設定';
 
   @override

@@ -657,6 +657,7 @@
   "publishNext": "Next",
   "publishGallery": "Choose photos, then tell your story",
   "publishGalleryHint": "Up to 9 photos. Hold and drag to reorder.",
+  "publishBodyDragHint": "Long-press an image in the body to drag it to any paragraph.",
   "publishFormatting": "Formatting",
   "publishClassification": "Choose categories",
   "publishLeaveTitle": "Keep your work?",

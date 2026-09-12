@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +17,7 @@ import '../../images/image_upload.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
+import 'embed_image_move.dart';
 
 /// Global topic composer aligned with the Web publish workspace.
 ///
@@ -56,6 +58,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   static const int _maxCategories = 3;
   static const double _wideWorkspaceBreakpoint = 760;
   static const Duration _previewDebounceDuration = Duration(milliseconds: 200);
+  static const double _dragAutoscrollEdge = 56;
+  static const double _dragAutoscrollStep = 12;
 
   final TextEditingController _simple = TextEditingController();
   final List<String> _images = [];
@@ -69,6 +73,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   late final MarkdownConverter _converter;
 
   late QuillController _quill;
+  final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
+  final ScrollController _pageScrollController = ScrollController();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
 
@@ -84,6 +90,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   String _message = '';
   String _previewMarkdown = '';
   Timer? _previewDebounce;
+  Timer? _dragAutoscrollTimer;
+  Offset? _dragPointer;
 
   @override
   void initState() {
@@ -249,6 +257,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   @override
   void dispose() {
     _previewDebounce?.cancel();
+    _dragAutoscrollTimer?.cancel();
+    _pageScrollController.dispose();
     _captchaCode.dispose();
     _title.dispose();
     _simple.dispose();
@@ -421,6 +431,73 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  void _startDragAutoscroll() {
+    HapticFeedback.selectionClick();
+    _dragPointer = null;
+    _dragAutoscrollTimer?.cancel();
+    _dragAutoscrollTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _tickDragAutoscroll(),
+    );
+  }
+
+  void _stopDragAutoscroll() {
+    _dragPointer = null;
+    _dragAutoscrollTimer?.cancel();
+    _dragAutoscrollTimer = null;
+  }
+
+  void _tickDragAutoscroll() {
+    final Offset? pointer = _dragPointer;
+    if (pointer == null) return;
+    final ScrollController scroll = _pageScrollController;
+    if (!scroll.hasClients) return;
+    final double maxOffset = scroll.position.maxScrollExtent;
+    final double viewportBottom =
+        scroll.position.viewportDimension - _dragAutoscrollEdge;
+    if (pointer.dy < _dragAutoscrollEdge && scroll.offset > 0) {
+      scroll.jumpTo(
+        (scroll.offset - _dragAutoscrollStep).clamp(0.0, maxOffset),
+      );
+    } else if (pointer.dy > viewportBottom && scroll.offset < maxOffset) {
+      scroll.jumpTo(
+        (scroll.offset + _dragAutoscrollStep).clamp(0.0, maxOffset),
+      );
+    }
+  }
+
+  /// Moves the dragged composer image to the paragraph under the drop point.
+  ///
+  /// The embed is relocated with a single Delta so undo/redo stays one step;
+  /// the document-changes listener flips _dirty/_allowPop and refreshes the
+  /// debounced preview, exactly like any other edit.
+  void _handleComposerImageDrop(
+    ComposerImageDragPayload payload,
+    Offset globalPosition,
+  ) {
+    final EditorState? editorState = _editorKey.currentState;
+    if (editorState == null) return;
+    final TextPosition position = editorState.renderEditor.getPositionForOffset(
+      globalPosition,
+    );
+    final int targetOffset = clampDropToLineEnd(
+      position.offset,
+      _quill.document,
+    );
+    final ComposerImageMoveResult? move = moveComposerImageEmbed(
+      _quill.document,
+      payload.node,
+      targetOffset,
+    );
+    if (move == null) return;
+    _quill.compose(move.delta, _quill.selection, ChangeSource.local);
+    _quill.updateSelection(
+      TextSelection.collapsed(offset: move.insertOffset + move.insertLength),
+      ChangeSource.local,
+    );
+    HapticFeedback.lightImpact();
   }
 
   Future<void> _loadCaptcha() async {
@@ -843,25 +920,49 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     return ConstrainedBox(
       key: const Key('publish-editor'),
       constraints: const BoxConstraints(minHeight: 220),
-      child: QuillEditor.basic(
-        controller: _quill,
-        config: QuillEditorConfig(
-          scrollable: false,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          placeholder: l10n.publishBodyPlaceholder,
-          customStyles: DefaultStyles(
-            paragraph: defaults.paragraph!.copyWith(
-              style: type.body,
-              verticalSpacing: const VerticalSpacing(4, 4),
-            ),
-            placeHolder: defaults.placeHolder!.copyWith(
-              style: type.body.copyWith(
-                color: GfTheme.colorsOf(context).iconMuted,
+      child: DragTarget<ComposerImageDragPayload>(
+        onMove: (DragTargetDetails<ComposerImageDragPayload> details) {
+          _dragPointer = details.offset;
+        },
+        onLeave: (Object? _) {
+          _dragPointer = null;
+        },
+        onAcceptWithDetails:
+            (DragTargetDetails<ComposerImageDragPayload> details) {
+              _stopDragAutoscroll();
+              _handleComposerImageDrop(details.data, details.offset);
+            },
+        builder:
+            (
+              BuildContext context,
+              List<ComposerImageDragPayload?> candidateData,
+              List<dynamic> rejectedData,
+            ) => QuillEditor.basic(
+              controller: _quill,
+              config: QuillEditorConfig(
+                scrollable: false,
+                editorKey: _editorKey,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                placeholder: l10n.publishBodyPlaceholder,
+                customStyles: DefaultStyles(
+                  paragraph: defaults.paragraph!.copyWith(
+                    style: type.body,
+                    verticalSpacing: const VerticalSpacing(4, 4),
+                  ),
+                  placeHolder: defaults.placeHolder!.copyWith(
+                    style: type.body.copyWith(
+                      color: GfTheme.colorsOf(context).iconMuted,
+                    ),
+                  ),
+                ),
+                embedBuilders: [
+                  _ComposerImageBuilder(
+                    onDragStarted: _startDragAutoscroll,
+                    onDragEnded: _stopDragAutoscroll,
+                  ),
+                ],
               ),
             ),
-          ),
-          embedBuilders: [_ComposerImageBuilder()],
-        ),
       ),
     );
   }
@@ -936,6 +1037,16 @@ class _PublishPageState extends ConsumerState<PublishPage> {
               ],
             ),
           ),
+          if (_contentType == 3)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Text(
+                l10n.publishBodyDragHint,
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              ),
+            ),
         ],
       ),
     );
@@ -1334,13 +1445,37 @@ class _PublishWorkspaceSkeleton extends StatelessWidget {
 }
 
 class _ComposerImageBuilder extends EmbedBuilder {
+  const _ComposerImageBuilder({this.onDragStarted, this.onDragEnded});
+
+  final VoidCallback? onDragStarted;
+  final VoidCallback? onDragEnded;
+
   @override
   String get key => BlockEmbed.imageType;
+
   @override
-  Widget build(BuildContext context, EmbedContext embedContext) =>
-      Image.network(
-        resolveApiAssetUrl(embedContext.node.value.data.toString()),
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
-      );
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final Widget image = Image.network(
+      resolveApiAssetUrl(embedContext.node.value.data.toString()),
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+    );
+    return LongPressDraggable<ComposerImageDragPayload>(
+      data: ComposerImageDragPayload(
+        node: embedContext.node,
+        imageUrl: embedContext.node.value.data.toString(),
+      ),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      onDragStarted: onDragStarted,
+      onDragCompleted: onDragEnded,
+      onDraggableCanceled: (Velocity velocity, Offset offset) =>
+          onDragEnded?.call(),
+      childWhenDragging: Opacity(opacity: 0.35, child: image),
+      feedback: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 180),
+        child: Opacity(opacity: 0.9, child: image),
+      ),
+      child: image,
+    );
+  }
 }
