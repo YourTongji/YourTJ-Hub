@@ -2,9 +2,8 @@
 //
 // 覆盖:会话开合跟随、候选行信息(avatar/昵称/@username/上下文标签)、
 // Semantics 身份标签、点选回调、320 logical px + textScale 2.0 无关键溢出。
-import 'dart:ui' show Tristate;
-
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -124,8 +123,53 @@ void main() {
     final label = semantics.label;
     expect(label, contains('主题作者'));
     expect(label, contains('@author'));
-    expect(label, contains('Topic author'));
-    expect(semantics.flagsCollection.isSelected, Tristate.isTrue);
+    // 读屏激活:tap 动作必须暴露在 Semantics 节点上(ExcludeSemantics 剥掉
+    // InkWell 语义后,外层节点补挂 onTap)。
+    expect(semantics.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+  });
+
+  testWidgets('无界高度容器(Column 非弹性子项)不触发 unbounded viewport', (tester) async {
+    // 复刻 topic_page 的 Positioned + Column 挂载:垂直方向无界,
+    // 面板必须自带 maxHeight 封顶。
+    final session = MentionSessionController(searchUsers: (q) async => []);
+    addTearDown(session.dispose);
+    session.updateContext(
+      local: [
+        for (var i = 0; i < 8; i++)
+          user(i + 10, 'user$i', tag: MentionTag.participant),
+      ],
+      currentUserId: 0,
+    );
+    session.handleValue('hello @');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: Stack(
+            children: [
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MentionCandidatesPanel(
+                      session: session,
+                      messages: messages,
+                      onSelect: (_, _) {},
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('user0'), findsOneWidget);
   });
 
   testWidgets('320 logical px + textScale 2.0 无关键布局溢出', (tester) async {

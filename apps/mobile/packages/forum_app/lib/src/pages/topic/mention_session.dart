@@ -9,6 +9,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -275,6 +276,8 @@ TextEditingValue applyMentionReplacement(
 /// - Escape：只关候选、保留已输入的 @query（不删字符）；
 /// - 方向键：移动 active 候选；
 /// - Enter：选中 active 候选（经 [onSelect] 写入）；
+/// - 仅 KeyDownEvent/KeyRepeatEvent 参与会话；KeyUpEvent 永远忽略，
+///   方向键一次只移动一行（FocusNode.onKeyEvent 会同时收到 down 与 up）。
 /// - IME 组合中的按键交给输入法确认，不触发补全；
 /// - 会话未开启或无候选时返回 ignored，不劫持任何按键（含系统返回通道）。
 KeyEventResult handleMentionKeyEvent({
@@ -284,6 +287,9 @@ KeyEventResult handleMentionKeyEvent({
   required void Function(MentionToken token, MentionUser user) onSelect,
 }) {
   if (!session.open) return KeyEventResult.ignored;
+  if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+    return KeyEventResult.ignored;
+  }
   if (event.logicalKey == LogicalKeyboardKey.escape) {
     session.close();
     return KeyEventResult.handled;
@@ -356,12 +362,37 @@ class MentionSessionController extends ChangeNotifier {
   }
 
   /// 更新本地上下文候选与当前用户 id（页面数据或回复目标变化时调用）。
+  /// 会话开启中且上下文实际变化时立即重排当前候选，避免已清除的回复目标
+  /// 以「正在回复」身份残留居首。
   void updateContext({
     required List<MentionUser> local,
     required int currentUserId,
   }) {
+    final bool changed =
+        currentUserId != _currentUserId || !listEquals(local, _local);
     _local = local;
     _currentUserId = currentUserId;
+    if (!changed || !_open) return;
+    if (_query.trim().isEmpty) {
+      // 空 query：本地候选直接重排（空 query 本就无在途搜索）。
+      _cancelPendingSearch();
+      _candidates = rankMentionCandidates(
+        local: _local,
+        server: const <MentionUser>[],
+        query: '',
+        currentUserId: _currentUserId,
+      );
+    } else {
+      // 有 query：先按本地匹配重排；在途服务端响应落地时会按新上下文合并。
+      _candidates = rankMentionCandidates(
+        local: _local,
+        server: const <MentionUser>[],
+        query: _query,
+        currentUserId: _currentUserId,
+      );
+    }
+    _activeIndex = 0;
+    notifyListeners();
   }
 
   /// TextField 值变化时驱动会话。[textBeforeCaret] 为光标前文本；null 表示
@@ -469,6 +500,8 @@ class MentionSessionController extends ChangeNotifier {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    // 作废在途序列：dispose 后落地的搜索不得再 notifyListeners（调试断言）。
+    _searchSeq++;
     super.dispose();
   }
 }

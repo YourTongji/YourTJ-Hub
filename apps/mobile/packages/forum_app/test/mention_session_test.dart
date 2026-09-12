@@ -362,6 +362,42 @@ void main() {
       session.close();
       expect(session.open, isFalse);
     });
+    testWidgets('会话开启时上下文变化立即重排(清除回复目标不再残留居首)', (tester) async {
+      final session = MentionSessionController(searchUsers: (q) async => []);
+      addTearDown(session.dispose);
+      session.updateContext(
+        local: [
+          user(1, 'target', tag: MentionTag.replyTarget),
+          user(2, 'author', tag: MentionTag.topicAuthor),
+        ],
+        currentUserId: 0,
+      );
+      session.handleValue('hello @');
+      expect(session.open, isTrue);
+      expect(session.candidates.map((u) => u.id).toList(), [1, 2]);
+
+      // 清除回复目标(如用户点掉回复条)后,候选立即去掉该用户。
+      session.updateContext(
+        local: [user(2, 'author', tag: MentionTag.topicAuthor)],
+        currentUserId: 0,
+      );
+      expect(session.candidates.map((u) => u.id).toList(), [2]);
+      expect(session.activeIndex, 0);
+    });
+
+    testWidgets('dispose 后在途搜索落地不再通知(不触发 used-after-dispose)', (tester) async {
+      final completer = Completer<List<MentionUser>>();
+      final session = MentionSessionController(
+        searchUsers: (q) async => completer.future,
+      );
+      session.handleValue('@wa');
+      await tester.pump(const Duration(milliseconds: 350));
+      session.dispose();
+      completer.complete([user(21, 'wavery')]);
+      await tester.pumpAndSettle();
+      // dispose 后落地的响应不得触发 used-after-dispose 断言(open 状态本身不变)。
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('handleMentionKeyEvent(物理键盘)', () {
@@ -467,6 +503,65 @@ void main() {
         onSelect: (_, _) {},
       );
       expect(result, KeyEventResult.ignored);
+    });
+    testWidgets('KeyUpEvent 被忽略:方向键一次只移动一行', (tester) async {
+      final session = MentionSessionController(
+        searchUsers: (q) async => [user(21, 'wavery'), user(22, 'xiaowang')],
+      );
+      addTearDown(session.dispose);
+      session.handleValue('@wa');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      final controller = TextEditingController(text: 'hello @wa');
+      controller.selection = const TextSelection.collapsed(offset: 9);
+
+      KeyEventResult sendUp(LogicalKeyboardKey key) => handleMentionKeyEvent(
+        session: session,
+        controller: controller,
+        event: KeyUpEvent(
+          timeStamp: Duration.zero,
+          physicalKey: PhysicalKeyboardKey.arrowDown,
+          logicalKey: key,
+        ),
+        onSelect: (_, _) {},
+      );
+
+      expect(sendUp(LogicalKeyboardKey.arrowDown), KeyEventResult.ignored);
+      expect(session.activeIndex, 0);
+    });
+
+    testWidgets('KeyRepeatEvent 长按连续移动 active', (tester) async {
+      final session = MentionSessionController(
+        searchUsers: (q) async => [
+          user(21, 'wavery'),
+          user(22, 'xiaowang'),
+          user(23, 'wangwu'),
+        ],
+      );
+      addTearDown(session.dispose);
+      session.handleValue('@wa');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      final controller = TextEditingController(text: 'hello @wa');
+      controller.selection = const TextSelection.collapsed(offset: 9);
+
+      KeyEventResult sendRepeat(LogicalKeyboardKey key) =>
+          handleMentionKeyEvent(
+            session: session,
+            controller: controller,
+            event: KeyRepeatEvent(
+              timeStamp: Duration.zero,
+              physicalKey: PhysicalKeyboardKey.arrowDown,
+              logicalKey: key,
+              character: null,
+            ),
+            onSelect: (_, _) {},
+          );
+
+      expect(sendRepeat(LogicalKeyboardKey.arrowDown), KeyEventResult.handled);
+      expect(session.activeIndex, 1);
+      expect(sendRepeat(LogicalKeyboardKey.arrowDown), KeyEventResult.handled);
+      expect(session.activeIndex, 2);
     });
   });
 }

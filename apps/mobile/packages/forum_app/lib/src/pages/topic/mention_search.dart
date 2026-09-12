@@ -19,6 +19,12 @@ final mentionUserSearchProvider = Provider<MentionUserSearch>((ref) {
     final page = await ref
         .read(topicRepositoryProvider)
         .search(query: query, scope: 'users');
+    // 搜索服务不可用或 users scope 失败时按失败抛出：会话层保留本地候选并
+    // 提示"搜索失败可继续输入"，避免索引不可用被伪装成"没有匹配的用户"。
+    if (page.searchUnavailable == true ||
+        (page.failedScopes?.contains('users') ?? false)) {
+      throw Exception('search users unavailable');
+    }
     return <MentionUser>[
       for (final user in page.users)
         MentionUser(

@@ -84,31 +84,36 @@ class MentionCandidatesPanel extends StatelessWidget {
         final candidates = session.candidates;
         final queryEmpty = token.query.trim().isEmpty;
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: ClipRRect(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(radii.field),
-            ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colors.base100.withValues(alpha: 0.92),
-                  border: Border(
-                    top: BorderSide(color: colors.line.withValues(alpha: 0.65)),
+        return TextFieldTapRegion(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(radii.field),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 236),
+                  decoration: BoxDecoration(
+                    color: colors.base100.withValues(alpha: 0.92),
+                    border: Border(
+                      top: BorderSide(
+                        color: colors.line.withValues(alpha: 0.65),
+                      ),
+                    ),
                   ),
-                ),
-                // ≈4.5 行封顶（52 * 4.5 + 上下留白），超出滚动。
-                child: Semantics(
-                  label: messages.listboxLabel,
-                  child: candidates.isEmpty
-                      ? _MentionHintRow(message: _hintMessage(queryEmpty))
-                      : _MentionCandidateList(
-                          session: session,
-                          messages: messages,
-                          onSelect: onSelect,
-                        ),
+                  // ≈4.5 行封顶（52 * 4.5 + 上下留白），超出滚动。
+                  child: Semantics(
+                    label: messages.listboxLabel,
+                    child: candidates.isEmpty
+                        ? _MentionHintRow(message: _hintMessage(queryEmpty))
+                        : _MentionCandidateList(
+                            session: session,
+                            messages: messages,
+                            onSelect: onSelect,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -204,6 +209,8 @@ class _MentionCandidateRow extends StatelessWidget {
     return Semantics(
       selected: active,
       label: semanticsLabel,
+      // 读屏激活：ExcludeSemantics 会剥掉 InkWell 的 tap 语义，动作挂在外层节点。
+      onTap: onTap,
       child: ExcludeSemantics(
         child: InkWell(
           onTap: onTap,
