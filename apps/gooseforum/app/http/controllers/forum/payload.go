@@ -295,6 +295,7 @@ type TopicPayload struct {
 	Categories     []TopicCategoryPayload `json:"categories"`
 	ReplyCount     uint64                 `json:"replyCount"`
 	ViewCount      uint64                 `json:"viewCount"`
+	LikeCount      uint64                 `json:"likeCount"`
 	ActivityText   string                 `json:"activityText"`
 	LastUpdateTime string                 `json:"lastUpdateTime"`
 	Unseen         bool                   `json:"unseen,omitempty"`
@@ -1063,6 +1064,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			Categories:     categories,
 			ReplyCount:     topic.CommentCount,
 			ViewCount:      topic.ViewCount,
+			LikeCount:      topic.LikeCount,
 			ActivityText:   topic.LastUpdateTime,
 			LastUpdateTime: topic.LastUpdateTime,
 			ContentType:    topic.ContentType,

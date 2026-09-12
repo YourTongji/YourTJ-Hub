@@ -109,6 +109,7 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			Nickname:       nickname,
 			AvatarUrl:      avatarUrl,
 			ViewCount:      t.ViewCount,
+			LikeCount:      t.LikeCount,
 			CommentCount:   t.ReplyCount,
 			PinWeight:      t.PinWeight,
 			Categories:     categoryNames,

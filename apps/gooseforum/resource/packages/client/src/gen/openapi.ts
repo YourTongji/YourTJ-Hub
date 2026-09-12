@@ -10522,6 +10522,11 @@ export interface components {
             replyCount: number;
             /** Format: uint64 */
             viewCount: number;
+            /**
+             * Format: uint64
+             * @description Denormalized topic-level like counter (mirrors TopicDetailPayload.likeCount).
+             */
+            likeCount: number;
             activityText: string;
             lastUpdateTime: string;
             /** @description Authenticated viewer's like state; absent when unavailable. */

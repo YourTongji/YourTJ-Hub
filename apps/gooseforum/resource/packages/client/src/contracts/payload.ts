@@ -451,6 +451,7 @@ export interface TopicPayload {
   categories: Array<{ id: number; name: string; url: string; color: string }>
   replyCount: number
   viewCount: number
+  likeCount: number
   pinWeight: number
   processStatus: number
   activityText: string

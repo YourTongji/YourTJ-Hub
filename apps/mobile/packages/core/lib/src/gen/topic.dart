@@ -92,6 +92,7 @@ abstract class TopicPayload with _$TopicPayload {
     required List<CategoryBriefPayload> categories,
     required int replyCount,
     required int viewCount,
+    @Default(0) int likeCount,
     required int pinWeight,
     required int processStatus,
     required String activityText,
