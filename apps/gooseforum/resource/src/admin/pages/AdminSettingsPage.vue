@@ -148,9 +148,9 @@ const bulkImportTitleKey = computed(() => {
 
 // ---- 一系统同步（issue #248 排课数据自愈入口）----
 type OnesystemAudience = 'undergraduate' | 'graduate'
-const onesystemCredentials = reactive<Record<OnesystemAudience, { cookie: string, configured: boolean }>>({
-  undergraduate: { cookie: '', configured: false },
-  graduate: { cookie: '', configured: false },
+const onesystemCredentials = reactive<Record<OnesystemAudience, { value: string, configured: boolean }>>({
+  undergraduate: { value: '', configured: false },
+  graduate: { value: '', configured: false },
 })
 const onesystemCredentialItems: Array<{ audience: OnesystemAudience, labelKey: string }> = [
   { audience: 'undergraduate', labelKey: 'k00tug' },
@@ -1069,7 +1069,7 @@ async function loadOnesystem() {
   try {
     const settings = await getOnesystemSettings()
     onesystemCredentials.undergraduate.configured = settings.cookieConfiguredUndergraduate ?? settings.cookieConfigured
-    onesystemCredentials.graduate.configured = settings.cookieConfiguredGraduate
+    onesystemCredentials.graduate.configured = settings.xTokenConfiguredGraduate || settings.cookieConfiguredGraduate
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
   }
@@ -1086,14 +1086,14 @@ async function refreshSyncStatus() {
   }
 }
 
-async function saveCookie(audience: OnesystemAudience) {
+async function saveCredential(audience: OnesystemAudience) {
   savingCookie.value = true
   try {
-    const cookie = onesystemCredentials[audience].cookie.trim()
-    await saveOnesystemSettings(audience === 'graduate' ? { graduateCookie: cookie } : { undergraduateCookie: cookie })
-    onesystemCredentials[audience].configured = cookie !== ''
-    onesystemCredentials[audience].cookie = ''
-    adminToast.success(adminText('k00tv'))
+    const value = onesystemCredentials[audience].value.trim()
+    await saveOnesystemSettings(audience === 'graduate' ? { graduateXToken: value } : { undergraduateCookie: value })
+    onesystemCredentials[audience].configured = value !== ''
+    onesystemCredentials[audience].value = ''
+    adminToast.success(adminText(audience === 'graduate' ? 'k00vg' : 'k00tv'))
   } catch (err) {
     adminToast.error(err, adminText('k00t1'))
   } finally {
@@ -1101,13 +1101,13 @@ async function saveCookie(audience: OnesystemAudience) {
   }
 }
 
-async function clearCookie(audience: OnesystemAudience) {
-  onesystemCredentials[audience].cookie = ''
+async function clearCredential(audience: OnesystemAudience) {
+  onesystemCredentials[audience].value = ''
   savingCookie.value = true
   try {
-    await saveOnesystemSettings(audience === 'graduate' ? { graduateCookie: '' } : { undergraduateCookie: '' })
+    await saveOnesystemSettings(audience === 'graduate' ? { graduateXToken: '' } : { undergraduateCookie: '' })
     onesystemCredentials[audience].configured = false
-    adminToast.success(adminText('k00tw'))
+    adminToast.success(adminText(audience === 'graduate' ? 'k00vh' : 'k00tw'))
   } catch (err) {
     adminToast.error(err, adminText('k00t1'))
   } finally {
@@ -1785,19 +1785,19 @@ onUnmounted(stopSyncPolling)
       </form>
 
       <div v-else-if="kind === 'onesystem'" class="max-w-5xl space-y-10">
-        <!-- Cookie 凭证配置 -->
+        <!-- 一系统凭证配置：本科使用 Cookie，研究生使用 X-Token -->
         <div class="grid gap-6 lg:grid-cols-2">
-          <form v-for="item in onesystemCredentialItems" :key="item.audience" class="min-w-0 space-y-5 rounded-lg border border-border bg-card p-6" @submit.prevent="saveCookie(item.audience)">
+          <form v-for="item in onesystemCredentialItems" :key="item.audience" class="min-w-0 space-y-5 rounded-lg border border-border bg-card p-6" @submit.prevent="saveCredential(item.audience)">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-center gap-2 text-base font-medium"><KeyRound class="size-4 text-muted-foreground" />{{ adminText(item.labelKey) }}</div>
               <Badge :variant="onesystemCredentials[item.audience].configured ? 'default' : 'outline'">
                 {{ onesystemCredentials[item.audience].configured ? adminText('k00t8') : adminText('k00t9') }}
               </Badge>
             </div>
-            <p class="text-sm text-muted-foreground">{{ adminText('k00t7') }}</p>
+            <p class="text-sm text-muted-foreground">{{ adminText(item.audience === 'graduate' ? 'k00vg1' : 'k00t7') }}</p>
             <div class="grid gap-2 text-sm font-medium">
               <div class="flex items-center gap-2">
-                <label :for="`onesystem-${item.audience}-cookie`">{{ adminText('k00ta') }}</label>
+                <label :for="`onesystem-${item.audience}-credential`">{{ adminText(item.audience === 'graduate' ? 'k00vg0' : 'k00ta') }}</label>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger as-child>
@@ -1810,7 +1810,12 @@ onUnmounted(stopSyncPolling)
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top" align="start" class="max-w-sm text-left leading-5">
-                      <p>
+                      <p v-if="item.audience === 'graduate'">
+                        {{ adminText('k00vg2') }}
+                        <code class="rounded bg-background/20 px-1 py-0.5 font-mono text-[0.7rem]">api/electionservice/student/round/allArrangementCourses</code>
+                        {{ adminText('k00vg3') }}
+                      </p>
+                      <p v-else>
                         {{ adminText('k00tq2') }}
                         <code class="rounded bg-background/20 px-1 py-0.5 font-mono text-[0.7rem]">manualArrange/page?profile</code>
                         {{ adminText('k00tq3') }}
@@ -1819,17 +1824,17 @@ onUnmounted(stopSyncPolling)
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <Textarea :id="`onesystem-${item.audience}-cookie`" v-model="onesystemCredentials[item.audience].cookie" :placeholder="adminText('k00tb')" rows="2" autocomplete="off" />
-              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00tc') }}</span>
+              <Textarea :id="`onesystem-${item.audience}-credential`" v-model="onesystemCredentials[item.audience].value" :placeholder="adminText(item.audience === 'graduate' ? 'k00vg4' : 'k00tb')" rows="2" autocomplete="off" />
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText(item.audience === 'graduate' ? 'k00vg5' : 'k00tc') }}</span>
             </div>
             <div class="flex flex-wrap gap-3">
               <Button type="submit" :disabled="savingCookie">
                 <Loader2 v-if="savingCookie" class="size-4 animate-spin" />
                 <Save v-else class="size-4" />
-                {{ adminText('k00td') }}
+                {{ adminText(item.audience === 'graduate' ? 'k00vg6' : 'k00td') }}
               </Button>
-              <Button type="button" variant="outline" :disabled="savingCookie || !onesystemCredentials[item.audience].configured" @click="clearCookie(item.audience)">
-                {{ adminText('k00te') }}
+              <Button type="button" variant="outline" :disabled="savingCookie || !onesystemCredentials[item.audience].configured" @click="clearCredential(item.audience)">
+                {{ adminText(item.audience === 'graduate' ? 'k00vg7' : 'k00te') }}
               </Button>
             </div>
           </form>

@@ -451,6 +451,40 @@ func TestDeletePostHTTPContract(t *testing.T) {
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
+	t.Run("repeat delete returns alreadyDeleted fixture", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		// Windows 时钟粒度下连续调用 contractTestID 可能返回相同值，用 base 偏移保证互异。
+		base := contractTestID()
+		topicID, firstPostID, replyID := base, base+1, base+2
+		createContractPublishedTopic(t, conn, topicID, firstPostID, user.Id)
+		createContractReplyPost(t, conn, replyID, topicID, user.Id)
+		body := fmt.Sprintf(`{"postId":%d}`, replyID)
+		token := contractSessionToken(t, user)
+		first := serveJSON(router, "/api/forum/posts/delete", body, token)
+		if first.Code != http.StatusOK {
+			t.Fatalf("first delete status = %d, want 200: %s", first.Code, first.Body.String())
+		}
+		second := serveJSON(router, "/api/forum/posts/delete", body, token)
+		if second.Code != http.StatusOK {
+			t.Fatalf("repeat delete status = %d, want 200: %s", second.Code, second.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, second), contractFixture(t, "post-delete-already-deleted.json"))
+	})
+
+	t.Run("first post returns firstPostUndeletable fixture", func(t *testing.T) {
+		conn, router := setupForumInteractionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		base := contractTestID()
+		topicID, firstPostID := base, base+1
+		createContractPublishedTopic(t, conn, topicID, firstPostID, user.Id)
+		body := fmt.Sprintf(`{"postId":%d}`, firstPostID)
+		recorder := serveJSON(router, "/api/forum/posts/delete", body, contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("first post delete status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-delete-first-post-undeletable.json"))
+	})
 }
 
 func TestPostWindowHTTPContract(t *testing.T) {

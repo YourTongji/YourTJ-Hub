@@ -174,7 +174,10 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
   exchange path reject frozen accounts.
 - Content deletion/export: `Current` for the implemented forum and admin flows. Users can list,
   restore, batch-delete, and purge their own content; account closure applies the
-  content lifecycle rules, and administrators can export/import supported forum data. Retention,
+  content lifecycle rules, and administrators can export/import supported forum data. The
+  deletion final state is data retention (MADR-0021, issue #555): purge/expiry sets PURGED
+  (irreversible for the user, invisible on every user-side read path) but keeps bodies, titles,
+  and attachment bytes for moderator forensics via the audited `view-deleted-content` view;
   recovery-window, audit, and evidence-hold behavior remain governed by the corresponding domain
   services and operations documentation.
 

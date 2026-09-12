@@ -26,10 +26,9 @@ func TestFileNameFromURL(t *testing.T) {
 
 // TestUploadOwnerDoesNotKeepFileLiveAfterContentDelete is the regression for
 // review B2: the upload_owner row is an ownership-audit record, not a content
-// reference. It must not (a) keep a file publicly downloadable after its
-// content is deleted, nor (b) prevent physical cleanup. Without the
-// usage_type filter, the always-ACTIVE upload_owner row made
-// HasActiveReferences/HasLiveReferences return true forever.
+// reference. It must not keep a file publicly downloadable after its content
+// is deleted. Without the usage_type filter, the always-ACTIVE upload_owner
+// row made HasActiveReferences return true forever.
 func TestUploadOwnerDoesNotKeepFileLiveAfterContentDelete(t *testing.T) {
 	conn := db.Connect()
 	if err := conn.AutoMigrate(&fileUsage.Entity{}); err != nil {
@@ -69,14 +68,12 @@ func TestUploadOwnerDoesNotKeepFileLiveAfterContentDelete(t *testing.T) {
 	if !fileUsage.HasAnyReferences(fileName) {
 		t.Fatal("file should still be tracked during the recovering window")
 	}
-	if !fileUsage.HasLiveReferences(fileName) {
-		t.Fatal("recovering reference should keep the file from physical cleanup during the window")
-	}
 
-	// Permanent purge: content reference is PURGED; the upload_owner row must
-	// not block physical deletion.
-	PurgeTargetFiles(TargetRef{TargetType: fileUsage.TargetTopic, TargetID: 9_800_200_002})
-	if fileUsage.HasLiveReferences(fileName) {
-		t.Fatal("file should be physically cleanable after purge (upload_owner must not block deletion)")
+	// Permanent purge (MADR-0021): content reference is PURGED, which revokes
+	// the public download grant; the file bytes stay in storage for forensics
+	// (data-retention final state) instead of being physically deleted.
+	RetireTargetFiles(TargetRef{TargetType: fileUsage.TargetTopic, TargetID: 9_800_200_002})
+	if fileUsage.HasActiveReferences(fileName) {
+		t.Fatal("file still publicly downloadable after purge (purged reference must not authorize reads)")
 	}
 }

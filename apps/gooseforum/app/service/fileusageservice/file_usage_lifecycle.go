@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 )
 
@@ -34,12 +33,6 @@ func HasAnyReferences(fileName string) bool {
 	return fileUsage.HasAnyReferences(fileName)
 }
 
-// HasLiveReferences reports whether a tracked filename still has a visible
-// content reference.
-func HasLiveReferences(fileName string) bool {
-	return fileUsage.HasLiveReferences(fileName)
-}
-
 // HasActiveReferences reports whether a tracked filename is referenced by
 // content that is currently public. RECOVERING/PURGED references must not
 // authorize public downloads.
@@ -47,27 +40,19 @@ func HasActiveReferences(fileName string) bool {
 	return fileUsage.HasActiveReferences(fileName)
 }
 
-// PurgeTargetFiles 永久删除内容时清理附件：引用置 PURGED，无其他引用的文件本体删除。
-func PurgeTargetFiles(ref TargetRef) {
-	usages, err := fileUsage.ListByTarget(ref.TargetType, ref.TargetID)
-	if err != nil {
-		slog.Error("list file usages for purge failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
-		return
-	}
+// RetireTargetFiles 内容永久删除/过期时退役附件引用：引用置 PURGED，附件
+// 字节保留在存储中（删除终态数据保留，MADR-0021 / issue #555）。PURGED 引用
+// 不构成公开下载授权（fileController 按 ACTIVE 引用判权）；取证视图当前
+// 仅返回文本正文，附件字节的取证回显是后续增强——留存不等于现有读路径可访问。
+func RetireTargetFiles(ref TargetRef) {
 	if err := fileUsage.MarkTargetPurged(ref.TargetType, ref.TargetID); err != nil {
-		slog.Error("mark file usages purged failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
-		return
-	}
-	for _, usage := range usages {
-		if !hasLiveReferences(usage.FileName) {
-			if err := filedata.DeleteByName(usage.FileName); err != nil {
-				slog.Error("delete purged file failed", "fileName", usage.FileName, "err", err)
-			}
-		}
+		slog.Error("retire file usages failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
 	}
 }
 
-// ExpireRecoveringFiles 供 retention scheduler 调用：清理超过恢复窗口的附件引用并删除文件本体。
+// ExpireRecoveringFiles 供 retention scheduler 调用：将超过恢复窗口的附件
+// 引用置为 PURGED。引用退役即切断公开下载授权；附件本体保留在存储中
+// （MADR-0021），不再随窗口过期被物理删除。
 func ExpireRecoveringFiles(limit int) {
 	if limit <= 0 {
 		limit = 200
@@ -77,17 +62,6 @@ func ExpireRecoveringFiles(limit int) {
 	for _, usage := range expired {
 		if err := fileUsage.MarkTargetPurged(usage.TargetType, usage.TargetId); err != nil {
 			slog.Error("expire file usage failed", "targetType", usage.TargetType, "targetId", usage.TargetId, "err", err)
-			continue
-		}
-		if !hasLiveReferences(usage.FileName) {
-			if err := filedata.DeleteByName(usage.FileName); err != nil {
-				slog.Error("delete orphan file failed", "fileName", usage.FileName, "err", err)
-			}
 		}
 	}
-}
-
-// hasLiveReferences 判断文件是否仍被 ACTIVE/RECOVERING 的引用使用。
-func hasLiveReferences(fileName string) bool {
-	return fileUsage.HasLiveReferences(fileName)
 }

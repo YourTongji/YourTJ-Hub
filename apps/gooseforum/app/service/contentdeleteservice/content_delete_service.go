@@ -215,9 +215,26 @@ func clearTopicCaches(topicID uint64, categoryIDs ...uint64) {
 	slog.Debug("topic delete caches cleared", "topicId", topicID)
 }
 
+// IsSelfDeletedRecoverableReply 判断帖子是否处于「作者本人删除、仍在恢复窗口内」
+// 的可恢复软删态——重复删除应返回 post.alreadyDeleted 的唯一形态。话题级联删除的
+// 首楼（PostNo<=1）、已 PURGED、管理删除与隐私擦除行均不满足本谓词，保持
+// post.notFound / operationDenied 语义。控制器预检（DeletePost）与 DeletePostByUser
+// 行锁幂等分支共用本谓词，避免两处条件漂移（review nit）。
+func IsSelfDeletedRecoverableReply(post posts.Entity, userID uint64) bool {
+	return post.UserId == userID &&
+		post.PostNo > 1 &&
+		post.VisibilityStatus == posts.VisibilityUserDeleted &&
+		post.DeletedBy == userID &&
+		post.RetentionStatus == posts.RetentionRecoverable
+}
+
 // DeletePostByUser 删除自己的回复（R2）。
 //   - 无子回复：软删，直接消失。
 //   - 有子回复：墓碑态（保留行可见，正文由前端渲染为占位），讨论树完整。
+//
+// 重复删除（并发或批量路径）返回 post.alreadyDeleted 错误而非幂等成功：
+// 行锁内的分类保证只有一个请求真正执行删除副作用，第二个请求报错退出，
+// 不再重复触发 ContentDeletedEvent/审计/审核日志（issue #553 review 修复）。
 func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	var post posts.Entity
 	var result DeletePostResult
@@ -243,8 +260,8 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 		}
 		result.HasChildren = hasChildren
 		if post.VisibilityStatus != posts.VisibilityActive || post.RetentionStatus != posts.RetentionNormal {
-			if post.VisibilityStatus == posts.VisibilityUserDeleted && post.DeletedBy == userID {
-				return nil
+			if IsSelfDeletedRecoverableReply(post, userID) {
+				return component.NewMessageError(component.MessagePostAlreadyDeleted, "回复已删除，无需重复操作", nil)
 			}
 			return component.NewMessageError(component.MessageTopicOperationDenied, "该回复已被处理", nil)
 		}
@@ -570,7 +587,10 @@ func topicDeleteCascadeReason(topicID uint64) string {
 	return "topic_delete:" + fmt.Sprint(topicID)
 }
 
-// PurgeContent 永久删除（R4）：置 PURGED、清理附件引用、通知预览置空。
+// PurgeContent 永久删除（R4）：置 PURGED（不可恢复）、附件引用退役、
+// 通知预览置空。删除终态为数据保留（MADR-0021，issue #555）：正文/标题/
+// 附件本体保留在库与存储中供管理员取证（view-deleted-content，理由+双审计），
+// 用户侧读路径不可触达 PURGED 行，体验仍是"删除即删除"。
 // 治理证据与审计日志独立保留，不受永久删除影响。
 func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reason string) error {
 	switch contentType {
@@ -592,7 +612,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 			return component.NewMessageError(component.MessageContentPurgeFailed, "永久删除失败", component.MessageParams{"error": err.Error()})
 		}
 		purgeTopicPosts(contentID, topic.UserId)
-		fileusageservice.PurgeTargetFiles(topicsTarget(contentID))
+		fileusageservice.RetireTargetFiles(topicsTarget(contentID))
 		notificationservice.NullifyContentPreviews(contentID, 0)
 		clearTopicCaches(contentID)
 		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{
@@ -626,7 +646,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		// 守卫无法单独软删。可达的是收尾场景——首楼早已不可见、最后一条
 		// 可见回复被永久删除后联动下架。
 		cascadeHidePostlessTopic(post.TopicId, userID, reason)
-		fileusageservice.PurgeTargetFiles(postsTarget(contentID))
+		fileusageservice.RetireTargetFiles(postsTarget(contentID))
 		notificationservice.NullifyContentPreviews(post.TopicId, contentID)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
@@ -658,7 +678,8 @@ func checkPurgeable(visibility string, retention string) error {
 // cascadeHidePostlessTopic 在帖子被擦除/永久删除后联动下架话题（issue #492）：
 // 若话题已无任何可见楼层，则不再以「有标题无正文」的孤儿形态公开；
 // 话题内仍有其它可见回复时不联动（他人内容不应因作者擦除自己的首楼而被连带隐藏）。
-// 与擦除语义一致置为隐私擦除态（不可恢复、清空标题/摘要）。
+// 置为 ACCOUNT_ANONYMIZED/PURGED（不可恢复）；标题/摘要保留在库（数据保留，
+// MADR-0021），仅作为下架标记，管理员取证可查。
 func cascadeHidePostlessTopic(topicID, erasedBy uint64, reason string) {
 	if topicID == 0 {
 		return
@@ -701,29 +722,29 @@ func purgeTopicPosts(topicID uint64, ownerID uint64) {
 		if post == nil {
 			continue
 		}
-		// 话题作者本人的回复（含 ACTIVE 与已进入生命周期）随话题永久删除一起清空：
-		// 作者对本人内容的永久删除应彻底生效（PRD R4/R12），否则自回帖的正文与
-		// 附件会永远留在库中且附件仍可公开下载（review H2）。
+		// 话题作者本人的回复（含 ACTIVE 与已进入生命周期）随话题永久删除一起
+		// 置 PURGED（不可恢复）；正文保留在库（数据保留终态，MADR-0021），
+		// 附件引用退役但不物理删除，取证经 view-deleted-content 审计通道。
 		if post.UserId == ownerID {
 			if err := posts.MarkPurgedOwned(post.Id, ownerID); err != nil {
 				slog.Error("failed to purge owner topic post", "topicId", topicID, "postId", post.Id, "err", err)
 				continue
 			}
-			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+			fileusageservice.RetireTargetFiles(postsTarget(post.Id))
 			continue
 		}
-		// 其他用户已进入删除生命周期（级联软删/墓碑/独立软删）的回复：清空。
+		// 其他用户已进入删除生命周期（级联软删/墓碑/独立软删）的回复：置 PURGED。
 		if post.VisibilityStatus != posts.VisibilityActive {
 			if err := posts.MarkPurged(post.Id); err != nil {
 				slog.Error("failed to purge topic post", "topicId", topicID, "postId", post.Id, "err", err)
 				continue
 			}
-			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+			fileusageservice.RetireTargetFiles(postsTarget(post.Id))
 			continue
 		}
 		// 其他用户仍 ACTIVE 的回复属于他人内容，正文保留（PRD Out of Scope：
 		// 不允许删除他人内容），但话题已永久删除、回复不可达，其附件不得再
-		// 公开下载——转入 RECOVERING，由 retention 定时任务清理。
+		// 公开下载——转入 RECOVERING，由 retention 定时任务退役引用。
 		fileusageservice.HardenTargetFiles(postsTarget(post.Id), time.Now().Add(RecoveryWindow))
 	}
 }
@@ -757,7 +778,9 @@ func excerpt(content string) string {
 	return content
 }
 
-// ExpireRecoverableBatch 供 retention scheduler 调用：将超过恢复窗口的 RECOVERABLE 内容置为 PURGED 并清理。
+// ExpireRecoverableBatch 供 retention scheduler 调用：将超过恢复窗口的
+// RECOVERABLE 内容置为 PURGED（用户不可恢复）。删除终态为数据保留
+// （MADR-0021，issue #555）：内容与附件保留，仅状态冻结。
 func ExpireRecoverableBatch(limit int) error {
 	if limit <= 0 {
 		limit = 200
@@ -771,7 +794,7 @@ func ExpireRecoverableBatch(limit int) error {
 		}
 		_ = topics.MarkPurged(topic.Id)
 		purgeTopicPosts(topic.Id, topic.UserId)
-		fileusageservice.PurgeTargetFiles(topicsTarget(topic.Id))
+		fileusageservice.RetireTargetFiles(topicsTarget(topic.Id))
 		notificationservice.NullifyContentPreviews(topic.Id, 0)
 		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		llmsservice.ClearCache()
@@ -784,7 +807,7 @@ func ExpireRecoverableBatch(limit int) error {
 			continue
 		}
 		_ = posts.MarkPurged(post.Id)
-		fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+		fileusageservice.RetireTargetFiles(postsTarget(post.Id))
 		notificationservice.NullifyContentPreviews(post.TopicId, post.Id)
 		slog.Info("retention: post purged after recovery window", "postId", post.Id)
 	}

@@ -17,13 +17,13 @@ import (
 const batchRows = 500
 
 // Sync 同步一系统排课数据到 PK 域。
-//   - cookie：一系统会话 Cookie header（ONESYSTEM_COOKIE）
+//   - cookie：一系统凭证（本科为 Cookie header，研究生为 X-Token）
 //   - calendarId：目标学期（一系统侧 ID）
 //   - depth：以 calendarId 为终点向前同步 N 个连续学期（默认 1）
 //   - materialize：同步完成后是否物化课程目录（默认 off）
 //
 // AC1 幂等：同一学期重复运行先清空再全量重写；AC3 断点续跑：上次 running/failed 的日志
-// 从最后已提交页继续（不回滚已成功批次）；AC2 cookie 失效：抓取失败即中止并标记 failed，
+// 从最后已提交页继续（不回滚已成功批次）；AC2 凭证失效：抓取失败即中止并标记 failed，
 // 已提交批次保留。
 func Sync(ctx context.Context, cookie string, calendarId uint64, depth int, materialize bool) (*SyncReport, error) {
 	return SyncForAudience(ctx, cookie, AudienceUndergraduate, calendarId, depth, materialize)
@@ -31,7 +31,7 @@ func Sync(ctx context.Context, cookie string, calendarId uint64, depth int, mate
 
 // SyncForAudience 同步指定一系统受众的数据；所有 PK 表使用同一套模型并按受众隔离。
 func SyncForAudience(ctx context.Context, cookie string, audience Audience, calendarId uint64, depth int, materialize bool) (*SyncReport, error) {
-	return syncWithClaimForAudience(ctx, newOnesystemClient(), cookie, audience, calendarId, depth, materialize, nil, false)
+	return syncWithClaimForAudience(ctx, newOnesystemClientForAudience(audience), cookie, audience, calendarId, depth, materialize, nil, false)
 }
 
 // ClaimSyncCalendar 原子认领一个学期的同步租约。管理端在确认请求前调用它，只有取得租约的
@@ -53,7 +53,7 @@ func SyncFromClaimForAudience(ctx context.Context, cookie string, audience Audie
 	if claim == nil || claim.Audience != string(audience) || claim.CalendarId != pk.ScopeID(audience, calendarId) || claim.Status != pk.FetchStatusRunning {
 		return nil, errors.New("无效的排课同步租约")
 	}
-	return syncWithClaimForAudience(ctx, newOnesystemClient(), cookie, audience, calendarId, depth, materialize, claim, resume)
+	return syncWithClaimForAudience(ctx, newOnesystemClientForAudience(audience), cookie, audience, calendarId, depth, materialize, claim, resume)
 }
 
 // FailSyncClaim records a terminal failure for a worker that already claimed a sync lease.
@@ -75,13 +75,13 @@ func syncWithClaimForAudience(ctx context.Context, client *onesystemClient, cook
 		return nil, fmt.Errorf("无效的一系统数据来源 %q", audience)
 	}
 	if strings.TrimSpace(cookie) == "" {
-		envName := envOnesystemUndergraduateCookie
+		envName := envOnesystemUndergraduateCookie + " / " + envOnesystemCookie
+		credentialName := "Cookie"
 		if audience == AudienceGraduate {
-			envName = envOnesystemGraduateCookie
-		} else {
-			envName += " / " + envOnesystemCookie
+			envName = envOnesystemGraduateXToken + " / " + envOnesystemXToken
+			credentialName = "X-Token"
 		}
-		return nil, fmt.Errorf("缺少一系统 Cookie（%s），请通过 --onesystem-cookie / %s 环境变量 / 管理端设置提供", audienceLabel(audience), envName)
+		return nil, fmt.Errorf("缺少%s一系统%s（%s），请通过命令行参数、环境变量或管理端设置提供", audienceLabel(audience), credentialName, envName)
 	}
 	if !pk.ValidExternalID(calendarId) {
 		return nil, errors.New("calendarId 无效")
@@ -140,9 +140,9 @@ type calendarSyncResult struct {
 	materialized int
 }
 
-// syncOneCalendar 同步单个学期：断点判定 → 分页抓取 →（cookie 验证后）清空 → 500 行/批事务写入。
+// syncOneCalendar 同步单个学期：断点判定 → 分页抓取 →（凭证验证后）清空 → 500 行/批事务写入。
 // 破坏性删除（DeleteCalendarDataTx）只在该学期"全新同步"或"续跑且上一轮仅删未写"时执行，且必须
-// 在首页抓取成功（cookie 有效）之后，避免无效 cookie 摧毁存量数据（AC2）。
+// 在首页抓取成功（凭证有效）之后，避免无效凭证摧毁存量数据（AC2）。
 func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string, audience Audience, calendarId uint64, claimedLog *pk.FetchLogEntity, claimedResume bool, materialize bool) (calendarSyncResult, error) {
 	var result calendarSyncResult
 
@@ -166,6 +166,20 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 			return result, err
 		}
 	}
+	if audience == AudienceGraduate {
+		// graduateSeen 的生命周期必须覆盖一个学期的所有分页，防止同一教学班在
+		// 硕士/博士两次查询或不同页面中重复计入；下一个学期重新开始去重。
+		client.graduateSeen = make(map[uint64]struct{})
+		if resume {
+			written, err := pk.ListCourseDetailsByAudienceCalendar(audience, calendarId)
+			if err != nil {
+				return result, markFailed(log, fmt.Errorf("读取研究生已提交教学班失败：%w", err))
+			}
+			for _, row := range written {
+				client.graduateSeen[row.ExternalId] = struct{}{}
+			}
+		}
+	}
 
 	// 先抓首页：既验证 cookie，又取得 total_。
 	first, err := client.fetchPage(ctx, cookie, int(calendarId), startPage, onesystemPageSize)
@@ -183,9 +197,12 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 	result.pages++
 	buffer := append([]CourseRaw(nil), first.Data.List...)
 
-	totalPages := 1
-	if first.Data.Total_ > 0 {
+	totalPages := first.PageCount
+	if totalPages < 1 && first.Data.Total_ > 0 {
 		totalPages = (first.Data.Total_ + onesystemPageSize - 1) / onesystemPageSize
+	}
+	if totalPages < 1 {
+		totalPages = 1
 	}
 	if totalPages < startPage {
 		totalPages = startPage

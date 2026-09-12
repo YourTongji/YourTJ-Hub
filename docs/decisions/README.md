@@ -88,3 +88,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0017](0017-oryn-task-interruption.md) — Oryn task interruption.
 - [0018](0018-oryn-paged-diff-evidence.md) — Oryn paged diff evidence.
 - [0019](0019-native-push-providers.md) — Direct APNs and Android OEM push through JPush.
+- [0020](0020-oryn-failure-diagnostics.md) — Oryn failure diagnostics.
+- [0021](0021-deletion-final-state-data-retention.md) — 删除终态数据保留与管理员取证（R4 降级）。

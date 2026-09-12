@@ -234,6 +234,38 @@ func TestAdminDeleteTopicIdempotentOnAlreadyRemoved(t *testing.T) {
 	}
 }
 
+// review should（MADR-0021）：用户已永久删除（PURGED 终态）的话题，管理员重复
+// 删除幂等成功，不穿透 repo 层 sink-state 守卫返回笼统失败，也不改写终态。
+func TestAdminDeleteTopicIdempotentOnUserPurged(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923005)
+
+	if err := conn.Model(&topics.Entity{}).Unscoped().Where("id = ?", 923005).
+		Updates(map[string]any{
+			"visibility_status": topics.VisibilityUserDeleted,
+			"retention_status":  topics.RetentionPurged,
+			"deleted_at":        time.Now(),
+			"delete_reason":     "user purge",
+		}).Error; err != nil {
+		t.Fatalf("seed purged topic: %v", err)
+	}
+
+	res := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923005, Reason: "policy violation"},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("DeleteTopic on user-purged topic should be idempotent success: %#v", res)
+	}
+	got := topics.UnscopedGet(923005)
+	if got.RetentionStatus != topics.RetentionPurged || got.VisibilityStatus != topics.VisibilityUserDeleted {
+		t.Fatalf("purged topic state rewritten: %s/%s", got.VisibilityStatus, got.RetentionStatus)
+	}
+	if got.DeleteReason != "user purge" {
+		t.Fatalf("purged topic delete_reason overwritten: %q", got.DeleteReason)
+	}
+}
+
 // review MEDIUM-2：管理端恢复端点 admin/topics/restore 恢复被治理删除的话题。
 func TestAdminRestoreTopicRestoresModeratorRemoved(t *testing.T) {
 	conn := setupAdminTopicTestDB(t)

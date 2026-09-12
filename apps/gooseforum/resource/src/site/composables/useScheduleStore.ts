@@ -169,31 +169,55 @@ function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${planSeq.toString(36)}`
 }
 
-/** 从默认方案名（如「方案 {n}」）提取序号；自定义名/旧数据不匹配时返回 0。 */
+/** 从默认方案名（「方案 {n}」）或自动恢复方案名（「[本地自动恢复]方案 {n}」）提取序号；
+ *  自定义名/旧数据不匹配时返回 0。两类模板统一取最大值，恢复方案克隆才能接续
+ *  云端已有的恢复方案序号，避免重合并时序号回卷撞名（#571 review）。 */
 function planNameIndex(name: string): number {
-  const template = i18n.global.t('schedule.planDefaultName', { n: '{n}' })
-  const [prefix, suffix] = template.split('{n}')
-  if (!name.startsWith(prefix) || !name.endsWith(suffix)) return 0
-  const digits = name.slice(prefix.length, name.length - suffix.length)
-  return /^\d+$/.test(digits) ? Number(digits) : 0
+  const indexFrom = (template: string): number => {
+    const [prefix, suffix] = template.split('{n}')
+    if (!name.startsWith(prefix) || !name.endsWith(suffix)) return 0
+    const digits = name.slice(prefix.length, name.length - suffix.length)
+    return /^\d+$/.test(digits) ? Number(digits) : 0
+  }
+  return Math.max(
+    indexFrom(i18n.global.t('schedule.planDefaultName', { n: '{n}' })),
+    indexFrom(i18n.global.t('schedule.planAutoRestoreName', { n: '{n}' })),
+  )
 }
 
 /**
  * 云端分歧自动恢复（#573）：把本地方案克隆为「[本地自动恢复]方案 {n}」追加保留，
  * 避免网络恢复补传时本地数据被云端整包覆盖丢失。克隆生成新 id；序号接续现存方案。
+ * 内容指纹已在云端（existing）的方案跳过克隆：合并 PUT 在途期间用户又编辑、下轮
+ * 重对账重合并时，不再把已上传的方案克隆一遍导致恢复方案翻倍（#571 review 竞态）。
  */
 export function clonePlansAsAutoRestore(source: PkPlan[], existing: PkPlan[]): PkPlan[] {
+  const existingContent = new Set(existing.map(planContentKey))
+  const pending = source.filter((plan) => !existingContent.has(planContentKey(plan)))
   let max = 0
   for (const plan of existing) {
     const index = planNameIndex(plan.name)
     if (index > max) max = index
   }
-  return source.map((plan, index) => {
+  return pending.map((plan, index) => {
     const clone = JSON.parse(JSON.stringify(plan)) as PkPlan
     clone.id = genId('plan')
     clone.name = i18n.global.t('schedule.planAutoRestoreName', { n: max + index + 1 })
     return clone
   })
+}
+
+/** 方案内容指纹（staged/selected/customEvents 三字段；不含 id/name/createdAt 等标识
+ *  字段——恢复克隆与源方案指纹一致，重合并且内容已在云端时据此跳过克隆）。 */
+function planContentKey(plan: PkPlan): string {
+  return JSON.stringify([plan.stagedCourses, plan.selectedCourses, plan.customEvents])
+}
+
+/** 方案数组内容签名（逐方案 planContentKey 顺序拼接）。云同步分歧判定用：比较时忽略
+ *  id/name/createdAt 等身份字段，只看课程内容，内容一致即不视为分歧（#571：内容一致的
+ *  从未云同步本地直接采用云端建立时钟，零 PUT，与恢复克隆的内容指纹去重口径一致）。 */
+export function planListContentKey(plans: PkPlan[]): string {
+  return JSON.stringify(plans.map(planContentKey))
 }
 
 /**
