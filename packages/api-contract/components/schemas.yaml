@@ -830,7 +830,7 @@ TopicCategoryPayload:
 
 TopicPayload:
   type: object
-  required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, activityText, lastUpdateTime]
+  required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, likeCount, activityText, lastUpdateTime]
   properties:
     id:
       type: integer
@@ -869,6 +869,10 @@ TopicPayload:
     viewCount:
       type: integer
       format: uint64
+    likeCount:
+      type: integer
+      format: uint64
+      description: Denormalized topic-level like counter (mirrors TopicDetailPayload.likeCount).
     activityText:
       type: string
     lastUpdateTime:
