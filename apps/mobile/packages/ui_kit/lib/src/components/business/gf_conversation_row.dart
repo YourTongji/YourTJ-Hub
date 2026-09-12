@@ -79,7 +79,7 @@ class GfConversationRow extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: colors.baseContent,
                           ),
@@ -89,7 +89,7 @@ class GfConversationRow extends StatelessWidget {
                       Text(
                         time,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: colors.baseContent.withValues(alpha: 0.55),
                         ),
                       ),
@@ -104,7 +104,7 @@ class GfConversationRow extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 15,
                             fontWeight: unreadCount > 0
                                 ? FontWeight.w600
                                 : FontWeight.w400,

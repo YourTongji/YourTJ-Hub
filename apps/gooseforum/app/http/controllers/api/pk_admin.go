@@ -41,7 +41,7 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 	if err != nil {
 		return component.FailResponseError(fmt.Errorf("同步参数错误：%w", err))
 	}
-	cookie, err := pkservice.ResolveCookieForAudience("", audience)
+	cookie, err := pkservice.ResolveCredentialForAudience("", audience)
 	if err != nil {
 		return component.FailResponseError(err)
 	}

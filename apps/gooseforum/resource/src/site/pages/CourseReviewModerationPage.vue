@@ -13,6 +13,7 @@ import { formatDateTime } from '@/runtime/format'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import { reviewSqid } from '@/site/utils/course-review-sqid'
 import type { CourseReviewModerationPageProps, LayoutPayload } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -227,7 +228,7 @@ onMounted(() => {
 
             <div class="min-w-0">
               <div class="flex min-w-0 items-center gap-1.5 text-[15px] leading-5 text-base-content/80">
-                <span class="shrink-0 text-base-content/45">{{ t('courseReviewModeration.reviewLabel') }} #{{ item.reviewId }}</span>
+                <span class="shrink-0 text-base-content/45">{{ t('courseReviewModeration.reviewLabel') }} <span class="font-mono">#{{ reviewSqid(item.reviewId) }}</span></span>
                 <span v-if="item.reportCount > 1" class="gf-badge gf-badge-ghost text-[11px]">
                   {{ t('courseReviewModeration.reportCount', { count: item.reportCount }) }}
                 </span>

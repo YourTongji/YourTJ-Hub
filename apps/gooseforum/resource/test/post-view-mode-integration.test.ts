@@ -56,9 +56,8 @@ function streamOf(posts: PostPayload[], replyTargets: ReplyTargetPayload[] = [])
 // post-view-mode 使用模块级共享状态（与 home-feed-mode 同模式），
 // 每次挂载前 resetModules 让组件拿到全新模块并重新读取 localStorage。
 async function mountPostStream(
-  contentType: 1 | 3,
   posts: PostPayload[],
-  replyTargets: ReplyTargetPayload[] = [],
+  options: { contentType?: 1 | 3; replyTargets?: ReplyTargetPayload[] } = {},
 ): Promise<VueWrapper> {
   vi.resetModules()
   const { default: PostStream } = await import('../src/site/components/PostStream.vue')
@@ -66,8 +65,8 @@ async function mountPostStream(
     props: {
       topicId: TOPIC_ID,
       topicTitle: '测试话题',
-      contentType,
-      initialPostStream: streamOf(posts, replyTargets),
+      ...(options.contentType !== undefined ? { contentType: options.contentType } : {}),
+      initialPostStream: streamOf(posts, options.replyTargets ?? []),
       viewer,
       canPost: true,
     },
@@ -97,19 +96,43 @@ function capsuleButtons(wrapper: VueWrapper) {
   return findCapsule(wrapper).findAll('button')
 }
 
+// 默认扁平后（issue #580），树状相关用例先点树状胶囊进入树状视图。
+async function activateTree(wrapper: VueWrapper) {
+  await capsuleButtons(wrapper)[1]!.trigger('click')
+  await flushPromises()
+}
+
 describe('楼层流树状/扁平双视图（组件级集成）', () => {
   beforeEach(() => {
     window.localStorage.clear()
   })
 
-  test('提问话题默认树状：链内回复真实父子嵌套，主流层只渲染根节点，内容零丢失', async () => {
+  test('默认扁平：提问/文章/未指定内容类型统一为扁平（issue #580 全局默认）', async () => {
+    const posts = [
+      makePost({ id: 1, postNo: 1 }),
+      makePost({ id: 2, postNo: 2, replyToPostId: 1 }),
+      makePost({ id: 3, postNo: 3, replyToPostId: 2 }),
+    ]
+
+    for (const contentType of [1, 3, undefined] as const) {
+      const wrapper = await mountPostStream(posts, { contentType })
+      const buttons = capsuleButtons(wrapper)
+      expect(buttons[0]!.attributes('aria-pressed')).toBe('true')
+      expect(buttons[1]!.attributes('aria-pressed')).toBe('false')
+      // 扁平：链内子回复按楼号平铺为独立顶层楼层
+      expect(wrapper.find('article[data-post-no="3"]').exists()).toBe(true)
+    }
+  })
+
+  test('树状视图：链内回复真实父子嵌套，主流层只渲染根节点，内容零丢失', async () => {
     const posts = [
       makePost({ id: 1, postNo: 1 }),
       makePost({ id: 2, postNo: 2, replyToPostId: 1, isAnswer: true }),
       makePost({ id: 3, postNo: 3, replyToPostId: 2 }),
       makePost({ id: 4, postNo: 4, replyToPostId: 3 }),
     ]
-    const wrapper = await mountPostStream(1, posts)
+    const wrapper = await mountPostStream(posts, { contentType: 1 })
+    await activateTree(wrapper)
 
     const buttons = capsuleButtons(wrapper)
     expect(buttons[0]!.attributes('aria-pressed')).toBe('false')
@@ -142,7 +165,7 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
       makePost({ id: 2, postNo: 2, replyToPostId: 1 }),
       makePost({ id: 3, postNo: 3, replyToPostId: 2 }),
     ]
-    const wrapper = await mountPostStream(3, posts)
+    const wrapper = await mountPostStream(posts, { contentType: 3 })
 
     const buttons = capsuleButtons(wrapper)
     expect(buttons[0]!.attributes('aria-pressed')).toBe('true')
@@ -150,47 +173,57 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
     expect(wrapper.find('article[data-post-no="3"]').exists()).toBe(true)
   })
 
-  test('胶囊切换即时生效并按内容类型持久化，类型间互不影响', async () => {
+  test('胶囊切换即时全局生效并持久化为单值，跨类型跨实例跟随（issue #580）', async () => {
     const posts = [
       makePost({ id: 1, postNo: 1 }),
       makePost({ id: 2, postNo: 2, replyToPostId: 1 }),
       makePost({ id: 3, postNo: 3, replyToPostId: 2 }),
     ]
 
-    // #519：Q&A（默认树状）切到扁平 = 全量平铺，链内子回复不再堆叠进链根卡片
-    const qa = await mountPostStream(1, posts)
-    const qaButtons = capsuleButtons(qa)
-    await qaButtons[0]!.trigger('click')
-    await flushPromises()
-    expect(qaButtons[0]!.attributes('aria-pressed')).toBe('true')
-    expect(qa.find('article[data-post-no="3"]').exists()).toBe(true)
-    const qaRow3 = qa.find('[data-post-no="3"]')
-    expect(qaRow3.exists()).toBe(true)
-    expect(qa.find('article[data-post-no="2"]').element.contains(qaRow3.element)).toBe(false)
-    // 与普通话题一致：回复非首楼时由引用条承接上下文
-    expect(qaRow3.find('aside').exists()).toBe(true)
-    expect(JSON.parse(window.localStorage.getItem('goose:post-view-mode')!)).toEqual({ '1': 'flat' })
+    // 提问话题切到树状：即时生效 + 持久化为全局单值（#519 链内子回复不再堆叠的反向验证）
+    const qa = await mountPostStream(posts, { contentType: 1 })
+    await activateTree(qa)
+    expect(capsuleButtons(qa)[1]!.attributes('aria-pressed')).toBe('true')
+    expect(qa.find('article[data-post-no="3"]').exists()).toBe(false)
+    expect(window.localStorage.getItem('goose:post-view-mode')).toBe('tree')
 
-    // 文章话题不受 Q&A 选择影响，仍走默认扁平
-    const article = await mountPostStream(3, posts)
-    const articleButtons = capsuleButtons(article)
-    expect(articleButtons[0]!.attributes('aria-pressed')).toBe('true')
-    expect(JSON.parse(window.localStorage.getItem('goose:post-view-mode')!)).toEqual({ '1': 'flat' })
-
-    // 文章切到树状并持久化，两种类型的选择互不覆盖
-    await articleButtons[1]!.trigger('click')
-    await flushPromises()
-    expect(articleButtons[1]!.attributes('aria-pressed')).toBe('true')
-    expect(JSON.parse(window.localStorage.getItem('goose:post-view-mode')!)).toEqual({ '1': 'flat', '3': 'tree' })
+    // 文章话题自动跟随全局选择（无需再手动设置）
+    const article = await mountPostStream(posts, { contentType: 3 })
+    expect(capsuleButtons(article)[1]!.attributes('aria-pressed')).toBe('true')
     expect(article.find('article[data-post-no="3"]').exists()).toBe(false)
-    expect(article.find('[data-post-no="3"]').exists()).toBe(true)
+    const articleRow3 = article.find('[data-post-no="3"]')
+    expect(articleRow3.exists()).toBe(true)
+    expect(article.find('article[data-post-no="2"]').element.contains(articleRow3.element)).toBe(true)
 
-    // 刷新场景：重新挂载后 Q&A 仍记住「扁平」选择（#519：保持全量平铺）
-    const qaReloaded = await mountPostStream(1, posts)
-    const reloadedButtons = capsuleButtons(qaReloaded)
-    expect(reloadedButtons[0]!.attributes('aria-pressed')).toBe('true')
-    expect(qaReloaded.find('article[data-post-no="3"]').exists()).toBe(true)
-    expect(qaReloaded.find('article[data-post-no="2"]').element.contains(qaReloaded.find('[data-post-no="3"]').element)).toBe(false)
+    // 文章话题切回扁平并持久化
+    await capsuleButtons(article)[0]!.trigger('click')
+    await flushPromises()
+    expect(capsuleButtons(article)[0]!.attributes('aria-pressed')).toBe('true')
+    expect(window.localStorage.getItem('goose:post-view-mode')).toBe('flat')
+    expect(article.find('article[data-post-no="3"]').exists()).toBe(true)
+    // #519：QA 扁平 = 全量平铺，回复上下文由引用条承接
+    const flatRow3 = article.find('[data-post-no="3"]')
+    expect(article.find('article[data-post-no="2"]').element.contains(flatRow3.element)).toBe(false)
+
+    // 刷新场景：重新挂载后仍记住全局「树状→扁平」的最终选择
+    const reloaded = await mountPostStream(posts, { contentType: 1 })
+    expect(capsuleButtons(reloaded)[0]!.attributes('aria-pressed')).toBe('true')
+    expect(reloaded.find('article[data-post-no="3"]').exists()).toBe(true)
+  })
+
+  test('Wiki 评论流（未传 contentType）胶囊切换同样生效（issue #580 顺带修复）', async () => {
+    const posts = [
+      makePost({ id: 1, postNo: 1 }),
+      makePost({ id: 2, postNo: 2, replyToPostId: 1 }),
+      makePost({ id: 3, postNo: 3, replyToPostId: 2 }),
+    ]
+    const wrapper = await mountPostStream(posts)
+
+    // 旧实现 contentType undefined 时 setViewMode 直接早退，胶囊点击无效果
+    await activateTree(wrapper)
+    expect(window.localStorage.getItem('goose:post-view-mode')).toBe('tree')
+    expect(wrapper.find('article[data-post-no="3"]').exists()).toBe(false)
+    expect(wrapper.find('article[data-post-no="2"]').element.contains(wrapper.find('[data-post-no="3"]').element)).toBe(true)
   })
 
   test('树状折叠：折叠有子链的节点隐藏其后代，再点展开恢复', async () => {
@@ -200,7 +233,8 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
       makePost({ id: 3, postNo: 3, replyToPostId: 2 }),
       makePost({ id: 4, postNo: 4, replyToPostId: 3 }),
     ]
-    const wrapper = await mountPostStream(1, posts)
+    const wrapper = await mountPostStream(posts, { contentType: 1 })
+    await activateTree(wrapper)
 
     expect(wrapper.find('[data-post-no="4"]').exists()).toBe(true)
     const collapseButtonTitle = i18n.global.t('topic.collapseReply')
@@ -227,7 +261,8 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
     const posts = [
       makePost({ id: 5, postNo: 5, replyToPostId: 4 }),
     ]
-    const wrapper = await mountPostStream(1, posts)
+    const wrapper = await mountPostStream(posts, { contentType: 1 })
+    await activateTree(wrapper)
 
     // 兜底为根节点 → 渲染为主流顶层楼层，内容不丢
     expect(wrapper.find('article[data-post-no="5"]').exists()).toBe(true)
@@ -240,9 +275,11 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
     ]
     // 深链场景：目标楼层在窗口外但仍可见 → 后端下发带作者与楼号的 replyTargets 摘要
     // （buildReplyTargetPayload available 分支；unavailable=false 经 omitempty 省略）
-    const wrapper = await mountPostStream(1, posts, [
-      { id: 4, postNo: 4, author: { id: 9, username: 'alice', avatarUrl: '' } },
-    ])
+    const wrapper = await mountPostStream(posts, {
+      contentType: 1,
+      replyTargets: [{ id: 4, postNo: 4, author: { id: 9, username: 'alice', avatarUrl: '' } }],
+    })
+    await activateTree(wrapper)
 
     // 兜底孤根仍渲染为主流顶层楼层
     const orphanRoot = wrapper.find('article[data-post-no="5"]')
@@ -263,9 +300,11 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
     ]
     // 生产真实形态：目标被隐藏/删除/清理时后端只下发 { id, unavailable }（作者/楼号为零值，
     // 见 app/http/controllers/forum/payload.go buildReplyTargetPayload 早退分支）
-    const wrapper = await mountPostStream(1, posts, [
-      { id: 4, author: { id: 0, username: '', avatarUrl: '' }, unavailable: true },
-    ])
+    const wrapper = await mountPostStream(posts, {
+      contentType: 1,
+      replyTargets: [{ id: 4, author: { id: 0, username: '', avatarUrl: '' }, unavailable: true }],
+    })
+    await activateTree(wrapper)
 
     const orphanRoot = wrapper.find('article[data-post-no="5"]')
     expect(orphanRoot.exists()).toBe(true)

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../format.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../server_messages.dart';
 import '../../widgets/skeletons.dart';
@@ -25,6 +28,14 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
+/// Per-action overrides keep a failed like independent of a concurrent bookmark.
+typedef _InteractionOverride = ({
+  int revision,
+  int epoch,
+  bool value,
+  int? likeCount,
+});
+
 class _HomePageState extends ConsumerState<HomePage> {
   static const String _feedModeKey = 'goose:home-feed-mode';
 
@@ -33,32 +44,38 @@ class _HomePageState extends ConsumerState<HomePage> {
   int _loadSequence = 0;
   int _interactionRevision = 0;
   final _pendingInteractions = <(int, bool)>{};
-  final _interactionOverrides =
-      <int, ({int revision, bool? liked, bool? bookmarked})>{};
+  final _interactionOverrides = <(int, bool), _InteractionOverride>{};
 
-  // Only writes completed after a read started override that response. A later
-  // refresh (including returning from topic detail) remains authoritative.
+  // Pending writes and writes completed after a read started override that
+  // response. A refresh started after completion remains authoritative.
   List<TopicPayload> _mergeInteractions(
     List<TopicPayload> incoming,
     int readRevision,
   ) => [for (final topic in incoming) _mergeInteraction(topic, readRevision)];
 
   TopicPayload _mergeInteraction(TopicPayload topic, int readRevision) {
-    final update = _interactionOverrides[topic.id];
-    if (update == null) return topic;
-    if (update.revision <= readRevision) {
-      _interactionOverrides.remove(topic.id);
-      return topic;
+    var result = topic;
+    for (final bookmark in [false, true]) {
+      final key = (topic.id, bookmark);
+      final update = _interactionOverrides[key];
+      if (update == null) continue;
+      if (update.epoch != ref.read(offlineCacheEpochProvider) ||
+          (!_pendingInteractions.contains(key) &&
+              update.revision <= readRevision)) {
+        _interactionOverrides.remove(key);
+        continue;
+      }
+      result = bookmark
+          ? result.copyWith(bookmarked: update.value)
+          : result.copyWith(liked: update.value, likeCount: update.likeCount!);
     }
-    return topic.copyWith(
-      liked: update.liked ?? topic.liked,
-      bookmarked: update.bookmarked ?? topic.bookmarked,
-    );
+    return result;
   }
 
   final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
   GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
+  List<CategoryNavPayload> _categories = const <CategoryNavPayload>[];
   final GfScrollToTopController _scrollToTopController =
       GfScrollToTopController();
   late final GfTabScrollRegistry _tabScrollRegistry;
@@ -138,6 +155,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       setState(() {
         _page = AsyncValue.data(props);
+        _categories = payload.layout.sidebar.categories;
         _topics.clear();
         _topics.addAll(_mergeInteractions(props.topics, revision));
       });
@@ -191,9 +209,36 @@ class _HomePageState extends ConsumerState<HomePage> {
     bool target, {
     bool bookmark = false,
   }) async {
+    if (!mounted) return false;
     final key = (topic.id, bookmark);
     if (!_pendingInteractions.add(key)) return false;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final index = _topics.indexWhere((t) => t.id == topic.id);
+    final current = index >= 0 ? _topics[index] : topic;
+    // 乐观更新先于请求落盘：图标与点赞计数立即切换并记录 override（并发刷新
+    // 据此折叠）；失败按字段回滚，过期会话丢弃结果，避免跨会话污染。
+    final snapshot = (
+      liked: current.liked,
+      bookmarked: current.bookmarked,
+      likeCount: current.likeCount,
+      override: _interactionOverrides[key],
+    );
+    final optimistic = (
+      revision: ++_interactionRevision,
+      epoch: epoch,
+      value: target,
+      likeCount: bookmark
+          ? null
+          : math.max(0, snapshot.likeCount + (target ? 1 : -1)),
+    );
+    setState(() {
+      _interactionOverrides[key] = optimistic;
+      if (index >= 0) {
+        _topics[index] = bookmark
+            ? current.copyWith(bookmarked: target)
+            : current.copyWith(liked: target, likeCount: optimistic.likeCount!);
+      }
+    });
     try {
       final repository = ref.read(topicRepositoryProvider);
       final success = bookmark
@@ -205,31 +250,30 @@ class _HomePageState extends ConsumerState<HomePage> {
               topicId: topic.id,
               action: target ? 1 : 2,
             );
-      if (!success ||
-          !mounted ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
         return false;
       }
-      final previous = _interactionOverrides[topic.id];
-      final update = (
+      if (!success) {
+        _rollbackInteraction(topic.id, bookmark, snapshot);
+        showGfToast(
+          context,
+          AppLocalizations.of(context).commonLoadFailed,
+          error: true,
+        );
+        return false;
+      }
+      // A read begun before completion must still retain this action, even if
+      // it began after the optimistic update. A subsequent refresh is authoritative.
+      _interactionOverrides[key] = (
         revision: ++_interactionRevision,
-        liked: bookmark ? previous?.liked : target,
-        bookmarked: bookmark ? target : previous?.bookmarked,
+        epoch: epoch,
+        value: optimistic.value,
+        likeCount: optimistic.likeCount,
       );
-      setState(() {
-        _interactionOverrides[topic.id] = update;
-        for (var i = 0; i < _topics.length; i++) {
-          if (_topics[i].id == topic.id) {
-            _topics[i] = _topics[i].copyWith(
-              liked: bookmark ? _topics[i].liked : target,
-              bookmarked: bookmark ? target : _topics[i].bookmarked,
-            );
-          }
-        }
-      });
       return true;
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        _rollbackInteraction(topic.id, bookmark, snapshot);
         showGfToast(
           context,
           resolveErrorMessage(AppLocalizations.of(context), error),
@@ -238,8 +282,41 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       return false;
     } finally {
-      _pendingInteractions.remove(key);
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        _pendingInteractions.remove(key);
+      }
     }
+  }
+
+  void _rollbackInteraction(
+    int topicId,
+    bool bookmark,
+    ({
+      bool? liked,
+      bool? bookmarked,
+      int likeCount,
+      _InteractionOverride? override,
+    })
+    snapshot,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      final key = (topicId, bookmark);
+      if (snapshot.override == null) {
+        _interactionOverrides.remove(key);
+      } else {
+        _interactionOverrides[key] = snapshot.override!;
+      }
+      final index = _topics.indexWhere((t) => t.id == topicId);
+      if (index >= 0) {
+        _topics[index] = bookmark
+            ? _topics[index].copyWith(bookmarked: snapshot.bookmarked)
+            : _topics[index].copyWith(
+                liked: snapshot.liked,
+                likeCount: snapshot.likeCount,
+              );
+      }
+    });
   }
 
   void _switchSort(String sort) {
@@ -250,6 +327,11 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(offlineCacheEpochProvider, (_, _) {
+      _pendingInteractions.clear();
+      _interactionOverrides.clear();
+      _load();
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     return RootSurface(
       title: 'YourTJ',
@@ -260,10 +342,11 @@ class _HomePageState extends ConsumerState<HomePage> {
           onPressed: () => context.push('/search'),
         ),
       ],
-      toolbarHeight: 44,
+      toolbarHeight: _categories.isEmpty ? 44 : 84,
       toolbar: _page.hasValue
           ? _HomeToolbar(
               props: _page.requireValue,
+              categories: _categories,
               selected: _sort,
               feedMode: _feedMode,
               onSelected: _switchSort,
@@ -308,6 +391,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 class _HomeToolbar extends ConsumerWidget {
   const _HomeToolbar({
     required this.props,
+    required this.categories,
     required this.selected,
     required this.feedMode,
     required this.onSelected,
@@ -315,6 +399,7 @@ class _HomeToolbar extends ConsumerWidget {
   });
 
   final HomeProps props;
+  final List<CategoryNavPayload> categories;
   final String selected;
   final GfTopicFeedMode feedMode;
   final ValueChanged<String> onSelected;
@@ -340,41 +425,80 @@ class _HomeToolbar extends ConsumerWidget {
     // already has a persistent center entry in the bottom navigation.
     return Container(
       color: colors.base100,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Expanded(
-            child: GfTabBar(
-              tabs: <GfTab>[
-                for (final tab in props.tabs)
-                  GfTab(
-                    // 后端 tabs[].label 可能为空(web 端按 key fallback 到
-                    // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
-                    label: _sortTabLabel(context, tab.key, tab.label ?? ''),
-                    value: tab.key,
+          // 44px 紧约束行:与原单行工具栏等高,防止 48px 固有的
+          // PopupMenuButton 撑破 toolbarHeight(44+40=84)。
+          SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(
+                    child: GfTabBar(
+                      tabs: <GfTab>[
+                        for (final tab in props.tabs)
+                          GfTab(
+                            // 后端 tabs[].label 可能为空(web 端按 key fallback 到
+                            // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
+                            label: _sortTabLabel(
+                              context,
+                              tab.key,
+                              tab.label ?? '',
+                            ),
+                            value: tab.key,
+                          ),
+                      ],
+                      selected: effective,
+                      onSelected: (Object value) => onSelected(value as String),
+                    ),
                   ),
-              ],
-              selected: effective,
-              onSelected: (Object value) => onSelected(value as String),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<GfTopicFeedMode>(
+                    tooltip: l10n.topicFeedModeList,
+                    icon: const GfSymbol('sliders-horizontal', size: 20),
+                    onSelected: onFeedModeSelected,
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: GfTopicFeedMode.list,
+                        child: Text(l10n.topicFeedModeList),
+                      ),
+                      PopupMenuItem(
+                        value: GfTopicFeedMode.card,
+                        child: Text(l10n.topicFeedModeCard),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          PopupMenuButton<GfTopicFeedMode>(
-            tooltip: l10n.topicFeedModeList,
-            icon: const GfSymbol('sliders-horizontal', size: 20),
-            onSelected: onFeedModeSelected,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: GfTopicFeedMode.list,
-                child: Text(l10n.topicFeedModeList),
+          // 分类快捷入口(与 web 侧边栏 categories 同源):横向滑动 pills,
+          // 点击跳转分类页;后端未配置分类时整行不占位。
+          if (categories.isNotEmpty)
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                itemCount: categories.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (BuildContext context, int index) {
+                  final CategoryNavPayload category = categories[index];
+                  return _CategoryPill(
+                    label: category.label,
+                    color: colorFromHex(category.color),
+                    onTap: () => context.push(category.url),
+                  );
+                },
               ),
-              PopupMenuItem(
-                value: GfTopicFeedMode.card,
-                child: Text(l10n.topicFeedModeCard),
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -391,5 +515,56 @@ class _HomeToolbar extends ConsumerWidget {
       'popular' => l10n.sortPopular,
       _ => key,
     };
+  }
+}
+
+/// 首页顶栏分类入口 pill:色点 + 分类名,镜像 GfChip 的视觉规格,
+/// 但可点击并按内容自适应宽度,横向滑动承载多个分类。
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    return Material(
+      color: colors.base300,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: colors.baseContent.withValues(alpha: 0.75),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

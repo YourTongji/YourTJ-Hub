@@ -884,6 +884,25 @@ class AppLocalizationsDe extends AppLocalizations {
   String get sortPopular => 'Beliebt';
 
   @override
+  String get commentSortAsc => 'Älteste zuerst';
+
+  @override
+  String get commentSortDesc => 'Neueste zuerst';
+
+  @override
+  String get commentSortOnlyOp => 'Nur Autor';
+
+  @override
+  String get topicOpRepliesPending =>
+      'Im geladenen Bereich gibt es keine Antworten des Autors. Lade weitere Beiträge.';
+
+  @override
+  String get topicOpRepliesEmpty => 'Noch keine Antworten des Autors';
+
+  @override
+  String get topicLaterReplies => 'Neuere Antworten laden';
+
+  @override
   String get topicFeedModeList => 'Liste';
 
   @override
@@ -1578,6 +1597,31 @@ class AppLocalizationsDe extends AppLocalizations {
   String notificationMention(String actor) {
     return '$actor hat dich erwähnt';
   }
+
+  @override
+  String get mentionListboxLabel => 'Benutzer erwähnen';
+
+  @override
+  String get mentionLoading => 'Benutzer werden gesucht…';
+
+  @override
+  String get mentionNoResults => 'Keine passenden Benutzer';
+
+  @override
+  String get mentionSearchFailed =>
+      'Benutzersuche fehlgeschlagen, weiter tippen';
+
+  @override
+  String get mentionKeepTyping => 'Weiter tippen, um Benutzer zu suchen';
+
+  @override
+  String get mentionTagReplyTarget => 'Antworte auf';
+
+  @override
+  String get mentionTagTopicAuthor => 'Themenersteller';
+
+  @override
+  String get mentionTagParticipant => 'Teilnehmer';
 
   @override
   String notificationPostReply(String actor) {

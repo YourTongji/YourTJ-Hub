@@ -619,7 +619,7 @@ CLI 同步（运维 cron 等自动化场景）：
 ./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
 ./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
 
-# 同步研究生数据（使用研究生管理端 Cookie 或 ONESYSTEM_GRADUATE_COOKIE）
+# 同步研究生数据（使用研究生管理端 sessionStorage.sessionid / X-Token）
 ./bin/yourtj-hub course-pk-sync 121 --audience graduate
 
 # 连同步前 3 个学期（选课季加频/补历史）
@@ -667,16 +667,21 @@ CLI 同步（运维 cron 等自动化场景）：
 作为当前有效编号；原 `courseCode` / `code` 仍保留为来源证据和历史输入别名。已有同步数据
 无需迁移，补跑 `course-materialize <学期>` 即可按新编号刷新课程目录。
 
-凭证优先级：`--onesystem-cookie` 参数 > 受众专用环境变量
-（本科生 `ONESYSTEM_UNDERGRADUATE_COOKIE`、研究生 `ONESYSTEM_GRADUATE_COOKIE`）>
-旧环境变量 `ONESYSTEM_COOKIE`（仅本科生）> 管理端对应设置（设置 → 一系统同步；
-`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+凭证优先级：研究生 `--onesystem-x-token`（兼容 `--onesystem-cookie`）/ 本科
+`--onesystem-cookie` 参数 > 受众专用环境变量（本科生
+`ONESYSTEM_UNDERGRADUATE_COOKIE`；研究生 `ONESYSTEM_GRADUATE_X_TOKEN` 或
+`ONESYSTEM_X_TOKEN`）> 旧环境变量 `ONESYSTEM_COOKIE`（仅本科生）> 管理端对应设置
+（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+
+本科同步继续使用一系统 `manualArrange/page?profile` 接口和 Cookie header；研究生同步
+使用 `EnquiryOfCourses` 页面的 `allArrangementCourses` 接口，通过 `X-Token` 查询
+`trainingLevel=4`（硕士）与 `trainingLevel=6`（博士），合并结果并按教学班 ID 去重。
 - 运维 cron（每日，选课季加频；应用内不自造调度器）：
 
   ```bash
   # 每日 02:30 同步当前学期
   30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_UNDERGRADUATE_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121 --audience undergraduate
-  45 2 * * * cd /srv/yourtj-hub && ONESYSTEM_GRADUATE_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121 --audience graduate
+  45 2 * * * cd /srv/yourtj-hub && ONESYSTEM_GRADUATE_X_TOKEN='sessionid…' ./bin/yourtj-hub course-pk-sync 121 --audience graduate
   ```
 
 应用内定时任务默认开启。若实例只运行持久化 worker、由外部 cron 触发维护命令，

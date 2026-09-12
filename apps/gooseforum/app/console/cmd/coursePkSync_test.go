@@ -63,7 +63,7 @@ func TestCoursePkSyncCommandRegistered(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("course-pk-sync command not registered")
 	}
-	for _, flag := range []string{"depth", "onesystem-cookie", "calendar-id", "materialize"} {
+	for _, flag := range []string{"depth", "onesystem-cookie", "onesystem-x-token", "calendar-id", "materialize"} {
 		if cmd.Flags().Lookup(flag) == nil {
 			t.Errorf("course-pk-sync missing --%s flag", flag)
 		}

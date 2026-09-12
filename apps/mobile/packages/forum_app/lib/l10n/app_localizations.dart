@@ -1674,6 +1674,42 @@ abstract class AppLocalizations {
   /// **'Popular'**
   String get sortPopular;
 
+  /// No description provided for @commentSortAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest first'**
+  String get commentSortAsc;
+
+  /// No description provided for @commentSortDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest first'**
+  String get commentSortDesc;
+
+  /// No description provided for @commentSortOnlyOp.
+  ///
+  /// In en, this message translates to:
+  /// **'OP only'**
+  String get commentSortOnlyOp;
+
+  /// No description provided for @topicOpRepliesPending.
+  ///
+  /// In en, this message translates to:
+  /// **'No author replies in the loaded window. Load more to continue.'**
+  String get topicOpRepliesPending;
+
+  /// No description provided for @topicOpRepliesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No replies from the author yet'**
+  String get topicOpRepliesEmpty;
+
+  /// No description provided for @topicLaterReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Load newer replies'**
+  String get topicLaterReplies;
+
   /// No description provided for @topicFeedModeList.
   ///
   /// In en, this message translates to:
@@ -2951,6 +2987,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{actor} mentioned you'**
   String notificationMention(String actor);
+
+  /// No description provided for @mentionListboxLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Mention users'**
+  String get mentionListboxLabel;
+
+  /// No description provided for @mentionLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching users…'**
+  String get mentionLoading;
+
+  /// No description provided for @mentionNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching users'**
+  String get mentionNoResults;
+
+  /// No description provided for @mentionSearchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'User search failed, keep typing'**
+  String get mentionSearchFailed;
+
+  /// No description provided for @mentionKeepTyping.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep typing to search users'**
+  String get mentionKeepTyping;
+
+  /// No description provided for @mentionTagReplyTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Replying to'**
+  String get mentionTagReplyTarget;
+
+  /// No description provided for @mentionTagTopicAuthor.
+  ///
+  /// In en, this message translates to:
+  /// **'Topic author'**
+  String get mentionTagTopicAuthor;
+
+  /// No description provided for @mentionTagParticipant.
+  ///
+  /// In en, this message translates to:
+  /// **'Participant'**
+  String get mentionTagParticipant;
 
   /// No description provided for @notificationPostReply.
   ///

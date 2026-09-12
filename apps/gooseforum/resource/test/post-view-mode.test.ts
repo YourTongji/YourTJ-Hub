@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { ref } from 'vue'
 
 describe('usePostViewMode', () => {
   const localStorage = {
@@ -24,88 +23,84 @@ describe('usePostViewMode', () => {
     vi.unstubAllGlobals()
   })
 
-  test('contentType 1 默认树状，其余类型默认扁平', async () => {
+  test('默认扁平：未手动选择时所有内容类型统一为全局默认（issue #580）', async () => {
     const { usePostViewMode } = await loadModule()
 
-    expect(usePostViewMode(() => 1).viewMode.value).toBe('tree')
-    expect(usePostViewMode(() => 0).viewMode.value).toBe('flat')
-    expect(usePostViewMode(() => 2).viewMode.value).toBe('flat')
-    expect(usePostViewMode(() => 3).viewMode.value).toBe('flat')
-    expect(usePostViewMode(() => undefined).viewMode.value).toBe('flat')
+    expect(usePostViewMode().viewMode.value).toBe('flat')
   })
 
-  test('手动选择按内容类型独立记忆并持久化', async () => {
+  test('手动选择全局生效并持久化为单值，所有实例即时跟随', async () => {
     const { usePostViewMode } = await loadModule()
 
-    const qa = usePostViewMode(() => 1)
-    qa.setViewMode('flat')
+    const qa = usePostViewMode()
+    qa.setViewMode('tree')
 
-    expect(qa.viewMode.value).toBe('flat')
-    expect(localStorage.setItem).toHaveBeenCalledWith(
-      'goose:post-view-mode',
-      JSON.stringify({ '1': 'flat' }),
-    )
+    expect(qa.viewMode.value).toBe('tree')
+    expect(localStorage.setItem).toHaveBeenCalledWith('goose:post-view-mode', 'tree')
 
-    // 同类型其他实例共享状态
-    expect(usePostViewMode(() => 1).viewMode.value).toBe('flat')
-    // 其他类型不受影响，仍走各自默认
-    expect(usePostViewMode(() => 3).viewMode.value).toBe('flat')
-    expect(usePostViewMode(() => 2).viewMode.value).toBe('flat')
+    // 后续实例（不论所在话题的内容类型）读到的都是同一全局状态
+    expect(usePostViewMode().viewMode.value).toBe('tree')
   })
 
-  test('已存储的偏好覆盖内容类型默认', async () => {
-    localStorage.getItem.mockReturnValue(JSON.stringify({ '3': 'tree', '1': 'flat' }))
+  test('已存储的全局单值覆盖默认（含切回扁平）', async () => {
+    localStorage.getItem.mockReturnValue('tree')
     const { usePostViewMode } = await loadModule()
+    expect(usePostViewMode().viewMode.value).toBe('tree')
 
-    expect(usePostViewMode(() => 3).viewMode.value).toBe('tree')
-    expect(usePostViewMode(() => 1).viewMode.value).toBe('flat')
-    // 未存储的类型仍走默认
-    expect(usePostViewMode(() => 2).viewMode.value).toBe('flat')
+    localStorage.getItem.mockReturnValue('flat')
+    const mod = await loadModule()
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
   })
 
-  test('非法 JSON 与非法值静默回落默认', async () => {
+  test('旧版按内容类型 map：各类型选择一致时继承为全局偏好', async () => {
+    // 多类型且一致
+    localStorage.getItem.mockReturnValue(JSON.stringify({ '1': 'tree', '3': 'tree' }))
+    let mod = await loadModule()
+    expect(mod.usePostViewMode().viewMode.value).toBe('tree')
+
+    // 仅单个类型有记录同样继承
+    localStorage.getItem.mockReturnValue(JSON.stringify({ '3': 'tree' }))
+    mod = await loadModule()
+    expect(mod.usePostViewMode().viewMode.value).toBe('tree')
+  })
+
+  test('旧版 map 类型间冲突或值非法时回落默认，不猜测用户偏好', async () => {
+    // 类型间选择冲突（{ flat, tree }）无法判断全局倾向 → 默认扁平
+    localStorage.getItem.mockReturnValue(JSON.stringify({ '1': 'flat', '3': 'tree' }))
+    let mod = await loadModule()
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
+
+    // map 中无合法值
+    localStorage.getItem.mockReturnValue(JSON.stringify({ '1': 'banana' }))
+    mod = await loadModule()
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
+  })
+
+  test('非法 JSON、非法单值与数组静默回落默认', async () => {
     localStorage.getItem.mockReturnValue('{not-json')
     let mod = await loadModule()
-    expect(mod.usePostViewMode(() => 1).viewMode.value).toBe('tree')
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
 
-    localStorage.getItem.mockReturnValue(JSON.stringify({ '1': 'banana', '2': 'tree' }))
+    localStorage.getItem.mockReturnValue('banana')
     mod = await loadModule()
-    expect(mod.usePostViewMode(() => 1).viewMode.value).toBe('tree')
-    expect(mod.usePostViewMode(() => 2).viewMode.value).toBe('tree')
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
 
     localStorage.getItem.mockReturnValue(JSON.stringify(['tree']))
     mod = await loadModule()
-    expect(mod.usePostViewMode(() => 1).viewMode.value).toBe('tree')
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
+
+    localStorage.getItem.mockReturnValue('null')
+    mod = await loadModule()
+    expect(mod.usePostViewMode().viewMode.value).toBe('flat')
   })
 
-  test('contentType 变化时视图随共享状态联动', async () => {
-    const { usePostViewMode } = await loadModule()
-
-    const contentType = ref<number | undefined>(1)
-    const { viewMode, setViewMode } = usePostViewMode(() => contentType.value)
-
-    expect(viewMode.value).toBe('tree')
-    contentType.value = 3
-    expect(viewMode.value).toBe('flat')
-
-    setViewMode('tree')
-    expect(viewMode.value).toBe('tree')
-    contentType.value = 1
-    // 类型 1 未手动选择过，回落默认树状（与类型 3 的手动选择互不影响）
-    expect(viewMode.value).toBe('tree')
-    expect(localStorage.setItem).toHaveBeenLastCalledWith(
-      'goose:post-view-mode',
-      JSON.stringify({ '3': 'tree' }),
-    )
-  })
-
-  test('SSR 无 window 时走默认且 setViewMode 不崩溃', async () => {
+  test('SSR 无 window 时走默认且 setViewMode 不崩溃（内存态仍生效）', async () => {
     vi.unstubAllGlobals()
     const { usePostViewMode } = await loadModule()
 
-    const { viewMode, setViewMode } = usePostViewMode(() => 1)
-    expect(viewMode.value).toBe('tree')
-    expect(() => setViewMode('flat')).not.toThrow()
+    const { viewMode, setViewMode } = usePostViewMode()
     expect(viewMode.value).toBe('flat')
+    expect(() => setViewMode('tree')).not.toThrow()
+    expect(viewMode.value).toBe('tree')
   })
 })

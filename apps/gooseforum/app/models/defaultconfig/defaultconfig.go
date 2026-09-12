@@ -119,10 +119,13 @@ func GetDefaultHttpNotifyConfig() pageConfig.HttpNotifyConfig {
 
 func GetDefaultSecuritySettingsConfig() pageConfig.SecurityAndRegistration {
 	config := mustPageConfigDefaults().Security
-	config.AllowedDomains = append([]string(nil), config.AllowedDomains...)
-	config.ReservedUsernames = append([]string(nil), config.ReservedUsernames...)
-	config.BannedUsernames = append([]string(nil), config.BannedUsernames...)
-	config.SensitiveWords = append([]string(nil), config.SensitiveWords...)
+	// 列表字段拷贝并保证非 nil（issue #643）：append([]string(nil),...) 在
+	// 默认空列表时退化为 nil，JSON 序列化产出 null，违反 SecurityAndRegistration
+	// 的 required string[] 契约并使登录页前端 setup 解引用白屏。
+	config.AllowedDomains = append([]string{}, config.AllowedDomains...)
+	config.ReservedUsernames = append([]string{}, config.ReservedUsernames...)
+	config.BannedUsernames = append([]string{}, config.BannedUsernames...)
+	config.SensitiveWords = append([]string{}, config.SensitiveWords...)
 	return config
 }
 

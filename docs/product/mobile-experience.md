@@ -22,8 +22,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   reduced motion disable automatic rotation. Refresh replaces the active announcement safely.
 - `Current`: mobile body text uses 17 logical pixels with system text scaling. Feed cards use
   compact vertical padding and one timestamp; embedded Markdown uses smaller paragraph margins
-  so short replies do not acquire a large empty footer.
+  so short replies do not acquire a large empty footer. Notification rows, conversation rows and
+  chat bubbles share the feed's type scale (16 px titles, 15 px secondary text, 13 px timestamps),
+  so the messaging surfaces read at the same size as the home feed.
 
+- `Current`: pushed pages use platform-native transitions on iOS — the system
+  Cupertino page transition with the interactive edge-swipe back gesture, so
+  secondary pages (topic, course, Wiki, settings) can be swiped closed from the
+  left edge. Android keeps the web-mirrored fade/rise transition. Horizontal
+  scroll rails keep working; the back gesture only claims the narrow left-edge
+  band.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use icon-only
   navigation with accessible labels. Search is a pushed page, reachable from Home. Campus links to
   the native course catalog, scheduler and Wiki; returning preserves the selected destination.
@@ -34,14 +42,20 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
   up to three previews with a total count. Tapping opens the full gallery with zoom.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
-  reply/view metrics. A successful action updates its selected icon immediately; failed actions
-  preserve the previous state and show the localized error. Home summaries batch-load the viewer's
-  like/bookmark state; absent state (anonymous, unavailable or older servers) suppresses the
-  shortcuts. Selected states survive offscreen card recycling, and returning from detail refreshes
-  them. In-flight reads cannot overwrite newer successful actions. Metrics and actions wrap at
-  narrow widths and enlarged text sizes. Like totals are not part of the home summary.
+  reply/view metrics, and the like metric shows the topic's total like count. Actions switch
+  their selected icon and the like count immediately (likes adjust the shown total by one)
+  before the request resolves; failures restore the previous state and count and show the
+  localized error. Home summaries
+  batch-load the viewer's like/bookmark state; absent state (anonymous, unavailable or older
+  servers) suppresses the shortcuts. Selected states survive offscreen card recycling, and
+  returning from detail refreshes them. In-flight reads cannot overwrite pending or newer successful actions. Likes and bookmarks
+  settle independently; switching accounts discards all pending interaction state and reloads the feed.
+  Metrics and actions wrap at narrow widths and enlarged text sizes.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
   same gallery is used in the publishing preview.
+- `Current`: the Home filter rail lists the site's sidebar categories as tappable pills in a second
+  row. Pills navigate to their category page; the row collapses when the server publishes no
+  categories, keeping the original single-row rail height.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
   hide after 48 logical pixels downward and return after 12 pixels upward, with 200 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
@@ -59,6 +73,14 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   shortcuts, reply links, and earlier/later pagination navigate the actual reply stream. Returning
   to the first post from a middle window reloads that window before offering refresh; stale
   pagination responses are discarded after a floor or session change.
+- `Current`: replies offer a compact sort capsule beside the reply count — oldest first, newest
+  first, author only. Oldest and newest flip the loaded window locally without refetching; in
+  newest-first order the list footer loads earlier floors and the top control loads newer ones.
+  Author-only filters the loaded window to the topic author and automatically scans the remaining
+  stream — later windows first, then earlier ones — for at most five windows per automatic scan.
+  Loading more continues the search. While windows remain, an empty filtered view invites further
+  loading; it only reports no author replies once both directions are exhausted. Switching back
+  restores every loaded floor. Sort controls wrap with narrow screens and enlarged text.
 
 - `Current`: topic and reply authors open their public profiles. Owners can edit/delete their
   content; replies support likes, bookmarks, sharing and paginated revision history. Moderation
@@ -116,6 +138,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
   Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
   lightweight text row; attachment previews and server-required captcha controls appear only when needed.
+  Typing `@` opens a user suggestion sheet above the software keyboard (reply target, topic author
+  and participants first, then debounced server search) with Web-identical token and ranking
+  semantics; selecting a candidate inserts plain `@username ` at the caret.
 
 - `Current`: publishing and reply composers have a localized hide-keyboard button that preserves
   unsent text. Dragging the publishing page or topic stream also dismisses the keyboard; opening

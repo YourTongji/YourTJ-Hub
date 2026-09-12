@@ -23,7 +23,7 @@ info:
     actions, file resources), admin media upload, and admin data portability
     (export tasks, download, import), the Agent (bot persona) public API,
     the user content lifecycle (own/deleted content lists, restore,
-    batch-delete, purge, privacy erase, delete telemetry, account close),
+    batch-delete, purge, delete telemetry, account close),
     aggregate search, and public site statistics.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.

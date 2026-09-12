@@ -1439,6 +1439,7 @@ mixin _$TopicPayload {
       throw _privateConstructorUsedError;
   int get replyCount => throw _privateConstructorUsedError;
   int get viewCount => throw _privateConstructorUsedError;
+  int get likeCount => throw _privateConstructorUsedError;
   int get pinWeight => throw _privateConstructorUsedError;
   int get processStatus => throw _privateConstructorUsedError;
   String get activityText => throw _privateConstructorUsedError;
@@ -1478,6 +1479,7 @@ abstract class $TopicPayloadCopyWith<$Res> {
     List<CategoryBriefPayload> categories,
     int replyCount,
     int viewCount,
+    int likeCount,
     int pinWeight,
     int processStatus,
     String activityText,
@@ -1517,6 +1519,7 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
     Object? categories = null,
     Object? replyCount = null,
     Object? viewCount = null,
+    Object? likeCount = null,
     Object? pinWeight = null,
     Object? processStatus = null,
     Object? activityText = null,
@@ -1574,6 +1577,10 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
             viewCount: null == viewCount
                 ? _value.viewCount
                 : viewCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            likeCount: null == likeCount
+                ? _value.likeCount
+                : likeCount // ignore: cast_nullable_to_non_nullable
                       as int,
             pinWeight: null == pinWeight
                 ? _value.pinWeight
@@ -1641,6 +1648,7 @@ abstract class _$$TopicPayloadImplCopyWith<$Res>
     List<CategoryBriefPayload> categories,
     int replyCount,
     int viewCount,
+    int likeCount,
     int pinWeight,
     int processStatus,
     String activityText,
@@ -1680,6 +1688,7 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
     Object? categories = null,
     Object? replyCount = null,
     Object? viewCount = null,
+    Object? likeCount = null,
     Object? pinWeight = null,
     Object? processStatus = null,
     Object? activityText = null,
@@ -1738,6 +1747,10 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
             ? _value.viewCount
             : viewCount // ignore: cast_nullable_to_non_nullable
                   as int,
+        likeCount: null == likeCount
+            ? _value.likeCount
+            : likeCount // ignore: cast_nullable_to_non_nullable
+                  as int,
         pinWeight: null == pinWeight
             ? _value.pinWeight
             : pinWeight // ignore: cast_nullable_to_non_nullable
@@ -1787,6 +1800,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
     required final List<CategoryBriefPayload> categories,
     required this.replyCount,
     required this.viewCount,
+    this.likeCount = 0,
     required this.pinWeight,
     required this.processStatus,
     required this.activityText,
@@ -1847,6 +1861,9 @@ class _$TopicPayloadImpl implements _TopicPayload {
   @override
   final int viewCount;
   @override
+  @JsonKey()
+  final int likeCount;
+  @override
   final int pinWeight;
   @override
   final int processStatus;
@@ -1864,7 +1881,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
 
   @override
   String toString() {
-    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
+    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
   }
 
   @override
@@ -1895,6 +1912,8 @@ class _$TopicPayloadImpl implements _TopicPayload {
                 other.replyCount == replyCount) &&
             (identical(other.viewCount, viewCount) ||
                 other.viewCount == viewCount) &&
+            (identical(other.likeCount, likeCount) ||
+                other.likeCount == likeCount) &&
             (identical(other.pinWeight, pinWeight) ||
                 other.pinWeight == pinWeight) &&
             (identical(other.processStatus, processStatus) ||
@@ -1925,6 +1944,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
     const DeepCollectionEquality().hash(_categories),
     replyCount,
     viewCount,
+    likeCount,
     pinWeight,
     processStatus,
     activityText,
@@ -1962,6 +1982,7 @@ abstract class _TopicPayload implements TopicPayload {
     required final List<CategoryBriefPayload> categories,
     required final int replyCount,
     required final int viewCount,
+    final int likeCount,
     required final int pinWeight,
     required final int processStatus,
     required final String activityText,
@@ -1998,6 +2019,8 @@ abstract class _TopicPayload implements TopicPayload {
   int get replyCount;
   @override
   int get viewCount;
+  @override
+  int get likeCount;
   @override
   int get pinWeight;
   @override

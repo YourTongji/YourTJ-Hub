@@ -667,14 +667,18 @@ export interface paths {
         put?: never;
         /**
          * Soft-delete an own reply post
-         * @description Soft-deletes a reply (postNo 2 or higher) owned by the caller; deletion is
-         *     idempotent and keeps a tombstone so the discussion tree stays intact. The topic
-         *     first post is rejected as `post.notFound` (delete the topic instead). JSON binding
-         *     is lenient: a malformed body binds to zero values and fails as `post.notFound`
-         *     (HTTP 200). Burst deletion beyond the server threshold requires force+password
-         *     confirmation (`content.batchDelete.confirmRequired`, params count; a wrong
-         *     password fails with `auth.credentials.invalid`). Other business failures:
-         *     `topic.operationDenied` for someone else's post.
+         * @description Soft-deletes a reply (postNo 2 or higher) owned by the caller and keeps a
+         *     tombstone so the discussion tree stays intact. Repeating the deletion of an
+         *     already self-deleted reply fails with `post.alreadyDeleted` (HTTP 200,
+         *     issue #553). The topic first post is rejected with `post.firstPostUndeletable`
+         *     (delete the topic instead). JSON binding is lenient: a malformed body binds
+         *     to zero values and fails as `post.notFound` (HTTP 200). Unknown ids — and
+         *     non-ACTIVE replies owned by someone else — also fail with `post.notFound`,
+         *     so the existence of deleted content is not revealed to non-owners. Burst
+         *     deletion beyond the server threshold requires force+password confirmation
+         *     (`content.batchDelete.confirmRequired`, params count; a wrong password fails
+         *     with `auth.credentials.invalid`). Other business failures:
+         *     `topic.operationDenied` for someone else's active post.
          */
         post: operations["deletePost"];
         delete?: never;
@@ -802,7 +806,11 @@ export interface paths {
          * @description Set-semantics and idempotent: repeating the same transition returns true without
          *     double counting. JSON binding is lenient: a malformed body binds to zero values
          *     and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
-         *     Business failures: `user.notFound`, `common.request.invalidParams`.
+         *     Following yourself (id equals the authenticated user with action 1) is rejected
+         *     before any follow row, counter, or notification is touched (issue #594); the
+         *     unfollow action (2) stays an idempotent success so legacy self-follow rows can
+         *     be cleared through the same endpoint.
+         *     Business failures: `user.notFound`, `user.selfFollow`, `common.request.invalidParams`.
          */
         post: operations["followUser"];
         delete?: never;
@@ -991,8 +999,11 @@ export interface paths {
          *     content's categories) — it does NOT use the role-permission middleware, so a
          *     caller without moderation scope fails with HTTP 200 and `permission.denied`,
          *     not 403. The audit reason is mandatory and every view is written to the
-         *     moderation log. Unknown, still-visible, or permanently purged content fails
-         *     with `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
+         *     moderation log. Since the deletion final state is data retention
+         *     (MADR-0021, issue #555), permanently purged content is returned here —
+         *     bodies/titles are retained exactly so moderators can recover them with
+         *     this audited view; only unknown or still-visible content fails with
+         *     `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
          *     a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200), which is also returned for a blank
          *     reason or an unknown contentType.
@@ -1877,8 +1888,8 @@ export interface paths {
          * @description Soft-deletes up to 50 caller-owned topics or replies in one call, each
          *     entering the standard 30-day recovery window (same semantics as the
          *     single-delete endpoints). Deletions are rate-gated per account: more than
-         *     20 deletions within 10 minutes — single deletes, purges and privacy
-         *     erases count into the same window — fail with
+         *     20 deletions within 10 minutes — single deletes and purges count into
+         *     the same window — fail with
          *     `content.batchDelete.confirmRequired` (HTTP 200, params.count carries the
          *     projected total); the caller retries with force=true plus the current
          *     password as second factor (a wrong password fails with
@@ -1909,16 +1920,21 @@ export interface paths {
          * @description Permanent deletion (跳过恢复窗口): only caller-owned content already in
          *     visibility USER_DELETED + retention RECOVERABLE can be purged; ACTIVE
          *     content must be deleted first and fails with `content.notRecoverable`.
-         *     Purging sets retention PURGED (irreversible — the content can no longer be
-         *     restored), releases attachment references and blanks notification
-         *     previews; moderation evidence snapshots and audit logs are retained.
-         *     Purging a topic also purges the caller's own replies under it and any
-         *     replies already in the deletion lifecycle; other users' still-active
-         *     replies keep their bodies but become unreachable. Moderator-removed
-         *     content fails with `content.notRecoverable` (privacy/purge paths cannot
-         *     bypass governance). Already-PURGED content succeeds idempotently. The
-         *     operation counts into the shared deletion rate window (see
-         *     content-batch-delete; `content.batchDelete.confirmRequired` /
+         *     Purging sets retention PURGED (irreversible — the content can no longer
+         *     be restored) and blanks notification previews; moderation evidence
+         *     snapshots and audit logs are retained. The final state is data retention
+         *     (MADR-0021, issue #555): bodies/titles and attachment bytes are kept in
+         *     the database and storage — the audited view-deleted-content (reason +
+         *     moderation-log audit) returns the retained text, and attachment bytes
+         *     await a future audited echo; nothing is exposed on user-side
+         *     read paths, so deletion still reads as deletion to users. Purging a
+         *     topic also purges the caller's own replies under it and any replies
+         *     already in the deletion lifecycle (same retention semantics); other
+         *     users' still-active replies keep their bodies but become unreachable.
+         *     Moderator-removed content fails with `content.notRecoverable` (purge
+         *     paths cannot bypass governance). Already-PURGED content succeeds
+         *     idempotently. The operation counts into the shared deletion rate window
+         *     (see content-batch-delete; `content.batchDelete.confirmRequired` /
          *     `auth.credentials.invalid` on the force+password path). Other business
          *     failures: `topic.notFound` / `post.notFound`, `content.purge.failed`,
          *     `common.request.invalidParams`. The reason field is optional audit text.
@@ -2585,7 +2601,9 @@ export interface paths {
          *     (governance) deletion: the topic is soft-deleted into the moderator-removed
          *     state — never hard-deleted — and only the admin console can restore it; the
          *     author cannot. Re-deleting an already moderator-removed topic is an idempotent
-         *     success that keeps the original deletion metadata. Wiki subsite topics are
+         *     success that keeps the original deletion metadata; a topic the author already
+         *     permanently purged (retention PURGED, MADR-0021) is likewise an idempotent
+         *     success — the terminal state is never rewritten. Wiki subsite topics are
          *     rejected with `topic.operationDenied` (HTTP 200). Unknown topics fail with
          *     `topic.notFound` (HTTP 200); a blank reason fails with
          *     `common.request.invalidParams` (HTTP 200); persistence failures surface as
@@ -4057,9 +4075,13 @@ export interface paths {
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
          *     `permission.denied` (params permission=<localized permission name>,
          *     `站点管理` in zh). Exposure boundary: the response contains only
-         *     configured-state booleans — the stored ciphertext and plaintext cookies
-         *     are never returned. `cookieConfigured` remains the legacy alias for the
-         *     undergraduate credential. JSON binding is lenient: query string and
+         *     configured-state booleans — the stored ciphertext and plaintext
+         *     credentials are never returned. Undergraduate synchronization uses the
+         *     legacy `manualArrange/page?profile` endpoint and a Cookie header; graduate
+         *     synchronization uses `EnquiryOfCourses`/`allArrangementCourses` with an
+         *     X-Token and separate master/PhD queries. `cookieConfigured` remains the
+         *     legacy alias for the undergraduate credential, while
+         *     `xTokenConfiguredGraduate` reports the new graduate credential. JSON binding is lenient: query string and
          *     body are ignored.
          */
         get: operations["adminGetOnesystemSettings"];
@@ -4084,14 +4106,15 @@ export interface paths {
          * Store or clear the 一系统 sync credential
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. The
-         *     submitted plaintext cookies are trimmed, encrypted with
+         *     submitted plaintext credentials are trimmed, encrypted with
          *     purpose-scoped AES-256-GCM keys derived from `app.signingKey`, and only
          *     ciphertext is persisted (plaintext exists only for the duration of the
          *     request). Omitted audience-specific fields retain their current values;
          *     an empty/blank audience-specific field clears only that credential.
          *     The deprecated `cookie` field is accepted as the undergraduate value
-         *     only when neither audience-specific field is supplied. A cookie longer
-         *     than 4096 characters fails request validation with HTTP 200 and
+         *     only when neither audience-specific field is supplied. The deprecated
+         *     `graduateCookie` field is accepted as a graduate X-Token alias. A credential
+         *     longer than 4096 characters fails request validation with HTTP 200 and
          *     `common.request.invalidParams`. If encryption itself fails
          *     (signingKey misconfigured) the response is a generic HTTP 200 `code: 1`
          *     failure with no `messageCode` — the internal error detail is not
@@ -6417,7 +6440,7 @@ export interface components {
         DeletePostRequest: {
             /**
              * Format: uint64
-             * @description Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+             * @description Reply posts only. The topic first post fails with `post.firstPostUndeletable`, an already self-deleted reply fails with `post.alreadyDeleted`, and unknown ids fail with `post.notFound` (HTTP 200).
              */
             postId: number;
             /** @description Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`). */
@@ -6506,7 +6529,7 @@ export interface components {
         FollowUserRequest: {
             /**
              * Format: uint64
-             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200).
+             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue #594).
              */
             id: number;
             /**
@@ -8848,8 +8871,10 @@ export interface components {
             cookieConfigured: boolean;
             /** @description Whether the encrypted undergraduate 一系统 cookie is stored. */
             cookieConfiguredUndergraduate: boolean;
-            /** @description Whether the encrypted graduate 一系统 cookie is stored. */
+            /** @description Legacy configured-state alias for the graduate 一系统 credential. */
             cookieConfiguredGraduate: boolean;
+            /** @description Whether the encrypted graduate 一系统 X-Token is stored. */
+            xTokenConfiguredGraduate: boolean;
         };
         AdminOnesystemSettingsResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminOnesystemSettingsResult"];
@@ -8857,8 +8882,13 @@ export interface components {
         AdminSaveOnesystemSettingsRequest: {
             /** @description Plaintext undergraduate 一系统 Cookie; omitted keeps the current value, blank clears only the undergraduate credential. */
             undergraduateCookie?: string;
-            /** @description Plaintext graduate 一系统 Cookie; omitted keeps the current value, blank clears only the graduate credential. */
+            /**
+             * @deprecated
+             * @description Legacy alias for graduateXToken; the value is treated as an X-Token, not sent as a Cookie header.
+             */
             graduateCookie?: string;
+            /** @description Plaintext graduate 一系统 X-Token (sessionStorage `sessionid`); omitted keeps the current value, blank clears only the graduate credential. */
+            graduateXToken?: string;
             /**
              * @deprecated
              * @description Legacy alias for undergraduateCookie. Used only when neither audience-specific field is supplied.
@@ -10492,6 +10522,11 @@ export interface components {
             replyCount: number;
             /** Format: uint64 */
             viewCount: number;
+            /**
+             * Format: uint64
+             * @description Denormalized topic-level like counter (mirrors TopicDetailPayload.likeCount).
+             */
+            likeCount: number;
             activityText: string;
             lastUpdateTime: string;
             /** @description Authenticated viewer's like state; absent when unavailable. */

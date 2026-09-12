@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,9 @@ import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 import 'post_actions.dart';
 import 'topic_actions.dart';
+import 'mention_panel.dart';
+import 'mention_search.dart';
+import 'mention_session.dart';
 
 /// 话题详情页(web TopicPage.vue 的移动端形态):
 /// 话题信息 + 帖子流(分页)+ markdown 渲染 + 图片查看器 + 互动(点赞/收藏/关注/评论)。
@@ -30,6 +34,9 @@ class TopicPage extends ConsumerStatefulWidget {
   @override
   ConsumerState<TopicPage> createState() => _TopicPageState();
 }
+
+/// 评论排序(移动端评论胶囊):正序/倒序/只看楼主。
+enum CommentSort { asc, desc, onlyOp }
 
 class _TopicPageState extends ConsumerState<TopicPage> {
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
@@ -45,6 +52,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   final List<PostPayload> _posts = [];
   int? _afterPostNo;
   bool _hasMorePosts = false;
+  CommentSort _sort = CommentSort.asc;
+  bool _opScanning = false;
 
   // 互动状态(乐观更新)。
   bool _liked = false;
@@ -54,7 +63,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
 
   // 轻量 Markdown 回复输入。
   final TextEditingController _replyController = TextEditingController();
-  final FocusNode _replyFocus = FocusNode();
+  late final FocusNode _replyFocus = FocusNode(
+    onKeyEvent: _replyMentionKeyEvent,
+  );
   bool _replying = false;
   CaptchaPayload? _replyCaptcha;
   final _replyCaptchaCode = TextEditingController();
@@ -64,6 +75,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   String? _replyImageUrl;
   String? _replyTargetName;
   String? _replyMentionPrefix;
+
+  // @mention 候选会话(issue #565):token/候选/防抖逻辑在 mention_session.dart。
+  late final MentionSessionController _mentionSession;
+  int _viewerId = 0;
 
   // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
   bool _composerOpen = false;
@@ -76,6 +91,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   @override
   void initState() {
     super.initState();
+    _mentionSession = MentionSessionController(
+      searchUsers: ref.read(mentionUserSearchProvider),
+    );
+    _replyController.addListener(_onReplyValueChanged);
+    _replyFocus.addListener(_onReplyFocusChanged);
     _load(postNo: widget.initialPostNo);
   }
 
@@ -85,12 +105,14 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     if (widget.topicId != oldWidget.topicId ||
         widget.initialPostNo != oldWidget.initialPostNo) {
       _railOpen = false;
+      _sort = CommentSort.asc;
       _composerOpen = false;
       _replyController.clear();
       _replyImageUrl = null;
       _replyToPostId = 0;
       _replyTargetName = null;
       _replyMentionPrefix = null;
+      _mentionSession.close();
       _load(postNo: widget.initialPostNo);
     }
   }
@@ -100,6 +122,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     _replyController.dispose();
     _replyCaptchaCode.dispose();
     _replyFocus.dispose();
+    _mentionSession.dispose();
     super.dispose();
   }
 
@@ -145,6 +168,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       setState(() {
         _page = AsyncValue.data(props);
         _viewerAuthenticated = payload.layout.viewer.isAuthenticated;
+        _viewerId = payload.layout.viewer.id;
         _posts.clear();
         _posts.addAll(props.postStream.posts);
         _replyTargets
@@ -201,6 +225,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         setState(() {
           _page = AsyncValue.data(props);
           _viewerAuthenticated = cached!.layout.viewer.isAuthenticated;
+          _viewerId = cached.layout.viewer.id;
           _posts.clear();
           _posts.addAll(props.postStream.posts);
           _replyTargets
@@ -244,19 +269,24 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
+  /// 倒序模式翻转列表语义:列表底部加载的是更早楼层(before 游标),
+  /// 顶部按钮加载更新楼层(after 游标);正序/只看楼主保持原方向。
   Future<void> _loadMore({bool earlier = false}) async {
-    if (_loadingMore || (earlier ? !_hasEarlierPosts : !_hasMorePosts)) return;
+    final bool fetchEarlier = _sort == CommentSort.desc ? !earlier : earlier;
+    if (_loadingMore || (fetchEarlier ? !_hasEarlierPosts : !_hasMorePosts)) {
+      return;
+    }
     final generation = _windowGeneration;
     final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingMore = true);
     try {
-      final previous = earlier ? _beforePostNo : _afterPostNo;
+      final previous = fetchEarlier ? _beforePostNo : _afterPostNo;
       final window = await ref
           .read(topicRepositoryProvider)
           .getPostWindow(
             topicId: widget.topicId,
-            beforePostNo: earlier ? _beforePostNo : null,
-            afterPostNo: earlier ? null : _afterPostNo,
+            beforePostNo: fetchEarlier ? _beforePostNo : null,
+            afterPostNo: fetchEarlier ? null : _afterPostNo,
           );
       if (!mounted ||
           generation != _windowGeneration ||
@@ -270,11 +300,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           _replyTargets[target.id] = target;
         }
         final next =
-            (earlier ? window.beforePostNo : window.afterPostNo) ?? previous;
+            (fetchEarlier ? window.beforePostNo : window.afterPostNo) ??
+            previous;
         final advanced =
             next != null &&
-            (previous == null || (earlier ? next < previous : next > previous));
-        if (earlier) {
+            (previous == null ||
+                (fetchEarlier ? next < previous : next > previous));
+        if (fetchEarlier) {
           _beforePostNo = next;
           _hasEarlierPosts =
               window.posts.isNotEmpty && window.hasBefore && advanced;
@@ -298,6 +330,61 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       if (mounted && generation == _windowGeneration) {
         setState(() => _loadingMore = false);
       }
+    }
+  }
+
+  /// 切换评论排序:正序/倒序复用已加载窗口本地翻转,不重新请求;
+  /// 只看楼主在切到该模式时自动扫描缺失楼层,直到出现楼主回复或双向扫尽。
+  void _setCommentSort(CommentSort sort) {
+    if (_sort == sort) return;
+    setState(() => _sort = sort);
+    if (sort == CommentSort.onlyOp) {
+      unawaited(_scanForOpReplies());
+    }
+  }
+
+  bool _hasOpReply() {
+    final int authorId = _page.valueOrNull?.topic.author.id ?? 0;
+    if (authorId <= 0) return false;
+    for (final PostPayload post in _posts) {
+      // 主帖(postNo 1)总是楼主所发,只看回复楼层,否则扫描永远提前退出。
+      if (post.postNo > 1 && post.author.id == authorId) return true;
+    }
+    return false;
+  }
+
+  /// 只看楼主自动扫描:窗口内没有楼主回复时先向后加载更晚楼层;
+  /// 仍未命中且存在更早楼层时再向前(before 游标)反向扫描——
+  /// 深链/跳楼落在中间窗口时楼主回复可能在当前窗口之前,
+  /// 双向扫尽后才允许空态,保证「楼主还没有回复」真实可信。
+  /// 每轮最多扫描 5 个窗口；余下窗口由加载更多继续，避免长话题自动全量下载。
+  /// 每一步都带推进保护,加载不再前进即终止(避免死循环)。
+  Future<void> _scanForOpReplies() async {
+    if (_opScanning) return;
+    _opScanning = true;
+    final generation = _windowGeneration;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    bool active() =>
+        mounted &&
+        generation == _windowGeneration &&
+        epoch == ref.read(offlineCacheEpochProvider) &&
+        _sort == CommentSort.onlyOp;
+    var remainingWindows = 5;
+    try {
+      for (final bool backward in const <bool>[false, true]) {
+        var previousCount = _posts.length;
+        while (active() &&
+            !_hasOpReply() &&
+            (backward ? _hasEarlierPosts : _hasMorePosts)) {
+          if (remainingWindows-- == 0) return;
+          await _loadMore(earlier: backward);
+          if (!active() || _posts.length == previousCount) break;
+          previousCount = _posts.length;
+        }
+        if (!active() || _hasOpReply()) return;
+      }
+    } finally {
+      _opScanning = false;
     }
   }
 
@@ -379,6 +466,91 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       _topicAvailable &&
       (_page.valueOrNull?.permissions.canPost == true || !_viewerAuthenticated);
 
+  /// 编辑值变化:基于 caret 前文本驱动 @mention 会话(选区/无 caret 时关闭)。
+  void _onReplyValueChanged() {
+    if (!_composerOpen) return;
+    final TextEditingValue value = _replyController.value;
+    final int base = value.selection.baseOffset;
+    final int extent = value.selection.extentOffset;
+    if (base < 0 || base != extent) {
+      _mentionSession.handleValue(null);
+      return;
+    }
+    _mentionSession.handleValue(
+      value.text.substring(0, base.clamp(0, value.text.length)),
+    );
+  }
+
+  /// 焦点丢失(键盘收起/点按他处)关闭候选会话,不劫持系统返回。
+  void _onReplyFocusChanged() {
+    if (!_replyFocus.hasFocus) _mentionSession.close();
+  }
+
+  /// 物理键盘:↑/↓ 移动 active、Enter 选中、Escape 只关候选不删 @query。
+  KeyEventResult _replyMentionKeyEvent(FocusNode node, KeyEvent event) {
+    return handleMentionKeyEvent(
+      session: _mentionSession,
+      controller: _replyController,
+      event: event,
+      onSelect: _selectMentionCandidate,
+    );
+  }
+
+  /// 选中候选:原位替换 @query 为 @username(补单个空格),selection 落在插入后。
+  void _selectMentionCandidate(MentionToken token, MentionUser user) {
+    _replyController.value = applyMentionReplacement(
+      _replyController.value,
+      MentionReplacement(
+        start: token.start,
+        length: token.length,
+        replacement: '@${user.username} ',
+      ),
+    );
+  }
+
+  MentionUser _toMentionUser(UserBriefPayload user, MentionTag tag) {
+    return MentionUser(
+      id: user.id,
+      username: user.username,
+      nickname: user.nickname,
+      avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+      tag: tag,
+    );
+  }
+
+  /// 本地上下文候选:回复目标 > 主题作者 > 已加载参与者(匿名/无效 id 排除)。
+  List<MentionUser> _mentionLocalUsers() {
+    final TopicDetailProps? props = _page.valueOrNull;
+    if (props == null) return const <MentionUser>[];
+    final List<MentionUser> users = <MentionUser>[];
+    if (_replyToPostId != 0) {
+      for (final PostPayload post in _posts) {
+        if (post.id == _replyToPostId) {
+          if (!post.isAnonymous && post.author.id > 0) {
+            users.add(_toMentionUser(post.author, MentionTag.replyTarget));
+          }
+          break;
+        }
+      }
+    }
+    if (props.topic.author.id > 0) {
+      users.add(_toMentionUser(props.topic.author, MentionTag.topicAuthor));
+    }
+    for (final UserBriefPayload participant in props.topic.participants) {
+      if (participant.id > 0) {
+        users.add(_toMentionUser(participant, MentionTag.participant));
+      }
+    }
+    return users;
+  }
+
+  void _syncMentionContext() {
+    _mentionSession.updateContext(
+      local: _mentionLocalUsers(),
+      currentUserId: _viewerId,
+    );
+  }
+
   void _openComposer({PostPayload? replyTo}) {
     if (!_canReply) return;
     if (_page.valueOrNull?.permissions.canPost != true) {
@@ -397,6 +569,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     } else if (_replyController.text.trim().isEmpty) {
       _replyController.clear();
     }
+    _syncMentionContext();
     setState(() {
       _composerOpen = true;
       _railOpen = false;
@@ -422,11 +595,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     _replyToPostId = 0;
     _replyTargetName = null;
     _replyMentionPrefix = null;
+    _syncMentionContext();
   }
 
   void _closeComposer() {
     _replyFocus.unfocus();
     _clearReplyTarget();
+    _mentionSession.close();
     setState(() => _composerOpen = false);
   }
 
@@ -654,13 +829,23 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
-  /// 楼层平铺：除主帖外全部楼层按 postNo 升序线性展示；
-  /// replyToPostId 仅用于引用块、通知路由与回答标记，不再用于分组嵌套。
+  /// 楼层平铺:除主帖外全部楼层线性展示;排序由评论胶囊决定——
+  /// 正序按 postNo 升序,倒序降序,只看楼主仅保留话题作者的楼层。
+  /// replyToPostId 仅用于引用块、通知路由与回答标记,不再用于分组嵌套。
   List<PostPayload> _visiblePosts({PostPayload? mainPost}) {
-    final List<PostPayload> replyPosts = <PostPayload>[
-      for (final PostPayload post in _posts)
-        if (post.id != mainPost?.id) post,
-    ]..sort((PostPayload a, PostPayload b) => a.postNo.compareTo(b.postNo));
+    final int authorId = _sort == CommentSort.onlyOp
+        ? _page.valueOrNull?.topic.author.id ?? 0
+        : 0;
+    final List<PostPayload> replyPosts =
+        <PostPayload>[
+          for (final PostPayload post in _posts)
+            if (post.id != mainPost?.id)
+              if (authorId <= 0 || post.author.id == authorId) post,
+        ]..sort(
+          (PostPayload a, PostPayload b) => _sort == CommentSort.desc
+              ? b.postNo.compareTo(a.postNo)
+              : a.postNo.compareTo(b.postNo),
+        );
     return replyPosts;
   }
 
@@ -759,23 +944,35 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               key: _discussionKey,
                               child: _ReplySectionHeader(
                                 count: props.topic.replyCount,
+                                sort: _sort,
+                                onSortChanged: _setCommentSort,
                               ),
                             ),
                           ),
-                          if (_hasEarlierPosts)
+                          if (_sort == CommentSort.desc
+                              ? _hasMorePosts
+                              : _hasEarlierPosts)
                             SliverToBoxAdapter(
                               child: TextButton(
                                 onPressed: _loadingMore
                                     ? null
                                     : () => _loadMore(earlier: true),
-                                child: Text(l10n.topicEarlierReplies),
+                                child: Text(
+                                  _sort == CommentSort.desc
+                                      ? l10n.topicLaterReplies
+                                      : l10n.topicEarlierReplies,
+                                ),
                               ),
                             ),
                           if (replyPosts.isEmpty)
                             SliverToBoxAdapter(
                               child: GfEmpty(
                                 icon: Icons.forum_outlined,
-                                message: l10n.topicReplies(0),
+                                message: _sort == CommentSort.onlyOp
+                                    ? (_hasEarlierPosts || _hasMorePosts
+                                          ? l10n.topicOpRepliesPending
+                                          : l10n.topicOpRepliesEmpty)
+                                    : l10n.topicReplies(0),
                                 description: l10n.topicReplyHint,
                               ),
                             )
@@ -815,8 +1012,15 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                           SliverToBoxAdapter(
                             child: GfListFooter(
                               loading: _loadingMore,
-                              hasMore: _hasMorePosts,
-                              onLoadMore: _loadMore,
+                              hasMore: _sort == CommentSort.desc
+                                  ? _hasEarlierPosts
+                                  : _hasMorePosts,
+                              onLoadMore: () async {
+                                await _loadMore();
+                                if (_sort == CommentSort.onlyOp) {
+                                  await _scanForOpReplies();
+                                }
+                              },
                             ),
                           ),
                           const SliverToBoxAdapter(
@@ -832,128 +1036,171 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                 left: 12,
                 right: 12,
                 bottom: 12,
+                // Bound the open composer to the keyboard-resized viewport.
+                top: _composerOpen ? 0 : null,
                 child: SafeArea(
                   top: false,
-                  child: Center(
-                    child: _composerOpen
-                        ? ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 560),
-                            child: ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: _replyController,
-                              builder: (context, value, _) {
-                                return GfPostComposer(
-                                  hideKeyboardLabel: l10n.commonHideKeyboard,
-                                  onCollapse: _closeComposer,
-                                  collapseLabel: l10n.commonCancel,
-                                  controller: _replyController,
-                                  focusNode: _replyFocus,
-                                  targetName: _replyTargetName,
-                                  targetLabel: _replyTargetName == null
-                                      ? null
-                                      : l10n.topicReplyTarget(
-                                          _replyTargetName!,
-                                        ),
-                                  onCloseTarget: () {
-                                    _clearReplyTarget();
-                                    setState(() {});
-                                  },
-                                  onPickImage: _pickReplyImage,
-                                  imageTooltip: l10n.publishToolImage,
-                                  imageUrl: _replyImageUrl == null
-                                      ? null
-                                      : resolveApiAssetUrl(_replyImageUrl!),
-                                  onRemoveImage: _removeReplyImage,
-                                  removeImageTooltip: l10n.publishRemoveImage,
-                                  uploading: _uploadingReplyImage,
-                                  publishing: _replying,
-                                  canPublish: value.text.trim().isNotEmpty,
-                                  publishLabel: l10n.commonSend,
-                                  hintText: l10n.topicReplyHint,
-                                  onPublish: _submitReply,
-                                  toolbar: _replyCaptcha == null
-                                      ? null
-                                      : Row(
-                                          children: [
-                                            InkWell(
-                                              onTap: _replyCaptchaLoading
-                                                  ? null
-                                                  : _loadReplyCaptcha,
-                                              child: Image.memory(
-                                                base64Decode(
-                                                  _replyCaptcha!.captchaImg
-                                                      .split(',')
-                                                      .last,
-                                                ),
-                                                width: 80,
-                                                height: 42,
-                                                fit: BoxFit.contain,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: TextField(
-                                                key: const Key('reply-captcha'),
-                                                controller: _replyCaptchaCode,
-                                                decoration: InputDecoration(
-                                                  labelText: l10n.authCaptcha,
-                                                ),
-                                                textCapitalization:
-                                                    TextCapitalization
-                                                        .characters,
-                                              ),
-                                            ),
-                                            IconButton(
-                                              tooltip: l10n.commonRefresh,
-                                              onPressed: _replyCaptchaLoading
-                                                  ? null
-                                                  : _loadReplyCaptcha,
-                                              icon: const Icon(Icons.refresh),
-                                            ),
-                                          ],
-                                        ),
-                                );
-                              },
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: <Widget>[
+                        if (_composerOpen)
+                          Flexible(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 560),
+                              child: ListenableBuilder(
+                                listenable: _mentionSession,
+                                builder: (context, _) => MentionCandidatesPanel(
+                                  session: _mentionSession,
+                                  messages: MentionPanelMessages(
+                                    listboxLabel: l10n.mentionListboxLabel,
+                                    loading: l10n.mentionLoading,
+                                    noResults: l10n.mentionNoResults,
+                                    searchFailed: l10n.mentionSearchFailed,
+                                    keepTyping: l10n.mentionKeepTyping,
+                                    tagReplyTarget: l10n.mentionTagReplyTarget,
+                                    tagTopicAuthor: l10n.mentionTagTopicAuthor,
+                                    tagParticipant: l10n.mentionTagParticipant,
+                                  ),
+                                  onSelect: _selectMentionCandidate,
+                                ),
+                              ),
                             ),
-                          )
-                        : GfFloatingControls(
-                            joinLabel: l10n.topicJoinDiscussion,
-                            actions: <GfTopicAction>[
-                              if (_topicAvailable) ...[
-                                GfTopicAction(
-                                  icon: Icons.favorite_border,
-                                  symbol: _liked ? 'heart-filled' : 'heart',
-                                  active: _liked,
-                                  activeColor: colors.error,
-                                  onTap: _toggleLike,
-                                ),
-                                GfTopicAction(
-                                  icon: Icons.bookmark_border,
-                                  symbol: _bookmarked
-                                      ? 'bookmark-filled'
-                                      : 'bookmark',
-                                  active: _bookmarked,
-                                  activeColor: colors.warning,
-                                  onTap: _toggleBookmark,
-                                ),
-                                GfTopicAction(
-                                  icon: _watched
-                                      ? Icons.notifications
-                                      : Icons.notifications_none,
-                                  symbol: 'bell',
-                                  active: _watched,
-                                  activeColor: colors.primary,
-                                  onTap: _toggleWatch,
-                                ),
-                              ],
-                            ],
-                            onOpenReply: _canReply
-                                ? () => _openComposer()
-                                : null,
-                            currentNo: _currentFloor,
-                            maxNo: props.postStream.maxPostNo,
-                            onFloorTap: () =>
-                                setState(() => _railOpen = !_railOpen),
                           ),
+                        _composerOpen
+                            ? ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 560,
+                                ),
+                                child: ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: _replyController,
+                                  builder: (context, value, _) {
+                                    return GfPostComposer(
+                                      hideKeyboardLabel:
+                                          l10n.commonHideKeyboard,
+                                      onCollapse: _closeComposer,
+                                      collapseLabel: l10n.commonCancel,
+                                      controller: _replyController,
+                                      focusNode: _replyFocus,
+                                      targetName: _replyTargetName,
+                                      targetLabel: _replyTargetName == null
+                                          ? null
+                                          : l10n.topicReplyTarget(
+                                              _replyTargetName!,
+                                            ),
+                                      onCloseTarget: () {
+                                        _clearReplyTarget();
+                                        setState(() {});
+                                      },
+                                      onPickImage: _pickReplyImage,
+                                      imageTooltip: l10n.publishToolImage,
+                                      imageUrl: _replyImageUrl == null
+                                          ? null
+                                          : resolveApiAssetUrl(_replyImageUrl!),
+                                      onRemoveImage: _removeReplyImage,
+                                      removeImageTooltip:
+                                          l10n.publishRemoveImage,
+                                      uploading: _uploadingReplyImage,
+                                      publishing: _replying,
+                                      canPublish: value.text.trim().isNotEmpty,
+                                      publishLabel: l10n.commonSend,
+                                      hintText: l10n.topicReplyHint,
+                                      onPublish: _submitReply,
+                                      toolbar: _replyCaptcha == null
+                                          ? null
+                                          : Row(
+                                              children: [
+                                                InkWell(
+                                                  onTap: _replyCaptchaLoading
+                                                      ? null
+                                                      : _loadReplyCaptcha,
+                                                  child: Image.memory(
+                                                    base64Decode(
+                                                      _replyCaptcha!.captchaImg
+                                                          .split(',')
+                                                          .last,
+                                                    ),
+                                                    width: 80,
+                                                    height: 42,
+                                                    fit: BoxFit.contain,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: TextField(
+                                                    key: const Key(
+                                                      'reply-captcha',
+                                                    ),
+                                                    controller:
+                                                        _replyCaptchaCode,
+                                                    decoration: InputDecoration(
+                                                      labelText:
+                                                          l10n.authCaptcha,
+                                                    ),
+                                                    textCapitalization:
+                                                        TextCapitalization
+                                                            .characters,
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  tooltip: l10n.commonRefresh,
+                                                  onPressed:
+                                                      _replyCaptchaLoading
+                                                      ? null
+                                                      : _loadReplyCaptcha,
+                                                  icon: const Icon(
+                                                    Icons.refresh,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                    );
+                                  },
+                                ),
+                              )
+                            : GfFloatingControls(
+                                joinLabel: l10n.topicJoinDiscussion,
+                                actions: <GfTopicAction>[
+                                  if (_topicAvailable) ...[
+                                    GfTopicAction(
+                                      icon: Icons.favorite_border,
+                                      symbol: _liked ? 'heart-filled' : 'heart',
+                                      active: _liked,
+                                      activeColor: colors.error,
+                                      onTap: _toggleLike,
+                                    ),
+                                    GfTopicAction(
+                                      icon: Icons.bookmark_border,
+                                      symbol: _bookmarked
+                                          ? 'bookmark-filled'
+                                          : 'bookmark',
+                                      active: _bookmarked,
+                                      activeColor: colors.warning,
+                                      onTap: _toggleBookmark,
+                                    ),
+                                    GfTopicAction(
+                                      icon: _watched
+                                          ? Icons.notifications
+                                          : Icons.notifications_none,
+                                      symbol: 'bell',
+                                      active: _watched,
+                                      activeColor: colors.primary,
+                                      onTap: _toggleWatch,
+                                    ),
+                                  ],
+                                ],
+                                onOpenReply: _canReply
+                                    ? () => _openComposer()
+                                    : null,
+                                currentNo: _currentFloor,
+                                maxNo: props.postStream.maxPostNo,
+                                onFloorTap: () =>
+                                    setState(() => _railOpen = !_railOpen),
+                              ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1198,20 +1445,91 @@ class _TopicHeader extends StatelessWidget {
 }
 
 class _ReplySectionHeader extends StatelessWidget {
-  const _ReplySectionHeader({required this.count});
+  const _ReplySectionHeader({
+    required this.count,
+    required this.sort,
+    required this.onSortChanged,
+  });
 
   final int count;
+  final CommentSort sort;
+  final ValueChanged<CommentSort> onSortChanged;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
         children: <Widget>[
           Text(
-            AppLocalizations.of(context).topicReplies(count),
+            l10n.topicReplies(count),
             style: GfTheme.typographyOf(context).title3,
           ),
+          _CommentSortCapsule(sort: sort, onChanged: onSortChanged),
+        ],
+      ),
+    );
+  }
+}
+
+/// 评论排序胶囊(正序/倒序/只看楼主):镜像 GfSegmented 的视觉规格
+/// (base-200 轨道 + field 圆角 + 32px 项 + 选中态 base100/primary),
+/// 但按内容自适应宽度,可与标题同排展示。
+class _CommentSortCapsule extends StatelessWidget {
+  const _CommentSortCapsule({required this.sort, required this.onChanged});
+
+  final CommentSort sort;
+  final ValueChanged<CommentSort> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfRadii radii = GfTheme.radiiOf(context);
+
+    Widget item(CommentSort value, String label) {
+      final bool selected = value == sort;
+      return Semantics(
+        selected: selected,
+        button: true,
+        child: InkWell(
+          onTap: selected ? null : () => onChanged(value),
+          borderRadius: BorderRadius.circular(radii.field - 2),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected
+                    ? colors.primary
+                    : colors.baseContent.withValues(alpha: 0.55),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: colors.base200,
+        borderRadius: BorderRadius.circular(radii.field),
+        border: Border.all(color: colors.line),
+      ),
+      child: Wrap(
+        children: <Widget>[
+          item(CommentSort.asc, l10n.commentSortAsc),
+          item(CommentSort.desc, l10n.commentSortDesc),
+          item(CommentSort.onlyOp, l10n.commentSortOnlyOp),
         ],
       ),
     );

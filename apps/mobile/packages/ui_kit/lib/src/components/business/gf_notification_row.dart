@@ -100,7 +100,7 @@ class GfNotificationRow extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: unread
                                 ? FontWeight.w600
                                 : FontWeight.w400,
@@ -139,7 +139,7 @@ class GfNotificationRow extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
                         color: colors.baseContent.withValues(alpha: 0.55),
                       ),
                     ),
@@ -148,7 +148,7 @@ class GfNotificationRow extends StatelessWidget {
                   Text(
                     time,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: colors.baseContent.withValues(alpha: 0.55),
                     ),
                   ),

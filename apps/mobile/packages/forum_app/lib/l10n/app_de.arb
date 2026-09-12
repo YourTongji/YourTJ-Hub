@@ -262,6 +262,12 @@
   "sortLatest": "Neueste",
   "sortHot": "Trending",
   "sortPopular": "Beliebt",
+  "commentSortAsc": "Älteste zuerst",
+  "commentSortDesc": "Neueste zuerst",
+  "commentSortOnlyOp": "Nur Autor",
+  "topicOpRepliesPending": "Im geladenen Bereich gibt es keine Antworten des Autors. Lade weitere Beiträge.",
+  "topicOpRepliesEmpty": "Noch keine Antworten des Autors",
+  "topicLaterReplies": "Neuere Antworten laden",
   "topicFeedModeList": "Liste",
   "topicFeedModeCard": "Karten",
   "topicNewTopic": "Neues Thema",
@@ -492,6 +498,14 @@
   "wikiExploreTitle": "Dein Campusbegleiter",
   "notificationComment": "{actor} hat dein Thema kommentiert",
   "notificationMention": "{actor} hat dich erwähnt",
+  "mentionListboxLabel": "Benutzer erwähnen",
+  "mentionLoading": "Benutzer werden gesucht…",
+  "mentionNoResults": "Keine passenden Benutzer",
+  "mentionSearchFailed": "Benutzersuche fehlgeschlagen, weiter tippen",
+  "mentionKeepTyping": "Weiter tippen, um Benutzer zu suchen",
+  "mentionTagReplyTarget": "Antworte auf",
+  "mentionTagTopicAuthor": "Themenersteller",
+  "mentionTagParticipant": "Teilnehmer",
   "@notificationMention": {
     "placeholders": {
       "actor": {

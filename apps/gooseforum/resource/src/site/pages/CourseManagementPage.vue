@@ -29,6 +29,7 @@ import {
 import EmptyState from '@/site/components/EmptyState.vue'
 import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
+import { reviewSqid } from '@/site/utils/course-review-sqid'
 import type { CourseManagementPageProps, LayoutPayload } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -892,7 +893,7 @@ watch(activeTab, (tab) => {
               <span class="shrink-0 font-semibold text-base-content/70">{{ t('courseManagement.reviewCourseLabel') }}</span>
               <span class="font-mono">{{ item.courseCode }}</span>
               <span class="min-w-0 truncate text-base-content/65">{{ item.courseName }}</span>
-              <span class="shrink-0">#{{ item.id }}</span>
+              <span class="shrink-0 font-mono">#{{ reviewSqid(item.id) }}</span>
               <span class="gf-badge gf-badge-ghost shrink-0 text-[11px]">{{ reviewStatusLabel(item.status) }}</span>
               <span v-if="item.rating" class="shrink-0 text-warning">{{ '★'.repeat(item.rating) }}</span>
             </div>

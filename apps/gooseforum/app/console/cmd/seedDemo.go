@@ -76,29 +76,13 @@ func runSeedDemo(cmd *cobra.Command, args []string) {
 		})
 
 	// 3. Topics
-	topicTitles := []string{
-		"【水帖】今天也在为期末周头秃，大家有什么摸鱼妙招？",
-		"Vue 3 组合式 API 的组件设计心得分享",
-	}
-	contents := []string{
-		"## 开个楼\n\n期末周要来了，图书馆座位比春运还难抢 (｡•́︿•̀｡)。\n\n大家来说说自己的 **摸鱼** 或者 *高效复习* 的小妙招吧：\n\n- 番茄钟 25+5\n- 把手机锁进柜子\n- 组队学习互相监督\n\n> 附：学校图书馆 10 楼靠窗的位置风景很好，适合背书。\n\n```text\n早睡早起，拒绝熬夜复习\n```\n",
-		"最近在用 **组合式 API** 重构老项目，分享几个体会：\n\n1. 按**关注点**组织代码，而不是按选项块\n2. `computed` 依赖追踪比 watch 好用的多\n3. 抽 composable 时注意命名：`useXxx`\n\n代码示例：\n\n```ts\nconst { loading, data, refresh } = useTopicList()\n```\n\n欢迎交流～",
-	}
-
-	for i, title := range topicTitles {
-		resp := api.WriteTopic(component.BetterRequest[api.WriteTopicReq]{
-			UserId: userIds[i%len(userIds)],
-			Params: api.WriteTopicReq{
-				Title:      title,
-				Content:    contents[i],
-				CategoryId: []uint64{1},
-			},
-		})
+	for _, req := range buildSeedTopicRequests(userIds) {
+		resp := api.WriteTopic(req)
 		if resp.Data.Code != component.SUCCESS {
-			fmt.Printf("Failed to create topic %q: %s\n", title, resp.Data.MessageCode)
+			fmt.Printf("Failed to create topic %q: %s\n", req.Params.Title, resp.Data.MessageCode)
 			return
 		}
-		fmt.Printf("Created topic: %s\n", title)
+		fmt.Printf("Created topic: %s\n", req.Params.Title)
 	}
 
 	// 4. Nested replies on topic 1: OP gets 5 direct children (to test expand),
@@ -158,4 +142,32 @@ func runSeedDemo(cmd *cobra.Command, args []string) {
 	fmt.Println("Created topic2 reply")
 
 	fmt.Println("Seed demo data completed.")
+}
+
+// buildSeedTopicRequests 构造本地预览的种子话题写请求。TopicStatus 必须为 1
+// （已发布）：首页列表以 FilterStatus=true 过滤 status!=1 的话题，零值 0 会让
+// seed 数据灌入后不可见（issue #645）。
+func buildSeedTopicRequests(userIds []uint64) []component.BetterRequest[api.WriteTopicReq] {
+	topicTitles := []string{
+		"【水帖】今天也在为期末周头秃，大家有什么摸鱼妙招？",
+		"Vue 3 组合式 API 的组件设计心得分享",
+	}
+	contents := []string{
+		"## 开个楼\n\n期末周要来了，图书馆座位比春运还难抢 (｡•́︿•̀｡)。\n\n大家来说说自己的 **摸鱼** 或者 *高效复习* 的小妙招吧：\n\n- 番茄钟 25+5\n- 把手机锁进柜子\n- 组队学习互相监督\n\n> 附：学校图书馆 10 楼靠窗的位置风景很好，适合背书。\n\n```text\n早睡早起，拒绝熬夜复习\n```\n",
+		"最近在用 **组合式 API** 重构老项目，分享几个体会：\n\n1. 按**关注点**组织代码，而不是按选项块\n2. `computed` 依赖追踪比 watch 好用的多\n3. 抽 composable 时注意命名：`useXxx`\n\n代码示例：\n\n```ts\nconst { loading, data, refresh } = useTopicList()\n```\n\n欢迎交流～",
+	}
+
+	reqs := make([]component.BetterRequest[api.WriteTopicReq], 0, len(topicTitles))
+	for i, title := range topicTitles {
+		reqs = append(reqs, component.BetterRequest[api.WriteTopicReq]{
+			UserId: userIds[i%len(userIds)],
+			Params: api.WriteTopicReq{
+				Title:       title,
+				Content:     contents[i],
+				CategoryId:  []uint64{1},
+				TopicStatus: 1,
+			},
+		})
+	}
+	return reqs
 }

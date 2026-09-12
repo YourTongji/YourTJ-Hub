@@ -480,6 +480,12 @@
   "sortLatest": "Latest",
   "sortHot": "Hot",
   "sortPopular": "Popular",
+  "commentSortAsc": "Oldest first",
+  "commentSortDesc": "Newest first",
+  "commentSortOnlyOp": "OP only",
+  "topicOpRepliesPending": "No author replies in the loaded window. Load more to continue.",
+  "topicOpRepliesEmpty": "No replies from the author yet",
+  "topicLaterReplies": "Load newer replies",
   "topicFeedModeList": "List",
   "topicFeedModeCard": "Cards",
   "topicNewTopic": "New topic",
@@ -780,6 +786,14 @@
     }
   },
   "notificationMention": "{actor} mentioned you",
+  "mentionListboxLabel": "Mention users",
+  "mentionLoading": "Searching users…",
+  "mentionNoResults": "No matching users",
+  "mentionSearchFailed": "User search failed, keep typing",
+  "mentionKeepTyping": "Keep typing to search users",
+  "mentionTagReplyTarget": "Replying to",
+  "mentionTagTopicAuthor": "Topic author",
+  "mentionTagParticipant": "Participant",
   "@notificationMention": {
     "placeholders": {
       "actor": {

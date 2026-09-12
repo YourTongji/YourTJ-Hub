@@ -830,7 +830,7 @@ TopicCategoryPayload:
 
 TopicPayload:
   type: object
-  required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, activityText, lastUpdateTime]
+  required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, likeCount, activityText, lastUpdateTime]
   properties:
     id:
       type: integer
@@ -869,6 +869,10 @@ TopicPayload:
     viewCount:
       type: integer
       format: uint64
+    likeCount:
+      type: integer
+      format: uint64
+      description: Denormalized topic-level like counter (mirrors TopicDetailPayload.likeCount).
     activityText:
       type: string
     lastUpdateTime:
@@ -2604,7 +2608,7 @@ DeletePostRequest:
       type: integer
       format: uint64
       minimum: 1
-      description: Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+      description: Reply posts only. The topic first post fails with `post.firstPostUndeletable`, an already self-deleted reply fails with `post.alreadyDeleted`, and unknown ids fail with `post.notFound` (HTTP 200).
     force:
       type: boolean
       description: Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`).
@@ -2765,7 +2769,7 @@ FollowUserRequest:
       type: integer
       format: uint64
       minimum: 1
-      description: Target user id; unknown ids fail with `user.notFound` (HTTP 200).
+      description: "Target user id; unknown ids fail with `user.notFound` (HTTP 200). When it equals the authenticated user and action is 1, the request fails with `user.selfFollow` (HTTP 200, issue #594)."
     action:
       type: integer
       enum: [1, 2]
@@ -7835,7 +7839,7 @@ AdminSaveHttpNotifySettingsRequest:
 
 AdminOnesystemSettingsResult:
   type: object
-  required: [cookieConfigured, cookieConfiguredUndergraduate, cookieConfiguredGraduate]
+  required: [cookieConfigured, cookieConfiguredUndergraduate, cookieConfiguredGraduate, xTokenConfiguredGraduate]
   properties:
     cookieConfigured:
       type: boolean
@@ -7845,7 +7849,10 @@ AdminOnesystemSettingsResult:
       description: Whether the encrypted undergraduate 一系统 cookie is stored.
     cookieConfiguredGraduate:
       type: boolean
-      description: Whether the encrypted graduate 一系统 cookie is stored.
+      description: Legacy configured-state alias for the graduate 一系统 credential.
+    xTokenConfiguredGraduate:
+      type: boolean
+      description: Whether the encrypted graduate 一系统 X-Token is stored.
   additionalProperties: false
 
 AdminOnesystemSettingsResponse:
@@ -7867,7 +7874,12 @@ AdminSaveOnesystemSettingsRequest:
     graduateCookie:
       type: string
       maxLength: 4096
-      description: Plaintext graduate 一系统 Cookie; omitted keeps the current value, blank clears only the graduate credential.
+      deprecated: true
+      description: Legacy alias for graduateXToken; the value is treated as an X-Token, not sent as a Cookie header.
+    graduateXToken:
+      type: string
+      maxLength: 4096
+      description: Plaintext graduate 一系统 X-Token (sessionStorage `sessionid`); omitted keeps the current value, blank clears only the graduate credential.
     cookie:
       type: string
       maxLength: 4096

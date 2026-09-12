@@ -875,6 +875,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sortPopular => 'Popular';
 
   @override
+  String get commentSortAsc => 'Oldest first';
+
+  @override
+  String get commentSortDesc => 'Newest first';
+
+  @override
+  String get commentSortOnlyOp => 'OP only';
+
+  @override
+  String get topicOpRepliesPending =>
+      'No author replies in the loaded window. Load more to continue.';
+
+  @override
+  String get topicOpRepliesEmpty => 'No replies from the author yet';
+
+  @override
+  String get topicLaterReplies => 'Load newer replies';
+
+  @override
   String get topicFeedModeList => 'List';
 
   @override
@@ -1559,6 +1578,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String notificationMention(String actor) {
     return '$actor mentioned you';
   }
+
+  @override
+  String get mentionListboxLabel => 'Mention users';
+
+  @override
+  String get mentionLoading => 'Searching users…';
+
+  @override
+  String get mentionNoResults => 'No matching users';
+
+  @override
+  String get mentionSearchFailed => 'User search failed, keep typing';
+
+  @override
+  String get mentionKeepTyping => 'Keep typing to search users';
+
+  @override
+  String get mentionTagReplyTarget => 'Replying to';
+
+  @override
+  String get mentionTagTopicAuthor => 'Topic author';
+
+  @override
+  String get mentionTagParticipant => 'Participant';
 
   @override
   String notificationPostReply(String actor) {

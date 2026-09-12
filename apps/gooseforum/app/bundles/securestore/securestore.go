@@ -51,6 +51,9 @@ func Decrypt(encoded string) (string, error) {
 // 避免不同用途密文复用同一派生密钥（即使 signing key 泄露也不能跨用途解密）。
 const OneSystemCookiePurpose = "yourtj-onesystem-cookie"
 
+// OneSystemXTokenPurpose 一系统研究生查询 X-Token 的加密用途标签，与 Cookie 密文隔离。
+const OneSystemXTokenPurpose = "yourtj-onesystem-x-token"
+
 // WikiWebhookSecretPurpose wiki GitHub webhook 验签密钥的加密用途标签。
 // 与 TOTP/一系统隔离，避免不同用途密文复用同一派生密钥。
 const WikiWebhookSecretPurpose = "yourtj-wiki-webhook-secret"

@@ -1,69 +1,69 @@
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 
 export type PostViewMode = 'flat' | 'tree'
 
 const storageKey = 'goose:post-view-mode'
 
-function readStoredPreferences(): Record<string, PostViewMode> | null {
-  if (typeof window === 'undefined') return null
+// 全局默认扁平（issue #580：视图模式收敛为浏览器级全局偏好，不再按内容类型分层默认）。
+const defaultMode: PostViewMode = 'flat'
+
+function normalizeMode(value: unknown): PostViewMode | null {
+  return value === 'flat' || value === 'tree' ? value : null
+}
+
+function readStoredMode(): PostViewMode {
+  if (typeof window === 'undefined') return defaultMode
 
   try {
     const raw = window.localStorage.getItem(storageKey)
-    if (!raw) return null
+    if (!raw) return defaultMode
 
+    // 新格式：全局单值（'flat' | 'tree' 原样字符串）。
+    const direct = normalizeMode(raw)
+    if (direct) return direct
+
+    // 旧格式（issue #580 前）：按内容类型记忆的 map（如 {"1":"flat","3":"tree"}）。
+    // 各类型选择一致时继承为全局偏好，冲突/为空/损坏时回落默认，避免静默丢弃用户偏好。
     const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const parsedMode = normalizeMode(parsed)
+    if (parsedMode) return parsedMode
 
-    const normalized: Record<string, PostViewMode> = {}
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (value === 'flat' || value === 'tree') normalized[key] = value
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const modes = new Set<PostViewMode>()
+      for (const value of Object.values(parsed as Record<string, unknown>)) {
+        const mode = normalizeMode(value)
+        if (mode) modes.add(mode)
+      }
+      if (modes.size === 1) {
+        for (const mode of modes) return mode
+      }
     }
-    return normalized
+    return defaultMode
   } catch {
     // Storage 可能不可用（隐私模式/受限浏览环境），或内容损坏——静默回落默认。
-    return null
+    return defaultMode
   }
 }
 
 // 模块级共享：楼层流组件可能被 KeepAlive 缓存为多个实例，状态必须全局一份
-// （与 home-feed-mode.ts 同一模式）。
-const storedPreferences = ref<Record<string, PostViewMode> | null>(readStoredPreferences())
+// （与 home-feed-mode.ts 同一模式）。全局单值意味着任一话题切换后所有话题即时跟随，
+// Wiki 评论流（未传 contentType）的胶囊也因此恢复生效。
+const sharedViewMode = ref<PostViewMode>(readStoredMode())
 
-function defaultModeFor(contentType: number | undefined): PostViewMode {
-  // 提问话题默认树状；文章/瞬间/普通/未指定默认扁平。
-  return contentType === 1 ? 'tree' : 'flat'
+function setViewMode(mode: PostViewMode) {
+  sharedViewMode.value = mode
+
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, mode)
+  } catch {
+    // 同上，静默失败。
+  }
 }
 
-export function usePostViewMode(getContentType: () => number | undefined) {
-  // computed 双向联动：contentType 变化时自动回落该类型的记忆偏好或默认；
-  // storedPreferences 为响应式 ref，setViewMode 后所有实例即时同步。
-  const viewMode = computed<PostViewMode>(() => {
-    const contentType = getContentType()
-    const stored = storedPreferences.value
-    if (stored && contentType !== undefined) {
-      return stored[String(contentType)] ?? defaultModeFor(contentType)
-    }
-    return defaultModeFor(contentType)
-  })
-
-  function setViewMode(mode: PostViewMode) {
-    const contentType = getContentType()
-    if (contentType === undefined) return
-
-    const next = { ...(storedPreferences.value ?? {}) }
-    next[String(contentType)] = mode
-    storedPreferences.value = next
-
-    if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(next))
-    } catch {
-      // 同上，静默失败。
-    }
-  }
-
+export function usePostViewMode() {
   return {
-    viewMode,
+    viewMode: sharedViewMode,
     setViewMode,
   }
 }

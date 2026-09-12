@@ -26,6 +26,9 @@ import 'package:forum_app/src/pages/profile/profile_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
+import 'package:forum_app/src/pages/topic/mention_panel.dart';
+import 'package:forum_app/src/pages/topic/mention_search.dart';
+import 'package:forum_app/src/pages/topic/mention_session.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
@@ -775,6 +778,151 @@ Map<String, dynamic> anchoredTopicPayloadJson() {
   return json;
 }
 
+/// 三楼作者改为话题楼主(alice),供「只看楼主」过滤断言。
+Map<String, dynamic> opReplyTopicPayloadJson() {
+  final Map<String, dynamic> json = topicDetailPayloadJson();
+  final Map<String, dynamic> props = json['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> stream =
+      props['postStream'] as Map<String, dynamic>;
+  final List<dynamic> posts = stream['posts'] as List<dynamic>;
+  (posts[2] as Map<String, dynamic>)['author'] = <String, dynamic>{
+    'id': 1,
+    'username': 'alice',
+    'avatarUrl': '',
+  };
+  return json;
+}
+
+/// 记录 after 游标并返回楼主的三楼回复(供「只看楼主」自动扫描断言)。
+class LongOpScanTopicRepository extends TopicRepository {
+  LongOpScanTopicRepository(super.client);
+  int calls = 0;
+  @override
+  Future<PostWindowPayload> getPostWindow({
+    required int topicId,
+    int? anchorPostId,
+    int? anchorPostNo,
+    int? beforePostNo,
+    int? afterPostNo,
+    int? limit,
+  }) async {
+    calls++;
+    final next = (afterPostNo ?? 2) + 1;
+    return PostWindowPayload(
+      posts: [makePostPayload(9000 + next, next, 'other $next')],
+      replyTargets: [],
+      afterPostNo: next,
+      hasAfter: calls < 12,
+      hasBefore: false,
+      total: 5000,
+      maxPostNo: 5000,
+    );
+  }
+}
+
+class OpScanTopicRepository extends TopicRepository {
+  OpScanTopicRepository(super.client);
+
+  final List<int?> cursors = <int?>[];
+
+  @override
+  Future<PostWindowPayload> getPostWindow({
+    required int topicId,
+    int? anchorPostId,
+    int? anchorPostNo,
+    int? beforePostNo,
+    int? afterPostNo,
+    int? limit,
+  }) async {
+    cursors.add(afterPostNo);
+    return PostWindowPayload(
+      posts: <PostPayload>[
+        makePostPayload(9003, 3, '楼主在第三楼的回复').copyWith(
+          author: UserBriefPayload(id: 1, username: 'alice', avatarUrl: ''),
+        ),
+      ],
+      replyTargets: const <ReplyTargetPayload>[],
+      afterPostNo: 3,
+      hasBefore: false,
+      hasAfter: false,
+      total: 3,
+      maxPostNo: 3,
+    );
+  }
+}
+
+/// 深链落在中间窗口:仅含他人三楼,双向各有楼层,楼主回复在更早楼层。
+Map<String, dynamic> midWindowTopicPayloadJson() {
+  final Map<String, dynamic> json = topicDetailPayloadJson();
+  final Map<String, dynamic> props = json['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> stream =
+      props['postStream'] as Map<String, dynamic>;
+  stream
+    ..['posts'] = <Object>[makePostJson(9003, 3, '中间窗口的三楼')]
+    ..['hasBefore'] = true
+    ..['beforePostNo'] = 3
+    ..['hasAfter'] = true
+    ..['afterPostNo'] = 3
+    ..['total'] = 5
+    ..['maxPostNo'] = 5;
+  return json;
+}
+
+class MidWindowTopicPageRepository extends PageRepository {
+  MidWindowTopicPageRepository(super.client);
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path.startsWith('/p/post/')) {
+      return parsePayload(midWindowTopicPayloadJson());
+    }
+    throw UnimplementedError('unexpected page path: $path');
+  }
+}
+
+/// 深链场景:向前扫描先耗尽(after 游标),未命中后经 before 游标
+/// 反向扫描命中楼主回复。记录两个方向的调用顺序供断言。
+class BidirectionalScanTopicRepository extends TopicRepository {
+  BidirectionalScanTopicRepository(super.client);
+
+  final List<String> calls = <String>[];
+
+  @override
+  Future<PostWindowPayload> getPostWindow({
+    required int topicId,
+    int? anchorPostId,
+    int? anchorPostNo,
+    int? beforePostNo,
+    int? afterPostNo,
+    int? limit,
+  }) async {
+    if (beforePostNo != null) {
+      calls.add('before:$beforePostNo');
+      return PostWindowPayload(
+        posts: <PostPayload>[
+          makePostPayload(9002, 2, '楼主在第二楼的回复').copyWith(
+            author: UserBriefPayload(id: 1, username: 'alice', avatarUrl: ''),
+          ),
+        ],
+        replyTargets: const <ReplyTargetPayload>[],
+        hasBefore: false,
+        hasAfter: false,
+        total: 5,
+        maxPostNo: 5,
+      );
+    }
+    calls.add('after:$afterPostNo');
+    return PostWindowPayload(
+      posts: <PostPayload>[makePostPayload(9004, 4, '别人的四楼')],
+      replyTargets: const <ReplyTargetPayload>[],
+      hasBefore: false,
+      hasAfter: false,
+      total: 5,
+      maxPostNo: 5,
+    );
+  }
+}
+
 /// 记录 search 调用 page 的 TopicRepository。
 
 class ActivatingConversationPageRepository extends CountingPageRepository {
@@ -1464,6 +1612,57 @@ void main() {
       ),
     );
   }
+
+  testWidgets('mention panel fits above the keyboard on a short phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final parent = await makeContainer(
+      pageRepo: RedesignPageRepository(
+        client,
+        topicPayload: topicDetailPayloadJson(),
+      ),
+    );
+    final container = ProviderContainer(
+      parent: parent,
+      overrides: [
+        mentionUserSearchProvider.overrideWithValue(
+          (_) async => [
+            for (var i = 2; i < 10; i++)
+              MentionUser(id: i, username: 'user$i', avatarUrl: ''),
+          ],
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('回复').first);
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(GfPostComposer),
+        matching: find.byType(TextField),
+      ),
+      '@user',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(MentionCandidatesPanel));
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(288));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets('short multiline quotes expand by actual line overflow', (
     tester,
@@ -2259,6 +2458,257 @@ void main() {
       expect(textField.focusNode, isNotNull);
       expect(textField.focusNode!.hasFocus, isTrue);
       expect(textField.controller!.text, '@bob ');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+  });
+
+  group('评论排序', () {
+    testWidgets('sort controls fit 320px and enlarged English text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final container = await makeContainer(
+        pageRepo: RedesignPageRepository(
+          client,
+          topicPayload: topicDetailPayloadJson(),
+        ),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: const TopicPage(topicId: 100),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets(
+      'author scan is bounded and never claims empty while windows remain',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final topics = LongOpScanTopicRepository(client);
+        final container = await makeContainer(
+          pageRepo: RedesignPageRepository(
+            client,
+            topicPayload: pagedTopicPayloadJson(),
+          ),
+          topicRepo: topics,
+        );
+        await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('只看楼主'));
+        await tester.pumpAndSettle();
+        expect(topics.calls, lessThanOrEqualTo(5));
+        expect(find.text('楼主还没有回复'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+
+    testWidgets('倒序胶囊本地翻转楼层顺序且不重新请求', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RedesignPageRepository repo = RedesignPageRepository(
+        client,
+        topicPayload: topicDetailPayloadJson(),
+      );
+      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      // 正序:二楼在三楼之上。
+      expect(
+        tester.getTopLeft(find.text('独立回复')).dy,
+        lessThan(tester.getTopLeft(find.text('嵌套回复')).dy),
+      );
+      final int fetchesBefore = repo.paths.length;
+
+      await tester.tap(find.text('倒序'));
+      await tester.pumpAndSettle();
+
+      // 倒序:三楼翻到二楼之上,且没有发起新的 page 请求。
+      expect(
+        tester.getTopLeft(find.text('嵌套回复')).dy,
+        lessThan(tester.getTopLeft(find.text('独立回复')).dy),
+      );
+      expect(repo.paths.length, fetchesBefore);
+
+      await tester.tap(find.text('正序'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('独立回复')).dy,
+        lessThan(tester.getTopLeft(find.text('嵌套回复')).dy),
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('只看楼主过滤他人回复,无楼主回复时展示空态', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RedesignPageRepository repo = RedesignPageRepository(
+        client,
+        topicPayload: topicDetailPayloadJson(),
+      );
+      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('楼主还没有回复'), findsOneWidget);
+      expect(find.text('独立回复'), findsNothing);
+      expect(find.text('嵌套回复'), findsNothing);
+
+      // 切回正序恢复全部楼层。
+      await tester.tap(find.text('正序'));
+      await tester.pumpAndSettle();
+      expect(find.text('独立回复'), findsOneWidget);
+      expect(find.text('嵌套回复'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('只看楼主直接过滤已加载窗口中的楼主回复', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final RedesignPageRepository repo = RedesignPageRepository(
+        client,
+        topicPayload: opReplyTopicPayloadJson(),
+      );
+      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+      final int fetchesBefore = repo.paths.length;
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      // 三楼是楼主回复:直接过滤显示,他人二楼消失,且未发起窗口请求。
+      expect(find.text('嵌套回复'), findsOneWidget);
+      expect(find.text('独立回复'), findsNothing);
+      expect(repo.paths.length, fetchesBefore);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('只看楼主自动扫描窗口直到出现楼主回复', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final OpScanTopicRepository topicRepo = OpScanTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: PagedTopicPageRepository(client),
+        topicRepo: topicRepo,
+      );
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('二楼内容'), findsOneWidget);
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      // 自动扫描用 after=2 拉取窗口,楼主三楼回复出现,他人二楼被过滤。
+      expect(topicRepo.cursors, [2]);
+      expect(find.text('楼主在第三楼的回复'), findsOneWidget);
+      expect(find.text('二楼内容'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+    testWidgets('只看楼主向前扫尽后继续反向扫描更早楼层', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final BidirectionalScanTopicRepository topicRepo =
+          BidirectionalScanTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: MidWindowTopicPageRepository(client),
+        topicRepo: topicRepo,
+      );
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('中间窗口的三楼'), findsOneWidget);
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      // 先向后扫尽(after 游标),未命中再经 before 游标反向扫描命中楼主回复;
+      // 空态不得出现,他人楼层全部被过滤。
+      expect(topicRepo.calls, <String>['after:3', 'before:3']);
+      expect(find.text('楼主在第二楼的回复'), findsOneWidget);
+      expect(find.text('中间窗口的三楼'), findsNothing);
+      expect(find.text('别人的四楼'), findsNothing);
+      expect(find.text('楼主还没有回复'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));

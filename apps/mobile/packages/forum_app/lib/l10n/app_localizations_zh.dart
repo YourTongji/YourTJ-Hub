@@ -862,6 +862,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sortPopular => '流行';
 
   @override
+  String get commentSortAsc => '正序';
+
+  @override
+  String get commentSortDesc => '倒序';
+
+  @override
+  String get commentSortOnlyOp => '只看楼主';
+
+  @override
+  String get topicOpRepliesPending => '已加载楼层暂无楼主回复，可继续加载。';
+
+  @override
+  String get topicOpRepliesEmpty => '楼主还没有回复';
+
+  @override
+  String get topicLaterReplies => '加载更新回复';
+
+  @override
   String get topicFeedModeList => '列表';
 
   @override
@@ -1526,6 +1544,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String notificationMention(String actor) {
     return '$actor 提到了你';
   }
+
+  @override
+  String get mentionListboxLabel => '提到用户';
+
+  @override
+  String get mentionLoading => '正在搜索用户…';
+
+  @override
+  String get mentionNoResults => '没有匹配的用户';
+
+  @override
+  String get mentionSearchFailed => '搜索用户失败，可继续输入';
+
+  @override
+  String get mentionKeepTyping => '继续输入以搜索用户';
+
+  @override
+  String get mentionTagReplyTarget => '正在回复';
+
+  @override
+  String get mentionTagTopicAuthor => '主题作者';
+
+  @override
+  String get mentionTagParticipant => '参与者';
 
   @override
   String notificationPostReply(String actor) {
