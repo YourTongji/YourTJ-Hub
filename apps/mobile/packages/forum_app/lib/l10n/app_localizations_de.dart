@@ -1245,6 +1245,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bis zu 9 Fotos. Zum Sortieren gedrückt halten und ziehen.';
 
   @override
+  String get publishBodyDragHint =>
+      'Bild im Text gedrückt halten und in einen beliebigen Absatz ziehen.';
+
+  @override
   String get publishFormatting => 'Formatierung';
 
   @override

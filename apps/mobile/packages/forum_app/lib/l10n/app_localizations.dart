@@ -2340,6 +2340,12 @@ abstract class AppLocalizations {
   /// **'Up to 9 photos. Hold and drag to reorder.'**
   String get publishGalleryHint;
 
+  /// No description provided for @publishBodyDragHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long-press an image in the body to drag it to any paragraph.'**
+  String get publishBodyDragHint;
+
   /// No description provided for @publishFormatting.
   ///
   /// In en, this message translates to:

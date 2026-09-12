@@ -1230,6 +1230,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publishGalleryHint => 'Up to 9 photos. Hold and drag to reorder.';
 
   @override
+  String get publishBodyDragHint =>
+      'Long-press an image in the body to drag it to any paragraph.';
+
+  @override
   String get publishFormatting => 'Formatting';
 
   @override

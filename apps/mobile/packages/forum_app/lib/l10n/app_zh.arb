@@ -657,6 +657,7 @@
   "publishNext": "下一步",
   "publishGallery": "先选图片，再记录这一刻",
   "publishGalleryHint": "最多 9 张，长按拖动排序",
+  "publishBodyDragHint": "长按正文图片，可拖动到任意段落位置",
   "publishFormatting": "文字格式",
   "publishClassification": "选择分区与标签",
   "publishLeaveTitle": "保留这次创作？",

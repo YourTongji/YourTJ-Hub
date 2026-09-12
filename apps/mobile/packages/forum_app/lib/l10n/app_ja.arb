@@ -390,6 +390,7 @@
   "publishNext": "次へ",
   "publishGallery": "写真を選んで、ストーリーを添えましょう",
   "publishGalleryHint": "最大9枚。長押しして並べ替えられます。",
+  "publishBodyDragHint": "本文の画像を長押しして、任意の段落位置へドラッグできます",
   "publishFormatting": "書式設定",
   "publishClassification": "カテゴリを選択",
   "publishLeaveTitle": "編集内容を残しますか？",
