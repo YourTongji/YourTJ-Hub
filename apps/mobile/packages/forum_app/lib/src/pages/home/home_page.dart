@@ -247,8 +247,9 @@ class _HomePageState extends ConsumerState<HomePage> {
               topicId: topic.id,
               action: target ? 1 : 2,
             );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider))
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
         return false;
+      }
       if (!success) {
         _rollbackInteraction(topic.id, bookmark, snapshot);
         showGfToast(
