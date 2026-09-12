@@ -316,7 +316,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   }
 
   /// 切换评论排序:正序/倒序复用已加载窗口本地翻转,不重新请求;
-  /// 只看楼主在切到该模式时自动向后扫描窗口,直到出现楼主回复或没有更多楼层。
+  /// 只看楼主在切到该模式时自动扫描缺失楼层,直到出现楼主回复或双向扫尽。
   void _setCommentSort(CommentSort sort) {
     if (_sort == sort) return;
     setState(() => _sort = sort);
@@ -335,24 +335,32 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     return false;
   }
 
-  /// 只看楼主自动扫描:窗口内没有楼主回复时持续加载更晚楼层,
-  /// 直到找到楼主回复、没有更多楼层或加载不再推进(避免死循环)。
+  /// 只看楼主自动扫描:窗口内没有楼主回复时先向后加载更晚楼层;
+  /// 仍未命中且存在更早楼层时再向前(before 游标)反向扫描——
+  /// 深链/跳楼落在中间窗口时楼主回复可能在当前窗口之前,
+  /// 双向扫尽后才允许空态,保证「楼主还没有回复」真实可信。
+  /// 每一步都带推进保护,加载不再前进即终止(避免死循环)。
   Future<void> _scanForOpReplies() async {
     if (_opScanning) return;
     _opScanning = true;
     final generation = _windowGeneration;
     final epoch = ref.read(offlineCacheEpochProvider);
+    bool active() =>
+        mounted &&
+        generation == _windowGeneration &&
+        epoch == ref.read(offlineCacheEpochProvider) &&
+        _sort == CommentSort.onlyOp;
     try {
-      var previousCount = _posts.length;
-      while (mounted &&
-          generation == _windowGeneration &&
-          epoch == ref.read(offlineCacheEpochProvider) &&
-          _sort == CommentSort.onlyOp &&
-          _hasMorePosts &&
-          !_hasOpReply()) {
-        await _loadMore();
-        if (!mounted || _posts.length == previousCount) break;
-        previousCount = _posts.length;
+      for (final bool backward in const <bool>[false, true]) {
+        var previousCount = _posts.length;
+        while (active() &&
+            !_hasOpReply() &&
+            (backward ? _hasEarlierPosts : _hasMorePosts)) {
+          await _loadMore(earlier: backward);
+          if (!active() || _posts.length == previousCount) break;
+          previousCount = _posts.length;
+        }
+        if (!active() || _hasOpReply()) return;
       }
     } finally {
       _opScanning = false;

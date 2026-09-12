@@ -67,9 +67,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: replies offer a compact sort capsule beside the reply count — oldest first, newest
   first, author only. Oldest and newest flip the loaded window locally without refetching; in
   newest-first order the list footer loads earlier floors and the top control loads newer ones.
-  Author-only filters the loaded window to the topic author and automatically fetches later
-  windows until an author reply appears or the stream ends; an empty filtered view shows a
-  dedicated empty state and switching back restores every floor.
+  Author-only filters the loaded window to the topic author and automatically scans the remaining
+  stream — later windows first, then earlier ones — until an author reply appears or both
+  directions are exhausted; an empty filtered view shows a dedicated empty state and switching
+  back restores every floor.
 
 - `Current`: topic and reply authors open their public profiles. Owners can edit/delete their
   content; replies support likes, bookmarks, sharing and paginated revision history. Moderation

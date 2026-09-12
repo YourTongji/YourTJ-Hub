@@ -822,6 +822,78 @@ class OpScanTopicRepository extends TopicRepository {
   }
 }
 
+/// 深链落在中间窗口:仅含他人三楼,双向各有楼层,楼主回复在更早楼层。
+Map<String, dynamic> midWindowTopicPayloadJson() {
+  final Map<String, dynamic> json = topicDetailPayloadJson();
+  final Map<String, dynamic> props = json['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> stream =
+      props['postStream'] as Map<String, dynamic>;
+  stream
+    ..['posts'] = <Object>[makePostJson(9003, 3, '中间窗口的三楼')]
+    ..['hasBefore'] = true
+    ..['beforePostNo'] = 3
+    ..['hasAfter'] = true
+    ..['afterPostNo'] = 3
+    ..['total'] = 5
+    ..['maxPostNo'] = 5;
+  return json;
+}
+
+class MidWindowTopicPageRepository extends PageRepository {
+  MidWindowTopicPageRepository(super.client);
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path.startsWith('/p/post/')) {
+      return parsePayload(midWindowTopicPayloadJson());
+    }
+    throw UnimplementedError('unexpected page path: $path');
+  }
+}
+
+/// 深链场景:向前扫描先耗尽(after 游标),未命中后经 before 游标
+/// 反向扫描命中楼主回复。记录两个方向的调用顺序供断言。
+class BidirectionalScanTopicRepository extends TopicRepository {
+  BidirectionalScanTopicRepository(super.client);
+
+  final List<String> calls = <String>[];
+
+  @override
+  Future<PostWindowPayload> getPostWindow({
+    required int topicId,
+    int? anchorPostId,
+    int? anchorPostNo,
+    int? beforePostNo,
+    int? afterPostNo,
+    int? limit,
+  }) async {
+    if (beforePostNo != null) {
+      calls.add('before:$beforePostNo');
+      return PostWindowPayload(
+        posts: <PostPayload>[
+          makePostPayload(9002, 2, '楼主在第二楼的回复').copyWith(
+            author: UserBriefPayload(id: 1, username: 'alice', avatarUrl: ''),
+          ),
+        ],
+        replyTargets: const <ReplyTargetPayload>[],
+        hasBefore: false,
+        hasAfter: false,
+        total: 5,
+        maxPostNo: 5,
+      );
+    }
+    calls.add('after:$afterPostNo');
+    return PostWindowPayload(
+      posts: <PostPayload>[makePostPayload(9004, 4, '别人的四楼')],
+      replyTargets: const <ReplyTargetPayload>[],
+      hasBefore: false,
+      hasAfter: false,
+      total: 5,
+      maxPostNo: 5,
+    );
+  }
+}
+
 /// 记录 search 调用 page 的 TopicRepository。
 
 class ActivatingConversationPageRepository extends CountingPageRepository {
@@ -2452,6 +2524,41 @@ void main() {
       expect(topicRepo.cursors, [2]);
       expect(find.text('楼主在第三楼的回复'), findsOneWidget);
       expect(find.text('二楼内容'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+    testWidgets('只看楼主向前扫尽后继续反向扫描更早楼层', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final BidirectionalScanTopicRepository topicRepo =
+          BidirectionalScanTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: MidWindowTopicPageRepository(client),
+        topicRepo: topicRepo,
+      );
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('中间窗口的三楼'), findsOneWidget);
+
+      await tester.tap(find.text('只看楼主'));
+      await tester.pumpAndSettle();
+
+      // 先向后扫尽(after 游标),未命中再经 before 游标反向扫描命中楼主回复;
+      // 空态不得出现,他人楼层全部被过滤。
+      expect(topicRepo.calls, <String>['after:3', 'before:3']);
+      expect(find.text('楼主在第二楼的回复'), findsOneWidget);
+      expect(find.text('中间窗口的三楼'), findsNothing);
+      expect(find.text('别人的四楼'), findsNothing);
+      expect(find.text('楼主还没有回复'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
