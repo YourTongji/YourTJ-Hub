@@ -199,3 +199,75 @@ func TestSecretStorageShapesOmitCiphertextFromDomainJSON(t *testing.T) {
 		}
 	})
 }
+
+// TestGetSecuritySettingsConfigListFieldsAreNeverNil 验证读取路径保证四个列表
+// 字段非 nil（issue #643）：存量配置行缺键/显式 null、无行回退默认值，都不应
+// 让 JSON 序列化产出 null，否则 /login payload 违反 OpenAPI required string[]
+// 契约并使登录页前端 setup 解引用崩溃。
+func TestGetSecuritySettingsConfigListFieldsAreNeverNil(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate page config: %v", err)
+	}
+	conn.Where("page_type = ?", SecuritySettings).Delete(&Entity{})
+	entity := Entity{PageType: SecuritySettings, Config: `{}`}
+	if err := conn.Create(&entity).Error; err != nil {
+		t.Fatalf("create security config: %v", err)
+	}
+	t.Cleanup(func() { conn.Where("page_type = ?", SecuritySettings).Delete(&Entity{}) })
+
+	defaults := SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1}
+	assertNoNilLists := func(t *testing.T, config SecurityAndRegistration) {
+		t.Helper()
+		lists := map[string][]string{
+			"allowedDomains":    config.AllowedDomains,
+			"reservedUsernames": config.ReservedUsernames,
+			"bannedUsernames":   config.BannedUsernames,
+			"sensitiveWords":    config.SensitiveWords,
+		}
+		for name, list := range lists {
+			if list == nil {
+				t.Errorf("%s = nil, want non-nil empty slice", name)
+			}
+		}
+		b, err := json.Marshal(config)
+		if err != nil {
+			t.Fatalf("marshal config: %v", err)
+		}
+		if strings.Contains(string(b), "null") {
+			t.Errorf("config JSON contains null list field: %s", b)
+		}
+	}
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "list keys missing", raw: `{"enableSignup":true}`},
+		{name: "explicit null list", raw: `{"enableSignup":true,"allowedDomains":null,"reservedUsernames":null,"bannedUsernames":null,"sensitiveWords":null}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := conn.Model(&entity).Update("config", tt.raw).Error; err != nil {
+				t.Fatalf("update security config: %v", err)
+			}
+			assertNoNilLists(t, GetSecuritySettingsConfig(defaults))
+		})
+	}
+
+	t.Run("populated list preserved", func(t *testing.T) {
+		if err := conn.Model(&entity).Update("config", `{"allowedDomains":["tongji.edu.cn"]}`).Error; err != nil {
+			t.Fatalf("update security config: %v", err)
+		}
+		config := GetSecuritySettingsConfig(defaults)
+		if len(config.AllowedDomains) != 1 || config.AllowedDomains[0] != "tongji.edu.cn" {
+			t.Fatalf("allowedDomains = %#v, want [tongji.edu.cn]", config.AllowedDomains)
+		}
+		assertNoNilLists(t, config)
+	})
+
+	t.Run("no stored row falls back to non-nil default", func(t *testing.T) {
+		conn.Where("page_type = ?", SecuritySettings).Delete(&Entity{})
+		assertNoNilLists(t, GetSecuritySettingsConfig(defaults))
+	})
+}
