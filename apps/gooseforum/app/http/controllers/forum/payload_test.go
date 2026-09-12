@@ -2,7 +2,11 @@ package forum
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestIsSafeRedirect(t *testing.T) {
@@ -162,5 +166,35 @@ func TestTopicPermissionsCanPost(t *testing.T) {
 				t.Errorf("canPost = %v, want %v", canPost, tt.wantCanPost)
 			}
 		})
+	}
+}
+
+// TestLoginPagePayloadAllowedDomainsNeverNull 断言 /login 页面 payload 的
+// props.allowedDomains 恒为非 null JSON 数组（issue #643）：默认空白名单
+// 曾被序列化为 null，登录页前端 setup 解引用直接 TypeError 白屏，且违反
+// OpenAPI SecurityAndRegistration 的 required string[] 契约。
+func TestLoginPagePayloadAllowedDomainsNeverNull(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/login", Login)
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.Header.Set("X-Goose-Page", "true")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Props struct {
+			AllowedDomains []string `json:"allowedDomains"`
+		} `json:"props"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode page payload: %v", err)
+	}
+	if payload.Props.AllowedDomains == nil {
+		t.Fatalf("props.allowedDomains = null, want non-null array (issue #643); body=%s", recorder.Body.String())
 	}
 }

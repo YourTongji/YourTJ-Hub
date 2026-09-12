@@ -68,6 +68,20 @@ func TestPageConfigDefaultGettersReturnCopies(t *testing.T) {
 	}
 }
 
+func TestDefaultSecuritySettingsConfigListsAreNeverNil(t *testing.T) {
+	config := GetDefaultSecuritySettingsConfig()
+	for name, list := range map[string][]string{
+		"allowedDomains":    config.AllowedDomains,
+		"reservedUsernames": config.ReservedUsernames,
+		"bannedUsernames":   config.BannedUsernames,
+		"sensitiveWords":    config.SensitiveWords,
+	} {
+		if list == nil {
+			t.Errorf("default %s = nil, want non-nil empty slice (issue #643)", name)
+		}
+	}
+}
+
 func TestNormalizeStoredScheduleSettings(t *testing.T) {
 	rows := func(pairs ...[3]string) []pageConfig.ScheduleSectionTime {
 		times := make([]pageConfig.ScheduleSectionTime, 0, len(pairs))
