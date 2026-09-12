@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 
@@ -258,10 +259,12 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
     ),
     // Motion mirrors `resource/src/runtime/motion.ts` (see GfMotion):
     // page transitions use the standard 0.22s ease (web page-enter motion).
+    // iOS keeps the system Cupertino transition so the edge-swipe back
+    // gesture stays interactive (#642); Android keeps the Gf fade/rise.
     pageTransitionsTheme: PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
         TargetPlatform.android: const GfPageTransitionsBuilder(),
-        TargetPlatform.iOS: const GfPageTransitionsBuilder(),
+        TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
       },
     ),
     splashFactory: InkSparkle.splashFactory,
