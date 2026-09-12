@@ -79,9 +79,9 @@ func TestSaveOnesystemSettingsClearsOnEmpty(t *testing.T) {
 
 func TestSaveOnesystemSettingsOmittedFieldsKeepCredentials(t *testing.T) {
 	setupOnesystemSettingsTest(t)
-	graduate := "graduate-cookie"
-	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{GraduateCookie: &graduate}}); res.Code != http.StatusOK {
-		t.Fatalf("save graduate cookie failed: code=%d", res.Code)
+	graduate := "graduate-token"
+	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{GraduateXToken: &graduate}}); res.Code != http.StatusOK {
+		t.Fatalf("save graduate X-Token failed: code=%d", res.Code)
 	}
 	undergraduate := "undergraduate-cookie"
 	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{UndergraduateCookie: &undergraduate}}); res.Code != http.StatusOK {
@@ -91,7 +91,7 @@ func TestSaveOnesystemSettingsOmittedFieldsKeepCredentials(t *testing.T) {
 	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{}}); res.Code != http.StatusOK {
 		t.Fatalf("save omitted settings failed: code=%d", res.Code)
 	}
-	if cfg := readOnesystemSettings(); cfg.CookieEncrypted == "" || cfg.GraduateCookieEncrypted == "" {
+	if cfg := readOnesystemSettings(); cfg.CookieEncrypted == "" || cfg.GraduateXTokenEncrypted == "" {
 		t.Fatal("omitted fields cleared an existing audience credential")
 	}
 }
@@ -99,9 +99,9 @@ func TestSaveOnesystemSettingsOmittedFieldsKeepCredentials(t *testing.T) {
 func TestSaveOnesystemSettingsKeepsOtherAudience(t *testing.T) {
 	setupOnesystemSettingsTest(t)
 
-	graduate := "graduate-cookie"
-	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{GraduateCookie: &graduate}}); res.Code != http.StatusOK {
-		t.Fatalf("save graduate cookie failed: code=%d", res.Code)
+	graduate := "graduate-token"
+	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{GraduateXToken: &graduate}}); res.Code != http.StatusOK {
+		t.Fatalf("save graduate X-Token failed: code=%d", res.Code)
 	}
 	undergraduate := "undergraduate-cookie"
 	if res := SaveOnesystemSettings(component.BetterRequest[SaveOnesystemSettingsReq]{Params: SaveOnesystemSettingsReq{UndergraduateCookie: &undergraduate}}); res.Code != http.StatusOK {
@@ -109,14 +109,14 @@ func TestSaveOnesystemSettingsKeepsOtherAudience(t *testing.T) {
 	}
 
 	cfg := readOnesystemSettings()
-	if cfg.CookieEncrypted == "" || cfg.GraduateCookieEncrypted == "" {
+	if cfg.CookieEncrypted == "" || cfg.GraduateXTokenEncrypted == "" {
 		t.Fatalf("audience credentials = %#v, want both credentials configured", cfg)
 	}
 	if plain, err := securestore.DecryptPurpose(cfg.CookieEncrypted, securestore.OneSystemCookiePurpose); err != nil || plain != undergraduate {
 		t.Fatalf("undergraduate cookie decrypt = %q, err %v; want %q", plain, err, undergraduate)
 	}
-	if plain, err := securestore.DecryptPurpose(cfg.GraduateCookieEncrypted, securestore.OneSystemCookiePurpose); err != nil || plain != graduate {
-		t.Fatalf("graduate cookie decrypt = %q, err %v; want %q", plain, err, graduate)
+	if plain, err := securestore.DecryptPurpose(cfg.GraduateXTokenEncrypted, securestore.OneSystemXTokenPurpose); err != nil || plain != graduate {
+		t.Fatalf("graduate X-Token decrypt = %q, err %v; want %q", plain, err, graduate)
 	}
 }
 

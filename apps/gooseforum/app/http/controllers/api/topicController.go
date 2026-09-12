@@ -799,17 +799,33 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
 		return component.FailResponseError(err)
 	}
-	postEntity := posts.Get(req.Params.PostId)
-	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
+	// issue #553：Unscoped 读取以区分「从未存在 / 已由本人删除 / 首楼」三种失败，
+	// 重复删除保留错误但返回细分 messageCode（post.alreadyDeleted）。
+	postEntity := posts.UnscopedGet(req.Params.PostId)
+	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-	if postEntity.UserId != req.UserId {
-		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
-	}
-	// 回复删除沿用读路径可见性守卫，避免隐藏或封禁话题中的回复继续被写操作探测。
+	// 话题可见性守卫必须先于业务分类（review blocker）：首楼恒为 ACTIVE，
+	// 若 PostNo<=1 检查先行，非属主可借 firstPostUndeletable 探测隐藏话题存在性。
+	// 隐藏话题的首楼：属主仍见 firstPostUndeletable，其他人一律 post.notFound。
 	topicEntity := topics.GetSimple(postEntity.TopicId)
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	// 非活跃行不向任何人泄露状态：仅属主重复删除「自己删的、仍在恢复窗口内的
+	// 回复」返回 alreadyDeleted（与 service 行锁幂等分支共用共享谓词）；
+	// 级联删除的首楼、已 PURGED 的自删行、管理删除/隐私擦除行保持 post.notFound。
+	if postEntity.VisibilityStatus != posts.VisibilityActive {
+		if contentdeleteservice.IsSelfDeletedRecoverableReply(postEntity, req.UserId) {
+			return component.FailResponseCode(component.MessagePostAlreadyDeleted, nil)
+		}
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	if postEntity.PostNo <= 1 {
+		return component.FailResponseCode(component.MessagePostFirstPostUndeletable, nil)
+	}
+	if postEntity.UserId != req.UserId {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 
 	// PR #99 删除生命周期：软删 + 墓碑态（保留讨论树），替代 dev 的物理删除实现。

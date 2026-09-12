@@ -2,7 +2,8 @@
   "result": {
     "cookieConfigured": false,
     "cookieConfiguredUndergraduate": false,
-    "cookieConfiguredGraduate": false
+    "cookieConfiguredGraduate": false,
+    "xTokenConfiguredGraduate": false
   },
   "code": 0
 }

@@ -863,6 +863,27 @@ func TestAdminSaveOnesystemSettingsHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("graduate X-Token is stored separately from undergraduate Cookie", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.OneSystemSettings).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearOnesystemSettingsConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"graduateXToken":"contract-graduate-token"}`, "admin-agent-disable-success.json")
+		stored := pageConfig.GetByPageType(pageConfig.OneSystemSettings)
+		if !strings.Contains(stored.Config, `"graduateXTokenEncrypted"`) {
+			t.Fatalf("stored onesystem config = %q, want graduateXTokenEncrypted", stored.Config)
+		}
+		if strings.Contains(stored.Config, "contract-graduate-token") {
+			t.Fatalf("stored onesystem config = %q, want no plaintext graduate X-Token", stored.Config)
+		}
+		result := decodeSiteResult(t, serveAdminSiteRaw(t, conn, router, http.MethodGet, "/api/admin/onesystem-settings", ""))
+		if result["xTokenConfiguredGraduate"] != true || result["cookieConfiguredGraduate"] != true {
+			t.Fatalf("graduate configured state = %#v, want both true", result)
+		}
+	})
+
 	t.Run("cookie longer than 4096 characters fails validation", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		manager := createContractSiteManager(t, conn)

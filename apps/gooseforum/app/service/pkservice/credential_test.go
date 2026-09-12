@@ -57,3 +57,42 @@ func TestResolveCookiePrecedence(t *testing.T) {
 		t.Error("expected error when no credential configured")
 	}
 }
+
+func TestResolveGraduateCredentialUsesXTokenSources(t *testing.T) {
+	for _, name := range []string{envOnesystemGraduateXToken, envOnesystemXToken, envOnesystemGraduateCookie} {
+		t.Setenv(name, "")
+	}
+
+	t.Setenv(envOnesystemXToken, "env-graduate-token")
+	if got, err := ResolveCredentialForAudience("", AudienceGraduate); err != nil || got != "env-graduate-token" {
+		t.Fatalf("graduate X-Token env = %q, err %v; want env-graduate-token", got, err)
+	}
+	if got, err := ResolveCredentialForAudience("flag-graduate-token", AudienceGraduate); err != nil || got != "flag-graduate-token" {
+		t.Fatalf("graduate X-Token flag = %q, err %v; want flag-graduate-token", got, err)
+	}
+
+	os.Unsetenv(envOnesystemXToken)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate page_config: %v", err)
+	}
+	conn.Where("page_type = ?", pageConfig.OneSystemSettings).Delete(&pageConfig.Entity{})
+	enc, err := securestore.EncryptPurpose("settings-graduate-token", securestore.OneSystemXTokenPurpose)
+	if err != nil {
+		t.Fatalf("encrypt graduate token: %v", err)
+	}
+	if err := conn.Create(&pageConfig.Entity{
+		PageType: pageConfig.OneSystemSettings,
+		Config:   jsonopt.Encode(pageConfig.OneSystemSettingsStorage{GraduateXTokenEncrypted: enc}),
+	}).Error; err != nil {
+		t.Fatalf("write graduate settings: %v", err)
+	}
+	hotdataserve.ClearOnesystemSettingsConfigCache()
+	t.Cleanup(func() {
+		conn.Where("page_type = ?", pageConfig.OneSystemSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearOnesystemSettingsConfigCache()
+	})
+	if got, err := ResolveCredentialForAudience("", AudienceGraduate); err != nil || got != "settings-graduate-token" {
+		t.Fatalf("graduate X-Token setting = %q, err %v; want settings-graduate-token", got, err)
+	}
+}

@@ -685,26 +685,41 @@ func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
 	return
 }
 
-// MarkDeleted 将主题标记为用户删除，进入 30 天恢复窗口。
+// MarkUserDeleted 将主题标记为用户删除，进入 30 天恢复窗口。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE 再经恢复
+// 通道复活（review P2），未命中即返回未找到错误。
 func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityUserDeleted,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	return markDeletedTransition(id, VisibilityUserDeleted, deletedBy, reason)
 }
 
 // MarkModeratorRemoved 将主题标记为管理员删除，作者不可自行恢复。
+// PURGED 是终态（MADR-0021）：终态行不得被改写回 RECOVERABLE（review P2）。
 func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityModeratorRemoved,
-		"retention_status":  RetentionRecoverable,
-		"deleted_by":        deletedBy,
-		"delete_reason":     reason,
-	}).Error
+	return markDeletedTransition(id, VisibilityModeratorRemoved, deletedBy, reason)
+}
+
+// markDeletedTransition applies a RECOVERABLE-phase deletion transition and
+// refuses PURGED rows (sink state, MADR-0021): zero rows affected reports
+// gorm.ErrRecordNotFound so callers surface a failure instead of silently
+// rewriting a final-state topic.
+func markDeletedTransition(id uint64, visibility string, deletedBy uint64, reason string) error {
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": visibility,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // Restore 恢复主题：清除软删标记并回到正常生命周期。
@@ -729,7 +744,9 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。
-// 同时清空标题、正文摘录与图片引用，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
+// 删除终态为数据保留（MADR-0021，issue #555）：只做状态翻转，标题/摘要/图片
+// 引用保留在库中供管理员取证（view-deleted-content，理由+双审计）。用户侧
+// 公开读路径按 visibility_status 过滤，PURGED 行不可见，体验仍是"删除即删除"。
 func MarkPurged(id uint64) error {
 	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
 		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
@@ -737,10 +754,6 @@ func MarkPurged(id uint64) error {
 		Updates(map[string]any{
 			"deleted_at":       time.Now(),
 			"retention_status": RetentionPurged,
-			"title":            "",
-			"excerpt":          "",
-			"first_image_url":  "",
-			"image_urls":       "[]",
 		})
 	if result.Error != nil {
 		return result.Error
@@ -751,10 +764,11 @@ func MarkPurged(id uint64) error {
 	return nil
 }
 
-// MarkPrivacyErased immediately hides a user's content and makes it unrecoverable.
-// The visibility state remains distinct from moderator removal so governance
-// records can distinguish privacy erasure from moderation action.
-// 与永久删除一致清空标题/摘要/图片引用，保证"隐私彻底删除"后原文不留库（PRD R8）。
+// MarkPrivacyErased immediately hides a user's topic and makes it unrecoverable.
+// This is the backend fallback of the postless-topic cascade takedown
+// (issue #492); the visibility state stays distinct from moderator removal so
+// governance records can distinguish the origin. Title/excerpt are kept for
+// forensic access (MADR-0021).
 func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"deleted_at":        time.Now(),
@@ -762,10 +776,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 		"retention_status":  RetentionPurged,
 		"deleted_by":        erasedBy,
 		"delete_reason":     reason,
-		"title":             "",
-		"excerpt":           "",
-		"first_image_url":   "",
-		"image_urls":        "[]",
 	}).Error
 }
 
