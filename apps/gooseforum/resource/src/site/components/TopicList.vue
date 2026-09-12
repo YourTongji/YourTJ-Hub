@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { useSlots } from 'vue'
+import { onBeforeUnmount, shallowReactive, useSlots, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TopicPayload } from '@gooseforum/client'
+import { createTopicCardInteraction, type TopicCardInteraction } from '@/site/utils/topic-card-interactions'
 import TopicCardActions from '@/site/components/TopicCardActions.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import TopicRow from '@/site/components/TopicRow.vue'
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   topics: TopicPayload[]
+  viewerId?: number
   home?: boolean
   showCategories?: boolean
   showHot?: boolean
   showPinned?: boolean
   feedMode?: 'table' | 'card'
 }>(), {
+  viewerId: 0,
   home: false,
   showCategories: true,
   showHot: true,
@@ -23,13 +26,30 @@ withDefaults(defineProps<{
 const { t } = useI18n()
 const slots = useSlots()
 
-// 成功互动回写共享 topic 对象：card↔table 切换或重挂载时新实例读到的即最新状态。
-function applyInteraction(
-  topic: TopicPayload,
-  patch: { liked?: boolean; bookmarked?: boolean; likeCount?: number },
-) {
-  Object.assign(topic, patch)
+const interactions = shallowReactive(new Map<number, TopicCardInteraction>())
+function clearInteractions() {
+  for (const interaction of interactions.values()) interaction.dispose()
+  interactions.clear()
 }
+watch(() => props.viewerId, clearInteractions, { flush: 'sync' })
+watch(() => props.topics.map(topic => [topic, topic.liked, topic.bookmarked, topic.likeCount]), () => {
+  const ids = new Set(props.topics.map(topic => topic.id))
+  for (const [id, interaction] of interactions) {
+    if (!ids.has(id)) { interaction.dispose(); interactions.delete(id) }
+  }
+  for (const topic of props.topics) {
+    const interaction = interactions.get(topic.id)
+    if (interaction) interaction.sync(topic)
+    else interactions.set(topic.id, createTopicCardInteraction(topic, t))
+  }
+}, { immediate: true })
+// Recreate owners even when a viewer switch retains the same topic array.
+watch(() => props.viewerId, () => {
+  for (const topic of props.topics) {
+    if (!interactions.has(topic.id)) interactions.set(topic.id, createTopicCardInteraction(topic, t))
+  }
+})
+onBeforeUnmount(clearInteractions)
 </script>
 
 <template>
@@ -73,7 +93,7 @@ function applyInteraction(
         :key="topic.id"
         class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
       >
-        <TopicFeedPreview :topic="topic" compact :show-stats="false" class="pointer-events-none" />
+        <TopicFeedPreview :topic="topic" :show-categories="showCategories" :show-hot="showHot" :show-pinned="showPinned" compact :show-stats="false" class="pointer-events-none" />
         <!-- stretched-link：整卡可点，互动按钮浮于遮罩之上，避免嵌套交互元素 -->
         <a
           :href="topic.url"
@@ -83,7 +103,7 @@ function applyInteraction(
         <TopicCardActions
           :topic="topic"
           class="relative px-3.5 pb-3"
-          @interacted="(patch) => applyInteraction(topic, patch)"
+          :interaction="interactions.get(topic.id)"
         />
       </div>
     </div>

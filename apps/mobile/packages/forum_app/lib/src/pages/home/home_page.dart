@@ -27,13 +27,11 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-/// 单条互动 override：null 字段表示该动作不触碰对应状态；epoch 用于在合并时
-/// 丢弃跨离线缓存会话（登出/换号）残留的乐观状态。
+/// Per-action overrides keep a failed like independent of a concurrent bookmark.
 typedef _InteractionOverride = ({
   int revision,
   int epoch,
-  bool? liked,
-  bool? bookmarked,
+  bool value,
   int? likeCount,
 });
 
@@ -45,32 +43,32 @@ class _HomePageState extends ConsumerState<HomePage> {
   int _loadSequence = 0;
   int _interactionRevision = 0;
   final _pendingInteractions = <(int, bool)>{};
-  final _interactionOverrides = <int, _InteractionOverride>{};
+  final _interactionOverrides = <(int, bool), _InteractionOverride>{};
 
-  // Only writes completed after a read started override that response. A later
-  // refresh (including returning from topic detail) remains authoritative.
+  // Pending writes and writes completed after a read started override that
+  // response. A refresh started after completion remains authoritative.
   List<TopicPayload> _mergeInteractions(
     List<TopicPayload> incoming,
     int readRevision,
   ) => [for (final topic in incoming) _mergeInteraction(topic, readRevision)];
 
   TopicPayload _mergeInteraction(TopicPayload topic, int readRevision) {
-    final update = _interactionOverrides[topic.id];
-    if (update == null) return topic;
-    // 跨会话的乐观 override 不折叠到新会话数据上。
-    if (update.epoch != ref.read(offlineCacheEpochProvider)) {
-      _interactionOverrides.remove(topic.id);
-      return topic;
+    var result = topic;
+    for (final bookmark in [false, true]) {
+      final key = (topic.id, bookmark);
+      final update = _interactionOverrides[key];
+      if (update == null) continue;
+      if (update.epoch != ref.read(offlineCacheEpochProvider) ||
+          (!_pendingInteractions.contains(key) &&
+              update.revision <= readRevision)) {
+        _interactionOverrides.remove(key);
+        continue;
+      }
+      result = bookmark
+          ? result.copyWith(bookmarked: update.value)
+          : result.copyWith(liked: update.value, likeCount: update.likeCount!);
     }
-    if (update.revision <= readRevision) {
-      _interactionOverrides.remove(topic.id);
-      return topic;
-    }
-    return topic.copyWith(
-      liked: update.liked ?? topic.liked,
-      bookmarked: update.bookmarked ?? topic.bookmarked,
-      likeCount: update.likeCount ?? topic.likeCount,
-    );
+    return result;
   }
 
   final List<TopicPayload> _topics = <TopicPayload>[];
@@ -215,30 +213,27 @@ class _HomePageState extends ConsumerState<HomePage> {
     final index = _topics.indexWhere((t) => t.id == topic.id);
     final current = index >= 0 ? _topics[index] : topic;
     // 乐观更新先于请求落盘：图标与点赞计数立即切换并记录 override（并发刷新
-    // 据此折叠）；失败或过期会话按字段回滚快照，避免与服务端权威刷新双计。
+    // 据此折叠）；失败按字段回滚，过期会话丢弃结果，避免跨会话污染。
     final snapshot = (
       liked: current.liked,
       bookmarked: current.bookmarked,
       likeCount: current.likeCount,
-      override: _interactionOverrides[topic.id],
+      override: _interactionOverrides[key],
     );
     final optimistic = (
       revision: ++_interactionRevision,
       epoch: epoch,
-      liked: bookmark ? snapshot.override?.liked : target,
-      bookmarked: bookmark ? target : snapshot.override?.bookmarked,
+      value: target,
       likeCount: bookmark
-          ? snapshot.override?.likeCount
+          ? null
           : math.max(0, snapshot.likeCount + (target ? 1 : -1)),
     );
     setState(() {
-      _interactionOverrides[topic.id] = optimistic;
+      _interactionOverrides[key] = optimistic;
       if (index >= 0) {
-        _topics[index] = _topics[index].copyWith(
-          liked: optimistic.liked ?? _topics[index].liked,
-          bookmarked: optimistic.bookmarked ?? _topics[index].bookmarked,
-          likeCount: optimistic.likeCount ?? _topics[index].likeCount,
-        );
+        _topics[index] = bookmark
+            ? current.copyWith(bookmarked: target)
+            : current.copyWith(liked: target, likeCount: optimistic.likeCount!);
       }
     });
     try {
@@ -252,16 +247,30 @@ class _HomePageState extends ConsumerState<HomePage> {
               topicId: topic.id,
               action: target ? 1 : 2,
             );
-      if (!success ||
-          !mounted ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
-        _rollbackInteraction(topic.id, bookmark, snapshot);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
         return false;
       }
+      if (!success) {
+        _rollbackInteraction(topic.id, bookmark, snapshot);
+        showGfToast(
+          context,
+          AppLocalizations.of(context).commonLoadFailed,
+          error: true,
+        );
+        return false;
+      }
+      // A read begun before completion must still retain this action, even if
+      // it began after the optimistic update. A subsequent refresh is authoritative.
+      _interactionOverrides[key] = (
+        revision: ++_interactionRevision,
+        epoch: epoch,
+        value: optimistic.value,
+        likeCount: optimistic.likeCount,
+      );
       return true;
     } catch (error) {
-      _rollbackInteraction(topic.id, bookmark, snapshot);
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        _rollbackInteraction(topic.id, bookmark, snapshot);
         showGfToast(
           context,
           resolveErrorMessage(AppLocalizations.of(context), error),
@@ -270,12 +279,12 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       return false;
     } finally {
-      _pendingInteractions.remove(key);
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        _pendingInteractions.remove(key);
+      }
     }
   }
 
-  /// 回滚乐观更新：只还原本次动作触碰的字段（不覆盖并发落定的另一类互动）。
-  /// 跨会话同样撤销本地翻转，避免旧会话的乐观状态悬挂到新会话列表上。
   void _rollbackInteraction(
     int topicId,
     bool bookmark,
@@ -289,20 +298,20 @@ class _HomePageState extends ConsumerState<HomePage> {
   ) {
     if (!mounted) return;
     setState(() {
+      final key = (topicId, bookmark);
       if (snapshot.override == null) {
-        _interactionOverrides.remove(topicId);
+        _interactionOverrides.remove(key);
       } else {
-        _interactionOverrides[topicId] = snapshot.override!;
+        _interactionOverrides[key] = snapshot.override!;
       }
       final index = _topics.indexWhere((t) => t.id == topicId);
       if (index >= 0) {
-        _topics[index] = _topics[index].copyWith(
-          liked: bookmark ? _topics[index].liked : snapshot.liked,
-          bookmarked: bookmark
-              ? snapshot.bookmarked
-              : _topics[index].bookmarked,
-          likeCount: bookmark ? _topics[index].likeCount : snapshot.likeCount,
-        );
+        _topics[index] = bookmark
+            ? _topics[index].copyWith(bookmarked: snapshot.bookmarked)
+            : _topics[index].copyWith(
+                liked: snapshot.liked,
+                likeCount: snapshot.likeCount,
+              );
       }
     });
   }
@@ -315,6 +324,11 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(offlineCacheEpochProvider, (_, _) {
+      _pendingInteractions.clear();
+      _interactionOverrides.clear();
+      _load();
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     return RootSurface(
       title: 'YourTJ',
