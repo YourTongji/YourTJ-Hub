@@ -65,7 +65,7 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 ```
 apps/
   gooseforum/  The forum itself (upstream fork; module path github.com/YourTongji/YourTJ-Hub/apps/gooseforum)
-    main.go            Entry point (cobra: serve / mock / rebuild-search-index subcommands)
+    main.go            Entry point (cobra: serve / migrate / seed-demo / mock-topics / mock-posts / rebuild-search-index ...)
     config.toml       Runtime config (gitignored; bring your own locally)
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package
