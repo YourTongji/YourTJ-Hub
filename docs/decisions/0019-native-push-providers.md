@@ -32,6 +32,11 @@ push consent; optional analytics, geolocation and dynamic loading are disabled. 
 includes a provider; omitted values preserve legacy iOS APNs / Android FCM routing. The backend
 retains FCM for existing registrations. No automatic migration of tokens between providers occurs.
 
+On iOS there is no SDK to initialize; the first launch after login requests the system permission
+once, and granting it counts as push consent (issue #658). A one-shot local marker prevents
+repeated prompting on later launches and upgrades. Android remains strictly opt-in: its SDK and
+device collection start only after the user enables push in Settings.
+
 JPush's AppKey and OEM client identifiers enter Android builds through the signing environment.
 The Master Secret remains in the production server environment. OEM credentials also require
 configuration in the provider console; SDK integration alone does not establish offline delivery.
