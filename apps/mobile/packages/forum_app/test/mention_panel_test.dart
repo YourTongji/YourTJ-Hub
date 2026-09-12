@@ -3,6 +3,7 @@
 // 覆盖:会话开合跟随、候选行信息(avatar/昵称/@username/上下文标签)、
 // Semantics 身份标签、点选回调、320 logical px + textScale 2.0 无关键溢出。
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -58,6 +59,89 @@ Widget host(
 }
 
 void main() {
+  testWidgets(
+    'mouse selection keeps composer focus and replaces the mention token',
+    (tester) async {
+      final session = MentionSessionController(searchUsers: (_) async => []);
+      final controller = TextEditingController();
+      final focus = FocusNode();
+      addTearDown(session.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(focus.dispose);
+      session.updateContext(local: [user(2, 'author')], currentUserId: 1);
+      controller.addListener(() {
+        final value = controller.value;
+        session.handleValue(
+          value.selection.isValid
+              ? value.text.substring(0, value.selection.extentOffset)
+              : null,
+        );
+      });
+      focus.addListener(() {
+        if (!focus.hasFocus) session.close();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                MentionCandidatesPanel(
+                  session: session,
+                  messages: messages,
+                  onSelect: (token, user) {
+                    controller.value = applyMentionReplacement(
+                      controller.value,
+                      MentionReplacement(
+                        start: token.start,
+                        length: token.length,
+                        replacement: '@${user.username} ',
+                      ),
+                    );
+                  },
+                ),
+                GfPostComposer(
+                  controller: controller,
+                  focusNode: focus,
+                  onPublish: () {},
+                  publishLabel: 'Send',
+                  hintText: 'Reply',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'hello @');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('author'), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(controller.text, 'hello @author ');
+      expect(controller.selection.extentOffset, controller.text.length);
+      expect(focus.hasFocus, isTrue);
+      expect(session.open, isFalse);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('failed search is visible even with matching local candidates', (
+    tester,
+  ) async {
+    final session = MentionSessionController(
+      searchUsers: (_) async => throw Exception('offline'),
+    );
+    addTearDown(session.dispose);
+    session.updateContext(local: [user(2, 'author')], currentUserId: 1);
+    await tester.pumpWidget(host(session));
+    session.handleValue('@au');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(find.text('author'), findsOneWidget);
+    expect(find.text(messages.searchFailed), findsOneWidget);
+  });
+
   testWidgets('会话关闭时面板不渲染', (tester) async {
     final session = MentionSessionController(searchUsers: (q) async => []);
     addTearDown(session.dispose);

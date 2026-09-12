@@ -385,6 +385,31 @@ void main() {
       expect(session.activeIndex, 0);
     });
 
+    testWidgets(
+      'context updates retain completed server results and clear them for a new query',
+      (tester) async {
+        final session = MentionSessionController(
+          searchUsers: (q) async => [user(21, 'wavery')],
+        );
+        addTearDown(session.dispose);
+        session.handleValue('@wa');
+        await tester.pump(const Duration(milliseconds: 350));
+        session.updateContext(
+          local: [user(22, 'wade', tag: MentionTag.replyTarget)],
+          currentUserId: 0,
+        );
+        expect(session.candidates.map((u) => u.id), [22, 21]);
+        session.updateContext(local: [], currentUserId: 21);
+        expect(session.candidates, isEmpty);
+        session.handleValue('@waz');
+        session.updateContext(local: [user(23, 'wazoo')], currentUserId: 0);
+        expect(session.candidates.map((u) => u.id), [23]);
+        session.close();
+        session.handleValue('@');
+        expect(session.candidates.map((u) => u.id), [23]);
+      },
+    );
+
     testWidgets('dispose 后在途搜索落地不再通知(不触发 used-after-dispose)', (tester) async {
       final completer = Completer<List<MentionUser>>();
       final session = MentionSessionController(

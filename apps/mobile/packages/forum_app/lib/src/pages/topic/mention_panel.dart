@@ -108,10 +108,19 @@ class MentionCandidatesPanel extends StatelessWidget {
                     label: messages.listboxLabel,
                     child: candidates.isEmpty
                         ? _MentionHintRow(message: _hintMessage(queryEmpty))
-                        : _MentionCandidateList(
-                            session: session,
-                            messages: messages,
-                            onSelect: onSelect,
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: _MentionCandidateList(
+                                  session: session,
+                                  messages: messages,
+                                  onSelect: onSelect,
+                                ),
+                              ),
+                              if (session.failed)
+                                _MentionHintRow(message: messages.searchFailed),
+                            ],
                           ),
                   ),
                 ),

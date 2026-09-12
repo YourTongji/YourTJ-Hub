@@ -338,6 +338,7 @@ class MentionSessionController extends ChangeNotifier {
   MentionToken? _token;
   String _query = '';
   List<MentionUser> _candidates = const <MentionUser>[];
+  List<MentionUser> _server = const <MentionUser>[];
   int _activeIndex = 0;
   bool _loading = false;
   bool _failed = false;
@@ -383,10 +384,10 @@ class MentionSessionController extends ChangeNotifier {
         currentUserId: _currentUserId,
       );
     } else {
-      // 有 query：先按本地匹配重排；在途服务端响应落地时会按新上下文合并。
+      // 上下文重排保留当前 query 已完成的搜索结果；在途响应同样使用新上下文。
       _candidates = rankMentionCandidates(
         local: _local,
-        server: const <MentionUser>[],
+        server: _server,
         query: _query,
         currentUserId: _currentUserId,
       );
@@ -411,6 +412,7 @@ class MentionSessionController extends ChangeNotifier {
     if (token.query.trim().isEmpty) {
       // 仅输入 @：本地上下文（最多 5），不查服务端。
       _cancelPendingSearch();
+      _server = const <MentionUser>[];
       _failed = false;
       _candidates = rankMentionCandidates(
         local: _local,
@@ -423,6 +425,7 @@ class MentionSessionController extends ChangeNotifier {
       return;
     }
     if (token.query != _lastScheduledQuery) {
+      _server = const <MentionUser>[];
       // query 变化立即以本地匹配渲染并废弃在途旧响应（防 debounce 窗口内
       // 旧结果覆盖新 query）。
       _candidates = rankMentionCandidates(
@@ -449,6 +452,7 @@ class MentionSessionController extends ChangeNotifier {
     try {
       final users = await _searchUsers(query);
       if (seq != _searchSeq) return;
+      _server = users;
       _candidates = rankMentionCandidates(
         local: _local,
         server: users,
@@ -491,6 +495,7 @@ class MentionSessionController extends ChangeNotifier {
     _open = false;
     _token = null;
     _query = '';
+    _server = const <MentionUser>[];
     _candidates = const <MentionUser>[];
     _activeIndex = 0;
     _failed = false;

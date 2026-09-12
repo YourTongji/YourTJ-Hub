@@ -104,7 +104,8 @@ ranking. Only `@` shows up to five local candidates; further input debounces ser
 search through `/api/forum/search?scope=users`, discards stale responses, dedupes by
 user id and excludes the viewer. The candidate sheet lives above the software keyboard
 inside the composer column, scrolls independently with 52dp rows, and search failures
-keep local matches editable. Physical-key support covers arrow selection, Enter commit
+keep local matches editable and show an error even when local candidates remain. Updating the
+reply target re-ranks the current search results without discarding them. Physical-key support covers arrow selection, Enter commit
 and Escape that closes candidates without deleting the query; unhandled keys and the
 system back channel are never intercepted. Insertion replaces the query with plain
 `@username` Markdown plus a trailing space and lands the caret after it; row semantics
