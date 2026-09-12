@@ -40,7 +40,8 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   localized error. Home summaries
   batch-load the viewer's like/bookmark state; absent state (anonymous, unavailable or older
   servers) suppresses the shortcuts. Selected states survive offscreen card recycling, and
-  returning from detail refreshes them. In-flight reads cannot overwrite newer successful actions.
+  returning from detail refreshes them. In-flight reads cannot overwrite pending or newer successful actions. Likes and bookmarks
+  settle independently; switching accounts discards all pending interaction state and reloads the feed.
   Metrics and actions wrap at narrow widths and enlarged text sizes.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
   same gallery is used in the publishing preview.

@@ -1,98 +1,28 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bookmark, Eye, Heart, MessageSquare } from '@lucide/vue'
 import { formatNumber } from '@/runtime/format'
-import { bookmarkTopic, likeTopic } from '@/runtime/api'
 import type { TopicPayload } from '@gooseforum/client'
+import { createTopicCardInteraction, type TopicCardInteraction } from '@/site/utils/topic-card-interactions'
 
-// 卡片级快捷互动（issue #380）：初始态来自列表 payload 的观察者字段；
-// liked/bookmarked 缺席（访客或状态不可用）时点击引导登录，不假设 false。
-// 点赞乐观更新 ±1，失败回滚；语义与详情页 PostStream 一致（action 1/2 幂等切换）。
-const props = defineProps<{ topic: TopicPayload }>()
-
-const emit = defineEmits<{
-  interacted: [patch: { liked?: boolean; bookmarked?: boolean; likeCount?: number }]
-}>()
-
+const props = defineProps<{ topic: TopicPayload; interaction?: TopicCardInteraction }>()
 const { t } = useI18n()
-
-const liked = ref(props.topic.liked)
-const bookmarked = ref(props.topic.bookmarked)
-const likeCount = ref(props.topic.likeCount)
-const actingLike = ref(false)
-const actingBookmark = ref(false)
-
-// 就地刷新（排序切换/静默重载）按 topic.id 复用实例：非操作中跟随服务端 payload，
-// 避免卡片状态过期；操作进行中跳过，完成后由下一次刷新收敛（对齐移动端 override 语义）。
-watch(
-  () => props.topic,
-  (next) => {
-    if (actingLike.value || actingBookmark.value) return
-    liked.value = next.liked
-    bookmarked.value = next.bookmarked
-    likeCount.value = next.likeCount
-  },
-)
-
-// topic.url 当前不带 query；容错拼接，未来带 query 时不会产生 "??reply=1"。
-const commentUrl = computed(() =>
-  props.topic.url.includes('?')
-    ? `${props.topic.url}&reply=1`
-    : `${props.topic.url}?reply=1`,
-)
-
-function jumpToLogin() {
-  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  window.location.href = `/login?redirect=${encodeURIComponent(current)}`
-}
-
-async function toggleLike() {
-  if (actingLike.value) return
-  if (liked.value === undefined) {
-    jumpToLogin()
-    return
-  }
-  const previousLiked = liked.value
-  const previousCount = likeCount.value
-  const nextLiked = !previousLiked
-  actingLike.value = true
-  liked.value = nextLiked
-  likeCount.value = Math.max(0, previousCount + (nextLiked ? 1 : -1))
-  try {
-    await likeTopic(props.topic.id, nextLiked ? 1 : 2)
-    emit('interacted', { liked: nextLiked, likeCount: likeCount.value })
-  } catch {
-    liked.value = previousLiked
-    likeCount.value = previousCount
-  } finally {
-    actingLike.value = false
-  }
-}
-
-async function toggleBookmark() {
-  if (actingBookmark.value) return
-  if (bookmarked.value === undefined) {
-    jumpToLogin()
-    return
-  }
-  const previousBookmarked = bookmarked.value
-  const nextBookmarked = !previousBookmarked
-  actingBookmark.value = true
-  bookmarked.value = nextBookmarked
-  try {
-    await bookmarkTopic(props.topic.id, nextBookmarked ? 1 : 2)
-    emit('interacted', { bookmarked: nextBookmarked })
-  } catch {
-    bookmarked.value = previousBookmarked
-  } finally {
-    actingBookmark.value = false
-  }
-}
+// Standalone cards own their state; feed cards receive the list's longer-lived owner.
+const local = props.interaction ? undefined : createTopicCardInteraction(props.topic, t)
+const interaction = computed(() => props.interaction ?? local!)
+const state = computed(() => interaction.value.state)
+watch(() => [props.topic, props.topic.liked, props.topic.bookmarked, props.topic.likeCount], () => local?.sync(props.topic))
+onBeforeUnmount(() => local?.dispose())
+const commentUrl = computed(() => {
+  const url = new URL(props.topic.url, window.location.href)
+  url.searchParams.set('reply', '1')
+  return `${url.pathname}${url.search}${url.hash}`
+})
 </script>
 
 <template>
-  <div class="flex items-center gap-0.5 text-xs text-base-content/55">
+  <div class="flex flex-wrap items-center gap-0.5 text-xs text-base-content/55">
     <a
       :href="commentUrl"
       class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content"
@@ -111,25 +41,26 @@ async function toggleBookmark() {
     <button
       type="button"
       class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content disabled:cursor-default disabled:opacity-60"
-      :class="liked ? 'text-error' : ''"
-      :disabled="actingLike"
-      :aria-pressed="liked === true"
+      :class="state.liked ? 'text-error' : ''"
+      :disabled="state.actingLike"
+      :aria-pressed="state.liked === true"
       :title="t('topic.like')"
-      @click="toggleLike"
+      @click="interaction.toggle(false)"
     >
-      <Heart class="h-4 w-4" :class="liked ? 'fill-current' : ''" />
-      <span class="tabular-nums">{{ likeCount }}</span>
+      <Heart class="h-4 w-4" :class="state.liked ? 'fill-current' : ''" />
+      <span class="tabular-nums">{{ formatNumber(state.likeCount) }}</span>
     </button>
     <button
       type="button"
       class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content disabled:cursor-default disabled:opacity-60"
-      :class="bookmarked ? 'text-primary' : ''"
-      :disabled="actingBookmark"
-      :aria-pressed="bookmarked === true"
-      :title="bookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
-      @click="toggleBookmark"
+      :class="state.bookmarked ? 'text-primary' : ''"
+      :disabled="state.actingBookmark"
+      :aria-pressed="state.bookmarked === true"
+      :title="state.bookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
+      @click="interaction.toggle(true)"
     >
-      <Bookmark class="h-4 w-4" :class="bookmarked ? 'fill-current' : ''" />
+      <Bookmark class="h-4 w-4" :class="state.bookmarked ? 'fill-current' : ''" />
     </button>
+    <p v-if="state.error" role="alert" class="w-full px-2 pt-1 text-error">{{ state.error }}</p>
   </div>
 </template>

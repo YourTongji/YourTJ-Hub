@@ -9,6 +9,7 @@ import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
 
 class _Tokens implements TokenStorage {
@@ -26,6 +27,7 @@ GfApiClient _client() =>
 class _Pages extends PageRepository {
   _Pages() : super(_client());
   bool liked = true;
+  int likeCount = 5;
   bool bookmarked = true;
   bool known = true;
   Completer<PagePayload>? pending;
@@ -39,6 +41,7 @@ class _Pages extends PageRepository {
           ...first,
           'id': 100 + i,
           'title': 'Topic $i',
+          'likeCount': likeCount,
           if (known) 'liked': liked,
           if (known) 'bookmarked': bookmarked,
         },
@@ -184,6 +187,81 @@ void main() {
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.favorite), findsOneWidget);
+  });
+
+  testWidgets('refresh while like is pending preserves its icon and count', (
+    tester,
+  ) async {
+    final pages = _Pages()..liked = false;
+    final topics = _Topics(pages)..pending = Completer<bool>();
+    await pump(tester, pages, topics);
+    await tester.tap(find.byTooltip('点赞').first);
+    await tester.pump();
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
+      6,
+    );
+    topics.pending!.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite), findsOneWidget);
+  });
+
+  testWidgets(
+    'failed like cannot discard a concurrent successful bookmark override',
+    (tester) async {
+      final pages = _Pages()
+        ..liked = false
+        ..bookmarked = false;
+      final topics = _Topics(pages)..pending = Completer<bool>();
+      await pump(tester, pages, topics);
+      final stale = pages.payload();
+      pages.pending = Completer<PagePayload>();
+      final refresh = tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      await tester.tap(find.byTooltip('点赞').first);
+      await tester.pump();
+      await tester.tap(find.byTooltip('收藏').first);
+      await tester.pumpAndSettle();
+      topics.pending!.complete(false);
+      await tester.pumpAndSettle();
+      pages.pending!.complete(stale);
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('取消收藏'), findsOneWidget);
+    },
+  );
+
+  testWidgets('old-session failure cannot roll back the new viewer data', (
+    tester,
+  ) async {
+    final pages = _Pages()..liked = false;
+    final topics = _Topics(pages)..pending = Completer<bool>();
+    final container = await pump(tester, pages, topics);
+    await tester.tap(find.byTooltip('点赞').first);
+    await tester.pump();
+    pages.liked = true;
+    pages.likeCount = 20;
+    container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+    topics.pending!.complete(false);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).liked,
+      isTrue,
+    );
+    expect(
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
+      20,
+    );
   });
 
   testWidgets('old-session action result is ignored', (tester) async {
