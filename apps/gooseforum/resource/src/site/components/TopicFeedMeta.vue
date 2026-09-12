@@ -11,11 +11,13 @@ withDefaults(defineProps<{
   showCategories?: boolean
   showHot?: boolean
   showPinned?: boolean
+  showStats?: boolean
 }>(), {
   compact: false,
   showCategories: true,
   showHot: true,
   showPinned: true,
+  showStats: true,
 })
 
 const { t } = useI18n()
@@ -97,7 +99,7 @@ const { t } = useI18n()
 
     <slot name="media" />
 
-    <div class="mt-3 flex items-center gap-1 border-t border-line/70 pt-2.5 text-xs text-base-content/55">
+    <div v-if="showStats" class="mt-3 flex items-center gap-1 border-t border-line/70 pt-2.5 text-xs text-base-content/55">
       <span
         class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"
         :title="t('topicList.columns.replies') + ': ' + formatNumber(topic.replyCount)"

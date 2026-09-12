@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
@@ -92,5 +93,24 @@ void main() {
         GfColors.dark.primary,
       );
     });
+
+    test(
+      'iOS keeps the Cupertino transition so the system back gesture works (#642)',
+      () {
+        for (final Brightness brightness in Brightness.values) {
+          final PageTransitionsTheme transitions = gfThemeData(
+            brightness,
+          ).pageTransitionsTheme;
+          expect(
+            transitions.builders[TargetPlatform.iOS],
+            isA<CupertinoPageTransitionsBuilder>(),
+          );
+          expect(
+            transitions.builders[TargetPlatform.android],
+            isA<GfPageTransitionsBuilder>(),
+          );
+        }
+      },
+    );
   });
 }

@@ -331,6 +331,11 @@ onMounted(() => {
   setupPostBottomLoadFallback()
   window.addEventListener('scroll', scheduleActivePostFromScroll, { passive: true })
   window.addEventListener('resize', scheduleActivePostFromScroll)
+  // issue #380：列表卡片「评论」快捷入口经 ?reply=1 直达详情页回复框；
+  // 访客由 PostComposer 内置登录门引导。
+  if (new URLSearchParams(window.location.search).get('reply') === '1') {
+    void nextTick(openFloatingPostComposer)
+  }
   if (props.autoLoadFirstWindow && !initialPosts.length) {
     void loadFirstWindow()
   }

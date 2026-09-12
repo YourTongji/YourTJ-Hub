@@ -9,11 +9,13 @@ const props = withDefaults(defineProps<{
   showCategories?: boolean
   showHot?: boolean
   showPinned?: boolean
+  showStats?: boolean
 }>(), {
   compact: false,
   showCategories: true,
   showHot: true,
   showPinned: true,
+  showStats: true,
 })
 
 const images = computed(() => {
@@ -48,6 +50,7 @@ const singleImageClass = computed(() => {
         :show-categories="showCategories"
         :show-hot="showHot"
         :show-pinned="showPinned"
+        :show-stats="showStats"
         class="min-w-0 flex-1"
       />
       <img
@@ -67,6 +70,7 @@ const singleImageClass = computed(() => {
         :show-categories="showCategories"
         :show-hot="showHot"
         :show-pinned="showPinned"
+        :show-stats="showStats"
       >
         <template #media>
           <div v-if="hasImages" class="mt-3 grid gap-1.5" :class="gridClass">

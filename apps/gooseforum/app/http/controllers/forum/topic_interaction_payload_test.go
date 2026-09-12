@@ -18,7 +18,7 @@ func TestTrackedTopicInteractionState(t *testing.T) {
 	topicUserAction.SetLiked(owner, 91, true)
 	topicUserAction.SetBookmarked(owner, 92, true)
 	topicUserAction.SetLiked(owner+1, 92, true)
-	input := []*vo.TopicsSimpleVo{{Id: 91}, {Id: 92}, {Id: 93}}
+	input := []*vo.TopicsSimpleVo{{Id: 91, LikeCount: 5}, {Id: 92}, {Id: 93}}
 	raw, err := json.Marshal(buildTrackedTopicPayloads(owner, input))
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +31,14 @@ func TestTrackedTopicInteractionState(t *testing.T) {
 		if got[i]["liked"] != want[0] || got[i]["bookmarked"] != want[1] {
 			t.Fatalf("topic %d state: %s", i, raw)
 		}
+	}
+	for i, item := range got {
+		if _, ok := item["likeCount"]; !ok {
+			t.Fatalf("topic %d missing likeCount: %s", i, raw)
+		}
+	}
+	if got[0]["likeCount"] != float64(5) {
+		t.Fatalf("topic 0 likeCount: %s", raw)
 	}
 	raw, err = json.Marshal(buildTrackedTopicPayloads(0, input))
 	if err != nil {
