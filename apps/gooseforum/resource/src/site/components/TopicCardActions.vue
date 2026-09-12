@@ -45,6 +45,7 @@ const commentUrl = computed(() => {
       :disabled="state.actingLike"
       :aria-pressed="state.liked === true"
       :title="t('topic.like')"
+      :aria-label="`${t('topic.like')} ${formatNumber(state.likeCount)}`"
       @click="interaction.toggle(false)"
     >
       <Heart class="h-4 w-4" :class="state.liked ? 'fill-current' : ''" />
