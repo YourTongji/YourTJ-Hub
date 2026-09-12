@@ -93,6 +93,21 @@ async function toggleBookmark() {
 
 <template>
   <div class="flex items-center gap-0.5 text-xs text-base-content/55">
+    <a
+      :href="commentUrl"
+      class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content"
+      :title="t('topic.reply')"
+    >
+      <MessageSquare class="h-4 w-4" />
+      <span class="tabular-nums">{{ formatNumber(topic.replyCount) }}</span>
+    </a>
+    <span
+      class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"
+      :title="t('topicList.columns.views')"
+    >
+      <Eye class="h-4 w-4" />
+      <span class="tabular-nums">{{ formatNumber(topic.viewCount) }}</span>
+    </span>
     <button
       type="button"
       class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content disabled:cursor-default disabled:opacity-60"
@@ -116,22 +131,5 @@ async function toggleBookmark() {
     >
       <Bookmark class="h-4 w-4" :class="bookmarked ? 'fill-current' : ''" />
     </button>
-    <div class="ml-auto flex items-center gap-0.5">
-      <a
-        :href="commentUrl"
-        class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-base-200 hover:text-base-content"
-        :title="t('topic.reply')"
-      >
-        <MessageSquare class="h-4 w-4" />
-        <span class="tabular-nums">{{ formatNumber(topic.replyCount) }}</span>
-      </a>
-      <span
-        class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"
-        :title="t('topicList.columns.views')"
-      >
-        <Eye class="h-4 w-4" />
-        <span class="tabular-nums">{{ formatNumber(topic.viewCount) }}</span>
-      </span>
-    </div>
   </div>
 </template>
