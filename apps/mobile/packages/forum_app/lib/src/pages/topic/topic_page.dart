@@ -938,31 +938,36 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                 left: 12,
                 right: 12,
                 bottom: 12,
+                // Bound the open composer to the keyboard-resized viewport.
+                top: _composerOpen ? 0 : null,
                 child: SafeArea(
                   top: false,
-                  child: Center(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         if (_composerOpen)
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 560),
-                            child: ListenableBuilder(
-                              listenable: _mentionSession,
-                              builder: (context, _) => MentionCandidatesPanel(
-                                session: _mentionSession,
-                                messages: MentionPanelMessages(
-                                  listboxLabel: l10n.mentionListboxLabel,
-                                  loading: l10n.mentionLoading,
-                                  noResults: l10n.mentionNoResults,
-                                  searchFailed: l10n.mentionSearchFailed,
-                                  keepTyping: l10n.mentionKeepTyping,
-                                  tagReplyTarget: l10n.mentionTagReplyTarget,
-                                  tagTopicAuthor: l10n.mentionTagTopicAuthor,
-                                  tagParticipant: l10n.mentionTagParticipant,
+                          Flexible(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 560),
+                              child: ListenableBuilder(
+                                listenable: _mentionSession,
+                                builder: (context, _) => MentionCandidatesPanel(
+                                  session: _mentionSession,
+                                  messages: MentionPanelMessages(
+                                    listboxLabel: l10n.mentionListboxLabel,
+                                    loading: l10n.mentionLoading,
+                                    noResults: l10n.mentionNoResults,
+                                    searchFailed: l10n.mentionSearchFailed,
+                                    keepTyping: l10n.mentionKeepTyping,
+                                    tagReplyTarget: l10n.mentionTagReplyTarget,
+                                    tagTopicAuthor: l10n.mentionTagTopicAuthor,
+                                    tagParticipant: l10n.mentionTagParticipant,
+                                  ),
+                                  onSelect: _selectMentionCandidate,
                                 ),
-                                onSelect: _selectMentionCandidate,
                               ),
                             ),
                           ),

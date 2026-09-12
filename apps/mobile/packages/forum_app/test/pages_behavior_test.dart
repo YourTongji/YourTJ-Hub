@@ -26,6 +26,9 @@ import 'package:forum_app/src/pages/profile/profile_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
+import 'package:forum_app/src/pages/topic/mention_panel.dart';
+import 'package:forum_app/src/pages/topic/mention_search.dart';
+import 'package:forum_app/src/pages/topic/mention_session.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
@@ -1464,6 +1467,57 @@ void main() {
       ),
     );
   }
+
+  testWidgets('mention panel fits above the keyboard on a short phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final parent = await makeContainer(
+      pageRepo: RedesignPageRepository(
+        client,
+        topicPayload: topicDetailPayloadJson(),
+      ),
+    );
+    final container = ProviderContainer(
+      parent: parent,
+      overrides: [
+        mentionUserSearchProvider.overrideWithValue(
+          (_) async => [
+            for (var i = 2; i < 10; i++)
+              MentionUser(id: i, username: 'user$i', avatarUrl: ''),
+          ],
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('回复').first);
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(GfPostComposer),
+        matching: find.byType(TextField),
+      ),
+      '@user',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.byType(MentionCandidatesPanel));
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(288));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets('short multiline quotes expand by actual line overflow', (
     tester,
