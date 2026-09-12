@@ -22,7 +22,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   reduced motion disable automatic rotation. Refresh replaces the active announcement safely.
 - `Current`: mobile body text uses 17 logical pixels with system text scaling. Feed cards use
   compact vertical padding and one timestamp; embedded Markdown uses smaller paragraph margins
-  so short replies do not acquire a large empty footer.
+  so short replies do not acquire a large empty footer. Notification rows, conversation rows and
+  chat bubbles share the feed's type scale (16 px titles, 15 px secondary text, 13 px timestamps),
+  so the messaging surfaces read at the same size as the home feed.
 
 - `Current`: pushed pages use platform-native transitions on iOS — the system
   Cupertino page transition with the interactive edge-swipe back gesture, so
@@ -51,6 +53,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   Metrics and actions wrap at narrow widths and enlarged text sizes.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
   same gallery is used in the publishing preview.
+- `Current`: the Home filter rail lists the site's sidebar categories as tappable pills in a second
+  row. Pills navigate to their category page; the row collapses when the server publishes no
+  categories, keeping the original single-row rail height.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
   hide after 48 logical pixels downward and return after 12 pixels upward, with 200 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
@@ -68,6 +73,14 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   shortcuts, reply links, and earlier/later pagination navigate the actual reply stream. Returning
   to the first post from a middle window reloads that window before offering refresh; stale
   pagination responses are discarded after a floor or session change.
+- `Current`: replies offer a compact sort capsule beside the reply count — oldest first, newest
+  first, author only. Oldest and newest flip the loaded window locally without refetching; in
+  newest-first order the list footer loads earlier floors and the top control loads newer ones.
+  Author-only filters the loaded window to the topic author and automatically scans the remaining
+  stream — later windows first, then earlier ones — for at most five windows per automatic scan.
+  Loading more continues the search. While windows remain, an empty filtered view invites further
+  loading; it only reports no author replies once both directions are exhausted. Switching back
+  restores every loaded floor. Sort controls wrap with narrow screens and enlarged text.
 
 - `Current`: topic and reply authors open their public profiles. Owners can edit/delete their
   content; replies support likes, bookmarks, sharing and paginated revision history. Moderation

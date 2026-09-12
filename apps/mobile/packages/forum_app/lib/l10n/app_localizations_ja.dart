@@ -864,6 +864,24 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sortPopular => '注目';
 
   @override
+  String get commentSortAsc => '古い順';
+
+  @override
+  String get commentSortDesc => '新しい順';
+
+  @override
+  String get commentSortOnlyOp => '投稿者のみ';
+
+  @override
+  String get topicOpRepliesPending => '読み込み済みの範囲に投稿者の返信はありません。続きを読み込めます。';
+
+  @override
+  String get topicOpRepliesEmpty => '投稿者の返信はまだありません';
+
+  @override
+  String get topicLaterReplies => '新しい返信を読み込む';
+
+  @override
   String get topicFeedModeList => 'リスト';
 
   @override

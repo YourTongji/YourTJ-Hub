@@ -1674,6 +1674,42 @@ abstract class AppLocalizations {
   /// **'Popular'**
   String get sortPopular;
 
+  /// No description provided for @commentSortAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest first'**
+  String get commentSortAsc;
+
+  /// No description provided for @commentSortDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest first'**
+  String get commentSortDesc;
+
+  /// No description provided for @commentSortOnlyOp.
+  ///
+  /// In en, this message translates to:
+  /// **'OP only'**
+  String get commentSortOnlyOp;
+
+  /// No description provided for @topicOpRepliesPending.
+  ///
+  /// In en, this message translates to:
+  /// **'No author replies in the loaded window. Load more to continue.'**
+  String get topicOpRepliesPending;
+
+  /// No description provided for @topicOpRepliesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No replies from the author yet'**
+  String get topicOpRepliesEmpty;
+
+  /// No description provided for @topicLaterReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Load newer replies'**
+  String get topicLaterReplies;
+
   /// No description provided for @topicFeedModeList.
   ///
   /// In en, this message translates to:

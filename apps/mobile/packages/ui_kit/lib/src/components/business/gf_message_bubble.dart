@@ -46,7 +46,7 @@ class GfMessageBubble extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 14,
+          fontSize: 15,
           height: 1.4,
           color: mine ? colors.primaryContent : colors.baseContent,
         ),
@@ -65,7 +65,7 @@ class GfMessageBubble extends StatelessWidget {
               Text(
                 time!,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: colors.baseContent.withValues(alpha: 0.55),
                 ),
               ),
