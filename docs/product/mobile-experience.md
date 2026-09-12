@@ -132,8 +132,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: publishing uses an unframed title and writing canvas. Article formatting tools remain
   folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
-  selection. Image and draft actions remain in the accessory bar; the empty simple gallery is a compact
-  selection tile. Rich and simple body text use the same mobile reading scale. Preview hides the accessory bar.
+  selection. The accessory bar holds the draft action and, for articles only, the image tool; moments
+  and questions pick images from the gallery tile above the body. Rich and simple body text use the
+  same mobile reading scale. Preview hides the accessory bar.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
   Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
@@ -152,9 +153,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: simple galleries support up to nine uploaded images, reordering and removal. Images
   survive switching to the article editor. Switching back extracts images into the gallery and
   plain text into the body; conversion is rejected when more than nine images would be lost.
-- `Current`: Next opens the preview/classification step. Up to three existing categories can be
-  selected below the rendered image/title/body preview. Publish writes only after this step; saving a draft retains the server's title,
-  body and classification requirements. Moments can derive their title from the first text line.
+- `Current`: Next opens the preview/classification step. The step shows one publish action in the
+  AppBar, with the draft action beside it; up to three existing categories can be selected below the
+  rendered image/title/body preview. Publish writes only after this step; saving a draft retains the
+  server's title, body and classification requirements. Moments can derive their title from the first
+  text line.
 - `Current`: publishing limits, captcha requests and other API failures use the Web error catalog
   in the selected language, including server-provided parameters.
 - `Current`: unsaved changes prompt before leaving. A server-required captcha is shown in the
