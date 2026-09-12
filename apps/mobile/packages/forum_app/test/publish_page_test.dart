@@ -610,4 +610,67 @@ void main() {
     expect(find.text('标题不能为空'), findsOneWidget);
     expect(find.byType(GfStatusMessage), findsOneWidget);
   });
+
+  testWidgets('预览页只保留右上角发布按钮，保存草稿移入 AppBar', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const Key('publish-footer-submit')), findsNothing);
+    expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
+    final Finder saveDraft = find.byKey(const Key('publish-save-draft'));
+    expect(saveDraft, findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(GfAppBar), matching: saveDraft),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('瞬间/提问编辑态只保留顶部画廊图片入口', (tester) async {
+    for (final type in [1, 2]) {
+      await pumpPublishPage(tester, editing: false, contentType: type);
+      expect(find.byTooltip('添加图片'), findsNothing);
+      expect(find.text('先选图片，再记录这一刻'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+  });
+
+  testWidgets('文章类型保留底部工具栏图片入口', (tester) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    expect(find.byTooltip('添加图片'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('宽屏预览同样只有右上角发布与保存草稿', (tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const Key('publish-footer-submit')), findsNothing);
+    expect(find.byKey(const Key('publish-save-draft')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(GfAppBar),
+        matching: find.byKey(const Key('publish-save-draft')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 }

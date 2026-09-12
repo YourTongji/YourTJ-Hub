@@ -571,6 +571,17 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 size: 44,
                 onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
               ),
+            if (_mode == _ComposeMode.preview)
+              GfButton(
+                key: const Key('publish-save-draft'),
+                label: l10n.publishSaveDraft,
+                variant: GfButtonVariant.ghost,
+                size: GfButtonSize.small,
+                loading: _submitting,
+                onPressed: _uploading
+                    ? null
+                    : () => _submit(topicStatus: 0),
+              ),
             GfButton(
               key: const Key('publish-appbar-submit'),
               label: _mode == _ComposeMode.edit
@@ -705,7 +716,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       ),
                     if (_error.isNotEmpty || _message.isNotEmpty)
                       const SizedBox(height: 12),
-                    if (_mode == _ComposeMode.preview) _buildFooter(l10n),
                   ],
                 ),
               ),
@@ -909,16 +919,14 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       ),
                     ),
                   ),
-                _toolButton(
-                  icon: _uploading
-                      ? Icons.hourglass_top_rounded
-                      : Icons.image_outlined,
-                  tooltip: l10n.publishToolImage,
-                  onPressed:
-                      _uploading || (_contentType != 3 && _images.length >= 9)
-                      ? null
-                      : _pickAndInsertImage,
-                ),
+                if (_contentType == 3)
+                  _toolButton(
+                    icon: _uploading
+                        ? Icons.hourglass_top_rounded
+                        : Icons.image_outlined,
+                    tooltip: l10n.publishToolImage,
+                    onPressed: _uploading ? null : _pickAndInsertImage,
+                  ),
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
@@ -1261,38 +1269,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 ? null
                 : _pickAndInsertImage,
           ),
-      ],
-    );
-  }
-
-  Widget _buildFooter(AppLocalizations l10n) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: <Widget>[
-        GfButton(
-          key: const Key('publish-save-draft'),
-          label: l10n.publishSaveDraft,
-          variant: GfButtonVariant.secondary,
-          size: GfButtonSize.large,
-          loading: _submitting,
-          onPressed: _uploading ? null : () => _submit(topicStatus: 0),
-        ),
-        const SizedBox(width: 8),
-        GfButton(
-          key: const Key('publish-footer-submit'),
-          label: _mode == _ComposeMode.edit
-              ? l10n.publishNext
-              : l10n.publishPublish,
-          variant: GfButtonVariant.primary,
-          size: GfButtonSize.large,
-          loading: _submitting,
-          icon: const Icon(Icons.send_rounded, size: 18),
-          onPressed: _uploading
-              ? null
-              : () => _mode == _ComposeMode.edit
-                    ? _selectMode(_ComposeMode.preview)
-                    : _submit(topicStatus: 1),
-        ),
       ],
     );
   }
