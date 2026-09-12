@@ -288,7 +288,10 @@ void main() {
       final keyboardTop =
           tester.view.physicalSize.height / tester.view.devicePixelRatio -
           250 / tester.view.devicePixelRatio;
-      expect(tester.getBottomLeft(tools).dy, lessThanOrEqualTo(keyboardTop + 0.01));
+      expect(
+        tester.getBottomLeft(tools).dy,
+        lessThanOrEqualTo(keyboardTop + 0.01),
+      );
       await tester.tap(find.text('文字格式'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('粗体'));
@@ -308,6 +311,60 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+  testWidgets('heading level picker applies h1/h2/h3 from the toolbar', (
+    tester,
+  ) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      0,
+      'Selected words',
+      const TextSelection(baseOffset: 0, extentOffset: 8),
+    );
+    await tester.tap(find.byType(QuillEditor));
+    editor.controller.updateSelection(
+      const TextSelection(baseOffset: 0, extentOffset: 8),
+      ChangeSource.local,
+    );
+    tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字格式'));
+    await tester.pumpAndSettle();
+
+    int? headerLevel() =>
+        editor.controller
+                .getSelectionStyle()
+                .attributes[Attribute.header.key]
+                ?.value
+            as int?;
+
+    // 轻点保持默认行为:应用二级标题。
+    await tester.tap(find.byTooltip('标题 · 长按选级别'));
+    await tester.pump();
+    expect(headerLevel(), 2);
+
+    // 长按打开级别菜单,提供 H1-H3 三个选项。
+    await tester.longPress(find.byTooltip('标题 · 长按选级别'));
+    await tester.pumpAndSettle();
+    expect(find.text('一级标题'), findsOneWidget);
+    expect(find.text('二级标题'), findsOneWidget);
+    expect(find.text('三级标题'), findsOneWidget);
+    await tester.tap(find.text('一级标题'));
+    await tester.pumpAndSettle();
+    expect(headerLevel(), 1);
+
+    // 再次长按可切换到三级标题。
+    await tester.longPress(find.byTooltip('标题 · 长按选级别'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('三级标题'));
+    await tester.pumpAndSettle();
+    expect(headerLevel(), 3);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   for (final type in [2, 3]) {
     testWidgets('dismiss keyboard preserves type $type draft', (tester) async {

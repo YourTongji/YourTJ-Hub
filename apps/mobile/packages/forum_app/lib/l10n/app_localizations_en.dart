@@ -1352,7 +1352,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publishRedo => 'Redo';
 
   @override
-  String get publishHeading => 'Heading';
+  String get publishHeading => 'Heading · hold to pick level';
+
+  @override
+  String get publishHeadingLevel1 => 'Heading 1';
+
+  @override
+  String get publishHeadingLevel2 => 'Heading 2';
+
+  @override
+  String get publishHeadingLevel3 => 'Heading 3';
 
   @override
   String get publishToolLink => 'Insert link';

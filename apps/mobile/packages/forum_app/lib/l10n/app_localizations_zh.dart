@@ -1328,7 +1328,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishRedo => '重做';
 
   @override
-  String get publishHeading => '标题';
+  String get publishHeading => '标题 · 长按选级别';
+
+  @override
+  String get publishHeadingLevel1 => '一级标题';
+
+  @override
+  String get publishHeadingLevel2 => '二级标题';
+
+  @override
+  String get publishHeadingLevel3 => '三级标题';
 
   @override
   String get publishToolLink => '插入链接';

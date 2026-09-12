@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_quill/quill_delta.dart' as quill_delta;
 
 void main() {
   final converter = MarkdownConverter();
@@ -31,6 +32,24 @@ void main() {
   group('markdown 往返转换', () {
     test('标题层级', () {
       expectRoundTrip('# 一级\n\n## 二级\n\n### 三级', ['# 一级', '## 二级', '### 三级']);
+    });
+
+    test('保存方向:编辑器多级标题 Delta → markdown', () {
+      // 直接构造 Delta,独立于加载侧验证保存链路的 H1/H2/H3。
+      final delta = quill_delta.Delta()
+        ..insert('一级标题')
+        ..insert('\n', <String, dynamic>{'header': 1})
+        ..insert('二级标题')
+        ..insert('\n', <String, dynamic>{'header': 2})
+        ..insert('三级标题')
+        ..insert('\n', <String, dynamic>{'header': 3})
+        ..insert('普通段落')
+        ..insert('\n');
+      final output = converter.deltaToMarkdown(delta);
+      expect(output, contains('# 一级标题'));
+      expect(output, contains('## 二级标题'));
+      expect(output, contains('### 三级标题'));
+      expect(output, contains('普通段落'));
     });
 
     test('粗体与斜体', () {

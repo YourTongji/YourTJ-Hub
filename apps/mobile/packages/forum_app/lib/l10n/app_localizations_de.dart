@@ -1368,7 +1368,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get publishRedo => 'Wiederholen';
 
   @override
-  String get publishHeading => 'Überschrift';
+  String get publishHeading => 'Überschrift · Ebene durch Halten wählen';
+
+  @override
+  String get publishHeadingLevel1 => 'Überschrift 1';
+
+  @override
+  String get publishHeadingLevel2 => 'Überschrift 2';
+
+  @override
+  String get publishHeadingLevel3 => 'Überschrift 3';
 
   @override
   String get publishToolLink => 'Link einfügen';

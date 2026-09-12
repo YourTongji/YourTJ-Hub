@@ -132,8 +132,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: publishing uses an unframed title and writing canvas. Article formatting tools remain
   folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
-  selection. Image and draft actions remain in the accessory bar; the empty simple gallery is a compact
-  selection tile. Rich and simple body text use the same mobile reading scale. Preview hides the accessory bar.
+  selection. The heading tool applies heading 2 with a tap and opens a level sheet on long press that
+  offers heading 1–3 (matching the Markdown round-trip); the current level is checked and re-picking
+  it clears the heading. Image and draft actions remain in the accessory bar; the empty simple gallery
+  is a compact selection tile. Rich and simple body text use the same mobile reading scale. Preview
+  hides the accessory bar.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
   Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
