@@ -1,0 +1,103 @@
+[
+  {
+    "id": "siping",
+    "boundaryId": "relation/18788116",
+    "bounds": [
+      121.4915,
+      31.2794,
+      121.5035,
+      31.2896
+    ],
+    "bearing": -22,
+    "suggestions": [
+      "同济大学图书馆",
+      "同济大学游泳馆",
+      "129体育馆",
+      "经纬楼"
+    ]
+  },
+  {
+    "id": "jiading",
+    "boundaryId": "way/384531657",
+    "bounds": [
+      121.2008,
+      31.2794,
+      121.2181,
+      31.2937
+    ],
+    "bearing": -25,
+    "suggestions": [
+      "图书馆",
+      "嘉定同济体育中心",
+      "济人楼（中德学院）",
+      "济事楼（软件学院）"
+    ]
+  },
+  {
+    "id": "huxi",
+    "boundaryId": "relation/18781565",
+    "bounds": [
+      121.3803,
+      31.2708,
+      121.389,
+      31.2764
+    ],
+    "bearing": -25,
+    "suggestions": [
+      "图书馆",
+      "同济沪西操场",
+      "体育馆"
+    ]
+  },
+  {
+    "id": "hubei",
+    "boundaryId": "way/538413905",
+    "bounds": [
+      121.4532,
+      31.2621,
+      121.4558,
+      31.2651
+    ],
+    "bearing": -18,
+    "suggestions": [
+      "图书馆",
+      "科研楼",
+      "齐贤楼",
+      "运动场"
+    ]
+  },
+  {
+    "id": "zhangjiang",
+    "boundaryId": "plan/zhangjiang/site",
+    "bounds": [
+      0,
+      0,
+      0.0024,
+      0.0023
+    ],
+    "bearing": 0,
+    "suggestions": [
+      "闻智楼",
+      "广智楼",
+      "博智楼",
+      "见智楼"
+    ],
+    "coordinateMode": "schematic"
+  },
+  {
+    "id": "lingang",
+    "boundaryId": "way/1107715623",
+    "bounds": [
+      121.9188,
+      30.8641,
+      121.9229,
+      30.867
+    ],
+    "bearing": -26,
+    "suggestions": [
+      "实验楼",
+      "数据中心",
+      "生活配套楼"
+    ]
+  }
+]

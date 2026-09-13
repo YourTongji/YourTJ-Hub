@@ -1,0 +1,659 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "plan/hubei/1",
+      "properties": {
+        "name": "科研楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45426678169022,
+              31.264651680673953
+            ],
+            [
+              121.45484589305022,
+              31.26484462982382
+            ],
+            [
+              121.45487851798006,
+              31.264711077738884
+            ],
+            [
+              121.45431805843683,
+              31.26452717298431
+            ],
+            [
+              121.45426678169022,
+              31.264651680673953
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/2",
+      "properties": {
+        "name": "第一宿舍楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "dormitory"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45348465868962,
+              31.26445254903447
+            ],
+            [
+              121.45413237122048,
+              31.264658261309435
+            ],
+            [
+              121.45419629368767,
+              31.264519383559012
+            ],
+            [
+              121.45354548760469,
+              31.26431070676643
+            ],
+            [
+              121.45348465868962,
+              31.26445254903447
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/3",
+      "properties": {
+        "name": "临教楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.4534529086321,
+              31.264501588252042
+            ],
+            [
+              121.45431861787601,
+              31.264774933393603
+            ],
+            [
+              121.45434748555749,
+              31.264702530000772
+            ],
+            [
+              121.45347865259343,
+              31.2644291345784
+            ],
+            [
+              121.4534529086321,
+              31.264501588252042
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/4",
+      "properties": {
+        "name": "圆苑饮食广场",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes",
+        "amenity": "food_court"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45372796059686,
+              31.264188310870907
+            ],
+            [
+              121.45403924656175,
+              31.264298251477154
+            ],
+            [
+              121.45416630712784,
+              31.264096266133254
+            ],
+            [
+              121.45378957388023,
+              31.263970698445917
+            ],
+            [
+              121.45372796059686,
+              31.264188310870907
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/5",
+      "properties": {
+        "name": "锅炉房",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45354541085368,
+              31.264016318568245
+            ],
+            [
+              121.45368861929161,
+              31.264065259274506
+            ],
+            [
+              121.4537621844313,
+              31.263900304235268
+            ],
+            [
+              121.45360338756072,
+              31.26384819788814
+            ],
+            [
+              121.45354541085368,
+              31.264016318568245
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/6",
+      "properties": {
+        "name": "第二宿舍楼A楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "dormitory"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45442159372138,
+              31.26448511869903
+            ],
+            [
+              121.45477661176811,
+              31.264595763236652
+            ],
+            [
+              121.4548215204024,
+              31.264482811932606
+            ],
+            [
+              121.4544634993076,
+              31.26436046016695
+            ],
+            [
+              121.45442159372138,
+              31.26448511869903
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/7",
+      "properties": {
+        "name": "第二宿舍楼B楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "dormitory"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45450825710182,
+              31.264262080046933
+            ],
+            [
+              121.45491307366262,
+              31.264391014498386
+            ],
+            [
+              121.45495494908081,
+              31.26426927020311
+            ],
+            [
+              121.45455334674419,
+              31.264131643322052
+            ],
+            [
+              121.45450825710182,
+              31.264262080046933
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/8",
+      "properties": {
+        "name": "第三宿舍楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "dormitory"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45460122825857,
+              31.264033313482845
+            ],
+            [
+              121.45516177830582,
+              31.264208475527006
+            ],
+            [
+              121.45523843699763,
+              31.264046485005387
+            ],
+            [
+              121.45465905412554,
+              31.26387976398677
+            ],
+            [
+              121.45460122825857,
+              31.264033313482845
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/9",
+      "properties": {
+        "name": "擎禾楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45372593667817,
+              31.263780217156487
+            ],
+            [
+              121.45438608375355,
+              31.263991959028314
+            ],
+            [
+              121.4544440906286,
+              31.263820924111403
+            ],
+            [
+              121.45378100084115,
+              31.263591646537932
+            ],
+            [
+              121.45372593667817,
+              31.263780217156487
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/10",
+      "properties": {
+        "name": "汇能楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45377580928128,
+              31.263489547688106
+            ],
+            [
+              121.45450855611999,
+              31.26362959009848
+            ],
+            [
+              121.45455415861855,
+              31.2634496113479
+            ],
+            [
+              121.45384937442097,
+              31.26332459264887
+            ],
+            [
+              121.45377580928128,
+              31.263489547688106
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/11",
+      "properties": {
+        "name": "连学楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45386829774984,
+              31.26330740891291
+            ],
+            [
+              121.4539834530426,
+              31.26335006861825
+            ],
+            [
+              121.45408221911943,
+              31.263165116167873
+            ],
+            [
+              121.45394219473765,
+              31.26311039726881
+            ],
+            [
+              121.45386829774984,
+              31.26330740891291
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/12",
+      "properties": {
+        "name": "图书馆",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes",
+        "amenity": "library"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45393606796942,
+              31.263098639759964
+            ],
+            [
+              121.45424104615802,
+              31.263214308278197
+            ],
+            [
+              121.4543344094989,
+              31.262947656635635
+            ],
+            [
+              121.454023063198,
+              31.262843544503
+            ],
+            [
+              121.45393606796942,
+              31.263098639759964
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/13",
+      "properties": {
+        "name": "齐贤楼",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45417265350127,
+              31.262577797915064
+            ],
+            [
+              121.45473923981272,
+              31.26277346017849
+            ],
+            [
+              121.45480661784816,
+              31.262602576104015
+            ],
+            [
+              121.45424297424879,
+              31.262424449542237
+            ],
+            [
+              121.45417265350127,
+              31.262577797915064
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/14",
+      "properties": {
+        "name": "继续教育学院（网络教育学院）",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45424366811304,
+              31.262357422095707
+            ],
+            [
+              121.45462043152867,
+              31.262480075546236
+            ],
+            [
+              121.45469017908397,
+              31.262382097672717
+            ],
+            [
+              121.45427911508291,
+              31.26225306265964
+            ],
+            [
+              121.45424366811304,
+              31.262357422095707
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/15",
+      "properties": {
+        "name": "运动场",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "leisure": "pitch",
+        "sport": "running",
+        "map:track": "straight"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.45487080073637,
+              31.26334394871134
+            ],
+            [
+              121.45529420877791,
+              31.263487756031697
+            ],
+            [
+              121.4555656680874,
+              31.262917925250036
+            ],
+            [
+              121.45517683214341,
+              31.262754271360976
+            ],
+            [
+              121.45487080073637,
+              31.26334394871134
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/path-0",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.45419131330388,
+            31.26439688505155
+          ],
+          [
+            121.45488849826786,
+            31.262539770195414
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/path-1",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.45365688298712,
+            31.263811167583476
+          ],
+          [
+            121.45527960479855,
+            31.26429489906524
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/path-2",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.45382438465991,
+            31.263324190402372
+          ],
+          [
+            121.45489265302427,
+            31.26364743158563
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/path-3",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.454064395592,
+            31.262774256470227
+          ],
+          [
+            121.45505460112105,
+            31.26309332639637
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/hubei/path-4",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.4535449747485,
+            31.264360248792126
+          ],
+          [
+            121.45425048874552,
+            31.262302152158025
+          ]
+        ]
+      }
+    }
+  ]
+}

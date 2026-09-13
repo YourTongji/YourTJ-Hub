@@ -22,7 +22,7 @@ const (
 // 分层策略：
 //   - 所有响应（HTML 页面 / API JSON / 图片与对象存储下载 / 静态资源 / 错误页共用本中间件）：
 //     X-Content-Type-Options: nosniff、X-Frame-Options: DENY（旧浏览器点击劫持兜底）、
-//     Referrer-Policy: strict-origin-when-cross-origin、Permissions-Policy: camera/microphone/geolocation 全禁。
+//     Referrer-Policy: strict-origin-when-cross-origin、Permissions-Policy 默认全禁，/map 文档仅允许同源 geolocation。
 //     X-Frame-Options 对非文档响应（JSON/图片）无副作用；nosniff 是下载型响应的 MIME 防混淆基线。
 //   - HTML 页面路由（forum viewRoute 等引擎级 GET，含 404/500 页面渲染）额外附加 Content-Security-Policy，
 //     frame-ancestors 'none' 与 X-Frame-Options: DENY 组成点击劫持双保险（全仓前端无任何 <iframe> 用法）。
@@ -39,6 +39,10 @@ const (
 func SecurityHeaders(c *gin.Context) {
 	headers := c.Writer.Header()
 	setUniversalSecurityHeaders(headers)
+	// Location is opt-in on the atlas document; all other documents remain denied.
+	if c.Request.Method == http.MethodGet && c.Request.URL.Path == "/map" {
+		headers.Set(headerPermissionsPolicy, "camera=(), microphone=(), geolocation=(self)")
+	}
 	if isHTMLPageRoute(c) {
 		// 页面控制器渲染模板前不写 Content-Type，响应提交后再补头对已发送响应无效，
 		// 因此必须在 c.Next() 之前按路由形态决策（与响应状态无关，404/500 页面同样覆盖）。
