@@ -36,6 +36,26 @@ func TestSecurityHeadersOnAllResponses(t *testing.T) {
 	}
 }
 
+func TestSecurityHeadersGeolocationOnlyOnCampusDocument(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(SecurityHeaders)
+	for _, path := range []string{"/map", "/", "/api/forum/search", "/assets/map.js"} {
+		router.GET(path, func(c *gin.Context) { c.Status(http.StatusOK) })
+	}
+	for _, path := range []string{"/map?campus=jiading", "/", "/api/forum/search", "/assets/map.js"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		want := "camera=(), microphone=(), geolocation=()"
+		if strings.HasPrefix(path, "/map?") {
+			want = "camera=(), microphone=(), geolocation=(self)"
+		}
+		if got := recorder.Header().Get("Permissions-Policy"); got != want {
+			t.Errorf("%s Permissions-Policy = %q, want %q", path, got, want)
+		}
+	}
+}
+
 func TestSecurityHeadersPageCSPAppliedToHTMLRoutes(t *testing.T) {
 	withSecurityEnv(t, "production", func() {
 		router := gin.New()

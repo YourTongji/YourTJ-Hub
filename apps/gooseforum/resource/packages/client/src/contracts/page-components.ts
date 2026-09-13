@@ -45,6 +45,7 @@ export const pageComponents = [
   'theme.preview',
   'publish.index',
   'search.index',
+  'campus.map',
   'course.index',
   'course.detail',
   'course.reviewModeration',
@@ -76,6 +77,7 @@ export interface PagePayloadMap {
   'theme.preview': ThemePreviewProps
   'publish.index': PublishPageProps
   'search.index': SearchPageProps
+  'campus.map': Record<string, never>
   'course.index': CourseCatalogPageProps
   'course.detail': CourseDetailPageProps
   'course.reviewModeration': CourseReviewModerationPageProps

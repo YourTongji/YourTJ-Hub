@@ -1,0 +1,26 @@
+[
+  {
+    "campus": "jiading",
+    "retrieved": "2026-09-13",
+    "url": "https://api.openstreetmap.org/api/0.6/map.json?bbox=121.1998,31.2785,121.2191,31.2945",
+    "sha256": "22a2ce2922ca23221bdb4d84f4a7c99e60a8c08aefd5003d53d5de88d7de086d"
+  },
+  {
+    "campus": "huxi",
+    "retrieved": "2026-09-13",
+    "url": "https://api.openstreetmap.org/api/0.6/map.json?bbox=121.3795,31.27,121.3898,31.2771",
+    "sha256": "449a2bd402d68f2d71762253c3ca48890b5e884f84a40c768245fbfb8be80ef9"
+  },
+  {
+    "campus": "hubei",
+    "retrieved": "2026-09-13",
+    "url": "https://api.openstreetmap.org/api/0.6/map.json?bbox=121.4526,31.2615,121.4565,31.2658",
+    "sha256": "7b7f5885aaf59c905fdc2cdc37ecaf276308bec9e48bff7bde335c8174896367"
+  },
+  {
+    "campus": "lingang",
+    "retrieved": "2026-09-13",
+    "url": "https://api.openstreetmap.org/api/0.6/map.json?bbox=121.9182,30.8635,121.9235,30.8676",
+    "sha256": "c2834379f3f8bd3c111b7ccfaca5a36fd439e837453ec32b187ecf9d8e4ef36c"
+  }
+]

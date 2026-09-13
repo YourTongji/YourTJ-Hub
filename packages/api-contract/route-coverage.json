@@ -108,6 +108,11 @@
     },
     {
       "method": "GET",
+      "path": "/map",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
       "path": "/messages",
       "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
     },
