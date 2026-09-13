@@ -5,12 +5,14 @@ import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
@@ -132,6 +134,7 @@ PagePayload _publishPayload({
   required bool editing,
   int contentType = 0,
   List<int>? categoryIds,
+  String? content,
 }) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
@@ -146,7 +149,7 @@ PagePayload _publishPayload({
       ],
       'topic': <String, dynamic>{
         'title': editing ? '原始标题' : '',
-        'content': editing ? '## 预览标题\n\n**正文内容**' : '',
+        'content': editing ? (content ?? '## 预览标题\n\n**正文内容**') : '',
         'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
         'topicStatus': editing ? 1 : 0,
         'contentType': contentType,
@@ -204,6 +207,7 @@ void main() {
     int contentType = 0,
     List<int>? categoryIds,
     Locale locale = const Locale('zh'),
+    String? content,
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
@@ -220,6 +224,7 @@ void main() {
         editing: editing,
         contentType: contentType,
         categoryIds: categoryIds,
+        content: content,
       ),
     );
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
@@ -298,7 +303,10 @@ void main() {
       final keyboardTop =
           tester.view.physicalSize.height / tester.view.devicePixelRatio -
           250 / tester.view.devicePixelRatio;
-      expect(tester.getBottomLeft(tools).dy, lessThanOrEqualTo(keyboardTop + 0.01));
+      expect(
+        tester.getBottomLeft(tools).dy,
+        lessThanOrEqualTo(keyboardTop + 0.01),
+      );
       await tester.tap(find.text('文字格式'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('粗体'));
@@ -318,6 +326,60 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+  testWidgets('heading level picker applies h1/h2/h3 from the toolbar', (
+    tester,
+  ) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      0,
+      'Selected words',
+      const TextSelection(baseOffset: 0, extentOffset: 8),
+    );
+    await tester.tap(find.byType(QuillEditor));
+    editor.controller.updateSelection(
+      const TextSelection(baseOffset: 0, extentOffset: 8),
+      ChangeSource.local,
+    );
+    tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字格式'));
+    await tester.pumpAndSettle();
+
+    int? headerLevel() =>
+        editor.controller
+                .getSelectionStyle()
+                .attributes[Attribute.header.key]
+                ?.value
+            as int?;
+
+    // 轻点保持默认行为:应用二级标题。
+    await tester.tap(find.byTooltip('标题 · 长按选级别'));
+    await tester.pump();
+    expect(headerLevel(), 2);
+
+    // 长按打开级别菜单,提供 H1-H3 三个选项。
+    await tester.longPress(find.byTooltip('标题 · 长按选级别'));
+    await tester.pumpAndSettle();
+    expect(find.text('一级标题'), findsOneWidget);
+    expect(find.text('二级标题'), findsOneWidget);
+    expect(find.text('三级标题'), findsOneWidget);
+    await tester.tap(find.text('一级标题'));
+    await tester.pumpAndSettle();
+    expect(headerLevel(), 1);
+
+    // 再次长按可切换到三级标题。
+    await tester.longPress(find.byTooltip('标题 · 长按选级别'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('三级标题'));
+    await tester.pumpAndSettle();
+    expect(headerLevel(), 3);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   for (final type in [2, 3]) {
     testWidgets('dismiss keyboard preserves type $type draft', (tester) async {
@@ -800,6 +862,80 @@ void main() {
     expect(find.text('Veröffentlichen'), findsOneWidget);
     // The overflow assertion is implicit: an unhandled RenderFlex overflow is
     // reported as a failure by the test binding (and prints the offending row).
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('正文图片支持长按拖拽到其他段落', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+    );
+    expect(find.text('长按正文图片，可拖动到任意段落位置'), findsOneWidget);
+
+    QuillController controllerOfEditor() =>
+        tester.widget<QuillEditor>(find.byType(QuillEditor)).controller;
+
+    String flatOf(Document document) => document
+        .toDelta()
+        .toList()
+        .map((Operation op) => op.data is String ? op.data as String : '\uFFFC')
+        .join();
+
+    final QuillController controller = controllerOfEditor();
+    final String before = flatOf(controller.document);
+    expect(before.indexOf('\uFFFC'), greaterThan(before.indexOf('第一段')));
+    expect(before.indexOf('\uFFFC'), lessThan(before.indexOf('第三段')));
+
+    final Finder draggable = find.descendant(
+      of: find.byType(QuillEditor),
+      matching: find.byType(LongPressDraggable<ComposerImageDragPayload>),
+    );
+    expect(draggable, findsOneWidget);
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(draggable),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveBy(const Offset(0, 140));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    final String after = flatOf(controllerOfEditor().document);
+    expect(after, isNot(before));
+    // Drop semantics: the image lands directly below the dropped-on
+    // paragraph — dragging onto 第三段 moves the image after it.
+    expect(after.indexOf('\uFFFC'), greaterThan(after.indexOf('第三段')));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('拖拽自动滚动挂载页面滚动控制器', (tester) async {
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+    );
+
+    // Edge auto-scroll must drive the page scroll view; a detached
+    // controller makes every autoscroll tick a no-op.
+    final Finder pageScroll = find.ancestor(
+      of: find.byKey(const Key('publish-editor')),
+      matching: find.byType(SingleChildScrollView),
+    );
+    final SingleChildScrollView view = tester.widget<SingleChildScrollView>(
+      pageScroll.first,
+    );
+    expect(view.controller, isNotNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

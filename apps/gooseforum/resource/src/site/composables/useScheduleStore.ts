@@ -208,9 +208,20 @@ export function clonePlansAsAutoRestore(source: PkPlan[], existing: PkPlan[]): P
 }
 
 /** 方案内容指纹（staged/selected/customEvents 三字段；不含 id/name/createdAt 等标识
- *  字段——恢复克隆与源方案指纹一致，重合并且内容已在云端时据此跳过克隆）。 */
+ *  字段——恢复克隆与源方案指纹一致，重合并且内容已在云端时据此跳过克隆）。
+ *  比较前双侧过 sanitize 管道归一化：云端快照经 Go 结构体往返后，指针字段
+ *  （teachingClassId/isExclusive/status）序列化为 null 值键恒存在，移动端上传则
+ *  省略 null 键，与本地 sanitize 形状（可选键缺省）字节不同但语义一致；字节级
+ *  比较会让去重失效，每次分歧合并把已在云端的方案再克隆一遍，恢复方案翻倍
+ *  撞 10 套上限（用户反馈）。归一化同时统一键序，并保证 null/缺省键、非法
+ *  字段丢弃口径与本地加载路径一致。 */
 function planContentKey(plan: PkPlan): string {
-  return JSON.stringify([plan.stagedCourses, plan.selectedCourses, plan.customEvents])
+  const normalized = sanitizePlan({
+    stagedCourses: plan.stagedCourses,
+    selectedCourses: plan.selectedCourses,
+    customEvents: plan.customEvents,
+  })
+  return JSON.stringify([normalized.stagedCourses, normalized.selectedCourses, normalized.customEvents])
 }
 
 /** 方案数组内容签名（逐方案 planContentKey 顺序拼接）。云同步分歧判定用：比较时忽略

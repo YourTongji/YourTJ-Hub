@@ -132,9 +132,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: publishing uses an unframed title and writing canvas. Article formatting tools remain
   folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
-  selection. The accessory bar holds the draft action and, for articles only, the image tool; moments
-  and questions pick images from the gallery tile above the body. Rich and simple body text use the
-  same mobile reading scale. Preview hides the accessory bar.
+  selection. The heading tool applies heading 2 with a tap and opens a level sheet on long press that
+  offers heading 1–3 (matching the Markdown round-trip); the current level is checked and re-picking
+  it clears the heading. The accessory bar holds the draft action and, for articles only, the image
+  tool; moments and questions pick images from the compact gallery tile above the body. Rich and
+  simple body text use the same mobile reading scale. Preview hides the accessory bar.
 
 - `Current`: reply composers use one rounded surface with a borderless, growing two-line input.
   Image, hide-keyboard, collapse and send actions share the bottom row. The reply target is a
@@ -153,6 +155,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: simple galleries support up to nine uploaded images, reordering and removal. Images
   survive switching to the article editor. Switching back extracts images into the gallery and
   plain text into the body; conversion is rejected when more than nine images would be lost.
+- `Current`: article body images support long-press dragging to any
+  paragraph: the image lands below the paragraph it is dropped on, the move
+  is a single undo step, and long document drags auto-scroll at the editor
+  edges.
 - `Current`: Next opens the preview/classification step. The step shows one publish action in the
   AppBar, with the draft action beside it as an icon button (tooltip carries its label, so the bar
   still fits narrow screens in long-label locales); up to three existing categories can be selected
@@ -312,8 +318,11 @@ local widget tests do not imply those gates passed.
   remain deployment requirements; app-local notification lists are independent of system delivery.
 - `Current`: Settings retains the push entry with a provider-processing disclosure and shows missing
   build configuration, unavailable server channels, permission denial and registration failure.
-  Explicit enable requests system permission. Resume checks existing authorization without repeatedly
-  prompting; a non-empty token and successful API registration are required to display enabled.
+  On iOS the first launch after login requests the system permission once; granting it counts as
+  push consent and enables delivery without visiting Settings. Android keeps explicit opt-in —
+  the JPush SDK is never initialized before the user enables push. Explicit enable requests system
+  permission. Resume checks existing authorization without repeatedly prompting; a non-empty token
+  and successful API registration are required to display enabled.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.

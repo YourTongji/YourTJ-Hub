@@ -125,7 +125,12 @@ void main() {
   CurrentUser? user;
   Future<void> settle() => pumpEventQueue();
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    // Steady state: the iOS one-shot permission request already happened, so
+    // startup refreshes stay silent. First-launch behavior gets its own tests
+    // that clear the marker.
+    SharedPreferences.setMockInitialValues(
+      const {'push_permission_requested': true},
+    );
     driver = Driver();
     repo = Repository();
     storage = MemoryStorage();
@@ -233,6 +238,63 @@ void main() {
       expect(driver.requests, 1);
     },
   );
+  test(
+    'iOS first launch after login requests permission and treats grant as consent',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      await settle();
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.enabled);
+      expect(repo.registered, ['ios:apns:native-token']);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('push_enabled'), true);
+      expect(prefs.getBool('push_permission_requested'), true);
+    },
+  );
+  test('first-launch request happens once; later refreshes restore silently',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    await settle();
+    expect(driver.requests, 1);
+    await controller().refresh();
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
+  });
+  test('iOS first-launch denial keeps the denied recovery state', () async {
+    SharedPreferences.setMockInitialValues({});
+    driver.allowed = false;
+    await settle();
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.permissionDenied);
+    expect(repo.registered, isEmpty);
+    // The marker is recorded, so the next launch does not ask again.
+    await controller().refresh();
+    expect(driver.requests, 1);
+  });
+  test('queued enable suppresses the first-launch auto-request', () async {
+    SharedPreferences.setMockInitialValues({});
+    repo.pendingSession = Completer<void>();
+    await settle();
+    final enabling = controller().enable();
+    await settle();
+    repo.pendingSession!.complete();
+    await enabling;
+    await settle();
+    // The queued explicit enable performs the single prompt itself; the
+    // startup refresh that was still in flight must not request again.
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
+    expect(repo.registered, ['ios:apns:native-token']);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('push_permission_requested'), true);
+  });
+  test('Android first launch never auto-requests permission', () async {
+    SharedPreferences.setMockInitialValues({});
+    driver.transport = 'jpush';
+    await settle();
+    expect(driver.requests, 0);
+    expect(status(), PushChannelStatus.disabled);
+  });
   test('Android uses JPush registration, never FCM/APNs token', () async {
     driver.transport = 'jpush';
     await settle();
