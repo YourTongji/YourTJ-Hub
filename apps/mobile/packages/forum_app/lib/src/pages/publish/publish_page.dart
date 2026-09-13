@@ -599,13 +599,17 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
               ),
             if (_mode == _ComposeMode.preview)
-              GfButton(
+              GfIconButton(
                 key: const Key('publish-save-draft'),
-                label: l10n.publishSaveDraft,
-                variant: GfButtonVariant.ghost,
-                size: GfButtonSize.small,
-                loading: _submitting,
-                onPressed: _uploading
+                // Icon action keeps the preview AppBar inside the bar even for
+                // long locale labels (de/ja): two labelled buttons overflowed
+                // the 390 px actions row.
+                icon: _submitting
+                    ? Icons.hourglass_top_rounded
+                    : Icons.save_outlined,
+                tooltip: l10n.publishSaveDraft,
+                size: 44,
+                onPressed: _uploading || _submitting
                     ? null
                     : () => _submit(topicStatus: 0),
               ),

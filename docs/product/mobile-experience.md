@@ -154,10 +154,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   survive switching to the article editor. Switching back extracts images into the gallery and
   plain text into the body; conversion is rejected when more than nine images would be lost.
 - `Current`: Next opens the preview/classification step. The step shows one publish action in the
-  AppBar, with the draft action beside it; up to three existing categories can be selected below the
-  rendered image/title/body preview. Publish writes only after this step; saving a draft retains the
-  server's title, body and classification requirements. Moments can derive their title from the first
-  text line.
+  AppBar, with the draft action beside it as an icon button (tooltip carries its label, so the bar
+  still fits narrow screens in long-label locales); up to three existing categories can be selected
+  below the rendered image/title/body preview. Publish writes only after this step; saving a draft
+  retains the server's title, body and classification requirements. Moments can derive their title
+  from the first text line.
 - `Current`: publishing limits, captcha requests and other API failures use the Web error catalog
   in the selected language, including server-provided parameters.
 - `Current`: unsaved changes prompt before leaving. A server-required captcha is shown in the
