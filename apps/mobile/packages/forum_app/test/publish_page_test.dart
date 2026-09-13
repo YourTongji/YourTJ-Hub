@@ -754,7 +754,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('预览步无分类时发布与保存草稿都要求先选分区', (tester) async {
+  testWidgets('预览步无分类时保存草稿与发布都要求先选分区', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -769,7 +769,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('publish-preview')), findsOneWidget);
-    expect(find.text('请至少选择一个分类'), findsOneWidget);
     expect(result.topicRepository.writes, isEmpty);
 
     await tester.tap(find.byKey(const Key('publish-save-draft')));
@@ -779,6 +778,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pumpAndSettle();
+    expect(find.text('请至少选择一个分类'), findsOneWidget);
     expect(result.topicRepository.writes, isEmpty);
 
     await tester.pumpWidget(const SizedBox.shrink());
