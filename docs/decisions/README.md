@@ -90,3 +90,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0019](0019-native-push-providers.md) — Direct APNs and Android OEM push through JPush.
 - [0020](0020-oryn-failure-diagnostics.md) — Oryn failure diagnostics.
 - [0021](0021-deletion-final-state-data-retention.md) — 删除终态数据保留与管理员取证（R4 降级）。
+- [0022](0022-campus-map-native-atlas.md) — 原生校园地图页面复用地理数据，保持单二进制部署。

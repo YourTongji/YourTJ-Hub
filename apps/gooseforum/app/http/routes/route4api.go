@@ -108,6 +108,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/notifications", middleware.CheckLogin, forum.Notifications)
 	viewRouteApp.GET("/publish", middleware.CheckLogin, forum.Publish)
 	viewRouteApp.GET("/search", forum.Search)
+	viewRouteApp.GET("/map", forum.CampusMap)
 	viewRouteApp.GET("/wiki", forum.WikiHome)
 	viewRouteApp.GET("/wiki/*path", forum.WikiDetail)
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)

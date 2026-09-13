@@ -9,8 +9,14 @@ import {
   type PkSyncTransport,
   type ScheduleSyncController,
 } from '../src/site/composables/useScheduleSync'
-import { setSolidifyHook, useScheduleStore } from '../src/site/composables/useScheduleStore'
+import {
+  clonePlansAsAutoRestore,
+  planListContentKey,
+  setSolidifyHook,
+  useScheduleStore,
+} from '../src/site/composables/useScheduleStore'
 import { i18n } from '../src/runtime/i18n'
+import type { PkPlan } from '../src/site/types/pk'
 
 /** 默认方案名（跟随当前 locale，构造云端方案名用）。 */
 function defaultPlanName(n: number): string {
@@ -28,6 +34,9 @@ function autoRestoreName(n: number): string {
 // 非空云端）、对账结果返回值、网络错误心跳自动补传、手动保存 saveNow、账号切换
 // 不自动上传上一账号方案、applyingRemote 防回灌、400/401 停止、登出停止、
 // visibility 冲刷、未登录零网络。
+// 内容指纹跨形状回归：云端快照经 Go 结构体往返（指针字段 null 值键恒存在）、移动端
+// 上传省略 null 键，与本地 sanitize 形状（可选键缺省）语义一致时，分歧判定与恢复
+// 克隆去重必须视为相同内容，否则每次合并克隆整套方案导致方案翻倍（用户反馈）。
 
 function makeStorage(initial: Record<string, string> = {}) {
   const storage = new Map<string, string>(Object.entries(initial))
@@ -98,6 +107,62 @@ function seedLocalContent(store: Store): void {
     status: 0,
     courseDetail: [],
   })
+}
+
+/** 让本机非空且带一个教学班详情：可选键（teachingClassId/isExclusive）缺省，
+ *  与真实加课形状一致（courses-by-major 等来源不返回这些字段）。 */
+function seedLocalCourseWithDetail(store: Store): void {
+  store.pushStagedCourse({
+    courseCode: '122004',
+    courseName: '高数',
+    courseNameReserved: '高数',
+    credit: 4,
+    courseType: '必',
+    courseNature: [],
+    teacher: [],
+    status: 0,
+    courseDetail: [{
+      arrangementInfo: [],
+      campus: '',
+      code: '12200401',
+      status: 0,
+      teachers: [],
+      teachingLanguage: '',
+    }],
+  })
+}
+
+/** 云端 wire 形状的同内容方案：经 Go 结构体往返，指针字段（teachingClassId/
+ *  isExclusive/status）键恒存在且可为 null（移动端上传省略 null 键后 Go 回读
+ *  即为 null）。契约 schema 未声明 nullable，测试按 wire 实况构造。 */
+function makeCloudGoPlan(): PkSyncRemoteSnapshot['plans'][number] {
+  return {
+    id: 'plan_local',
+    name: defaultPlanName(1),
+    createdAt: 1,
+    stagedCourses: [{
+      courseCode: '122004',
+      courseName: '高数',
+      courseNameReserved: '高数',
+      credit: 4,
+      courseType: '必',
+      courseNature: [],
+      teacher: [],
+      status: 0,
+      courseDetail: [{
+        arrangementInfo: [],
+        campus: '',
+        code: '12200401',
+        teachingClassId: null,
+        isExclusive: null,
+        status: null,
+        teachers: [],
+        teachingLanguage: '',
+      }],
+    }],
+    selectedCourses: [],
+    customEvents: [],
+  } as unknown as PkSyncRemoteSnapshot['plans'][number]
 }
 
 function setup(storage: Record<string, string> = {}) {
@@ -841,6 +906,64 @@ describe('useScheduleSync（排课方案云同步状态机 #573）', () => {
     expect(store.state.plans).toHaveLength(2)
     expect(store.state.plans[1]?.name).toBe(autoRestoreName(2))
     expect(store.getSyncedAt()).toBe(UPDATED_AT_3)
+  })
+  // ---- 内容指纹跨形状回归（Go 往返 null 键 vs 本地缺省键；方案翻倍缺陷）----
+
+  test('内容指纹跨形状：云端 Go 往返 null 键与本地方案语义一致 → 克隆去重命中，零恢复方案', () => {
+    const { store } = setup()
+    seedLocalCourseWithDetail(store)
+    const localPlans = JSON.parse(JSON.stringify(store.state.plans)) as PkPlan[]
+    const cloudPlans = [makeCloudGoPlan()] as unknown as PkPlan[]
+    // 缺陷前提：原始字节内容签名不同（null 键 vs 缺省键），字节级指纹必然失配。
+    const rawKey = (plans: PkPlan[]): string =>
+      JSON.stringify(plans.map((plan) => [plan.stagedCourses, plan.selectedCourses, plan.customEvents]))
+    expect(rawKey(localPlans)).not.toBe(rawKey(cloudPlans))
+    // 修复后指纹双侧归一化：语义一致 → 相等。
+    expect(planListContentKey(localPlans)).toBe(planListContentKey(cloudPlans))
+    // 语义一致 → 恢复克隆去重必须命中，不产生任何克隆方案。
+    expect(clonePlansAsAutoRestore(localPlans, cloudPlans)).toHaveLength(0)
+  })
+
+  test('进页：从未云同步 + 云端 Go 往返形状内容一致 → 零 PUT 采用，不产生恢复方案', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup()
+    controller.start()
+    seedLocalCourseWithDetail(store)
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: [makeCloudGoPlan()],
+      activePlanId: 'plan_local',
+    }))
+
+    const result = await controller.syncOnPageEnter()
+
+    expect(result).toBe('adopted')
+    expect(putCloudSnapshot).not.toHaveBeenCalled()
+    expect(controller.notice.value).toBeNull()
+    expect(store.state.plans).toHaveLength(1)
+    expect(store.state.plans[0]?.stagedCourses[0]?.courseDetail).toHaveLength(1)
+    expect(store.getSyncedAt()).toBe(UPDATED_AT)
+  })
+
+  test('进页：本机 dirty + 云端 Go 往返形状内容一致（仅时钟前进）→ 直传不克隆，方案不翻倍', async () => {
+    const { store, controller, fetchCloudSnapshot, putCloudSnapshot } = setup({
+      'pk.syncedAt': JSON.stringify(UPDATED_AT),
+    })
+    controller.start()
+    seedLocalCourseWithDetail(store)
+    store.solidify() // 标脏（防抖窗口内）；云端时钟已被其他端推进、内容同源仅形状不同
+    fetchCloudSnapshot.mockResolvedValue(makeSnapshot({
+      plans: [makeCloudGoPlan()],
+      activePlanId: 'plan_local',
+      updatedAt: UPDATED_AT_2,
+    }))
+    putCloudSnapshot.mockResolvedValue({ updatedAt: UPDATED_AT_3 })
+
+    const result = await controller.syncOnPageEnter()
+
+    expect(result).toBe('uploaded')
+    expect(controller.notice.value).toBeNull()
+    expect(store.state.plans).toHaveLength(1)
+    expect(putCloudSnapshot).toHaveBeenCalledTimes(1)
+    expect(putCloudSnapshot.mock.calls[0][0].plans).toHaveLength(1)
   })
 })
 

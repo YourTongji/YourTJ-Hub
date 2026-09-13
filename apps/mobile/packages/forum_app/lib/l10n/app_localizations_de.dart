@@ -1245,6 +1245,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bis zu 9 Fotos. Zum Sortieren gedrückt halten und ziehen.';
 
   @override
+  String get publishBodyDragHint =>
+      'Bild im Text gedrückt halten und in einen beliebigen Absatz ziehen.';
+
+  @override
   String get publishFormatting => 'Formatierung';
 
   @override
@@ -1368,7 +1372,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get publishRedo => 'Wiederholen';
 
   @override
-  String get publishHeading => 'Überschrift';
+  String get publishHeading => 'Überschrift · Ebene durch Halten wählen';
+
+  @override
+  String get publishHeadingLevel1 => 'Überschrift 1';
+
+  @override
+  String get publishHeadingLevel2 => 'Überschrift 2';
+
+  @override
+  String get publishHeadingLevel3 => 'Überschrift 3';
 
   @override
   String get publishToolLink => 'Link einfügen';

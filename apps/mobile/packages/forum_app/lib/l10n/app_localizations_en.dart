@@ -1230,6 +1230,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publishGalleryHint => 'Up to 9 photos. Hold and drag to reorder.';
 
   @override
+  String get publishBodyDragHint =>
+      'Long-press an image in the body to drag it to any paragraph.';
+
+  @override
   String get publishFormatting => 'Formatting';
 
   @override
@@ -1352,7 +1356,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publishRedo => 'Redo';
 
   @override
-  String get publishHeading => 'Heading';
+  String get publishHeading => 'Heading · hold to pick level';
+
+  @override
+  String get publishHeadingLevel1 => 'Heading 1';
+
+  @override
+  String get publishHeadingLevel2 => 'Heading 2';
+
+  @override
+  String get publishHeadingLevel3 => 'Heading 3';
 
   @override
   String get publishToolLink => 'Insert link';

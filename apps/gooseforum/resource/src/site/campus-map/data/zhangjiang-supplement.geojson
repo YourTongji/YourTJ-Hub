@@ -1,0 +1,339 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/site",
+      "properties": {
+        "name": "张江基地",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "amenity": "university"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              0.0,
+              0.00208696
+            ],
+            [
+              0.00234783,
+              0.00208696
+            ],
+            [
+              0.00234783,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.00208696
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/wenzhi",
+      "properties": {
+        "name": "闻智楼",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              0.00021739,
+              0.00208696
+            ],
+            [
+              0.00088696,
+              0.00208696
+            ],
+            [
+              0.00088696,
+              0.00141739
+            ],
+            [
+              0.00069565,
+              0.00141739
+            ],
+            [
+              0.00069565,
+              0.0012087
+            ],
+            [
+              0.00018261,
+              0.0012087
+            ],
+            [
+              0.00021739,
+              0.00208696
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/guangzhi",
+      "properties": {
+        "name": "广智楼",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              0.00162609,
+              0.00208696
+            ],
+            [
+              0.00217391,
+              0.00208696
+            ],
+            [
+              0.00217391,
+              0.0012087
+            ],
+            [
+              0.00131304,
+              0.0012087
+            ],
+            [
+              0.00131304,
+              0.00186087
+            ],
+            [
+              0.00162609,
+              0.00186087
+            ],
+            [
+              0.00162609,
+              0.00208696
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/bozhi",
+      "properties": {
+        "name": "博智楼",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              0.00017391,
+              0.00113913
+            ],
+            [
+              0.0008,
+              0.00113913
+            ],
+            [
+              0.0008,
+              0.00092174
+            ],
+            [
+              0.001,
+              0.00092174
+            ],
+            [
+              0.001,
+              0.0004087
+            ],
+            [
+              0.00017391,
+              0.0004087
+            ],
+            [
+              0.00017391,
+              0.00113913
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/jianzhi",
+      "properties": {
+        "name": "见智楼",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "building": "yes"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              0.00133043,
+              0.00113913
+            ],
+            [
+              0.0022087,
+              0.00113913
+            ],
+            [
+              0.0022087,
+              0.0003913
+            ],
+            [
+              0.00133043,
+              0.0003913
+            ],
+            [
+              0.00133043,
+              0.00113913
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/water",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "natural": "water"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              3.478e-05,
+              0.00016522
+            ],
+            [
+              0.00026087,
+              0.00022609
+            ],
+            [
+              0.00053043,
+              0.00027826
+            ],
+            [
+              0.00095652,
+              0.00025217
+            ],
+            [
+              0.00147826,
+              0.0001913
+            ],
+            [
+              0.0020087,
+              1.739e-05
+            ],
+            [
+              0.00197391,
+              0.0
+            ],
+            [
+              0.00113043,
+              6.957e-05
+            ],
+            [
+              0.00034783,
+              3.478e-05
+            ],
+            [
+              3.478e-05,
+              0.00016522
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/path0",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            8.696e-05,
+            0.002
+          ],
+          [
+            8.696e-05,
+            0.00030435
+          ],
+          [
+            0.00228696,
+            0.00030435
+          ],
+          [
+            0.00228696,
+            0.002
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/path1",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            0.00110435,
+            0.002
+          ],
+          [
+            0.00110435,
+            0.00030435
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plan/zhangjiang/path2",
+      "properties": {
+        "name": "",
+        "source": "Tongji official campus plan, May 2025; local schematic coordinates",
+        "highway": "footway"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            8.696e-05,
+            0.00117391
+          ],
+          [
+            0.00228696,
+            0.00117391
+          ]
+        ]
+      }
+    }
+  ]
+}

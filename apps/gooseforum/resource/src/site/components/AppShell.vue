@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpen,
   CalendarRange,
+  Map,
   FileText,
   Flame,
   Heart,
@@ -155,6 +156,7 @@ const browseItems = computed<SidebarNavItem[]>(() => [
 
 // 功能组：站点能力页。
 const functionItems = computed<SidebarNavItem[]>(() => [
+  sidebarItem('campusMap', t('campusMap.atlas'), '/map'),
   sidebarItem('courses', t('shell.nav.courses'), '/courses'),
   sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
   sidebarItem('wiki', t('shell.nav.wiki'), '/wiki'),
@@ -265,6 +267,7 @@ const sidebarIconMap = {
   popular: TrendingUp,
   courses: BookOpen,
   schedule: CalendarRange,
+  campusMap: Map,
   wiki: Library,
   messages: Inbox,
   notifications: Bell,

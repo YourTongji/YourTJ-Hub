@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +17,7 @@ import '../../images/image_upload.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
+import 'embed_image_move.dart';
 
 /// Global topic composer aligned with the Web publish workspace.
 ///
@@ -56,6 +58,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   static const int _maxCategories = 3;
   static const double _wideWorkspaceBreakpoint = 760;
   static const Duration _previewDebounceDuration = Duration(milliseconds: 200);
+  static const double _dragAutoscrollEdge = 56;
+  static const double _dragAutoscrollStep = 12;
 
   final TextEditingController _simple = TextEditingController();
   final List<String> _images = [];
@@ -69,6 +73,9 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   late final MarkdownConverter _converter;
 
   late QuillController _quill;
+  final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
+  final ScrollController _pageScrollController = ScrollController();
+  final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
 
@@ -84,6 +91,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   String _message = '';
   String _previewMarkdown = '';
   Timer? _previewDebounce;
+  Timer? _dragAutoscrollTimer;
+  Offset? _dragPointer;
 
   @override
   void initState() {
@@ -249,6 +258,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   @override
   void dispose() {
     _previewDebounce?.cancel();
+    _dragAutoscrollTimer?.cancel();
+    _pageScrollController.dispose();
     _captchaCode.dispose();
     _title.dispose();
     _simple.dispose();
@@ -355,6 +366,37 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     );
   }
 
+  /// 长按标题按钮弹出级别菜单;选中当前级别再次确认可取消标题。
+  Future<void> _showHeadingLevelMenu(AppLocalizations l10n) async {
+    final int? currentHeader =
+        _quill.getSelectionStyle().attributes[Attribute.header.key]?.value
+            as int?;
+    final Attribute? selected = await showModalBottomSheet<Attribute>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            for (final (attribute, label, level) in <(Attribute, String, int)>[
+              (Attribute.h1, l10n.publishHeadingLevel1, 1),
+              (Attribute.h2, l10n.publishHeadingLevel2, 2),
+              (Attribute.h3, l10n.publishHeadingLevel3, 3),
+            ])
+              ListTile(
+                title: Text(label),
+                trailing: currentHeader == level
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, attribute),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _toggleFormat(selected);
+  }
+
   void _toggleCategory(PublishCategoryPayload category, bool selected) {
     setState(() {
       _dirty = true;
@@ -421,6 +463,82 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  void _startDragAutoscroll() {
+    HapticFeedback.selectionClick();
+    _dragPointer = null;
+    _dragAutoscrollTimer?.cancel();
+    _dragAutoscrollTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _tickDragAutoscroll(),
+    );
+  }
+
+  void _stopDragAutoscroll() {
+    _dragPointer = null;
+    _dragAutoscrollTimer?.cancel();
+    _dragAutoscrollTimer = null;
+  }
+
+  void _tickDragAutoscroll() {
+    final Offset? pointer = _dragPointer;
+    if (pointer == null) return;
+    final ScrollController scroll = _pageScrollController;
+    if (!scroll.hasClients) return;
+    // Drag offsets are global; edge probes must be viewport-local.
+    final RenderObject? renderObject = _pageScrollViewKey.currentContext
+        ?.findRenderObject();
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        !renderObject.hasSize) {
+      return;
+    }
+    final double localY = renderObject.globalToLocal(pointer).dy;
+    final double maxOffset = scroll.position.maxScrollExtent;
+    final double viewportBottom =
+        scroll.position.viewportDimension - _dragAutoscrollEdge;
+    if (localY < _dragAutoscrollEdge && scroll.offset > 0) {
+      scroll.jumpTo(
+        (scroll.offset - _dragAutoscrollStep).clamp(0.0, maxOffset),
+      );
+    } else if (localY > viewportBottom && scroll.offset < maxOffset) {
+      scroll.jumpTo(
+        (scroll.offset + _dragAutoscrollStep).clamp(0.0, maxOffset),
+      );
+    }
+  }
+
+  /// Moves the dragged composer image to the paragraph under the drop point.
+  ///
+  /// The embed is relocated with a single Delta so undo/redo stays one step;
+  /// the document-changes listener flips _dirty/_allowPop and refreshes the
+  /// debounced preview, exactly like any other edit.
+  void _handleComposerImageDrop(
+    ComposerImageDragPayload payload,
+    Offset globalPosition,
+  ) {
+    final EditorState? editorState = _editorKey.currentState;
+    if (editorState == null) return;
+    final TextPosition position = editorState.renderEditor.getPositionForOffset(
+      globalPosition,
+    );
+    final int targetOffset = clampDropToLineEnd(
+      position.offset,
+      _quill.document,
+    );
+    final ComposerImageMoveResult? move = moveComposerImageEmbed(
+      _quill.document,
+      payload.node,
+      targetOffset,
+    );
+    if (move == null) return;
+    _quill.compose(move.delta, _quill.selection, ChangeSource.local);
+    _quill.updateSelection(
+      TextSelection.collapsed(offset: move.insertOffset + move.insertLength),
+      ChangeSource.local,
+    );
+    HapticFeedback.lightImpact();
   }
 
   Future<void> _loadCaptcha() async {
@@ -552,10 +670,37 @@ class _PublishPageState extends ConsumerState<PublishPage> {
           title: DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: _contentType,
+              // The preview step puts the draft and publish buttons in the
+              // AppBar, which squeezes the title slot on narrow screens. Long
+              // locale labels (de "Entwurf speichern"/"Veröffentlichen", ja
+              // "下書きを保存"/"投稿") overflowed it; expanding and ellipsizing
+              // keeps the title shrinkable instead of overflowing the row.
+              isExpanded: true,
               items: [
-                DropdownMenuItem(value: 2, child: Text(l10n.publishMoment)),
-                DropdownMenuItem(value: 1, child: Text(l10n.publishQuestion)),
-                DropdownMenuItem(value: 3, child: Text(l10n.publishArticle)),
+                DropdownMenuItem(
+                  value: 2,
+                  child: Text(
+                    l10n.publishMoment,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 1,
+                  child: Text(
+                    l10n.publishQuestion,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 3,
+                  child: Text(
+                    l10n.publishArticle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
               onChanged:
                   _currentTopicId > 0 || _submitting || _uploading || _loading
@@ -570,6 +715,21 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 tooltip: l10n.commonHideKeyboard,
                 size: 44,
                 onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+              ),
+            if (_mode == _ComposeMode.preview)
+              GfIconButton(
+                key: const Key('publish-save-draft'),
+                // Icon action keeps the preview AppBar inside the bar even for
+                // long locale labels (de/ja): two labelled buttons overflowed
+                // the 390 px actions row.
+                icon: _submitting
+                    ? Icons.hourglass_top_rounded
+                    : Icons.save_outlined,
+                tooltip: l10n.publishSaveDraft,
+                size: 44,
+                onPressed: _uploading || _submitting
+                    ? null
+                    : () => _submit(topicStatus: 0),
               ),
             GfButton(
               key: const Key('publish-appbar-submit'),
@@ -622,6 +782,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         );
 
         return SingleChildScrollView(
+          key: _pageScrollViewKey,
+          controller: _pageScrollController,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: pagePadding.copyWith(
             bottom: pagePadding.bottom + MediaQuery.paddingOf(context).bottom,
@@ -705,7 +867,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       ),
                     if (_error.isNotEmpty || _message.isNotEmpty)
                       const SizedBox(height: 12),
-                    if (_mode == _ComposeMode.preview) _buildFooter(l10n),
                   ],
                 ),
               ),
@@ -843,25 +1004,49 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     return ConstrainedBox(
       key: const Key('publish-editor'),
       constraints: const BoxConstraints(minHeight: 220),
-      child: QuillEditor.basic(
-        controller: _quill,
-        config: QuillEditorConfig(
-          scrollable: false,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          placeholder: l10n.publishBodyPlaceholder,
-          customStyles: DefaultStyles(
-            paragraph: defaults.paragraph!.copyWith(
-              style: type.body,
-              verticalSpacing: const VerticalSpacing(4, 4),
-            ),
-            placeHolder: defaults.placeHolder!.copyWith(
-              style: type.body.copyWith(
-                color: GfTheme.colorsOf(context).iconMuted,
+      child: DragTarget<ComposerImageDragPayload>(
+        onMove: (DragTargetDetails<ComposerImageDragPayload> details) {
+          _dragPointer = details.offset;
+        },
+        onLeave: (Object? _) {
+          _dragPointer = null;
+        },
+        onAcceptWithDetails:
+            (DragTargetDetails<ComposerImageDragPayload> details) {
+              _stopDragAutoscroll();
+              _handleComposerImageDrop(details.data, details.offset);
+            },
+        builder:
+            (
+              BuildContext context,
+              List<ComposerImageDragPayload?> candidateData,
+              List<dynamic> rejectedData,
+            ) => QuillEditor.basic(
+              controller: _quill,
+              config: QuillEditorConfig(
+                scrollable: false,
+                editorKey: _editorKey,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                placeholder: l10n.publishBodyPlaceholder,
+                customStyles: DefaultStyles(
+                  paragraph: defaults.paragraph!.copyWith(
+                    style: type.body,
+                    verticalSpacing: const VerticalSpacing(4, 4),
+                  ),
+                  placeHolder: defaults.placeHolder!.copyWith(
+                    style: type.body.copyWith(
+                      color: GfTheme.colorsOf(context).iconMuted,
+                    ),
+                  ),
+                ),
+                embedBuilders: [
+                  _ComposerImageBuilder(
+                    onDragStarted: _startDragAutoscroll,
+                    onDragEnded: _stopDragAutoscroll,
+                  ),
+                ],
               ),
             ),
-          ),
-          embedBuilders: [_ComposerImageBuilder()],
-        ),
       ),
     );
   }
@@ -909,16 +1094,14 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       ),
                     ),
                   ),
-                _toolButton(
-                  icon: _uploading
-                      ? Icons.hourglass_top_rounded
-                      : Icons.image_outlined,
-                  tooltip: l10n.publishToolImage,
-                  onPressed:
-                      _uploading || (_contentType != 3 && _images.length >= 9)
-                      ? null
-                      : _pickAndInsertImage,
-                ),
+                if (_contentType == 3)
+                  _toolButton(
+                    icon: _uploading
+                        ? Icons.hourglass_top_rounded
+                        : Icons.image_outlined,
+                    tooltip: l10n.publishToolImage,
+                    onPressed: _uploading ? null : _pickAndInsertImage,
+                  ),
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
@@ -936,6 +1119,16 @@ class _PublishPageState extends ConsumerState<PublishPage> {
               ],
             ),
           ),
+          if (_contentType == 3)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Text(
+                l10n.publishBodyDragHint,
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              ),
+            ),
         ],
       ),
     );
@@ -1011,6 +1204,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
               icon: Icons.title,
               tooltip: l10n.publishHeading,
               onPressed: () => _toggleFormat(Attribute.h2),
+              onLongPress: () => _showHeadingLevelMenu(l10n),
             ),
             _toolButton(
               icon: Icons.link,
@@ -1063,6 +1257,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     required IconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
+    VoidCallback? onLongPress,
   }) {
     return GfIconButton(
       icon: icon,
@@ -1070,6 +1265,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       size: 44,
       iconSize: 20,
       onPressed: onPressed,
+      onLongPress: onLongPress,
     );
   }
 
@@ -1264,38 +1460,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       ],
     );
   }
-
-  Widget _buildFooter(AppLocalizations l10n) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: <Widget>[
-        GfButton(
-          key: const Key('publish-save-draft'),
-          label: l10n.publishSaveDraft,
-          variant: GfButtonVariant.secondary,
-          size: GfButtonSize.large,
-          loading: _submitting,
-          onPressed: _uploading ? null : () => _submit(topicStatus: 0),
-        ),
-        const SizedBox(width: 8),
-        GfButton(
-          key: const Key('publish-footer-submit'),
-          label: _mode == _ComposeMode.edit
-              ? l10n.publishNext
-              : l10n.publishPublish,
-          variant: GfButtonVariant.primary,
-          size: GfButtonSize.large,
-          loading: _submitting,
-          icon: const Icon(Icons.send_rounded, size: 18),
-          onPressed: _uploading
-              ? null
-              : () => _mode == _ComposeMode.edit
-                    ? _selectMode(_ComposeMode.preview)
-                    : _submit(topicStatus: 1),
-        ),
-      ],
-    );
-  }
 }
 
 class _PublishWorkspaceSkeleton extends StatelessWidget {
@@ -1334,13 +1498,37 @@ class _PublishWorkspaceSkeleton extends StatelessWidget {
 }
 
 class _ComposerImageBuilder extends EmbedBuilder {
+  const _ComposerImageBuilder({this.onDragStarted, this.onDragEnded});
+
+  final VoidCallback? onDragStarted;
+  final VoidCallback? onDragEnded;
+
   @override
   String get key => BlockEmbed.imageType;
+
   @override
-  Widget build(BuildContext context, EmbedContext embedContext) =>
-      Image.network(
-        resolveApiAssetUrl(embedContext.node.value.data.toString()),
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
-      );
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final Widget image = Image.network(
+      resolveApiAssetUrl(embedContext.node.value.data.toString()),
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+    );
+    return LongPressDraggable<ComposerImageDragPayload>(
+      data: ComposerImageDragPayload(
+        node: embedContext.node,
+        imageUrl: embedContext.node.value.data.toString(),
+      ),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      onDragStarted: onDragStarted,
+      onDragCompleted: onDragEnded,
+      onDraggableCanceled: (Velocity velocity, Offset offset) =>
+          onDragEnded?.call(),
+      childWhenDragging: Opacity(opacity: 0.35, child: image),
+      feedback: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 180),
+        child: Opacity(opacity: 0.9, child: image),
+      ),
+      child: image,
+    );
+  }
 }

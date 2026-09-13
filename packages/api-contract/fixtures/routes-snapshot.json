@@ -377,6 +377,10 @@
   },
   {
     "method": "GET",
+    "path": "/map"
+  },
+  {
+    "method": "GET",
     "path": "/mcp"
   },
   {

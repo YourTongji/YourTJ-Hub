@@ -24,6 +24,9 @@ enum PushChannelStatus {
 
 /// Native bridge: iOS APNs; Android JPush + configured OEM offline channels.
 /// No SDK initialization or device collection before the user enables push.
+/// On iOS the first launch after login requests the system permission once;
+/// granting it counts as push consent (issue #658). Android keeps explicit
+/// opt-in (decision 0019: the JPush SDK must not initialize before consent).
 class PushDriver {
   static const channel = MethodChannel('yourtj/push');
   String get platform => Platform.isIOS ? 'ios' : 'android';
@@ -77,6 +80,9 @@ class PushController extends Notifier<PushChannelStatus>
   static const _enabledKey = 'push_enabled';
   static const _tokenKey = 'push_token';
   static const _tokenOwnerKey = 'push_token_owner';
+  // iOS-only one-shot marker: the system permission prompt has been requested
+  // (either by the first-launch auto-request or by the settings switch).
+  static const _permissionRequestedKey = 'push_permission_requested';
   int _generation = 0;
   bool _disposed = false;
   bool _busy = false;
@@ -160,7 +166,21 @@ class PushController extends Notifier<PushChannelStatus>
       if (!_current(generation, epoch)) return;
       _sessionRepository = session;
       _sessionUserId = user?.id;
-      if (request) await prefs.setBool(_enabledKey, true);
+      // iOS 首次登录后的启动自动申请一次系统通知权限；系统授权即视为推送同意
+      // （issue #658）。Android 维持显式 opt-in（决策 0019：同意前不初始化 SDK）。
+      // 已有显式 enable 排队时交给该 enable 申请，避免重复弹窗；已弹过则不再申请。
+      if (!request &&
+          _driver.platform == 'ios' &&
+          _pendingEnable == null &&
+          !(prefs.getBool(_permissionRequestedKey) ?? false)) {
+        request = true;
+      }
+      if (request) {
+        await prefs.setBool(_enabledKey, true);
+        if (_driver.platform == 'ios') {
+          await prefs.setBool(_permissionRequestedKey, true);
+        }
+      }
       if (!(prefs.getBool(_enabledKey) ?? false)) {
         state = PushChannelStatus.disabled;
         await _unregister(session, prefs, user?.id);

@@ -49,6 +49,8 @@ abstract final class PageComponent {
   static const themePreview = 'theme.preview';
   static const publish = 'publish.index';
   static const search = 'search.index';
+  // The Web atlas has no page props. Native map rendering is not provided here.
+  static const campusMap = 'campus.map';
   static const course = 'course.index';
   static const courseDetail = 'course.detail';
   static const login = 'auth.login';
