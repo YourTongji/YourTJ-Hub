@@ -670,10 +670,37 @@ class _PublishPageState extends ConsumerState<PublishPage> {
           title: DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: _contentType,
+              // The preview step puts the draft and publish buttons in the
+              // AppBar, which squeezes the title slot on narrow screens. Long
+              // locale labels (de "Entwurf speichern"/"Veröffentlichen", ja
+              // "下書きを保存"/"投稿") overflowed it; expanding and ellipsizing
+              // keeps the title shrinkable instead of overflowing the row.
+              isExpanded: true,
               items: [
-                DropdownMenuItem(value: 2, child: Text(l10n.publishMoment)),
-                DropdownMenuItem(value: 1, child: Text(l10n.publishQuestion)),
-                DropdownMenuItem(value: 3, child: Text(l10n.publishArticle)),
+                DropdownMenuItem(
+                  value: 2,
+                  child: Text(
+                    l10n.publishMoment,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 1,
+                  child: Text(
+                    l10n.publishQuestion,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 3,
+                  child: Text(
+                    l10n.publishArticle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
               onChanged:
                   _currentTopicId > 0 || _submitting || _uploading || _loading
@@ -688,6 +715,21 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 tooltip: l10n.commonHideKeyboard,
                 size: 44,
                 onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+              ),
+            if (_mode == _ComposeMode.preview)
+              GfIconButton(
+                key: const Key('publish-save-draft'),
+                // Icon action keeps the preview AppBar inside the bar even for
+                // long locale labels (de/ja): two labelled buttons overflowed
+                // the 390 px actions row.
+                icon: _submitting
+                    ? Icons.hourglass_top_rounded
+                    : Icons.save_outlined,
+                tooltip: l10n.publishSaveDraft,
+                size: 44,
+                onPressed: _uploading || _submitting
+                    ? null
+                    : () => _submit(topicStatus: 0),
               ),
             GfButton(
               key: const Key('publish-appbar-submit'),
@@ -825,7 +867,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       ),
                     if (_error.isNotEmpty || _message.isNotEmpty)
                       const SizedBox(height: 12),
-                    if (_mode == _ComposeMode.preview) _buildFooter(l10n),
                   ],
                 ),
               ),
@@ -1053,16 +1094,14 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       ),
                     ),
                   ),
-                _toolButton(
-                  icon: _uploading
-                      ? Icons.hourglass_top_rounded
-                      : Icons.image_outlined,
-                  tooltip: l10n.publishToolImage,
-                  onPressed:
-                      _uploading || (_contentType != 3 && _images.length >= 9)
-                      ? null
-                      : _pickAndInsertImage,
-                ),
+                if (_contentType == 3)
+                  _toolButton(
+                    icon: _uploading
+                        ? Icons.hourglass_top_rounded
+                        : Icons.image_outlined,
+                    tooltip: l10n.publishToolImage,
+                    onPressed: _uploading ? null : _pickAndInsertImage,
+                  ),
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
@@ -1418,38 +1457,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 ? null
                 : _pickAndInsertImage,
           ),
-      ],
-    );
-  }
-
-  Widget _buildFooter(AppLocalizations l10n) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: <Widget>[
-        GfButton(
-          key: const Key('publish-save-draft'),
-          label: l10n.publishSaveDraft,
-          variant: GfButtonVariant.secondary,
-          size: GfButtonSize.large,
-          loading: _submitting,
-          onPressed: _uploading ? null : () => _submit(topicStatus: 0),
-        ),
-        const SizedBox(width: 8),
-        GfButton(
-          key: const Key('publish-footer-submit'),
-          label: _mode == _ComposeMode.edit
-              ? l10n.publishNext
-              : l10n.publishPublish,
-          variant: GfButtonVariant.primary,
-          size: GfButtonSize.large,
-          loading: _submitting,
-          icon: const Icon(Icons.send_rounded, size: 18),
-          onPressed: _uploading
-              ? null
-              : () => _mode == _ComposeMode.edit
-                    ? _selectMode(_ComposeMode.preview)
-                    : _submit(topicStatus: 1),
-        ),
       ],
     );
   }
