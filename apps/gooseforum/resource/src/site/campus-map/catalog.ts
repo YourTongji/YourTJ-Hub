@@ -1,3 +1,4 @@
+import zh from '../../locales/zh'
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson'
 
 export type PlaceCategory =
@@ -46,24 +47,7 @@ export const campusBounds: [[number, number], [number, number]] = [
   [121.4915, 31.2794],
   [121.5035, 31.2896],
 ]
-export const sportNames: Record<string, string> = {
-  basketball: '篮球',
-  badminton: '羽毛球',
-  tennis: '网球',
-  soccer: '足球',
-  running: '跑步',
-  swimming: '游泳',
-  volleyball: '排球',
-  gymnastics: '体操',
-  fitness: '健身',
-  weightlifting: '力量训练',
-  table_tennis: '乒乓球',
-  judo: '柔道',
-  wushu: '武术',
-  roller_skating: '轮滑',
-  golf: '高尔夫球',
-  dragon_boat: '龙舟',
-}
+export const sportNames: Record<string, string> = zh.campusMap.sports
 
 export function sportsFor(p: MapProperties): string[] {
   // Some OSM facilities identify their activity only through leisure, without sport.
@@ -132,6 +116,7 @@ export function searchPlaces(
   query: string,
   category: Category,
   sport = '',
+  sportLabel: (activity: string) => string = (activity) => sportNames[activity] ?? activity,
 ): CampusPlace[] {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
   return places
@@ -141,7 +126,10 @@ export function searchPlaces(
       const text = [
         place.name,
         ...place.aliases,
+        ...place.sports,
+        ...place.sports.map((s) => s.replaceAll('_', ' ')),
         ...place.sports.map((s) => sportNames[s] ?? s),
+        ...place.sports.map(sportLabel),
       ]
         .join(' ')
         .toLocaleLowerCase()

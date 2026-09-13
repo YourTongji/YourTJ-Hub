@@ -2,6 +2,27 @@ import adminRaw from './admin-raw.generated'
 
 export default {
   campusMap: {
+    sports: {
+      "basketball": "篮球",
+      "badminton": "羽毛球",
+      "tennis": "网球",
+      "soccer": "足球",
+      "running": "跑步",
+      "swimming": "游泳",
+      "volleyball": "排球",
+      "gymnastics": "体操",
+      "fitness": "健身",
+      "weightlifting": "力量训练",
+      "table_tennis": "乒乓球",
+      "judo": "柔道",
+      "wushu": "武术",
+      "roller_skating": "轮滑",
+      "golf": "高尔夫球",
+      "dragon_boat": "龙舟"
+    },
+    dataFailed: "地点数据加载失败",
+    dataFallback: "请检查网络连接后重试。数据加载成功后才能浏览地点。",
+    outsideSchematic: "你的位置在已校准的校区之外。张江为示意图，无法在此叠加定位。",
     schematicNote: "张江基地按官方图绘制，暂未校准真实坐标。",
     switchCampus: "切换校区",
     collapse: "收起面板",

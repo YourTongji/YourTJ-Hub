@@ -48,7 +48,6 @@ import {
   buildCatalog,
   makePlace,
   searchPlaces,
-  sportNames,
   type CampusData,
   type CampusPlace,
   type Category,
@@ -58,14 +57,18 @@ import { categoryColors } from '@/site/campus-map/style'
 const CampusCanvas = defineAsyncComponent(
   () => import('@/site/campus-map/CampusCanvas.vue'),
 )
-const { t } = useI18n()
+const { t, te } = useI18n()
+function sportLabel(activity: string): string {
+  const key = `campusMap.sports.${activity}`
+  return te(key) ? t(key) : activity
+}
 const campus = ref(
   getCampus(new URLSearchParams(window.location.search).get('campus')),
 )
 const panelOpen = ref(true)
 const location = ref<MapLocation | null>(null)
 const locationStatus = ref<
-  LocationFailure | 'idle' | 'loading' | 'success' | 'outside' | 'schematic'
+  LocationFailure | 'idle' | 'loading' | 'success' | 'outside'
 >('idle')
 const locationNotice = ref(true)
 let locationSequence = 0
@@ -84,7 +87,7 @@ const shareUrl = ref('')
 const mobileResults = ref(false)
 const dimensional = ref(true)
 const mapReady = ref(false)
-const failed = ref(false)
+const failure = ref<'data' | 'renderer' | null>(null)
 const copied = ref(false)
 const bearing = ref(-22)
 const input = ref<HTMLInputElement>()
@@ -103,7 +106,7 @@ const syncMotion = () => {
 }
 const places = computed(() => (data.value ? buildCatalog(data.value) : []))
 const results = computed(() =>
-  searchPlaces(places.value, query.value, category.value, sport.value),
+  searchPlaces(places.value, query.value, category.value, sport.value, sportLabel),
 )
 const activeSearch = computed(
   () => query.value.trim() !== '' || category.value !== 'all' || showAll.value,
@@ -233,11 +236,12 @@ async function locate() {
     if (destination && destination.id !== campus.value.id) {
       focusAfterLoad = true
       switchCampus(destination.id, true)
-    } else if (campus.value.coordinateMode === 'schematic') {
-      locationStatus.value = 'schematic'
-    } else {
+    } else if (campus.value.coordinateMode !== 'schematic') {
       await nextTick()
-      canvas.value?.focusLocation()
+      if (sequence !== locationSequence) return
+      // A cached fix can arrive before the data, async canvas or map style.
+      if (mapReady.value && canvas.value) canvas.value.focusLocation()
+      else focusAfterLoad = true
     }
   } catch (error) {
     if (sequence === locationSequence)
@@ -255,7 +259,7 @@ async function locate() {
 async function load() {
   controller?.abort()
   controller = new AbortController()
-  failed.value = false
+  failure.value = null
   const current = controller
   try {
     const response = await fetch(campus.value.url, { signal: current.signal })
@@ -265,7 +269,7 @@ async function load() {
     data.value = nextData
     restoreSelection()
   } catch {
-    if (!current.signal.aborted) failed.value = true
+    if (!current.signal.aborted) failure.value = 'data'
   }
 }
 async function share() {
@@ -392,7 +396,7 @@ onBeforeUnmount(() => {
         :reduced-motion="reducedMotion"
         @select="select"
         @ready="ready"
-        @failure="failed = true"
+        @failure="failure = 'renderer'"
         @bearing="bearing = $event"
       />
       <div class="atlas-vignette" />
@@ -471,7 +475,7 @@ onBeforeUnmount(() => {
             :aria-pressed="sport === key"
             @click="sport = sport === key ? '' : key"
           >
-            {{ sportNames[key] }}
+            {{ sportLabel(key) }}
           </button>
         </div>
         <section class="atlas-results">
@@ -515,7 +519,7 @@ onBeforeUnmount(() => {
                   }}<template v-if="place.sports.length">
                     ·
                     {{
-                      place.sports.map((s) => sportNames[s] ?? s).join(' / ')
+                      place.sports.map(sportLabel).join(' / ')
                     }}</template
                   ></small
                 ></span
@@ -549,10 +553,10 @@ onBeforeUnmount(() => {
         </div>
       </aside>
 
-      <div v-if="!mapReady || failed" class="atlas-map-status" role="status">
-        <template v-if="failed"
-          ><MapPin :size="25" /><strong>{{ t('campusMap.failed') }}</strong
-          ><span>{{ t('campusMap.fallback') }}</span
+      <div v-if="!mapReady || failure" class="atlas-map-status" role="status">
+        <template v-if="failure"
+          ><MapPin :size="25" /><strong>{{ t(failure === 'data' ? 'campusMap.dataFailed' : 'campusMap.failed') }}</strong
+          ><span>{{ t(failure === 'data' ? 'campusMap.dataFallback' : 'campusMap.fallback') }}</span
           ><button type="button" @click="retry">
             {{ t('campusMap.retry') }}
           </button></template
@@ -584,7 +588,9 @@ onBeforeUnmount(() => {
         aria-live="polite"
       >
         <LocateFixed :size="16" /><span>{{
-          t(`campusMap.location.${locationStatus}`, {
+          t(locationStatus === 'outside' && campus.coordinateMode === 'schematic'
+            ? 'campusMap.outsideSchematic'
+            : `campusMap.location.${locationStatus}`, {
             accuracy: Math.round(location?.accuracy ?? 0),
           })
         }}</span
@@ -675,7 +681,7 @@ onBeforeUnmount(() => {
             </p>
             <div v-if="selected.sports.length" class="atlas-detail__sports">
               <span v-for="activity in selected.sports" :key="activity">{{
-                sportNames[activity] ?? activity
+                sportLabel(activity)
               }}</span>
             </div>
             <p class="atlas-detail__note">

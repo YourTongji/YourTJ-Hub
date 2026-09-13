@@ -17,6 +17,16 @@ const data = JSON.parse(
 const places = buildCatalog(data)
 
 describe('campus map discovery', () => {
+  it.each(['basketball', 'swimming', 'table_tennis'])(
+    'finds every %s facility by its source activity tag', (activity) => {
+      const matches = searchPlaces(places, activity, 'sport')
+      expect(matches.length).toBeGreaterThan(0)
+      expect(matches.map((place) => place.id)).toEqual(
+        searchPlaces(places, '', 'sport', activity).map((place) => place.id),
+      )
+    },
+  )
+
   it('finds unnamed outdoor courts by sport, without requiring a building or name', () => {
     const basketball = searchPlaces(places, '篮球', 'sport', 'basketball')
     const outdoor = basketball.filter((place) => !place.named && !place.indoor)
@@ -71,7 +81,8 @@ describe('campus map discovery', () => {
     expect(
       Object.values(style.sources).every((source) => source.type === 'geojson'),
     ).toBe(true)
-    expect(JSON.stringify(data)).not.toMatch(/"(?:uid|user|changeset)":/)
+    for (const campus of campuses)
+      expect(JSON.stringify(campusData(campus.id))).not.toMatch(/"(?:uid|user|changeset)":/)
   })
 })
 

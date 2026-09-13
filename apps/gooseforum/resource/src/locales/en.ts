@@ -2,6 +2,27 @@ import adminRaw from './admin-raw.en.generated'
 
 export default {
   campusMap: {
+    sports: {
+      "basketball": "Basketball",
+      "badminton": "Badminton",
+      "tennis": "Tennis",
+      "soccer": "Football",
+      "running": "Running",
+      "swimming": "Swimming",
+      "volleyball": "Volleyball",
+      "gymnastics": "Gymnastics",
+      "fitness": "Fitness",
+      "weightlifting": "Weightlifting",
+      "table_tennis": "Table tennis",
+      "judo": "Judo",
+      "wushu": "Wushu",
+      "roller_skating": "Roller skating",
+      "golf": "Golf",
+      "dragon_boat": "Dragon boat"
+    },
+    dataFailed: "Place data could not be loaded",
+    dataFallback: "Check your connection and retry to browse campus places.",
+    outsideSchematic: "You are outside the calibrated campuses. Zhangjiang is schematic, so your position cannot be drawn here.",
     schematicNote: "Zhangjiang follows the official plan; geographic alignment is pending.",
     switchCampus: "Switch campus",
     collapse: "Collapse panel",

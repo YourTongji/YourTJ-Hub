@@ -48,7 +48,8 @@ orientation. `*-supplement.geojson` files own manually checked outlines and over
 matching source IDs replace existing features. Maintain them before regenerating.
 
 The importer accepts a GeoJSON snapshot or OSM API JSON (`osmtogeojson`, development
-only). It keeps map-related tags, strips contributor metadata, excludes linear
+only, with its XML dependency pinned by the workspace override to a maintained
+release). It keeps map-related tags, strips contributor metadata, excludes linear
 transport relations, derives bounding-box label centers and categories, and tests
 centers against Polygon/MultiPolygon campus boundaries (including holes). Context
 outside campus stays visible but is excluded from discovery. Boundaries may omit

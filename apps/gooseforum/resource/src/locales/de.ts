@@ -2,6 +2,27 @@ import adminRaw from './admin-raw.de.generated'
 
 export default {
   campusMap: {
+    sports: {
+      "basketball": "Basketball",
+      "badminton": "Badminton",
+      "tennis": "Tennis",
+      "soccer": "Fußball",
+      "running": "Laufen",
+      "swimming": "Schwimmen",
+      "volleyball": "Volleyball",
+      "gymnastics": "Turnen",
+      "fitness": "Fitness",
+      "weightlifting": "Gewichtheben",
+      "table_tennis": "Tischtennis",
+      "judo": "Judo",
+      "wushu": "Wushu",
+      "roller_skating": "Rollschuhlaufen",
+      "golf": "Golf",
+      "dragon_boat": "Drachenboot"
+    },
+    dataFailed: "Ortsdaten konnten nicht geladen werden",
+    dataFallback: "Prüfe deine Verbindung und lade die Ortsdaten erneut.",
+    outsideSchematic: "Du bist außerhalb der kalibrierten Campusbereiche. Zhangjiang ist schematisch; deine Position kann hier nicht angezeigt werden.",
     schematicNote: "Zhangjiang folgt dem offiziellen Plan; die geografische Ausrichtung steht aus.",
     switchCampus: "Campus wechseln",
     collapse: "Seitenleiste schließen",

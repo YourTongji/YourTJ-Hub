@@ -2,6 +2,27 @@ import adminRaw from './admin-raw.ja.generated'
 
 export default {
   campusMap: {
+    sports: {
+      "basketball": "バスケットボール",
+      "badminton": "バドミントン",
+      "tennis": "テニス",
+      "soccer": "サッカー",
+      "running": "ランニング",
+      "swimming": "水泳",
+      "volleyball": "バレーボール",
+      "gymnastics": "体操",
+      "fitness": "フィットネス",
+      "weightlifting": "ウエイトリフティング",
+      "table_tennis": "卓球",
+      "judo": "柔道",
+      "wushu": "武術",
+      "roller_skating": "ローラースケート",
+      "golf": "ゴルフ",
+      "dragon_boat": "ドラゴンボート"
+    },
+    dataFailed: "地点データを読み込めませんでした",
+    dataFallback: "接続を確認して再試行すると、地点を閲覧できます。",
+    outsideSchematic: "位置情報は座標調整済みのキャンパス外です。張江は概略図のため、現在地を重ねて表示できません。",
     schematicNote: "張江は公式構内図に基づく模式図です。実座標は未校正です。",
     switchCampus: "キャンパスを切り替え",
     collapse: "パネルを閉じる",

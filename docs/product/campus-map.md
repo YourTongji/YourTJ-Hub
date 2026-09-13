@@ -17,14 +17,14 @@ at `/map`, with an entry in the community navigation.
 | Capability | Status | Contract |
 |---|---|---|
 | Web map | Current | A standalone responsive Vue page with pan, zoom, north/reset controls, a collapsible search/detail panel and 2D/2.5D views. |
-| Place discovery | Current | Search source names, aliases and activity names; filter academic, library, food, living and sports places. Unnamed outdoor sports polygons remain discoverable. Golf grounds and sports centres are included even when their source has no explicit activity tag; 嘉定高尔夫练习场 is searchable with 高尔夫 or 高尔夫球 and appears in the golf filter. |
+| Place discovery | Current | Search source names, aliases, raw activity tags and activity names in the selected language; filter academic, library, food, living and sports places. Unnamed outdoor sports polygons remain discoverable. Golf grounds and sports centres are included even when their source has no explicit activity tag; 嘉定高尔夫练习场 is searchable with 高尔夫 or 高尔夫球 and appears in the golf filter. |
 | Map labels | Current | Named buildings participate in label placement at campus overview scale; screen-space collision avoidance controls density. Overview labels omit redundant campus prefixes and parenthesized department suffixes, while hover, selection and search retain full names. Selected places, campus landmarks and libraries take precedence. |
 | Place selection | Current | A map label, building polygon or result opens a detail card and moves the map to the selected feature. Closing restores the place list. |
 | Place links | Current | `?campus=<campus ID>#place=<source feature ID>` restores a selected place. Copying a link falls back to a selectable URL if clipboard access fails. |
 | Map loading failure | Current | The place list remains usable when WebGL fails; data/network failures show an explicit retry state. |
 | Campus switching | Current | Siping, Jiading, Huxi, Hubei, Zhangjiang and Lingang each have an independent dataset. Switching cancels obsolete loads and clears the previous search/selection. |
 | Sports drawing | Current | Siping, Jiading and Huxi athletics tracks have red running surfaces, green infields, lanes and football markings. Hubei follows the official straight-track layout. Individual supported court footprints receive markings; aggregated court polygons do not imply a court count. |
-| Current location | Current | Explicit button press requests one browser WGS84 fix. A blue point and geodesic accuracy circle show it; a nearby calibrated campus is selected automatically. Outside-campus, denial, unsupported, timeout and unavailable states are explicit. No navigation or continuous tracking. |
+| Current location | Current | Explicit button press requests one browser WGS84 fix. A blue point and geodesic accuracy circle show it; a nearby calibrated campus is selected automatically. Outside-campus, denial, unsupported, timeout and unavailable states are explicit. A fix received before the renderer is ready is focused after loading. The uncalibrated Zhangjiang plan reports an outside-campus fix without promising a position overlay. No navigation or continuous tracking. |
 | Coverage and facility detail | Partial | Hubei and Lingang have approximately aligned official-plan building traces. Zhangjiang has the four named buildings and paths in an explicitly uncalibrated local plan: location may be obtained but is not drawn on that plan. Indoor rooms, entrances, court counts and live venue information are not fully verified. |
 | Native mobile | Partial | The shared page-component identifier is mirrored in Dart; the Flutter app has no native campus-map screen. Mobile browsers use the responsive Web page. |
 
@@ -32,7 +32,8 @@ The UI uses a fixed cartographic palette, with green grounds, blue water, warm
 building roofs and distinct sports surfaces. 2.5D building heights and sports markings are illustrative.
 The decorative campus-name/English-name/coordinate caption is absent; campus
 identity is controlled by the header selector.
-Place details show source-derived names and activities, with coverage notes in the
+Place details retain source-derived names; activity controls and descriptions follow the selected
+interface language. Coverage notes appear in the
 map information dialog. They do not advertise live venue status.
 
 ## Data and deployment boundary
@@ -68,6 +69,8 @@ facilities outside that boundary are not guaranteed to appear in search.
 
 - `resource/test/campus-map.test.ts` covers unnamed sports discovery, alias search,
   stable place IDs, campus-boundary filtering, geometry bounds, all six datasets, sports geometry, location/error handling and data privacy.
+- `resource/test/campus-map-page.test.ts` covers translated sports discovery, cached fixes before
+  canvas readiness, the uncalibrated-plan location notice and data/renderer failure recovery.
 - `app/http/controllers/forum/campus_map_test.go` covers anonymous HTML and page
   payload responses.
 - `app/http/middleware/securityHeaders_test.go` verifies the map-only location policy.

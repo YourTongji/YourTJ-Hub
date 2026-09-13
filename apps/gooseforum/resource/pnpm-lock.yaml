@@ -7,6 +7,7 @@ settings:
 overrides:
   nanoid: ^3.3.17
   postcss: ^8.5.23
+  osmtogeojson>@xmldom/xmldom: ^0.9.12
 
 importers:
 
@@ -1025,10 +1026,9 @@ packages:
     peerDependencies:
       vue: ^3.5.0
 
-  '@xmldom/xmldom@0.8.3':
-    resolution: {integrity: sha512-Lv2vySXypg4nfa51LY1nU8yDAGo/5YwF+EY/rUZgIbfvwVARcd67ttCM8SMsTeJy51YhHYavEq+FS6R0hW9PFQ==}
-    engines: {node: '>=10.0.0'}
-    deprecated: this version has critical issues, please update to the latest version
+  '@xmldom/xmldom@0.9.12':
+    resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
+    engines: {node: '>=14.6'}
 
   JSONStream@0.8.0:
     resolution: {integrity: sha512-PiV28BpoUorz9kKFwRbD7+wg0t/k0ITHKn0DgCU44YZ/GaGAZRPt9q5PzoifC85gE55SEPIdMu0Labfxevj8cw==}
@@ -3310,7 +3310,7 @@ snapshots:
     dependencies:
       vue: 3.5.34(typescript@6.0.3)
 
-  '@xmldom/xmldom@0.8.3': {}
+  '@xmldom/xmldom@0.9.12': {}
 
   JSONStream@0.8.0:
     dependencies:
@@ -4081,7 +4081,7 @@ snapshots:
   osmtogeojson@3.0.0-beta.5:
     dependencies:
       '@mapbox/geojson-rewind': 0.5.2
-      '@xmldom/xmldom': 0.8.3
+      '@xmldom/xmldom': 0.9.12
       JSONStream: 0.8.0
       concat-stream: 2.0.0
       geojson-numeric: 0.2.1
