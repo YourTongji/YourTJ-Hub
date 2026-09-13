@@ -203,6 +203,7 @@ void main() {
     String editQueryKey = 'topicId',
     int contentType = 0,
     List<int>? categoryIds,
+    Locale locale = const Locale('zh'),
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
@@ -261,7 +262,7 @@ void main() {
           routerConfig: router,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
+          locale: locale,
         ),
       ),
     );
@@ -780,6 +781,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('请至少选择一个分类'), findsOneWidget);
     expect(result.topicRepository.writes, isEmpty);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('德语窄屏预览步 AppBar 的存草稿与发布按钮不溢出', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true, locale: const Locale('de'));
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+    expect(find.text('Entwurf speichern'), findsOneWidget);
+    expect(find.text('Veröffentlichen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
