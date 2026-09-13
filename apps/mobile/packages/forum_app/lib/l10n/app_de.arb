@@ -390,6 +390,7 @@
   "publishNext": "Nächste",
   "publishGallery": "Wähle Fotos und erzähle deine Geschichte",
   "publishGalleryHint": "Bis zu 9 Fotos. Zum Sortieren gedrückt halten und ziehen.",
+  "publishBodyDragHint": "Bild im Text gedrückt halten und in einen beliebigen Absatz ziehen.",
   "publishFormatting": "Formatierung",
   "publishClassification": "Kategorien auswählen",
   "publishLeaveTitle": "Änderungen behalten?",

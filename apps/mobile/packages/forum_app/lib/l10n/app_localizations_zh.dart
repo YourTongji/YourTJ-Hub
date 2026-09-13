@@ -1213,6 +1213,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishGalleryHint => '最多 9 张，长按拖动排序';
 
   @override
+  String get publishBodyDragHint => '长按正文图片，可拖动到任意段落位置';
+
+  @override
   String get publishFormatting => '文字格式';
 
   @override
