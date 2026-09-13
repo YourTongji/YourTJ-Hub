@@ -1331,7 +1331,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishRedo => 'やり直し';
 
   @override
-  String get publishHeading => '見出し';
+  String get publishHeading => '見出し · 長押しでレベルを選択';
+
+  @override
+  String get publishHeadingLevel1 => '見出し1';
+
+  @override
+  String get publishHeadingLevel2 => '見出し2';
+
+  @override
+  String get publishHeadingLevel3 => '見出し3';
 
   @override
   String get publishToolLink => 'リンクを挿入';

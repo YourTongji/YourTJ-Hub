@@ -2571,8 +2571,26 @@ abstract class AppLocalizations {
   /// No description provided for @publishHeading.
   ///
   /// In en, this message translates to:
-  /// **'Heading'**
+  /// **'Heading · hold to pick level'**
   String get publishHeading;
+
+  /// No description provided for @publishHeadingLevel1.
+  ///
+  /// In en, this message translates to:
+  /// **'Heading 1'**
+  String get publishHeadingLevel1;
+
+  /// No description provided for @publishHeadingLevel2.
+  ///
+  /// In en, this message translates to:
+  /// **'Heading 2'**
+  String get publishHeadingLevel2;
+
+  /// No description provided for @publishHeadingLevel3.
+  ///
+  /// In en, this message translates to:
+  /// **'Heading 3'**
+  String get publishHeadingLevel3;
 
   /// No description provided for @publishToolLink.
   ///

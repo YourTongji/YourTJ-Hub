@@ -355,6 +355,37 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     );
   }
 
+  /// 长按标题按钮弹出级别菜单;选中当前级别再次确认可取消标题。
+  Future<void> _showHeadingLevelMenu(AppLocalizations l10n) async {
+    final int? currentHeader =
+        _quill.getSelectionStyle().attributes[Attribute.header.key]?.value
+            as int?;
+    final Attribute? selected = await showModalBottomSheet<Attribute>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            for (final (attribute, label, level) in <(Attribute, String, int)>[
+              (Attribute.h1, l10n.publishHeadingLevel1, 1),
+              (Attribute.h2, l10n.publishHeadingLevel2, 2),
+              (Attribute.h3, l10n.publishHeadingLevel3, 3),
+            ])
+              ListTile(
+                title: Text(label),
+                trailing: currentHeader == level
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, attribute),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _toggleFormat(selected);
+  }
+
   void _toggleCategory(PublishCategoryPayload category, bool selected) {
     setState(() {
       _dirty = true;
@@ -1011,6 +1042,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
               icon: Icons.title,
               tooltip: l10n.publishHeading,
               onPressed: () => _toggleFormat(Attribute.h2),
+              onLongPress: () => _showHeadingLevelMenu(l10n),
             ),
             _toolButton(
               icon: Icons.link,
@@ -1063,6 +1095,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     required IconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
+    VoidCallback? onLongPress,
   }) {
     return GfIconButton(
       icon: icon,
@@ -1070,6 +1103,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       size: 44,
       iconSize: 20,
       onPressed: onPressed,
+      onLongPress: onLongPress,
     );
   }
 
