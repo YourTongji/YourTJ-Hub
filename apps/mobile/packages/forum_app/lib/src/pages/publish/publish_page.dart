@@ -552,10 +552,37 @@ class _PublishPageState extends ConsumerState<PublishPage> {
           title: DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: _contentType,
+              // The preview step puts the draft and publish buttons in the
+              // AppBar, which squeezes the title slot on narrow screens. Long
+              // locale labels (de "Entwurf speichern"/"Veröffentlichen", ja
+              // "下書きを保存"/"投稿") overflowed it; expanding and ellipsizing
+              // keeps the title shrinkable instead of overflowing the row.
+              isExpanded: true,
               items: [
-                DropdownMenuItem(value: 2, child: Text(l10n.publishMoment)),
-                DropdownMenuItem(value: 1, child: Text(l10n.publishQuestion)),
-                DropdownMenuItem(value: 3, child: Text(l10n.publishArticle)),
+                DropdownMenuItem(
+                  value: 2,
+                  child: Text(
+                    l10n.publishMoment,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 1,
+                  child: Text(
+                    l10n.publishQuestion,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 3,
+                  child: Text(
+                    l10n.publishArticle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
               onChanged:
                   _currentTopicId > 0 || _submitting || _uploading || _loading

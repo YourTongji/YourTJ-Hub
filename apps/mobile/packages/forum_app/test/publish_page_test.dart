@@ -798,7 +798,8 @@ void main() {
     expect(find.byKey(const Key('publish-preview')), findsOneWidget);
     expect(find.text('Entwurf speichern'), findsOneWidget);
     expect(find.text('Veröffentlichen'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    // The overflow assertion is implicit: an unhandled RenderFlex overflow is
+    // reported as a failure by the test binding (and prints the offending row).
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
