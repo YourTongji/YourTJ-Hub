@@ -55,6 +55,17 @@ String _flat(Document document) {
   return buffer.toString();
 }
 
+/// Returns the attributes of the delta op covering flat-text [offset].
+Map<String, dynamic>? attributesAt(List<Operation> ops, int offset) {
+  int cursor = 0;
+  for (final Operation op in ops) {
+    final int length = op.length ?? 0;
+    if (offset < cursor + length) return op.attributes;
+    cursor += length;
+  }
+  return null;
+}
+
 void main() {
   group('locateEmbedOffset', () {
     test('returns the embed document offset', () {
@@ -175,21 +186,76 @@ void main() {
       expect(_flat(controller.document), before);
     });
 
-    test('moves a trailing solo-line image up (undo limitation upstream)', () {
-      // flutter_quill cannot re-insert content at index == document length
-      // when replaying history, so undoing a move whose SOURCE was the
-      // trailing line trips a QuillContainer assertion. The same crash is
-      // reachable without this feature: natively deleting a trailing image
-      // and pressing undo hits it too. The forward move itself is safe and
-      // asserted here; fixing the upstream history limitation is out of
-      // scope for this change.
+    test('moving a trailing solo-line image up stays a single undo step', () {
+      // Trailing images take the preceding-newline fallback on the source
+      // side (the final newline must survive), so history replay inserts
+      // at embedOffset - 1 — always in bounds.
       final Document doc = _documentOf('A\nB\n\uFFFC\n');
+      final QuillController controller = QuillController(
+        document: doc,
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+      final String before = _flat(controller.document);
+      final Embed embed = _findEmbed(controller.document)!;
+      final result = moveComposerImageEmbed(controller.document, embed, 1);
+      controller.compose(
+        result!.delta,
+        controller.selection,
+        ChangeSource.local,
+      );
+      expect(_flat(controller.document), 'A\n\uFFFC\nB\n');
+
+      controller.undo();
+      expect(_flat(controller.document), before);
+    });
+
+    test('keeps the line-above block style when a solo image moves away', () {
+      // Block styles (heading/list/quote) live on the newline terminating
+      // the line. Removing the image must not consume the line-above's
+      // styled newline.
+      final Document doc = _documentOf('A\n\uFFFC\nB\n');
+      doc.compose(
+        Delta()
+          ..retain(1)
+          ..retain(1, <String, dynamic>{'header': 2}),
+        ChangeSource.local,
+      );
       final Embed embed = _findEmbed(doc)!;
-      final result = moveComposerImageEmbed(doc, embed, 1);
+      final result = moveComposerImageEmbed(doc, embed, 5);
       expect(result, isNotNull);
       doc.compose(result!.delta, ChangeSource.local);
-      expect(_flat(doc), 'A\n\uFFFC\nB\n');
+      // Dropping on the final paragraph glues the image to its line end.
+      expect(_flat(doc), 'A\nB\uFFFC\n');
+      // A's heading newline survives untouched.
+      expect(attributesAt(doc.toDelta().toList(), 1), <String, dynamic>{
+        'header': 2,
+      });
     });
+
+    test(
+      're-applies the consumed block style when a trailing image moves up',
+      () {
+        // Fallback path (trailing image): the image's own trailing newline
+        // is the document's final one, so the styled preceding newline is
+        // consumed instead — its block attributes must be re-applied to
+        // the newline that survives, keeping B a heading.
+        final Document doc = _documentOf('A\nB\n\uFFFC\n');
+        doc.compose(
+          Delta()
+            ..retain(3)
+            ..retain(1, <String, dynamic>{'header': 2}),
+          ChangeSource.local,
+        );
+        final Embed embed = _findEmbed(doc)!;
+        final result = moveComposerImageEmbed(doc, embed, 1);
+        expect(result, isNotNull);
+        doc.compose(result!.delta, ChangeSource.local);
+        expect(_flat(doc), 'A\n\uFFFC\nB\n');
+        final List<Operation> ops = doc.toDelta().toList();
+        expect(attributesAt(ops, 1), isNull);
+        expect(attributesAt(ops, 5), <String, dynamic>{'header': 2});
+      },
+    );
 
     test('moved document round-trips through the markdown converter', () {
       final Document doc = _documentOf('A\n\uFFFC\nB\nC\nD\n');

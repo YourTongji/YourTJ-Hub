@@ -299,7 +299,10 @@ void main() {
       final keyboardTop =
           tester.view.physicalSize.height / tester.view.devicePixelRatio -
           250 / tester.view.devicePixelRatio;
-      expect(tester.getBottomLeft(tools).dy, lessThanOrEqualTo(keyboardTop + 0.01));
+      expect(
+        tester.getBottomLeft(tools).dy,
+        lessThanOrEqualTo(keyboardTop + 0.01),
+      );
       await tester.tap(find.text('文字格式'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('粗体'));
@@ -667,6 +670,29 @@ void main() {
     // Drop semantics: the image lands directly below the dropped-on
     // paragraph — dragging onto 第三段 moves the image after it.
     expect(after.indexOf('\uFFFC'), greaterThan(after.indexOf('第三段')));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('拖拽自动滚动挂载页面滚动控制器', (tester) async {
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+    );
+
+    // Edge auto-scroll must drive the page scroll view; a detached
+    // controller makes every autoscroll tick a no-op.
+    final Finder pageScroll = find.ancestor(
+      of: find.byKey(const Key('publish-editor')),
+      matching: find.byType(SingleChildScrollView),
+    );
+    final SingleChildScrollView view = tester.widget<SingleChildScrollView>(
+      pageScroll.first,
+    );
+    expect(view.controller, isNotNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

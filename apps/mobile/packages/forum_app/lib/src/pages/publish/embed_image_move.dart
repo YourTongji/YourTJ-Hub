@@ -62,6 +62,17 @@ String documentFlatText(Document document) {
   return flat.toString();
 }
 
+/// Returns the attributes of the operation covering flat-text [offset].
+Map<String, dynamic>? attributesAtOffset(List<Operation> ops, int offset) {
+  int cursor = 0;
+  for (final Operation op in ops) {
+    final int length = op.length ?? 0;
+    if (offset < cursor + length) return op.attributes;
+    cursor += length;
+  }
+  return null;
+}
+
 /// Returns the index of the newline that terminates the visual line
 /// containing [offset] — the anchor for "the image lands at the end of the
 /// paragraph the user dropped on".
@@ -85,10 +96,12 @@ int clampDropToLineEnd(int offset, Document document) {
 /// the document's final line there is no slot below it, so the image glues
 /// to the line's end instead — expanded embeds render identically. Inline
 /// images always append to the end of the dropped-on line's text.
-/// The source side collapses cleanly: a solo image takes one adjacent line
-/// break — preferring the PRECEDING one so the document's mandatory final
-/// newline survives (required for a crash-free history undo) — and an
-/// inline image leaves surrounding text intact.
+/// The source side collapses cleanly without touching block formatting: a
+/// solo image prefers its OWN trailing newline (the line-above's — possibly
+/// styled — newline survives untouched); only when that newline is the
+/// document's mandatory final one does it fall back to the preceding
+/// newline, whose block attributes are re-applied to the surviving newline.
+/// Inline images leave surrounding text intact.
 ///
 /// Returns null when the move is impossible or a no-op: stale node, drop on
 /// the image's own line, or a drop whose slot is exactly where the image
@@ -130,13 +143,25 @@ ComposerImageMoveResult? moveComposerImageEmbed(
       (embedOffset == 0 || charBefore == '\n') &&
       (charAfter == '\n' || charAfter.isEmpty);
   final int delLength = soloLine ? 2 : 1;
-  // Delete the PRECEDING newline together with a solo image (when one
-  // exists). Quill's history replay re-inserts the deleted range at its
-  // start offset and cannot insert at index == document length, so
-  // consuming the trailing newline would crash undo on trailing images.
-  final int delStart = soloLine && embedOffset > 0
-      ? embedOffset - 1
-      : embedOffset;
+  Map<String, dynamic>? consumedLineAttrs;
+  late final int delStart;
+  if (soloLine && embedOffset + 1 < text.length - 1 && charAfter == '\n') {
+    // Preferred: take the image's own trailing newline. The line-above's
+    // newline — which carries its block style (heading/list/quote) —
+    // survives untouched.
+    delStart = embedOffset;
+  } else if (soloLine && embedOffset > 0) {
+    // Fallback (trailing image): the image's trailing newline IS the
+    // document's final newline. Quill's history replay re-inserts the
+    // deleted range at its start offset and cannot insert at index ==
+    // document length, so consuming the final newline would crash undo.
+    // Take the preceding newline instead and carry its block attributes
+    // over to the newline that survives the collapse.
+    delStart = embedOffset - 1;
+    consumedLineAttrs = attributesAtOffset(ops, delStart);
+  } else {
+    delStart = embedOffset;
+  }
 
   final int dropNewline = targetOffset >= documentLength
       ? documentLength - 1
@@ -185,6 +210,9 @@ ComposerImageMoveResult? moveComposerImageEmbed(
   if (soloInsert) delta.insert('\n');
   delta.retain(delStart - insertOffset);
   delta.delete(delLength);
+  if (consumedLineAttrs != null && consumedLineAttrs.isNotEmpty) {
+    delta.retain(1, consumedLineAttrs);
+  }
   return ComposerImageMoveResult(
     delta: delta,
     insertOffset: insertOffset,

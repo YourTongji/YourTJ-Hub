@@ -75,6 +75,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   late QuillController _quill;
   final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
   final ScrollController _pageScrollController = ScrollController();
+  final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
 
@@ -454,14 +455,23 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     if (pointer == null) return;
     final ScrollController scroll = _pageScrollController;
     if (!scroll.hasClients) return;
+    // Drag offsets are global; edge probes must be viewport-local.
+    final RenderObject? renderObject = _pageScrollViewKey.currentContext
+        ?.findRenderObject();
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        !renderObject.hasSize) {
+      return;
+    }
+    final double localY = renderObject.globalToLocal(pointer).dy;
     final double maxOffset = scroll.position.maxScrollExtent;
     final double viewportBottom =
         scroll.position.viewportDimension - _dragAutoscrollEdge;
-    if (pointer.dy < _dragAutoscrollEdge && scroll.offset > 0) {
+    if (localY < _dragAutoscrollEdge && scroll.offset > 0) {
       scroll.jumpTo(
         (scroll.offset - _dragAutoscrollStep).clamp(0.0, maxOffset),
       );
-    } else if (pointer.dy > viewportBottom && scroll.offset < maxOffset) {
+    } else if (localY > viewportBottom && scroll.offset < maxOffset) {
       scroll.jumpTo(
         (scroll.offset + _dragAutoscrollStep).clamp(0.0, maxOffset),
       );
@@ -699,6 +709,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         );
 
         return SingleChildScrollView(
+          key: _pageScrollViewKey,
+          controller: _pageScrollController,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: pagePadding.copyWith(
             bottom: pagePadding.bottom + MediaQuery.paddingOf(context).bottom,
