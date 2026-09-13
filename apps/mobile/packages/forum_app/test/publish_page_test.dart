@@ -128,7 +128,11 @@ class _CaptchaAuthRepository extends AuthRepository {
   );
 }
 
-PagePayload _publishPayload({required bool editing, int contentType = 0}) {
+PagePayload _publishPayload({
+  required bool editing,
+  int contentType = 0,
+  List<int>? categoryIds,
+}) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
     'props': <String, dynamic>{
@@ -143,7 +147,7 @@ PagePayload _publishPayload({required bool editing, int contentType = 0}) {
       'topic': <String, dynamic>{
         'title': editing ? '原始标题' : '',
         'content': editing ? '## 预览标题\n\n**正文内容**' : '',
-        'categoryIds': editing ? <int>[2] : null,
+        'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
         'topicStatus': editing ? 1 : 0,
         'contentType': contentType,
       },
@@ -198,6 +202,7 @@ void main() {
     required bool editing,
     String editQueryKey = 'topicId',
     int contentType = 0,
+    List<int>? categoryIds,
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
@@ -210,7 +215,11 @@ void main() {
     );
     final _PublishPageRepository pageRepository = _PublishPageRepository(
       client,
-      _publishPayload(editing: editing, contentType: contentType),
+      _publishPayload(
+        editing: editing,
+        contentType: contentType,
+        categoryIds: categoryIds,
+      ),
     );
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
@@ -669,6 +678,108 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('预览步 AppBar 保存草稿写回草稿并停留在预览步', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final result = await pumpPublishPage(tester, editing: true, resultId: 55);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pumpAndSettle();
+
+    expect(result.topicRepository.writes, hasLength(1));
+    expect(result.topicRepository.writes.single.topicStatus, 0);
+    expect(result.topicRepository.writes.single.categoryIds, <int>[2]);
+    expect(result.router.state.uri.path, '/publish');
+    expect(result.router.state.uri.queryParameters['topicId'], '42');
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+    expect(find.text('已保存为草稿'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('预览步返回回到编辑步而不是离开页面', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final result = await pumpPublishPage(tester, editing: true);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-editor')), findsOneWidget);
+    expect(find.byKey(const Key('publish-preview')), findsNothing);
+    expect(result.router.state.uri.path, '/publish');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('编辑态有未保存改动时返回先确认，可留在编辑步', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true);
+
+    await tester.enterText(find.byType(TextField).first, '改动后的标题');
+    await tester.pump(const Duration(milliseconds: 250));
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('保留这次创作？'), findsOneWidget);
+    expect(find.text('尚有未保存的内容。返回编辑，或放弃本次修改。'), findsOneWidget);
+
+    await tester.tap(find.text('继续编辑'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('保留这次创作？'), findsNothing);
+    expect(find.byKey(const Key('publish-editor')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('预览步无分类时发布与保存草稿都要求先选分区', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      categoryIds: const <int>[],
+      resultId: 55,
+    );
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
+
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pumpAndSettle();
+    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes, isEmpty);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
