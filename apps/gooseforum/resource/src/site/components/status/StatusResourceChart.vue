@@ -29,13 +29,24 @@ function timeLabel(time: number) {
 <template>
   <div class="resource-history">
     <div class="resource-axis" aria-hidden="true"><span>100%</span><span>50%</span><span>0%</span></div>
+    <!-- deslop-ignore-next-line 24 -- data visualization SVG, not an icon -->
     <div class="resource-plot"><svg viewBox="0 0 720 170" preserveAspectRatio="none" role="img" :aria-label="`${t('status.history')} · ${t(`status.scope${range}`)} · CPU / ${t('status.memory')}`"><line v-for="value in [0, 50, 100]" :key="value" x1="0" x2="720" :y1="y(value)" :y2="y(value)" class="grid-line" /><path :d="line('memoryPercent')" class="memory-line" /><path :d="line('cpu')" class="cpu-line" /><circle v-for="point in points" :key="point.time" :cx="x(point.time)" :cy="y(point.cpu)" r="1.8" class="cpu-point"><title>{{ timeLabel(Date.parse(point.time)) }} · CPU {{ point.cpu.toFixed(1) }}% · {{ t('status.memory') }} {{ point.memoryPercent.toFixed(1) }}%</title></circle></svg><div class="resource-ticks" aria-hidden="true"><span>{{ timeLabel(start) }}</span><span>{{ timeLabel(start + span / 2) }}</span><span>{{ timeLabel(end) }}</span></div></div>
   </div>
 </template>
 
 <style scoped>
 .resource-ticks > span { white-space: pre-line; text-align: center; }
-.resource-ticks > span:first-child { text-align: left; }.resource-ticks > span:last-child { text-align: right; }
-.resource-history { display: flex; gap: 12px; }.resource-axis { height: calc(var(--status-chart-height, 144px) - 7px); display: flex; flex-direction: column; justify-content: space-between; padding-top: 4px; width: 30px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--gf-color-icon-muted); }.resource-plot { flex: 1; min-width: 0; }.resource-plot svg { width: 100%; height: var(--status-chart-height, 144px); overflow: visible; }.grid-line { stroke: var(--gf-color-line); stroke-dasharray: 3 5; stroke-width: .7; }.cpu-line, .memory-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }.cpu-line { stroke: var(--gf-color-primary); }.memory-line { stroke: var(--gf-color-accent); stroke-dasharray: 5 3; }.cpu-point { fill: var(--gf-color-primary); }.resource-ticks { display: flex; justify-content: space-between; font-size: 12px; color: var(--gf-color-icon-muted); margin-top: 10px; }
-@media (max-width: 640px) { .resource-history { gap: 7px; }.resource-axis { font-size: 12px; width: 24px; }.resource-ticks { font-size: 12px; } }
+.resource-ticks > span:first-child { text-align: start; }
+.resource-ticks > span:last-child { text-align: end; }
+.resource-history { display: flex; gap: 12px; min-width: 0; }
+.resource-axis { display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0; width: 32px; height: calc(var(--status-chart-height, 156px) - 7px); padding-top: 4px; color: var(--gf-color-icon-muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.resource-plot { flex: 1; min-width: 0; }
+.resource-plot svg { width: 100%; height: var(--status-chart-height, 156px); overflow: visible; }
+.grid-line { stroke: color-mix(in oklch, var(--gf-color-line) 82%, transparent); stroke-dasharray: 3 5; stroke-width: .7; }
+.cpu-line, .memory-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.cpu-line { stroke: var(--gf-color-primary); }
+.memory-line { stroke: var(--gf-color-accent); stroke-dasharray: 5 4; }
+.cpu-point { fill: var(--gf-color-primary); }
+.resource-ticks { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--gf-color-icon-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .resource-history { gap: 7px; }.resource-axis { width: 25px; } }
 </style>

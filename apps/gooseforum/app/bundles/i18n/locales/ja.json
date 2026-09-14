@@ -1,6 +1,6 @@
 {
   "status.title": "稼働状況",
-  "status.description": "YourTJ のサーバーリソースとアクセス状況。",
+  "status.description": "YourTJ のサービス稼働状況、アクセス状況、サーバー指標。",
   "search": "検索",
   "prevPage": "前のページ",
   "nextPage": "次のページ",

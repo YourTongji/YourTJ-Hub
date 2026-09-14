@@ -1,6 +1,6 @@
 {
   "status.title": "Status",
-  "status.description": "YourTJ server resources and community traffic.",
+  "status.description": "YourTJ service availability, traffic, and server metrics.",
   "search": "Search",
   "prevPage": "Previous",
   "nextPage": "Next",
