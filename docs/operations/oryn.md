@@ -175,7 +175,7 @@ Start a fresh workflow to replan failed, expired or settled admissions before an
 Publication-only retries use the original producing artifact and retain live source/receipt checks.
 Upgrade all receipt writers together; historical reruns keep their original runtime and plan, and old
 strict-schema runtimes cannot read extended receipts. See
-[the retry and report decision](../decisions/0023-oryn-action-reliability.md).
+[the retry and report decision](../decisions/0025-oryn-action-reliability.md).
 
 ## Maintenance and verification
 
