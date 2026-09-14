@@ -82,15 +82,16 @@ func convertTopicToSearchDocument(topic *topics.Entity, firstPost *posts.Entity)
 		searchContent = markdown2html.ExtractSearchContent(firstPost.Content)
 	}
 	return TopicSearchDocument{
-		ID:            topic.Id,
-		Title:         topic.Title,
-		SearchContent: searchContent,
-		Category:      topic.CategoryIds,
-		TopicStatus:   topic.Status,
-		ProcessStatus: topic.ProcessStatus,
-		TopicType:     topic.TopicType,
-		CreatedAt:     topic.CreatedAt.Unix(),
-		UpdatedAt:     topic.UpdatedAt.Unix(),
+		ProjectionVersion: topicProjectionVersion,
+		ID:                topic.Id,
+		Title:             topic.Title,
+		SearchContent:     searchContent,
+		Category:          topic.CategoryIds,
+		TopicStatus:       topic.Status,
+		ProcessStatus:     topic.ProcessStatus,
+		TopicType:         topic.TopicType,
+		CreatedAt:         topic.CreatedAt.Unix(),
+		UpdatedAt:         topic.UpdatedAt.Unix(),
 	}
 }
 
@@ -378,45 +379,7 @@ func EnsureTopicIndexConfigured() {
 
 // configureIndex applies searchable, filterable, sortable and displayed fields.
 func configureIndex(index meilisearch.IndexManager) error {
-	searchableAttributes := []string{
-		"title",
-		"searchContent",
-	}
-	_, err := index.UpdateSearchableAttributes(&searchableAttributes)
-	if err != nil {
-		return fmt.Errorf("设置可搜索字段失败: %w", err)
-	}
-
-	filterableAttributes := []any{
-		"category",
-		"topicType",
-	}
-	_, err = index.UpdateFilterableAttributes(&filterableAttributes)
-	if err != nil {
-		return fmt.Errorf("设置可过滤字段失败: %w", err)
-	}
-
-	sortableAttributes := []string{
-		"createdAt",
-		"updatedAt",
-	}
-	_, err = index.UpdateSortableAttributes(&sortableAttributes)
-	if err != nil {
-		return fmt.Errorf("设置可排序字段失败: %w", err)
-	}
-
-	displayedAttributes := []string{"id", "title"}
-	_, err = index.UpdateDisplayedAttributes(&displayedAttributes)
-	if err != nil {
-		return fmt.Errorf("设置显示字段失败: %w", err)
-	}
-
-	fmt.Println("索引配置完成:")
-	fmt.Printf("- 可搜索字段: %v\n", searchableAttributes)
-	fmt.Printf("- 可过滤字段: %v\n", filterableAttributes)
-	fmt.Printf("- 可排序字段: %v\n", sortableAttributes)
-
-	return nil
+	return applyManagedSettings(context.Background(), index, TopicIndex)
 }
 
 // getTaskUID returns nil when no task was created.

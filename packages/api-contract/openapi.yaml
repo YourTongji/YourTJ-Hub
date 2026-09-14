@@ -436,6 +436,10 @@ paths:
     $ref: ./paths/admin-content-ops.yaml#/adminListFileResources
   /api/admin/img-upload:
     $ref: ./paths/admin-data.yaml#/adminUploadImage
+  /api/admin/search/indexes:
+    $ref: ./paths/admin-search.yaml#/adminSearchIndexes
+  /api/admin/search/maintenance:
+    $ref: ./paths/admin-search.yaml#/adminSearchMaintenance
   /api/admin/data/export:
     $ref: ./paths/admin-data.yaml#/adminCreateExportTask
   /api/admin/data/export/tasks:
@@ -609,6 +613,20 @@ components:
       bearerFormat: agt_
       description: Opaque Agent bearer token (agt_...) issued once at Agent create/rotate time. Cookies and human JWTs are never accepted.
   schemas:
+    SearchMaintenanceRequest:
+      $ref: ./components/schemas.yaml#/SearchMaintenanceRequest
+    SearchIndexCheck:
+      $ref: ./components/schemas.yaml#/SearchIndexCheck
+    SearchMaintenanceJob:
+      $ref: ./components/schemas.yaml#/SearchMaintenanceJob
+    SearchMaintenanceStatus:
+      $ref: ./components/schemas.yaml#/SearchMaintenanceStatus
+    SearchMaintenanceSubmission:
+      $ref: ./components/schemas.yaml#/SearchMaintenanceSubmission
+    SearchMaintenanceStatusResponse:
+      $ref: ./components/schemas.yaml#/SearchMaintenanceStatusResponse
+    SearchMaintenanceSubmissionResponse:
+      $ref: ./components/schemas.yaml#/SearchMaintenanceSubmissionResponse
     ApiFailure:
       $ref: ./components/schemas.yaml#/ApiFailure
     ApiSuccess:

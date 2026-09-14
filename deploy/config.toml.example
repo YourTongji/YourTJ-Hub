@@ -54,6 +54,7 @@ maxLifeSeconds = 300
 
 
 [meilisearch]
+maintenance_enabled = true
 url = "http://meilisearch:7700"
 masterkey = "REPLACE_MEILI_KEY"
 

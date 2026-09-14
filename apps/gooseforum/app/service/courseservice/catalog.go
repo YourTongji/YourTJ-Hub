@@ -1,10 +1,14 @@
 package courseservice
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 )
 
 // ErrCourseNotFound 课程不存在或已隐藏（与存储层错误区分，控制器映射为 404）。
@@ -133,8 +137,41 @@ type CatalogPage struct {
 	HasNext bool            `json:"hasNext"`
 }
 
+const CatalogRequestTimeout = 4 * time.Second
+
+var ErrCatalogBusy = errors.New("course catalog busy")
+
+// Two catalog requests can use the shared five-connection pool at once; excess
+// work is rejected immediately, rather than retained after clients disconnect.
+var catalogSlots = make(chan struct{}, 2)
+var searchCatalogCandidates = searchservice.SearchCourseCandidates
+
 // ListCatalog 返回课程目录分页（canonical course 一页，B1 携带评分聚合）。
 func ListCatalog(q CatalogQuery) (CatalogPage, error) {
+	return ListCatalogContext(context.Background(), q)
+}
+
+func ListCatalogContext(ctx context.Context, q CatalogQuery) (CatalogPage, error) {
+	ctx, cancel := context.WithTimeout(ctx, CatalogRequestTimeout)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return CatalogPage{}, err
+	}
+	select {
+	case catalogSlots <- struct{}{}:
+		defer func() { <-catalogSlots }()
+	default:
+		return CatalogPage{}, ErrCatalogBusy
+	}
+	keyword := Normalize(q.Keyword)
+	candidates, indexed, err := searchCatalogCandidates(ctx, keyword)
+	if err != nil {
+		return CatalogPage{}, fmt.Errorf("catalog candidates: %w", err)
+	}
+	if indexed {
+		keyword = ""
+	}
+
 	page := q.Page
 	if page <= 0 {
 		page = 1
@@ -146,16 +183,17 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	if size > 50 {
 		size = 50
 	}
-	entities, total, err := course.ListCourses(course.ListCourseQuery{
-		Keyword:    Normalize(q.Keyword),
-		Department: normalizeMulti(q.Department),
-		TermCode:   normalizeMulti(q.TermCode),
-		Campus:     normalizeMulti(q.Campus),
-		Instructor: normalizeMulti(q.Instructor),
-		HasReview:  q.HasReview,
-		SortBy:     q.SortBy,
-		Page:       page,
-		Size:       size,
+	entities, total, err := course.ListCoursesContext(ctx, course.ListCourseQuery{
+		CandidateIDs: candidates,
+		Keyword:      keyword,
+		Department:   normalizeMulti(q.Department),
+		TermCode:     normalizeMulti(q.TermCode),
+		Campus:       normalizeMulti(q.Campus),
+		Instructor:   normalizeMulti(q.Instructor),
+		HasReview:    q.HasReview,
+		SortBy:       q.SortBy,
+		Page:         page,
+		Size:         size,
 	})
 	if err != nil {
 		return CatalogPage{}, err
@@ -163,7 +201,7 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	if len(entities) == 0 {
 		return CatalogPage{List: []CourseSummary{}, Page: page, Size: size, Total: total, HasNext: false}, nil
 	}
-	summaries, err := buildSummaries(entities)
+	summaries, err := buildSummariesContext(ctx, entities)
 	if err != nil {
 		return CatalogPage{}, err
 	}
@@ -308,6 +346,12 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 }
 
 func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), CatalogRequestTimeout)
+	defer cancel()
+	return buildSummariesContext(ctx, entities)
+}
+
+func buildSummariesContext(ctx context.Context, entities []course.Entity) ([]CourseSummary, error) {
 	courseIds := make([]uint64, 0, len(entities))
 	teacherIds := make([]uint64, 0, len(entities))
 	for _, e := range entities {
@@ -319,7 +363,7 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	// 课程卡身份教师：按 teacher_id 批量解析姓名（无教师卡保持空）。
 	teacherNameByID := make(map[uint64]string)
 	if len(teacherIds) > 0 {
-		teachers, err := course.ListInstructorsByIDs(teacherIds)
+		teachers, err := course.ListInstructorsByIDsContext(ctx, teacherIds)
 		if err != nil {
 			return nil, err
 		}
@@ -327,7 +371,7 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 			teacherNameByID[t.Id] = t.Name
 		}
 	}
-	aliases, err := course.ListAliasesByCourses(courseIds)
+	aliases, err := course.ListAliasesByCoursesContext(ctx, courseIds)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +379,7 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	for _, a := range aliases {
 		aliasesByCourse[a.CourseId] = append(aliasesByCourse[a.CourseId], a.Value)
 	}
-	offerings, err := course.ListOfferingsByCourses(courseIds)
+	offerings, err := course.ListOfferingsByCoursesContext(ctx, courseIds)
 	if err != nil {
 		return nil, err
 	}
@@ -345,11 +389,11 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 		offeringIds = append(offeringIds, o.Id)
 		offeringsByCourse[o.CourseId] = append(offeringsByCourse[o.CourseId], o.Id)
 	}
-	links, err := course.ListOfferingInstructorLinks(offeringIds)
+	links, err := course.ListOfferingInstructorLinksContext(ctx, offeringIds)
 	if err != nil {
 		return nil, err
 	}
-	instructors, err := course.ListInstructorsByOfferings(offeringIds)
+	instructors, err := course.ListInstructorsByOfferingsContext(ctx, offeringIds)
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +411,7 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	for _, o := range offerings {
 		termIds = append(termIds, o.TermId)
 	}
-	terms, err := course.ListTermsByIDs(termIds)
+	terms, err := course.ListTermsByIDsContext(ctx, termIds)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +425,10 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	}
 	summaries := make([]CourseSummary, 0, len(entities))
 	// B1：课程级统计投影（目录列表展示均分与评论数，N+1 防护）。
-	courseStats := course.ListCourseStatsByIDs(courseIds)
+	courseStats, err := course.ListCourseStatsByIDsContext(ctx, courseIds)
+	if err != nil {
+		return nil, err
+	}
 	for _, e := range entities {
 		s := CourseSummary{
 			Id:          e.Id,

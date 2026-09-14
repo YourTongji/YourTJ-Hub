@@ -22,12 +22,12 @@ const (
 const LeaseDuration = 10 * time.Minute
 
 type Entity struct {
-	Id          uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	Type        string    `gorm:"column:type;type:varchar(50);not null;" json:"type"`       // 任务类型
-	Status      uint8     `gorm:"column:status;not null;default:0;index" json:"status"`     // 任务状态
-	TaskJson    string    `gorm:"column:task_json;type:text;" json:"taskJson"`              // 任务数据
-	RetryCount  uint8     `gorm:"column:retry_count;not null;default:0;" json:"retryCount"` // 重试次数
-	LastError   string    `gorm:"column:last_error;type:text;" json:"lastError"`            // 最后一次错误信息
+	Id          uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_search_maintenance_history,where:type = 'search-maintenance';" json:"id"`
+	Type        string    `gorm:"column:type;type:varchar(50);not null;uniqueIndex:idx_search_maintenance_active,where:type = 'search-maintenance' AND (status = 0 OR status = 1 OR status = 4);" json:"type"` // 任务类型
+	Status      uint8     `gorm:"column:status;not null;default:0;index" json:"status"`                                                                                                                        // 任务状态
+	TaskJson    string    `gorm:"column:task_json;type:text;" json:"taskJson"`                                                                                                                                 // 任务数据
+	RetryCount  uint8     `gorm:"column:retry_count;not null;default:0;" json:"retryCount"`                                                                                                                    // 重试次数
+	LastError   string    `gorm:"column:last_error;type:text;" json:"lastError"`                                                                                                                               // 最后一次错误信息
 	CreatedAt   time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`
 	ProcessedAt time.Time `gorm:"column:processed_at;" json:"processedAt"` // 处理时间（时间租约起点）
 	// LeaseToken 是本次领取生成的 fencing token（每次领取唯一，不可复用）：

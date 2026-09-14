@@ -138,3 +138,26 @@ Before expanding features, close these baselines (avoid building on a wrong foun
 编辑器 @补全（`Current`）：回复编辑器、完整发布页与快捷发布弹层共用候选查询、键盘选择和候选列表；窄屏停靠列表可滚动并支持点击最后一项，关闭弹层时清理候选会话与编辑器 aria 状态。
 
 数学分隔符阅读渲染（`Current`）：保存的主题／回复支持 `\(...\)`、`\[...\]` 与 KaTeX 支持的常见 begin/end 环境；环境标记完整保留以渲染对齐和矩阵。Vditor 保存这些 Markdown 写法，但其所见即所得预览仍使用原生美元符号语法，替代分隔符的编辑器预览为 `Planned`。
+
+### Course catalog search
+
+**Current**: course catalog keyword search uses the shared Meilisearch course
+index in configured deployments, including visible teaching-class codes and
+instructor pinyin/initials, including a card's identity teacher when no visible
+offering exists. Exact filters, review ordering, visibility and totals
+come from the database. Search outages or capacity limits are explicit retriable
+failures rather than empty catalogs; local installations without Meili retain SQL
+matching. Filter options may take up to five minutes to refresh. Keyword matching
+follows the search engine's tokenization rather than literal substring matching.
+
+### Search index administration
+
+**Current**: 管理后台「搜索索引」（`/admin/search`）向 SiteManager 提供话题、用户、
+分类、课程与 Wiki 段落索引的实时文档数量、引擎版本和最近检查记录。完整性检查比较
+逐条公开投影、文档版本与索引设置，区分缺失、多余和内容过期；无版本标记的旧文档
+显示为「未标记」。可以检查或重建单个／全部索引，查看后台进度，失败后重新提交。
+重建保留在线搜索，结束后再次检查；执行结束与检查完整是两个独立结果。
+
+维护必须由索引所属实例启用，部署配置仅允许 main 执行，dev 为只读。检查结果带时间，
+线上变更可能使结果过期；应用部署不自动更新文档。详见
+[索引维护操作](../operations/deployment.md#admin-search-index-maintenance)。

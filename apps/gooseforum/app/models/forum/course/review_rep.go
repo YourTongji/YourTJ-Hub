@@ -1,6 +1,7 @@
 package course
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -693,19 +694,26 @@ type RatingDistribution [5]int
 // ListCourseStatsByIDs 批量读取课程级统计投影（目录列表 N+1 防护）。
 // 无统计行的课程返回空实体（ratingCount=0/reviewCount=0）。
 func ListCourseStatsByIDs(courseIds []uint64) map[uint64]CourseStatsEntity {
-	result := make(map[uint64]CourseStatsEntity, len(courseIds))
-	if len(courseIds) == 0 {
-		return result
-	}
-	var list []CourseStatsEntity
-	if err := courseStatsBuilder().Where("course_id IN ?", courseIds).Find(&list).Error; err != nil {
-		slog.Warn("ListCourseStatsByIDs: 查询失败", "courseIds", courseIds, "err", err)
-		return result
-	}
-	for _, s := range list {
-		result[s.CourseId] = s
+	result, err := ListCourseStatsByIDsContext(context.Background(), courseIds)
+	if err != nil {
+		slog.Warn("ListCourseStatsByIDs: query failed", "err", err)
 	}
 	return result
+}
+
+func ListCourseStatsByIDsContext(ctx context.Context, courseIds []uint64) (map[uint64]CourseStatsEntity, error) {
+	result := make(map[uint64]CourseStatsEntity, len(courseIds))
+	if len(courseIds) == 0 {
+		return result, ctx.Err()
+	}
+	var list []CourseStatsEntity
+	if err := courseStatsBuilder().WithContext(ctx).Where("course_id IN ?", courseIds).Find(&list).Error; err != nil {
+		return result, err
+	}
+	for _, item := range list {
+		result[item.CourseId] = item
+	}
+	return result, nil
 }
 
 // ListOfferingStatsByIDs 批量读取 offering 级统计投影（详情开课列表 N+1 防护）。

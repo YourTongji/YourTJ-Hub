@@ -1,6 +1,7 @@
 package course
 
 import (
+	"context"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -74,15 +75,17 @@ func ListVisibleCoursesByTeamKey(teamKey string, excludeCourseId uint64) ([]Enti
 
 // ListCourseQuery 课程目录筛选条件。
 type ListCourseQuery struct {
-	Keyword    string   // 名称/课号/别名/教师（归一化前缀或包含）
-	Department []string // 院系精确（多值取并集，任一命中）
-	TermCode   []string // 学期（通过 offering 关联，多值取并集）
-	Campus     []string // 校区（通过 offering 关联，多值取并集）
-	Instructor []string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母，多值取并集）
-	HasReview  bool     // 仅看有评价（course_review_stats.review_count > 0）
-	SortBy     string   // 排序：rating 按评分降序（零评分排末尾）；其它值/空串见 ListCourses 排序分支
-	Page       int
-	Size       int
+	// CandidateIDs narrows a Meilisearch match set. nil means no candidate filter; empty means no matches.
+	CandidateIDs []uint64
+	Keyword      string   // 名称/课号/别名/教师（归一化前缀或包含）
+	Department   []string // 院系精确（多值取并集，任一命中）
+	TermCode     []string // 学期（通过 offering 关联，多值取并集）
+	Campus       []string // 校区（通过 offering 关联，多值取并集）
+	Instructor   []string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母，多值取并集）
+	HasReview    bool     // 仅看有评价（course_review_stats.review_count > 0）
+	SortBy       string   // 排序：rating 按评分降序（零评分排末尾）；其它值/空串见 ListCourses 排序分支
+	Page         int
+	Size         int
 	// IncludeHidden 为 true 时不过滤 status（管理端查看隐藏课程）；false 仅返回可见课程。
 	IncludeHidden bool
 }
@@ -92,7 +95,21 @@ type ListCourseQuery struct {
 // 组内保持 id 倒序；管理端（IncludeHidden=true）保持 id 倒序。两组排序键均为全序，
 // 分页稳定（OFFSET 分页不因排序键重复产生抖动）。
 func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) {
-	b := courseBuilder().Where("course.deleted_at IS NULL")
+	return ListCoursesContext(context.Background(), q)
+}
+
+func ListCoursesContext(ctx context.Context, q ListCourseQuery) (entities []Entity, total int64, err error) {
+	if err = ctx.Err(); err != nil {
+		return
+	}
+	if q.CandidateIDs != nil && len(q.CandidateIDs) == 0 {
+		return []Entity{}, 0, nil
+	}
+
+	b := courseBuilder().WithContext(ctx).Where("course.deleted_at IS NULL")
+	if q.CandidateIDs != nil {
+		b = b.Where("course.id IN ?", q.CandidateIDs)
+	}
 	if !q.IncludeHidden {
 		b = b.Where(queryopt.Eq("status", StatusVisible))
 	}
@@ -137,7 +154,7 @@ OR EXISTS (
 		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0 AND course_review_stats.deleted_at IS NULL)`)
 	}
 	if len(q.TermCode) > 0 || len(q.Campus) > 0 {
-		ob := offeringBuilder()
+		ob := offeringBuilder().WithContext(ctx)
 		if len(q.TermCode) > 0 {
 			ob = ob.Where("term_id IN (SELECT id FROM course_term WHERE code IN (?))", q.TermCode)
 		}
@@ -145,7 +162,7 @@ OR EXISTS (
 			ob = ob.Where(queryopt.In("campus", q.Campus))
 		}
 		sub := ob.Select("course_id")
-		b = b.Where("id IN (?)", sub)
+		b = b.Where("course.id IN (?)", sub)
 	}
 	if err = b.Count(&total).Error; err != nil {
 		return
@@ -190,8 +207,12 @@ func escapeLike(s string) string {
 
 // ListDistinctDepartments 返回所有可见课程的去重院系列表（非空、按字典序），供目录页筛选下拉。
 func ListDistinctDepartments() ([]string, error) {
+	return ListDistinctDepartmentsContext(context.Background())
+}
+
+func ListDistinctDepartmentsContext(ctx context.Context) ([]string, error) {
 	var departments []string
-	err := courseBuilder().
+	err := courseBuilder().WithContext(ctx).
 		Where(queryopt.Eq("status", StatusVisible)).
 		Where(queryopt.IsNull("deleted_at")).
 		Where(queryopt.Ne("department", "")).
@@ -205,8 +226,12 @@ func ListDistinctDepartments() ([]string, error) {
 // 供目录页校区筛选下拉。与 ListCourses 的 campus 筛选一致，取 course_offering.campus 原始值，
 // 保证 select 选项与筛选值域完全一致（不依赖 pk_campus 字典编码）。
 func ListDistinctCampuses() ([]string, error) {
+	return ListDistinctCampusesContext(context.Background())
+}
+
+func ListDistinctCampusesContext(ctx context.Context) ([]string, error) {
 	var campuses []string
-	err := offeringBuilder().
+	err := offeringBuilder().WithContext(ctx).
 		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
 		Where(queryopt.IsNull("course_offering.deleted_at")).
@@ -217,12 +242,23 @@ func ListDistinctCampuses() ([]string, error) {
 	return campuses, err
 }
 
-// ListAllCourses 全量遍历课程（重建搜索索引/统计用），按 id 升序 keyset 分页。
+// ListAllCourses 按 id 升序 OFFSET 分页；在线索引刷新使用 ListCoursesAfterID。
 func ListAllCourses(limit, offset int) (entities []Entity, err error) {
 	if limit <= 0 {
 		return []Entity{}, nil
 	}
 	err = courseBuilder().Order("id ASC").Offset(offset).Limit(limit).Find(&entities).Error
+	return
+}
+
+// ListCoursesAfterID walks courses by primary key, so deletion of an earlier
+// row cannot shift the next page. Hidden rows are included to keep scan progress
+// independent of the search projection's visibility filter.
+func ListCoursesAfterID(ctx context.Context, afterID uint64, limit int) (entities []Entity, err error) {
+	if limit <= 0 {
+		return []Entity{}, nil
+	}
+	err = courseBuilder().WithContext(ctx).Where("id > ?", afterID).Order("id ASC").Limit(limit).Find(&entities).Error
 	return
 }
 
@@ -283,10 +319,14 @@ func ListAliasesByCourseTx(tx *gorm.DB, courseId uint64) (entities []AliasEntity
 
 // ListAliasesByCourses 批量返回多门课程的别名（避免列表页 N+1）。
 func ListAliasesByCourses(courseIds []uint64) (entities []AliasEntity, err error) {
+	return ListAliasesByCoursesContext(context.Background(), courseIds)
+}
+
+func ListAliasesByCoursesContext(ctx context.Context, courseIds []uint64) (entities []AliasEntity, err error) {
 	if len(courseIds) == 0 {
 		return []AliasEntity{}, nil
 	}
-	err = aliasBuilder().
+	err = aliasBuilder().WithContext(ctx).
 		Where(queryopt.In("course_id", courseIds)).
 		Order("course_id ASC, id ASC").
 		Find(&entities).Error
@@ -308,10 +348,14 @@ func GetTermByCodeTx(tx *gorm.DB, code string) (entity TermEntity, err error) {
 
 // ListTermsByIDs 批量返回学期（详情页 offering → term 名称）。
 func ListTermsByIDs(ids []uint64) (entities []TermEntity, err error) {
+	return ListTermsByIDsContext(context.Background(), ids)
+}
+
+func ListTermsByIDsContext(ctx context.Context, ids []uint64) (entities []TermEntity, err error) {
 	if len(ids) == 0 {
 		return []TermEntity{}, nil
 	}
-	err = termBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error
+	err = termBuilder().WithContext(ctx).Where(queryopt.In("id", ids)).Find(&entities).Error
 	return
 }
 
@@ -333,7 +377,11 @@ const termOrdering = "CASE WHEN substr(course_term.code, 1, 1) BETWEEN '0' AND '
 // 与 ListCourses 的 term 筛选（term_id 命中 course_term.code）同源：限定可见课程的可见 offering
 // 及其 term_id，非空 code；按 starts_on 倒序（未设置时回退 code 字典序），与详情页开课列表的学期排序一致。
 func ListDistinctTerms() ([]TermEntity, error) {
-	return ListDistinctTermsTx(termBuilder())
+	return ListDistinctTermsContext(context.Background())
+}
+
+func ListDistinctTermsContext(ctx context.Context) ([]TermEntity, error) {
+	return ListDistinctTermsTx(termBuilder().WithContext(ctx))
 }
 
 // ListDistinctTermsTx 与 ListDistinctTerms 同一条查询链，但接受指定连接/事务，
@@ -403,10 +451,14 @@ func ListOfferingIdsByCourseAllTx(tx *gorm.DB, courseId uint64) (ids []uint64, e
 // ListOfferingsByCourses 批量返回多门课程的开课实例（列表页避免 N+1）。
 // 排序通过 term 的 starts_on（未设置时回退 code 字典序）保证学期时间序，不依赖自增 id。
 func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err error) {
+	return ListOfferingsByCoursesContext(context.Background(), courseIds)
+}
+
+func ListOfferingsByCoursesContext(ctx context.Context, courseIds []uint64) (entities []OfferingEntity, err error) {
 	if len(courseIds) == 0 {
 		return []OfferingEntity{}, nil
 	}
-	err = offeringBuilder().
+	err = offeringBuilder().WithContext(ctx).
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.In("course_offering.course_id", courseIds)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
@@ -481,10 +533,14 @@ func FindInstructorByCodeTx(tx *gorm.DB, code string) (entity InstructorEntity, 
 
 // ListInstructorsByOfferings 批量返回多个开课实例的教师（详情/列表页避免 N+1）。
 func ListInstructorsByOfferings(offeringIds []uint64) (entities []InstructorEntity, err error) {
+	return ListInstructorsByOfferingsContext(context.Background(), offeringIds)
+}
+
+func ListInstructorsByOfferingsContext(ctx context.Context, offeringIds []uint64) (entities []InstructorEntity, err error) {
 	if len(offeringIds) == 0 {
 		return []InstructorEntity{}, nil
 	}
-	err = instructorBuilder().
+	err = instructorBuilder().WithContext(ctx).
 		Joins("JOIN course_offering_instructor ON course_offering_instructor.instructor_id = course_instructor.id").
 		Where(queryopt.In("course_offering_instructor.offering_id", offeringIds)).
 		Order("course_offering_instructor.offering_id ASC, course_instructor.id ASC").
@@ -494,10 +550,14 @@ func ListInstructorsByOfferings(offeringIds []uint64) (entities []InstructorEnti
 
 // ListInstructorsByIDs 批量按 ID 返回教师（课程卡 teacher_id → 姓名解析用）。
 func ListInstructorsByIDs(ids []uint64) (entities []InstructorEntity, err error) {
+	return ListInstructorsByIDsContext(context.Background(), ids)
+}
+
+func ListInstructorsByIDsContext(ctx context.Context, ids []uint64) (entities []InstructorEntity, err error) {
 	if len(ids) == 0 {
 		return []InstructorEntity{}, nil
 	}
-	err = instructorBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error
+	err = instructorBuilder().WithContext(ctx).Where(queryopt.In("id", ids)).Find(&entities).Error
 	return
 }
 
@@ -505,10 +565,14 @@ func ListInstructorsByIDs(ids []uint64) (entities []InstructorEntity, err error)
 
 // ListOfferingInstructorLinks 批量返回多个开课实例的教师关联（用于按 offering 分组）。
 func ListOfferingInstructorLinks(offeringIds []uint64) (entities []OfferingInstructorEntity, err error) {
+	return ListOfferingInstructorLinksContext(context.Background(), offeringIds)
+}
+
+func ListOfferingInstructorLinksContext(ctx context.Context, offeringIds []uint64) (entities []OfferingInstructorEntity, err error) {
 	if len(offeringIds) == 0 {
 		return []OfferingInstructorEntity{}, nil
 	}
-	err = offeringInstructorBuilder().
+	err = offeringInstructorBuilder().WithContext(ctx).
 		Where(queryopt.In("offering_id", offeringIds)).
 		Order("offering_id ASC, instructor_id ASC").
 		Find(&entities).Error

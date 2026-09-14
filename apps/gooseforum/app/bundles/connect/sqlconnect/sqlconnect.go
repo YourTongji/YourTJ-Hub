@@ -13,6 +13,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/logging"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/glebarez/sqlite"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -122,14 +124,25 @@ func connectPostgresDB(dbUrl string) (*gorm.DB, error) {
 	// 初始化 PostgreSQL 连接信息
 	// DSN 推荐 key=value 格式:
 	// host=localhost user=yourtj password=yourtj dbname=yourtj port=5432 sslmode=disable
-	gormConfig := postgres.New(postgres.Config{
-		DSN: dbUrl,
-	})
+	config, err := pgx.ParseConfig(dbUrl)
+	if err != nil {
+		return nil, err
+	}
+	// Interactive forum queries should not spend their latency budget compiling
+	// JIT functions. Explicit DSN jit=on remains an opt-in for other workloads.
+	if _, explicit := config.RuntimeParams["jit"]; !explicit {
+		config.RuntimeParams["jit"] = "off"
+	}
+	sqlDB := stdlib.OpenDB(*config)
+	gormConfig := postgres.New(postgres.Config{Conn: sqlDB})
 
 	db, err := gorm.Open(gormConfig, &gorm.Config{
 		Logger:         logging.NewGormLoggerWithDefault(),
 		TranslateError: true,
 	})
+	if err != nil {
+		_ = sqlDB.Close()
+	}
 	return db, err
 }
 

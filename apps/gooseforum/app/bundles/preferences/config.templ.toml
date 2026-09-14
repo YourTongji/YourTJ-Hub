@@ -50,6 +50,8 @@ maxOpenConnections = 5
 maxLifeSeconds = 300
 
 [meilisearch]
+# Opt in only when this instance owns the search indexes.
+maintenance_enabled = false
 url = "http://localhost:7700"
 masterkey = ""
 

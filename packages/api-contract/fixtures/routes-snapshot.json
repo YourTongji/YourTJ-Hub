@@ -109,6 +109,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/search/indexes"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/security-settings"
   },
   {
@@ -734,6 +738,10 @@
   {
     "method": "POST",
     "path": "/api/admin/save-user-badges"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/search/maintenance"
   },
   {
     "method": "POST",

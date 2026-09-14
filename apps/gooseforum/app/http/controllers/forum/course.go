@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
@@ -20,7 +22,18 @@ import (
 func CourseCatalog(c *gin.Context) {
 	page := parsePositiveInt(c.DefaultQuery("page", "1"), 1)
 	size := parsePositiveInt(c.DefaultQuery("size", "20"), 20)
-	props := buildCourseCatalogProps(c, page, size)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), courseservice.CatalogRequestTimeout)
+	defer cancel()
+	c.Request = c.Request.WithContext(ctx)
+	props, err := buildCourseCatalogProps(c, page, size)
+	if err != nil {
+		status := courseCatalogErrorStatus(err)
+		if status == http.StatusServiceUnavailable {
+			c.Header("Retry-After", "2")
+		}
+		renderInternalErrorWithStatus(c, status)
+		return
+	}
 	payload := PagePayload{
 		Component: PageComponentCourse,
 		Props:     props,
@@ -75,7 +88,7 @@ type CourseListReq struct {
 // OpenAPI 契约（listCourses page/size description）已声明该 clamp 行为。
 // Department/TermCode/Campus/Instructor 支持重复参数多值（并集）。
 func CourseListJSON(req component.BetterRequest[CourseListReq]) component.Response {
-	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
+	pageData, err := courseservice.ListCatalogContext(req.GinContext.Request.Context(), courseservice.CatalogQuery{
 		Keyword:    strings.TrimSpace(req.Params.Keyword),
 		Department: req.Params.Department,
 		TermCode:   req.Params.TermCode,
@@ -88,7 +101,11 @@ func CourseListJSON(req component.BetterRequest[CourseListReq]) component.Respon
 	})
 	if err != nil {
 		slog.Error("course_catalog_list_failed", "error", err)
-		return component.BuildResponse(http.StatusInternalServerError,
+		status := courseCatalogErrorStatus(err)
+		if status == http.StatusServiceUnavailable {
+			req.GinContext.Header("Retry-After", "2")
+		}
+		return component.BuildResponse(status,
 			component.FailDataCode(component.MessageOperationFailed, nil))
 	}
 	return component.SuccessResponse(pageData)
@@ -143,7 +160,7 @@ func CourseRelatedJSON(req component.BetterRequest[CourseRelatedReq]) component.
 }
 
 // buildCourseCatalogProps 构建课程目录 SSR props；分页与分页回显以 service 归一化后的结果为准。
-func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps {
+func buildCourseCatalogProps(c *gin.Context, page, size int) (CourseCatalogProps, error) {
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	department := c.QueryArray("department")
 	termCode := c.QueryArray("term")
@@ -151,7 +168,7 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 	instructor := c.QueryArray("instructor")
 	onlyWithReviews := parseBoolLike(c.Query("onlyWithReviews"))
 	sortBy := strings.TrimSpace(c.Query("sortBy"))
-	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
+	pageData, err := courseservice.ListCatalogContext(c.Request.Context(), courseservice.CatalogQuery{
 		Keyword:    keyword,
 		Department: department,
 		TermCode:   termCode,
@@ -163,26 +180,14 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 		Size:       size,
 	})
 	if err != nil {
-		slog.Error("course_catalog_list_failed", "error", err)
-		pageData = courseservice.CatalogPage{List: []courseservice.CourseSummary{}, Page: page, Size: size}
+		return CourseCatalogProps{}, err
 	}
-	departments, deptErr := courseservice.ListDepartments()
-	if deptErr != nil {
-		slog.Error("course_departments_list_failed", "error", deptErr)
-		departments = []string{}
-	}
-	terms, termErr := courseservice.ListTerms()
-	if termErr != nil {
-		slog.Error("course_terms_list_failed", "error", termErr)
-		terms = []courseservice.TermOption{}
-	}
-	campuses, campusErr := courseservice.ListCampuses()
-	if campusErr != nil {
-		slog.Error("course_campuses_list_failed", "error", campusErr)
-		campuses = []string{}
+	facets, err := courseservice.GetCatalogFacets(c.Request.Context())
+	if err != nil {
+		return CourseCatalogProps{}, err
 	}
 	// issue #331 R5：表格收藏状态（登录用户已收藏课程 id）；未登录为空。
-	bookmarkedIds, bookmarkErr := course.ListBookmarkedCourseIDs(component.LoginUserId(c))
+	bookmarkedIds, bookmarkErr := course.ListBookmarkedCourseIDsContext(c.Request.Context(), component.LoginUserId(c))
 	if bookmarkErr != nil {
 		slog.Error("course_bookmarked_ids_failed", "error", bookmarkErr)
 		bookmarkedIds = []uint64{}
@@ -204,9 +209,9 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 			Size:       pageData.Size,
 		},
 		Courses:             pageData.List,
-		Departments:         departments,
-		Terms:               terms,
-		Campuses:            campuses,
+		Departments:         facets.Departments,
+		Terms:               facets.Terms,
+		Campuses:            facets.Campuses,
 		BookmarkedCourseIDs: bookmarkedIds,
 		Pagination: PaginationPayload{
 			Page:     pageData.Page,
@@ -214,7 +219,7 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 			HasNext:  pageData.HasNext,
 			NextURL:  buildCourseListURL(c, nextPage, pageData.Size),
 		},
-	}
+	}, nil
 }
 
 func buildCourseDetailProps(detail courseservice.CourseDetail) CourseDetailProps {
@@ -272,4 +277,13 @@ func buildCourseMeta(c *gin.Context) PageMeta {
 		Description: i18n.T(lang, "meta.courseDesc"),
 		Canonical:   component.GetBaseUri(c) + c.Request.URL.Path,
 	}
+}
+
+// Overload, cancelled work and configured search outages are retriable failures,
+// not empty successful catalogs or generic upstream disconnects.
+func courseCatalogErrorStatus(err error) int {
+	if errors.Is(err, courseservice.ErrCatalogBusy) || errors.Is(err, searchservice.ErrCourseSearchUnavailable) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusInternalServerError
 }

@@ -33,24 +33,26 @@ func EnqueueCategorySearchTask(tx *gorm.DB, categoryID uint64) error {
 
 // CategorySearchDocument 分类搜索文档结构（只含公开可搜字段 + 拼音辅助字段）
 type CategorySearchDocument struct {
-	ID           uint64 `json:"id"`
-	Name         string `json:"name"`
-	Slug         string `json:"slug"`
-	Desc         string `json:"desc"`
-	NamePinyin   string `json:"namePinyin"`
-	NameInitials string `json:"nameInitials"`
+	ProjectionVersion int    `json:"_projectionVersion"`
+	ID                uint64 `json:"id"`
+	Name              string `json:"name"`
+	Slug              string `json:"slug"`
+	Desc              string `json:"desc"`
+	NamePinyin        string `json:"namePinyin"`
+	NameInitials      string `json:"nameInitials"`
 }
 
 // convertCategoryToSearchDocument maps a category to its search document.
 func convertCategoryToSearchDocument(entity *category.Entity) CategorySearchDocument {
 	namePinyin, nameInitials := CategoryPinyinFields(entity.Name)
 	return CategorySearchDocument{
-		ID:           entity.Id,
-		Name:         entity.Name,
-		Slug:         entity.Slug,
-		Desc:         entity.Desc,
-		NamePinyin:   namePinyin,
-		NameInitials: nameInitials,
+		ProjectionVersion: categoryProjectionVersion,
+		ID:                entity.Id,
+		Name:              entity.Name,
+		Slug:              entity.Slug,
+		Desc:              entity.Desc,
+		NamePinyin:        namePinyin,
+		NameInitials:      nameInitials,
 	}
 }
 
@@ -243,20 +245,5 @@ func BuildCategoryIndex() (*IndexBuildResult, error) {
 
 // configureCategoryIndex applies searchable and displayed attributes to the category index.
 func configureCategoryIndex(index meilisearch.IndexManager) error {
-	searchableAttributes := []string{
-		"name",
-		"desc",
-		"slug",
-		"namePinyin",
-		"nameInitials",
-	}
-	if _, err := index.UpdateSearchableAttributes(&searchableAttributes); err != nil {
-		return fmt.Errorf("设置分类可搜索字段失败: %w", err)
-	}
-	displayedAttributes := []string{"id", "name", "slug"}
-	if _, err := index.UpdateDisplayedAttributes(&displayedAttributes); err != nil {
-		return fmt.Errorf("设置分类显示字段失败: %w", err)
-	}
-	fmt.Println("分类索引配置完成")
-	return nil
+	return applyManagedSettings(context.Background(), index, CategoryIndex)
 }

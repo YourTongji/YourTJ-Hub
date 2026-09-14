@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -90,6 +91,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
+	assertSearchMaintenanceSchema(t, db)
 	assertCourseAggregationSchema(t, db)
 }
 
@@ -204,6 +206,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
+	assertSearchMaintenanceSchema(t, db)
 	var legacyPointsCount int64
 	if err := db.Model(&pointsRecord.Entity{}).Where("action = ? AND points_change = ?", "init", 100).Count(&legacyPointsCount).Error; err != nil {
 		t.Fatalf("count legacy points records after upgrade: %v", err)
@@ -372,5 +375,26 @@ func TestSchemaPkAudienceUpgradeOnPostgreSQL(t *testing.T) {
 	assertPkAudienceLegacyConflictKeysUpgrade(t, db)
 	if err := upgradePkAudienceSchema(db); err != nil {
 		t.Fatalf("repeat full PK audience upgrade: %v", err)
+	}
+}
+
+func assertSearchMaintenanceSchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasIndex(&taskQueue.Entity{}, "idx_search_maintenance_active") || !db.Migrator().HasIndex(&taskQueue.Entity{}, "idx_search_maintenance_history") {
+		t.Fatal("missing search maintenance indexes")
+	}
+	row := taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusRunning}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	defer db.Where("type = ?", taskQueue.SearchMaintenanceType).Delete(&taskQueue.Entity{})
+	if err := db.Create(&taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusPending}).Error; err == nil {
+		t.Fatal("second active maintenance allowed")
+	}
+	if err := db.Model(&row).Update("status", taskQueue.StatusSuccess).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusRetrying}).Error; err != nil {
+		t.Fatalf("terminal job did not release slot: %v", err)
 	}
 }

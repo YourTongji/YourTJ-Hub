@@ -1008,6 +1008,8 @@ export interface CourseCatalogPageProps {
   bookmarkedCourseIDs?: number[]
 }
 
+/** Catalog search uses Meilisearch candidates with database visibility/filter/rating validation.
+ * HTTP 503 with Retry-After is a retriable failure, never an empty successful list. */
 export interface CourseSummaryPayload {
   id: number
   primaryCode: string

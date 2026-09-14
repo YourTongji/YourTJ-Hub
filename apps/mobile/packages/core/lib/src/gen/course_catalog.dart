@@ -1,5 +1,8 @@
 /// 课程目录列表契约镜像（`GET /api/forum/courses` 的 result）。
 ///
+/// 配置 Meilisearch 时关键词由课程索引匹配，筛选、评分排序与总数由数据库校验。
+/// 503 + Retry-After 表示搜索不可用、超时或容量不足；不是空列表。
+///
 /// 列表项复用 `content_pages.dart` 的 CourseSummaryPayload（与契约
 /// CourseSummary 同形）；本文件只补列表包装。
 library;
