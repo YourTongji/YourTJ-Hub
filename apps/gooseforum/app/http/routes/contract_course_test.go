@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -735,4 +736,17 @@ func TestCourseStatsSecurityFindings(t *testing.T) {
 	if got := detail["ratingAvg"]; got != 4.5 {
 		t.Fatalf("ratingAvg with hidden offering = %#v, want 4.5", got)
 	}
+}
+
+func TestCourseListCanceledRequestHTTPContract(t *testing.T) {
+	_, router := setupCourseContractTest(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	request := httptest.NewRequest(http.MethodGet, "/api/forum/courses", nil).WithContext(ctx)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable || recorder.Header().Get("Retry-After") != "2" {
+		t.Fatalf("canceled catalog status=%d retry=%q", recorder.Code, recorder.Header().Get("Retry-After"))
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "course-catalog-unavailable.json"))
 }

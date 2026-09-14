@@ -56,7 +56,7 @@
 | Storage (files) | `Current` | Pluggable storage: local SQLite BLOB default + S3-compatible object storage (MinIO/COS/OSS/R2), admin panel config + connection test, cursor-driven BLOB→object migration task + `migrate-files` CLI (2026-08-06); S3 provider 下帖子图片走浏览器直传（`/file/img-upload/init` 预签名 POST 策略 → 直传 bucket → `/file/img-upload/complete` 服务端校验归属/大小/MIME/解码图片头后发布，未完成对象 2 小时清理），本地提供方保持服务端代理 multipart 上传（issue #366） |
 | Moderation policy | `Current` | Reserved/banned usernames, sensitive-word block or review (ProcessStatus=2 pending queue with admin approve/reject), banned username auto-freezes existing accounts, moderation audit logs. 策略引擎升级（2026-09-02）：自建 AC/归一化匹配引擎（大小写/NFKC 全半角/零宽折叠，名单另含 ASCII leetspeak 全等），reserved/banned 名单同规则覆盖 username 注册/改名、Agent 建号（拒绝）与昵称（整串全等）；OAuth 已不建号（issue #531），名单不再需要覆盖该路径；敏感词归一化子串扫描覆盖话题/回复/私信/课评（block，`course.review.sensitiveBlocked`）与个人资料 bio/signature/website 自由文本（话题/课评同时扫描 Markdown 原文与去格式可见文本，防格式拆词绕过）；命中拦截错误在既有 word（首个命中）外新增 words 全量命中列表（词表序去重），编辑器仅对命中段落块级高亮定位、不展示命中词（issue #483）；内置默认词库（reserved 73 / sensitive 37，来源 fwwdn/sensitive-stop-words Apache-2.0，banned 恒空防误冻结），存量空数组由 v27 数据迁移补齐；管理端支持粘贴批量导入（预览/去重/冻结警示） |
 | Terms of service | `Current` | Editable ToS (Markdown) in admin, rendered at `/terms`; the registration page links to and requires agreement with it only while published (2026-08-06) |
-| Privacy policy | `Current` | Editable privacy policy (Markdown) in admin, rendered at `/privacy`; the registration page links to and requires agreement with it only while published, and the published content also controls whether the production InsightFlare SDK is loaded |
+| Privacy policy | `Current` | Editable privacy policy (Markdown) in admin, rendered at `/privacy`; the registration page links to and requires agreement with it only while published, and the published content also controls whether the production Umami SDK is loaded |
 | Data import/export | `Current` | Admin panel JSON/CSV export (users/topics/posts, background task + download; derived topic_category_index / topic_user_stat tables export when selected) and JSON import with per-row validation report and idempotent skip; topic invariants (post_seq, first/last post pointers, counts, posters) preserved and rebuilt on import (2026-08-12); export files retained 7 days (2026-08-06) |
 | Abuse protection | `Current` | Per-action rate limiting (memory fixed-window, IP+user) on register/login/forgot-password/reset-password/oidc.authorize/oidc.token/email.change/password.change/totp.setup/totp.enable/totp.disable/topic.write/topic.status/post.create/post.delete/message.send/upload/interact/llms.index/llms.full/llms.topic/mcp.auth/course.catalog/course.bookmark/course.review.write/course.review.helpful/course.review.dislike/course.review.report/course.review.reveal/course.review.moderate/course.summary/course.summary.check（AI 总结 check 预检独立配额）; 429 + Retry-After; captcha switch + new-user post threshold + honeypot + submit-timing detection; all limits hot-tunable in admin settings; 每用户每日新主题上限可配置（管理后台发布设置 `maxDailyTopicsPerUser`，默认 10、0=不限额，达到上限即拒绝；按服务器本地时区计当日新主题，含软删/待审/草稿与 wiki 页面主题；仅约束新建，编辑/回复不受影响；负值在保存/读取路径归一为 0，issue #369） |
 | HTTP security headers | `Current` | Unified security headers via `app/http/middleware/securityHeaders.go` (registered in `bridge.go`, issue #407): every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=() microphone=() geolocation=()`; HTML page routes (viewRoute/`/activate`, incl. HTML 404/500 pages) additionally carry a page `Content-Security-Policy` (`default-src 'self'`, `script-src 'self'`, `object-src 'none'`, `frame-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`, `style-src 'self' 'unsafe-inline' https://fonts.googleapis.cn`, `font-src 'self' https://fonts.gstatic.cn`, `img-src 'self' http: https: data: blob:`, `connect-src 'self' http: https:` + `ws: wss:` in non-production for Vite HMR) — clickjacking is blocked by both `frame-ancestors 'none'` and `X-Frame-Options: DENY`; `X-Powered-By` removed; /api /file /mcp /assets /static /health surfaces keep universal headers but no CSP (browser ignores CSP on non-document responses; OIDC authorize UI is under /api/oauth and intentionally unconstrained); route-level tests (`app/http/routes/security_headers_test.go`) and middleware unit tests cover HTML/API/error pages and the dev/prod CSP difference |
@@ -138,3 +138,26 @@ Before expanding features, close these baselines (avoid building on a wrong foun
 编辑器 @补全（`Current`）：回复编辑器、完整发布页与快捷发布弹层共用候选查询、键盘选择和候选列表；窄屏停靠列表可滚动并支持点击最后一项，关闭弹层时清理候选会话与编辑器 aria 状态。
 
 数学分隔符阅读渲染（`Current`）：保存的主题／回复支持 `\(...\)`、`\[...\]` 与 KaTeX 支持的常见 begin/end 环境；环境标记完整保留以渲染对齐和矩阵。Vditor 保存这些 Markdown 写法，但其所见即所得预览仍使用原生美元符号语法，替代分隔符的编辑器预览为 `Planned`。
+
+### Course catalog search
+
+**Current**: course catalog keyword search uses the shared Meilisearch course
+index in configured deployments, including visible teaching-class codes and
+instructor pinyin/initials, including a card's identity teacher when no visible
+offering exists. Exact filters, review ordering, visibility and totals
+come from the database. Search outages or capacity limits are explicit retriable
+failures rather than empty catalogs; local installations without Meili retain SQL
+matching. Filter options may take up to five minutes to refresh. Keyword matching
+follows the search engine's tokenization rather than literal substring matching.
+
+### Search index administration
+
+**Current**: 管理后台「搜索索引」（`/admin/search`）向 SiteManager 提供话题、用户、
+分类、课程与 Wiki 段落索引的实时文档数量、引擎版本和最近检查记录。完整性检查比较
+逐条公开投影、文档版本与索引设置，区分缺失、多余和内容过期；无版本标记的旧文档
+显示为「未标记」。可以检查或重建单个／全部索引，查看后台进度，失败后重新提交。
+重建保留在线搜索，结束后再次检查；执行结束与检查完整是两个独立结果。
+
+维护必须由索引所属实例启用，部署配置仅允许 main 执行，dev 为只读。检查结果带时间，
+线上变更可能使结果过期；应用部署不自动更新文档。详见
+[索引维护操作](../operations/deployment.md#admin-search-index-maintenance)。

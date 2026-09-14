@@ -1,0 +1,21 @@
+{
+  "code": 0,
+  "result": {
+    "job": {
+      "id": 990101,
+      "status": 0,
+      "createdAt": "2026-09-14T00:00:00Z",
+      "updatedAt": "0001-01-01T00:00:00Z",
+      "retryCount": 0,
+      "errorCode": "",
+      "index": "all",
+      "action": "check",
+      "requestedBy": 990102,
+      "phase": "queued",
+      "currentIndex": "",
+      "processed": 0,
+      "reports": []
+    },
+    "created": true
+  }
+}

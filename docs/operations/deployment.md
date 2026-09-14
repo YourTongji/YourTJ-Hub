@@ -90,36 +90,32 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 （宿主机上执行；上游无头而公网有头 ⇒ 代理层注入）。dev 实例同理
 （`dev.yourtj.de` → `127.0.0.1:5235`）。
 
-### InsightFlare 事件观测
+### Umami 访问统计与会话回放
 
-生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载
-InsightFlare SDK，服务端仅在 `setting.IsProduction()` 且隐私政策 `enabled=true` 时注入；站点为
-`https://f.yourtj.de`，固定 `siteId` 为
-`09521282-d1ce-4a88-add6-99c039014def`。统计脚本只放在公共站点布局，管理后台不加载；
-页面级 CSP 的 `script-src` 只额外允许 `https://ana.yourtj.de`，采集请求复用既有的
-HTTPS `connect-src` 放行规则。该 SDK 会把页面访问与性能观测发送到自建的
-`https://ana.yourtj.de`，隐私政策与数据保留口径应与 InsightFlare 站点设置保持一致。
-生产环境的 `/privacy` 页面会在已保存的自定义政策缺少 InsightFlare 数据范围时自动追加标准披露，
-避免历史配置在启用采集后仍然遗漏该说明；修改站点隐私政策时仍需同步维护实际数据保留期限。
-如果 SPA 导航收到 `insightFlareEnabled` 发生变化的新 payload，前端会强制整页刷新，以卸载已加载 SDK
-注册的路由监听，或在重新启用后按新配置加载；已打开页面每分钟检查一次 `/privacy` payload，切回前台和
-bfcache 恢复时立即检查，因此没有发生导航的页面也会自动在状态变化后刷新。
+生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载自建 Umami 的
+统计脚本与会话记录器；服务端仅在 `setting.IsProduction()` 且隐私政策 `enabled=true` 时注入。
+两份脚本均使用 website id `36750dcd-8c48-46ab-9dfb-2f09cdcef501`：
 
-当前 Cloudflare 部署资源由外部 InsightFlare 项目管理，不写入本仓库的凭据或配置文件：
-Worker `insightflare` 绑定 D1、KV、Durable Object、三套 Analytics Engine 和 R2 冷归档，
-`MAIN_SECRET` 与 `BOOTSTRAP_ADMIN_PASSWORD` 以 Worker Secret 管理。资源/Secret 变更应在
-Cloudflare 或 InsightFlare 管理面完成，不要把 Wrangler 本地认证文件、API Token、站点
-采集 Token 或 D1/KV ID 提交到仓库。
+- `https://umi.yourtj.de/script.js`：页面访问、SPA 路由、基础访问统计与页面性能；模板设置 `data-performance="true"`；
+- `https://umi.yourtj.de/recorder.js`：按 Umami 站点配置采样会话回放与热图数据。
 
-部署或变更后，用 GET 验证观测服务与 SDK 可达（不要用 `curl -I`，SDK 端点不保证支持 HEAD）：
+统计脚本只放在公共站点布局，管理后台不加载；页面级 CSP 的 `script-src` 只额外允许
+`https://umi.yourtj.de`，采集请求复用既有的 HTTPS `connect-src` 放行规则。生产环境的
+`/privacy` 页面会在已保存的自定义政策缺少当前 Umami 数据范围时自动追加标准披露；对于仍保存
+仓库旧版标准 InsightFlare 披露的配置，渲染时会替换为当前 Umami 披露，避免继续展示已停用服务。
+如果 SPA 导航收到 `umamiEnabled` 发生变化的新 payload，前端会强制整页刷新，以卸载或重新加载
+统计脚本。配置在真实页面导航或刷新时应用；空闲标签页不轮询完整 `/privacy` 页面。
+
+Umami 服务及其数据库/反向代理配置由站外基础设施管理，本仓库不保存管理员密码、数据库凭据或
+API Token。会话回放的采样比例、遮罩等级、最长记录时长、排除区域和数据保留策略应在 Umami
+管理端配置，并与站点隐私政策保持一致。
+
+部署或变更后，用 GET 验证两个脚本可达：
 
 ```bash
-curl -fsSL https://ana.yourtj.de/healthz
-curl -fsSL -o /dev/null -w '%{http_code}\n' \
-  'https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1'
+curl -fsSL -o /dev/null -w '%{http_code}\n' https://umi.yourtj.de/script.js
+curl -fsSL -o /dev/null -w '%{http_code}\n' https://umi.yourtj.de/recorder.js
 ```
-
-脚本 URL 的 `v` 参数用于在观测脚本缓存策略变更后强制浏览器重新获取动态脚本；如果脚本缓存契约再次发生不兼容变化，应递增该版本号。
 
 ### 旧 VitePress wiki 内容迁移（GitHub 唯一真实源）
 
@@ -500,7 +496,6 @@ provisioning automatically:
    `postgres` first via `depends_on: service_healthy`). On first boot the binary runs
    AutoMigrate (all main-db models) and the versioned data migrations from scratch, then
    serves.
-
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
 
@@ -928,3 +923,75 @@ PK audience migration rebuilds the natural-key dictionaries and related projecti
 one transaction. Failure leaves the old schema intact for a retry; rehearse it against the
 dev database snapshot before production. Source ID allocation stays within the JavaScript
 safe integer range, and upstream IDs outside the supported range are rejected before writes.
+
+## Course catalog search operations
+
+**Current**: configured deployments use the shared Meilisearch `courses` index for
+catalog keywords. PostgreSQL validates visibility, exact filters, review ordering
+and totals. A configured unavailable/incomplete search index returns HTTP 503 with
+`Retry-After`; it does not fall back to expensive SQL text scans. Catalog execution
+is limited to two concurrent requests per process and four seconds, with database
+cancellation propagated through list hydration. Public filter dictionaries are
+cached for five minutes.
+
+Before serving catalog searches with an older index, refresh its settings and
+projection fields with the new binary:
+
+```bash
+./bin/yourtj-hub rebuild-course-search --in-place
+```
+
+This command updates documents without emptying the live index. Full
+`rebuild-course-search` still removes stale documents by clearing and rebuilding;
+use the in-place refresh for additive projection upgrades. Both commands wait for
+the index-settings task to succeed before changing documents and scan courses by
+the last processed ID, so deletion of earlier rows cannot skip a later batch.
+Failed or canceled settings tasks abort the command. Both paths retain
+PostgreSQL as the source of truth. Keyword matching uses the same Meili index as
+aggregate search; instructor filters and scoring remain database-owned. The index
+must have `pagination.maxTotalHits` at least 20,001; queries above 20,000 candidates
+fail explicitly rather than returning incorrect totals.
+
+PostgreSQL connections default to `jit=off` for interactive workloads. An explicit
+DSN `jit=on` opts in. For a running older binary, `ALTER DATABASE <database> SET jit = off`
+changes the default for new connections; existing connections need to rotate before
+it takes effect. This database default survives application rollback. Keep a record
+of any prior database-level setting before changing it.
+
+The instructor-to-offering lookup uses `idx_course_offering_instructor_teacher` on
+`course_offering_instructor(instructor_id)`. AutoMigrate adds it on a new deployment.
+For a busy existing PostgreSQL database it can be created ahead of application
+replacement with `CREATE INDEX CONCURRENTLY`, using the same name and column. The
+existing offering-ID indexes remain valid throughout rollback.
+
+## Admin search index maintenance
+
+**Current**: 站点管理权限用户从管理后台 →「搜索索引」（`/admin/search`）检查或更新
+`topics`、`users`、`categories`、`courses`、`wiki_pages`。页面显示引擎版本、实时文档数、
+代码要求的投影版本、上次逐条检查观察到的版本及差异；版本 0 显示「未标记」。
+这些检查记录是历史观察，不保证之后发生的写入已同步。
+
+1. 部署新二进制后打开页面，点击「检查全部」。检查会比较文档 ID、公开字段和辅助
+   搜索字段、版本标记、searchable/displayed/filterable/sortable 设置及课程分页上限。
+2. 对需要更新的索引点击「重建更新」，或使用「重建全部」。确认后任务在后台执行，
+   不受浏览器请求时限或关闭页面影响。原有文档保持可搜索，每批替换写入确认成功后
+   才推进；失效文档经数据库复核后清理，删除期间恢复的文档会重新写入。
+3. 查看最近任务与检查结果。任务「执行结束」表示操作完成；只有设置匹配、文档无
+   差异且扫描期间未检测到索引变化时才显示「上次检查完整」。检测到变更时再次检查，
+   仍有差异时重新提交重建。失败任务最多自动重试三次，终态失败后可以手动重试；
+   详细错误保留在服务器日志，页面不暴露内部地址或文档内容。
+
+维护每个源数据批次最多读取 100 行，Meili 写入和读取每批最多 100 个文档，批次间
+让出 100ms。同一数据库仅允许一个等待／运行／重试中的维护任务。单次任务最多
+30 分钟，单索引扫描上限 250,000 个文档；超限或未完成的工作不会报告完整。
+维护会增加负载，宜在访问低峰运行；不需要扩容或临时复制整套索引。
+
+`[meilisearch] maintenance_enabled` 默认 `false`。配置模板从实例声明渲染，main 为
+`true`，dev 为 `false`，因为二者共用 Meili。其他部署只应在该索引的权威数据库实例上
+启用；不能让不同数据库同时维护相同索引。任务绑定创建时的 `server.url`，复制到其他
+实例的任务会被跳过，其报告也不会显示为本实例检查结果。关闭维护开关后只读状态仍可查看。
+
+GitHub `Deploy / main` 仅部署应用和渲染配置，不自动执行索引全量更新。后台重建与 CLI
+`rebuild-course-search --in-place` 的区别是：后台流程还清理失效文档、重新检查并保存进度；
+CLI 的原地刷新仅补写字段。管理页只在可见且存在活动任务时每 5 秒轮询，失败、离开页面
+或任务终止后停止；点击「刷新状态」可重新获取状态。

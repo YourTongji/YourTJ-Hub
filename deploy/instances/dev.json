@@ -2,5 +2,6 @@
   "instance": "dev",
   "server_url": "https://dev.yourtj.de",
   "trusted_proxies": ["172.16.0.0/12"],
-  "pg_dbname": "yourtj_dev"
+  "pg_dbname": "yourtj_dev",
+  "search_maintenance_enabled": false
 }

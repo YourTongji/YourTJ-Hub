@@ -38,7 +38,7 @@ import urllib.parse
 TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 
 # 由实例 JSON 提供的非敏感 token；其余 token 一律视为 secret（从环境变量读取）。
-INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES"}
+INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED"}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
 BASE_OPTIONAL_TOKENS = {
@@ -178,6 +178,7 @@ def build_values(env, instance, environ, tokens, allow_empty):
     """组装 token → 值。返回 (values, summary)；空必需值即失败。"""
     instance_token_map = {
         "SERVER_URL": str(instance["server_url"]),
+        "SEARCH_MAINTENANCE_ENABLED": instance.get("search_maintenance_enabled") is True,
         "OIDC_ISSUER": str(instance["server_url"]).rstrip("/") + "/api/oauth",
         "TRUSTED_PROXIES": list(instance["trusted_proxies"]),
     }
@@ -207,6 +208,8 @@ def summarize(summary):
     for tok, val, src in summary:
         if isinstance(val, list):
             print(f"  {tok}: {src} (array len={len(val)})", file=sys.stderr)
+        elif isinstance(val, bool):
+            print(f"  {tok}: {src} (boolean)", file=sys.stderr)
         else:
             print(f"  {tok}: {src} len={len(val)}", file=sys.stderr)
 

@@ -9,6 +9,20 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestOfferingInstructorReverseLookupIndex(t *testing.T) {
+	db := setupCourseRepTest(t)
+	indexes, err := db.Migrator().GetIndexes(&OfferingInstructorEntity{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, index := range indexes {
+		if columns := index.Columns(); len(columns) > 0 && columns[0] == "instructor_id" {
+			return
+		}
+	}
+	t.Fatal("teacher-to-offering lookup has no index beginning with instructor_id")
+}
+
 // courseRepTestModels 目录筛选测试用到的表。
 var courseRepTestModels = []any{
 	&Entity{},

@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,16 +31,17 @@ type wikiParaAnchorDB struct {
 
 // WikiPageDocument 每段一文档的 Meilisearch 文档结构。
 type WikiPageDocument struct {
-	ID        string `json:"id"` // "<pageId>-<paraIndex>"
-	PageId    uint64 `json:"pageId"`
-	IsPublic  bool   `json:"isPublic"`
-	Path      string `json:"path"`
-	Title     string `json:"title"`
-	Namespace string `json:"namespace"`
-	Heading   string `json:"heading"`
-	Anchor    string `json:"anchor"`
-	Paragraph string `json:"paragraph"`
-	SortOrder int    `json:"sortOrder"`
+	ProjectionVersion int    `json:"_projectionVersion"`
+	ID                string `json:"id"` // "<pageId>-<paraIndex>"
+	PageId            uint64 `json:"pageId"`
+	IsPublic          bool   `json:"isPublic"`
+	Path              string `json:"path"`
+	Title             string `json:"title"`
+	Namespace         string `json:"namespace"`
+	Heading           string `json:"heading"`
+	Anchor            string `json:"anchor"`
+	Paragraph         string `json:"paragraph"`
+	SortOrder         int    `json:"sortOrder"`
 }
 
 // WikiPageHit 段落级公开命中（由索引过滤公开页面，wikiservice 仍会再次校验可见性并聚合）。
@@ -63,21 +65,7 @@ type WikiPageSearchResponse struct {
 
 // configureWikiPageIndex 配置 wiki_pages 索引的可搜索/可过滤/显示字段。
 func configureWikiPageIndex(index meilisearch.IndexManager) error {
-	searchable := []string{"title", "heading", "paragraph"}
-	if _, err := index.UpdateSearchableAttributes(&searchable); err != nil {
-		return fmt.Errorf("设置可搜索字段失败: %w", err)
-	}
-	filterable := []any{"pageId", "namespace", "isPublic"}
-	if _, err := index.UpdateFilterableAttributes(&filterable); err != nil {
-		return fmt.Errorf("设置可过滤字段失败: %w", err)
-	}
-	displayed := []string{
-		"id", "pageId", "isPublic", "path", "title", "namespace", "heading", "anchor", "paragraph", "sortOrder",
-	}
-	if _, err := index.UpdateDisplayedAttributes(&displayed); err != nil {
-		return fmt.Errorf("设置显示字段失败: %w", err)
-	}
-	return nil
+	return applyManagedSettings(context.Background(), index, WikiPageIndex)
 }
 
 // decodeWikiParaAnchors 解析 wiki_pages.para_anchors JSON。
@@ -169,16 +157,17 @@ func wikiPageDocuments(page *wikiPages.Entity) []WikiPageDocument {
 	docs := make([]WikiPageDocument, 0, len(anchors))
 	for _, a := range anchors {
 		docs = append(docs, WikiPageDocument{
-			ID:        fmt.Sprintf("%d-%d", page.Id, a.Index),
-			PageId:    page.Id,
-			IsPublic:  true,
-			Path:      page.Path,
-			Title:     page.Title,
-			Namespace: page.Namespace,
-			Heading:   a.HeadingText,
-			Anchor:    a.Anchor,
-			Paragraph: a.Text,
-			SortOrder: a.Index,
+			ProjectionVersion: wikiProjectionVersion,
+			ID:                fmt.Sprintf("%d-%d", page.Id, a.Index),
+			PageId:            page.Id,
+			IsPublic:          true,
+			Path:              page.Path,
+			Title:             page.Title,
+			Namespace:         page.Namespace,
+			Heading:           a.HeadingText,
+			Anchor:            a.Anchor,
+			Paragraph:         a.Text,
+			SortOrder:         a.Index,
 		})
 	}
 	return docs

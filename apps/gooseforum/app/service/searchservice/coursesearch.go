@@ -23,50 +23,55 @@ const CourseIndex = "courses"
 // (code, teacher) 复合身份模型下 TeacherId/TeacherName 为卡片身份教师
 // （teacher_id=0 无教师时为空串），Instructors 保留 offering 级教师并集。
 type CourseSearchDocument struct {
-	ID             uint64   `json:"id"`
-	PrimaryCode    string   `json:"primaryCode"`
-	Name           string   `json:"name"`
-	NormalizedName string   `json:"normalizedName"`
-	NamePinyin     string   `json:"namePinyin"`
-	NameInitials   string   `json:"nameInitials"`
-	Department     string   `json:"department"`
-	CreditX10      int      `json:"creditX10"`
-	Aliases        []string `json:"aliases"`
-	TeacherId      uint64   `json:"teacherId"`
-	TeacherName    string   `json:"teacherName"`
-	Instructors    []string `json:"instructors"`
-	Terms          []string `json:"terms"`
-	Campus         []string `json:"campus"`
-	Status         int8     `json:"status"`
-	CreatedAt      int64    `json:"createdAt"`
-	UpdatedAt      int64    `json:"updatedAt"`
+	ProjectionVersion int      `json:"_projectionVersion"`
+	ID                uint64   `json:"id"`
+	PrimaryCode       string   `json:"primaryCode"`
+	Name              string   `json:"name"`
+	NormalizedName    string   `json:"normalizedName"`
+	NamePinyin        string   `json:"namePinyin"`
+	NameInitials      string   `json:"nameInitials"`
+	Department        string   `json:"department"`
+	CreditX10         int      `json:"creditX10"`
+	Aliases           []string `json:"aliases"`
+	TeacherId         uint64   `json:"teacherId"`
+	TeacherName       string   `json:"teacherName"`
+	Instructors       []string `json:"instructors"`
+	ClassCodes        []string `json:"classCodes"`
+	InstructorSearch  []string `json:"instructorSearch"`
+	Terms             []string `json:"terms"`
+	Campus            []string `json:"campus"`
+	Status            int8     `json:"status"`
+	CreatedAt         int64    `json:"createdAt"`
+	UpdatedAt         int64    `json:"updatedAt"`
 }
 
 // convertCourseToSearchDocument 从 canonical course + 关联构建搜索文档。
 func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, error) {
 	doc := CourseSearchDocument{
-		ID:             entity.Id,
-		PrimaryCode:    entity.PrimaryCode,
-		Name:           entity.Name,
-		NormalizedName: entity.NormalizedName,
-		NamePinyin:     entity.NamePinyin,
-		NameInitials:   entity.NameInitials,
-		Department:     entity.Department,
-		CreditX10:      entity.CreditX10,
-		Aliases:        []string{},
-		TeacherId:      entity.TeacherId,
-		Instructors:    []string{},
-		Terms:          []string{},
-		Campus:         []string{},
-		Status:         entity.Status,
-		CreatedAt:      entity.CreatedAt.Unix(),
-		UpdatedAt:      entity.UpdatedAt.Unix(),
+		ProjectionVersion: courseProjectionVersion,
+		ID:                entity.Id,
+		PrimaryCode:       entity.PrimaryCode,
+		Name:              entity.Name,
+		NormalizedName:    entity.NormalizedName,
+		NamePinyin:        entity.NamePinyin,
+		NameInitials:      entity.NameInitials,
+		Department:        entity.Department,
+		CreditX10:         entity.CreditX10,
+		Aliases:           []string{},
+		TeacherId:         entity.TeacherId,
+		Instructors:       []string{},
+		Terms:             []string{},
+		Campus:            []string{},
+		Status:            entity.Status,
+		CreatedAt:         entity.CreatedAt.Unix(),
+		UpdatedAt:         entity.UpdatedAt.Unix(),
 	}
 	if entity.TeacherId != 0 {
 		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
 			return doc, err
 		} else if len(teachers) > 0 {
 			doc.TeacherName = teachers[0].Name
+			doc.InstructorSearch = append(doc.InstructorSearch, teachers[0].NormalizedName, teachers[0].NamePinyin, teachers[0].NameInitials)
 		}
 	}
 	aliases, err := course.ListAliasesByCourse(entity.Id)
@@ -97,6 +102,7 @@ func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, 
 	}
 	instructorByID := make(map[uint64]string, len(instructors))
 	for _, ins := range instructors {
+		doc.InstructorSearch = append(doc.InstructorSearch, ins.NormalizedName, ins.NamePinyin, ins.NameInitials)
 		instructorByID[ins.Id] = ins.Name
 	}
 	seenInstructors := make(map[string]struct{})
@@ -123,6 +129,9 @@ func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, 
 	seenTerms := make(map[string]struct{})
 	seenCampus := make(map[string]struct{})
 	for _, o := range offerings {
+		if o.ClassCode != "" {
+			doc.ClassCodes = append(doc.ClassCodes, o.ClassCode)
+		}
 		if t, ok := termByID[o.TermId]; ok {
 			if _, dup := seenTerms[t.Code]; !dup {
 				seenTerms[t.Code] = struct{}{}
@@ -170,6 +179,8 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 		offeringIds = append(offeringIds, o.Id)
 	}
 	instructorByID := make(map[uint64]string)
+	instructorSearchByID := make(map[uint64][]string)
+	instructorSearchByOffering := make(map[uint64][]string)
 	instructorByOffering := make(map[uint64][]string, len(offeringIds))
 	termByID := make(map[uint64]course.TermEntity)
 	// 身份教师（course.teacher_id → 姓名）独立于 offering 解析：rebuild 批次里
@@ -189,6 +200,7 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 		}
 		for _, t := range teachers {
 			teacherNameByID[t.Id] = t.Name
+			instructorSearchByID[t.Id] = []string{t.NormalizedName, t.NamePinyin, t.NameInitials}
 		}
 	}
 	if len(offeringIds) > 0 {
@@ -201,11 +213,13 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 			return nil, err
 		}
 		for _, ins := range instructors {
+			instructorSearchByID[ins.Id] = []string{ins.NormalizedName, ins.NamePinyin, ins.NameInitials}
 			instructorByID[ins.Id] = ins.Name
 		}
 		for _, link := range links {
 			if name, ok := instructorByID[link.InstructorId]; ok {
 				instructorByOffering[link.OfferingId] = append(instructorByOffering[link.OfferingId], name)
+				instructorSearchByOffering[link.OfferingId] = append(instructorSearchByOffering[link.OfferingId], instructorSearchByID[link.InstructorId]...)
 			}
 		}
 		termIds := make([]uint64, 0, len(offerings))
@@ -222,32 +236,38 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 	}
 	for _, e := range entities {
 		doc := CourseSearchDocument{
-			ID:             e.Id,
-			PrimaryCode:    e.PrimaryCode,
-			Name:           e.Name,
-			NormalizedName: e.NormalizedName,
-			NamePinyin:     e.NamePinyin,
-			NameInitials:   e.NameInitials,
-			Department:     e.Department,
-			CreditX10:      e.CreditX10,
-			Aliases:        []string{},
-			TeacherId:      e.TeacherId,
-			Instructors:    []string{},
-			Terms:          []string{},
-			Campus:         []string{},
-			Status:         e.Status,
-			CreatedAt:      e.CreatedAt.Unix(),
-			UpdatedAt:      e.UpdatedAt.Unix(),
+			ProjectionVersion: courseProjectionVersion,
+			ID:                e.Id,
+			PrimaryCode:       e.PrimaryCode,
+			Name:              e.Name,
+			NormalizedName:    e.NormalizedName,
+			NamePinyin:        e.NamePinyin,
+			NameInitials:      e.NameInitials,
+			Department:        e.Department,
+			CreditX10:         e.CreditX10,
+			Aliases:           []string{},
+			TeacherId:         e.TeacherId,
+			Instructors:       []string{},
+			Terms:             []string{},
+			Campus:            []string{},
+			Status:            e.Status,
+			CreatedAt:         e.CreatedAt.Unix(),
+			UpdatedAt:         e.UpdatedAt.Unix(),
 		}
 		if e.TeacherId != 0 {
 			// 身份教师批量解析在循环外统一做（teacherNameByID 预填充）。
 			doc.TeacherName = teacherNameByID[e.TeacherId]
+			doc.InstructorSearch = append(doc.InstructorSearch, instructorSearchByID[e.TeacherId]...)
 		}
 		doc.Aliases = append(doc.Aliases, aliasByCourse[e.Id]...)
 		seenInstructors := make(map[string]struct{})
 		seenTerms := make(map[string]struct{})
 		seenCampus := make(map[string]struct{})
 		for _, o := range offeringByCourse[e.Id] {
+			if o.ClassCode != "" {
+				doc.ClassCodes = append(doc.ClassCodes, o.ClassCode)
+			}
+			doc.InstructorSearch = append(doc.InstructorSearch, instructorSearchByOffering[o.Id]...)
 			for _, name := range instructorByOffering[o.Id] {
 				if _, dup := seenInstructors[name]; !dup {
 					seenInstructors[name] = struct{}{}
@@ -281,16 +301,24 @@ func shouldIndexCourse(entity course.Entity) bool {
 // WaitForTask 在任务终态为 failed 时可能返回 (task, nil)（Go error 为空），
 // 只检查 error 会把索引拒绝/内部失败当作成功，导致 outbox 永不重试。
 // 这里显式检查 task.Status 与 task.Error，失败即返回错误。
-func waitForTaskChecked(client meilisearch.ServiceManager, taskUID int64, interval time.Duration) error {
-	return waitForTaskCheckedContext(context.Background(), client, taskUID, interval)
+func waitForTaskChecked(client meilisearch.TaskReader, taskUID int64, timeout time.Duration) error {
+	return waitForTaskCheckedContext(context.Background(), client, taskUID, timeout)
 }
 
-func waitForTaskCheckedContext(ctx context.Context, client meilisearch.ServiceManager, taskUID int64, interval time.Duration) error {
-	task, err := client.WaitForTaskWithContext(ctx, taskUID, interval)
+func waitForTaskCheckedContext(ctx context.Context, client meilisearch.TaskReader, taskUID int64, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	// The SDK argument is a polling interval, not an operation timeout.
+	task, err := client.WaitForTaskWithContext(ctx, taskUID, 100*time.Millisecond)
 	if err != nil {
+		// The SDK's communication error can hide context cancellation from
+		// errors.Is. Preserve the caller's cancellation/deadline semantics.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return err
 	}
-	if task != nil && task.Status == meilisearch.TaskStatusFailed {
+	if task != nil && (task.Status == meilisearch.TaskStatusFailed || task.Status == meilisearch.TaskStatusCanceled) {
 		msg := task.Error.Message
 		if msg == "" {
 			msg = task.Error.Code
@@ -332,46 +360,59 @@ func BuildSingleCourseSearchDocument(entity course.Entity) error {
 // 先清空索引内全部文档（等待 delete-all 任务完成），再按 PG 真值逐批写入：
 // 保证已删除/隐藏课程不会残留在索引中，投影可恢复到 PG 事实源。
 func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
+	return buildCourseIndex(ctx, true)
+}
+
+// RefreshCourseIndex backfills projection fields without emptying the live index.
+// Visibility is always rechecked in PostgreSQL; stale deleted documents can be
+// removed with the existing full rebuild/reconciliation workflow.
+func RefreshCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
+	return buildCourseIndex(ctx, false)
+}
+
+func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResult, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, errors.New("meilisearch 服务不可用，请检查配置或连接状态")
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(CourseIndex)
 	pk := "id"
-	if err := configureCourseIndex(index); err != nil {
+	if err := configureCourseIndex(ctx, index); err != nil {
 		return nil, fmt.Errorf("配置课程索引失败: %w", err)
 	}
 	// 清空旧文档并等待任务终态：避免 rebuild 只做 AddDocuments 叠加，
 	// 使 PG 中已不存在/隐藏的课程永久残留索引。
-	cleanTask, err := index.DeleteAllDocuments(nil)
-	if err != nil {
-		return nil, fmt.Errorf("清空课程索引失败: %w", err)
-	}
-	if err := waitForTaskChecked(client, cleanTask.TaskUID, 60*time.Second); err != nil {
-		return nil, fmt.Errorf("清空课程索引任务失败: %w", err)
+	if clearExisting {
+		cleanTask, err := index.DeleteAllDocumentsWithContext(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("清空课程索引失败: %w", err)
+		}
+		if err := waitForTaskCheckedContext(ctx, client, cleanTask.TaskUID, 60*time.Second); err != nil {
+			return nil, fmt.Errorf("清空课程索引任务失败: %w", err)
+		}
 	}
 	return buildCourseIndexPages(ctx,
-		course.ListAllCourses,
+		course.ListCoursesAfterID,
 		convertCoursesToSearchDocuments,
 		func(docs []CourseSearchDocument) error {
-			task, err := index.AddDocuments(docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+			task, err := index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 			if err != nil {
 				return err
 			}
-			return waitForTaskChecked(client, task.TaskUID, 60*time.Second)
+			return waitForTaskCheckedContext(ctx, client, task.TaskUID, 60*time.Second)
 		})
 }
 
 // buildCourseIndexPages 分页读取课程并写入索引（依赖注入便于单测失败路径）。
-// 调用方必须先清空索引；任一页转换/写入失败必须整体返回错误——
-// 索引已清空时若只累计 FailedCount 继续，该批课程会永久丢失且 CLI 仍报成功。
+// 按主键游标扫描，避免并发删除使 OFFSET 位移而漏行；刷新与全量重建共用。
+// 任一页转换/写入失败必须整体返回错误，避免 CLI 将部分索引误报为成功。
 func buildCourseIndexPages(ctx context.Context,
-	listCourses func(limit, offset int) ([]course.Entity, error),
+	listCourses func(ctx context.Context, afterID uint64, limit int) ([]course.Entity, error),
 	convert func(entities []course.Entity) ([]CourseSearchDocument, error),
 	addDocs func(docs []CourseSearchDocument) error,
 ) (*IndexBuildResult, error) {
 	result := &IndexBuildResult{IndexName: CourseIndex}
-	offset := 0
+	var afterID uint64
 	const batch = 200
 	for {
 		if ctx != nil {
@@ -381,7 +422,7 @@ func buildCourseIndexPages(ctx context.Context,
 			default:
 			}
 		}
-		entities, err := listCourses(batch, offset)
+		entities, err := listCourses(ctx, afterID, batch)
 		if err != nil {
 			return result, err
 		}
@@ -396,7 +437,7 @@ func buildCourseIndexPages(ctx context.Context,
 		}
 		docs, err := convert(batchEntities)
 		if err != nil {
-			return result, fmt.Errorf("convert course search docs batch %d: %w", offset, err)
+			return result, fmt.Errorf("convert course search docs batch %d: %w", result.TotalBatches, err)
 		}
 		if len(docs) > 0 {
 			if err := addDocs(docs); err != nil {
@@ -405,29 +446,15 @@ func buildCourseIndexPages(ctx context.Context,
 		}
 		result.ProcessedCount += len(entities)
 		result.TotalBatches++
-		offset += batch
+		// Advance through every source row, including an entirely hidden page.
+		afterID = entities[len(entities)-1].Id
 	}
 	return result, nil
 }
 
 // configureCourseIndex 设置课程索引的 searchable/filterable/sortable/displayed 属性。
-func configureCourseIndex(index meilisearch.IndexManager) error {
-	settings := &meilisearch.Settings{
-		SearchableAttributes: []string{
-			"name", "normalizedName", "primaryCode", "aliases", "instructors", "teacherName", "namePinyin", "nameInitials",
-		},
-		FilterableAttributes: []string{
-			"department", "terms", "campus", "status",
-		},
-		SortableAttributes: []string{
-			"createdAt", "updatedAt",
-		},
-		DisplayedAttributes: []string{
-			"id", "primaryCode", "name", "department", "creditX10", "aliases", "teacherId", "teacherName", "instructors", "terms", "campus", "status",
-		},
-	}
-	_, err := index.UpdateSettings(settings)
-	return err
+func configureCourseIndex(ctx context.Context, index meilisearch.IndexManager) error {
+	return applyManagedSettings(ctx, index, CourseIndex)
 }
 
 // TaskTypeCourseSearch 是 course-search outbox worker 的任务类型前缀。
