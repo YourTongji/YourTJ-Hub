@@ -68,7 +68,7 @@ export interface LayoutPayload {
   unread: UnreadStatusPayload
   posting: PostingPayload
   theme: ThemePayload
-  insightFlareEnabled: boolean
+  umamiEnabled: boolean
 }
 
 export interface PostingPayload {

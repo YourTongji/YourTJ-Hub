@@ -36,7 +36,8 @@
     <link rel="apple-touch-icon" href="/static/pic/icons/apple-touch-icon.png">
     {{if .Payload.Layout.Site.Favicon}}<link rel="icon" href="{{ResourceAsset .Payload.Layout.Site.Favicon}}">{{end}}
     {{if .Payload.Layout.Site.ExternalLinks}}{{SafeHTML .Payload.Layout.Site.ExternalLinks}}{{end}}
-    {{if .Payload.Layout.InsightFlareEnabled}}<script defer src="https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1"></script>{{end}}
+    {{if .Payload.Layout.UmamiEnabled}}<script defer src="https://umi.yourtj.de/script.js" data-website-id="36750dcd-8c48-46ab-9dfb-2f09cdcef501"></script>
+    <script defer src="https://umi.yourtj.de/recorder.js" data-website-id="36750dcd-8c48-46ab-9dfb-2f09cdcef501"></script>{{end}}
     {{ResourceEntry `src/site/main.ts`}}
     {{if .Payload.Layout.Theme.Href}}<link id="goose-site-theme-link" rel="stylesheet" href="{{.Payload.Layout.Theme.Href}}">{{end}}
 </head>

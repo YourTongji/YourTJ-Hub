@@ -12,15 +12,15 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
-func TestAppTemplateInsightFlareRendering(t *testing.T) {
+func TestAppTemplateUmamiRendering(t *testing.T) {
 	reg, err := newRegistry(resource.GetTemplateFS())
 	if err != nil {
 		t.Fatalf("newRegistry: %v", err)
 	}
 	payload := PagePayload{
 		Layout: LayoutPayload{
-			Site:                SitePayload{Name: "GooseForum"},
-			InsightFlareEnabled: true,
+			Site:         SitePayload{Name: "GooseForum"},
+			UmamiEnabled: true,
 		},
 		Props: HomeProps{},
 	}
@@ -34,14 +34,17 @@ func TestAppTemplateInsightFlareRendering(t *testing.T) {
 		{name: "disabled", enabled: false, want: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			payload.Layout.InsightFlareEnabled = tc.enabled
+			payload.Layout.UmamiEnabled = tc.enabled
 			var buf bytes.Buffer
 			if err := reg.render(&buf, "home.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
 				t.Fatalf("render home template: %v", err)
 			}
-			got := strings.Contains(buf.String(), "https://ana.yourtj.de/script.js?siteId=09521282-d1ce-4a88-add6-99c039014def&v=1")
-			if got != tc.want {
-				t.Fatalf("InsightFlare script rendered with enabled=%t, want %t", tc.enabled, tc.want)
+			html := buf.String()
+			for _, scriptURL := range []string{"https://umi.yourtj.de/script.js", "https://umi.yourtj.de/recorder.js"} {
+				got := strings.Contains(html, scriptURL) && strings.Contains(html, `data-website-id="36750dcd-8c48-46ab-9dfb-2f09cdcef501"`)
+				if got != tc.want {
+					t.Fatalf("Umami script %s rendered with enabled=%t, want %t", scriptURL, tc.enabled, tc.want)
+				}
 			}
 		})
 	}

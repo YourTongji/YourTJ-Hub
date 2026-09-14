@@ -2,8 +2,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  fetchPage: vi.fn(async () => ({ layout: { insightFlareEnabled: false } })),
-  payload: { layout: { insightFlareEnabled: false, theme: {} } },
+  fetchPage: vi.fn(async () => ({ layout: { umamiEnabled: false } })),
+  payload: { layout: { umamiEnabled: false, theme: {} } },
 }))
 
 vi.mock('vue', async (original) => ({

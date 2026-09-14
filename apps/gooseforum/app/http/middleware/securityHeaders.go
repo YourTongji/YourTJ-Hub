@@ -83,7 +83,7 @@ func isHTMLPageRoute(c *gin.Context) bool {
 
 // buildPageCSP 生成页面级 Content-Security-Policy。
 //
-// 收紧（XSS 主防线）：script-src 'self' https://ana.yourtj.de（构建产物无内联执行脚本、无 eval，模板中的
+// 收紧（XSS 主防线）：script-src 'self' https://umi.yourtj.de（构建产物无内联执行脚本、无 eval，模板中的
 // application/json 数据块不参与脚本执行）、object-src 'none'、frame-src 'none'、
 // frame-ancestors 'none'、base-uri 'self'、form-action 'self'。刻意不使用 report-only：
 // 头已按现有模板/前端实际源形态审计过，report-only 不作为交付形态。
@@ -97,7 +97,7 @@ func isHTMLPageRoute(c *gin.Context) bool {
 //   - connect-src http: https:：对象存储浏览器直传指向可配置的预签名端点（S3/OSS/COS/MinIO，
 //     管理端另请求 api.github.com），端点主机随部署配置变化，只能按 scheme 放行；
 //     https 站点下 http 目标本就会被浏览器混合内容策略拦截，放行 http: 仅保住 http 内网部署。
-//   - script-src 仅额外放行 InsightFlare 统计 SDK；connect-src 已按 https scheme 放行其采集请求。
+//   - script-src 仅额外放行 Umami 统计与会话记录脚本；connect-src 已按 https scheme 放行其采集请求。
 //   - 非生产（本地 dev）额外放行 ws: wss:：Vite HMR WebSocket（经同源 /assets 代理后仍按 ws: 连接）。
 //
 // 已知保留风险（有意不为此放宽）：
@@ -110,7 +110,7 @@ func buildPageCSP(production bool) string {
 		connectSrc += " ws: wss:"
 	}
 	return "default-src 'self'; " +
-		"script-src 'self' https://ana.yourtj.de; " +
+		"script-src 'self' https://umi.yourtj.de; " +
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.cn; " +
 		"font-src 'self' https://fonts.gstatic.cn; " +
 		"img-src 'self' http: https: data: blob:; " +
