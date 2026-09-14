@@ -3,14 +3,5 @@
   "server_url": "https://f.yourtj.de",
   "trusted_proxies": ["172.16.0.0/12"],
   "pg_dbname": "yourtj_main",
-  "search_maintenance_enabled": true,
-  "status": {
-    "enabled": true,
-    "umami_url": "https://umi.yourtj.de",
-    "umami_share_id": "ppYkIEzslggfAk81",
-    "komari_url": "https://km.ryusel.com",
-    "komari_node_id": "e643a364-0372-43b2-a341-b05d858866ad",
-    "uptime_url": "https://uptime.mortis.de5.net",
-    "uptime_slug": "a"
-  }
+  "search_maintenance_enabled": true
 }

@@ -109,6 +109,15 @@ path filters directly, so an unrelated PR does not start a Flutter runner.
   Native build jobs run `flutter pub get` from `packages/forum_app` so clean checkouts generate
   the Flutter plugin and SwiftPM packages before compiling the APNs bridge or Android OEM adapters.
 
+## Independent status application
+
+`apps/status` has an isolated pnpm workspace. Run `pnpm install --frozen-lockfile`, `pnpm test`,
+`pnpm build`, and `pnpm test:browser` there. `pnpm contract:generate` regenerates its local OpenAPI
+TypeScript; `ci-status.yml` rejects generated drift, runs provider/snapshot/component/contract tests,
+Chromium layout and fault cases, and builds both the frontend and Netlify Functions. It does not need
+the forum, database, live provider credentials or a Netlify account. For real-source local verification
+and production scheduled-function checks, follow the [Netlify runbook](../operations/status-netlify.md).
+
 ## Smoke checklist
 
 ```bash

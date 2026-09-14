@@ -144,17 +144,18 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `paths/wiki-sync.yaml`），生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
-### Public status projection (Current)
+### Independent public status application (Current)
 
-`statusservice` reads the configured public Umami share, one Komari node and a published Uptime Kuma page through bounded,
-cancellable HTTPS requests. `/api/forum/status` returns only aggregate traffic and allowlisted
-resource telemetry, with independent source freshness. `/status` renders in the existing Vue shell.
-Service availability is projected from public Uptime monitors, with current check times, upstream
-24-hour availability and up to 100 recent checks per monitor; a public source link remains available.
-Traffic and resource history ranges are independently selected and cached; resource history has four
-bounded scopes (1h, 6h, 24h, 7d) and at most 120 points, while current readings use the latest sample.
-It uses bounded process-local caches and upstream history, with no new tables or workers. See the
-[status specification](../product/server-status.md) and [decision](../decisions/0026-public-status-projection.md).
+`apps/status` is a separate Vue/Vite application on Netlify. The forum only links to
+`https://status.yourtj.de`; the status site does not call the forum API or load its runtime assets.
+Scheduled Functions read public Umami, one Komari node and the independent Uptime Kuma status page.
+Allowlisted snapshots persist in Netlify Blobs; `/api/status` only reads them, with short CDN caching.
+Production snapshots survive deploys. Unpublished deployments use separate stores; conditional writes
+prevent older collectors overwriting newer data. Current metrics, history and traffic have separate
+freshness, and the browser also evaluates their original timestamps. The forum remains a single binary.
+See the [status specification](../product/server-status.md),
+[Netlify runbook](../operations/status-netlify.md) and
+[decision](../decisions/0027-independent-status-netlify.md).
 
 ### Points (phase 2)
 

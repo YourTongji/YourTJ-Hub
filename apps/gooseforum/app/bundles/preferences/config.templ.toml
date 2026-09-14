@@ -171,14 +171,3 @@ max_tokens = 1024
 # end = "2026-01-18"
 
 # end #
-
-# Public status page: aggregate reads only, no administrator credentials.
-# Configure the HTTPS origins and restart to enable live data at /status.
-[status]
-enabled = false
-umami_url = ""
-umami_share_id = ""
-komari_url = ""
-komari_node_id = ""
-uptime_url = ""
-uptime_slug = ""

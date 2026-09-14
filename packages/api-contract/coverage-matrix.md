@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：305
-- /api JSON 路由：240，已入契约：241（100%），已知未覆盖：0
-- 非 API 排除路由：64
+- 快照路由总数：303
+- /api JSON 路由：239，已入契约：240（100%），已知未覆盖：0
+- 非 API 排除路由：63
 
-## 已覆盖（241）
+## 已覆盖（240）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -61,7 +61,6 @@
 | GET | `/api/forum/posts/window` | `getPostWindow` |
 | GET | `/api/forum/push/config` | `getPushConfig` |
 | GET | `/api/forum/search` | `searchForum` |
-| GET | `/api/forum/status` | `getServerStatus` |
 | GET | `/api/forum/unread-status` | `getUnreadStatus` |
 | GET | `/api/forum/user/deleted-content` | `deletedContentList` |
 | GET | `/api/forum/user/my-content` | `myContentList` |
@@ -259,7 +258,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，64）
+## 排除（非 JSON API，63）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -307,7 +306,6 @@
 | GET | `/sitemap.xml` | SEO/机器可读文本输出，非 JSON API |
 | GET | `/sponsors` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/static/*filepath` | 静态资源（StaticFS 展开 GET+HEAD） |
-| GET | `/status` | Server-rendered status page; JSON telemetry is covered by GET /api/forum/status. |
 | GET | `/sw.js` | PWA Service Worker 静态文件，非 JSON API |
 | GET | `/terms` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/theme-preview` | SSR 页面（GoHTML 三模渲染），非 JSON API |

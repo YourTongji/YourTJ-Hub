@@ -40,7 +40,6 @@ export 'src/gen/pk.dart';
 export 'src/gen/push_device.dart';
 export 'src/gen/schedule_settings.dart';
 export 'src/gen/site_theme.dart';
-export 'src/gen/status.dart';
 
 export 'src/markdown/markdown_converter.dart';
 export 'src/token/token_storage.dart';

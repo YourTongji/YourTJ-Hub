@@ -179,14 +179,3 @@ api_key = ""
 model = "qwen3.6-flash-2026-04-16"
 temperature = 0.3
 max_tokens = 1024
-
-# Public status page: aggregate reads only, no administrator credentials.
-# Configure the HTTPS origins and restart to enable live data at /status.
-[status]
-enabled = false
-umami_url = ""
-umami_share_id = ""
-komari_url = ""
-komari_node_id = ""
-uptime_url = ""
-uptime_slug = ""

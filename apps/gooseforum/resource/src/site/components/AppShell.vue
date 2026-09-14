@@ -223,7 +223,7 @@ const categoryItems = computed<SidebarCategoryItem[]>(() =>
   }),
 )
 const resourceItems = computed<SidebarNavItem[]>(() => [
-  sidebarItem('status', t('status.title'), '/status'),
+  sidebarItem('status', t('shell.nav.status'), 'https://status.yourtj.de'),
   sidebarItem('links', t('shell.nav.links'), '/links'),
   sidebarItem('sponsors', t('shell.nav.sponsors'), '/sponsors'),
   ...serverSidebarItems(props.layout.sidebar.resources),

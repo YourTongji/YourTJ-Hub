@@ -92,62 +92,9 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 
 ### Status data sources
 
-**Current**：`/status` 通过论坛服务端读取公开 Umami 汇总统计、一个 Komari 节点和 Uptime Kuma 状态页。
-受治理的部署从 `deploy/config.toml.tmpl` 与 `deploy/instances/<env>.json` 的 `status` 对象
-渲染 `[status]`。仓库的 [dev](../../deploy/instances/dev.json) 与
-[main](../../deploy/instances/main.json) 实例声明启用 YourTJ 的三套公开来源；修改来源或
-开关需通过实例配置 PR，再走常规部署或 `Apply / instance config` 流程应用并重启。
-不要手工编辑服务器上的 `config.toml`，部署产物会覆盖它。
-
-通用配置示例和本地配置生成器保持 `enabled=false` 且来源为空，不默认连接维护者的
-监控站。自行管理配置文件的部署可按以下结构填写自己的公开源地址和标识；受治理的部署把相同字段填写到实例
-JSON 的 `status` 对象中。未声明该对象时渲染为空来源、关闭读取，不需要新的 secret。
-页面本身始终可访问，未连接来源显示「尚未连接」。
-
-```toml
-[status]
-enabled = true
-umami_url = "https://analytics.example.com"
-umami_share_id = "YOUR_PUBLIC_SHARE_ID"
-komari_url = "https://probe.example.com"
-komari_node_id = "YOUR_PUBLIC_NODE_UUID"
-uptime_url = "https://uptime.example.com"
-uptime_slug = "community"
-```
-
-来源地址必须为不带账号、路径、查询参数的 HTTPS origin；尾部 `/` 可省略。
-`umami_share_id` 是共享 URL 的末段，服务端动态获取共享令牌，并使用
-`x-umami-share-token` 与 `x-umami-share-context: overview` 请求网站统计。
-不需要管理员账号、密码或新的 API Key。Komari 使用公开 JSON-RPC2，不配置管理令牌；
-节点必须公开。配置某一来源为空时，仅该来源显示未连接。配置读取后需重启才能应用更改。
-Uptime 使用 `/api/status-page/{slug}` 与 `/api/status-page/heartbeat/{slug}` 公开接口；页面
-必须已发布，slug 仅接受小写字母、数字、下划线和连字符。不需要 Uptime 管理员密码或 API Key。
-
-接口响应为 `Cache-Control: no-store`，代理层不要覆盖；后端自行合并并发请求和缓存。
-每个来源／范围最多每 30 秒读取一次（Umami 三个区间、Komari 四个区间分别缓存），各次采集总时限八秒；
-Uptime 的单一缓存跨全部范围复用；只提取公开页面内最多 50 个监控项及各项最近最多 100 次检测。
-已发起的读取即使被客户端取消，也在结束后等待 30 秒才允许重试；不会更新上次成功
-数据及其时间戳。失败时保留最近数据最多 15 分钟。配置关闭并重启会清空缓存。`state` 是来源读取状态，
-`fetchedAt` 是成功获取时间，探针 `observedAt` 是真实采样时间；两者不能互相替代。
-分享撤销与节点隐藏可能受上述缓存保留窗口影响。
-
-Komari 的历史记录同时兼容数组和 UUID 映射；只提取配置节点。历史容量为零时按当前
-节点容量折算内存百分比，前端注明该口径。网络／上游鉴权错误不会转发原始响应或令牌。
-`serverRange=1h|6h|24h|7d` 选择资源历史范围，默认 `1h`，与 Umami 的 `range` 独立。
-每次历史请求最多返回 120 点，时间跨度取决于 Komari 保留的数据，不新增本地历史存储。
-
-部署后使用 GET 验证：
-
-```bash
-curl -fsS https://f.yourtj.de/api/forum/status
-curl -fsS 'https://f.yourtj.de/api/forum/status?range=7d'
-curl -fsS 'https://f.yourtj.de/api/forum/status?range=7d&serverRange=24h'
-```
-
-确认所配置来源 `state=ok`、`data` 非空，检查浏览器 `/status` 的更新时间和曲线。
-部分图表请求失败时，其他指标仍显示；`unavailable` 需检查源地址连通性、共享是否仍
-有效、节点是否公开及服务版本。只展示聚合数据，不保存访客会话或新增采样数据库。
-页面使用论坛自身的可用性，不构成独立故障告警系统，详见[产品规范](../product/server-status.md)。
+**Current**：运行状态应用由 Netlify 独立提供，论坛侧栏链接到 `https://status.yourtj.de`。
+来源配置属于 Netlify 项目的 Functions 环境变量，不属于论坛实例 TOML 或部署渲染流程。
+完整设置、发布与故障验收见 [Netlify 状态站部署](status-netlify.md)。
 
 ### Umami 访问统计与会话回放
 

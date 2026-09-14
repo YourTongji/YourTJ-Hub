@@ -229,10 +229,6 @@
   },
   {
     "method": "GET",
-    "path": "/api/forum/status"
-  },
-  {
-    "method": "GET",
     "path": "/api/forum/unread-status"
   },
   {
@@ -474,10 +470,6 @@
   {
     "method": "GET",
     "path": "/static/*filepath"
-  },
-  {
-    "method": "GET",
-    "path": "/status"
   },
   {
     "method": "GET",

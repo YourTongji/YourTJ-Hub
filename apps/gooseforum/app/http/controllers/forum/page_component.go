@@ -8,7 +8,6 @@ const (
 	PageComponentUser                   PageComponent = "user.profile"
 	PageComponentCategory               PageComponent = "category.index"
 	PageComponentLinks                  PageComponent = "links.index"
-	PageComponentStatus                 PageComponent = "status.index"
 	PageComponentSponsors               PageComponent = "sponsors.index"
 	PageComponentNotifications          PageComponent = "notifications.index"
 	PageComponentTerms                  PageComponent = "terms.index"

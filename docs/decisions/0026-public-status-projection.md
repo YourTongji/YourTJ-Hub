@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0027](0027-independent-status-netlify.md)
 Class: architecture
 
 ## Context and Problem Statement
@@ -48,4 +48,4 @@ YourTJ 需要在论坛内统一展示 Komari 指定节点的服务器指标、Um
 - [Umami 网站统计](https://docs.umami.is/docs/api/website-stats)
 - [Komari JSON-RPC](https://www.komari.wiki/dev/rpc)
 - [Uptime Kuma 公开状态接口](https://github.com/louislam/uptime-kuma/blob/e1371f402520e5df4be5be33aefd6e88663dd3c9/server/routers/status-page-router.js)
-- [状态聚合实现](../../apps/gooseforum/app/service/statusservice/status.go)
+- [原状态聚合实现](https://github.com/YourTongji/YourTJ-Hub/blob/6ec9a6740497e172244aff252495edf77c33bfdb/apps/gooseforum/app/service/statusservice/status.go)

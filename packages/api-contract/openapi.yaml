@@ -177,8 +177,6 @@ paths:
     $ref: ./paths/forum-chat.yaml#/markChatRead
   /api/forum/get-site-statistics:
     $ref: ./paths/forum-read.yaml#/getSiteStatistics
-  /api/forum/status:
-    $ref: ./paths/status.yaml#/getServerStatus
   /api/forum/search:
     $ref: ./paths/forum-read.yaml#/searchForum
   /api/site-theme/tokens:
@@ -615,8 +613,6 @@ components:
       bearerFormat: agt_
       description: Opaque Agent bearer token (agt_...) issued once at Agent create/rotate time. Cookies and human JWTs are never accepted.
   schemas:
-    StatusSnapshot:
-      $ref: ./components/status.yaml#/StatusSnapshot
     SearchMaintenanceRequest:
       $ref: ./components/schemas.yaml#/SearchMaintenanceRequest
     SearchIndexCheck:
