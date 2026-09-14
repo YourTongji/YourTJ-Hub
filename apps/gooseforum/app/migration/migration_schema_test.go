@@ -224,6 +224,11 @@ func assertUniqueUserEmailSchema(t *testing.T, db *gorm.DB) {
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_email_nonempty") {
 		t.Fatal("users.uniq_users_email_nonempty partial unique index missing after migration")
 	}
+	// 两阶段换绑暂存邮箱（issue #678）同口径：空暂存允许多行共存，
+	// 非空暂存全局唯一（防两个账号同时暂存同一邮箱）。
+	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_pending_email_nonempty") {
+		t.Fatal("users.uniq_users_pending_email_nonempty partial unique index missing after migration")
+	}
 
 	for _, user := range []*users.EntityComplete{
 		{Username: "email-schema-empty-a"},
@@ -238,6 +243,12 @@ func assertUniqueUserEmailSchema(t *testing.T, db *gorm.DB) {
 	}
 	if err := db.Create(&users.EntityComplete{Username: "email-schema-duplicate", Email: "email-schema@example.com"}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
 		t.Fatalf("duplicate non-empty email error = %v, want gorm.ErrDuplicatedKey", err)
+	}
+	if err := db.Create(&users.EntityComplete{Username: "pending-schema-nonempty", PendingEmail: "pending-schema@example.com"}).Error; err != nil {
+		t.Fatalf("insert non-empty pending email user: %v", err)
+	}
+	if err := db.Create(&users.EntityComplete{Username: "pending-schema-duplicate", PendingEmail: "pending-schema@example.com"}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("duplicate non-empty pending email error = %v, want gorm.ErrDuplicatedKey", err)
 	}
 }
 

@@ -162,8 +162,17 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
   `canSetPassword` prop (same gate, no password-state disclosure); the contract,
   generated TS types, and the Dart mirror shipped in the same change.
 - Email change: `Current` for password accounts; the current password is verified before any write,
-  the old address receives a notification, and password reset is suppressed for 24 hours after the
-  change. OAuth-only self-service email change is `Partial`: the API and the Web client return
+  and email occupancy checks cover both current addresses and in-window staged addresses. When email
+  verification is enabled the change is **two-phase** (issue #678, MADR-0026): the new address is
+  staged in `pending_email` (7-day window) without touching the current email, activation state, or
+  write permissions; the current address keeps working for sign-in, password recovery, and holds its
+  registration slot until the new address confirms the emailed link (24h token TTL). The switch is a
+  single atomic conditional update — email replaced, account activated, and the 24-hour reset
+  cooldown starting from the switch itself; the old address receives a change-request notice at
+  staging and a final change notice at switch time, and activating the current address instead (or
+  completing a password reset) cancels the staged switch. When verification is disabled the legacy
+  immediate switch applies (email replaced, activation reset). OAuth-only self-service email change
+  is `Partial`: the API and the Web client return
   a dedicated re-authentication-required message pointing at `POST /api/set-password`
   (issue #530), and the Web settings page offers that recovery branch through the
   `canSetPassword` prop. The mobile settings flow does not yet expose set-password (its

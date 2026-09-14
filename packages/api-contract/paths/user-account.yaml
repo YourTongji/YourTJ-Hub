@@ -198,16 +198,25 @@ setUserEmail:
     summary: Change the caller's email address
     operationId: setUserEmail
     description: |
-      Changes the account email behind a password second-factor check. On success
-      the account activation state flips back to pending, an activation email is
-      sent to the new address, a change notification is queued to the old address,
-      and the new address cannot be used for forgot-password within 24 hours of the
-      change (EmailChangedAt cooldown). JSON binding is lenient: a malformed body
-      binds to zero values and fails validation as `common.request.invalidParams`
-      (HTTP 200). Business failures: `common.request.invalidParams`,
-      `auth.password.oldInvalid`, `auth.password.oauthRequired` (OAuth-only account
-      without a password), `auth.emailDomain.notAllowed`, `auth.email.exists`,
-      `user.fetchFailed`, `user.updateFailed`.
+      Two-phase email change (issue #678) when the site enables email verification:
+      behind a password second-factor check the new address is only **staged**
+      (`pending_email`), a confirmation email is sent to the new address, and a
+      change-request notice is queued to the old address. The current `email`,
+      activation state, and write permissions are untouched — the old address keeps
+      working for sign-in, password recovery, and account lookup until the new
+      address confirms the emailed link (24h token TTL; the staged address holds
+      occupancy for a 7-day window). The switch itself is atomic at confirmation
+      time: `email` is replaced, the account is activated, and the 24h
+      forgot-password cooldown (`EmailChangedAt`) starts from the switch, not from
+      the request. When email verification is disabled the legacy immediate switch
+      applies (email replaced, activation reset to pending, cooldown starts now).
+      Email occupancy checks cover both current emails and in-window staged
+      addresses. JSON binding is lenient: a malformed body binds to zero values and
+      fails validation as `common.request.invalidParams` (HTTP 200). Business
+      failures: `common.request.invalidParams`, `auth.password.oldInvalid`,
+      `auth.password.oauthRequired` (OAuth-only account without a password),
+      `auth.emailDomain.notAllowed`, `auth.email.exists`, `user.fetchFailed`,
+      `user.updateFailed`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -275,10 +284,14 @@ resendActivationEmail:
     summary: Resend the account activation email
     operationId: resendActivationEmail
     description: |
-      Resends the activation email to the caller's pending-verification address.
-      The route mounts no rate-limit middleware; throttling is enforced inside the
-      service and surfaces as business failure codes: `auth.activation.disabled`
-      (site-wide email verification off), `auth.activation.alreadyVerified`,
+      Resends the activation email. Two targets exist (issue #678): when the caller
+      has an in-window two-phase email-change staging (`pending_email`), the resent
+      mail is the confirmation for the staged address (accounts already activated
+      included); otherwise it is the regular activation mail for the pending
+      current address, and an already-verified account without staging fails with
+      `auth.activation.alreadyVerified`. The route mounts no rate-limit middleware;
+      throttling is enforced inside the service and surfaces as business failure
+      codes: `auth.activation.disabled` (site-wide email verification off),
       `auth.activation.resendCooldown` (params retryAfterSeconds),
       `auth.activation.resendDaily` (params limit, daily cap 3) and
       `auth.activation.resendFailed`. The request takes no body.

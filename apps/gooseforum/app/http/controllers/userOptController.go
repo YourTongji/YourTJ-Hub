@@ -5,21 +5,28 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
+	"github.com/gin-gonic/gin"
 )
 
 var activationTemplate = sync.OnceValues(func() (*template.Template, error) {
 	return template.ParseFS(resource.GetTemplateFS(), "templates/view/activate.gohtml")
 })
 
-// ActivateAccount 激活处理函数
+// ActivateAccount 激活处理函数。
+// 两阶段换绑（issue #678）：激活令牌绑定签发时的目标邮箱。若目标命中仍在
+// 窗口内的换绑暂存，则原子完成第二阶段切换（email ← pending、清暂存、置
+// 已激活、刷新 24h 找回冷静期起点），并向旧邮箱发送最终变更通知；
+// 否则按普通账号激活处理（目标必须是当前 email，残留暂存一并清除——
+// 用户选择了验证当前邮箱而不是继续换绑）。
 func ActivateAccount(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
@@ -41,14 +48,39 @@ func ActivateAccount(c *gin.Context) {
 		return
 	}
 
-	// 检查邮箱是否匹配
+	// 换绑确认：令牌目标命中新鲜暂存 → 原子切换。
+	if user.FreshPendingEmail(time.Now()) == claims.Email {
+		switched, err := users.CompletePendingEmailSwitch(user.Id, claims.Email, time.Now())
+		if err != nil {
+			renderActivationPage(c, false, "activationLinkInvalid")
+			return
+		}
+		userservice.RefreshUserCaches(&switched.User)
+		// 旧邮箱：最终变更通知（受害者获知换绑完成的主要途径，失败需 Error 暴露）。
+		if switched.OldEmail != "" {
+			if err := mailservice.AddToQueue(mailservice.EmailTask{
+				To:       switched.OldEmail,
+				Username: switched.User.Username,
+				NewEmail: switched.User.Email,
+				Type:     "email_changed",
+				Locale:   switched.User.Locale,
+			}); err != nil {
+				slog.Error("换绑完成通知入队失败", "userId", switched.User.Id, "oldEmail", switched.OldEmail, "error", err)
+			}
+		}
+		renderActivationPage(c, true, "activationSuccess")
+		return
+	}
+
+	// 普通激活：邮箱必须匹配当前 email。
 	if user.Email != claims.Email {
 		renderActivationPage(c, false, "activationLinkInvalid")
 		return
 	}
 
-	// 激活账号
+	// 激活账号；同时清除残留的换绑暂存（用户放弃了换绑，选择验证当前邮箱）。
 	user.Activate()
+	user.ClearPendingEmail()
 	if err = userservice.SaveUser(&user); err != nil {
 		renderActivationPage(c, false, "activationFailed")
 		return

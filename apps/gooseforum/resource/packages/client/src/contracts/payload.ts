@@ -887,6 +887,8 @@ export interface SettingsUserPayload {
   id: number
   username: string
   email: string
+  /** issue #678：两阶段换绑暂存邮箱；空 = 无进行中的换绑。 */
+  pendingEmail: string
   nickname: string
   locale: string
   avatarUrl: string

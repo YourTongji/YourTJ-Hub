@@ -1656,6 +1656,7 @@ export default {
       profileSaved: '资料已保存',
       usernameSaved: '用户名已更新',
       emailSaved: '邮箱已更新，请留意验证邮件',
+      emailChangeStaged: '换绑请求已提交，请前往新邮箱完成确认；确认前当前邮箱保持不变。',
       activationEmailSent: '验证邮件已发送，请查收邮箱',
       passwordChanged: '密码已修改',
       privacySaved: '隐私偏好已保存',
@@ -1717,6 +1718,11 @@ export default {
       description: '验证后可正常使用发帖、回复等账号功能。',
       action: '发送验证邮件',
       sending: '发送中',
+    },
+    emailChangePending: {
+      title: '邮箱换绑进行中：',
+      description: '验证邮件已发往 {email}，在新邮箱完成确认后才会切换。确认前当前邮箱仍可正常登录、找回密码。',
+      resend: '重发确认邮件',
     },
     easterEgg: {
       success: '彩蛋触发成功：今天的头像也很有精神。',
