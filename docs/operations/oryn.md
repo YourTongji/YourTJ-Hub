@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/a8176c64e28c278fc94deaea9e8e8aab556dbccd)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/95ab55b7870860562a4848dbce536ec72cbe2fba)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
