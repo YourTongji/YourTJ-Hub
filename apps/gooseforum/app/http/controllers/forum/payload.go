@@ -136,15 +136,15 @@ type ResetPasswordPageProps struct {
 }
 
 type LayoutPayload struct {
-	Site                SitePayload         `json:"site"`
-	Viewer              ViewerPayload       `json:"viewer"`
-	Header              []NavItemPayload    `json:"header,omitempty"`
-	Sidebar             SidebarPayload      `json:"sidebar"`
-	Footer              FooterPayload       `json:"footer"`
-	Unread              UnreadStatusPayload `json:"unread"`
-	Posting             PostingPayload      `json:"posting"`
-	Theme               ThemePayload        `json:"theme"`
-	InsightFlareEnabled bool                `json:"insightFlareEnabled"`
+	Site         SitePayload         `json:"site"`
+	Viewer       ViewerPayload       `json:"viewer"`
+	Header       []NavItemPayload    `json:"header,omitempty"`
+	Sidebar      SidebarPayload      `json:"sidebar"`
+	Footer       FooterPayload       `json:"footer"`
+	Unread       UnreadStatusPayload `json:"unread"`
+	Posting      PostingPayload      `json:"posting"`
+	Theme        ThemePayload        `json:"theme"`
+	UmamiEnabled bool                `json:"umamiEnabled"`
 }
 
 type PostingPayload struct {
@@ -723,7 +723,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 	brandImage := urlutil.Clean(urlutil.Image, chrome.BrandImage)
 
 	return LayoutPayload{
-		InsightFlareEnabled: setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
+		UmamiEnabled: setting.IsProduction() && hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		Site: SitePayload{
 			Name:          siteConfig.SiteName,
 			Description:   siteConfig.SiteDescription,

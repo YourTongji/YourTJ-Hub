@@ -48,7 +48,7 @@ function installNotoSerifSc() {
 installNotoSerifSc()
 
 function commitPage(nextPage: typeof initialPage) {
-  if (currentPage.value.payload.layout.insightFlareEnabled !== nextPage.payload.layout.insightFlareEnabled) {
+  if (currentPage.value.payload.layout.umamiEnabled !== nextPage.payload.layout.umamiEnabled) {
     window.location.reload()
     return
   }

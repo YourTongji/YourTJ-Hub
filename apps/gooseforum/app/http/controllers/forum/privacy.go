@@ -12,14 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const insightFlarePrivacyDisclosureMarker = "## 事件观测与性能数据"
+const umamiPrivacyDisclosureMarker = "自建 Umami"
+const legacyInsightFlarePrivacyDisclosureMarker = "## 事件观测与性能数据"
 
-const insightFlarePrivacyDisclosure = insightFlarePrivacyDisclosureMarker + `
+const umamiPrivacyDisclosure = `## 访问统计与会话回放
 
-- **公共页面会加载自建 InsightFlare 事件观测服务**：用于统计页面访问、站内路由切换、出站链接和页面性能。当前统计站点为 https://f.yourtj.de，观测服务为 https://ana.yourtj.de。
-- **采集字段**：事件可能包含访问页面的 hostname、pathname、URL query string、URL hash、页面标题、来源页面、语言、时区、屏幕尺寸、匿名访问者/会话标识，以及浏览器提供的有限设备信息；性能观测可能包含 TTFB、FCP、LCP、CLS、INP 等 Web Vitals。请勿把密码、Token、身份证件号或其他敏感信息放入 URL 的 query 或 hash。
-- **浏览器隐私信号**：当前统计站点配置为不遵循浏览器 Do Not Track（DNT）信号；站点未提供应用内统计开关。如不希望参与统计，请阻止统计脚本或其采集请求。
-- **保存与用途**：上述观测数据仅用于站点运行分析、性能改进与安全运营，由自建 InsightFlare 服务处理；具体保存期限以该服务的站点设置和归档策略为准。
+- **公共页面会加载自建 Umami**：统计脚本与会话记录器均由 https://umi.yourtj.de 提供，用于分析页面访问、站内导航、设备与来源概况、页面性能，以及改进页面交互体验。
+- **访问统计**：Umami 会处理页面浏览、来源页面、浏览器、操作系统、设备类型和大致国家/地区等匿名统计信息，不使用统计 Cookie，也不以这些统计信息直接识别个人。
+- **会话回放**：启用记录的会话可能包含鼠标移动、点击、滚动、页面导航和表单交互；采样比例、输入/文本遮罩级别、最长记录时长与排除区域由 Umami 站点配置控制。请勿在公开 URL、帖子或其他非敏感输入区域提交密码、Token、证件号等敏感信息。
+- **保存与用途**：上述数据仅用于站点运行分析、体验改进与故障排查，由自建 Umami 服务处理；具体保存期限以服务端配置为准。
 `
 
 // Privacy 隐私政策页面
@@ -43,17 +44,36 @@ type PrivacyPageProps struct {
 }
 
 func buildPrivacyPageProps(config pageConfig.PrivacyPolicyConfig) PrivacyPageProps {
-	contentHTML := config.GetHtmlContent()
+	content := replaceLegacyInsightFlareDisclosure(config.Content)
+	contentHTML := markdown2html.MarkdownToHTML(content)
 	// A persisted custom policy can outlive the repository default. Append the
 	// production disclosure at render time so collection is never enabled
-	// against an online policy that omits the InsightFlare data scope.
-	if setting.IsProduction() && config.Enabled && !strings.Contains(config.Content, insightFlarePrivacyDisclosureMarker) {
-		contentHTML += markdown2html.MarkdownToHTML(insightFlarePrivacyDisclosure)
+	// against an online policy that omits the current Umami data scope.
+	if setting.IsProduction() && config.Enabled && !strings.Contains(content, umamiPrivacyDisclosureMarker) {
+		contentHTML += markdown2html.MarkdownToHTML(umamiPrivacyDisclosure)
 	}
 	return PrivacyPageProps{
 		Enabled:     config.Enabled,
 		ContentHTML: contentHTML,
 	}
+}
+
+func replaceLegacyInsightFlareDisclosure(content string) string {
+	start := strings.Index(content, legacyInsightFlarePrivacyDisclosureMarker)
+	if start < 0 {
+		return content
+	}
+
+	end := len(content)
+	if next := strings.Index(content[start+len(legacyInsightFlarePrivacyDisclosureMarker):], "\n## "); next >= 0 {
+		end = start + len(legacyInsightFlarePrivacyDisclosureMarker) + next
+	}
+	legacySection := content[start:end]
+	if !strings.Contains(legacySection, "InsightFlare") && !strings.Contains(legacySection, "https://ana.yourtj.de") {
+		return content
+	}
+
+	return content[:start] + umamiPrivacyDisclosure + content[end:]
 }
 
 func buildPrivacyMeta(c *gin.Context) PageMeta {

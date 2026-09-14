@@ -53,7 +53,7 @@ const layout: LayoutPayload = {
   unread: { notifications: false, messages: false },
   posting: { maxTitleLength: 100 },
   theme: { enabled: false, current: 'gf-light', themeColor: '' },
-  insightFlareEnabled: false,
+  umamiEnabled: false,
 }
 
 function buildProps(allowedDomains: unknown): LoginPageProps {
