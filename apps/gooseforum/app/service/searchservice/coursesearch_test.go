@@ -207,7 +207,7 @@ func TestEnqueueTopicSearchTaskTxBoundAndDeduplicated(t *testing.T) {
 func TestBuildCourseIndexPagesConvertFailure(t *testing.T) {
 	listCalls := 0
 	_, err := buildCourseIndexPages(context.Background(),
-		func(limit, offset int) ([]course.Entity, error) {
+		func(ctx context.Context, afterID uint64, limit int) ([]course.Entity, error) {
 			listCalls++
 			if listCalls == 1 {
 				return []course.Entity{{Id: 1, Status: course.StatusVisible}}, nil
@@ -232,7 +232,7 @@ func TestBuildCourseIndexPagesConvertFailure(t *testing.T) {
 // TestBuildCourseIndexPagesAddDocsFailure 写入失败同样中止 rebuild 并返回错误。
 func TestBuildCourseIndexPagesAddDocsFailure(t *testing.T) {
 	_, err := buildCourseIndexPages(context.Background(),
-		func(limit, offset int) ([]course.Entity, error) {
+		func(ctx context.Context, afterID uint64, limit int) ([]course.Entity, error) {
 			return []course.Entity{{Id: 1, Status: course.StatusVisible}}, nil
 		},
 		func(entities []course.Entity) ([]CourseSearchDocument, error) {
@@ -259,7 +259,7 @@ func TestBuildCourseIndexPagesSuccess(t *testing.T) {
 	pageIdx := 0
 	var added [][]CourseSearchDocument
 	result, err := buildCourseIndexPages(context.Background(),
-		func(limit, offset int) ([]course.Entity, error) {
+		func(ctx context.Context, afterID uint64, limit int) ([]course.Entity, error) {
 			if pageIdx < len(pages) {
 				p := pages[pageIdx]
 				pageIdx++
@@ -294,7 +294,7 @@ func TestBuildCourseIndexPagesContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := buildCourseIndexPages(ctx,
-		func(limit, offset int) ([]course.Entity, error) {
+		func(ctx context.Context, afterID uint64, limit int) ([]course.Entity, error) {
 			return []course.Entity{{Id: 1, Status: course.StatusVisible}}, nil
 		},
 		func(entities []course.Entity) ([]CourseSearchDocument, error) {

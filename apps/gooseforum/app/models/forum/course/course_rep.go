@@ -242,12 +242,23 @@ func ListDistinctCampusesContext(ctx context.Context) ([]string, error) {
 	return campuses, err
 }
 
-// ListAllCourses 全量遍历课程（重建搜索索引/统计用），按 id 升序 keyset 分页。
+// ListAllCourses 按 id 升序 OFFSET 分页；在线索引刷新使用 ListCoursesAfterID。
 func ListAllCourses(limit, offset int) (entities []Entity, err error) {
 	if limit <= 0 {
 		return []Entity{}, nil
 	}
 	err = courseBuilder().Order("id ASC").Offset(offset).Limit(limit).Find(&entities).Error
+	return
+}
+
+// ListCoursesAfterID walks courses by primary key, so deletion of an earlier
+// row cannot shift the next page. Hidden rows are included to keep scan progress
+// independent of the search projection's visibility filter.
+func ListCoursesAfterID(ctx context.Context, afterID uint64, limit int) (entities []Entity, err error) {
+	if limit <= 0 {
+		return []Entity{}, nil
+	}
+	err = courseBuilder().WithContext(ctx).Where("id > ?", afterID).Order("id ASC").Limit(limit).Find(&entities).Error
 	return
 }
 

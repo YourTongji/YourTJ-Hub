@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/meilisearch/meilisearch-go"
 )
 
@@ -112,7 +114,7 @@ func TestCourseCatalogMeiliIntegration(t *testing.T) {
 	t.Cleanup(func() { _, _ = client.DeleteIndex(uid) })
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := configureCourseIndex(index); err != nil {
+	if err := configureCourseIndex(ctx, index); err != nil {
 		t.Fatal(err)
 	}
 	docs := make([]CourseSearchDocument, 1005)
@@ -140,6 +142,41 @@ func TestCourseCatalogMeiliIntegration(t *testing.T) {
 		ids, err := searchCourseCandidates(ctx, index, tt.keyword)
 		if err != nil || len(ids) != tt.want {
 			t.Errorf("%q: got %d IDs, want %d; err=%v", tt.keyword, len(ids), tt.want, err)
+		}
+	}
+
+	// Exercise actual projection builders for a pure-review identity-teacher
+	// card, not just hand-written Meili documents with the expected fields.
+	setupCourseSearchTestDB(t)
+	teacher := course.InstructorEntity{Id: 77, Name: "陈六", NormalizedName: "陈六", NamePinyin: "chenliu", NameInitials: "cl"}
+	if err := dbconnect.Connect().Create(&teacher).Error; err != nil {
+		t.Fatal(err)
+	}
+	entity := course.Entity{Id: 2006, PrimaryCode: "pure-review", Name: "纯评价课程", TeacherId: teacher.Id, Status: course.StatusVisible}
+	for _, batch := range []bool{false, true} {
+		var projected []CourseSearchDocument
+		if batch {
+			projected, err = convertCoursesToSearchDocuments([]course.Entity{entity})
+		} else {
+			var doc CourseSearchDocument
+			doc, err = convertCourseToSearchDocument(entity)
+			projected = []CourseSearchDocument{doc}
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		task, err := index.AddDocumentsWithContext(ctx, projected, &meilisearch.DocumentOptions{PrimaryKey: &key})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := waitForTaskCheckedContext(ctx, client, task.TaskUID, 10*time.Second); err != nil {
+			t.Fatal(err)
+		}
+		for _, keyword := range []string{"chenliu", "cl"} {
+			ids, err := searchCourseCandidates(ctx, index, keyword)
+			if err != nil || len(ids) != 1 || ids[0] != entity.Id {
+				t.Errorf("identity teacher batch=%t keyword=%q: ids=%v err=%v", batch, keyword, ids, err)
+			}
 		}
 	}
 }

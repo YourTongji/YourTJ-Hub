@@ -69,6 +69,7 @@ func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, 
 			return doc, err
 		} else if len(teachers) > 0 {
 			doc.TeacherName = teachers[0].Name
+			doc.InstructorSearch = append(doc.InstructorSearch, teachers[0].NormalizedName, teachers[0].NamePinyin, teachers[0].NameInitials)
 		}
 	}
 	aliases, err := course.ListAliasesByCourse(entity.Id)
@@ -197,6 +198,7 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 		}
 		for _, t := range teachers {
 			teacherNameByID[t.Id] = t.Name
+			instructorSearchByID[t.Id] = []string{t.NormalizedName, t.NamePinyin, t.NameInitials}
 		}
 	}
 	if len(offeringIds) > 0 {
@@ -252,6 +254,7 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 		if e.TeacherId != 0 {
 			// 身份教师批量解析在循环外统一做（teacherNameByID 预填充）。
 			doc.TeacherName = teacherNameByID[e.TeacherId]
+			doc.InstructorSearch = append(doc.InstructorSearch, instructorSearchByID[e.TeacherId]...)
 		}
 		doc.Aliases = append(doc.Aliases, aliasByCourse[e.Id]...)
 		seenInstructors := make(map[string]struct{})
@@ -295,16 +298,21 @@ func shouldIndexCourse(entity course.Entity) bool {
 // WaitForTask 在任务终态为 failed 时可能返回 (task, nil)（Go error 为空），
 // 只检查 error 会把索引拒绝/内部失败当作成功，导致 outbox 永不重试。
 // 这里显式检查 task.Status 与 task.Error，失败即返回错误。
-func waitForTaskChecked(client meilisearch.ServiceManager, taskUID int64, timeout time.Duration) error {
+func waitForTaskChecked(client meilisearch.TaskReader, taskUID int64, timeout time.Duration) error {
 	return waitForTaskCheckedContext(context.Background(), client, taskUID, timeout)
 }
 
-func waitForTaskCheckedContext(ctx context.Context, client meilisearch.ServiceManager, taskUID int64, timeout time.Duration) error {
+func waitForTaskCheckedContext(ctx context.Context, client meilisearch.TaskReader, taskUID int64, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// The SDK argument is a polling interval, not an operation timeout.
 	task, err := client.WaitForTaskWithContext(ctx, taskUID, 100*time.Millisecond)
 	if err != nil {
+		// The SDK's communication error can hide context cancellation from
+		// errors.Is. Preserve the caller's cancellation/deadline semantics.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return err
 	}
 	if task != nil && (task.Status == meilisearch.TaskStatusFailed || task.Status == meilisearch.TaskStatusCanceled) {
@@ -366,13 +374,13 @@ func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResul
 	client := meiliconnect.GetClient()
 	index := client.Index(CourseIndex)
 	pk := "id"
-	if err := configureCourseIndex(index); err != nil {
+	if err := configureCourseIndex(ctx, index); err != nil {
 		return nil, fmt.Errorf("配置课程索引失败: %w", err)
 	}
 	// 清空旧文档并等待任务终态：避免 rebuild 只做 AddDocuments 叠加，
 	// 使 PG 中已不存在/隐藏的课程永久残留索引。
 	if clearExisting {
-		cleanTask, err := index.DeleteAllDocuments(nil)
+		cleanTask, err := index.DeleteAllDocumentsWithContext(ctx, nil)
 		if err != nil {
 			return nil, fmt.Errorf("清空课程索引失败: %w", err)
 		}
@@ -381,10 +389,10 @@ func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResul
 		}
 	}
 	return buildCourseIndexPages(ctx,
-		course.ListAllCourses,
+		course.ListCoursesAfterID,
 		convertCoursesToSearchDocuments,
 		func(docs []CourseSearchDocument) error {
-			task, err := index.AddDocuments(docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+			task, err := index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 			if err != nil {
 				return err
 			}
@@ -393,15 +401,15 @@ func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResul
 }
 
 // buildCourseIndexPages 分页读取课程并写入索引（依赖注入便于单测失败路径）。
-// 调用方必须先清空索引；任一页转换/写入失败必须整体返回错误——
-// 索引已清空时若只累计 FailedCount 继续，该批课程会永久丢失且 CLI 仍报成功。
+// 按主键游标扫描，避免并发删除使 OFFSET 位移而漏行；刷新与全量重建共用。
+// 任一页转换/写入失败必须整体返回错误，避免 CLI 将部分索引误报为成功。
 func buildCourseIndexPages(ctx context.Context,
-	listCourses func(limit, offset int) ([]course.Entity, error),
+	listCourses func(ctx context.Context, afterID uint64, limit int) ([]course.Entity, error),
 	convert func(entities []course.Entity) ([]CourseSearchDocument, error),
 	addDocs func(docs []CourseSearchDocument) error,
 ) (*IndexBuildResult, error) {
 	result := &IndexBuildResult{IndexName: CourseIndex}
-	offset := 0
+	var afterID uint64
 	const batch = 200
 	for {
 		if ctx != nil {
@@ -411,7 +419,7 @@ func buildCourseIndexPages(ctx context.Context,
 			default:
 			}
 		}
-		entities, err := listCourses(batch, offset)
+		entities, err := listCourses(ctx, afterID, batch)
 		if err != nil {
 			return result, err
 		}
@@ -426,7 +434,7 @@ func buildCourseIndexPages(ctx context.Context,
 		}
 		docs, err := convert(batchEntities)
 		if err != nil {
-			return result, fmt.Errorf("convert course search docs batch %d: %w", offset, err)
+			return result, fmt.Errorf("convert course search docs batch %d: %w", result.TotalBatches, err)
 		}
 		if len(docs) > 0 {
 			if err := addDocs(docs); err != nil {
@@ -435,13 +443,14 @@ func buildCourseIndexPages(ctx context.Context,
 		}
 		result.ProcessedCount += len(entities)
 		result.TotalBatches++
-		offset += batch
+		// Advance through every source row, including an entirely hidden page.
+		afterID = entities[len(entities)-1].Id
 	}
 	return result, nil
 }
 
 // configureCourseIndex 设置课程索引的 searchable/filterable/sortable/displayed 属性。
-func configureCourseIndex(index meilisearch.IndexManager) error {
+func configureCourseIndex(ctx context.Context, index meilisearch.IndexManager) error {
 	settings := &meilisearch.Settings{
 		Pagination: &meilisearch.Pagination{MaxTotalHits: maxCourseCandidates + 1},
 		SearchableAttributes: []string{
@@ -457,8 +466,13 @@ func configureCourseIndex(index meilisearch.IndexManager) error {
 			"id", "primaryCode", "name", "department", "creditX10", "aliases", "teacherId", "teacherName", "instructors", "terms", "campus", "status",
 		},
 	}
-	_, err := index.UpdateSettings(settings)
-	return err
+	task, err := index.UpdateSettingsWithContext(ctx, settings)
+	if err != nil {
+		return err
+	}
+	// Acceptance only queues a settings change. Do not clear or write documents
+	// until Meili confirms the settings were installed successfully.
+	return waitForTaskCheckedContext(ctx, index, task.TaskUID, 60*time.Second)
 }
 
 // TaskTypeCourseSearch 是 course-search outbox worker 的任务类型前缀。

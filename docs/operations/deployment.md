@@ -947,7 +947,10 @@ projection fields with the new binary:
 
 This command updates documents without emptying the live index. Full
 `rebuild-course-search` still removes stale documents by clearing and rebuilding;
-use the in-place refresh for additive projection upgrades. Both paths retain
+use the in-place refresh for additive projection upgrades. Both commands wait for
+the index-settings task to succeed before changing documents and scan courses by
+the last processed ID, so deletion of earlier rows cannot skip a later batch.
+Failed or canceled settings tasks abort the command. Both paths retain
 PostgreSQL as the source of truth. Keyword matching uses the same Meili index as
 aggregate search; instructor filters and scoring remain database-owned. The index
 must have `pagination.maxTotalHits` at least 20,001; queries above 20,000 candidates
