@@ -33,28 +33,30 @@ func EnqueueUserSearchTask(tx *gorm.DB, userID uint64) error {
 
 // UserSearchDocument 用户搜索文档结构（只含公开可搜字段 + 拼音辅助字段）
 type UserSearchDocument struct {
-	ID               uint64 `json:"id"`
-	Username         string `json:"username"`
-	Nickname         string `json:"nickname"`
-	Bio              string `json:"bio"`
-	UsernamePinyin   string `json:"usernamePinyin"`
-	UsernameInitials string `json:"usernameInitials"`
-	NicknamePinyin   string `json:"nicknamePinyin"`
-	NicknameInitials string `json:"nicknameInitials"`
+	ProjectionVersion int    `json:"_projectionVersion"`
+	ID                uint64 `json:"id"`
+	Username          string `json:"username"`
+	Nickname          string `json:"nickname"`
+	Bio               string `json:"bio"`
+	UsernamePinyin    string `json:"usernamePinyin"`
+	UsernameInitials  string `json:"usernameInitials"`
+	NicknamePinyin    string `json:"nicknamePinyin"`
+	NicknameInitials  string `json:"nicknameInitials"`
 }
 
 // convertUserToSearchDocument maps a user to its search document.
 func convertUserToSearchDocument(user *users.EntityComplete) UserSearchDocument {
 	usernamePinyin, usernameInitials, nicknamePinyin, nicknameInitials := UserPinyinFields(user.Username, user.Nickname)
 	return UserSearchDocument{
-		ID:               user.Id,
-		Username:         user.Username,
-		Nickname:         user.Nickname,
-		Bio:              user.Bio,
-		UsernamePinyin:   usernamePinyin,
-		UsernameInitials: usernameInitials,
-		NicknamePinyin:   nicknamePinyin,
-		NicknameInitials: nicknameInitials,
+		ProjectionVersion: userProjectionVersion,
+		ID:                user.Id,
+		Username:          user.Username,
+		Nickname:          user.Nickname,
+		Bio:               user.Bio,
+		UsernamePinyin:    usernamePinyin,
+		UsernameInitials:  usernameInitials,
+		NicknamePinyin:    nicknamePinyin,
+		NicknameInitials:  nicknameInitials,
 	}
 }
 
@@ -256,22 +258,5 @@ func BuildUserIndex() (*IndexBuildResult, error) {
 
 // configureUserIndex applies searchable and displayed attributes to the user index.
 func configureUserIndex(index meilisearch.IndexManager) error {
-	searchableAttributes := []string{
-		"username",
-		"nickname",
-		"bio",
-		"usernamePinyin",
-		"usernameInitials",
-		"nicknamePinyin",
-		"nicknameInitials",
-	}
-	if _, err := index.UpdateSearchableAttributes(&searchableAttributes); err != nil {
-		return fmt.Errorf("设置用户可搜索字段失败: %w", err)
-	}
-	displayedAttributes := []string{"id", "username", "nickname", "bio"}
-	if _, err := index.UpdateDisplayedAttributes(&displayedAttributes); err != nil {
-		return fmt.Errorf("设置用户显示字段失败: %w", err)
-	}
-	fmt.Println("用户索引配置完成")
-	return nil
+	return applyManagedSettings(context.Background(), index, UserIndex)
 }

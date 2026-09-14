@@ -465,6 +465,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("wiki/sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
+		GET("search/indexes", UpButterReq(api.GetSearchMaintenance)).
+		POST("search/maintenance", UpButterReq(api.CreateSearchMaintenance)).
 		GET("server-version", UpButterReq(api.ServerVersion)).
 		GET("site-settings", UpButterReq(api.GetSiteSettings)).
 		POST("save-site-settings", UpButterReq(api.SaveSiteSettings)).

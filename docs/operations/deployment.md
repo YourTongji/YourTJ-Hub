@@ -967,3 +967,35 @@ The instructor-to-offering lookup uses `idx_course_offering_instructor_teacher` 
 For a busy existing PostgreSQL database it can be created ahead of application
 replacement with `CREATE INDEX CONCURRENTLY`, using the same name and column. The
 existing offering-ID indexes remain valid throughout rollback.
+
+## Admin search index maintenance
+
+**Current**: 站点管理权限用户从管理后台 →「搜索索引」（`/admin/search`）检查或更新
+`topics`、`users`、`categories`、`courses`、`wiki_pages`。页面显示引擎版本、实时文档数、
+代码要求的投影版本、上次逐条检查观察到的版本及差异；版本 0 显示「未标记」。
+这些检查记录是历史观察，不保证之后发生的写入已同步。
+
+1. 部署新二进制后打开页面，点击「检查全部」。检查会比较文档 ID、公开字段和辅助
+   搜索字段、版本标记、searchable/displayed/filterable/sortable 设置及课程分页上限。
+2. 对需要更新的索引点击「重建更新」，或使用「重建全部」。确认后任务在后台执行，
+   不受浏览器请求时限或关闭页面影响。原有文档保持可搜索，每批替换写入确认成功后
+   才推进；失效文档经数据库复核后清理，删除期间恢复的文档会重新写入。
+3. 查看最近任务与检查结果。任务「执行结束」表示操作完成；只有设置匹配、文档无
+   差异且扫描期间未检测到索引变化时才显示「上次检查完整」。检测到变更时再次检查，
+   仍有差异时重新提交重建。失败任务最多自动重试三次，终态失败后可以手动重试；
+   详细错误保留在服务器日志，页面不暴露内部地址或文档内容。
+
+维护每个源数据批次最多读取 100 行，Meili 写入和读取每批最多 100 个文档，批次间
+让出 100ms。同一数据库仅允许一个等待／运行／重试中的维护任务。单次任务最多
+30 分钟，单索引扫描上限 250,000 个文档；超限或未完成的工作不会报告完整。
+维护会增加负载，宜在访问低峰运行；不需要扩容或临时复制整套索引。
+
+`[meilisearch] maintenance_enabled` 默认 `false`。配置模板从实例声明渲染，main 为
+`true`，dev 为 `false`，因为二者共用 Meili。其他部署只应在该索引的权威数据库实例上
+启用；不能让不同数据库同时维护相同索引。任务绑定创建时的 `server.url`，复制到其他
+实例的任务会被跳过，其报告也不会显示为本实例检查结果。关闭维护开关后只读状态仍可查看。
+
+GitHub `Deploy / main` 仅部署应用和渲染配置，不自动执行索引全量更新。后台重建与 CLI
+`rebuild-course-search --in-place` 的区别是：后台流程还清理失效文档、重新检查并保存进度；
+CLI 的原地刷新仅补写字段。管理页只在可见且存在活动任务时每 5 秒轮询，失败、离开页面
+或任务终止后停止；点击「刷新状态」可重新获取状态。

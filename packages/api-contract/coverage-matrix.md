@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：301
-- /api JSON 路由：237，已入契约：238（100%），已知未覆盖：0
+- 快照路由总数：303
+- /api JSON 路由：239，已入契约：240（100%），已知未覆盖：0
 - 非 API 排除路由：63
 
-## 已覆盖（238）
+## 已覆盖（240）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -33,6 +33,7 @@
 | GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
 | GET | `/api/admin/rate-limit-settings` | `adminGetRateLimitSettings` |
 | GET | `/api/admin/schedule-settings` | `adminGetScheduleSettings` |
+| GET | `/api/admin/search/indexes` | `adminSearchIndexes` |
 | GET | `/api/admin/security-settings` | `adminGetSecuritySettings` |
 | GET | `/api/admin/server-version` | `adminGetServerVersion` |
 | GET | `/api/admin/site-chrome` | `adminGetSiteChrome` |
@@ -137,6 +138,7 @@
 | POST | `/api/admin/save-storage-settings` | `adminSaveStorageSettings` |
 | POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
+| POST | `/api/admin/search/maintenance` | `adminSearchMaintenance` |
 | POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
 | POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
 | POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |

@@ -9638,3 +9638,208 @@ PkMaterializeResponse:
             result:
               $ref: '#/PkMaterializeResult'
     - $ref: '#/ApiFailure'
+
+SearchMaintenanceRequest:
+  type: object
+  required:
+  - index
+  - action
+  properties:
+    index: &id003
+      type: string
+      enum:
+      - all
+      - topics
+      - users
+      - categories
+      - courses
+      - wiki_pages
+    action: &id004
+      type: string
+      enum:
+      - check
+      - rebuild
+SearchIndexCheck:
+  type: object
+  required:
+  - index
+  - expectedVersion
+  - observedVersions
+  - expected
+  - indexed
+  - missing
+  - extra
+  - outdated
+  - settingsOK
+  - stable
+  - complete
+  - checkedAt
+  properties:
+    index: &id006
+      type: string
+      enum:
+      - topics
+      - users
+      - categories
+      - courses
+      - wiki_pages
+    expectedVersion:
+      type: integer
+      minimum: 1
+    observedVersions:
+      type: object
+      additionalProperties:
+        type: integer
+        minimum: 0
+    expected:
+      type: integer
+      minimum: 0
+    indexed:
+      type: integer
+      minimum: 0
+    missing:
+      type: integer
+      minimum: 0
+    extra:
+      type: integer
+      minimum: 0
+    outdated:
+      type: integer
+      minimum: 0
+    settingsOK: &id001
+      type: boolean
+    stable: *id001
+    complete: *id001
+    checkedAt: &id002
+      type: string
+      format: date-time
+SearchMaintenanceJob:
+  type: object
+  required:
+  - id
+  - status
+  - createdAt
+  - updatedAt
+  - retryCount
+  - errorCode
+  - index
+  - action
+  - requestedBy
+  - phase
+  - currentIndex
+  - processed
+  - reports
+  properties:
+    id:
+      type: integer
+      minimum: 1
+    status:
+      type: integer
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+    createdAt: *id002
+    updatedAt: *id002
+    retryCount:
+      type: integer
+      minimum: 0
+    errorCode:
+      type: string
+      enum:
+      - ''
+      - operation_failed
+    index: *id003
+    action: *id004
+    requestedBy:
+      type: integer
+      minimum: 1
+    phase: &id005
+      type: string
+    currentIndex: *id005
+    processed:
+      type: integer
+      minimum: 0
+    reports:
+      type: array
+      items:
+        $ref: '#/SearchIndexCheck'
+SearchMaintenanceStatus:
+  type: object
+  required:
+  - maintenanceEnabled
+  - configured
+  - available
+  - engineVersion
+  - indexes
+  - jobs
+  properties:
+    maintenanceEnabled:
+      type: boolean
+    configured: *id001
+    available: *id001
+    engineVersion: *id005
+    indexes:
+      type: array
+      items:
+        type: object
+        required:
+        - index
+        - expectedVersion
+        - exists
+        - documents
+        - indexing
+        - lastCheck
+        properties:
+          index: *id006
+          expectedVersion:
+            type: integer
+            minimum: 1
+          exists: *id001
+          documents:
+            type: integer
+            minimum: 0
+          indexing: *id001
+          lastCheck:
+            oneOf:
+            - $ref: '#/SearchIndexCheck'
+            - type: 'null'
+    jobs:
+      type: array
+      items:
+        $ref: '#/SearchMaintenanceJob'
+SearchMaintenanceSubmission:
+  type: object
+  required:
+  - job
+  - created
+  properties:
+    job:
+      $ref: '#/SearchMaintenanceJob'
+    created: *id001
+SearchMaintenanceStatusResponse:
+  type: object
+  required:
+  - code
+  - result
+  properties:
+    code:
+      type: integer
+      enum:
+      - 0
+    result:
+      $ref: '#/SearchMaintenanceStatus'
+SearchMaintenanceSubmissionResponse:
+  type: object
+  required:
+  - code
+  - result
+  properties:
+    code:
+      type: integer
+      enum:
+      - 0
+    result:
+      $ref: '#/SearchMaintenanceSubmission'

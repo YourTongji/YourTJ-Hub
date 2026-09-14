@@ -1,0 +1,52 @@
+{
+  "code": 0,
+  "result": {
+    "configured": false,
+    "available": false,
+    "engineVersion": "",
+    "indexes": [
+      {
+        "index": "topics",
+        "expectedVersion": 1,
+        "exists": false,
+        "documents": 0,
+        "indexing": false,
+        "lastCheck": null
+      },
+      {
+        "index": "users",
+        "expectedVersion": 1,
+        "exists": false,
+        "documents": 0,
+        "indexing": false,
+        "lastCheck": null
+      },
+      {
+        "index": "categories",
+        "expectedVersion": 1,
+        "exists": false,
+        "documents": 0,
+        "indexing": false,
+        "lastCheck": null
+      },
+      {
+        "index": "courses",
+        "expectedVersion": 1,
+        "exists": false,
+        "documents": 0,
+        "indexing": false,
+        "lastCheck": null
+      },
+      {
+        "index": "wiki_pages",
+        "expectedVersion": 1,
+        "exists": false,
+        "documents": 0,
+        "indexing": false,
+        "lastCheck": null
+      }
+    ],
+    "jobs": [],
+    "maintenanceEnabled": false
+  }
+}

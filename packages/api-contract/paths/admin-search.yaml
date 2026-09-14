@@ -1,0 +1,126 @@
+adminSearchIndexes:
+  get:
+    tags:
+    - Admin
+    summary: Inspect all managed search indexes and recent maintenance jobs
+    operationId: adminSearchIndexes
+    description: SiteManager permission required. Covers topics, users, categories,
+      courses and wiki_pages. Maintenance requires an explicit instance opt-in; jobs copied from another server origin are skipped and omitted from history. Status reads live engine statistics; lastCheck is a
+      historical, non-transactional online observation. Version 0 denotes unmarked
+      legacy documents. Maintenance uses one durable active task globally, a duplicate
+      submission returns the existing job with created=false. Rebuild preserves live
+      search, replaces documents in bounded batches, removes revalidated ghosts, and
+      checks again. Requests do not wait for completion. Progress and aggregate drift
+      counts contain no document content or internal error details. Background failures
+      retry up to three times; terminal failures may be retried by a new submission.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Status or accepted/existing maintenance task. Invalid parameters
+          use the standard failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SearchMaintenanceStatusResponse
+            examples:
+              result:
+                externalValue: ../fixtures/admin-search-status.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF
+          origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+      '503':
+        description: Database unavailable; or maintenance requested without Meilisearch
+          configuration.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/admin-search-unavailable.json
+adminSearchMaintenance:
+  post:
+    tags:
+    - Admin
+    summary: Queue an index completeness check or in-place rebuild
+    operationId: adminSearchMaintenance
+    description: SiteManager permission required. Covers topics, users, categories,
+      courses and wiki_pages. Maintenance requires an explicit instance opt-in; jobs copied from another server origin are skipped and omitted from history. Status reads live engine statistics; lastCheck is a
+      historical, non-transactional online observation. Version 0 denotes unmarked
+      legacy documents. Maintenance uses one durable active task globally, a duplicate
+      submission returns the existing job with created=false. Rebuild preserves live
+      search, replaces documents in bounded batches, removes revalidated ghosts, and
+      checks again. Requests do not wait for completion. Progress and aggregate drift
+      counts contain no document content or internal error details. Background failures
+      retry up to three times; terminal failures may be retried by a new submission.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Status or accepted/existing maintenance task. Invalid parameters
+          use the standard failure envelope.
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - $ref: ../components/schemas.yaml#/SearchMaintenanceSubmissionResponse
+              - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/admin-search-submission.json
+              invalid:
+                externalValue: ../fixtures/admin-search-invalid.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF
+          origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+      '503':
+        description: Database unavailable; or maintenance requested without Meilisearch
+          configuration.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              result:
+                externalValue: ../fixtures/admin-search-unavailable.json
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SearchMaintenanceRequest

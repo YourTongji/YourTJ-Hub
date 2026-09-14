@@ -23,46 +23,48 @@ const CourseIndex = "courses"
 // (code, teacher) 复合身份模型下 TeacherId/TeacherName 为卡片身份教师
 // （teacher_id=0 无教师时为空串），Instructors 保留 offering 级教师并集。
 type CourseSearchDocument struct {
-	ID               uint64   `json:"id"`
-	PrimaryCode      string   `json:"primaryCode"`
-	Name             string   `json:"name"`
-	NormalizedName   string   `json:"normalizedName"`
-	NamePinyin       string   `json:"namePinyin"`
-	NameInitials     string   `json:"nameInitials"`
-	Department       string   `json:"department"`
-	CreditX10        int      `json:"creditX10"`
-	Aliases          []string `json:"aliases"`
-	TeacherId        uint64   `json:"teacherId"`
-	TeacherName      string   `json:"teacherName"`
-	Instructors      []string `json:"instructors"`
-	ClassCodes       []string `json:"classCodes"`
-	InstructorSearch []string `json:"instructorSearch"`
-	Terms            []string `json:"terms"`
-	Campus           []string `json:"campus"`
-	Status           int8     `json:"status"`
-	CreatedAt        int64    `json:"createdAt"`
-	UpdatedAt        int64    `json:"updatedAt"`
+	ProjectionVersion int      `json:"_projectionVersion"`
+	ID                uint64   `json:"id"`
+	PrimaryCode       string   `json:"primaryCode"`
+	Name              string   `json:"name"`
+	NormalizedName    string   `json:"normalizedName"`
+	NamePinyin        string   `json:"namePinyin"`
+	NameInitials      string   `json:"nameInitials"`
+	Department        string   `json:"department"`
+	CreditX10         int      `json:"creditX10"`
+	Aliases           []string `json:"aliases"`
+	TeacherId         uint64   `json:"teacherId"`
+	TeacherName       string   `json:"teacherName"`
+	Instructors       []string `json:"instructors"`
+	ClassCodes        []string `json:"classCodes"`
+	InstructorSearch  []string `json:"instructorSearch"`
+	Terms             []string `json:"terms"`
+	Campus            []string `json:"campus"`
+	Status            int8     `json:"status"`
+	CreatedAt         int64    `json:"createdAt"`
+	UpdatedAt         int64    `json:"updatedAt"`
 }
 
 // convertCourseToSearchDocument 从 canonical course + 关联构建搜索文档。
 func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, error) {
 	doc := CourseSearchDocument{
-		ID:             entity.Id,
-		PrimaryCode:    entity.PrimaryCode,
-		Name:           entity.Name,
-		NormalizedName: entity.NormalizedName,
-		NamePinyin:     entity.NamePinyin,
-		NameInitials:   entity.NameInitials,
-		Department:     entity.Department,
-		CreditX10:      entity.CreditX10,
-		Aliases:        []string{},
-		TeacherId:      entity.TeacherId,
-		Instructors:    []string{},
-		Terms:          []string{},
-		Campus:         []string{},
-		Status:         entity.Status,
-		CreatedAt:      entity.CreatedAt.Unix(),
-		UpdatedAt:      entity.UpdatedAt.Unix(),
+		ProjectionVersion: courseProjectionVersion,
+		ID:                entity.Id,
+		PrimaryCode:       entity.PrimaryCode,
+		Name:              entity.Name,
+		NormalizedName:    entity.NormalizedName,
+		NamePinyin:        entity.NamePinyin,
+		NameInitials:      entity.NameInitials,
+		Department:        entity.Department,
+		CreditX10:         entity.CreditX10,
+		Aliases:           []string{},
+		TeacherId:         entity.TeacherId,
+		Instructors:       []string{},
+		Terms:             []string{},
+		Campus:            []string{},
+		Status:            entity.Status,
+		CreatedAt:         entity.CreatedAt.Unix(),
+		UpdatedAt:         entity.UpdatedAt.Unix(),
 	}
 	if entity.TeacherId != 0 {
 		if teachers, err := course.ListInstructorsByIDs([]uint64{entity.TeacherId}); err != nil {
@@ -234,22 +236,23 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 	}
 	for _, e := range entities {
 		doc := CourseSearchDocument{
-			ID:             e.Id,
-			PrimaryCode:    e.PrimaryCode,
-			Name:           e.Name,
-			NormalizedName: e.NormalizedName,
-			NamePinyin:     e.NamePinyin,
-			NameInitials:   e.NameInitials,
-			Department:     e.Department,
-			CreditX10:      e.CreditX10,
-			Aliases:        []string{},
-			TeacherId:      e.TeacherId,
-			Instructors:    []string{},
-			Terms:          []string{},
-			Campus:         []string{},
-			Status:         e.Status,
-			CreatedAt:      e.CreatedAt.Unix(),
-			UpdatedAt:      e.UpdatedAt.Unix(),
+			ProjectionVersion: courseProjectionVersion,
+			ID:                e.Id,
+			PrimaryCode:       e.PrimaryCode,
+			Name:              e.Name,
+			NormalizedName:    e.NormalizedName,
+			NamePinyin:        e.NamePinyin,
+			NameInitials:      e.NameInitials,
+			Department:        e.Department,
+			CreditX10:         e.CreditX10,
+			Aliases:           []string{},
+			TeacherId:         e.TeacherId,
+			Instructors:       []string{},
+			Terms:             []string{},
+			Campus:            []string{},
+			Status:            e.Status,
+			CreatedAt:         e.CreatedAt.Unix(),
+			UpdatedAt:         e.UpdatedAt.Unix(),
 		}
 		if e.TeacherId != 0 {
 			// 身份教师批量解析在循环外统一做（teacherNameByID 预填充）。
@@ -451,28 +454,7 @@ func buildCourseIndexPages(ctx context.Context,
 
 // configureCourseIndex 设置课程索引的 searchable/filterable/sortable/displayed 属性。
 func configureCourseIndex(ctx context.Context, index meilisearch.IndexManager) error {
-	settings := &meilisearch.Settings{
-		Pagination: &meilisearch.Pagination{MaxTotalHits: maxCourseCandidates + 1},
-		SearchableAttributes: []string{
-			"name", "normalizedName", "primaryCode", "classCodes", "aliases", "instructors", "teacherName", "namePinyin", "nameInitials", "instructorSearch",
-		},
-		FilterableAttributes: []string{
-			"department", "terms", "campus", "status",
-		},
-		SortableAttributes: []string{
-			"createdAt", "updatedAt",
-		},
-		DisplayedAttributes: []string{
-			"id", "primaryCode", "name", "department", "creditX10", "aliases", "teacherId", "teacherName", "instructors", "terms", "campus", "status",
-		},
-	}
-	task, err := index.UpdateSettingsWithContext(ctx, settings)
-	if err != nil {
-		return err
-	}
-	// Acceptance only queues a settings change. Do not clear or write documents
-	// until Meili confirms the settings were installed successfully.
-	return waitForTaskCheckedContext(ctx, index, task.TaskUID, 60*time.Second)
+	return applyManagedSettings(ctx, index, CourseIndex)
 }
 
 // TaskTypeCourseSearch 是 course-search outbox worker 的任务类型前缀。

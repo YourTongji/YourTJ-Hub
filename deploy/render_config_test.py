@@ -190,6 +190,14 @@ native = tomllib.loads(rc.render(real_tmpl, push_values))["push"]
 check_eq("production APNs environment", "production", native["apns"]["environment"])
 check_eq("JPush secret round trip", push_values["JPUSH_MASTER_SECRET"], native["jpush"]["master_secret"])
 
+# Shared engine ownership: main can maintain; dev snapshots cannot execute writes.
+for instance_name, expected in [("dev", False), ("main", True)]:
+    instance = rc.load_instance(instance_name, rc.DEFAULT_INSTANCES_DIR)
+    flags, _ = rc.build_values(instance_name, instance, {}, {"SEARCH_MAINTENANCE_ENABLED"}, set())
+    check_eq(f"{instance_name} index maintenance ownership", expected, flags["SEARCH_MAINTENANCE_ENABLED"])
+    rendered_flag = tomllib.loads(rc.render("enabled = {{SEARCH_MAINTENANCE_ENABLED}}", flags))
+    check_eq(f"{instance_name} maintenance renders a TOML bool", expected, rendered_flag["enabled"])
+
 # main 场景: GH 凭据未设 → 必须失败（fail-closed 生产）
 fake_main = {
     "instance": "main",

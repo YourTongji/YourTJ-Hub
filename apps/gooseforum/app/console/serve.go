@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"log/slog"
 	"net"
 	"net/http"
@@ -302,6 +303,7 @@ func startBusinessServices() {
 	// 数据导入 worker：消费 import 任务，事务化导入暂存文件中的数据。
 	backgroundservice.RunWorker("data_import_worker", dataservice.TaskTypeImport, dataservice.RunImportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
+	backgroundservice.RunWorker("search_maintenance_worker", taskQueue.SearchMaintenanceType, searchservice.RunIndexMaintenance)
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
 	// 主题、用户、分类搜索 worker：消费 transaction-bound outbox，避免业务
 	// 请求/事件 consumer 同步等待 Meilisearch。

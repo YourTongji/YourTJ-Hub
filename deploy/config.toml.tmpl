@@ -53,6 +53,8 @@ maxLifeSeconds = 300
 
 
 [meilisearch]
+# Only the authoritative instance may maintain shared indexes.
+maintenance_enabled = {{SEARCH_MAINTENANCE_ENABLED}}
 url = "http://meilisearch:7700"
 masterkey = {{MEILI_MASTER_KEY}}
 

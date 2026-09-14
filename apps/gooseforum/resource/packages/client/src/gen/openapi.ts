@@ -4884,6 +4884,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/search/indexes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inspect all managed search indexes and recent maintenance jobs
+         * @description SiteManager permission required. Covers topics, users, categories, courses and wiki_pages. Maintenance requires an explicit instance opt-in; jobs copied from another server origin are skipped and omitted from history. Status reads live engine statistics; lastCheck is a historical, non-transactional online observation. Version 0 denotes unmarked legacy documents. Maintenance uses one durable active task globally, a duplicate submission returns the existing job with created=false. Rebuild preserves live search, replaces documents in bounded batches, removes revalidated ghosts, and checks again. Requests do not wait for completion. Progress and aggregate drift counts contain no document content or internal error details. Background failures retry up to three times; terminal failures may be retried by a new submission.
+         */
+        get: operations["adminSearchIndexes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/search/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue an index completeness check or in-place rebuild
+         * @description SiteManager permission required. Covers topics, users, categories, courses and wiki_pages. Maintenance requires an explicit instance opt-in; jobs copied from another server origin are skipped and omitted from history. Status reads live engine statistics; lastCheck is a historical, non-transactional online observation. Version 0 denotes unmarked legacy documents. Maintenance uses one durable active task globally, a duplicate submission returns the existing job with created=false. Rebuild preserves live search, replaces documents in bounded batches, removes revalidated ghosts, and checks again. Requests do not wait for completion. Progress and aggregate drift counts contain no document content or internal error details. Background failures retry up to three times; terminal failures may be retried by a new submission.
+         */
+        post: operations["adminSearchMaintenance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/data/export": {
         parameters: {
             query?: never;
@@ -6018,6 +6058,81 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SearchMaintenanceRequest: {
+            /** @enum {string} */
+            index: "all" | "topics" | "users" | "categories" | "courses" | "wiki_pages";
+            /** @enum {string} */
+            action: "check" | "rebuild";
+        };
+        SearchIndexCheck: {
+            /** @enum {string} */
+            index: "topics" | "users" | "categories" | "courses" | "wiki_pages";
+            expectedVersion: number;
+            observedVersions: {
+                [key: string]: number;
+            };
+            expected: number;
+            indexed: number;
+            missing: number;
+            extra: number;
+            outdated: number;
+            settingsOK: boolean;
+            stable: boolean;
+            complete: boolean;
+            /** Format: date-time */
+            checkedAt: string;
+        };
+        SearchMaintenanceJob: {
+            id: number;
+            /** @enum {integer} */
+            status: 0 | 1 | 2 | 3 | 4;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            retryCount: number;
+            /** @enum {string} */
+            errorCode: "" | "operation_failed";
+            /** @enum {string} */
+            index: "all" | "topics" | "users" | "categories" | "courses" | "wiki_pages";
+            /** @enum {string} */
+            action: "check" | "rebuild";
+            requestedBy: number;
+            phase: string;
+            currentIndex: string;
+            processed: number;
+            reports: components["schemas"]["SearchIndexCheck"][];
+        };
+        SearchMaintenanceStatus: {
+            maintenanceEnabled: boolean;
+            configured: boolean;
+            available: boolean;
+            engineVersion: string;
+            indexes: {
+                /** @enum {string} */
+                index: "topics" | "users" | "categories" | "courses" | "wiki_pages";
+                expectedVersion: number;
+                exists: boolean;
+                documents: number;
+                indexing: boolean;
+                lastCheck: components["schemas"]["SearchIndexCheck"] | null;
+            }[];
+            jobs: components["schemas"]["SearchMaintenanceJob"][];
+        };
+        SearchMaintenanceSubmission: {
+            job: components["schemas"]["SearchMaintenanceJob"];
+            created: boolean;
+        };
+        SearchMaintenanceStatusResponse: {
+            /** @enum {integer} */
+            code: 0;
+            result: components["schemas"]["SearchMaintenanceStatus"];
+        };
+        SearchMaintenanceSubmissionResponse: {
+            /** @enum {integer} */
+            code: 0;
+            result: components["schemas"]["SearchMaintenanceSubmission"];
+        };
         ApiFailure: {
             result: null;
             /** @constant */
@@ -18900,6 +19015,104 @@ export interface operations {
             };
             /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSearchIndexes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Status or accepted/existing maintenance task. Invalid parameters use the standard failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchMaintenanceStatusResponse"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Database unavailable; or maintenance requested without Meilisearch configuration. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSearchMaintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchMaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Status or accepted/existing maintenance task. Invalid parameters use the standard failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchMaintenanceSubmissionResponse"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Database unavailable; or maintenance requested without Meilisearch configuration. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

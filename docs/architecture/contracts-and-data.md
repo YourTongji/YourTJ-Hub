@@ -425,3 +425,19 @@ capacity exhaustion and request deadlines return a retriable 503; unconfigured
 local installations retain SQL matching. Search projection freshness does not grant
 access to hidden or deleted courses. See the [decision](../decisions/0023-course-catalog-search-candidates.md)
 and [operations reference](../operations/deployment.md#course-catalog-search-operations).
+
+## Managed search reconciliation
+
+**Current**: `searchservice` owns versioned projections and the shared settings
+definitions for all five Meili indexes. Source reads use owner-model APIs and
+primary-key cursors. The admin maintenance worker replaces documents, removes
+revalidated ghosts, then compares document digests and settings. Managed displayed
+attributes exclude version metadata and search helper fields from public hits.
+
+`task_queue` holds the actor, operation, progress and aggregate results. Partial
+indexes support recent-job lookup and one active maintenance task per database.
+The existing lease/retry worker resumes interrupted work by repeating reconciliation;
+each batch checks ownership. Jobs bind to the configured server origin and require
+`meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
+Status responses omit raw errors, document bodies and the instance fingerprint.
+See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).

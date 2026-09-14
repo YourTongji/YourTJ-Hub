@@ -2,6 +2,7 @@ package searchservice
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -107,8 +108,8 @@ func TestWikiPageDocumentsShape(t *testing.T) {
 	if len(docs) != 2 {
 		t.Fatalf("documents=%d, want 2: %+v", len(docs), docs)
 	}
-	if docs[0].ID != "1-1" || docs[1].ID != "1-2" {
-		t.Fatalf("document ids=%s,%s, want 1-1,1-2", docs[0].ID, docs[1].ID)
+	if docs[0].ID != fmt.Sprintf("%d-1", page.Id) || docs[1].ID != fmt.Sprintf("%d-2", page.Id) {
+		t.Fatalf("document ids=%s,%s, want %d-1,%d-2", docs[0].ID, docs[1].ID, page.Id, page.Id)
 	}
 	if docs[1].Heading != "申请条件" || docs[1].Anchor != "s-2" || docs[1].Paragraph != "成绩均分不低于 3.0" {
 		t.Fatalf("document[1]=%+v", docs[1])
