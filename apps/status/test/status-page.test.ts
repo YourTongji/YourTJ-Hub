@@ -28,7 +28,7 @@ it('renders live metrics and distinguishes a real zero from missing data', async
   const data = connected(); data.traffic.data!.activeVisitors = 0
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
-  expect(wrapper.get('#status-signal').text()).toBe('探针正在上报')
+  expect(wrapper.get('#status-signal').text()).toBe('服务器探针正常')
   expect(wrapper.get('.metric-active strong').text()).toBe('0')
   expect(wrapper.text()).toContain('8,060')
   expect(wrapper.findAll('.chart-bucket').length).toBeGreaterThan(20)
@@ -37,16 +37,16 @@ it('keeps missing or stale sources out of the live state', async () => {
   const data = connected(); data.server.state = 'stale'; data.traffic = { state: 'unconfigured', data: null }
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
-  expect(wrapper.get('#status-signal').text()).toBe('状态暂不可确认')
+  expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
   expect(wrapper.get('.metric-active strong').text()).toBe('—')
-  expect(wrapper.text()).toContain('管理员连接数据源后')
+  expect(wrapper.text()).toContain('配置数据源后将在此显示实时数据')
   expect(wrapper.text()).toContain('数据已过期')
 })
 it('does not keep a healthy headline after a failed refresh', async () => {
   const wrapper = await open()
   vi.mocked(getStatus).mockRejectedValueOnce(new Error('offline'))
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
-  expect(wrapper.get('#status-signal').text()).toBe('状态暂不可确认')
+  expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
   expect(wrapper.text()).toContain('8,060')
   expect(wrapper.get('[role="alert"]').text()).toContain('刷新失败')
 })
@@ -54,7 +54,7 @@ it('marks an old probe sample as missing signal without claiming host downtime',
   const data = connected(); data.server.data!.current!.observedAt = '2026-09-14T11:55:00Z'
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
-  expect(wrapper.get('#status-signal').text()).toBe('暂未收到探针信号')
+  expect(wrapper.get('#status-signal').text()).toBe('服务器探针暂无新数据')
 })
 it('rejects out-of-order responses after a period change', async () => {
   let resolveOld!: (value: StatusSnapshot) => void
@@ -123,15 +123,15 @@ it('uses independent availability checks for the headline and does not fall back
   const data = structuredClone(fixture)
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
-  expect(wrapper.get('#status-signal').text()).toBe('服务可正常访问')
+  expect(wrapper.get('#status-signal').text()).toBe('所有公开服务正常')
   data.uptime.data!.monitors[0]!.current!.status = 'down'
   vi.mocked(getStatus).mockResolvedValue(structuredClone(data))
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
-  expect(wrapper.get('#status-signal').text()).toBe('监测到服务异常')
+  expect(wrapper.get('#status-signal').text()).toBe('服务异常')
   const unavailable = connected(); unavailable.uptime = { state: 'unavailable', data: null }
   vi.mocked(getStatus).mockResolvedValue(unavailable)
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
-  expect(wrapper.get('#status-signal').text()).toBe('状态暂不可确认')
+  expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
 })
 
 it.each(['sample', 'fetch'] as const)('rejects a fallback probe with a future %s timestamp', async field => {
@@ -140,7 +140,7 @@ it.each(['sample', 'fetch'] as const)('rejects a fallback probe with a future %s
   else data.server.fetchedAt = '2026-09-14T12:10:00Z'
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
-  expect(wrapper.get('#status-signal').text()).not.toBe('探针正在上报')
+  expect(wrapper.get('#status-signal').text()).not.toBe('服务器探针正常')
 })
 
 it.each([59_999, 60_000, 60_001])('bounds tolerated future probe skew at %i ms', async skew => {
@@ -148,5 +148,5 @@ it.each([59_999, 60_000, 60_001])('bounds tolerated future probe skew at %i ms',
   data.server.fetchedAt = data.server.data!.current!.observedAt = new Date(Date.now() + skew).toISOString()
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
-  expect(wrapper.get('#status-signal').text() === '探针正在上报').toBe(skew <= 60_000)
+  expect(wrapper.get('#status-signal').text() === '服务器探针正常').toBe(skew <= 60_000)
 })

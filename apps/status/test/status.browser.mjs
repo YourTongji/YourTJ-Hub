@@ -81,10 +81,10 @@ test('keeps the independent page readable during an API failure and reports unkn
       await route.fulfill(fail ? { status: 503, json: { error: 'Snapshot unavailable' } } : { json: response })
     })
     await page.goto(`${origin}/?lang=zh`)
-    await page.locator('#status-signal').filter({ hasText: '服务可正常访问' }).waitFor()
+    await page.locator('#status-signal').filter({ hasText: '所有公开服务正常' }).waitFor()
     fail = true
     await page.locator('.status-refresh').click()
-    await page.locator('#status-signal').filter({ hasText: '状态暂不可确认' }).waitFor()
+    await page.locator('#status-signal').filter({ hasText: '暂无法确认状态' }).waitFor()
     assert.ok(await page.locator('.status-traffic').isVisible())
     assert.ok(requests.every(url => url.startsWith(origin)), 'page must not require the forum or external runtime assets')
   } finally { await page.close() }

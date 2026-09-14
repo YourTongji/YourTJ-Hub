@@ -42,16 +42,30 @@ function label(time: string, full = false) {
 </template>
 
 <style scoped>
-.traffic-chart { display: flex; gap: 12px; padding-top: 8px; min-width: 0; }
-.chart-y-axis { display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0; width: 30px; text-align: right; height: calc(var(--status-chart-height, 144px) + 6px); transform: translateY(-6px); font-size: 12px; color: var(--gf-color-icon-muted); }
-.chart-plot { min-width: 0; flex: 1; position: relative; }
-.chart-bars { height: var(--status-chart-height, 144px); display: flex; align-items: stretch; gap: clamp(2px, .6vw, 8px); border-bottom: 1px solid var(--gf-color-line); background: repeating-linear-gradient(to top, transparent 0 71px, color-mix(in oklch, var(--gf-color-line) 65%, transparent) 71px 72px); }
-.chart-bucket { position: relative; flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px; min-width: 0; border-radius: 4px 4px 0 0; cursor: crosshair; padding-top: 2px; }
-.chart-bucket:hover, .chart-bucket:focus { background: var(--gf-color-base-200); outline: 1px solid var(--gf-color-line); outline-offset: 1px; }
-.bar { display: block; width: 42%; max-width: 16px; border-radius: 3px 3px 0 0; }
-.bar-views { background: color-mix(in oklch, var(--gf-color-primary) 78%, var(--gf-color-base-100)); }.bar-visitors { background: var(--gf-color-accent); }
-.chart-bucket:hover .bar-views, .chart-bucket:focus .bar-views { background: var(--gf-color-primary); }
-.chart-x-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--gf-color-icon-muted); margin-top: 12px; gap: 8px; }
-.chart-tooltip { position: absolute; top: 0; right: 0; pointer-events: none; display: grid; gap: 6px; min-width: 155px; padding: 10px 12px; border: 1px solid var(--gf-color-line); background: var(--gf-color-base-100); color: var(--gf-color-base-content); box-shadow: 0 4px 20px color-mix(in oklch, var(--gf-color-base-content) 8%, transparent); border-radius: 8px; font-size: 12px; z-index: 1; }.chart-tooltip b { font-weight: 600; }.chart-tooltip span { display: flex; justify-content: space-between; gap: 16px; color: var(--gf-color-icon-muted); }.chart-tooltip strong { color: var(--gf-color-base-content); }
-@media (max-width: 640px) { .traffic-chart { gap: 7px; }.chart-y-axis { font-size: 12px; width: 24px; }.chart-bucket { gap: 1px; }.bar { border-radius: 2px 2px 0 0; }.chart-x-axis { font-size: 12px; } }
+.traffic-chart { display: flex; gap: 12px; min-width: 0; padding-top: 6px; }
+.chart-y-axis { display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0; width: 32px; height: calc(var(--status-chart-height, 156px) + 6px); transform: translateY(-6px); color: var(--gf-color-icon-muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.chart-plot { position: relative; min-width: 0; flex: 1; }
+/* deslop-ignore-next-line 06 -- repeating gradient draws chart gridlines, not atmosphere */
+.chart-bars { display: flex; align-items: stretch; gap: clamp(2px, .55vw, 7px); height: var(--status-chart-height, 156px); border-bottom: 1px solid var(--gf-color-line); background: repeating-linear-gradient(to top, transparent 0 calc(50% - .5px), color-mix(in oklch, var(--gf-color-line) 72%, transparent) calc(50% - .5px) calc(50% + .5px), transparent calc(50% + .5px) 100%); }
+.chart-bucket { position: relative; display: flex; align-items: flex-end; justify-content: center; flex: 1; gap: 2px; min-width: 0; padding-top: 2px; border-radius: 4px 4px 0 0; cursor: crosshair; transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1); }
+.chart-bucket:focus-visible { background: var(--gf-color-base-300); outline: 2px solid var(--gf-color-primary); outline-offset: 2px; }
+.bar { display: block; width: 42%; max-width: 16px; min-height: 1px; border-radius: 3px 3px 0 0; transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1); }
+.bar-views { background: var(--gf-color-primary); }
+.bar-visitors { background: var(--gf-color-accent); }
+.chart-x-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; color: var(--gf-color-icon-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chart-tooltip { position: absolute; z-index: 2; top: 0; inset-inline-end: 0; pointer-events: none; display: grid; gap: 6px; min-width: 164px; padding: 10px 12px; border-radius: var(--gf-radius-field); background: var(--gf-color-base-100); color: var(--gf-color-base-content); box-shadow: 0 8px 24px color-mix(in oklch, var(--gf-color-base-content) 9%, transparent), inset 0 0 0 1px var(--gf-color-line); font-size: 12px; }
+.chart-tooltip b { font-weight: 600; }
+.chart-tooltip span { display: flex; justify-content: space-between; gap: 16px; color: var(--gf-color-icon-muted); }
+.chart-tooltip strong { color: var(--gf-color-base-content); font-weight: 600; }
+@media (hover: hover) {
+  .chart-bucket:hover { background: var(--gf-color-base-300); }
+  .chart-bucket:hover .bar { opacity: .82; }
+}
+@media (max-width: 640px) {
+  .traffic-chart { gap: 7px; }
+  .chart-y-axis { width: 25px; }
+  .chart-bucket { gap: 1px; }
+  .bar { border-radius: 2px 2px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) { .chart-bucket, .bar { transition: none; } }
 </style>
