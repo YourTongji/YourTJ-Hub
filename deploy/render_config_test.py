@@ -364,5 +364,29 @@ for field, secret in push_bindings:
         in apply_workflow,
     )
 
+# Status configuration must survive the actual deployment renderer. Operator
+# input belongs to the instance, and generic installations default to disabled.
+status_fields = ("umami_url", "umami_share_id", "komari_url", "komari_node_id", "uptime_url", "uptime_slug")
+for env_name in ("dev", "main"):
+    instance = rc.load_instance(env_name, rc.DEFAULT_INSTANCES_DIR)
+    expected_status = {
+        "enabled": True,
+        "umami_url": "https://analytics.example.org",
+        "umami_share_id": "public123",
+        "komari_url": "https://probe.example.org",
+        "komari_node_id": "e643a364-0372-43b2-a341-b05d858866ad",
+        "uptime_url": "https://uptime.example.org",
+        "uptime_slug": "community",
+    }
+    instance["status"] = expected_status
+    fake_env = {tok: "test-value" for tok in real_tokens - rc.INSTANCE_TOKENS}
+    vals, status_summary = rc.build_values(env_name, instance, fake_env, real_tokens, rc.optional_tokens(env_name))
+    parsed_status = tomllib.loads(rc.render(real_tmpl, vals)).get("status")
+    check_eq(f"{env_name} deployment preserves explicit status sources", expected_status, parsed_status)
+    check_eq(f"{env_name} status settings use instance inputs", 7, sum(tok.startswith("STATUS_") and src == "instance" for tok, _, src in status_summary))
+    del instance["status"]
+    vals, _ = rc.build_values(env_name, instance, fake_env, real_tokens, rc.optional_tokens(env_name))
+    check_eq(f"{env_name} absent status configuration stays disabled", {"enabled": False, **{key: "" for key in status_fields}}, tomllib.loads(rc.render(real_tmpl, vals)).get("status"))
+
 print(f"\n{'-' * 40}\nrender_config_test: {PASS} passed, {FAIL} failed")
 raise SystemExit(1 if FAIL else 0)

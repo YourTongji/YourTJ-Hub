@@ -4,6 +4,7 @@ import { Activity, ArrowDown, ArrowUp, Clock3, Cpu, Database, Globe2, HardDrive,
 import { useI18n } from 'vue-i18n'
 import type { StatusRange, StatusServerRange, StatusSnapshot } from '@gooseforum/client'
 import { getStatus } from '@/runtime/status-api'
+import { isRecentStatusTime } from '@/runtime/status-time'
 import PageHeader from '@/site/components/PageHeader.vue'
 import StatusTrafficChart from '@/site/components/status/StatusTrafficChart.vue'
 import StatusResourceChart from '@/site/components/status/StatusResourceChart.vue'
@@ -28,7 +29,7 @@ const server = computed(() => snapshot.value?.server.data)
 const historyServer = computed(() => snapshot.value?.serverRange === serverRange.value ? server.value : null)
 const current = computed(() => server.value?.current)
 const traffic = computed(() => snapshot.value?.range === range.value ? snapshot.value.traffic.data : null)
-const serverFresh = computed(() => !failed.value && snapshot.value?.server.state === 'ok' && now.value - Date.parse(snapshot.value.server.fetchedAt ?? '') < 90_000)
+const serverFresh = computed(() => sourceState('server') === 'sourceOk')
 const signal = computed(() => {
   if (!snapshot.value && loading.value) return 'checking'
   const uptime = snapshot.value?.uptime
@@ -42,7 +43,7 @@ const signal = computed(() => {
     return 'servicesPending'
   }
   if (!serverFresh.value) return 'unknown'
-  return current.value && now.value - Date.parse(current.value.observedAt) <= 90_000 ? 'live' : 'noSignal'
+  return isRecentStatusTime(current.value?.observedAt, now.value, 90_000) ? 'live' : 'noSignal'
 })
 const rangeOptions = computed(() => [
   { value: '24h' as const, label: t('status.range24h') },
@@ -74,7 +75,7 @@ function usage(used: number | undefined, total: number | undefined) { return use
 function sourceState(source: 'server' | 'traffic' | 'uptime') {
   const state = snapshot.value?.[source].state
   if (!state) return loading.value ? 'checking' : 'sourceUnavailable'
-  if (state === 'ok' && (failed.value || now.value - Date.parse(snapshot.value?.[source].fetchedAt ?? '') >= 90_000)) return 'sourceStale'
+  if (state === 'ok' && (failed.value || !isRecentStatusTime(snapshot.value?.[source].fetchedAt, now.value, 90_000))) return 'sourceStale'
   return { ok: 'sourceOk', stale: 'sourceStale', unavailable: 'sourceUnavailable', unconfigured: 'sourceUnconfigured' }[state]
 }
 function sourceNote(source: 'server' | 'traffic') {

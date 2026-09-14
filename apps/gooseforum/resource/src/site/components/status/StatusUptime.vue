@@ -4,6 +4,7 @@ import { Activity, ArrowUpRight } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { StatusSnapshot, StatusUptimeMonitor } from '@gooseforum/client'
 import { uptimeMonitorState } from '@/runtime/uptime-status'
+import { isRecentStatusTime } from '@/runtime/status-time'
 
 const props = defineProps<{ source?: StatusSnapshot['uptime']; now: number; failed: boolean; loading: boolean }>()
 const { t, locale } = useI18n()
@@ -33,7 +34,7 @@ function dismissDetail() {
 }
 onDeactivated(dismissDetail)
 onBeforeUnmount(cancelHide)
-const fresh = computed(() => !props.failed && props.source?.state === 'ok' && props.now - Date.parse(props.source.fetchedAt ?? '') < 90_000)
+const fresh = computed(() => !props.failed && props.source?.state === 'ok' && isRecentStatusTime(props.source.fetchedAt, props.now, 90_000))
 const sourceState = computed(() => props.source?.state === 'ok' && !fresh.value ? 'stale' : props.source?.state ?? 'unavailable')
 const state = (monitor: StatusUptimeMonitor) => uptimeMonitorState(monitor, fresh.value, props.now)
 const formatDate = (value?: string) => value ? new Date(value).toLocaleString(locale.value, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'

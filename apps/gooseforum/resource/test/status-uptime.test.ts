@@ -95,6 +95,16 @@ it.each(['down', 'pending', 'maintenance', 'unknown'] as const)('preserves the %
   try { expect(wrapper.get('.monitor-state').classes()).toContain(`check-${status}`) } finally { wrapper.unmount() }
 })
 
+it('does not trust a future source fetch even when its latest check is recent', () => {
+  const source = structuredClone(fixture.uptime)
+  source.fetchedAt = new Date(now + 60_001).toISOString()
+  const wrapper = mount(StatusUptime, { props: { source, now, failed: false, loading: false }, global: { plugins: [i18n] } })
+  try {
+    expect(wrapper.get('.monitor-state').classes()).toContain('check-unknown')
+    expect(wrapper.text()).toContain('数据已过期')
+  } finally { wrapper.unmount() }
+})
+
 it('distinguishes missing metrics from zero and stale checks from a freshly fetched response', async () => {
   const source = structuredClone(fixture.uptime)
   const monitor = source.data!.monitors[0]!

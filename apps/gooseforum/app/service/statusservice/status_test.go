@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -217,26 +218,76 @@ func TestServerRangesPreserveSpanAndIndependentCaches(t *testing.T) {
 	}
 }
 
-func TestCancellationDoesNotPoisonCache(t *testing.T) {
+func TestCancellationPreservesDataAndRetryFloor(t *testing.T) {
+	for _, warm := range []bool{false, true} {
+		t.Run(strconv.FormatBool(warm), func(t *testing.T) {
+			var cache sourceCache[int]
+			clock := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
+			now := func() time.Time { return clock }
+			value := 42
+			var previous Source[int]
+			if warm {
+				previous = cache.get(context.Background(), now, func(context.Context) (*int, error) { return &value, nil })
+				clock = clock.Add(cacheTTL)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			started, done := make(chan struct{}), make(chan struct{})
+			go func() {
+				cache.get(ctx, now, func(ctx context.Context) (*int, error) {
+					close(started)
+					<-ctx.Done()
+					return nil, ctx.Err()
+				})
+				close(done)
+			}()
+			<-started
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("cancellation did not stop fetch")
+			}
+			calls := 0
+			fetch := func(context.Context) (*int, error) { calls++; return &value, nil }
+			for range 20 {
+				result := cache.get(context.Background(), now, fetch)
+				if calls != 0 {
+					t.Fatal("cancellation bypassed the provider retry floor")
+				}
+				if warm && (result.State != "stale" || result.Data != previous.Data || result.FetchedAt != previous.FetchedAt) {
+					t.Fatal("cancellation replaced or freshened previous data")
+				}
+				if !warm && (result.State != "unavailable" || result.Data != nil) {
+					t.Fatal("cancelled cold fetch became successful")
+				}
+			}
+			clock = clock.Add(cacheTTL - time.Nanosecond)
+			cache.get(context.Background(), now, fetch)
+			if calls != 0 {
+				t.Fatal("retry floor ended early")
+			}
+			clock = clock.Add(time.Nanosecond)
+			result := cache.get(context.Background(), now, fetch)
+			if calls != 1 || result.State != "ok" || *result.Data != value {
+				t.Fatal("cache did not recover after the retry floor")
+			}
+		})
+	}
+}
+
+func TestAlreadyCancelledRequestDoesNotConsumeRetryFloor(t *testing.T) {
 	var cache sourceCache[int]
 	ctx, cancel := context.WithCancel(context.Background())
-	started := make(chan struct{})
-	done := make(chan struct{})
-	go func() {
-		cache.get(ctx, time.Now, func(ctx context.Context) (*int, error) { close(started); <-ctx.Done(); return nil, ctx.Err() })
-		close(done)
-	}()
-	<-started
 	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("cancellation did not stop fetch")
+	value, calls := 42, 0
+	fetch := func(context.Context) (*int, error) { calls++; return &value, nil }
+	cache.get(ctx, time.Now, fetch)
+	if calls != 0 {
+		t.Fatal("already cancelled request started a fetch")
 	}
-	value := 42
-	result := cache.get(context.Background(), time.Now, func(context.Context) (*int, error) { return &value, nil })
-	if result.State != "ok" || *result.Data != 42 {
-		t.Fatal("cancelled request poisoned cache")
+	if got := cache.get(context.Background(), time.Now, fetch); calls != 1 || got.State != "ok" {
+		t.Fatal("request that never fetched consumed the retry floor")
 	}
 }
 

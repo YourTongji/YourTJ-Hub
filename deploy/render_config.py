@@ -2,7 +2,7 @@
 """render_config.py — 把 deploy/config.toml.tmpl 渲染成实例 config.toml（配置治理）。
 
 模板占位符 {{TOKEN}} 的值来源：
-  - 实例差异（非敏感）: deploy/instances/<env>.json 提供 SERVER_URL / OIDC_ISSUER / TRUSTED_PROXIES；
+  - 实例差异（非敏感）: deploy/instances/<env>.json 提供站点、代理、搜索维护及公开状态来源；
   - 敏感值: 同名环境变量（GitHub Actions 里由 Environments secrets 注入）。
 
 安全契约（fail-closed）:
@@ -38,7 +38,11 @@ import urllib.parse
 TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 
 # 由实例 JSON 提供的非敏感 token；其余 token 一律视为 secret（从环境变量读取）。
-INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED"}
+INSTANCE_TOKENS = {
+    "SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED",
+    "STATUS_ENABLED", "STATUS_UMAMI_URL", "STATUS_UMAMI_SHARE_ID",
+    "STATUS_KOMARI_URL", "STATUS_KOMARI_NODE_ID", "STATUS_UPTIME_URL", "STATUS_UPTIME_SLUG",
+}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
 BASE_OPTIONAL_TOKENS = {
@@ -176,11 +180,19 @@ def validate_pg_dsn(values, instance):
 
 def build_values(env, instance, environ, tokens, allow_empty):
     """组装 token → 值。返回 (values, summary)；空必需值即失败。"""
+    status = instance.get("status", {})
     instance_token_map = {
         "SERVER_URL": str(instance["server_url"]),
         "SEARCH_MAINTENANCE_ENABLED": instance.get("search_maintenance_enabled") is True,
         "OIDC_ISSUER": str(instance["server_url"]).rstrip("/") + "/api/oauth",
         "TRUSTED_PROXIES": list(instance["trusted_proxies"]),
+        "STATUS_ENABLED": status.get("enabled") is True,
+        "STATUS_UMAMI_URL": status.get("umami_url", ""),
+        "STATUS_UMAMI_SHARE_ID": status.get("umami_share_id", ""),
+        "STATUS_KOMARI_URL": status.get("komari_url", ""),
+        "STATUS_KOMARI_NODE_ID": status.get("komari_node_id", ""),
+        "STATUS_UPTIME_URL": status.get("uptime_url", ""),
+        "STATUS_UPTIME_SLUG": status.get("uptime_slug", ""),
     }
     values = {}
     summary = []

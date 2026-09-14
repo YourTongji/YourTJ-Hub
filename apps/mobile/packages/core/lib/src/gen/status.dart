@@ -1,5 +1,5 @@
-/// Hand-maintained mirror of packages/api-contract/components/status.yaml.
-/// Missing source data stays null; it must never be presented as zero or healthy.
+// Hand-maintained mirror of packages/api-contract/components/status.yaml.
+// Missing source data stays null; it must never be presented as zero or healthy.
 
 class StatusSnapshot {
   const StatusSnapshot({

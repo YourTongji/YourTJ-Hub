@@ -103,8 +103,8 @@ type TrafficPoint struct {
 	Visitors  int64  `json:"visitors"`
 }
 
-// A failed refresh also gets the short TTL. Cancellable waiters share one fetch;
-// an abandoned request cannot poison the cache or start detached network work.
+// Failed and cancelled fetches also get the short TTL. Cancellable waiters share
+// one fetch; cancellation preserves the last successful data and its timestamp.
 type sourceCache[T any] struct {
 	mu          sync.Mutex
 	pending     chan struct{}
@@ -135,8 +135,8 @@ func (c *sourceCache[T]) get(ctx context.Context, now func() time.Time, fetch fu
 		c.mu.Unlock()
 		value, err := fetch(ctx)
 		c.mu.Lock()
+		c.attemptedAt = now()
 		if ctx.Err() == nil {
-			c.attemptedAt = now()
 			c.failed = err != nil
 			if err == nil {
 				c.value, c.fetchedAt = value, now()

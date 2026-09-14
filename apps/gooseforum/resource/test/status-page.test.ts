@@ -133,3 +133,20 @@ it('uses independent availability checks for the headline and does not fall back
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
   expect(wrapper.get('#status-signal').text()).toBe('状态暂不可确认')
 })
+
+it.each(['sample', 'fetch'] as const)('rejects a fallback probe with a future %s timestamp', async field => {
+  const data = connected()
+  if (field === 'sample') data.server.data!.current!.observedAt = '2026-09-14T12:10:00Z'
+  else data.server.fetchedAt = '2026-09-14T12:10:00Z'
+  vi.mocked(getStatus).mockResolvedValue(data)
+  const wrapper = await open()
+  expect(wrapper.get('#status-signal').text()).not.toBe('探针正在上报')
+})
+
+it.each([59_999, 60_000, 60_001])('bounds tolerated future probe skew at %i ms', async skew => {
+  const data = connected()
+  data.server.fetchedAt = data.server.data!.current!.observedAt = new Date(Date.now() + skew).toISOString()
+  vi.mocked(getStatus).mockResolvedValue(data)
+  const wrapper = await open()
+  expect(wrapper.get('#status-signal').text() === '探针正在上报').toBe(skew <= 60_000)
+})

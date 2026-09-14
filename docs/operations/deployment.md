@@ -93,18 +93,26 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 ### Status data sources
 
 **Current**：`/status` 通过论坛服务端读取公开 Umami 汇总统计、一个 Komari 节点和 Uptime Kuma 状态页。
-配置模板包含 `[status]`，默认关闭外部读取；已有部署需要在 `config.toml` 加入以下段落，
-然后重启论坛进程。页面本身始终可访问，未连接来源显示「尚未连接」。
+受治理的部署从 `deploy/config.toml.tmpl` 与 `deploy/instances/<env>.json` 的 `status` 对象
+渲染 `[status]`。仓库的 [dev](../../deploy/instances/dev.json) 与
+[main](../../deploy/instances/main.json) 实例声明启用 YourTJ 的三套公开来源；修改来源或
+开关需通过实例配置 PR，再走常规部署或 `Apply / instance config` 流程应用并重启。
+不要手工编辑服务器上的 `config.toml`，部署产物会覆盖它。
+
+通用配置示例和本地配置生成器保持 `enabled=false` 且来源为空，不默认连接维护者的
+监控站。自行管理配置文件的部署可按以下结构填写自己的公开源地址和标识；受治理的部署把相同字段填写到实例
+JSON 的 `status` 对象中。未声明该对象时渲染为空来源、关闭读取，不需要新的 secret。
+页面本身始终可访问，未连接来源显示「尚未连接」。
 
 ```toml
 [status]
 enabled = true
-umami_url = "https://umi.yourtj.de"
-umami_share_id = "ppYkIEzslggfAk81"
-komari_url = "https://km.ryusel.com"
-komari_node_id = "e643a364-0372-43b2-a341-b05d858866ad"
-uptime_url = "https://uptime.mortis.de5.net"
-uptime_slug = "a"
+umami_url = "https://analytics.example.com"
+umami_share_id = "YOUR_PUBLIC_SHARE_ID"
+komari_url = "https://probe.example.com"
+komari_node_id = "YOUR_PUBLIC_NODE_UUID"
+uptime_url = "https://uptime.example.com"
+uptime_slug = "community"
 ```
 
 来源地址必须为不带账号、路径、查询参数的 HTTPS origin；尾部 `/` 可省略。
@@ -118,7 +126,8 @@ Uptime 使用 `/api/status-page/{slug}` 与 `/api/status-page/heartbeat/{slug}` 
 接口响应为 `Cache-Control: no-store`，代理层不要覆盖；后端自行合并并发请求和缓存。
 每个来源／范围最多每 30 秒读取一次（Umami 三个区间、Komari 四个区间分别缓存），各次采集总时限八秒；
 Uptime 的单一缓存跨全部范围复用；只提取公开页面内最多 50 个监控项及各项最近最多 100 次检测。
-失败时保留最近数据最多 15 分钟。配置关闭并重启会清空缓存。`state` 是来源读取状态，
+已发起的读取即使被客户端取消，也在结束后等待 30 秒才允许重试；不会更新上次成功
+数据及其时间戳。失败时保留最近数据最多 15 分钟。配置关闭并重启会清空缓存。`state` 是来源读取状态，
 `fetchedAt` 是成功获取时间，探针 `observedAt` 是真实采样时间；两者不能互相替代。
 分享撤销与节点隐藏可能受上述缓存保留窗口影响。
 

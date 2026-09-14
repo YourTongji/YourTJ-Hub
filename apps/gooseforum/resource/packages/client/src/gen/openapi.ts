@@ -1738,6 +1738,8 @@ export interface paths {
          *     latest probe sample. History is downsampled to at most 120 points across the
          *     selected span; missing history is not filled. Each source/range cache
          *     refreshes at most every 30 seconds with concurrent requests coalesced. A failed
+         *     or cancelled fetch also imposes the 30-second retry floor after it ends. Cancellation
+         *     preserves the previous successful data and fetchedAt. A failed
          *     source retains successful data for at most 15 minutes with state=stale, then
          *     returns unavailable with data=null. Missing configuration is unconfigured.
          *     Charts and active counts can be unavailable independently. fetchedAt is the

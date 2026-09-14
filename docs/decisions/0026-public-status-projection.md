@@ -47,5 +47,5 @@ YourTJ 需要在论坛内统一展示 Komari 指定节点的服务器指标、Um
 - [Umami API](https://docs.umami.is/docs/api)
 - [Umami 网站统计](https://docs.umami.is/docs/api/website-stats)
 - [Komari JSON-RPC](https://www.komari.wiki/dev/rpc)
-- [Uptime Kuma 公开状态接口](https://github.com/louislam/uptime-kuma/blob/master/server/routers/status-page-router.js)
+- [Uptime Kuma 公开状态接口](https://github.com/louislam/uptime-kuma/blob/e1371f402520e5df4be5be33aefd6e88663dd3c9/server/routers/status-page-router.js)
 - [状态聚合实现](../../apps/gooseforum/app/service/statusservice/status.go)
