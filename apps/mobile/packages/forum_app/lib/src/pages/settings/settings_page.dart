@@ -451,7 +451,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       await ref.read(userRepositoryProvider).setUserEmail(email, password);
       if (mounted) {
-        showGfToast(context, l10n.settingsEmailUpdated);
+        // 两阶段换绑（issue #678）：验证开启时提交只暂存新邮箱，当前邮箱
+        // 不变；提示去新邮箱确认并刷新 SSR 状态展示待确认横幅。
+        showGfToast(context, l10n.settingsEmailChangeStaged);
+        await _loadUser(silent: true);
       }
     } on ApiException catch (e) {
       if (mounted && e.messageCode == 'auth.password.oauthRequired') {
@@ -1004,7 +1007,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               GfSettingRow(
                 symbol: 'mail',
                 title: l10n.settingsEmail,
-                description: l10n.settingsEmailEdit,
+                // 两阶段换绑（issue #678）：暂存期内展示待确认的新邮箱与当前邮箱，
+                // 否则展示常规的「修改绑定邮箱」入口描述。
+                subtitleWidget: _user.when(
+                  data: (u) => Text(
+                    u.pendingEmail.isNotEmpty
+                        ? '${u.email}\n${l10n.settingsEmailPending(u.pendingEmail)}'
+                        : u.email.isNotEmpty
+                        ? u.email
+                        : l10n.settingsEmailEdit,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  loading: () => Text(l10n.commonLoading),
+                  error: (_, _) => Text(l10n.settingsEmailEdit),
+                ),
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _changeEmail,
               ),

@@ -3767,6 +3767,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'JPush privacy policy (Android)'**
   String get settingsPushPrivacy;
+
+  /// No description provided for @settingsEmailChangeStaged.
+  ///
+  /// In en, this message translates to:
+  /// **'Change requested. Please confirm it from the new email inbox; your current email stays in place until then.'**
+  String get settingsEmailChangeStaged;
+
+  /// No description provided for @settingsEmailPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting confirmation: {email}'**
+  String settingsEmailPending(String email);
 }
 
 class _AppLocalizationsDelegate

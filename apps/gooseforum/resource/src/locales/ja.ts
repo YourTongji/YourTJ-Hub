@@ -1676,6 +1676,7 @@ export default {
       profileSaved: 'プロフィールを保存しました',
       usernameSaved: 'ユーザー名を更新しました',
       emailSaved: 'メールを更新しました。確認メールをご確認ください。',
+      activationEmailSent: '確認メールを送信しました。メールをご確認ください。',
       emailChangeStaged: '変更リクエストを送信しました。新しいメールアドレスで確認を完了してください。完了まで現在のメールアドレスは変更されません。',
       passwordChanged: 'パスワードを変更しました',
       privacySaved: 'プライバシー設定を保存しました',

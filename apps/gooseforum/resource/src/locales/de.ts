@@ -1676,6 +1676,7 @@ export default {
       profileSaved: 'Profil gespeichert',
       usernameSaved: 'Benutzername aktualisiert',
       emailSaved: 'E-Mail aktualisiert. Prüfe die Bestätigungs-E-Mail.',
+      activationEmailSent: 'Bestätigungs-E-Mail gesendet. Prüfe deinen Posteingang.',
       emailChangeStaged: 'Wechsel angefragt. Bitte bestätige ihn im Postfach der neuen E-Mail; bis dahin bleibt die aktuelle E-Mail unverändert.',
       passwordChanged: 'Passwort geändert',
       privacySaved: 'Datenschutzeinstellungen gespeichert',

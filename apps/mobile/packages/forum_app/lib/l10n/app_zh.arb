@@ -992,5 +992,14 @@
   "settingsPushUnsupported": "此构建尚未配置推送服务",
   "settingsPushServerDisabled": "服务器尚未启用此设备的推送通道，点击重试",
   "settingsPushFailed": "推送注册失败，请检查网络后点击重试",
-  "settingsPushPrivacy": "极光推送隐私说明（Android）"
+  "settingsPushPrivacy": "极光推送隐私说明（Android）",
+  "settingsEmailChangeStaged": "换绑请求已提交，请前往新邮箱完成确认；确认前当前邮箱保持不变。",
+  "settingsEmailPending": "待确认：{email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }

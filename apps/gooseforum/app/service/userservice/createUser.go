@@ -24,6 +24,15 @@ func CreateUser(username, password, email string, needValid bool, locale ...stri
 	}
 	userEntity.IsFrozen = users.StatusNormal
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		// 事务内、插行前复查邮箱占用（issue #678 review P2）：外层 ExistEmail/
+		// ExistEmailOrFreshPending 检查与本次插入之间存在他账号对同一邮箱
+		// 完成换绑暂存提交的窗口（email/pending_email 两列唯一索引互不感知），
+		// 复查命中即回滚，按注册失败处理。ReadCommitted 事务内的复查与他账号
+		// 暂存提交串行化：暂存先提交则复查可见，注册先提交则暂存的写后复查
+		// 可见——两侧至少一侧让步，跨列双占不再可能。
+		if email != "" && users.EmailOrFreshPendingOccupiedTx(tx, email, 0) {
+			return users.ErrEmailOccupied
+		}
 		if err := tx.Create(userEntity).Error; err != nil {
 			return err
 		}

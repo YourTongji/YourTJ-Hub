@@ -146,10 +146,26 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 	}
 	oldEmail := userEntity.Email
 	now := time.Now()
+	// 定向列更新写入暂存（issue #678 review）：全行 Save 会把读取时的
+	// password/token_version 一并回写，与并发的改密 CAS 互踩；定向更新
+	// 只碰暂存两列，且天然受部分唯一索引约束。
+	if err = users.StagePendingEmail(userEntity.Id, newEmail, now); err != nil {
+		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 	userEntity.PendingEmail = newEmail
 	userEntity.PendingEmailAt = &now
-	if err = userservice.SaveUser(&userEntity); err != nil {
-		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+	// 暂存写后补偿复查（issue #678 review P2）：并发注册可能在本暂存落库的
+	// 同时把目标邮箱插为自己的当前 email（两列唯一索引互不感知）。此时本
+	// 暂存永远不可能切换成功（切换必撞 email 唯一索引），立即撤销并把邮箱
+	// 留给注册者——注册侧事务内复查与本侧写后复查构成双保险，跨列双占
+	// 至少一侧让步。
+	if users.ExistEmailExcluding(newEmail, userEntity.Id) {
+		if cancelErr := users.CancelPendingEmailSwitch(userEntity.Id, newEmail); cancelErr != nil {
+			slog.Error("撤销与注册冲突的换绑暂存失败", "userId", userEntity.Id, "email", newEmail, "error", cancelErr)
+		}
+		slog.Warn("换绑暂存与并发注册冲突，已撤销", "userId", userEntity.Id, "email", newEmail)
+		return component.FailResponseCode(component.MessageAuthEmailExists, nil)
 	}
 
 	// 新邮箱：变更确认邮件（令牌绑定 pending_email）。
@@ -614,11 +630,25 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
 	}
 
-	userEntity.SetPassword(req.Params.NewPassword)
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// CAS 落库（issue #678 review P1）：单条条件更新写入新哈希并自增
+	// token_version（吊销全部既有会话与重置令牌），同时清除换绑暂存——
+	// 改密证明账号已收回，已签发的换绑确认链接必须随之失效（激活令牌
+	// 不绑定 token_version，不能靠自增吊销）。条件更新同时避免全行 Save
+	// 与并发邮箱切换的竞态回写。
+	passwordHash, hashErr := algorithm.MakePassword(req.Params.NewPassword)
+	if hashErr != nil {
 		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
 	}
+	if err = users.ApplyPasswordChange(userEntity.Id, passwordHash, userEntity.TokenVersion); err != nil {
+		if errors.Is(err, users.ErrConcurrentPasswordChange) {
+			// 读取与写入之间凭据已被并发变更（改密/全端吊销）：按旧密码
+			// 无效处理，客户端重试即走到最新凭据状态。
+			slog.Info("密码变更 CAS 未命中", "userId", userEntity.Id)
+			return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+		}
+		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码修改成功", component.MessageAuthPasswordUpdateSuccess, nil)
 }
@@ -650,11 +680,21 @@ func SetPassword(req component.BetterRequest[SetPasswordReq]) component.Response
 		return component.FailResponseError(err)
 	}
 
-	userEntity.SetPassword(req.Params.NewPassword)
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// CAS 落库（与 ChangePassword 同口径，issue #678 review P1）：设密同样
+	// 自增 token_version 并清除换绑暂存；无邮箱 OAuth 账号当前不可能有
+	// 暂存（暂存要求与当前邮箱不同的新邮箱），清空是幂等防御。
+	passwordHash, hashErr := algorithm.MakePassword(req.Params.NewPassword)
+	if hashErr != nil {
 		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
 	}
+	if err = users.ApplyPasswordChange(userEntity.Id, passwordHash, userEntity.TokenVersion); err != nil {
+		if errors.Is(err, users.ErrConcurrentPasswordChange) {
+			slog.Info("密码设置 CAS 未命中", "userId", userEntity.Id)
+			return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+		}
+		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码设置成功，请使用新密码重新登录", component.MessageAuthPasswordUpdateSuccess, nil)
 }
@@ -793,14 +833,18 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 		return component.FailResponseError(err)
 	}
 
-	// 密码重置证明了对当前邮箱的控制权，视为账号找回完成：丢弃可能由攻击者
-	// 会话发起的换绑暂存（issue #678），避免找回后暂存确认链接仍可切换邮箱。
-	userEntity.SetPassword(req.Params.NewPassword)
-	userEntity.ClearPendingEmail()
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// CAS 落库（issue #678 review P1，与 ChangePassword 同口径）：重置成功
+	// 写新哈希 + token_version 自增（吊销既有会话/重置令牌），并清除换绑
+	// 暂存——重置证明了对当前邮箱的控制权，视为账号找回完成，可能由攻击者
+	// 会话发起的暂存确认链接必须随之失效。
+	passwordHash, hashErr := algorithm.MakePassword(req.Params.NewPassword)
+	if hashErr != nil {
 		return component.FailResponseCode(component.MessageAuthResetFailed, nil)
 	}
+	if err = users.ApplyPasswordChange(userEntity.Id, passwordHash, userEntity.TokenVersion); err != nil {
+		return component.FailResponseCode(component.MessageAuthResetFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码重置成功", component.MessageAuthResetSuccess, nil)
 }

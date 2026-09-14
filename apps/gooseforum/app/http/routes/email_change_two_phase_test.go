@@ -28,6 +28,9 @@ func setupTwoPhaseEmailTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI := router.Group("/api").Use(middleware.JWTAuthCheck)
 	loginAPI.POST("/set-user-email", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
 	loginAPI.POST("/resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
+	// 改密吊销换绑暂存的回归（issue #678 review P1）需要与生产一致的
+	// change-password 挂载；password.change 未在限流配置中声明时中间件放行。
+	loginAPI.POST("/change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))
 	router.GET("/activate", controllers.ActivateAccount)
 	return conn, router
 }
@@ -272,5 +275,108 @@ func TestResendActivationDuringPendingSwitch(t *testing.T) {
 	}
 	if !resent {
 		t.Fatal("resend during staged switch must target the staged email")
+	}
+}
+
+// TestChangePasswordCancelsStagedSwitch 改密必须吊销换绑暂存（issue #678
+// review P1）：改密证明账号已收回，攻击者已拿到的新邮箱确认链接不得再生效
+// ——激活令牌不绑定 token_version，只能靠清空 pending_email 使其失配。
+func TestChangePasswordCancelsStagedSwitch(t *testing.T) {
+	useContractTempKV(t)
+	conn, router := setupTwoPhaseEmailTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	oldEmail := user.Email
+	newEmail := fmt.Sprintf("two-phase-pwd-%d@example.test", user.Id)
+	tokenVersionBefore := user.TokenVersion
+
+	stageTwoPhaseEmailChange(t, router, user, newEmail)
+	// 攻击者（或前主人）在改密前已拿到的确认令牌。
+	confirmToken, err := tokenservice.GenerateActivationToken(user.Id, newEmail)
+	if err != nil {
+		t.Fatalf("generate confirmation token: %v", err)
+	}
+
+	recorder := serveJSON(router, "/api/change-password", `{"oldPassword":"secret123","newPassword":"newsecret456"}`, contractSessionToken(t, user))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("change-password status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if envelope := decodeContractEnvelope(t, recorder); envelope.Code != 0 || envelope.MessageCode != "auth.password.updateSuccess" {
+		t.Fatalf("change-password envelope = %+v, want auth.password.updateSuccess", envelope)
+	}
+
+	// 改密同时清空暂存并自增 token_version（吊销全部会话与重置令牌）。
+	row, err := users.Get(user.Id)
+	if err != nil {
+		t.Fatalf("get user after password change: %v", err)
+	}
+	if row.PendingEmail != "" || row.PendingEmailAt != nil {
+		t.Fatalf("staged switch survived password change: pending = %q (at %v), want cleared", row.PendingEmail, row.PendingEmailAt)
+	}
+	if row.TokenVersion != tokenVersionBefore+1 {
+		t.Fatalf("tokenVersion = %d, want %d", row.TokenVersion, tokenVersionBefore+1)
+	}
+	if _, err := users.Verify(oldEmail, "newsecret456"); err != nil {
+		t.Fatalf("new password must verify: %v", err)
+	}
+
+	// 已签发的确认令牌因暂存被清而失配：按链接无效处理，邮箱不切换。
+	recorder = getActivatePage(t, router, confirmToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("activate page status = %d, want 200", recorder.Code)
+	}
+	row, err = users.Get(user.Id)
+	if err != nil {
+		t.Fatalf("get user after stale confirm: %v", err)
+	}
+	if row.Email != oldEmail {
+		t.Fatalf("staged confirmation after password change switched email to %q, want unchanged %q", row.Email, oldEmail)
+	}
+}
+
+// TestTwoPhaseSwitchConcedesWhenTargetEmailTaken 注册与换绑暂存竞争同一邮箱
+// 的收敛回归（issue #678 review P2）：并发注册抢先成为目标邮箱的当前持有者
+// 后，确认链接按无效处理，暂存被撤销、邮箱留给注册者，绝不产生双占。
+func TestTwoPhaseSwitchConcedesWhenTargetEmailTaken(t *testing.T) {
+	useContractTempKV(t)
+	conn, router := setupTwoPhaseEmailTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	oldEmail := user.Email
+	newEmail := fmt.Sprintf("two-phase-raced-%d@example.test", user.Id)
+
+	stageTwoPhaseEmailChange(t, router, user, newEmail)
+	// 模拟竞态赢家：在暂存落库后、切换前，注册把目标邮箱插为自己的当前 email
+	// （email 与 pending_email 两列唯一索引互不感知，直接建行绕过外层检查）。
+	owner := users.MakeUser(fmt.Sprintf("race-owner-%d", user.Id), "secret123", newEmail)
+	if err := conn.Create(owner).Error; err != nil {
+		t.Fatalf("create email owner: %v", err)
+	}
+
+	confirmToken, err := tokenservice.GenerateActivationToken(user.Id, newEmail)
+	if err != nil {
+		t.Fatalf("generate confirmation token: %v", err)
+	}
+	recorder := getActivatePage(t, router, confirmToken)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("activate page status = %d, want 200", recorder.Code)
+	}
+	if body := recorder.Body.String(); !strings.Contains(body, "无效") && !strings.Contains(body, "invalid") {
+		t.Fatalf("activate page should render link-invalid state, got: %s", body[:min(len(body), 300)])
+	}
+
+	// 换绑方：邮箱不动、暂存撤销（切换永不可能成功，立即让步）。
+	row, err := users.Get(user.Id)
+	if err != nil {
+		t.Fatalf("get stager: %v", err)
+	}
+	if row.Email != oldEmail || row.PendingEmail != "" {
+		t.Fatalf("stager after concede: email = %q pending = %q, want %q/empty", row.Email, row.PendingEmail, oldEmail)
+	}
+	// 注册方：当前邮箱完好。
+	ownerRow, err := users.Get(owner.Id)
+	if err != nil {
+		t.Fatalf("get owner: %v", err)
+	}
+	if ownerRow.Email != newEmail {
+		t.Fatalf("owner email = %q, want %q (occupier keeps the email)", ownerRow.Email, newEmail)
 	}
 }

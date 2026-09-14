@@ -78,13 +78,22 @@ func ActivateAccount(c *gin.Context) {
 		return
 	}
 
-	// 激活账号；同时清除残留的换绑暂存（用户放弃了换绑，选择验证当前邮箱）。
-	user.Activate()
-	user.ClearPendingEmail()
-	if err = userservice.SaveUser(&user); err != nil {
+	// 激活当前邮箱并清除残留的换绑暂存（用户放弃了换绑，选择验证当前邮箱）。
+	// CAS 条件更新（issue #678 review P2）：约束读取时的 email 与 pending_email，
+	// 若并发的新邮箱确认切换已先完成，本次不命中并按链接无效渲染——避免
+	// 全行 Save 把已切换的 email 回写成旧值。
+	stagedBefore := user.PendingEmail
+	applied, err := users.ActivateCurrentEmail(user.Id, user.Email, stagedBefore, time.Now())
+	if err != nil {
 		renderActivationPage(c, false, "activationFailed")
 		return
 	}
+	if !applied {
+		renderActivationPage(c, false, "activationLinkInvalid")
+		return
+	}
+	user.IsActivated = users.ActivationSuccess
+	userservice.InvalidateUserInfoCache(user.Id)
 
 	renderActivationPage(c, true, "activationSuccess")
 }

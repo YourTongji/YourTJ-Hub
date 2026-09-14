@@ -662,5 +662,14 @@
   "settingsPushUnsupported": "Push ist in diesem Build nicht konfiguriert",
   "settingsPushServerDisabled": "Der Server hat diesen Kanal nicht aktiviert. Zum Wiederholen tippen.",
   "settingsPushFailed": "Push-Registrierung fehlgeschlagen. Verbindung prüfen und erneut tippen.",
-  "settingsPushPrivacy": "JPush-Datenschutz (Android)"
+  "settingsPushPrivacy": "JPush-Datenschutz (Android)",
+  "settingsEmailChangeStaged": "Wechsel angefragt. Bitte bestätige ihn im Postfach der neuen E-Mail; bis dahin bleibt die aktuelle E-Mail unverändert.",
+  "settingsEmailPending": "Bestätigung ausstehend: {email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }

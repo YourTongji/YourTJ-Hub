@@ -2015,4 +2015,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => 'JPush privacy policy (Android)';
+
+  @override
+  String get settingsEmailChangeStaged =>
+      'Change requested. Please confirm it from the new email inbox; your current email stays in place until then.';
+
+  @override
+  String settingsEmailPending(String email) {
+    return 'Awaiting confirmation: $email';
+  }
 }

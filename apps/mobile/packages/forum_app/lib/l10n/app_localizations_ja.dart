@@ -1965,4 +1965,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => 'JPush プライバシーポリシー（Android）';
+
+  @override
+  String get settingsEmailChangeStaged =>
+      '変更リクエストを送信しました。新しいメールアドレスで確認を完了してください。完了まで現在のメールアドレスは変更されません。';
+
+  @override
+  String settingsEmailPending(String email) {
+    return '確認待ち：$email';
+  }
 }

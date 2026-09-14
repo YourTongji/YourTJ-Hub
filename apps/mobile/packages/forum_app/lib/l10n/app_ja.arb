@@ -662,5 +662,14 @@
   "settingsPushUnsupported": "このビルドではプッシュ通知が未設定です",
   "settingsPushServerDisabled": "サーバーでこの通知経路が無効です。タップして再試行。",
   "settingsPushFailed": "通知の登録に失敗しました。接続を確認して再試行してください。",
-  "settingsPushPrivacy": "JPush プライバシーポリシー（Android）"
+  "settingsPushPrivacy": "JPush プライバシーポリシー（Android）",
+  "settingsEmailChangeStaged": "変更リクエストを送信しました。新しいメールアドレスで確認を完了してください。完了まで現在のメールアドレスは変更されません。",
+  "settingsEmailPending": "確認待ち：{email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }

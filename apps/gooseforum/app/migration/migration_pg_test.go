@@ -125,6 +125,14 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "email_changed_at"); err != nil {
 		t.Fatalf("drop legacy-missing users.email_changed_at: %v", err)
 	}
+	// 两阶段换绑（issue #678 review）：真实旧库没有 pending_email 列与部分
+	// 唯一索引，先删除再由升级阶段补齐，验证存量库能获得该 schema。
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "pending_email"); err != nil {
+		t.Fatalf("drop legacy-missing users.pending_email: %v", err)
+	}
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "pending_email_at"); err != nil {
+		t.Fatalf("drop legacy-missing users.pending_email_at: %v", err)
+	}
 	// The current model also includes the username unique index. Remove it so
 	// the upgrade phase proves AutoMigrate creates the constraint for legacy DBs.
 	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
@@ -150,6 +158,12 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_email_nonempty") {
 		t.Fatal("precondition failed: legacy users table should not have email unique index")
+	}
+	if db.Migrator().HasColumn(&users.EntityComplete{}, "pending_email") {
+		t.Fatal("precondition failed: legacy users table should not have pending_email")
+	}
+	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_pending_email_nonempty") {
+		t.Fatal("precondition failed: legacy users table should not have pending email unique index")
 	}
 	if db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {
 		t.Fatal("precondition failed: legacy points_record table should not have source_key")

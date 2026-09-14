@@ -2038,4 +2038,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => 'JPush-Datenschutz (Android)';
+
+  @override
+  String get settingsEmailChangeStaged =>
+      'Wechsel angefragt. Bitte bestätige ihn im Postfach der neuen E-Mail; bis dahin bleibt die aktuelle E-Mail unverändert.';
+
+  @override
+  String settingsEmailPending(String email) {
+    return 'Bestätigung ausstehend: $email';
+  }
 }

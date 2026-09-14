@@ -105,7 +105,7 @@ type EntityComplete struct {
 	// 当前 email 保持不变（旧邮箱持续可登录/找回/占用）；新邮箱激活链接验证通过后
 	// 由 CompletePendingEmailSwitch 原子切换。暂存超过 PendingEmailWindow 视为放弃。
 	PendingEmail   string     `gorm:"column:pending_email;index;uniqueIndex:uniq_users_pending_email_nonempty,where:pending_email <> '';type:varchar(128);not null;default:'';" json:"pendingEmail,omitempty"`
-	PendingEmailAt *time.Time `gorm:"column:pending_email_at;" json:"pendingEmailAt,omitempty"` // 暂存发起时间（占用窗口与链接有效性判定；resend 刷新）
+	PendingEmailAt *time.Time `gorm:"column:pending_email_at;" json:"pendingEmailAt,omitempty"` // 暂存发起时间（占用窗口与链接有效性判定；窗口自发起固定，resend 不顺延）
 
 	// info
 	Nickname            string              `gorm:"column:nickname;type:varchar(64);not null;default:'';" json:"nickname"`                                  //

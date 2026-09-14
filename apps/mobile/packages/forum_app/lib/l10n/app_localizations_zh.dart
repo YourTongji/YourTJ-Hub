@@ -1955,4 +1955,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => '极光推送隐私说明（Android）';
+
+  @override
+  String get settingsEmailChangeStaged => '换绑请求已提交，请前往新邮箱完成确认；确认前当前邮箱保持不变。';
+
+  @override
+  String settingsEmailPending(String email) {
+    return '待确认：$email';
+  }
 }

@@ -94,3 +94,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0023](0023-course-catalog-search-candidates.md) — 课程目录复用 Meilisearch 候选，数据库校验筛选、可见性与评分排序。
 - [0024](0024-admin-search-index-maintenance.md) — 管理后台检查索引版本与完整性，通过持久化任务原地重建，并隔离复制到 dev 的任务。
 - [0025](0025-oryn-action-reliability.md) — Oryn 重试期间保持 admission ownership、报告预算与发布 artifact 身份一致。
+- [0026](0026-two-phase-email-change.md) — 换绑邮箱两阶段切换：pending_email 暂存，确认后原子切换，旧邮箱在切换前保持占用。

@@ -992,5 +992,14 @@
   "settingsPushUnsupported": "Push is not configured in this build",
   "settingsPushServerDisabled": "The server has not enabled this delivery channel. Tap to retry.",
   "settingsPushFailed": "Push registration failed. Check your connection and tap to retry.",
-  "settingsPushPrivacy": "JPush privacy policy (Android)"
+  "settingsPushPrivacy": "JPush privacy policy (Android)",
+  "settingsEmailChangeStaged": "Change requested. Please confirm it from the new email inbox; your current email stays in place until then.",
+  "settingsEmailPending": "Awaiting confirmation: {email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }
