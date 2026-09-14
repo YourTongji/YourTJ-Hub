@@ -24,6 +24,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
 - forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);
+- public status: `/api/forum/status` exposes a fixed projection of public Komari telemetry and
+  Umami aggregate traffic; independent source freshness and nullable unavailable values are covered
+  by `paths/status.yaml`, generated TypeScript, fixtures and a hand-maintained Dart mirror;
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
   agent administration, operation records, traffic overview, page settings, site settings, and
   data import/export;

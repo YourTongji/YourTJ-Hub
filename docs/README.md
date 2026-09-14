@@ -56,6 +56,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Mobile experience](product/mobile-experience.md)
 - [Wiki authoring](product/wiki-authoring.md)
 - [Campus map](product/campus-map.md)
+- [Server status](product/server-status.md)
 - [Identity, login & account lifecycle](product/identity-and-access.md)
 - [Points & cross-platform settlement](product/credit-and-escrow.md)
 

@@ -1721,6 +1721,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read public server telemetry, website traffic and service availability
+         * @description Public allowlisted projection of the configured Komari node, Umami share and
+         *     published Uptime Kuma page. No credentials, private IP addresses or session
+         *     records are exposed. Provider URLs cannot be selected by callers; the uptime
+         *     source includes a public status page link. range affects traffic only; serverRange independently selects
+         *     resource history (default one hour). Current resource metrics always use the
+         *     latest probe sample. History is downsampled to at most 120 points across the
+         *     selected span; missing history is not filled. Each source/range cache
+         *     refreshes at most every 30 seconds with concurrent requests coalesced. A failed
+         *     source retains successful data for at most 15 minutes with state=stale, then
+         *     returns unavailable with data=null. Missing configuration is unconfigured.
+         *     Charts and active counts can be unavailable independently. fetchedAt is the
+         *     successful fetch time; observedAt is the probe time. A recent sample is probe
+         *     reporting, not an HTTP uptime guarantee. Browsers and CDNs must not cache.
+         *     uptime is independently cached across both range selectors. It includes only
+         *     monitors listed on the published source page, their upstream 24-hour availability
+         *     percentage and at most 100 real recent checks, not a daily uptime history.
+         *     Percentages describe collected data, which may cover less than 24 hours. A
+         *     latest check older than five minutes must not be presented as current health.
+         */
+        get: operations["getServerStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/search": {
         parameters: {
             query?: never;
@@ -6058,6 +6095,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        StatusSnapshot: {
+            /** @enum {string} */
+            range: "24h" | "7d" | "30d";
+            /**
+             * @description Resource history range, independent of traffic range; current metrics always use the latest probe sample.
+             * @enum {string}
+             */
+            serverRange: "1h" | "6h" | "24h" | "7d";
+            /** @constant */
+            refreshAfter: 30;
+            server: components["schemas"]["StatusServerSource"];
+            traffic: components["schemas"]["StatusTrafficSource"];
+            uptime: components["schemas"]["StatusUptimeSource"];
+        };
         SearchMaintenanceRequest: {
             /** @enum {string} */
             index: "all" | "topics" | "users" | "categories" | "courses" | "wiki_pages";
@@ -10763,6 +10814,106 @@ export interface components {
             result: true;
         };
         DirectImageUploadAbortResponse: components["schemas"]["DirectImageUploadAbortSuccess"] | components["schemas"]["ApiFailure"];
+        StatusSample: {
+            /** Format: date-time */
+            observedAt: string;
+            cpu: number;
+            memoryUsed: number;
+            memoryTotal: number;
+            diskUsed: number;
+            diskTotal: number;
+            /** @description Bytes per second uploaded. */
+            networkUp: number;
+            /** @description Bytes per second downloaded. */
+            networkDown: number;
+            /** @description Host uptime in seconds; not website availability. */
+            uptime: number;
+        };
+        StatusLoadPoint: {
+            /** Format: date-time */
+            time: string;
+            cpu: number;
+            memoryPercent: number;
+        };
+        StatusServer: {
+            name: string;
+            region: string;
+            cpuCores: number;
+            current: components["schemas"]["StatusSample"] | null;
+            history: components["schemas"]["StatusLoadPoint"][];
+            historyAvailable: boolean;
+        };
+        StatusServerSource: {
+            /** @enum {string} */
+            state: "ok" | "stale" | "unavailable" | "unconfigured";
+            /** Format: date-time */
+            fetchedAt?: string;
+            data: components["schemas"]["StatusServer"] | null;
+        };
+        StatusTrafficPoint: {
+            /** Format: date-time */
+            time: string;
+            pageviews: number;
+            /** @description Unique visitors within this bucket; do not sum to obtain range uniques. */
+            visitors: number;
+        };
+        StatusTraffic: {
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            visitors: number;
+            pageviews: number;
+            visits: number;
+            bounceRate: number | null;
+            averageDuration: number | null;
+            activeVisitors: number | null;
+            series: components["schemas"]["StatusTrafficPoint"][];
+            seriesAvailable: boolean;
+        };
+        StatusTrafficSource: {
+            /** @enum {string} */
+            state: "ok" | "stale" | "unavailable" | "unconfigured";
+            /** Format: date-time */
+            fetchedAt?: string;
+            data: components["schemas"]["StatusTraffic"] | null;
+        };
+        StatusUptimeHeartbeat: {
+            /** Format: date-time */
+            time: string;
+            /** @enum {string} */
+            status: "up" | "down" | "pending" | "maintenance" | "unknown";
+            ping: number | null;
+        };
+        StatusUptimeMonitor: {
+            id: number;
+            name: string;
+            type: string;
+            uptime24h: number | null;
+            current: components["schemas"]["StatusUptimeHeartbeat"] | null;
+            /** @description Most recent actual checks, sorted oldest first; not a daily uptime timeline. */
+            history: components["schemas"]["StatusUptimeHeartbeat"][];
+        };
+        StatusUptime: {
+            /**
+             * Format: uri
+             * @description Public source page constructed from operator configuration.
+             */
+            statusPageUrl: string;
+            monitors: components["schemas"]["StatusUptimeMonitor"][];
+        };
+        StatusUptimeSource: {
+            /** @enum {string} */
+            state: "ok" | "stale" | "unavailable" | "unconfigured";
+            /** Format: date-time */
+            fetchedAt?: string;
+            data: components["schemas"]["StatusUptime"] | null;
+        };
+        StatusResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["StatusSnapshot"];
+        };
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -13778,6 +13929,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SiteStatisticsSuccess"];
+                };
+            };
+        };
+    };
+    getServerStatus: {
+        parameters: {
+            query?: {
+                range?: "24h" | "7d" | "30d";
+                serverRange?: "1h" | "6h" | "24h" | "7d";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Snapshot, including partial or unavailable sources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            /** @description Unsupported range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

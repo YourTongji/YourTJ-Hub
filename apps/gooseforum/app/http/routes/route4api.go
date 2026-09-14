@@ -99,6 +99,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/c/:slug/:id", forum.Category)
 	viewRouteApp.GET("/c/:slug/:id/l/:sort", forum.Category)
 	viewRouteApp.GET("/links", forum.Links)
+	viewRouteApp.GET("/status", forum.Status)
 	viewRouteApp.GET("/sponsors", forum.Sponsors)
 	viewRouteApp.GET("/messages", middleware.CheckLogin, forum.Messages)
 	viewRouteApp.GET("/drafts", middleware.CheckLogin, forum.Drafts)
@@ -277,6 +278,7 @@ func apiRoute(ginApp *gin.Engine) {
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
+	forumApi.GET("status", api.ServerStatus)
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
 	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseDetailJSON))

@@ -1,4 +1,6 @@
 {
+  "status.title": "稼働状況",
+  "status.description": "YourTJ のサーバーリソースとアクセス状況。",
   "search": "検索",
   "prevPage": "前のページ",
   "nextPage": "次のページ",

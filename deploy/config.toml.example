@@ -179,3 +179,14 @@ api_key = ""
 model = "qwen3.6-flash-2026-04-16"
 temperature = 0.3
 max_tokens = 1024
+
+# Public status page: aggregate reads only, no administrator credentials.
+# Configure the HTTPS origins and restart to enable live data at /status.
+[status]
+enabled = false
+umami_url = "https://umi.yourtj.de"
+umami_share_id = "ppYkIEzslggfAk81"
+komari_url = "https://km.ryusel.com"
+komari_node_id = "e643a364-0372-43b2-a341-b05d858866ad"
+uptime_url = "https://uptime.mortis.de5.net"
+uptime_slug = "a"

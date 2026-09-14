@@ -34,6 +34,7 @@ export const pageComponents = [
   'user.profile',
   'category.index',
   'links.index',
+  'status.index',
   'sponsors.index',
   'notifications.index',
   'terms.index',
@@ -66,6 +67,7 @@ export interface PagePayloadMap {
   'user.profile': UserProfileProps
   'category.index': CategoryPageProps
   'links.index': LinksPageProps
+  'status.index': Record<string, never>
   'sponsors.index': SponsorsPageProps
   'notifications.index': NotificationsPageProps
   'terms.index': TermsPageProps

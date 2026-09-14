@@ -90,6 +90,56 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 （宿主机上执行；上游无头而公网有头 ⇒ 代理层注入）。dev 实例同理
 （`dev.yourtj.de` → `127.0.0.1:5235`）。
 
+### Status data sources
+
+**Current**：`/status` 通过论坛服务端读取公开 Umami 汇总统计、一个 Komari 节点和 Uptime Kuma 状态页。
+配置模板包含 `[status]`，默认关闭外部读取；已有部署需要在 `config.toml` 加入以下段落，
+然后重启论坛进程。页面本身始终可访问，未连接来源显示「尚未连接」。
+
+```toml
+[status]
+enabled = true
+umami_url = "https://umi.yourtj.de"
+umami_share_id = "ppYkIEzslggfAk81"
+komari_url = "https://km.ryusel.com"
+komari_node_id = "e643a364-0372-43b2-a341-b05d858866ad"
+uptime_url = "https://uptime.mortis.de5.net"
+uptime_slug = "a"
+```
+
+来源地址必须为不带账号、路径、查询参数的 HTTPS origin；尾部 `/` 可省略。
+`umami_share_id` 是共享 URL 的末段，服务端动态获取共享令牌，并使用
+`x-umami-share-token` 与 `x-umami-share-context: overview` 请求网站统计。
+不需要管理员账号、密码或新的 API Key。Komari 使用公开 JSON-RPC2，不配置管理令牌；
+节点必须公开。配置某一来源为空时，仅该来源显示未连接。配置读取后需重启才能应用更改。
+Uptime 使用 `/api/status-page/{slug}` 与 `/api/status-page/heartbeat/{slug}` 公开接口；页面
+必须已发布，slug 仅接受小写字母、数字、下划线和连字符。不需要 Uptime 管理员密码或 API Key。
+
+接口响应为 `Cache-Control: no-store`，代理层不要覆盖；后端自行合并并发请求和缓存。
+每个来源／范围最多每 30 秒读取一次（Umami 三个区间、Komari 四个区间分别缓存），各次采集总时限八秒；
+Uptime 的单一缓存跨全部范围复用；只提取公开页面内最多 50 个监控项及各项最近最多 100 次检测。
+失败时保留最近数据最多 15 分钟。配置关闭并重启会清空缓存。`state` 是来源读取状态，
+`fetchedAt` 是成功获取时间，探针 `observedAt` 是真实采样时间；两者不能互相替代。
+分享撤销与节点隐藏可能受上述缓存保留窗口影响。
+
+Komari 的历史记录同时兼容数组和 UUID 映射；只提取配置节点。历史容量为零时按当前
+节点容量折算内存百分比，前端注明该口径。网络／上游鉴权错误不会转发原始响应或令牌。
+`serverRange=1h|6h|24h|7d` 选择资源历史范围，默认 `1h`，与 Umami 的 `range` 独立。
+每次历史请求最多返回 120 点，时间跨度取决于 Komari 保留的数据，不新增本地历史存储。
+
+部署后使用 GET 验证：
+
+```bash
+curl -fsS https://f.yourtj.de/api/forum/status
+curl -fsS 'https://f.yourtj.de/api/forum/status?range=7d'
+curl -fsS 'https://f.yourtj.de/api/forum/status?range=7d&serverRange=24h'
+```
+
+确认所配置来源 `state=ok`、`data` 非空，检查浏览器 `/status` 的更新时间和曲线。
+部分图表请求失败时，其他指标仍显示；`unavailable` 需检查源地址连通性、共享是否仍
+有效、节点是否公开及服务版本。只展示聚合数据，不保存访客会话或新增采样数据库。
+页面使用论坛自身的可用性，不构成独立故障告警系统，详见[产品规范](../product/server-status.md)。
+
 ### Umami 访问统计与会话回放
 
 生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载自建 Umami 的

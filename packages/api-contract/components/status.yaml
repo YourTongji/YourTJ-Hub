@@ -1,0 +1,354 @@
+StatusSnapshot:
+  type: object
+  required:
+    - range
+    - serverRange
+    - refreshAfter
+    - server
+    - traffic
+    - uptime
+  properties:
+    range:
+      type: string
+      enum:
+        - 24h
+        - 7d
+        - 30d
+    serverRange:
+      type: string
+      enum:
+        - 1h
+        - 6h
+        - 24h
+        - 7d
+      description: >-
+        Resource history range, independent of traffic range; current metrics always use the latest probe
+        sample.
+    refreshAfter:
+      type: integer
+      const: 30
+    server:
+      $ref: '#/StatusServerSource'
+    traffic:
+      $ref: '#/StatusTrafficSource'
+    uptime:
+      $ref: '#/StatusUptimeSource'
+  additionalProperties: false
+StatusServerSource:
+  type: object
+  required:
+    - state
+    - data
+  properties:
+    state:
+      type: string
+      enum:
+        - ok
+        - stale
+        - unavailable
+        - unconfigured
+    fetchedAt:
+      type: string
+      format: date-time
+    data:
+      anyOf:
+        - $ref: '#/StatusServer'
+        - type: 'null'
+  additionalProperties: false
+StatusTrafficSource:
+  type: object
+  required:
+    - state
+    - data
+  properties:
+    state:
+      type: string
+      enum:
+        - ok
+        - stale
+        - unavailable
+        - unconfigured
+    fetchedAt:
+      type: string
+      format: date-time
+    data:
+      anyOf:
+        - $ref: '#/StatusTraffic'
+        - type: 'null'
+  additionalProperties: false
+StatusServer:
+  type: object
+  required:
+    - name
+    - region
+    - cpuCores
+    - current
+    - history
+    - historyAvailable
+  properties:
+    name:
+      type: string
+    region:
+      type: string
+    cpuCores:
+      type: integer
+      minimum: 0
+    current:
+      anyOf:
+        - $ref: '#/StatusSample'
+        - type: 'null'
+    history:
+      type: array
+      maxItems: 120
+      items:
+        $ref: '#/StatusLoadPoint'
+    historyAvailable:
+      type: boolean
+  additionalProperties: false
+StatusSample:
+  type: object
+  required:
+    - observedAt
+    - cpu
+    - memoryUsed
+    - memoryTotal
+    - diskUsed
+    - diskTotal
+    - networkUp
+    - networkDown
+    - uptime
+  properties:
+    observedAt:
+      type: string
+      format: date-time
+    cpu:
+      type: number
+      minimum: 0
+      maximum: 100
+    memoryUsed:
+      type: integer
+      minimum: 0
+    memoryTotal:
+      type: integer
+      minimum: 0
+    diskUsed:
+      type: integer
+      minimum: 0
+    diskTotal:
+      type: integer
+      minimum: 0
+    networkUp:
+      type: integer
+      minimum: 0
+      description: Bytes per second uploaded.
+    networkDown:
+      type: integer
+      minimum: 0
+      description: Bytes per second downloaded.
+    uptime:
+      type: integer
+      minimum: 0
+      description: Host uptime in seconds; not website availability.
+  additionalProperties: false
+StatusLoadPoint:
+  type: object
+  required:
+    - time
+    - cpu
+    - memoryPercent
+  properties:
+    time:
+      type: string
+      format: date-time
+    cpu:
+      type: number
+      minimum: 0
+      maximum: 100
+    memoryPercent:
+      type: number
+      minimum: 0
+      maximum: 100
+  additionalProperties: false
+StatusTraffic:
+  type: object
+  required:
+    - startAt
+    - endAt
+    - visitors
+    - pageviews
+    - visits
+    - bounceRate
+    - averageDuration
+    - activeVisitors
+    - series
+    - seriesAvailable
+  properties:
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    visitors:
+      type: integer
+      minimum: 0
+    pageviews:
+      type: integer
+      minimum: 0
+    visits:
+      type: integer
+      minimum: 0
+    bounceRate:
+      anyOf:
+        - type: number
+          minimum: 0
+          maximum: 100
+        - type: 'null'
+    averageDuration:
+      anyOf:
+        - type: number
+          minimum: 0
+          description: Total session seconds divided by visits; null when no visits.
+        - type: 'null'
+    activeVisitors:
+      anyOf:
+        - type: integer
+          minimum: 0
+          description: Unique visitors in the last five minutes.
+        - type: 'null'
+    series:
+      type: array
+      items:
+        $ref: '#/StatusTrafficPoint'
+    seriesAvailable:
+      type: boolean
+  additionalProperties: false
+StatusTrafficPoint:
+  type: object
+  required:
+    - time
+    - pageviews
+    - visitors
+  properties:
+    time:
+      type: string
+      format: date-time
+    pageviews:
+      type: integer
+      minimum: 0
+    visitors:
+      type: integer
+      minimum: 0
+      description: Unique visitors within this bucket; do not sum to obtain range uniques.
+  additionalProperties: false
+StatusResponse:
+  type: object
+  required:
+    - code
+    - result
+  properties:
+    code:
+      type: integer
+      const: 0
+    result:
+      $ref: '#/StatusSnapshot'
+  additionalProperties: false
+StatusUptimeSource:
+  type: object
+  required:
+    - state
+    - data
+  properties:
+    state:
+      type: string
+      enum:
+        - ok
+        - stale
+        - unavailable
+        - unconfigured
+    fetchedAt:
+      type: string
+      format: date-time
+    data:
+      anyOf:
+        - $ref: '#/StatusUptime'
+        - type: 'null'
+  additionalProperties: false
+StatusUptime:
+  type: object
+  required:
+    - statusPageUrl
+    - monitors
+  properties:
+    statusPageUrl:
+      type: string
+      format: uri
+      description: Public source page constructed from operator configuration.
+    monitors:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/StatusUptimeMonitor'
+  additionalProperties: false
+StatusUptimeMonitor:
+  type: object
+  required:
+    - id
+    - name
+    - type
+    - uptime24h
+    - current
+    - history
+  properties:
+    id:
+      type: integer
+      minimum: 1
+    name:
+      type: string
+    type:
+      type: string
+    uptime24h:
+      anyOf:
+        - type: number
+          minimum: 0
+          maximum: 100
+          description: >-
+            Upstream 24-hour availability percentage over collected data; not a guarantee of full 24-hour
+            coverage.
+        - type: 'null'
+    current:
+      anyOf:
+        - $ref: '#/StatusUptimeHeartbeat'
+        - type: 'null'
+    history:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/StatusUptimeHeartbeat'
+      description: Most recent actual checks, sorted oldest first; not a daily uptime timeline.
+  additionalProperties: false
+StatusUptimeHeartbeat:
+  type: object
+  required:
+    - time
+    - status
+    - ping
+  properties:
+    time:
+      type: string
+      format: date-time
+    status:
+      type: string
+      enum:
+        - up
+        - down
+        - pending
+        - maintenance
+        - unknown
+    ping:
+      anyOf:
+        - type: number
+          minimum: 0
+          description: Response time in milliseconds; missing is not zero.
+        - type: 'null'
+  additionalProperties: false

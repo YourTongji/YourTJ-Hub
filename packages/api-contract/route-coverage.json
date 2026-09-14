@@ -113,6 +113,11 @@
     },
     {
       "method": "GET",
+      "path": "/status",
+      "reason": "Server-rendered status page; JSON telemetry is covered by GET /api/forum/status."
+    },
+    {
+      "method": "GET",
       "path": "/messages",
       "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
     },

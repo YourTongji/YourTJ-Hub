@@ -1,0 +1,20 @@
+{
+  "code": 0,
+  "result": {
+    "range": "24h",
+    "refreshAfter": 30,
+    "server": {
+      "state": "unconfigured",
+      "data": null
+    },
+    "traffic": {
+      "state": "unconfigured",
+      "data": null
+    },
+    "serverRange": "1h",
+    "uptime": {
+      "state": "unconfigured",
+      "data": null
+    }
+  }
+}
