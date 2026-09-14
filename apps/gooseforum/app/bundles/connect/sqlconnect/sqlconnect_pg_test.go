@@ -47,6 +47,25 @@ func pgDSN(t *testing.T) string {
 	return dsn
 }
 
+func TestPostgresConnectionsDisableJITByDefault(t *testing.T) {
+	conn := sqlconnect.GetConnect(sqlconnect.Config{Connection: "postgres", DbUrl: pgDSN(t), MaxOpenConnections: 2})
+	if conn.Error != nil {
+		t.Fatal(conn.Error)
+	}
+	db, err := conn.Connect.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	var jit string
+	if err := conn.Connect.Raw("SHOW jit").Scan(&jit).Error; err != nil {
+		t.Fatal(err)
+	}
+	if jit != "off" {
+		t.Fatalf("interactive query connections must default jit=off, got %q", jit)
+	}
+}
+
 // TestPostgresConnectAutoMigrate 验证 postgres 连接 + 全部主库模型 AutoMigrate 建表成功。
 func TestPostgresConnectAutoMigrate(t *testing.T) {
 	dsn := pgDSN(t)

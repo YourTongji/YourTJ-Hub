@@ -23,23 +23,25 @@ const CourseIndex = "courses"
 // (code, teacher) 复合身份模型下 TeacherId/TeacherName 为卡片身份教师
 // （teacher_id=0 无教师时为空串），Instructors 保留 offering 级教师并集。
 type CourseSearchDocument struct {
-	ID             uint64   `json:"id"`
-	PrimaryCode    string   `json:"primaryCode"`
-	Name           string   `json:"name"`
-	NormalizedName string   `json:"normalizedName"`
-	NamePinyin     string   `json:"namePinyin"`
-	NameInitials   string   `json:"nameInitials"`
-	Department     string   `json:"department"`
-	CreditX10      int      `json:"creditX10"`
-	Aliases        []string `json:"aliases"`
-	TeacherId      uint64   `json:"teacherId"`
-	TeacherName    string   `json:"teacherName"`
-	Instructors    []string `json:"instructors"`
-	Terms          []string `json:"terms"`
-	Campus         []string `json:"campus"`
-	Status         int8     `json:"status"`
-	CreatedAt      int64    `json:"createdAt"`
-	UpdatedAt      int64    `json:"updatedAt"`
+	ID               uint64   `json:"id"`
+	PrimaryCode      string   `json:"primaryCode"`
+	Name             string   `json:"name"`
+	NormalizedName   string   `json:"normalizedName"`
+	NamePinyin       string   `json:"namePinyin"`
+	NameInitials     string   `json:"nameInitials"`
+	Department       string   `json:"department"`
+	CreditX10        int      `json:"creditX10"`
+	Aliases          []string `json:"aliases"`
+	TeacherId        uint64   `json:"teacherId"`
+	TeacherName      string   `json:"teacherName"`
+	Instructors      []string `json:"instructors"`
+	ClassCodes       []string `json:"classCodes"`
+	InstructorSearch []string `json:"instructorSearch"`
+	Terms            []string `json:"terms"`
+	Campus           []string `json:"campus"`
+	Status           int8     `json:"status"`
+	CreatedAt        int64    `json:"createdAt"`
+	UpdatedAt        int64    `json:"updatedAt"`
 }
 
 // convertCourseToSearchDocument 从 canonical course + 关联构建搜索文档。
@@ -97,6 +99,7 @@ func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, 
 	}
 	instructorByID := make(map[uint64]string, len(instructors))
 	for _, ins := range instructors {
+		doc.InstructorSearch = append(doc.InstructorSearch, ins.NormalizedName, ins.NamePinyin, ins.NameInitials)
 		instructorByID[ins.Id] = ins.Name
 	}
 	seenInstructors := make(map[string]struct{})
@@ -123,6 +126,9 @@ func convertCourseToSearchDocument(entity course.Entity) (CourseSearchDocument, 
 	seenTerms := make(map[string]struct{})
 	seenCampus := make(map[string]struct{})
 	for _, o := range offerings {
+		if o.ClassCode != "" {
+			doc.ClassCodes = append(doc.ClassCodes, o.ClassCode)
+		}
 		if t, ok := termByID[o.TermId]; ok {
 			if _, dup := seenTerms[t.Code]; !dup {
 				seenTerms[t.Code] = struct{}{}
@@ -170,6 +176,8 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 		offeringIds = append(offeringIds, o.Id)
 	}
 	instructorByID := make(map[uint64]string)
+	instructorSearchByID := make(map[uint64][]string)
+	instructorSearchByOffering := make(map[uint64][]string)
 	instructorByOffering := make(map[uint64][]string, len(offeringIds))
 	termByID := make(map[uint64]course.TermEntity)
 	// 身份教师（course.teacher_id → 姓名）独立于 offering 解析：rebuild 批次里
@@ -201,11 +209,13 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 			return nil, err
 		}
 		for _, ins := range instructors {
+			instructorSearchByID[ins.Id] = []string{ins.NormalizedName, ins.NamePinyin, ins.NameInitials}
 			instructorByID[ins.Id] = ins.Name
 		}
 		for _, link := range links {
 			if name, ok := instructorByID[link.InstructorId]; ok {
 				instructorByOffering[link.OfferingId] = append(instructorByOffering[link.OfferingId], name)
+				instructorSearchByOffering[link.OfferingId] = append(instructorSearchByOffering[link.OfferingId], instructorSearchByID[link.InstructorId]...)
 			}
 		}
 		termIds := make([]uint64, 0, len(offerings))
@@ -248,6 +258,10 @@ func convertCoursesToSearchDocuments(entities []course.Entity) ([]CourseSearchDo
 		seenTerms := make(map[string]struct{})
 		seenCampus := make(map[string]struct{})
 		for _, o := range offeringByCourse[e.Id] {
+			if o.ClassCode != "" {
+				doc.ClassCodes = append(doc.ClassCodes, o.ClassCode)
+			}
+			doc.InstructorSearch = append(doc.InstructorSearch, instructorSearchByOffering[o.Id]...)
 			for _, name := range instructorByOffering[o.Id] {
 				if _, dup := seenInstructors[name]; !dup {
 					seenInstructors[name] = struct{}{}
@@ -281,16 +295,19 @@ func shouldIndexCourse(entity course.Entity) bool {
 // WaitForTask 在任务终态为 failed 时可能返回 (task, nil)（Go error 为空），
 // 只检查 error 会把索引拒绝/内部失败当作成功，导致 outbox 永不重试。
 // 这里显式检查 task.Status 与 task.Error，失败即返回错误。
-func waitForTaskChecked(client meilisearch.ServiceManager, taskUID int64, interval time.Duration) error {
-	return waitForTaskCheckedContext(context.Background(), client, taskUID, interval)
+func waitForTaskChecked(client meilisearch.ServiceManager, taskUID int64, timeout time.Duration) error {
+	return waitForTaskCheckedContext(context.Background(), client, taskUID, timeout)
 }
 
-func waitForTaskCheckedContext(ctx context.Context, client meilisearch.ServiceManager, taskUID int64, interval time.Duration) error {
-	task, err := client.WaitForTaskWithContext(ctx, taskUID, interval)
+func waitForTaskCheckedContext(ctx context.Context, client meilisearch.ServiceManager, taskUID int64, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	// The SDK argument is a polling interval, not an operation timeout.
+	task, err := client.WaitForTaskWithContext(ctx, taskUID, 100*time.Millisecond)
 	if err != nil {
 		return err
 	}
-	if task != nil && task.Status == meilisearch.TaskStatusFailed {
+	if task != nil && (task.Status == meilisearch.TaskStatusFailed || task.Status == meilisearch.TaskStatusCanceled) {
 		msg := task.Error.Message
 		if msg == "" {
 			msg = task.Error.Code
@@ -332,6 +349,17 @@ func BuildSingleCourseSearchDocument(entity course.Entity) error {
 // 先清空索引内全部文档（等待 delete-all 任务完成），再按 PG 真值逐批写入：
 // 保证已删除/隐藏课程不会残留在索引中，投影可恢复到 PG 事实源。
 func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
+	return buildCourseIndex(ctx, true)
+}
+
+// RefreshCourseIndex backfills projection fields without emptying the live index.
+// Visibility is always rechecked in PostgreSQL; stale deleted documents can be
+// removed with the existing full rebuild/reconciliation workflow.
+func RefreshCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
+	return buildCourseIndex(ctx, false)
+}
+
+func buildCourseIndex(ctx context.Context, clearExisting bool) (*IndexBuildResult, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, errors.New("meilisearch 服务不可用，请检查配置或连接状态")
 	}
@@ -343,12 +371,14 @@ func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
 	}
 	// 清空旧文档并等待任务终态：避免 rebuild 只做 AddDocuments 叠加，
 	// 使 PG 中已不存在/隐藏的课程永久残留索引。
-	cleanTask, err := index.DeleteAllDocuments(nil)
-	if err != nil {
-		return nil, fmt.Errorf("清空课程索引失败: %w", err)
-	}
-	if err := waitForTaskChecked(client, cleanTask.TaskUID, 60*time.Second); err != nil {
-		return nil, fmt.Errorf("清空课程索引任务失败: %w", err)
+	if clearExisting {
+		cleanTask, err := index.DeleteAllDocuments(nil)
+		if err != nil {
+			return nil, fmt.Errorf("清空课程索引失败: %w", err)
+		}
+		if err := waitForTaskCheckedContext(ctx, client, cleanTask.TaskUID, 60*time.Second); err != nil {
+			return nil, fmt.Errorf("清空课程索引任务失败: %w", err)
+		}
 	}
 	return buildCourseIndexPages(ctx,
 		course.ListAllCourses,
@@ -358,7 +388,7 @@ func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
 			if err != nil {
 				return err
 			}
-			return waitForTaskChecked(client, task.TaskUID, 60*time.Second)
+			return waitForTaskCheckedContext(ctx, client, task.TaskUID, 60*time.Second)
 		})
 }
 
@@ -413,8 +443,9 @@ func buildCourseIndexPages(ctx context.Context,
 // configureCourseIndex 设置课程索引的 searchable/filterable/sortable/displayed 属性。
 func configureCourseIndex(index meilisearch.IndexManager) error {
 	settings := &meilisearch.Settings{
+		Pagination: &meilisearch.Pagination{MaxTotalHits: maxCourseCandidates + 1},
 		SearchableAttributes: []string{
-			"name", "normalizedName", "primaryCode", "aliases", "instructors", "teacherName", "namePinyin", "nameInitials",
+			"name", "normalizedName", "primaryCode", "classCodes", "aliases", "instructors", "teacherName", "namePinyin", "nameInitials", "instructorSearch",
 		},
 		FilterableAttributes: []string{
 			"department", "terms", "campus", "status",

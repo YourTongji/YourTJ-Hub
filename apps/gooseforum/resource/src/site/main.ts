@@ -2,7 +2,7 @@ import { createApp, h, shallowRef } from 'vue'
 import App from '@/site/App.vue'
 import '@/styles/resource.css'
 import { readInitialPayload, updateDocumentMeta } from '@/runtime/payload'
-import { fetchPage, installNavigation, preparePayload } from '@/runtime/router'
+import { installNavigation, preparePayload } from '@/runtime/router'
 import { currentLocale, i18n } from '@/runtime/i18n'
 import { hydrateFlashMessages } from '@/runtime/flash-message'
 import { applySiteThemePayload, applyStoredTheme, initSystemThemeListener } from '@/runtime/site-theme'
@@ -97,24 +97,6 @@ window.addEventListener('goose:page', async (event) => {
   commitPage(await preparePayload(nextPayload))
 })
 
-// 隐私政策配置可能在当前标签页打开后改变。每分钟拉取一个轻量公共页面
-// payload，并在切回前台/bfcache 恢复时立即检查；状态变化就整页刷新，使 SDK 的
-// history、visibilitychange 和 performance 监听及时卸载或按新配置加载。
-let insightFlareStateCheckInFlight = false
-async function checkInsightFlareState() {
-  if (insightFlareStateCheckInFlight) return
-  insightFlareStateCheckInFlight = true
-  try {
-    const payload = await fetchPage(new URL('/privacy', window.location.origin))
-    if (currentPage.value.payload.layout.insightFlareEnabled !== payload.layout.insightFlareEnabled) {
-      window.location.reload()
-    }
-  } catch {
-    // 配置探测失败不打断当前页面；下一次轮询或恢复事件会重试。
-  } finally {
-    insightFlareStateCheckInFlight = false
-  }
-}
-window.setInterval(() => void checkInsightFlareState(), 60_000)
-document.addEventListener('visibilitychange', () => void checkInsightFlareState())
-window.addEventListener('pageshow', () => void checkInsightFlareState())
+// Analytics enablement is already compared on every real page navigation in
+// commitPage. Idle tabs must not fetch a complete SSR page merely to poll one
+// configuration bit; a navigation/reload applies configuration changes.

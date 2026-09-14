@@ -91,3 +91,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0020](0020-oryn-failure-diagnostics.md) — Oryn failure diagnostics.
 - [0021](0021-deletion-final-state-data-retention.md) — 删除终态数据保留与管理员取证（R4 降级）。
 - [0022](0022-campus-map-native-atlas.md) — 原生校园地图页面复用地理数据，保持单二进制部署。
+- [0023](0023-course-catalog-search-candidates.md) — 课程目录复用 Meilisearch 候选，数据库校验筛选、可见性与评分排序。

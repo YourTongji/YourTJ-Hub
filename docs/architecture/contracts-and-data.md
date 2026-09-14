@@ -415,3 +415,13 @@ upgrade rolls back so retrying cannot skip legacy index cleanup. Catalog materia
 one audience through a consistent transaction, including its calendars, dictionaries, teachers
 and fetch lease. The admin materialization request carries the selected audience and defaults
 to undergraduate for existing clients.
+
+## Course catalog keyword retrieval
+
+**Current**: course catalog keywords share the Meilisearch `courses` index with
+aggregate search. Database reads validate candidate visibility, exact filters,
+review ordering and totals before returning a page. Configured search failures,
+capacity exhaustion and request deadlines return a retriable 503; unconfigured
+local installations retain SQL matching. Search projection freshness does not grant
+access to hidden or deleted courses. See the [decision](../decisions/0023-course-catalog-search-candidates.md)
+and [operations reference](../operations/deployment.md#course-catalog-search-operations).

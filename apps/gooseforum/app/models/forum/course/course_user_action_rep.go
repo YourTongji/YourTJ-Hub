@@ -1,6 +1,7 @@
 package course
 
 import (
+	"context"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -138,11 +139,15 @@ func DeleteCourseUserActionTx(tx *gorm.DB, userId, courseId uint64) error {
 // ListBookmarkedCourseIDs 返回用户已收藏的课程 id 列表（按收藏时间倒序），
 // 供目录 SSR props 判定表格收藏状态（登录用户）。
 func ListBookmarkedCourseIDs(userId uint64) ([]uint64, error) {
+	return ListBookmarkedCourseIDsContext(context.Background(), userId)
+}
+
+func ListBookmarkedCourseIDsContext(ctx context.Context, userId uint64) ([]uint64, error) {
 	if userId == 0 {
 		return []uint64{}, nil
 	}
 	var ids []uint64
-	err := dbconnect.Connect().Table(courseUserActionTableName).
+	err := dbconnect.ConnectContext(ctx).Table(courseUserActionTableName).
 		Select("course_id").
 		Where(queryopt.Eq("user_id", userId)).
 		Where("bookmarked_at IS NOT NULL").

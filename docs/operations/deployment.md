@@ -102,8 +102,8 @@ HTTPS `connect-src` 放行规则。该 SDK 会把页面访问与性能观测发�
 生产环境的 `/privacy` 页面会在已保存的自定义政策缺少 InsightFlare 数据范围时自动追加标准披露，
 避免历史配置在启用采集后仍然遗漏该说明；修改站点隐私政策时仍需同步维护实际数据保留期限。
 如果 SPA 导航收到 `insightFlareEnabled` 发生变化的新 payload，前端会强制整页刷新，以卸载已加载 SDK
-注册的路由监听，或在重新启用后按新配置加载；已打开页面每分钟检查一次 `/privacy` payload，切回前台和
-bfcache 恢复时立即检查，因此没有发生导航的页面也会自动在状态变化后刷新。
+注册的路由监听，或在重新启用后按新配置加载。配置在真实页面导航或刷新时应用；空闲标签页不轮询完整
+`/privacy` 页面，避免配置探测随在线标签页数量放大服务器负载。
 
 当前 Cloudflare 部署资源由外部 InsightFlare 项目管理，不写入本仓库的凭据或配置文件：
 Worker `insightflare` 绑定 D1、KV、Durable Object、三套 Analytics Engine 和 R2 冷归档，
@@ -500,7 +500,6 @@ provisioning automatically:
    `postgres` first via `depends_on: service_healthy`). On first boot the binary runs
    AutoMigrate (all main-db models) and the versioned data migrations from scratch, then
    serves.
-
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
 
@@ -928,3 +927,40 @@ PK audience migration rebuilds the natural-key dictionaries and related projecti
 one transaction. Failure leaves the old schema intact for a retry; rehearse it against the
 dev database snapshot before production. Source ID allocation stays within the JavaScript
 safe integer range, and upstream IDs outside the supported range are rejected before writes.
+
+## Course catalog search operations
+
+**Current**: configured deployments use the shared Meilisearch `courses` index for
+catalog keywords. PostgreSQL validates visibility, exact filters, review ordering
+and totals. A configured unavailable/incomplete search index returns HTTP 503 with
+`Retry-After`; it does not fall back to expensive SQL text scans. Catalog execution
+is limited to two concurrent requests per process and four seconds, with database
+cancellation propagated through list hydration. Public filter dictionaries are
+cached for five minutes.
+
+Before serving catalog searches with an older index, refresh its settings and
+projection fields with the new binary:
+
+```bash
+./bin/yourtj-hub rebuild-course-search --in-place
+```
+
+This command updates documents without emptying the live index. Full
+`rebuild-course-search` still removes stale documents by clearing and rebuilding;
+use the in-place refresh for additive projection upgrades. Both paths retain
+PostgreSQL as the source of truth. Keyword matching uses the same Meili index as
+aggregate search; instructor filters and scoring remain database-owned. The index
+must have `pagination.maxTotalHits` at least 20,001; queries above 20,000 candidates
+fail explicitly rather than returning incorrect totals.
+
+PostgreSQL connections default to `jit=off` for interactive workloads. An explicit
+DSN `jit=on` opts in. For a running older binary, `ALTER DATABASE <database> SET jit = off`
+changes the default for new connections; existing connections need to rotate before
+it takes effect. This database default survives application rollback. Keep a record
+of any prior database-level setting before changing it.
+
+The instructor-to-offering lookup uses `idx_course_offering_instructor_teacher` on
+`course_offering_instructor(instructor_id)`. AutoMigrate adds it on a new deployment.
+For a busy existing PostgreSQL database it can be created ahead of application
+replacement with `CREATE INDEX CONCURRENTLY`, using the same name and column. The
+existing offering-ID indexes remain valid throughout rollback.

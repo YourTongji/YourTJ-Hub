@@ -2,6 +2,7 @@ package searchservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -80,10 +81,11 @@ func TestConvertCourseToSearchDocument(t *testing.T) {
 		t.Fatalf("create instructor: %v", err)
 	}
 	offering := &course.OfferingEntity{
-		CourseId: entity.Id,
-		TermId:   term.Id,
-		Campus:   "四平路校区",
-		Status:   course.OfferingStatusVisible,
+		ClassCode: "10000101",
+		CourseId:  entity.Id,
+		TermId:    term.Id,
+		Campus:    "四平路校区",
+		Status:    course.OfferingStatusVisible,
 	}
 	if err := conn.Create(offering).Error; err != nil {
 		t.Fatalf("create offering: %v", err)
@@ -99,6 +101,16 @@ func TestConvertCourseToSearchDocument(t *testing.T) {
 	doc, err := convertCourseToSearchDocument(*entity)
 	if err != nil {
 		t.Fatalf("convert course doc: %v", err)
+	}
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	_ = json.Unmarshal(encoded, &fields)
+	classCodes, _ := fields["classCodes"].([]any)
+	if len(classCodes) != 1 || classCodes[0] != "10000101" {
+		t.Fatalf("teaching class code missing from search projection: %v", fields["classCodes"])
 	}
 	if doc.ID != 42 || doc.PrimaryCode != "100001" {
 		t.Fatalf("doc identity wrong: %+v", doc)

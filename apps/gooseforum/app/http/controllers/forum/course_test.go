@@ -6,10 +6,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/gin-gonic/gin"
 )
 
+func setupCourseCatalogPageTest(t *testing.T) {
+	t.Helper()
+	if err := dbconnect.Connect().AutoMigrate(&course.Entity{}, &course.AliasEntity{}, &course.OfferingEntity{}, &course.TermEntity{}, &course.InstructorEntity{}, &course.OfferingInstructorEntity{}, &course.CourseStatsEntity{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCourseCatalogPageRequestReturnsPayload(t *testing.T) {
+	setupCourseCatalogPageTest(t)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.GET("/courses", CourseCatalog)
@@ -36,6 +46,7 @@ func TestCourseCatalogPageRequestReturnsPayload(t *testing.T) {
 }
 
 func TestCourseCatalogHTMLReturnsNoJSContent(t *testing.T) {
+	setupCourseCatalogPageTest(t)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.GET("/courses", CourseCatalog)

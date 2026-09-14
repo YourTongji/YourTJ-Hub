@@ -14363,7 +14363,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One page of canonical courses with stable id-desc ordering. */
+            /** @description One page of visible canonical courses with exact filtered totals and stable review/id ordering. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14384,6 +14384,17 @@ export interface operations {
             /** @description Catalog query failed. */
             500: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Catalog capacity exceeded, request deadline exceeded, or the configured search index is unavailable or cannot provide a complete bounded match set. Retry after the indicated delay. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
                     [name: string]: unknown;
                 };
                 content: {

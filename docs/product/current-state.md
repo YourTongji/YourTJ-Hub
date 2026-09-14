@@ -138,3 +138,13 @@ Before expanding features, close these baselines (avoid building on a wrong foun
 编辑器 @补全（`Current`）：回复编辑器、完整发布页与快捷发布弹层共用候选查询、键盘选择和候选列表；窄屏停靠列表可滚动并支持点击最后一项，关闭弹层时清理候选会话与编辑器 aria 状态。
 
 数学分隔符阅读渲染（`Current`）：保存的主题／回复支持 `\(...\)`、`\[...\]` 与 KaTeX 支持的常见 begin/end 环境；环境标记完整保留以渲染对齐和矩阵。Vditor 保存这些 Markdown 写法，但其所见即所得预览仍使用原生美元符号语法，替代分隔符的编辑器预览为 `Planned`。
+
+### Course catalog search
+
+**Current**: course catalog keyword search uses the shared Meilisearch course
+index in configured deployments, including visible teaching-class codes and
+instructor pinyin/initials. Exact filters, review ordering, visibility and totals
+come from the database. Search outages or capacity limits are explicit retriable
+failures rather than empty catalogs; local installations without Meili retain SQL
+matching. Filter options may take up to five minutes to refresh. Keyword matching
+follows the search engine's tokenization rather than literal substring matching.
