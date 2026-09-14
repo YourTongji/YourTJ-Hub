@@ -96,7 +96,7 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 统计脚本与会话记录器；服务端仅在 `setting.IsProduction()` 且隐私政策 `enabled=true` 时注入。
 两份脚本均使用 website id `36750dcd-8c48-46ab-9dfb-2f09cdcef501`：
 
-- `https://umi.yourtj.de/script.js`：页面访问、SPA 路由与基础访问统计；
+- `https://umi.yourtj.de/script.js`：页面访问、SPA 路由、基础访问统计与页面性能；模板设置 `data-performance="true"`；
 - `https://umi.yourtj.de/recorder.js`：按 Umami 站点配置采样会话回放与热图数据。
 
 统计脚本只放在公共站点布局，管理后台不加载；页面级 CSP 的 `script-src` 只额外允许

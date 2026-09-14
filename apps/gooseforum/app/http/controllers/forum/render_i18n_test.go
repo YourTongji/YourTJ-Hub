@@ -46,6 +46,9 @@ func TestAppTemplateUmamiRendering(t *testing.T) {
 					t.Fatalf("Umami script %s rendered with enabled=%t, want %t", scriptURL, tc.enabled, tc.want)
 				}
 			}
+			if got := strings.Contains(html, `data-performance="true"`); got != tc.want {
+				t.Fatalf("Umami performance tracking rendered with enabled=%t, want %t", tc.enabled, tc.want)
+			}
 		})
 	}
 }
