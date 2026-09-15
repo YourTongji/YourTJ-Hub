@@ -1,16 +1,21 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/current_user.dart';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
@@ -32,12 +37,23 @@ class _PublishPageRepository extends PageRepository {
   _PublishPageRepository(super.client, this.payload);
 
   final PagePayload payload;
+  bool offline = false;
   final List<String> paths = <String>[];
 
   @override
   Future<PagePayload> fetch(String path) async {
     paths.add(path);
+    if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;
+  }
+}
+
+class _FailingWritingStore extends WritingStore {
+  bool fail = true;
+  @override
+  Future<void> save(String scope, LocalDraft draft) async {
+    if (fail) throw StateError('disk unavailable');
+    await super.save(scope, draft);
   }
 }
 
@@ -128,7 +144,12 @@ class _CaptchaAuthRepository extends AuthRepository {
   );
 }
 
-PagePayload _publishPayload({required bool editing, int contentType = 0}) {
+PagePayload _publishPayload({
+  required bool editing,
+  int contentType = 0,
+  List<int>? categoryIds,
+  String? content,
+}) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
     'props': <String, dynamic>{
@@ -142,8 +163,8 @@ PagePayload _publishPayload({required bool editing, int contentType = 0}) {
       ],
       'topic': <String, dynamic>{
         'title': editing ? '原始标题' : '',
-        'content': editing ? '## 预览标题\n\n**正文内容**' : '',
-        'categoryIds': editing ? <int>[2] : null,
+        'content': editing ? (content ?? '## 预览标题\n\n**正文内容**') : '',
+        'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
         'topicStatus': editing ? 1 : 0,
         'contentType': contentType,
       },
@@ -185,6 +206,7 @@ PagePayload _publishPayload({required bool editing, int contentType = 0}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
   Future<
     ({
@@ -198,9 +220,15 @@ void main() {
     required bool editing,
     String editQueryKey = 'topicId',
     int contentType = 0,
+    List<int>? categoryIds,
+    Locale locale = const Locale('zh'),
+    String? content,
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
+    bool offline = false,
+    int userId = 1,
+    WritingStore? localStore,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -210,8 +238,14 @@ void main() {
     );
     final _PublishPageRepository pageRepository = _PublishPageRepository(
       client,
-      _publishPayload(editing: editing, contentType: contentType),
+      _publishPayload(
+        editing: editing,
+        contentType: contentType,
+        categoryIds: categoryIds,
+        content: content,
+      ),
     );
+    pageRepository.offline = offline;
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
@@ -241,6 +275,12 @@ void main() {
       ProviderScope(
         overrides: <Override>[
           tokenStorageProvider.overrideWithValue(storage),
+          apiClientProvider.overrideWithValue(client),
+          currentUserProvider.overrideWith(
+            (ref) async => CurrentUser(id: userId, username: 'alice'),
+          ),
+          if (localStore != null)
+            writingStoreProvider.overrideWithValue(localStore),
           authRepositoryProvider.overrideWithValue(
             _CaptchaAuthRepository(client),
           ),
@@ -252,7 +292,7 @@ void main() {
           routerConfig: router,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
+          locale: locale,
         ),
       ),
     );
@@ -264,6 +304,122 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'unfinished article autosaves locally and restores after reopening',
+    (tester) async {
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      editor.controller.replaceText(
+        0,
+        0,
+        '只写到这里',
+        const TextSelection.collapsed(offset: 5),
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pumpAndSettle();
+      expect(find.text('已保存到本机'), findsOneWidget);
+      final scope = writingScope('http://fake.local', 1);
+      final saved = (await WritingStore().drafts(scope)).single;
+      expect(saved.title, isEmpty);
+      expect(saved.categories, isEmpty);
+      expect(saved.content.trim(), '只写到这里');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      expect(
+        tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller
+            .document
+            .toPlainText()
+            .trim(),
+        '只写到这里',
+      );
+      expect(find.text('已恢复上次未完成的内容'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('autosave failure keeps text and exposes a working retry', (
+    tester,
+  ) async {
+    final store = _FailingWritingStore();
+    await pumpPublishPage(tester, editing: false, localStore: store);
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      0,
+      '请保留',
+      const TextSelection.collapsed(offset: 3),
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    expect(find.text('本机保存失败，请重试'), findsOneWidget);
+    expect(editor.controller.document.toPlainText().trim(), '请保留');
+    store.fail = false;
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(find.text('已保存到本机'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('offline editor restores only the signed-in account draft', (
+    tester,
+  ) async {
+    final store = WritingStore();
+    await store.save(
+      writingScope('http://fake.local', 1),
+      const LocalDraft(
+        key: 'new-3',
+        title: 'A 私有草稿',
+        content: '离线继续写',
+        contentType: 3,
+        topicId: 0,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    await pumpPublishPage(tester, editing: false, offline: true);
+    expect(find.text('A 私有草稿'), findsWidgets);
+    expect(
+      tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller
+          .document
+          .toPlainText()
+          .trim(),
+      '离线继续写',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    await pumpPublishPage(tester, editing: false, userId: 2, offline: true);
+    expect(find.text('A 私有草稿'), findsNothing);
+    expect(find.byType(QuillEditor), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('server draft acknowledgement removes the local recovery copy', (
+    tester,
+  ) async {
+    await pumpPublishPage(tester, editing: true);
+    await tester.enterText(find.byType(TextField).first, '云端保存后的标题');
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    final scope = writingScope('http://fake.local', 1);
+    expect(await WritingStore().drafts(scope), hasLength(1));
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pumpAndSettle();
+    expect(await WritingStore().drafts(scope), isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(await WritingStore().drafts(scope), isEmpty);
+  });
 
   testWidgets(
     'writing tools stay above keyboard and format the selected text',
@@ -288,7 +444,10 @@ void main() {
       final keyboardTop =
           tester.view.physicalSize.height / tester.view.devicePixelRatio -
           250 / tester.view.devicePixelRatio;
-      expect(tester.getBottomLeft(tools).dy, lessThanOrEqualTo(keyboardTop + 0.01));
+      expect(
+        tester.getBottomLeft(tools).dy,
+        lessThanOrEqualTo(keyboardTop + 0.01),
+      );
       await tester.tap(find.text('文字格式'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('粗体'));
@@ -308,6 +467,60 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+  testWidgets('heading level picker applies h1/h2/h3 from the toolbar', (
+    tester,
+  ) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      0,
+      'Selected words',
+      const TextSelection(baseOffset: 0, extentOffset: 8),
+    );
+    await tester.tap(find.byType(QuillEditor));
+    editor.controller.updateSelection(
+      const TextSelection(baseOffset: 0, extentOffset: 8),
+      ChangeSource.local,
+    );
+    tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字格式'));
+    await tester.pumpAndSettle();
+
+    int? headerLevel() =>
+        editor.controller
+                .getSelectionStyle()
+                .attributes[Attribute.header.key]
+                ?.value
+            as int?;
+
+    // 轻点保持默认行为:应用二级标题。
+    await tester.tap(find.byTooltip('标题 · 长按选级别'));
+    await tester.pump();
+    expect(headerLevel(), 2);
+
+    // 长按打开级别菜单,提供 H1-H3 三个选项。
+    await tester.longPress(find.byTooltip('标题 · 长按选级别'));
+    await tester.pumpAndSettle();
+    expect(find.text('一级标题'), findsOneWidget);
+    expect(find.text('二级标题'), findsOneWidget);
+    expect(find.text('三级标题'), findsOneWidget);
+    await tester.tap(find.text('一级标题'));
+    await tester.pumpAndSettle();
+    expect(headerLevel(), 1);
+
+    // 再次长按可切换到三级标题。
+    await tester.longPress(find.byTooltip('标题 · 长按选级别'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('三级标题'));
+    await tester.pumpAndSettle();
+    expect(headerLevel(), 3);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   for (final type in [2, 3]) {
     testWidgets('dismiss keyboard preserves type $type draft', (tester) async {
@@ -569,7 +782,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('无分类保存草稿和发布都要求选择分类', (tester) async {
+  testWidgets('无分类内容可保存在本机但发布要求选择分类', (tester) async {
     final result = await pumpPublishPage(tester, editing: false, resultId: 55);
     await tester.enterText(find.byType(TextField).first, '无分类草稿');
     final QuillController controller = tester
@@ -585,11 +798,13 @@ void main() {
 
     await tester.ensureVisible(find.byKey(const Key('publish-save-draft')));
     await tester.tap(find.byKey(const Key('publish-save-draft')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(find.text('已保存到本机'), findsOneWidget);
     expect(result.topicRepository.writes, isEmpty);
 
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pump();
     expect(find.text('请至少选择一个分类'), findsOneWidget);
@@ -609,5 +824,287 @@ void main() {
     await tester.pump();
     expect(find.text('标题不能为空'), findsOneWidget);
     expect(find.byType(GfStatusMessage), findsOneWidget);
+  });
+
+  testWidgets('预览页只保留右上角发布按钮，保存草稿移入 AppBar', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const Key('publish-footer-submit')), findsNothing);
+    expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
+    final Finder saveDraft = find.byKey(const Key('publish-save-draft'));
+    expect(saveDraft, findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(GfAppBar), matching: saveDraft),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('瞬间/提问编辑态只保留顶部画廊图片入口', (tester) async {
+    for (final type in [1, 2]) {
+      await pumpPublishPage(tester, editing: false, contentType: type);
+      expect(find.byTooltip('添加图片'), findsNothing);
+      expect(find.text('先选图片，再记录这一刻'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+  });
+
+  testWidgets('文章类型保留底部工具栏图片入口', (tester) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    expect(find.byTooltip('添加图片'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('宽屏预览同样只有右上角发布与保存草稿', (tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const Key('publish-footer-submit')), findsNothing);
+    expect(find.byKey(const Key('publish-save-draft')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(GfAppBar),
+        matching: find.byKey(const Key('publish-save-draft')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('publish-appbar-submit')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('预览步 AppBar 保存草稿写回草稿并停留在预览步', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final result = await pumpPublishPage(tester, editing: true, resultId: 55);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pumpAndSettle();
+
+    expect(result.topicRepository.writes, hasLength(1));
+    expect(result.topicRepository.writes.single.topicStatus, 0);
+    expect(result.topicRepository.writes.single.categoryIds, <int>[2]);
+    expect(result.router.state.uri.path, '/publish');
+    expect(result.router.state.uri.queryParameters['topicId'], '42');
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+    expect(find.text('已保存为草稿'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('预览步返回回到编辑步而不是离开页面', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final result = await pumpPublishPage(tester, editing: true);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-editor')), findsOneWidget);
+    expect(find.byKey(const Key('publish-preview')), findsNothing);
+    expect(result.router.state.uri.path, '/publish');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('编辑态有未保存改动时返回先确认，可留在编辑步', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true);
+
+    await tester.enterText(find.byType(TextField).first, '改动后的标题');
+    await tester.pump(const Duration(milliseconds: 250));
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('保留这次创作？'), findsOneWidget);
+    expect(find.text('可以保存到本机后离开，或放弃本次修改。'), findsOneWidget);
+
+    await tester.tap(find.text('继续编辑'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('保留这次创作？'), findsNothing);
+    expect(find.byKey(const Key('publish-editor')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('预览步无分类仍可保存本机草稿但发布要求分类', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      categoryIds: const <int>[],
+      resultId: 55,
+    );
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
+
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pumpAndSettle();
+    expect(find.text('已保存到本机'), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('德语窄屏预览步 AppBar 的存草稿与发布按钮不溢出', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: true, locale: const Locale('de'));
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+    expect(find.byTooltip('Entwurf speichern'), findsOneWidget);
+    expect(find.text('Veröffentlichen'), findsOneWidget);
+    // The overflow assertion is implicit: an unhandled RenderFlex overflow is
+    // reported as a failure by the test binding (and prints the offending row).
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  for (final contentType in [1, 2, 3]) {
+    testWidgets(
+      'type $contentType stays usable with large German text on 320px',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 700);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpPublishPage(
+          tester,
+          editing: false,
+          contentType: contentType,
+          locale: const Locale('de'),
+        );
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+  }
+
+  testWidgets('正文图片支持长按拖拽到其他段落', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+    );
+    expect(find.text('长按正文图片，可拖动到任意段落位置'), findsOneWidget);
+
+    QuillController controllerOfEditor() =>
+        tester.widget<QuillEditor>(find.byType(QuillEditor)).controller;
+
+    String flatOf(Document document) => document
+        .toDelta()
+        .toList()
+        .map((Operation op) => op.data is String ? op.data as String : '\uFFFC')
+        .join();
+
+    final QuillController controller = controllerOfEditor();
+    final String before = flatOf(controller.document);
+    expect(before.indexOf('\uFFFC'), greaterThan(before.indexOf('第一段')));
+    expect(before.indexOf('\uFFFC'), lessThan(before.indexOf('第三段')));
+
+    final Finder draggable = find.descendant(
+      of: find.byType(QuillEditor),
+      matching: find.byType(LongPressDraggable<ComposerImageDragPayload>),
+    );
+    expect(draggable, findsOneWidget);
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(draggable),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveBy(const Offset(0, 140));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    final String after = flatOf(controllerOfEditor().document);
+    expect(after, isNot(before));
+    // Drop semantics: the image lands directly below the dropped-on
+    // paragraph — dragging onto 第三段 moves the image after it.
+    expect(after.indexOf('\uFFFC'), greaterThan(after.indexOf('第三段')));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('拖拽自动滚动挂载页面滚动控制器', (tester) async {
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 3,
+      content: '第一段\n\n![image](u1)\n\n第三段\n',
+    );
+
+    // Edge auto-scroll must drive the page scroll view; a detached
+    // controller makes every autoscroll tick a no-op.
+    final Finder pageScroll = find.ancestor(
+      of: find.byKey(const Key('publish-editor')),
+      matching: find.byType(SingleChildScrollView),
+    );
+    final SingleChildScrollView view = tester.widget<SingleChildScrollView>(
+      pageScroll.first,
+    );
+    expect(view.controller, isNotNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
   });
 }

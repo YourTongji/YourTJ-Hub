@@ -109,6 +109,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/search/indexes"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/security-settings"
   },
   {
@@ -382,6 +386,10 @@
   {
     "method": "GET",
     "path": "/manifest.webmanifest"
+  },
+  {
+    "method": "GET",
+    "path": "/map"
   },
   {
     "method": "GET",
@@ -738,6 +746,10 @@
   {
     "method": "POST",
     "path": "/api/admin/save-user-badges"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/search/maintenance"
   },
   {
     "method": "POST",

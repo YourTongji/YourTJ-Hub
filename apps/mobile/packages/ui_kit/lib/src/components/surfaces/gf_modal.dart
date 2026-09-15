@@ -4,10 +4,8 @@ import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 import '../../theme/gf_theme.dart';
 
 /// Modal dialog surface mirroring web `.gf-modal` (motion.css): neutral/40
-/// scrim (via `ColorScheme.scrim`), base-100 panel with radius box and
-/// `gf-shadows.menu`, entering with a 0.16s fade + child scale(0.98)/6px
-/// rise. Use [showGfModal] instead of bare `showDialog` for a consistent
-/// dialog look across the app.
+/// scrim (via `ColorScheme.scrim`) and base-100 panel with radius box.
+/// [showGfModal] supplies the native dialog route and keyboard avoidance.
 class GfModal extends StatelessWidget {
   const GfModal({
     super.key,
@@ -39,16 +37,21 @@ class GfModal extends StatelessWidget {
   }
 }
 
-/// Shows [builder]'s widget in a [GfModal] with the web modal motion
-/// (0.16s fade + scale 0.98 + 6px rise). Returns the dialog result.
+/// Shows [builder]'s widget in a [GfModal] above the keyboard and returns its
+/// dialog result. The builder receives the dialog's safe-area context.
 Future<T?> showGfModal<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool barrierDismissible = true,
 }) {
-  return td.TDialog.show<T>(
-    context,
-    dialog: GfModal(child: builder(context)),
+  return showDialog<T>(
+    context: context,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(16),
+      child: GfModal(child: Builder(builder: builder)),
+    ),
     barrierDismissible: barrierDismissible,
     barrierColor: Theme.of(context).colorScheme.scrim,
   );

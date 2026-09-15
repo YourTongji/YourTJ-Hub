@@ -294,6 +294,8 @@ func processEmailTask(task EmailTask) error {
 		return SendPasswordResetEmail(task.To, task.Username, task.Token, task.Locale)
 	case "email_changed":
 		return SendEmailChangedEmail(task.To, task.Username, task.NewEmail, task.Locale)
+	case "email_change_pending":
+		return SendEmailChangePendingEmail(task.To, task.Username, task.NewEmail, task.Locale)
 	case "noop":
 		// 等时化 dummy 任务：静默消费，不发送任何邮件（账号枚举防护 #124）。
 		return nil

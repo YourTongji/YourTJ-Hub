@@ -25,6 +25,7 @@ class GfTopicList extends StatelessWidget {
     this.onReturnFromTopic,
     required this.hasMore,
     required this.onLoadMore,
+    this.loadMoreError,
   });
 
   final bool loading;
@@ -38,6 +39,7 @@ class GfTopicList extends StatelessWidget {
   final VoidCallback? onReturnFromTopic;
   final bool hasMore;
   final VoidCallback onLoadMore;
+  final String? loadMoreError;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +84,7 @@ class GfTopicList extends StatelessWidget {
         if (index == topics.length) {
           return GfListFooter(
             loading: loading,
+            error: loadMoreError,
             hasMore: hasMore,
             onLoadMore: onLoadMore,
           );

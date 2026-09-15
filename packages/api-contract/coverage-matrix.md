@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：305
-- /api JSON 路由：242，已入契约：243（100%），已知未覆盖：0
-- 非 API 排除路由：62
+- 快照路由总数：303
+- /api JSON 路由：239，已入契约：240（100%），已知未覆盖：0
+- 非 API 排除路由：63
 
-## 已覆盖（243）
+## 已覆盖（240）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -33,6 +33,7 @@
 | GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
 | GET | `/api/admin/rate-limit-settings` | `adminGetRateLimitSettings` |
 | GET | `/api/admin/schedule-settings` | `adminGetScheduleSettings` |
+| GET | `/api/admin/search/indexes` | `adminSearchIndexes` |
 | GET | `/api/admin/security-settings` | `adminGetSecuritySettings` |
 | GET | `/api/admin/server-version` | `adminGetServerVersion` |
 | GET | `/api/admin/site-chrome` | `adminGetSiteChrome` |
@@ -139,9 +140,7 @@
 | POST | `/api/admin/save-storage-settings` | `adminSaveStorageSettings` |
 | POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
-| POST | `/api/admin/sticker-delete` | `adminStickerDelete` |
-| POST | `/api/admin/sticker-import` | `adminStickerImport` |
-| POST | `/api/admin/sticker-save` | `adminStickerSave` |
+| POST | `/api/admin/search/maintenance` | `adminSearchMaintenance` |
 | POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
 | POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
 | POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |
@@ -261,7 +260,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，62）
+## 排除（非 JSON API，63）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -286,6 +285,7 @@
 | GET | `/llms.txt` | SEO/机器可读文本输出，非 JSON API |
 | GET | `/login` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/manifest.webmanifest` | PWA manifest 静态文件，非 JSON API |
+| GET | `/map` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
 | GET | `/messages` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/moderation` | SSR 页面（GoHTML 三模渲染），非 JSON API |

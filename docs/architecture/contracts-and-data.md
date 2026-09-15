@@ -24,6 +24,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
 - forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);
+- independent status: `apps/status/api/openapi.yaml` owns the Netlify `/api/status` response;
+  TypeScript is generated into `apps/status/src/generated/`, with fixture and handler validation in
+  that application's tests. This API is outside Gin and the forum/mobile client contract.
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
   agent administration, operation records, traffic overview, page settings, site settings, and
   data import/export;
@@ -415,3 +418,29 @@ upgrade rolls back so retrying cannot skip legacy index cleanup. Catalog materia
 one audience through a consistent transaction, including its calendars, dictionaries, teachers
 and fetch lease. The admin materialization request carries the selected audience and defaults
 to undergraduate for existing clients.
+
+## Course catalog keyword retrieval
+
+**Current**: course catalog keywords share the Meilisearch `courses` index with
+aggregate search. Database reads validate candidate visibility, exact filters,
+review ordering and totals before returning a page. Configured search failures,
+capacity exhaustion and request deadlines return a retriable 503; unconfigured
+local installations retain SQL matching. Search projection freshness does not grant
+access to hidden or deleted courses. See the [decision](../decisions/0023-course-catalog-search-candidates.md)
+and [operations reference](../operations/deployment.md#course-catalog-search-operations).
+
+## Managed search reconciliation
+
+**Current**: `searchservice` owns versioned projections and the shared settings
+definitions for all five Meili indexes. Source reads use owner-model APIs and
+primary-key cursors. The admin maintenance worker replaces documents, removes
+revalidated ghosts, then compares document digests and settings. Managed displayed
+attributes exclude version metadata and search helper fields from public hits.
+
+`task_queue` holds the actor, operation, progress and aggregate results. Partial
+indexes support recent-job lookup and one active maintenance task per database.
+The existing lease/retry worker resumes interrupted work by repeating reconciliation;
+each batch checks ownership. Jobs bind to the configured server origin and require
+`meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
+Status responses omit raw errors, document bodies and the instance fingerprint.
+See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).

@@ -148,9 +148,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           onPressed: _markAllRead,
         ),
       ],
-      toolbarHeight: 44,
+      toolbarHeight: GfTabBar.heightFor(context),
       toolbar: Container(
-        height: 44,
+        height: GfTabBar.heightFor(context),
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: GfTabBar(
@@ -191,8 +191,21 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             slivers: <Widget>[
                               SliverFillRemaining(
                                 hasScrollBody: false,
-                                child: GfEmpty(
-                                  message: l10n.notificationsEmpty,
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    top: top,
+                                    bottom: bottom,
+                                  ),
+                                  child: GfEmpty(
+                                    message: l10n.notificationsEmpty,
+                                    description:
+                                        l10n.notificationsEmptyDescription,
+                                    icon: Icons.notifications_none_rounded,
+                                    action: GfButton(
+                                      label: l10n.navHome,
+                                      onPressed: () => context.go('/'),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],

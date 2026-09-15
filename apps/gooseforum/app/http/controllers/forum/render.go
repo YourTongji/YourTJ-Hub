@@ -117,10 +117,14 @@ func renderAppShell(c *gin.Context, payload PagePayload) {
 
 // renderInternalError 渲染 500 错误页（区别于 404，避免把存储故障伪装成内容不存在）。
 func renderInternalError(c *gin.Context) {
+	renderInternalErrorWithStatus(c, http.StatusInternalServerError)
+}
+
+func renderInternalErrorWithStatus(c *gin.Context, status int) {
 	payload := PagePayload{
 		Component: PageComponentError,
 		Props: ErrorPageProps{
-			Code:        "500",
+			Code:        fmt.Sprint(status),
 			Title:       i18n.T(requestLang(c), "meta.internalError"),
 			MessageCode: component.MessageOperationFailed,
 		},
@@ -131,7 +135,7 @@ func renderInternalError(c *gin.Context) {
 		URL:     buildPageURL(c),
 		Version: payloadVersion,
 	}
-	renderPageWithStatus(c, http.StatusInternalServerError, "error.gohtml", payload)
+	renderPageWithStatus(c, status, "error.gohtml", payload)
 }
 func renderPageWithStatus(c *gin.Context, status int, templateName string, payload PagePayload) {
 	c.Status(status)

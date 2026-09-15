@@ -17,7 +17,10 @@ register:
       `messageCode`, response fields, nor the rate-limit protocol distinguishes
       "username exists" from "email exists" from "creation failed". The server
       unconditionally runs both existence lookups so the query count does not vary
-      with account state.
+      with account state. Email occupancy includes two-phase email-change staging
+      (issue #678): an address that another account is currently pending-switching
+      into (within the staging window) counts as occupied, preventing a hostile
+      registration from colliding with the switch at confirmation time.
 
       This guarantee is scoped to the occupied/creation-failed cases only: requests
       that fail validation before the existence checks (invalid username format,

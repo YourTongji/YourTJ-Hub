@@ -634,3 +634,14 @@ export function saveWikiAssetCDN(cdn: string) {
 export function materializePkCalendar(term: string, audience: 'undergraduate' | 'graduate' = 'undergraduate') {
   return postJson<PkMaterializeResult>('/api/admin/pk/materialize-calendar', { term, audience }, adminText('materializeFailed'))
 }
+
+export type { SearchMaintenanceStatus, SearchMaintenanceRequest, SearchMaintenanceJob } from './search-maintenance'
+import type { SearchMaintenanceStatus, SearchMaintenanceRequest, SearchMaintenanceSubmission } from './search-maintenance'
+
+export function getSearchMaintenance(): Promise<SearchMaintenanceStatus> {
+  return getJson('/api/admin/search/indexes', adminText('k004q'))
+}
+
+export function createSearchMaintenance(request: SearchMaintenanceRequest): Promise<SearchMaintenanceSubmission> {
+  return postJson('/api/admin/search/maintenance', request, adminText('k004q'))
+}

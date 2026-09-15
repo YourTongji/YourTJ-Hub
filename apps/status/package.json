@@ -1,0 +1,44 @@
+{
+  "name": "@yourtj/status",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.11.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "netlify dev",
+    "dev:ui": "vite --host 127.0.0.1",
+    "build": "pnpm typecheck && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "node --test test/*.browser.mjs",
+    "contract:generate": "openapi-typescript api/openapi.yaml -o src/generated/openapi.ts",
+    "contract:check": "pnpm contract:generate && git diff --exit-code -- src/generated/openapi.ts",
+    "functions:build": "netlify functions:build --src netlify/functions --functions .netlify/functions"
+  },
+  "dependencies": {
+    "vue": "^3.5.25",
+    "vue-i18n": "^11.4.4",
+    "@lucide/vue": "^1.16.0",
+    "@netlify/blobs": "11.1.0",
+    "@netlify/functions": "6.0.0"
+  },
+  "devDependencies": {
+    "vite": "^8.0.16",
+    "@vitejs/plugin-vue": "^6.0.3",
+    "typescript": "~6.0.3",
+    "vue-tsc": "^3.3.7",
+    "vitest": "^4.1.11",
+    "@vue/test-utils": "^2.4.11",
+    "happy-dom": "^20.11.2",
+    "playwright": "1.62.1",
+    "@types/node": "^24.0.0",
+    "openapi-typescript": "^7.13.0",
+    "yaml": "^2.8.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "netlify-cli": "27.6.0"
+  }
+}

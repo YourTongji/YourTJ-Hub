@@ -108,6 +108,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/notifications", middleware.CheckLogin, forum.Notifications)
 	viewRouteApp.GET("/publish", middleware.CheckLogin, forum.Publish)
 	viewRouteApp.GET("/search", forum.Search)
+	viewRouteApp.GET("/map", forum.CampusMap)
 	viewRouteApp.GET("/wiki", forum.WikiHome)
 	viewRouteApp.GET("/wiki/*path", forum.WikiDetail)
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
@@ -466,6 +467,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("wiki/sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
+		GET("search/indexes", UpButterReq(api.GetSearchMaintenance)).
+		POST("search/maintenance", UpButterReq(api.CreateSearchMaintenance)).
 		GET("server-version", UpButterReq(api.ServerVersion)).
 		GET("site-settings", UpButterReq(api.GetSiteSettings)).
 		POST("save-site-settings", UpButterReq(api.SaveSiteSettings)).

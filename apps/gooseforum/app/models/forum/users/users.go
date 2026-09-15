@@ -53,6 +53,11 @@ const (
 	ActivationSuccess = 1
 )
 
+// PendingEmailWindow 两阶段换绑暂存邮箱的占用窗口：窗口内的 pending_email
+// 视为被占用（注册/换绑查重拒绝），窗口外视为放弃（不再占用、不可再确认）。
+// 窗口自发起时固定（resend 不顺延）；过期后用户可重新发起换绑。
+const PendingEmailWindow = 7 * 24 * time.Hour
+
 const (
 	ActorTypeHuman int8 = 0
 	ActorTypeBot   int8 = 1
@@ -94,8 +99,13 @@ type EntityComplete struct {
 	IsFrozen       int8       `gorm:"column:is_frozen;not null;default:0;" json:"isFrozen"`                                                                           // 状态：0正常 1冻结
 	IsActivated    int8       `gorm:"column:is_activated;not null;default:0;" json:"isActivated"`                                                                     // 是否验证通过: 0未激活 1 已激活
 	ActivatedAt    *time.Time `gorm:"column:activated_at;" json:"activatedAt"`                                                                                        // 激活时间
-	EmailChangedAt *time.Time `gorm:"column:email_changed_at;" json:"emailChangedAt"`                                                                                 // 邮箱变更时间（24 小时冷静期起点）
+	EmailChangedAt *time.Time `gorm:"column:email_changed_at;" json:"emailChangedAt"`                                                                                 // 邮箱变更时间（24 小时冷静期起点；两阶段换绑在切换完成时刷新）
 	ActorType      int8       `gorm:"column:actor_type;not null;default:0;" json:"actorType"`                                                                         // 账号主体类型：0 人类 1 机器人（Agent）
+	// PendingEmail 两阶段换绑暂存邮箱（issue #678）：set-user-email 只写入暂存，
+	// 当前 email 保持不变（旧邮箱持续可登录/找回/占用）；新邮箱激活链接验证通过后
+	// 由 CompletePendingEmailSwitch 原子切换。暂存超过 PendingEmailWindow 视为放弃。
+	PendingEmail   string     `gorm:"column:pending_email;index;uniqueIndex:uniq_users_pending_email_nonempty,where:pending_email <> '';type:varchar(128);not null;default:'';" json:"pendingEmail,omitempty"`
+	PendingEmailAt *time.Time `gorm:"column:pending_email_at;" json:"pendingEmailAt,omitempty"` // 暂存发起时间（占用窗口与链接有效性判定；窗口自发起固定，resend 不顺延）
 
 	// info
 	Nickname            string              `gorm:"column:nickname;type:varchar(64);not null;default:'';" json:"nickname"`                                  //
@@ -143,6 +153,24 @@ func (itself *EntityComplete) Activate() {
 	itself.IsActivated = ActivationSuccess
 	activatedAt := time.Now()
 	itself.ActivatedAt = &activatedAt
+}
+
+// FreshPendingEmail 返回仍在占用窗口内的换绑暂存邮箱；空暂存或已过期返回空串。
+// 过期暂存视为用户放弃：不再占用邮箱，也不再作为重发/激活目标。
+func (itself *EntityComplete) FreshPendingEmail(now time.Time) string {
+	if itself.PendingEmail == "" || itself.PendingEmailAt == nil {
+		return ""
+	}
+	if now.Sub(*itself.PendingEmailAt) > PendingEmailWindow {
+		return ""
+	}
+	return itself.PendingEmail
+}
+
+// ClearPendingEmail 丢弃换绑暂存（用户激活当前邮箱、找回密码恢复账号等场景）。
+func (itself *EntityComplete) ClearPendingEmail() {
+	itself.PendingEmail = ""
+	itself.PendingEmailAt = nil
 }
 
 // IsBot 判断是否为机器人（Agent）账号。

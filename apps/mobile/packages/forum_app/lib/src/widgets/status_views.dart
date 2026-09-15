@@ -24,28 +24,13 @@ class GfErrorRetry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off_outlined, size: 40, color: colors.iconMuted),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GfTheme.typographyOf(context).body,
-            ),
-            const SizedBox(height: 16),
-            GfButton(
-              label: AppLocalizations.of(context).commonRetry,
-              variant: GfButtonVariant.outline,
-              onPressed: onRetry,
-            ),
-          ],
-        ),
+    return GfEmpty(
+      icon: Icons.cloud_off_outlined,
+      message: message,
+      action: GfButton(
+        label: AppLocalizations.of(context).commonRetry,
+        variant: GfButtonVariant.outline,
+        onPressed: onRetry,
       ),
     );
   }
@@ -58,11 +43,13 @@ class GfListFooter extends StatelessWidget {
     required this.loading,
     required this.hasMore,
     required this.onLoadMore,
+    this.error,
   });
 
   final bool loading;
   final bool hasMore;
   final VoidCallback onLoadMore;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +65,7 @@ class GfListFooter extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Center(
           child: Text(
-            '— ${AppLocalizations.of(context).commonEmpty} —',
+            AppLocalizations.of(context).commonEndOfList,
             style: GfTheme.typographyOf(
               context,
             ).caption.copyWith(color: colors.iconMuted),
@@ -88,12 +75,22 @@ class GfListFooter extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Center(
-        child: GfButton(
-          label: AppLocalizations.of(context).commonLoadMore,
-          variant: GfButtonVariant.ghost,
-          onPressed: onLoadMore,
-        ),
+      child: Column(
+        children: [
+          if (error != null)
+            Text(
+              error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.error),
+            ),
+          GfButton(
+            label: error == null
+                ? AppLocalizations.of(context).commonLoadMore
+                : AppLocalizations.of(context).commonRetry,
+            variant: GfButtonVariant.ghost,
+            onPressed: onLoadMore,
+          ),
+        ],
       ),
     );
   }

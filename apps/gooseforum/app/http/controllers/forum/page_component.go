@@ -19,6 +19,7 @@ const (
 	PageComponentThemePreview           PageComponent = "theme.preview"
 	PageComponentPublish                PageComponent = "publish.index"
 	PageComponentSearch                 PageComponent = "search.index"
+	PageComponentCampusMap              PageComponent = "campus.map"
 	PageComponentCourse                 PageComponent = "course.index"
 	PageComponentCourseDetail           PageComponent = "course.detail"
 	PageComponentCourseReviewModeration PageComponent = "course.reviewModeration"

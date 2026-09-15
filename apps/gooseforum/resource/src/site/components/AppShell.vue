@@ -2,8 +2,10 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import {
   Bell,
+  Activity,
   BookOpen,
   CalendarRange,
+  Map,
   FileText,
   Flame,
   Heart,
@@ -155,6 +157,7 @@ const browseItems = computed<SidebarNavItem[]>(() => [
 
 // 功能组：站点能力页。
 const functionItems = computed<SidebarNavItem[]>(() => [
+  sidebarItem('campusMap', t('campusMap.atlas'), '/map'),
   sidebarItem('courses', t('shell.nav.courses'), '/courses'),
   sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
   sidebarItem('wiki', t('shell.nav.wiki'), '/wiki'),
@@ -220,6 +223,7 @@ const categoryItems = computed<SidebarCategoryItem[]>(() =>
   }),
 )
 const resourceItems = computed<SidebarNavItem[]>(() => [
+  sidebarItem('status', t('shell.nav.status'), 'https://status.yourtj.de'),
   sidebarItem('links', t('shell.nav.links'), '/links'),
   sidebarItem('sponsors', t('shell.nav.sponsors'), '/sponsors'),
   ...serverSidebarItems(props.layout.sidebar.resources),
@@ -265,6 +269,7 @@ const sidebarIconMap = {
   popular: TrendingUp,
   courses: BookOpen,
   schedule: CalendarRange,
+  campusMap: Map,
   wiki: Library,
   messages: Inbox,
   notifications: Bell,
@@ -273,6 +278,7 @@ const sidebarIconMap = {
   courseReviews: GraduationCap,
   courseManage: BookOpen,
   links: Link,
+  status: Activity,
   sponsors: Heart,
 } as const
 let userCardLoading: Promise<void> | undefined

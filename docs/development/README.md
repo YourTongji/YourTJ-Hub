@@ -42,6 +42,7 @@ requirements and product semantics
 ## Detailed guides
 
 - [Local environment](local-development.md)
+- [Standalone status app](../../apps/status/README.md)
 - [Testing strategy & commands](testing.md)
 - [Branches, commits & pull requests](pull-requests.md)
 - [Project board workflow](project-board.md)

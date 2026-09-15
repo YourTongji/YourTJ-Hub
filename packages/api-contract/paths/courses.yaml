@@ -9,7 +9,7 @@ listCourses:
         in: query
         schema:
           type: string
-          description: Free-text keyword matched against normalized name, primary code, aliases, visible offering class codes, pinyin, and initials.
+          description: Free-text keyword matched by the shared Meilisearch courses index when configured (name, primary code, aliases, visible offering class codes, teacher names, pinyin, and initials). Local installations without Meilisearch use SQL matching. Visibility, exact filters, review ordering, and totals are validated in the database. A configured unavailable or incomplete search index returns 503 instead of running a SQL fallback.
       - name: department
         in: query
         schema:
@@ -47,7 +47,7 @@ listCourses:
         in: query
         schema:
           type: string
-          description: Sort order. "rating" sorts by average rating descending with unrated courses last; any other value or empty keeps the default id-descending order.
+          description: Sort order. "rating" sorts by average rating descending with unrated courses last; any other value or empty places courses with visible reviews first, then orders by descending id within each group.
       - name: page
         in: query
         schema:
@@ -65,7 +65,7 @@ listCourses:
           description: Page size. Out-of-range values are clamped to 1..50 rather than rejected.
     responses:
       '200':
-        description: One page of canonical courses with stable id-desc ordering.
+        description: One page of visible canonical courses with exact filtered totals and stable review/id ordering.
         content:
           application/json:
             schema:
@@ -88,6 +88,20 @@ listCourses:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Catalog capacity exceeded, request deadline exceeded, or the configured search index is unavailable or cannot provide a complete bounded match set. Retry after the indicated delay.
+        headers:
+          Retry-After:
+            schema:
+              type: string
+            description: Seconds to wait before retrying.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/course-catalog-unavailable.json
 
 getCourse:
   get:

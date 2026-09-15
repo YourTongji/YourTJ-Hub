@@ -26,6 +26,9 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
       },
     ],
     scrollBehavior(to, _from, savedPosition) {
+      // The atlas owns its camera and uses the hash for an OSM feature ID,
+      // rather than a document anchor or a scroll position.
+      if (to.path === '/map') return false
       return new Promise((resolve) => {
         requestAnimationFrame(() => {
           if (savedPosition) {
@@ -45,11 +48,18 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
     },
   })
 
-  router.beforeEach(async (to) => {
+  router.beforeEach(async (to, from) => {
     if (initialNavigation) {
       initialNavigation = false
       loadedPage = initialPage
       return true
+    }
+
+    // Permissions-Policy belongs to the document, so crossing the atlas boundary
+    // must load a new document (including programmatic and history navigation).
+    if ((to.path === '/map') !== (from.path === '/map')) {
+      window.location.assign(to.fullPath)
+      return false
     }
 
     const url = new URL(to.fullPath, window.location.origin)
@@ -74,6 +84,7 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
   })
 
   document.addEventListener('click', async (event) => {
+    if (window.location.pathname === '/map') return
     if (event.defaultPrevented || event.button !== 0) return
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
 
@@ -148,6 +159,7 @@ export async function preparePayload(payload: PagePayload): Promise<PreparedPage
 }
 
 function isRoutablePath(pathname: string) {
+  if (pathname === '/map') return false
   if (
     pathname.startsWith('/api') ||
     pathname.startsWith('/admin') ||

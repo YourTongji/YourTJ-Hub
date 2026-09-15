@@ -5,7 +5,7 @@ import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 import '../../theme/gf_theme.dart';
 
 /// Text field aligned with web `.gf-input` (components.css): 1px line border,
-/// radius field (8), base-100 fill, 14px text; on focus the border turns
+/// radius field (8), base-100 fill, 16px text; on focus the border turns
 /// primary and a 4px primary/20 ring appears (web `ring-4 ring-primary/20`).
 class GfInput extends StatefulWidget {
   const GfInput({
@@ -111,7 +111,9 @@ class _GfInputState extends State<GfInput> {
     final GfBorders borders = GfTheme.bordersOf(context);
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 150),
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radii.field),
@@ -144,7 +146,9 @@ class _GfInputState extends State<GfInput> {
           onSubmitted: widget.onSubmitted,
           onEditingComplete: widget.onEditingComplete,
           inputFormatters: widget.inputFormatters,
-          style: widget.style ?? const TextStyle(fontSize: 14),
+          style:
+              widget.style ??
+              TextStyle(fontSize: 16, color: colors.baseContent),
           cursorColor: widget.cursorColor,
           decoration: (widget.decoration ?? const InputDecoration()).copyWith(
             hintText: widget.hintText ?? widget.decoration?.hintText,
@@ -159,7 +163,7 @@ class _GfInputState extends State<GfInput> {
                 const BoxConstraints(minHeight: 48),
             contentPadding:
                 widget.decoration?.contentPadding ??
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(radii.field),
               borderSide: BorderSide(color: colors.line, width: borders.width),

@@ -1,64 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
-/// Shows a TDesign bottom popup and returns the value passed to
-/// `Navigator.pop` from [builder].
+/// Shows a themed bottom sheet and returns the value passed to `Navigator.pop`.
+///
+/// Short sheets fit their content; long sheets must provide a scrollable body.
+/// [height] is a preferred content height, constrained to the available viewport.
+/// This boundary owns safe areas and, when [keyboardAware], keyboard avoidance.
+/// Builders must not add `viewInsets` again.
 Future<T?> showGfBottomSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool barrierDismissible = true,
+  bool enableDrag = true,
   double? height,
   bool keyboardAware = false,
-}) async {
-  // TPopup keeps its panel pinned to the physical bottom of the viewport and
-  // does not offset it for `viewInsets`. Search/composer sheets therefore need
-  // Flutter's scroll-controlled route so the focused field remains above the
-  // iOS keyboard. The visible panel still inherits the shared TDesign/Gf
-  // bottom-sheet theme and hosts the same Gf components.
-  if (keyboardAware) {
-    return showModalBottomSheet<T>(
-      context: context,
-      isDismissible: barrierDismissible,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Theme.of(context).bottomSheetTheme.backgroundColor,
-      barrierColor: Theme.of(context).colorScheme.scrim,
-      shape: Theme.of(context).bottomSheetTheme.shape,
-      clipBehavior: Clip.antiAlias,
-      builder: (BuildContext sheetContext) => AnimatedPadding(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
-        ),
-        child: SizedBox(
-          height: height,
-          child: Material(
-            type: MaterialType.transparency,
+}) {
+  final theme = Theme.of(context);
+  final sheetTheme = theme.bottomSheetTheme;
+  return showModalBottomSheet<T>(
+    context: context,
+    isDismissible: barrierDismissible,
+    enableDrag: enableDrag,
+    isScrollControlled: true,
+    useSafeArea: true,
+    // Paint inside the keyboard padding, including the home-indicator area.
+    // Padding inside the route's painted Material leaves a blank surface behind
+    // the keyboard and moves the rounded corners away from the content.
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    showDragHandle: false,
+    barrierColor: theme.colorScheme.scrim,
+    builder: (sheetContext) => AnimatedPadding(
+      duration: MediaQuery.disableAnimationsOf(sheetContext)
+          ? Duration.zero
+          : const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(
+        bottom: keyboardAware
+            ? MediaQuery.viewInsetsOf(sheetContext).bottom
+            : 0,
+      ),
+      child: Material(
+        color: sheetTheme.backgroundColor ?? theme.colorScheme.surface,
+        elevation: sheetTheme.elevation ?? 0,
+        shape: sheetTheme.shape,
+        clipBehavior: Clip.antiAlias,
+        // The route consumes top/side insets; consume the bottom inset within
+        // the painted surface. Nested SafeAreas and ListViews see zero remaining
+        // padding, rather than the screen's notch height.
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            width: double.infinity,
+            height: height,
             child: Builder(builder: builder),
           ),
         ),
       ),
-    );
-  }
-
-  final td.TPopupHandle handle = td.TPopup.show(
-    context,
-    options: td.TPopupOptions.bottom(
-      height: height,
-      // TPopup renders its panel with a decorated Container rather than a
-      // Material widget. Keep Material inputs, cells and ink effects usable
-      // inside the popup route while preserving TDesign's panel background.
-      child: Material(
-        type: MaterialType.transparency,
-        child: Builder(builder: builder),
-      ),
-      headerBuilder: null,
-      cancelBuilder: null,
-      confirmBuilder: null,
-      closeOnOverlayClick: barrierDismissible,
-      useSafeArea: true,
     ),
   );
-  return (await handle.result) as T?;
 }

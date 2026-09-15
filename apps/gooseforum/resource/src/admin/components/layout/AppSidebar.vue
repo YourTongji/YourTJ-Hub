@@ -21,6 +21,7 @@ import {
   PanelLeft,
   RefreshCw,
   ScrollText,
+  Search,
   Sparkles,
   Sticker,
   Cpu,
@@ -55,7 +56,7 @@ defineProps<{
 }>()
 
 const route = useRoute()
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const currentPath = computed(() => route.path.replace(/\/+$/, '') || '/admin')
 
 interface NavItem {
@@ -93,6 +94,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k00f6'), url: '/admin/files/resources', icon: Files, permission: AdminPermission.SiteManager },
       { title: adminText('k007c'), url: '/admin/opt-records', icon: ListChecks, permission: AdminPermission.Admin },
       { title: adminText('k00ge'), url: '/admin/review-queue', icon: ListChecks, permission: AdminPermission.SiteManager },
+      { title: t('searchAdmin.title'), url: '/admin/search', icon: Search, permission: AdminPermission.SiteManager },
       { title: adminText('k00h0'), url: '/admin/data', icon: Database, permission: AdminPermission.SiteManager },
     ],
   },

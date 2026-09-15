@@ -40,7 +40,9 @@ func setupUserIsolationTestDB(t *testing.T) {
 	if err := conn.AutoMigrate(&EntityComplete{}); err != nil {
 		t.Fatalf("migrate users table: %v", err)
 	}
-	conn.Where("1 = 1").Delete(&EntityComplete{})
+	// Unscoped 硬删：builder() 走 .Table() 原生查询，不带软删 scope，
+	// 软删行对 CountCreatedToday 等仍可见（按文件序先跑的用例会污染计数）。
+	conn.Unscoped().Where("1 = 1").Delete(&EntityComplete{})
 }
 
 type verifySpyCall struct {

@@ -151,6 +151,10 @@ abstract class SettingsUserPayload with _$SettingsUserPayload {
     required int id,
     required String username,
     required String email,
+
+    /// issue #678：两阶段换绑暂存邮箱；空 = 无进行中的换绑。
+    /// 旧后端 payload 无此字段，默认空串。
+    @Default('') String pendingEmail,
     required String nickname,
     required String locale,
     required String avatarUrl,

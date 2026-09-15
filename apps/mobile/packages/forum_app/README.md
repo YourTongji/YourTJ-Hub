@@ -1,14 +1,18 @@
 # forum_app
 
+`Current`: 校园和搜索共享课程、排课、Wiki 快捷入口；设置按内嵌卡片分组，资料统计适配大字体。
+空通知、草稿和会话提供后续操作；共享按钮、表单、标签栏及空状态由 `ui_kit` 统一适配触控和系统字号。
+
 YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入口应用包,依赖 `core`(契约/API 客户端/markdown 转换)、`auth`(登录与 token 存储)、`ui_kit`(设计 token 与 Gf* 组件)。
 
 ## 当前交互架构
 
-- **入口与主题**:`lib/main.dart` → `GfApp`(`lib/src/app.dart`)。主题严格来自 ui_kit 设计 token(web `tokens.css` 的 1:1 镜像),light/dark 双主题默认跟随系统,设置页可手动切换;l10n 为 zh/en,跟随系统语言。
-- **导航**(`lib/src/router.dart`, go_router):首页、校园、通知、私信四个持久分支,各自保留 navigator 与滚动状态;搜索、发布、个人资料、会话、课程、排课器和 Wiki 以推入页呈现。底部为有可访问名称的图标,根页面导航随向下阅读收起、向上阅读恢复;头像打开账号抽屉。发布/新会话使用固定含义的 FAB,帖内回复与楼层跳转使用底部操作栏。
-- **内容与编辑**:按图片方向展示的信息流;瞬间/提问使用图片轮播加正文,文章使用折叠工具栏的富文本编辑器;预览后选择分类,支持服务端草稿和离开确认。个人页的各个 Tab 请求真实活动流,内容管理和回收站按服务端权限提供操作。
+- **入口与主题**:`lib/main.dart` → `GfApp`(`lib/src/app.dart`)。主题严格来自 ui_kit 设计 token(web `tokens.css` 的 1:1 镜像),light/dark 双主题默认跟随系统,设置页可手动切换;l10n 为 zh/en/ja/de,支持跟随系统或手动选择。
+- **导航**(`lib/src/router.dart`, go_router):首页、校园、通知、私信四个持久分支,各自保留 navigator 与滚动状态;搜索、发布、个人资料、会话、课程、排课器和 Wiki 以推入页呈现。底部为有可访问名称的图标,根页面导航随向下阅读收起、向上阅读恢复;首页复用方形 YourTJ 小猫标识;头像打开平铺账号菜单,展示真实关注数和关注者数。发布 FAB 先展开瞬间、文章、问题三个入口;新会话 FAB 直接打开会话页,帖内回复与楼层跳转使用底部操作栏。
+- **内容与编辑**:按图片方向展示的信息流;瞬间/提问使用图片轮播加正文,文章使用折叠工具栏的富文本编辑器;三类编辑器共享类型图标、步骤提示、18 px 正文与预览后的分类区域,支持服务端草稿和离开确认。个人页的各个 Tab 请求真实活动流,内容管理和回收站按服务端权限提供操作。
 - **账号与管理**:资料编辑保留网站、语言和社交链接;账号、安全与隐私控制位于独立设置页。完整 Web 管理与审核工作台通过受限的原生 WebView 访问,会话仅通过请求头交接。公共站点信息从校园或设置页的“关于社区”进入。
 - **交互规格**:具体行为、权限和验证边界见[移动端体验](../../../../docs/product/mobile-experience.md);路由以 `lib/src/router.dart` 为准。
+- **本机写作**:`lib/src/local/writing_store.dart` 按 API origin 与数字账号 ID 隔离未完成草稿和最近搜索，串行保存/删除；草稿的云端写入仍走现有发布接口。私信发送状态由 `lib/src/messages/chat_outbox.dart` 在当前会话中保留。
 - **离线**:`lib/src/offline/drift_cache.dart` 基于 drift 缓存已浏览话题与 IM 会话。
 - **运行配置**(`lib/src/app_config.dart`):经 `--dart-define` 注入 `YOURTJ_OIDC_ISSUER` / `YOURTJ_OIDC_CLIENT_ID` / `YOURTJ_API_BASE_URL`;默认内建 OIDC issuer 为 `http://localhost:5234/api/oauth`,API baseUrl 为空时 Android 模拟器走 `10.0.2.2`。
 

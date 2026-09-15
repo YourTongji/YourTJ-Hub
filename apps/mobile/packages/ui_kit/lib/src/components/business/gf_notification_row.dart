@@ -19,9 +19,9 @@ enum GfNotificationTone {
 }
 
 /// Notification row mirroring web NotificationsPage.vue mobile layout:
-/// `grid-cols-[34px_1fr] gap-3 px-3 py-2.5` — a 32px tone-colored icon block
+/// a 40px tone-colored icon block with 16px content insets
 /// plus content (actor, action, topic link, time). Unread rows get
-/// `bg-info/10` + a 2px primary left bar + a blue dot.
+/// a subtle tint, a primary left border and a blue dot.
 class GfNotificationRow extends StatelessWidget {
   const GfNotificationRow({
     super.key,
@@ -65,28 +65,31 @@ class GfNotificationRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: unread ? colors.info.withValues(alpha: 0.10) : colors.base100,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: unread
+              ? colors.primary.withValues(alpha: 0.04)
+              : colors.base100,
+          border: Border(
+            left: BorderSide(
+              color: unread ? colors.primary : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // 2px primary unread bar on the far left.
-            SizedBox(
-              width: 2,
-              child: unread ? ColoredBox(color: colors.primary) : null,
-            ),
-            const SizedBox(width: 8),
-            // 32px icon block.
             Container(
-              width: 32,
-              height: 32,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: toneColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, size: 16, color: toneColor),
+              child: Icon(icon, size: 20, color: toneColor),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,33 +126,37 @@ class GfNotificationRow extends StatelessWidget {
                         const SizedBox(width: 6),
                         InkWell(
                           onTap: onMarkRead,
-                          child: Icon(
-                            Icons.check_circle_outline,
-                            size: 16,
-                            color: colors.iconMuted,
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Icon(
+                              Icons.check_circle_outline,
+                              size: 20,
+                              color: colors.iconMuted,
+                            ),
                           ),
                         ),
                       ],
                     ],
                   ),
                   if (subtitle.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 8),
                     Text(
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 15,
-                        color: colors.baseContent.withValues(alpha: 0.55),
+                        color: colors.baseContent.withValues(alpha: 0.72),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
                     time,
                     style: TextStyle(
                       fontSize: 13,
-                      color: colors.baseContent.withValues(alpha: 0.55),
+                      color: colors.baseContent.withValues(alpha: 0.72),
                     ),
                   ),
                 ],

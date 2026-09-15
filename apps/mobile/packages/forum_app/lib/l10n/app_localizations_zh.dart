@@ -537,13 +537,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBio => '个人简介';
 
   @override
-  String get settingsBioEdit => '编辑简介与签名';
+  String get settingsBioEdit => '编辑个人简介';
 
   @override
   String get settingsAvatar => '头像';
 
   @override
-  String get settingsAvatarUpload => '上传头像(前端转 webp)';
+  String get settingsAvatarUpload => '选择图片并裁剪成头像';
 
   @override
   String get settingsAvatarUploading => '上传中…';
@@ -1213,6 +1213,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishGalleryHint => '最多 9 张，长按拖动排序';
 
   @override
+  String get publishBodyDragHint => '长按正文图片，可拖动到任意段落位置';
+
+  @override
   String get publishFormatting => '文字格式';
 
   @override
@@ -1222,7 +1225,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishLeaveTitle => '保留这次创作？';
 
   @override
-  String get publishLeaveBody => '尚有未保存的内容。返回编辑，或放弃本次修改。';
+  String get publishLeaveBody => '可以保存到本机后离开，或放弃本次修改。';
 
   @override
   String get publishDiscard => '放弃修改';
@@ -1328,7 +1331,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishRedo => '重做';
 
   @override
-  String get publishHeading => '标题';
+  String get publishHeading => '标题 · 长按选级别';
+
+  @override
+  String get publishHeadingLevel1 => '一级标题';
+
+  @override
+  String get publishHeadingLevel2 => '二级标题';
+
+  @override
+  String get publishHeadingLevel3 => '三级标题';
 
   @override
   String get publishToolLink => '插入链接';
@@ -1943,4 +1955,114 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => '极光推送隐私说明（Android）';
+
+  @override
+  String get accountFollowing => '正在关注';
+
+  @override
+  String get accountFollowers => '关注者';
+
+  @override
+  String get publishMomentHint => '记录校园里值得分享的这一刻';
+
+  @override
+  String get publishArticleHint => '写下经验、故事与思考';
+
+  @override
+  String get publishQuestionHint => '描述你的疑问，让大家一起想办法';
+
+  @override
+  String get accountContent => '我的内容';
+
+  @override
+  String get commonEndOfList => '已经到底了';
+
+  @override
+  String get campusTools => '校园工具';
+
+  @override
+  String get campusCoursesTitle => '发现好课';
+
+  @override
+  String get campusCoursesEmpty => '还没有课程评价，去课程目录逛逛吧';
+
+  @override
+  String get searchDiscoveryDescription => '搜索帖子、同学与板块，也可以直接打开常用的校园工具。';
+
+  @override
+  String get notificationsEmptyDescription => '新的回复、提及和关注会出现在这里。先去看看校园里的新鲜事吧。';
+
+  @override
+  String get draftsEmptyDescription => '还没写完的想法可以存成草稿，随时回来继续。';
+
+  @override
+  String get messagesSending => '发送中…';
+
+  @override
+  String get messagesSent => '已发送';
+
+  @override
+  String get messagesFailed => '发送失败';
+
+  @override
+  String get messagesRetry => '重新发送';
+
+  @override
+  String get draftLocalSaved => '已保存到本机';
+
+  @override
+  String get draftLocalSaving => '正在保存…';
+
+  @override
+  String get draftLocalSaveFailed => '本机保存失败，请重试';
+
+  @override
+  String get draftLocalRestored => '已恢复上次未完成的内容';
+
+  @override
+  String get draftLocalSection => '本机草稿';
+
+  @override
+  String get draftCloudSection => '云端草稿';
+
+  @override
+  String get draftKeepAndLeave => '保存并离开';
+
+  @override
+  String get draftDeleteLocal => '删除本机草稿';
+
+  @override
+  String get draftLocalOnly => '仅保存在这台设备';
+
+  @override
+  String get searchRecent => '最近搜索';
+
+  @override
+  String get searchClearRecent => '清空记录';
+
+  @override
+  String get searchCourses => '搜索课程';
+
+  @override
+  String get searchWiki => '搜索 Wiki';
+
+  @override
+  String get refreshFailedRetained => '刷新失败，已保留当前内容';
+
+  @override
+  String get scheduleOpenWebShort => '网页版';
+
+  @override
+  String get settingsProfileLinks => '网站与社交链接';
+
+  @override
+  String get settingsAvatarSources => '选择预设头像或上传图片';
+
+  @override
+  String get settingsEmailChangeStaged => '邮箱变更请求已提交。';
+
+  @override
+  String settingsEmailPending(String email) {
+    return '待确认：$email';
+  }
 }

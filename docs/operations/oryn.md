@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-10
+> Last verified: 2026-09-14
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -16,10 +16,12 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/775ff40758ffb18ae67e9fdbbf0a335fb447aeaf)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/95ab55b7870860562a4848dbce536ec72cbe2fba)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
-GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days.
+GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
+reservations carry a unique lease ID. Execution and publication check receipt ownership before model
+work or side effects; repeated settlement cannot downgrade terminal work.
 
 Manual runs use the selected workflow commit. Issue/PR events load the current default branch (`dev`),
 never the contributor's PR head as executable workflow or operator policy. The model sees target source
@@ -42,7 +44,9 @@ merge. A scan selects at most 20 eligible items; later scans pick up the remaini
 receipts exclude completed work. Two item workflows run concurrently. Each item publishes immediately after its own execution,
 without waiting for other items in the batch; [the item workflow](../../.github/workflows/oryn-item.yml)
 keeps model and publisher credentials in separate jobs. All jobs use the trusted workflow commit
-recorded by the planner. Stale admissions are deferred individually, and aborted reservations are released. Close/merge still require a current
+recorded by the planner. Stale admissions are deferred individually, and aborted reservations are released. Source/authority
+invalidation produces a normal superseded/cancelled outcome, and closed, locked or protected queued
+targets are skipped. These dispositions do not become retryable execution failures. Close/merge still require a current
 maintainer command and live evidence; merge additionally requires independent approval and successful
 `ci-backend`, `ci-frontend`, and `ci-contract` checks. Generated fixes remain draft PRs for human review.
 
@@ -149,15 +153,29 @@ and four advisory labels on issue #594. This review did not execute repair valid
 
 ## Failure diagnostics and request budgets
 
-A model request may use the remaining task budget. First-byte and idle limits remain at most 120 and
+Each invocation reserves twenty percent of its existing deadline for reporting. Valid initial JSON
+needs no correction; otherwise at most two report attempts expose only the schema-validated submission
+tool. At the evidence cutoff, Oryn cancels gathering and reports incomplete coverage as needs_human,
+retaining triage evidence while disabling action proposals. Report acceptance requires a completed
+Core response. Model requests remain bounded by the active phase and task deadlines.
+First-byte and idle limits remain at most 120 and
 60 seconds; the total task deadline and authorized cancellation still apply. Remove an existing
 `ORYN_REQUEST_TIMEOUT_SECONDS=300` override to use this default, or set a shorter explicit wall limit.
 
 Failed executions retain a bounded, redacted `diagnostic` in `failure.json` and an `oryn_failure` log
 event. These include the failure stage, elapsed time, budgets, Core status, available provider errors
-and progress counts. Report format failures include the correction attempt and output size. No raw
+and progress counts. Report format failures include per-attempt byte/part counts, SHA-256, structural syntax state and sanitized schema paths/codes. No raw
 prompts, reasoning, provider bodies or headers are retained. A bare abort without further Core evidence
 remains an unknown cause. See [the diagnostics decision](../decisions/0020-oryn-failure-diagnostics.md).
+
+Each publisher downloads the immutable artifact ID from its producing execution job. Result names
+include the Actions attempt; a full rerun replaces the plan artifact. Missing result IDs fail before
+artifact download. An outcome.json prevents report publication, while failure.json retains real errors.
+Start a fresh workflow to replan failed, expired or settled admissions before another model run.
+Publication-only retries use the original producing artifact and retain live source/receipt checks.
+Upgrade all receipt writers together; historical reruns keep their original runtime and plan, and old
+strict-schema runtimes cannot read extended receipts. See
+[the retry and report decision](../decisions/0025-oryn-action-reliability.md).
 
 ## Maintenance and verification
 
@@ -165,7 +183,7 @@ Update the pinned Oryn commit in the setup action through a reviewed PR; rerun a
 selected report after changing runtime or credentials. Review local entry changes with:
 
 ```sh
-actionlint -ignore 'unexpected key "queue" for "concurrency" section' .github/workflows/oryn.yml
+actionlint -ignore 'unexpected key "queue" for "concurrency" section' .github/workflows/oryn.yml .github/workflows/oryn-item.yml
 node --test scripts/test-oryn-validation.mjs
 node scripts/run-gates.mjs
 git diff --check

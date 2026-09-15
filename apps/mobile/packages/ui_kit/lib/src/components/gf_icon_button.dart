@@ -10,6 +10,7 @@ class GfIconButton extends StatelessWidget {
     super.key,
     required this.icon,
     required this.onPressed,
+    this.onLongPress,
     this.tooltip,
     this.size = 44,
     this.iconSize = 20,
@@ -17,6 +18,7 @@ class GfIconButton extends StatelessWidget {
 
   final IconData icon;
   final VoidCallback? onPressed;
+  final VoidCallback? onLongPress;
   final String? tooltip;
   final double size;
   final double iconSize;
@@ -34,6 +36,7 @@ class GfIconButton extends StatelessWidget {
         colorScheme: td.TButtonColorScheme.defaultTheme,
         icon: Icon(icon, size: iconSize),
         onPressed: onPressed,
+        onLongPress: onLongPress,
         style: ButtonStyle(
           padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
             EdgeInsets.zero,
@@ -54,6 +57,14 @@ class GfIconButton extends StatelessWidget {
     );
 
     if (tooltip == null) return button;
-    return Tooltip(message: tooltip!, child: button);
+    return Tooltip(
+      // Long-press-capable buttons opt out of the Tooltip's long-press
+      // gesture so the surrounding GestureDetector can receive it.
+      triggerMode: onLongPress == null
+          ? TooltipTriggerMode.longPress
+          : TooltipTriggerMode.manual,
+      message: tooltip!,
+      child: button,
+    );
   }
 }

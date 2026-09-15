@@ -68,7 +68,7 @@ export interface LayoutPayload {
   unread: UnreadStatusPayload
   posting: PostingPayload
   theme: ThemePayload
-  insightFlareEnabled: boolean
+  umamiEnabled: boolean
 }
 
 export interface PostingPayload {
@@ -887,6 +887,8 @@ export interface SettingsUserPayload {
   id: number
   username: string
   email: string
+  /** issue #678：两阶段换绑暂存邮箱；空 = 无进行中的换绑。 */
+  pendingEmail: string
   nickname: string
   locale: string
   avatarUrl: string
@@ -1008,6 +1010,8 @@ export interface CourseCatalogPageProps {
   bookmarkedCourseIDs?: number[]
 }
 
+/** Catalog search uses Meilisearch candidates with database visibility/filter/rating validation.
+ * HTTP 503 with Retry-After is a retriable failure, never an empty successful list. */
 export interface CourseSummaryPayload {
   id: number
   primaryCode: string

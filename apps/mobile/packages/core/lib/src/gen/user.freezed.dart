@@ -2767,6 +2767,10 @@ mixin _$SettingsUserPayload {
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get email => throw _privateConstructorUsedError;
+
+  /// issue #678：两阶段换绑暂存邮箱；空 = 无进行中的换绑。
+  /// 旧后端 payload 无此字段，默认空串。
+  String get pendingEmail => throw _privateConstructorUsedError;
   String get nickname => throw _privateConstructorUsedError;
   String get locale => throw _privateConstructorUsedError;
   String get avatarUrl => throw _privateConstructorUsedError;
@@ -2806,6 +2810,7 @@ abstract class $SettingsUserPayloadCopyWith<$Res> {
     int id,
     String username,
     String email,
+    String pendingEmail,
     String nickname,
     String locale,
     String avatarUrl,
@@ -2844,6 +2849,7 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
     Object? id = null,
     Object? username = null,
     Object? email = null,
+    Object? pendingEmail = null,
     Object? nickname = null,
     Object? locale = null,
     Object? avatarUrl = null,
@@ -2873,6 +2879,10 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
             email: null == email
                 ? _value.email
                 : email // ignore: cast_nullable_to_non_nullable
+                      as String,
+            pendingEmail: null == pendingEmail
+                ? _value.pendingEmail
+                : pendingEmail // ignore: cast_nullable_to_non_nullable
                       as String,
             nickname: null == nickname
                 ? _value.nickname
@@ -2967,6 +2977,7 @@ abstract class _$$SettingsUserPayloadImplCopyWith<$Res>
     int id,
     String username,
     String email,
+    String pendingEmail,
     String nickname,
     String locale,
     String avatarUrl,
@@ -3005,6 +3016,7 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
     Object? id = null,
     Object? username = null,
     Object? email = null,
+    Object? pendingEmail = null,
     Object? nickname = null,
     Object? locale = null,
     Object? avatarUrl = null,
@@ -3034,6 +3046,10 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
         email: null == email
             ? _value.email
             : email // ignore: cast_nullable_to_non_nullable
+                  as String,
+        pendingEmail: null == pendingEmail
+            ? _value.pendingEmail
+            : pendingEmail // ignore: cast_nullable_to_non_nullable
                   as String,
         nickname: null == nickname
             ? _value.nickname
@@ -3107,6 +3123,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     required this.id,
     required this.username,
     required this.email,
+    this.pendingEmail = '',
     required this.nickname,
     required this.locale,
     required this.avatarUrl,
@@ -3135,6 +3152,12 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
   final String username;
   @override
   final String email;
+
+  /// issue #678：两阶段换绑暂存邮箱；空 = 无进行中的换绑。
+  /// 旧后端 payload 无此字段，默认空串。
+  @override
+  @JsonKey()
+  final String pendingEmail;
   @override
   final String nickname;
   @override
@@ -3187,7 +3210,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @override
   String toString() {
-    return 'SettingsUserPayload(id: $id, username: $username, email: $email, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
+    return 'SettingsUserPayload(id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
   }
 
   @override
@@ -3199,6 +3222,8 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
             (identical(other.username, username) ||
                 other.username == username) &&
             (identical(other.email, email) || other.email == email) &&
+            (identical(other.pendingEmail, pendingEmail) ||
+                other.pendingEmail == pendingEmail) &&
             (identical(other.nickname, nickname) ||
                 other.nickname == nickname) &&
             (identical(other.locale, locale) || other.locale == locale) &&
@@ -3233,11 +3258,12 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     username,
     email,
+    pendingEmail,
     nickname,
     locale,
     avatarUrl,
@@ -3253,7 +3279,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     const DeepCollectionEquality().hash(_badges),
     const DeepCollectionEquality().hash(_wearableBadges),
     wornBadge,
-  );
+  ]);
 
   /// Create a copy of SettingsUserPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3277,6 +3303,7 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
     required final int id,
     required final String username,
     required final String email,
+    final String pendingEmail,
     required final String nickname,
     required final String locale,
     required final String avatarUrl,
@@ -3303,6 +3330,11 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
   String get username;
   @override
   String get email;
+
+  /// issue #678：两阶段换绑暂存邮箱；空 = 无进行中的换绑。
+  /// 旧后端 payload 无此字段，默认空串。
+  @override
+  String get pendingEmail;
   @override
   String get nickname;
   @override

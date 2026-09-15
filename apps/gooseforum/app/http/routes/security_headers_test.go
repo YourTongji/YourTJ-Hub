@@ -139,8 +139,8 @@ func assertHTMLSecurityHeaders(t *testing.T, path string, response *httptest.Res
 	if !strings.Contains(csp, "script-src 'self'") {
 		t.Fatalf("GET %s CSP script-src must include 'self': %q", path, csp)
 	}
-	if !strings.Contains(csp, "script-src 'self' https://ana.yourtj.de") {
-		t.Fatalf("GET %s CSP script-src must allow the InsightFlare SDK: %q", path, csp)
+	if !strings.Contains(csp, "script-src 'self' https://umi.yourtj.de") {
+		t.Fatalf("GET %s CSP script-src must allow the Umami SDK: %q", path, csp)
 	}
 	if strings.Contains(csp, "script-src 'unsafe-inline'") || strings.Contains(csp, "script-src *") {
 		t.Fatalf("GET %s CSP script-src must not allow inline/global scripts: %q", path, csp)

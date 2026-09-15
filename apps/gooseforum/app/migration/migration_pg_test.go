@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -90,6 +91,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
+	assertSearchMaintenanceSchema(t, db)
 	assertCourseAggregationSchema(t, db)
 }
 
@@ -123,6 +125,14 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "email_changed_at"); err != nil {
 		t.Fatalf("drop legacy-missing users.email_changed_at: %v", err)
 	}
+	// 两阶段换绑（issue #678 review）：真实旧库没有 pending_email 列与部分
+	// 唯一索引，先删除再由升级阶段补齐，验证存量库能获得该 schema。
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "pending_email"); err != nil {
+		t.Fatalf("drop legacy-missing users.pending_email: %v", err)
+	}
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "pending_email_at"); err != nil {
+		t.Fatalf("drop legacy-missing users.pending_email_at: %v", err)
+	}
 	// The current model also includes the username unique index. Remove it so
 	// the upgrade phase proves AutoMigrate creates the constraint for legacy DBs.
 	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
@@ -148,6 +158,12 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_email_nonempty") {
 		t.Fatal("precondition failed: legacy users table should not have email unique index")
+	}
+	if db.Migrator().HasColumn(&users.EntityComplete{}, "pending_email") {
+		t.Fatal("precondition failed: legacy users table should not have pending_email")
+	}
+	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_pending_email_nonempty") {
+		t.Fatal("precondition failed: legacy users table should not have pending email unique index")
 	}
 	if db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {
 		t.Fatal("precondition failed: legacy points_record table should not have source_key")
@@ -204,6 +220,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	assertCourseTeacherIdentitySchema(t, db)
+	assertSearchMaintenanceSchema(t, db)
 	var legacyPointsCount int64
 	if err := db.Model(&pointsRecord.Entity{}).Where("action = ? AND points_change = ?", "init", 100).Count(&legacyPointsCount).Error; err != nil {
 		t.Fatalf("count legacy points records after upgrade: %v", err)
@@ -372,5 +389,26 @@ func TestSchemaPkAudienceUpgradeOnPostgreSQL(t *testing.T) {
 	assertPkAudienceLegacyConflictKeysUpgrade(t, db)
 	if err := upgradePkAudienceSchema(db); err != nil {
 		t.Fatalf("repeat full PK audience upgrade: %v", err)
+	}
+}
+
+func assertSearchMaintenanceSchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasIndex(&taskQueue.Entity{}, "idx_search_maintenance_active") || !db.Migrator().HasIndex(&taskQueue.Entity{}, "idx_search_maintenance_history") {
+		t.Fatal("missing search maintenance indexes")
+	}
+	row := taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusRunning}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	defer db.Where("type = ?", taskQueue.SearchMaintenanceType).Delete(&taskQueue.Entity{})
+	if err := db.Create(&taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusPending}).Error; err == nil {
+		t.Fatal("second active maintenance allowed")
+	}
+	if err := db.Model(&row).Update("status", taskQueue.StatusSuccess).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&taskQueue.Entity{Type: taskQueue.SearchMaintenanceType, Status: taskQueue.StatusRetrying}).Error; err != nil {
+		t.Fatalf("terminal job did not release slot: %v", err)
 	}
 }

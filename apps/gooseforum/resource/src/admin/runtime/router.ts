@@ -79,6 +79,10 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/ReviewQueueManagementPage.vue'),
     },
     {
+      path: '/admin/search',
+      component: () => import('@/admin/pages/management/SearchIndexesPage.vue'),
+    },
+    {
       path: '/admin/data',
       component: () => import('@/admin/pages/management/DataManagementPage.vue'),
     },

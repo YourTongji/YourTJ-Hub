@@ -90,3 +90,13 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0019](0019-native-push-providers.md) — Direct APNs and Android OEM push through JPush.
 - [0020](0020-oryn-failure-diagnostics.md) — Oryn failure diagnostics.
 - [0021](0021-deletion-final-state-data-retention.md) — 删除终态数据保留与管理员取证（R4 降级）。
+- [0022](0022-campus-map-native-atlas.md) — 原生校园地图页面复用地理数据，保持单二进制部署。
+- [0023](0023-course-catalog-search-candidates.md) — 课程目录复用 Meilisearch 候选，数据库校验筛选、可见性与评分排序。
+- [0024](0024-admin-search-index-maintenance.md) — 管理后台检查索引版本与完整性，通过持久化任务原地重建，并隔离复制到 dev 的任务。
+- [0025](0025-oryn-action-reliability.md) — Oryn 重试期间保持 admission ownership、报告预算与发布 artifact 身份一致。
+- [0026](0026-public-status-projection.md) — 论坛内公开状态投影（已被 0027 替代）。
+- [0027](0027-independent-status-netlify.md) — 独立 Netlify 状态站、定时采集和持久化公开快照。
+
+- [0028](0028-mobile-local-writing-recovery.md) — 移动端按站点和账号隔离本机写作恢复，独立于云端草稿
+
+- [0029](0029-two-phase-email-change.md) — 换绑邮箱两阶段切换：确认后原子切换，旧邮箱在切换前保持占用。

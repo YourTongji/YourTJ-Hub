@@ -53,7 +53,7 @@ const mockLayout: LayoutPayload = {
   unread: { notifications: 0, messages: 0 },
   posting: { maxTitleLength: 100 },
   theme: { enabled: true, current: 'gf-light', themeColor: '#3b82f6' },
-  insightFlareEnabled: false,
+  umamiEnabled: false,
 }
 
 async function mountModal(type: 0 | 1 | 2 = 2) {

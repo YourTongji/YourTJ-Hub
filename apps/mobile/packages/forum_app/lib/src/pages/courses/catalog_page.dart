@@ -21,7 +21,8 @@ import 'course_common.dart';
 /// 筛选值域（院系/学期/校区）来自页面级数据通道 `/courses` 的 SSR props
 /// （与 web 同源）；教师为自由输入多值（web 亦为文本输入）。
 class CourseCatalogPage extends ConsumerStatefulWidget {
-  const CourseCatalogPage({super.key});
+  const CourseCatalogPage({super.key, this.initialQuery = ''});
+  final String initialQuery;
 
   @override
   ConsumerState<CourseCatalogPage> createState() => _CourseCatalogPageState();
@@ -62,6 +63,7 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
   @override
   void initState() {
     super.initState();
+    _searchController.text = widget.initialQuery;
     _loadOptions();
     _load();
     _scrollController.addListener(_onScroll);

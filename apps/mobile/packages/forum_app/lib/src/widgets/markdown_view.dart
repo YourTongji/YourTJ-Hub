@@ -9,6 +9,10 @@ import 'package:core/core.dart';
 import '../asset_url.dart';
 import '../providers.dart';
 
+/// Shared prose scale for reading, writing and preview.
+TextStyle readingBodyStyle(BuildContext context) =>
+    GfTheme.typographyOf(context).body.copyWith(fontSize: 18, height: 1.55);
+
 /// 帖子 markdown 渲染视图。
 ///
 /// 基于 markdown_widget,渲染样式对齐 web 端 prose.css 语义:
@@ -144,7 +148,37 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       physics: const NeverScrollableScrollPhysics(),
       config: MarkdownConfig(
         configs: <WidgetConfig>[
-          PConfig(textStyle: GfTheme.typographyOf(context).body),
+          PConfig(textStyle: readingBodyStyle(context)),
+          H1Config(
+            style: readingBodyStyle(
+              context,
+            ).copyWith(fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
+          ),
+          H2Config(
+            style: readingBodyStyle(
+              context,
+            ).copyWith(fontSize: 24, fontWeight: FontWeight.w700, height: 1.35),
+          ),
+          H3Config(
+            style: readingBodyStyle(
+              context,
+            ).copyWith(fontSize: 21, fontWeight: FontWeight.w600, height: 1.4),
+          ),
+          H4Config(
+            style: readingBodyStyle(
+              context,
+            ).copyWith(fontSize: 19, fontWeight: FontWeight.w600),
+          ),
+          H5Config(
+            style: readingBodyStyle(
+              context,
+            ).copyWith(fontWeight: FontWeight.w600),
+          ),
+          H6Config(
+            style: readingBodyStyle(
+              context,
+            ).copyWith(fontWeight: FontWeight.w600, color: colors.iconMuted),
+          ),
           // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
           ImgConfig(
             builder: (String url, Map<String, String> attributes) {
@@ -205,14 +239,18 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
             ),
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.symmetric(vertical: 8),
-            textStyle: const TextStyle(fontSize: 14, height: 1.5),
+            textStyle: TextStyle(
+              fontSize: 16,
+              height: 1.5,
+              color: colors.baseContent,
+            ),
           ),
           // 行内代码:error 色 + base-200 底(prose.css code)。
           CodeConfig(
             style: TextStyle(
               color: colors.error,
               backgroundColor: colors.base200,
-              fontSize: 13,
+              fontSize: 16,
             ),
           ),
           // 表格:line 边框 + 紧凑 padding(prose.css table)。
@@ -221,9 +259,13 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
             headerStyle: TextStyle(
               color: colors.baseContent,
               fontWeight: FontWeight.w600,
-              fontSize: 14,
+              fontSize: 17,
             ),
-            bodyStyle: TextStyle(color: colors.baseContent, fontSize: 14),
+            bodyStyle: TextStyle(
+              color: colors.baseContent,
+              fontSize: 17,
+              height: 1.5,
+            ),
             headPadding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
             bodyPadding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           ),
