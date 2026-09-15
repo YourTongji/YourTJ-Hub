@@ -9,6 +9,7 @@ import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import MentionCandidates from '@/site/components/MentionCandidates.vue'
+import StickerPicker from '@/site/components/StickerPicker.vue'
 import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
@@ -311,6 +312,13 @@ function insertMarkdownBlock(text: string) {
   editor.value?.insertMarkdown(text)
 }
 
+const stickerPickerOpen = ref(false)
+
+function insertStickerToken(name: string) {
+  stickerPickerOpen.value = false
+  insertMarkdownBlock(`[:sticker:${name}:]`)
+}
+
 async function uploadImageFiles(files: File[]) {
   if (!files.length || uploading.value) return
 
@@ -584,6 +592,8 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 @input="handleBodyInput"
                 @upload="uploadImageFiles"
                 @error="handleEditorError"
+                :sticker-picker="true"
+                @open-stickers="stickerPickerOpen = !stickerPickerOpen"
               />
               <!-- @mention 候选面板（issue #590）：与回复编辑器共享会话引擎与面板组件 -->
               <MentionCandidates
@@ -596,6 +606,12 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 :docked="mentionDocked"
                 :panel-style="mentionPanelStyle"
                 @select="selectMention"
+              />
+              <!-- 站点表情包面板（MADR 0022）：锚定编辑区，选中后向光标处插入 token -->
+              <StickerPicker
+                :open="stickerPickerOpen"
+                @select="insertStickerToken"
+                @close="stickerPickerOpen = false"
               />
             </div>
           </div>

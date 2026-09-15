@@ -10,6 +10,7 @@ const (
 	TargetUser        = "user"
 	TargetAdminUpload = "admin_upload"
 	TargetUploadOwner = "upload_owner"
+	TargetSticker     = "sticker"
 )
 
 const (
@@ -17,6 +18,7 @@ const (
 	UsageAvatar      = "avatar"
 	UsageAdminUpload = "admin_upload"
 	UsageUploadOwner = "upload_owner"
+	UsageSticker     = "sticker"
 )
 
 // 附件生命周期状态（Issue #94）：删除时转 RECOVERING，恢复时回 ACTIVE，永久删除置 PURGED。

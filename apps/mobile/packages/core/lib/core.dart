@@ -15,6 +15,7 @@ export 'src/api/repositories/course_repository.dart';
 export 'src/api/repositories/pk_repository.dart';
 export 'src/api/repositories/push_repository.dart';
 export 'src/api/repositories/theme_repository.dart';
+export 'src/api/repositories/sticker_repository.dart';
 export 'src/api/repositories/wiki_repository.dart';
 
 export 'src/gen/agent.dart';
@@ -41,7 +42,10 @@ export 'src/gen/push_device.dart';
 export 'src/gen/schedule_settings.dart';
 export 'src/gen/site_theme.dart';
 
+export 'src/gen/sticker.dart';
+
 export 'src/markdown/markdown_converter.dart';
+export 'src/markdown/sticker_token.dart';
 export 'src/token/token_storage.dart';
 
 export 'src/schedule/pk_arrange.dart';

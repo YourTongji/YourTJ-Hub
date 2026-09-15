@@ -171,6 +171,7 @@ export default {
       insertBefore: 'Above',
       insertAfter: 'Below',
       emoji: 'Emoji',
+      stickers: 'Stickers',
       upload: 'Image',
       table: 'Table',
       undo: 'Undo',
@@ -185,6 +186,10 @@ export default {
       help: 'Help',
       uploadImageTip: 'Upload image',
     },
+  },
+  stickers: {
+    pickerTitle: 'Stickers',
+    empty: 'No stickers available',
   },
   common: {
     back: 'Back',
@@ -1987,6 +1992,7 @@ export default {
     operationFailed: 'Operation failed',
     repliesLoadFailed: 'Failed to load replies',
     searchUsersFailed: 'Failed to search users',
+    stickersLoadFailed: 'Failed to load stickers',
     revisionsLoadFailed: 'Failed to load edit history',
     notificationsLoadFailed: 'Failed to load notifications',
     likeFailed: 'Failed to like',

@@ -86,3 +86,29 @@ getSiteStatistics:
             examples:
               success:
                 externalValue: ../fixtures/site-statistics-success.json
+
+forumStickerList:
+  get:
+    tags: [Forum]
+    summary: List enabled stickers for the editor picker and token replacement
+    operationId: forumStickerList
+    description: |
+      Fully public endpoint: no authentication, no rate limit, no input, and
+      no business failure branch. Returns enabled stickers only, ordered by
+      sortOrder ascending then id ascending, each with its globally unique
+      name and public access `url`. The url follows the storage
+      configuration: `/file/img/<fileName>` on the local provider or the
+      configured CDN public-url prefix. The editor sticker picker and the
+      client-side `[:sticker:name:]` token replacement (MADR 0022) consume
+      this list.
+    security: []
+    responses:
+      '200':
+        description: Enabled sticker list (empty array when none exist).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ForumStickerListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/forum-sticker-list-success.json

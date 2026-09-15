@@ -170,6 +170,7 @@ export default {
       insertBefore: 'Oben',
       insertAfter: 'Unten',
       emoji: 'Emoji',
+      stickers: 'Sticker',
       upload: 'Bild',
       table: 'Tabelle',
       undo: 'Rückgängig',
@@ -184,6 +185,10 @@ export default {
       help: 'Hilfe',
       uploadImageTip: 'Bild hochladen',
     },
+  },
+  stickers: {
+    pickerTitle: 'Sticker',
+    empty: 'Keine Sticker verfügbar',
   },
   common: {
     back: 'Zurück',
@@ -1981,6 +1986,7 @@ export default {
     replyDeleteFailed: 'Löschen der Antwort fehlgeschlagen',
     repliesLoadFailed: 'Laden der Antworten fehlgeschlagen',
     searchUsersFailed: 'Benutzersuche fehlgeschlagen',
+    stickersLoadFailed: 'Laden der Sticker fehlgeschlagen',
     revisionsLoadFailed: 'Laden des Verlaufs fehlgeschlagen',
     operationFailed: 'Vorgang fehlgeschlagen',
     notificationsLoadFailed: 'Laden der Benachrichtigungen fehlgeschlagen',

@@ -317,6 +317,15 @@ const (
 	// 上传扩展配置（issue #408）
 	MessageAdminUploadExtNotAllowed MessageCode = "admin.upload.extNotAllowed" // 上传扩展名白名单含不受支持的扩展，params.extensions。
 
+	// 表情包库（全局贴纸管理）
+	MessageAdminStickerNameRequired     MessageCode = "admin.sticker.nameRequired"     // 表情包名称不能为空。
+	MessageAdminStickerNameInvalid      MessageCode = "admin.sticker.nameInvalid"      // 表情包名称含不支持的字符（仅允许字母/数字/下划线/连字符，最长 64）。
+	MessageAdminStickerNameExists       MessageCode = "admin.sticker.nameExists"       // 同名表情包已存在。
+	MessageAdminStickerSaveFailed       MessageCode = "admin.sticker.saveFailed"       // 保存表情包失败。
+	MessageAdminStickerNotFound         MessageCode = "admin.sticker.notFound"         // 表情包不存在。
+	MessageAdminStickerDeleteFailed     MessageCode = "admin.sticker.deleteFailed"     // 删除表情包失败。
+	MessageAdminStickerImportTooLarge   MessageCode = "admin.sticker.importTooLarge"   // 表情包压缩包超过大小限制，params.maxSizeMb。
+	MessageAdminStickerImportInvalidZip MessageCode = "admin.sticker.importInvalidZip" // 表情包导入仅支持 zip 压缩包。
 	// 管理员可配置 URL 校验（issue #409）
 	MessageAdminUrlInvalid MessageCode = "admin.url.invalid" // 链接不符合允许的协议/目标策略（http(s)、站内相对路径，部分字段允许 mailto）。
 )

@@ -1,0 +1,14 @@
+{
+  "result": {
+    "imported": 1,
+    "skipped": 1,
+    "failed": [
+      {
+        "name": "broken.png",
+        "reason": "invalidImage"
+      }
+    ]
+  },
+  "code": 0,
+  "messageCode": "common.operation.success"
+}

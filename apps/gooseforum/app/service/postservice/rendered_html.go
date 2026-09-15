@@ -6,11 +6,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 )
 
-// RenderPostHTML 渲染帖子正文，并把解析到有效用户的 @mention 渲染为
-// 指向 /u/{userId} 的链接；未知/失效用户名保持普通文本。
+// RenderPostHTML 渲染帖子正文：先把 [:sticker:name:] 表情包 token 展开为
+// 标准图片语法（未知/停用表情保持原样），再把解析到有效用户的 @mention
+// 渲染为指向 /u/{userId} 的链接；未知/失效用户名保持普通文本。
 func RenderPostHTML(content string) string {
+	content = markdown2html.ExpandStickerTokens(content, stickerservice.ResolveURL)
 	usernames := markdown2html.ExtractUsernames(content)
 	if len(usernames) == 0 {
 		return markdown2html.PostMarkdownToHTML(content)
