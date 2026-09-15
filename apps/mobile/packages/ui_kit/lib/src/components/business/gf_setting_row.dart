@@ -3,6 +3,7 @@ import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 import '../gf_icon_tile.dart';
+import '../gf_symbol.dart';
 
 /// Settings list row mirroring web SettingsPage.vue form rows: an optional
 /// leading icon, a title + optional description, and a trailing widget.
@@ -45,7 +46,7 @@ class GfSettingRow extends StatelessWidget {
 
     return td.TCell(
       onTap: onTap,
-      arrow: onTap != null && trailing == null,
+      arrow: false,
       prefix:
           leading ??
           (symbol != null
@@ -53,10 +54,29 @@ class GfSettingRow extends StatelessWidget {
               : icon == null
               ? null
               : Icon(icon, size: 20, color: colors.iconMuted)),
-      title: Text(title),
+      title: Text(
+        title,
+        maxLines: 3,
+        softWrap: true,
+        style: TextStyle(fontSize: 16, height: 1.35, color: colors.baseContent),
+      ),
       subtitle:
-          subtitleWidget ?? (description == null ? null : Text(description!)),
-      trailing: trailing,
+          subtitleWidget ??
+          (description == null
+              ? null
+              : Text(
+                  description!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: colors.baseContent.withValues(alpha: 0.72),
+                  ),
+                )),
+      trailing:
+          trailing ??
+          (onTap == null
+              ? null
+              : GfSymbol('chevron-right', size: 20, color: colors.iconMuted)),
     );
   }
 }
@@ -106,9 +126,24 @@ class GfSwitchRow extends StatelessWidget {
               : icon == null
               ? null
               : Icon(icon, size: 20, color: colors.iconMuted)),
-      title: Text(title),
+      title: Text(
+        title,
+        maxLines: 3,
+        softWrap: true,
+        style: TextStyle(fontSize: 16, height: 1.35, color: colors.baseContent),
+      ),
       subtitle:
-          subtitleWidget ?? (description == null ? null : Text(description!)),
+          subtitleWidget ??
+          (description == null
+              ? null
+              : Text(
+                  description!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: colors.baseContent.withValues(alpha: 0.72),
+                  ),
+                )),
       trailing: td.TSwitch(value: value, onChanged: onChanged),
     );
   }

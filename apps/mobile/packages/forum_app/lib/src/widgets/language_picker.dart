@@ -5,10 +5,8 @@ import '../../l10n/app_localizations.dart';
 import '../app_locale.dart';
 
 Future<void> showAppLanguagePicker(BuildContext context) =>
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
+    showGfBottomSheet<void>(
+      context,
       builder: (_) => Consumer(
         builder: (context, ref, _) {
           final l10n = AppLocalizations.of(context);

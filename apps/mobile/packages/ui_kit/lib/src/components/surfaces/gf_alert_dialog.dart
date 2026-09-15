@@ -6,9 +6,14 @@ Future<T?> showGfAlertDialog<T>(
   required WidgetBuilder builder,
   bool barrierDismissible = false,
 }) {
-  return td.TDialog.show<T>(
-    context,
-    dialog: Builder(builder: builder),
+  // TDesign's popup route does not account for keyboard viewInsets. Let the
+  // native Dialog own viewport constraints while retaining our themed content.
+  return showDialog<T>(
+    context: context,
+    builder: (context) => Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: Builder(builder: builder),
+    ),
     barrierDismissible: barrierDismissible,
   );
 }

@@ -23,6 +23,18 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 
 ## 验证
 
+`Current`: 移动端按钮使用 44–56px 最小高度并允许文字换行增高；输入正文为 16px，
+可点击分类保留 44px 触控区域。`GfTabBar.heightFor(context)` 供页面与悬浮栏同步计算大字体高度。
+`GfEmpty` 支持说明和下一步操作，并适应短屏；资料统计按可用宽度和字号排布，设置行支持多行标题。
+这些组件尺寸适配保留共享语义色与 token 镜像。
+
+`Current`: `showGfBottomSheet` 统一使用 Flutter 的可滚动模态路由，沿用共享面板主题。
+未指定高度时按内容收缩；`height` 是受可用视口约束的内容高度，长内容由调用方提供滚动容器。
+安全区由入口消费一次，底部背景覆盖手势区；`keyboardAware: true` 负责键盘避让，
+调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
+`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，保留 Gf/TDesign 内容样式。
+回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。
+
 ```bash
 cd apps/mobile
 melos run analyze        # 或 melos exec -- flutter analyze

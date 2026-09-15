@@ -11,7 +11,8 @@ import '../../widgets/status_views.dart';
 import 'wiki_page.dart';
 
 class WikiSearchPage extends ConsumerStatefulWidget {
-  const WikiSearchPage({super.key});
+  const WikiSearchPage({super.key, this.initialQuery = ''});
+  final String initialQuery;
   @override
   ConsumerState<WikiSearchPage> createState() => _WikiSearchPageState();
 }
@@ -21,6 +22,16 @@ class _WikiSearchPageState extends ConsumerState<WikiSearchPage> {
   Timer? _debounce;
   int _request = 0;
   AsyncValue<WikiSearchResult>? _result;
+  @override
+  void initState() {
+    super.initState();
+    _query.text = widget.initialQuery;
+    if (_query.text.isNotEmpty) {
+      _result = const AsyncValue.loading();
+      _search();
+    }
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -74,7 +85,7 @@ class _WikiSearchPageState extends ConsumerState<WikiSearchPage> {
               controller: _query,
               hintText: l10n.commonSearch,
               clearLabel: l10n.courseCopyClearSearch,
-              autofocus: true,
+              autofocus: widget.initialQuery.isEmpty,
               maxLength: 100,
               onChanged: _changed,
               onSubmitted: (_) => _search(),

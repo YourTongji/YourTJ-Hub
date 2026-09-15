@@ -6,6 +6,24 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 
 void main() {
+  testWidgets('reading paragraphs and inline code use a legible type scale', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: const Scaffold(body: GfMarkdownView(data: 'Body with `code`')),
+      ),
+    );
+    final config = tester
+        .widget<MarkdownWidget>(find.byType(MarkdownWidget))
+        .config!;
+    expect(config.p.textStyle.fontSize, 18);
+    expect(config.code.style.fontSize, 16);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('short replies have compact block spacing and readable text', (
     tester,
   ) async {
@@ -24,7 +42,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(GfMarkdownView)).height,
-      lessThanOrEqualTo(64),
+      lessThanOrEqualTo(72),
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

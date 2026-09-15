@@ -6,6 +6,33 @@ import '../helpers.dart';
 
 void main() {
   group('GfChip', () {
+    testWidgets(
+      'interactive categories keep a 44px target at large text sizes',
+      (tester) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          gfApp(
+            MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+              child: SizedBox(
+                width: 160,
+                child: GfChip(
+                  label: 'Campusleben',
+                  color: Colors.blue,
+                  onTap: () => taps++,
+                ),
+              ),
+            ),
+          ),
+        );
+        final box = tester.getRect(find.byType(GfChip));
+        expect(box.height, greaterThanOrEqualTo(44));
+        await tester.tapAt(box.topCenter + const Offset(0, 2));
+        expect(taps, 1);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('renders label with color dot in both themes', (tester) async {
       await forEachBrightness(tester, (tester, brightness) async {
         await tester.pumpWidget(
@@ -36,13 +63,7 @@ void main() {
     testWidgets('onTap fires when provided', (tester) async {
       int taps = 0;
       await tester.pumpWidget(
-        gfApp(
-          GfChip(
-            label: 'tap',
-            color: Colors.red,
-            onTap: () => taps++,
-          ),
-        ),
+        gfApp(GfChip(label: 'tap', color: Colors.red, onTap: () => taps++)),
       );
       await tester.tap(find.text('tap'));
       expect(taps, 1);

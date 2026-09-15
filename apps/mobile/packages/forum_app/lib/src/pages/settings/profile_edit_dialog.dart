@@ -9,9 +9,16 @@ import '../../app_locale.dart';
 /// Own the form controllers for the entire dialog route, including its exit
 /// animation. The profile endpoint replaces every field, so preserve unknown
 /// social providers as well as the visible fields.
+enum ProfileEditSection { all, nickname, bio, links }
+
 class ProfileEditDialog extends StatefulWidget {
-  const ProfileEditDialog({super.key, required this.user});
+  const ProfileEditDialog({
+    super.key,
+    required this.user,
+    this.section = ProfileEditSection.all,
+  });
   final SettingsUserPayload user;
+  final ProfileEditSection section;
 
   @override
   State<ProfileEditDialog> createState() => _ProfileEditDialogState();
@@ -43,15 +50,33 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
 
   void _save() {
     if (!_form.currentState!.validate()) return;
+    if (widget.section == ProfileEditSection.nickname ||
+        widget.section == ProfileEditSection.bio) {
+      Navigator.pop(
+        context,
+        widget.section == ProfileEditSection.nickname
+            ? widget.user.copyWith(nickname: _fields['nickname']!.text.trim())
+            : widget.user.copyWith(bio: _fields['bio']!.text.trim()),
+      );
+      return;
+    }
     Navigator.pop(
       context,
       widget.user.copyWith(
-        nickname: _fields['nickname']!.text.trim(),
-        bio: _fields['bio']!.text.trim(),
-        signature: _fields['signature']!.text.trim(),
+        nickname: widget.section == ProfileEditSection.links
+            ? widget.user.nickname
+            : _fields['nickname']!.text.trim(),
+        bio: widget.section == ProfileEditSection.links
+            ? widget.user.bio
+            : _fields['bio']!.text.trim(),
+        signature: widget.section == ProfileEditSection.links
+            ? widget.user.signature
+            : _fields['signature']!.text.trim(),
         websiteName: _fields['websiteName']!.text.trim(),
         website: normalizeProfileLink(_fields['website']!.text)!,
-        locale: _locale,
+        locale: widget.section == ProfileEditSection.links
+            ? widget.user.locale
+            : _locale,
         externalInformation: {
           ...widget.user.externalInformation,
           for (final entry in profileSocialProviders.entries)
@@ -103,7 +128,12 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
       ),
     );
     return AlertDialog(
-      title: Text(l10n.settingsEditProfile),
+      title: Text(switch (widget.section) {
+        ProfileEditSection.nickname => l10n.settingsNickname,
+        ProfileEditSection.bio => l10n.settingsBio,
+        ProfileEditSection.links => l10n.settingsProfileLinks,
+        ProfileEditSection.all => l10n.settingsEditProfile,
+      }),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -112,41 +142,50 @@ class _ProfileEditDialogState extends State<ProfileEditDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                field('nickname', l10n.settingsNickname),
-                field('bio', l10n.settingsBio, lines: 3),
-                field('signature', l10n.settingsSignature, lines: 2),
-                DropdownButtonFormField<String>(
-                  initialValue: _locale,
-                  decoration: InputDecoration(
-                    labelText: l10n.settingsProfileLanguage,
+                if (widget.section == ProfileEditSection.all ||
+                    widget.section == ProfileEditSection.nickname)
+                  field('nickname', l10n.settingsNickname),
+                if (widget.section == ProfileEditSection.all ||
+                    widget.section == ProfileEditSection.bio)
+                  field('bio', l10n.settingsBio, lines: 3),
+                if (widget.section == ProfileEditSection.all) ...[
+                  field('signature', l10n.settingsSignature, lines: 2),
+                  DropdownButtonFormField<String>(
+                    initialValue: _locale,
+                    decoration: InputDecoration(
+                      labelText: l10n.settingsProfileLanguage,
+                    ),
+                    items: [
+                      for (final entry in appLanguageNames.entries)
+                        DropdownMenuItem(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _locale = value);
+                    },
                   ),
-                  items: [
-                    for (final entry in appLanguageNames.entries)
-                      DropdownMenuItem(
-                        value: entry.key,
-                        child: Text(entry.value),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _locale = value);
-                  },
-                ),
-                const SizedBox(height: 16),
-                field('websiteName', l10n.settingsWebsiteName),
-                field('website', l10n.settingsWebsite, url: true),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: Text(l10n.settingsSocialLinks),
-                  children: [
-                    for (final entry in profileSocialProviders.entries)
-                      field(
-                        entry.key,
-                        entry.value.$1,
-                        url: true,
-                        prefix: entry.value.$2,
-                      ),
-                  ],
-                ),
+                  const SizedBox(height: 16),
+                ],
+                if (widget.section == ProfileEditSection.all ||
+                    widget.section == ProfileEditSection.links) ...[
+                  field('websiteName', l10n.settingsWebsiteName),
+                  field('website', l10n.settingsWebsite, url: true),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(l10n.settingsSocialLinks),
+                    children: [
+                      for (final entry in profileSocialProviders.entries)
+                        field(
+                          entry.key,
+                          entry.value.$1,
+                          url: true,
+                          prefix: entry.value.$2,
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

@@ -30,12 +30,12 @@ enum GfButtonVariant {
   link,
 }
 
-/// Button size, mirroring web `gf-button-sm/md/lg/xl`.
+/// Mobile button sizes. These are minimums; scaled or wrapped labels can grow.
 enum GfButtonSize {
-  small(32),
-  medium(36),
-  large(40),
-  extraLarge(44);
+  small(44),
+  medium(48),
+  large(52),
+  extraLarge(56);
 
   const GfButtonSize(this.height);
 
@@ -75,7 +75,8 @@ class GfButton extends StatelessWidget {
     final GfBorders borders = GfTheme.bordersOf(context);
     final TextStyle textStyle =
         (Theme.of(context).textTheme.labelLarge ?? const TextStyle()).copyWith(
-          fontSize: 14,
+          fontSize: size == GfButtonSize.small ? 14 : 16,
+          height: 1.25,
           fontWeight: FontWeight.w600,
         );
 
@@ -126,12 +127,11 @@ class GfButton extends StatelessWidget {
               ? BorderSide.none
               : BorderSide(color: border, width: borders.width),
         ),
-        minimumSize: WidgetStatePropertyAll<Size>(Size(0, size.height)),
-        maximumSize: WidgetStatePropertyAll<Size>(
-          Size(double.infinity, size.height),
-        ),
+        minimumSize: WidgetStatePropertyAll<Size>(Size(44, size.height)),
+        maximumSize: const WidgetStatePropertyAll<Size>(Size.infinite),
         padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
           EdgeInsets.symmetric(
+            vertical: 8,
             horizontal: switch (size) {
               GfButtonSize.small || GfButtonSize.medium => 12,
               GfButtonSize.large || GfButtonSize.extraLarge => 16,
@@ -148,11 +148,12 @@ class GfButton extends StatelessWidget {
         textStyle: WidgetStatePropertyAll<TextStyle>(textStyle),
         elevation: const WidgetStatePropertyAll<double>(0),
       ),
-      child: Text(label),
+      child: Text(label, textAlign: TextAlign.center),
     );
 
-    if (!expanded) return button;
-    return SizedBox(width: double.infinity, child: button);
+    final statefulButton = Opacity(opacity: enabled ? 1 : 0.6, child: button);
+    if (!expanded) return statefulButton;
+    return SizedBox(width: double.infinity, child: statefulButton);
   }
 
   (Color, Color, Color?) _palette(GfColors colors, GfBorders borders) {

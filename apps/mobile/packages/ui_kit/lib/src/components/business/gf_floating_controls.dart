@@ -181,44 +181,56 @@ class _RoundAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: action.onTap,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            child: action.acting
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: action.active
-                          ? action.activeColor
-                          : colors.baseContent.withValues(alpha: 0.75),
-                    ),
-                  )
-                : action.symbol != null
-                ? GfSymbol(
-                    action.symbol!,
-                    size: 18,
-                    color: action.active
-                        ? action.activeColor
-                        : colors.iconMuted,
-                  )
-                : Icon(
-                    action.icon,
-                    size: 16,
-                    color: action.active
-                        ? action.activeColor
-                        : colors.baseContent.withValues(alpha: 0.75),
-                  ),
+    return Tooltip(
+      message: action.title ?? '',
+      excludeFromSemantics: true,
+      child: Semantics(
+        label: action.title,
+        button: true,
+        enabled: true,
+        toggled: action.active,
+        onTap: action.onTap,
+        excludeSemantics: true,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: action.onTap,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                child: action.acting
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: action.active
+                              ? action.activeColor
+                              : colors.baseContent.withValues(alpha: 0.75),
+                        ),
+                      )
+                    : action.symbol != null
+                    ? GfSymbol(
+                        action.symbol!,
+                        size: 18,
+                        color: action.active
+                            ? action.activeColor
+                            : colors.iconMuted,
+                      )
+                    : Icon(
+                        action.icon,
+                        size: 16,
+                        color: action.active
+                            ? action.activeColor
+                            : colors.baseContent.withValues(alpha: 0.75),
+                      ),
+              ),
+            ),
           ),
         ),
       ),

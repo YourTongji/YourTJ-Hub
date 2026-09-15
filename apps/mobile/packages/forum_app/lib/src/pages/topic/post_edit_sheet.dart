@@ -127,73 +127,86 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
         if (!didPop) _close();
       },
       child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            8,
-            16,
-            16 + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: SizedBox(
-            height: MediaQuery.sizeOf(context).height * .55,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l10n.topicEditReply,
-                        style: GfTheme.typographyOf(context).title3,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: l10n.commonClose,
-                      onPressed: _busy || _uploading ? null : _close,
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: TextField(
-                    key: const Key('post-edit-content'),
-                    controller: _text,
-                    enabled: !_busy,
-                    expands: true,
-                    maxLines: null,
-                    minLines: null,
-                    textAlignVertical: TextAlignVertical.top,
-                    decoration: InputDecoration(
-                      hintText: l10n.topicReplyHint,
-                      border: const OutlineInputBorder(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final preferred = MediaQuery.sizeOf(context).height * .55 + 24;
+            final available = constraints.constrainHeight(preferred);
+            final minimum = MediaQuery.textScalerOf(context).scale(220);
+            return SingleChildScrollView(
+              child: SizedBox(
+                height: available < minimum ? minimum : available,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: SizedBox(
+                    height: double.infinity,
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                l10n.topicEditReply,
+                                style: GfTheme.typographyOf(context).title3,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: l10n.commonClose,
+                              onPressed: _busy || _uploading ? null : _close,
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        Expanded(
+                          child: TextField(
+                            key: const Key('post-edit-content'),
+                            controller: _text,
+                            enabled: !_busy,
+                            expands: true,
+                            maxLines: null,
+                            minLines: null,
+                            textAlignVertical: TextAlignVertical.top,
+                            decoration: InputDecoration(
+                              hintText: l10n.topicReplyHint,
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        if (_error != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              _error!,
+                              style: TextStyle(
+                                color: GfTheme.colorsOf(context).error,
+                              ),
+                            ),
+                          ),
+                        Row(
+                          children: [
+                            IconButton(
+                              tooltip: l10n.publishToolImage,
+                              onPressed: _busy || _uploading ? null : _image,
+                              icon: const Icon(
+                                Icons.add_photo_alternate_outlined,
+                              ),
+                            ),
+                            const Spacer(),
+                            Flexible(
+                              child: GfButton(
+                                label: l10n.commonSave,
+                                loading: _busy || _uploading,
+                                onPressed: _save,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(color: GfTheme.colorsOf(context).error),
-                    ),
-                  ),
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: l10n.publishToolImage,
-                      onPressed: _busy || _uploading ? null : _image,
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                    ),
-                    const Spacer(),
-                    GfButton(
-                      label: l10n.commonSave,
-                      loading: _busy || _uploading,
-                      onPressed: _save,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

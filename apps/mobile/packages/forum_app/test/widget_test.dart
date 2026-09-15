@@ -1,3 +1,4 @@
+import 'package:forum_app/src/widgets/brand_mark.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -155,7 +156,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('YourTJ'), findsOneWidget);
+    expect(find.byType(YourTjMark), findsOneWidget);
     appRouter.push('/profile');
     await tester.pumpAndSettle();
 
