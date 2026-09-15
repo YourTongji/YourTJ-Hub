@@ -165,7 +165,7 @@ func ImportStickerPack(c *gin.Context) {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestParseFailed, nil))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	archive, err := io.ReadAll(io.LimitReader(file, stickerImportMaxZipBytes+1))
 	if err != nil || len(archive) > stickerImportMaxZipBytes {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageAdminStickerImportTooLarge, nil))
@@ -204,7 +204,7 @@ func ImportStickerPack(c *gin.Context) {
 			continue
 		}
 		data, err := io.ReadAll(io.LimitReader(reader, filedata.MaxFileSize+1))
-		reader.Close()
+		_ = reader.Close()
 		if err != nil || len(data) > filedata.MaxFileSize {
 			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "tooLarge"})
 			continue
