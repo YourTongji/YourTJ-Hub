@@ -254,6 +254,7 @@ export default {
     groupPersonal: 'Personal',
     groupAdmin: 'Manage',
     nav: {
+      status: "Service status",
       topics: 'Topics',
       hot: 'Hot',
       popular: 'Popular',

@@ -254,6 +254,7 @@ export default {
     groupPersonal: '个人',
     groupAdmin: '管理',
     nav: {
+      status: "运行状态",
       topics: '内容',
       hot: '热门',
       popular: '流行',

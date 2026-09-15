@@ -1,0 +1,100 @@
+{
+  "code": 0,
+  "result": {
+    "range": "24h",
+    "refreshAfter": 30,
+    "server": {
+      "state": "ok",
+      "fetchedAt": "2026-09-14T12:00:00Z",
+      "data": {
+        "name": "Hub Korean",
+        "region": "🇰🇷",
+        "cpuCores": 2,
+        "current": {
+          "observedAt": "2026-09-14T12:00:00Z",
+          "cpu": 12.4,
+          "memoryUsed": 943718400,
+          "memoryTotal": 1755471872,
+          "diskUsed": 15745392640,
+          "diskTotal": 42089560576,
+          "networkUp": 125829,
+          "networkDown": 86508,
+          "uptime": 526033
+        },
+        "history": [
+          {
+            "time": "2026-09-14T12:00:00Z",
+            "cpu": 12.4,
+            "memoryPercent": 53.75
+          }
+        ],
+        "historyAvailable": true
+      }
+    },
+    "traffic": {
+      "state": "ok",
+      "fetchedAt": "2026-09-14T12:00:00Z",
+      "data": {
+        "startAt": "2026-09-13T12:00:00Z",
+        "endAt": "2026-09-14T12:00:00Z",
+        "visitors": 782,
+        "pageviews": 8060,
+        "visits": 899,
+        "bounceRate": 23.58,
+        "averageDuration": 276.85,
+        "activeVisitors": 22,
+        "series": [
+          {
+            "time": "2026-09-14T11:00:00Z",
+            "pageviews": 3754,
+            "visitors": 361
+          },
+          {
+            "time": "2026-09-14T12:00:00Z",
+            "pageviews": 2154,
+            "visitors": 251
+          }
+        ],
+        "seriesAvailable": true
+      }
+    },
+    "serverRange": "1h",
+    "uptime": {
+      "state": "ok",
+      "fetchedAt": "2026-09-14T12:00:00Z",
+      "data": {
+        "statusPageUrl": "https://uptime.mortis.de5.net/status/a",
+        "monitors": [
+          {
+            "id": 5,
+            "name": "YourTJ社区",
+            "type": "http",
+            "uptime24h": 99.95,
+            "current": {
+              "time": "2026-09-14T12:00:00Z",
+              "status": "up",
+              "ping": 628
+            },
+            "history": [
+              {
+                "time": "2026-09-14T11:58:00Z",
+                "status": "down",
+                "ping": null
+              },
+              {
+                "time": "2026-09-14T11:59:00Z",
+                "status": "up",
+                "ping": 630
+              },
+              {
+                "time": "2026-09-14T12:00:00Z",
+                "status": "up",
+                "ping": 628
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
