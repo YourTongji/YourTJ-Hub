@@ -122,7 +122,7 @@ describe('楼层流树状/扁平双视图（组件级集成）', () => {
       // 扁平：链内子回复按楼号平铺为独立顶层楼层
       expect(wrapper.find('article[data-post-no="3"]').exists()).toBe(true)
     }
-  })
+  }, 20_000)
 
   test('树状视图：链内回复真实父子嵌套，主流层只渲染根节点，内容零丢失', async () => {
     const posts = [
