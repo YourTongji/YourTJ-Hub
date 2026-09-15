@@ -113,8 +113,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   same query/page without discarding prior items. New queries and account changes invalidate old responses.
 - `Current`: outgoing chat messages appear immediately as sending bubbles. Failures retain their text
   and expose manual retry without replacing a newer input. Acknowledged bubbles stay visible until
-  matched by server history. The session-local outbox survives leaving a conversation and is cleared
-  at the account/session boundary; it is not persisted across app termination. Only one request for
+  matched by server history. Existing conversations load their initial server history before enabling
+  send; users can keep typing while waiting and retry a failed history load. Offline cached messages
+  do not establish this sending boundary. The session-local outbox survives leaving a conversation
+  and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
 

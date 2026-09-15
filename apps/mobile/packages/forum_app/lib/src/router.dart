@@ -358,9 +358,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/profile',
       builder: (_, state) => ProfilePage(
-        initialStream: state.uri.queryParameters['stream'] == 'bookmarks'
-            ? 'bookmarks'
-            : 'timeline',
+        initialStream: switch (state.uri.queryParameters['stream']) {
+          'bookmarks' => 'bookmarks',
+          'following' => 'following',
+          'followers' => 'followers',
+          _ => 'timeline',
+        },
       ),
     ),
     GoRoute(

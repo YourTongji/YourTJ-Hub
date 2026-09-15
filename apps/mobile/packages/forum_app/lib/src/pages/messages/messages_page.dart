@@ -331,6 +331,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   final ScrollController _scrollController = ScrollController();
   bool _loading = true;
   bool _loadingOlder = false;
+  bool _historyReady = false;
   bool _hasMoreBefore = false;
   Timer? _pollTimer;
   late int _convId;
@@ -379,6 +380,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
 
     _convId = nextConvId;
     _loading = true;
+    _historyReady = false;
     unawaited(_load(silent: true));
     unawaited(_markRead());
   }
@@ -413,8 +415,17 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       _convId = ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
     }
     if (_convId <= 0) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          // A new conversation has no older messages to reconcile against.
+          _historyReady = true;
+        });
+      }
       return;
+    }
+    if (!silent && !_historyReady && mounted) {
+      setState(() => _loading = true);
     }
     // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
     final int epoch = ref.read(offlineCacheEpochProvider);
@@ -440,7 +451,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
             _messages.addAll(newMessages);
             _messages.sort((a, b) => a.id.compareTo(b.id));
           }
-          if (resp.list.isNotEmpty) _latestId = resp.latestId;
+          if (resp.latestId > _latestId) _latestId = resp.latestId;
+          // Only server history establishes a safe lower bound for new sends.
+          // Cached history may omit a newer, identical self-authored message.
+          _historyReady = true;
           _hasMoreBefore = resp.hasMoreBefore;
           _nextBeforeId = resp.nextBeforeId;
           _loading = false;
@@ -461,7 +475,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
       if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
-        if (mounted && !silent) setState(() => _loading = false);
+        if (mounted && (!silent || !_historyReady)) {
+          setState(() => _loading = false);
+        }
         return;
       }
       try {
@@ -482,7 +498,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       } catch (_) {
         // 缓存不可用。
       }
-      if (mounted && !silent) setState(() => _loading = false);
+      if (mounted && (!silent || !_historyReady)) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -528,6 +546,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   }
 
   Future<void> _send(String value) async {
+    if (!_historyReady) return;
     final text = value.trim();
     if (text.isEmpty) return;
     final outbox = ref.read(chatOutboxProvider(widget.conv.peerId));
@@ -537,6 +556,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   }
 
   Future<void> _sendPending(PendingMessage message) async {
+    if (!_historyReady) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final convId = await ref
         .read(chatOutboxProvider(widget.conv.peerId))
@@ -657,7 +677,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                                     ),
                                   ),
                                   TextButton.icon(
-                                    onPressed: () => _sendPending(pending),
+                                    onPressed: _historyReady
+                                        ? () => _sendPending(pending)
+                                        : null,
                                     icon: const Icon(
                                       Icons.error_outline,
                                       size: 18,
@@ -704,11 +726,31 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
           ),
           SafeArea(
             top: false,
-            child: GfChatInput(
-              controller: _input,
-              hintText: l10n.messagesInputHint,
-              sendLabel: l10n.commonSend,
-              onSend: _send,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!_historyReady && !_loading)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(l10n.commonLoadFailed)),
+                        TextButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: Text(l10n.commonRetry),
+                        ),
+                      ],
+                    ),
+                  ),
+                GfChatInput(
+                  controller: _input,
+                  hintText: l10n.messagesInputHint,
+                  sendLabel: l10n.commonSend,
+                  canSend: _historyReady,
+                  onSend: _send,
+                ),
+              ],
             ),
           ),
         ],

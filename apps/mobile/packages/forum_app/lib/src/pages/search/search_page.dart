@@ -227,6 +227,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         setState(() {
           _page = 1;
           _result = AsyncValue.data(props);
+          _loadMoreError = null;
         });
       }
     } catch (e, st) {

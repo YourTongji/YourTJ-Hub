@@ -127,6 +127,13 @@ class RecordingChatCache extends NoopCache {
   }
 }
 
+class SeededMessageCache extends NoopCache {
+  @override
+  Future<List<ChatMessagePayload>> getMessages(int convId) async => [
+    makeChatMessage(9).copyWith(content: '离线缓存消息'),
+  ];
+}
+
 /// 记录 clear 调用次数的离线缓存(登出/登录清缓存断言)。
 class RecordingCache implements OfflineTopicCache, OfflineChatCache {
   int clears = 0;
@@ -301,6 +308,21 @@ class RetryChatRepository extends RecordingChatRepository {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return 9;
   }
+}
+
+class InitialHistoryChatRepository extends RecordingChatRepository {
+  InitialHistoryChatRepository(super.client);
+  Completer<ChatMessagesResponse> initial = Completer();
+
+  @override
+  Future<ChatMessagesResponse> getMessages({
+    required int convId,
+    int beforeId = 0,
+    int afterId = 0,
+    int limit = 30,
+  }) => afterId == 0
+      ? initial.future
+      : super.getMessages(convId: convId, afterId: afterId);
 }
 
 class RecordingChatRepository extends ChatRepository {
@@ -1652,6 +1674,182 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('zh'),
       ),
+    );
+  }
+
+  for (final stream in ['following', 'followers', 'bookmarks', 'invalid']) {
+    testWidgets('review regression: profile route selects $stream stream', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final repo = RedesignPageRepository(client);
+      final container = await makeContainer(pageRepo: repo, currentUserId: 1);
+      final router = GoRouter(
+        initialLocation: '/profile?stream=$stream',
+        routes: appRouter.configuration.routes,
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+      final path = switch (stream) {
+        'bookmarks' => '/u/1/bookmarks',
+        'invalid' => '/u/1/activity',
+        _ => '/u/1/activity/$stream',
+      };
+      expect(repo.paths, contains(path));
+      final label = switch (stream) {
+        'following' => '关注',
+        'followers' => '粉丝',
+        'bookmarks' => '收藏',
+        _ => '动态',
+      };
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              w.properties.label == label &&
+              w.properties.selected == true,
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  testWidgets(
+    'review regression: successful search refresh clears pagination error',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final repo = FailingSearchRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        topicRepo: repo,
+      );
+      await tester.pumpWidget(app(container, const SearchPage()));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '测试');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      repo.fail = true;
+      await tester.tap(find.text('加载更多'));
+      await tester.pumpAndSettle();
+      expect(find.text('重试'), findsOneWidget);
+      repo.fail = false;
+      await tester.fling(
+        find.byType(ListView).first,
+        const Offset(0, 400),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(repo.searchPages, [1, 1]);
+      expect(find.text('结果-第一页'), findsOneWidget);
+      expect(find.text('重试'), findsNothing);
+      await tester.tap(find.text('加载更多'));
+      await tester.pumpAndSettle();
+      expect(repo.searchPages, [1, 1, 2]);
+      expect(find.text('结果-第二页'), findsOneWidget);
+    },
+  );
+
+  for (final scenario in ['delayed', 'failure', 'cached', 'activated']) {
+    testWidgets(
+      'review regression: chat waits for initial history ($scenario)',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final chats = InitialHistoryChatRepository(client);
+        final container = await makeContainer(
+          pageRepo: scenario == 'activated'
+              ? ActivatingConversationPageRepository(client)
+              : CountingPageRepository(client),
+          chatRepo: chats,
+          chatCache: scenario == 'cached' ? SeededMessageCache() : null,
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            scenario == 'activated'
+                ? const MessagesPage(targetUserId: 2, targetUsername: 'Bob')
+                : const MessagesPage(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        if (scenario == 'activated') {
+          await tester.pump(const Duration(seconds: 15));
+        } else {
+          await tester.tap(find.text('bob'));
+        }
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(GfChatInput),
+            matching: find.byType(TextField),
+          ),
+          'OK',
+        );
+        await tester.pump();
+        final input = tester
+            .widget<GfChatInput>(find.byType(GfChatInput))
+            .controller!;
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+              .onPressed,
+          isNull,
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+        expect(chats.sent, isEmpty);
+        expect(input.text, 'OK');
+        if (scenario != 'delayed') {
+          chats.initial.completeError(StateError('offline'));
+          await tester.pumpAndSettle();
+          if (scenario == 'cached') {
+            expect(find.text('离线缓存消息'), findsOneWidget);
+          }
+          expect(
+            tester
+                .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+                .onPressed,
+            isNull,
+          );
+          chats.initial = Completer();
+          await tester.tap(find.text('重试'));
+          await tester.pump();
+        }
+        chats.initial.complete(
+          ChatMessagesResponse(
+            list: [makeChatMessage(10).copyWith(content: 'OK', isSelf: true)],
+            hasMoreBefore: false,
+            hasMoreAfter: false,
+            nextBeforeId: 0,
+            latestId: 10,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('发送'));
+        await tester.pumpAndSettle();
+        expect(chats.sent, [(2, 'OK')]);
+        expect(input.text, isEmpty);
+        expect(find.text('OK'), findsNWidgets(2), reason: '旧历史不能吞掉刚发送的同文气泡');
+        expect(find.text('已发送'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
     );
   }
 

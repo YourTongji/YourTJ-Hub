@@ -15,6 +15,7 @@ class GfChatInput extends StatefulWidget {
     this.sendLabel,
     this.enterHint,
     this.enabled = true,
+    this.canSend = true,
   });
 
   final ValueChanged<String> onSend;
@@ -23,6 +24,9 @@ class GfChatInput extends StatefulWidget {
   final String? sendLabel;
   final String? enterHint;
   final bool enabled;
+
+  /// Keep drafting available while the caller prepares the conversation.
+  final bool canSend;
 
   @override
   State<GfChatInput> createState() => _GfChatInputState();
@@ -70,6 +74,7 @@ class _GfChatInputState extends State<GfChatInput> {
   }
 
   void _send() {
+    if (!widget.enabled || !widget.canSend) return;
     final String text = _controller.text.trim();
     if (text.isEmpty) return;
     widget.onSend(text);
@@ -192,7 +197,9 @@ class _GfChatInputState extends State<GfChatInput> {
                       const Spacer(),
                     FilledButton.icon(
                       onPressed:
-                          widget.enabled && _controller.text.trim().isNotEmpty
+                          widget.enabled &&
+                              widget.canSend &&
+                              _controller.text.trim().isNotEmpty
                           ? _send
                           : null,
                       icon: const Icon(Icons.send, size: 16),
