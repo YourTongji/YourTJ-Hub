@@ -49,9 +49,11 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: gfThemeData(Brightness.light),
-        home: const Scaffold(body: GfMarkdownView(data: 'Body with `code`')),
+      ProviderScope(
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: const Scaffold(body: GfMarkdownView(data: 'Body with `code`')),
+        ),
       ),
     );
     final config = tester
