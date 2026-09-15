@@ -23,6 +23,7 @@ export default {
       insertBefore: '上へ',
       insertAfter: '下へ',
       emoji: '絵文字',
+      stickers: 'スタンプ',
       upload: '画像',
       table: '表',
       undo: '元に戻す',
@@ -37,6 +38,10 @@ export default {
       help: 'ヘルプ',
       uploadImageTip: '画像をアップロード',
     },
+  },
+  stickers: {
+    pickerTitle: 'スタンプ',
+    empty: '利用可能なスタンプがありません',
   },
   common: {
     back: '戻る',
@@ -1832,6 +1837,7 @@ export default {
     operationFailed: '操作に失敗しました',
     repliesLoadFailed: '返信の読み込みに失敗しました',
     searchUsersFailed: 'ユーザー検索に失敗しました',
+    stickersLoadFailed: 'スタンプの読み込みに失敗しました',
     revisionsLoadFailed: '編集履歴の読み込みに失敗しました',
     notificationsLoadFailed: '通知の読み込みに失敗しました',
     likeFailed: 'いいねに失敗しました',

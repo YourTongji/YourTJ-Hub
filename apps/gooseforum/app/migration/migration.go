@@ -42,6 +42,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
@@ -635,6 +636,7 @@ func validateUniqueUsernames(db *gorm.DB) error {
 func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
+		&sticker.Entity{},
 		&course.Entity{},
 		&course.AliasEntity{},
 		&course.TermEntity{},

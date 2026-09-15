@@ -179,6 +179,8 @@ paths:
     $ref: ./paths/forum-read.yaml#/getSiteStatistics
   /api/forum/search:
     $ref: ./paths/forum-read.yaml#/searchForum
+  /api/forum/stickers:
+    $ref: ./paths/forum-read.yaml#/forumStickerList
   /api/site-theme/tokens:
     $ref: ./paths/site-theme-public.yaml#/getPublicSiteThemeTokens
   /api/forum/user/my-content:
@@ -428,6 +430,14 @@ paths:
     $ref: ./paths/admin-content-ops.yaml#/adminSaveBadge
   /api/admin/badge-delete:
     $ref: ./paths/admin-content-ops.yaml#/adminDeleteBadge
+  /api/admin/stickers:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerList
+  /api/admin/sticker-save:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerSave
+  /api/admin/sticker-delete:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerDelete
+  /api/admin/sticker-import:
+    $ref: ./paths/admin-stickers.yaml#/adminStickerImport
   /api/admin/review-queue:
     $ref: ./paths/admin-content-ops.yaml#/adminListReviewQueue
   /api/admin/review-action:
@@ -1759,3 +1769,31 @@ components:
       $ref: ./components/schemas.yaml#/DirectImageUploadAbortSuccess
     DirectImageUploadAbortResponse:
       $ref: ./components/schemas.yaml#/DirectImageUploadAbortResponse
+    StickerItem:
+      $ref: ./components/schemas.yaml#/StickerItem
+    ForumStickerListSuccess:
+      $ref: ./components/schemas.yaml#/ForumStickerListSuccess
+    ForumStickerListResponse:
+      $ref: ./components/schemas.yaml#/ForumStickerListResponse
+    AdminStickerItem:
+      $ref: ./components/schemas.yaml#/AdminStickerItem
+    AdminStickerListSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerListSuccess
+    AdminStickerListResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerListResponse
+    AdminStickerSaveRequest:
+      $ref: ./components/schemas.yaml#/AdminStickerSaveRequest
+    AdminStickerDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminStickerDeleteRequest
+    AdminStickerActionSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerActionSuccess
+    AdminStickerActionResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerActionResponse
+    AdminStickerImportIssue:
+      $ref: ./components/schemas.yaml#/AdminStickerImportIssue
+    AdminStickerImportResult:
+      $ref: ./components/schemas.yaml#/AdminStickerImportResult
+    AdminStickerImportSuccess:
+      $ref: ./components/schemas.yaml#/AdminStickerImportSuccess
+    AdminStickerImportResponse:
+      $ref: ./components/schemas.yaml#/AdminStickerImportResponse

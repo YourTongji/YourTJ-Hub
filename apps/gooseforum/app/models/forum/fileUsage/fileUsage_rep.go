@@ -35,6 +35,16 @@ func ReplaceTargetUsages(targetType string, targetId uint64, usageTypes []string
 	return db.Create(&usages).Error
 }
 
+// DeleteTargetUsages removes one usage type's rows for a target (e.g. a
+// deleted sticker releasing its file reference so storage GC can reclaim it).
+func DeleteTargetUsages(targetType string, targetId uint64, usageType string) error {
+	return builder().
+		Where(queryopt.Eq("target_type", targetType)).
+		Where(queryopt.Eq("target_id", targetId)).
+		Where(queryopt.Eq("usage_type", usageType)).
+		Delete(&Entity{}).Error
+}
+
 // MarkTargetRecovering 将某内容的附件引用转入受限恢复态（删除后 30 天窗口）。
 func MarkTargetRecovering(targetType string, targetId uint64, expiresAt time.Time) error {
 	return builder().

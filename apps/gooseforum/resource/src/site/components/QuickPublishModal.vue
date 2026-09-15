@@ -22,6 +22,7 @@ import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import { useQuickPublish } from '@/site/composables/useQuickPublish'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import MentionCandidates from '@/site/components/MentionCandidates.vue'
+import StickerPicker from '@/site/components/StickerPicker.vue'
 import { useMentionAutocomplete } from '@/site/composables/useMentionAutocomplete'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { clearQuickPublishDraft, readQuickPublishDraft, writeQuickPublishDraft, type QuickPublishDraftStash } from '@/site/utils/quick-publish-draft'
@@ -437,6 +438,14 @@ function clearSensitiveHighlight() {
 function handleBodyInput() {
   clearSensitiveHighlight()
   refreshMentionSession()
+}
+
+// 站点表情包面板（MADR 0022）：选中后向编辑器光标处插入 [:sticker:name:] token
+const stickerPickerOpen = ref(false)
+
+function insertStickerToken(name: string) {
+  stickerPickerOpen.value = false
+  editor.value?.insertMarkdown(`[:sticker:${name}:]`)
 }
 
 function handleTitleInput() {
@@ -887,6 +896,8 @@ async function handleSubmit() {
               @input="handleBodyInput"
               @upload="uploadImageFiles"
               @error="handleEditorError"
+              :sticker-picker="true"
+              @open-stickers="stickerPickerOpen = !stickerPickerOpen"
             />
             <!-- @mention 候选面板（issue #590）：与回复编辑器共享会话引擎与面板组件 -->
             <MentionCandidates
@@ -899,6 +910,13 @@ async function handleSubmit() {
               :docked="mentionDocked"
               :panel-style="mentionPanelStyle"
               @select="selectMention"
+            />
+            <!-- 站点表情包面板（MADR 0022）：工具栏在底部，面板向上展开 -->
+            <StickerPicker
+              :open="stickerPickerOpen"
+              placement="above"
+              @select="insertStickerToken"
+              @close="stickerPickerOpen = false"
             />
           </div>
 

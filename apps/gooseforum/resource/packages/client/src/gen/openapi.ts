@@ -1756,6 +1756,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List enabled stickers for the editor picker and token replacement
+         * @description Fully public endpoint: no authentication, no rate limit, no input, and
+         *     no business failure branch. Returns enabled stickers only, ordered by
+         *     sortOrder ascending then id ascending, each with its globally unique
+         *     name and public access `url`. The url follows the storage
+         *     configuration: `/file/img/<fileName>` on the local provider or the
+         *     configured CDN public-url prefix. The editor sticker picker and the
+         *     client-side `[:sticker:name:]` token replacement (MADR 0022) consume
+         *     this list.
+         */
+        get: operations["forumStickerList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/site-theme/tokens": {
         parameters: {
             query?: never;
@@ -4752,6 +4779,128 @@ export interface paths {
          *     an unknown (but non-system) code succeeds silently.
          */
         post: operations["adminDeleteBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every sticker row for the admin console
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Returns every sticker row (enabled and disabled),
+         *     ordered by sortOrder ascending then id ascending. `url` follows the
+         *     storage configuration: `/file/img/<fileName>` on the local provider or
+         *     the configured CDN public-url prefix; empty when no image is attached
+         *     yet. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminStickerList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or update a sticker row
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+         *     creates a new sticker; a positive `id` overwrites name/sortOrder/
+         *     isEnabled of the existing row (the image itself is attached separately
+         *     via upload or pack import). The name is trimmed; a blank name fails
+         *     with `admin.sticker.nameRequired`, a name outside the allowed set
+         *     (Unicode letters/digits/underscore/hyphen, 1-64 chars — the token form
+         *     `[:sticker:name:]` requires a sticker-safe identifier, MADR 0022) fails
+         *     with `admin.sticker.nameInvalid`, and a name already taken by another
+         *     row fails with `admin.sticker.nameExists`. A positive `id` matching no
+         *     sticker fails with `admin.sticker.notFound`; a persistence failure
+         *     fails with `admin.sticker.saveFailed` (all HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails as
+         *     `admin.sticker.nameRequired` (HTTP 200) because the trimmed name is
+         *     empty.
+         */
+        post: operations["adminStickerSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a sticker row
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     sticker row is hard-deleted and its file usage released so the storage
+         *     GC can reclaim the image when no other reference remains. Unknown ids
+         *     (including a missing/zero id) fail with `admin.sticker.notFound`;
+         *     a persistence failure fails with `admin.sticker.deleteFailed` (both
+         *     HTTP 200). JSON binding is lenient: a malformed body binds to zero
+         *     values and fails as `admin.sticker.notFound`.
+         */
+        post: operations["adminStickerDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sticker-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a zip pack of sticker images
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. This is
+         *     a bare gin handler (not the UpButterReq wrapper), but the response
+         *     envelope is still the standard ResultStruct JSON. Accepts a multipart
+         *     zip archive (form field `file`, capped at 32MB and 500 entries); each
+         *     image entry becomes one enabled sticker named after its file stem
+         *     (sanitized to a sticker-safe identifier and uniquified server-side
+         *     with -2/-3 suffixes on collision). macOS resource forks, dotfiles, and
+         *     unsupported extensions are silently skipped; entry-level failures
+         *     (unreadable entry, oversized or forged image, unusable name,
+         *     persistence failure) are reported in `result.failed` instead of
+         *     blocking the rest of the pack. Exceeding the 500-entry cap appends a
+         *     `name: "..."` / `reason: "tooManyFiles"` issue and stops. Failures
+         *     (HTTP 200): missing `file` field → `upload.file.missing`; archive
+         *     over 32MB → `admin.sticker.importTooLarge`; non-zip content →
+         *     `admin.sticker.importInvalidZip`.
+         */
+        post: operations["adminStickerImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10648,6 +10797,94 @@ export interface components {
             result: true;
         };
         DirectImageUploadAbortResponse: components["schemas"]["DirectImageUploadAbortSuccess"] | components["schemas"]["ApiFailure"];
+        StickerItem: {
+            /** @description Globally unique sticker name, the `[:sticker:name:]` token body; letters/digits/underscore/hyphen only, 1-64 chars. */
+            name: string;
+            /** @description Public access path — `/file/img/<fileName>` on the local provider or the configured CDN public-url prefix. */
+            url: string;
+        };
+        ForumStickerListSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Enabled stickers only, sortOrder ascending then id ascending (empty array when none exist). */
+            result: components["schemas"]["StickerItem"][];
+        };
+        ForumStickerListResponse: components["schemas"]["ForumStickerListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerItem: {
+            /**
+             * Format: uint64
+             * @description Sticker row id (the handle used by the save/delete operations).
+             */
+            id: number;
+            /** @description Globally unique sticker name (token body). */
+            name: string;
+            /** @description Stored file name; empty when no image is attached yet. */
+            fileName: string;
+            /** @description Public access path (`/file/img/<fileName>` or CDN prefix); empty when fileName is empty. */
+            url: string;
+            /** @description Ascending sort weight (ties break by id ascending). */
+            sortOrder: number;
+            /** @description Disabled rows stay hidden from the public list but remain editable here. */
+            isEnabled: boolean;
+            /**
+             * Format: uint64
+             * @description Admin user id that created/imported the sticker; 0 when unrecorded.
+             */
+            createdBy: number;
+        };
+        AdminStickerListSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description All sticker rows including disabled ones, sortOrder ascending then id ascending. */
+            result: components["schemas"]["AdminStickerItem"][];
+        };
+        AdminStickerListResponse: components["schemas"]["AdminStickerListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerSaveRequest: {
+            /**
+             * Format: uint64
+             * @description 0 creates a new sticker; a positive id overwrites name/sortOrder/isEnabled of that row (unknown positive ids fail with `admin.sticker.notFound`, HTTP 200).
+             */
+            id?: number;
+            /** @description Sticker name (token body), trimmed server-side. Allowed characters are Unicode letters/digits/underscore/hyphen, 1-64 chars (Go pattern `^[\p{L}\p{N}_\-]{1,64}$`). Blank fails with `admin.sticker.nameRequired`; disallowed characters fail with `admin.sticker.nameInvalid`; a name taken by another row fails with `admin.sticker.nameExists` (all HTTP 200). */
+            name?: string;
+            /** @description Ascending sort weight. */
+            sortOrder?: number;
+            /** @description Disabled stickers stay hidden from the public list. */
+            isEnabled?: boolean;
+        };
+        AdminStickerDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Sticker to delete; 0 or unknown ids fail with `admin.sticker.notFound` (HTTP 200).
+             */
+            id?: number;
+        };
+        AdminStickerActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminStickerActionResponse: components["schemas"]["AdminStickerActionSuccess"] | components["schemas"]["ApiFailure"];
+        AdminStickerImportIssue: {
+            /** @description Offending archive entry base name, or `...` when the 500-entry cap stopped the import. */
+            name: string;
+            /**
+             * @description Machine-readable per-entry failure reason.
+             * @enum {string}
+             */
+            reason: "entryOpenFailed" | "tooLarge" | "invalidImage" | "unusableName" | "saveFailed" | "tooManyFiles";
+        };
+        AdminStickerImportResult: {
+            /** @description Entries persisted as enabled stickers. */
+            imported: number;
+            /** @description Entries silently ignored (directories, dotfiles, macOS resource forks, unsupported extensions). */
+            skipped: number;
+            /** @description Per-entry failures, reported instead of blocking the rest of the pack (empty array when none). */
+            failed: components["schemas"]["AdminStickerImportIssue"][];
+        };
+        AdminStickerImportSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminStickerImportResult"];
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -13699,6 +13936,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    forumStickerList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enabled sticker list (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumStickerListResponse"];
                 };
             };
         };
@@ -18693,6 +18950,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All sticker rows including disabled ones (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStickerSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Sticker saved (`result` is the string `success`), or a legacy business failure envelope (`admin.sticker.nameRequired` / `admin.sticker.nameInvalid` / `admin.sticker.nameExists` / `admin.sticker.notFound` / `admin.sticker.saveFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminStickerDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Sticker deleted (`result` is the string `success`), or a legacy business failure envelope (`admin.sticker.notFound` / `admin.sticker.deleteFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminStickerImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Zip archive of sticker images (≤32MB, ≤500 entries).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Per-entry import outcome buckets (`result.failed` entries are non-fatal), or a legacy business failure envelope (`upload.file.missing` / `admin.sticker.importTooLarge` / `admin.sticker.importInvalidZip`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStickerImportResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

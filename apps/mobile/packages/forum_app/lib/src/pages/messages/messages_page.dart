@@ -15,6 +15,7 @@ import '../../navigation/tab_scroll_registry.dart';
 import '../../format.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/sticker_message_span.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
 /// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
@@ -345,6 +346,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
     _scrollController.addListener(_onScroll);
     // 打开会话即上报已读回执(清服务端未读数)。
     _markRead();
+    // 表情包库未就绪时拉一次(会话级缓存),完成后刷新气泡分段渲染。
+    _ensureStickers();
+  }
+
+  void _ensureStickers() {
+    ref
+        .read(stickerLibraryProvider)
+        .load()
+        .then((_) {
+          if (mounted) setState(() {});
+        })
+        .catchError((Object _) {
+          // 拉取失败保持纯文本渲染;库不缓存失败,下次进入会话重试。
+        });
   }
 
   @override
@@ -695,7 +710,7 @@ class _ConversationList extends StatelessWidget {
           name: conversation.peerUsername,
           lastMessage: conversation.lastMsg.isEmpty
               ? l10n.messagesNoMessagesYet
-              : conversation.lastMsg,
+              : stickerPreviewLabel(conversation.lastMsg),
           time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
           unreadCount: conversation.unreadCount,
           onTap: () => onOpen(conversation),
@@ -1055,7 +1070,7 @@ class _DatePill extends StatelessWidget {
   }
 }
 
-class _MessageRow extends StatelessWidget {
+class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     required this.message,
     required this.peerAvatar,
@@ -1067,7 +1082,11 @@ class _MessageRow extends StatelessWidget {
   final String viewerAvatar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final InlineSpan? contentSpan = buildStickerMessageSpan(
+      message.content,
+      ref.read(stickerLibraryProvider).urlByName,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -1083,6 +1102,7 @@ class _MessageRow extends StatelessWidget {
           Flexible(
             child: GfMessageBubble(
               text: message.content,
+              contentSpan: contentSpan,
               mine: message.isSelf,
               time: formatChatTime(
                 message.createdAt,
