@@ -3971,6 +3971,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose a preset or upload a photo'**
   String get settingsAvatarSources;
+
+  /// No description provided for @settingsEmailChangeStaged.
+  ///
+  /// In en, this message translates to:
+  /// **'Email change request submitted.'**
+  String get settingsEmailChangeStaged;
+
+  /// No description provided for @settingsEmailPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting confirmation: {email}'**
+  String settingsEmailPending(String email);
 }
 
 class _AppLocalizationsDelegate

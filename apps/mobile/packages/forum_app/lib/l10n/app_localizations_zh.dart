@@ -2057,4 +2057,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsAvatarSources => '选择预设头像或上传图片';
+
+  @override
+  String get settingsEmailChangeStaged => '邮箱变更请求已提交。';
+
+  @override
+  String settingsEmailPending(String email) {
+    return '待确认：$email';
+  }
 }

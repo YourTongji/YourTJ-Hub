@@ -1655,6 +1655,7 @@ export default {
       profileSaved: 'Profile saved',
       usernameSaved: 'Username updated',
       emailSaved: 'Email updated. Please check your verification email.',
+      emailChangeStaged: 'Change requested. Please confirm it from the new email inbox; your current email stays in place until then.',
       activationEmailSent: 'Verification email sent. Please check your inbox.',
       passwordChanged: 'Password changed',
       privacySaved: 'Privacy preferences saved',
@@ -1716,6 +1717,11 @@ export default {
       description: 'Verify it to use posting, replies, and account features normally.',
       action: 'Send verification email',
       sending: 'Sending',
+    },
+    emailChangePending: {
+      title: 'Email change in progress:',
+      description: 'A confirmation email was sent to {email}. The switch only happens after it is confirmed. Until then your current email keeps working for sign-in and password recovery.',
+      resend: 'Resend confirmation',
     },
     easterEgg: {
       success: 'Easter egg triggered: your avatar is looking sharp today.',

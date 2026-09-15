@@ -696,5 +696,14 @@
   "refreshFailedRetained": "更新できませんでした。現在の内容を表示しています。",
   "scheduleOpenWebShort": "Web 版",
   "settingsProfileLinks": "ウェブサイトとSNS",
-  "settingsAvatarSources": "プリセットを選択、または写真をアップロード"
+  "settingsAvatarSources": "プリセットを選択、または写真をアップロード",
+  "settingsEmailChangeStaged": "メールアドレスの変更リクエストを送信しました。",
+  "settingsEmailPending": "確認待ち：{email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }

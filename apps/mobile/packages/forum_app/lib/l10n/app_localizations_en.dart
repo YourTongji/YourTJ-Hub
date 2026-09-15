@@ -2122,4 +2122,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAvatarSources => 'Choose a preset or upload a photo';
+
+  @override
+  String get settingsEmailChangeStaged => 'Email change request submitted.';
+
+  @override
+  String settingsEmailPending(String email) {
+    return 'Awaiting confirmation: $email';
+  }
 }

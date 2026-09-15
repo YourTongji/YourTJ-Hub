@@ -177,3 +177,4 @@ jobs:
           go test ./app/models/forum/course/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/dailyStats/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/topicUserStat/ -run 'PostgreSQL$' -v
+          go test ./app/models/forum/users/ -run 'PostgreSQL$' -v

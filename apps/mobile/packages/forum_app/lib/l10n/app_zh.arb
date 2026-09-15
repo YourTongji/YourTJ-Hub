@@ -1026,5 +1026,14 @@
   "refreshFailedRetained": "刷新失败，已保留当前内容",
   "scheduleOpenWebShort": "网页版",
   "settingsProfileLinks": "网站与社交链接",
-  "settingsAvatarSources": "选择预设头像或上传图片"
+  "settingsAvatarSources": "选择预设头像或上传图片",
+  "settingsEmailChangeStaged": "邮箱变更请求已提交。",
+  "settingsEmailPending": "待确认：{email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }

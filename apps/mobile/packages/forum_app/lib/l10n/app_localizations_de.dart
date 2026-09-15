@@ -2147,4 +2147,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsAvatarSources => 'Vorlage wählen oder Foto hochladen';
+
+  @override
+  String get settingsEmailChangeStaged =>
+      'Die Anfrage zur Änderung der E-Mail-Adresse wurde gesendet.';
+
+  @override
+  String settingsEmailPending(String email) {
+    return 'Bestätigung ausstehend: $email';
+  }
 }

@@ -2069,4 +2069,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsAvatarSources => 'プリセットを選択、または写真をアップロード';
+
+  @override
+  String get settingsEmailChangeStaged => 'メールアドレスの変更リクエストを送信しました。';
+
+  @override
+  String settingsEmailPending(String email) {
+    return '確認待ち：$email';
+  }
 }

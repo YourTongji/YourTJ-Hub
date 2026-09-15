@@ -42,6 +42,21 @@ func Resend(userEntity users.EntityComplete) (ResendResult, error) {
 	if !securityConfig.EnableEmailVerification {
 		return result, ErrDisabled
 	}
+
+	// 两阶段换绑（issue #678）：存在窗口内的换绑暂存时，重发对象是暂存邮箱的
+	// 确认邮件（已激活账号也会走到这里；无暂存且已激活仍返回已验证错误）。
+	if pending := userEntity.FreshPendingEmail(time.Now()); pending != "" {
+		result, err := consumeQuota(userEntity.Id, time.Now())
+		if err != nil {
+			return result, err
+		}
+		if err = SendPendingEmailActivation(&userEntity, pending); err != nil {
+			slog.Info("换绑确认邮件重发失败", "userId", userEntity.Id, "error", err)
+			return result, err
+		}
+		return result, nil
+	}
+
 	if userEntity.IsActivated != users.ActivationPending {
 		return result, ErrAlreadyVerified
 	}

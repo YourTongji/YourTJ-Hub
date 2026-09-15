@@ -2,6 +2,8 @@
 package transform
 
 import (
+	"time"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
@@ -26,12 +28,15 @@ func User2userShow(user users.EntityComplete) *vo.UserInfoShow {
 }
 
 // User2UserDetailedVo maps a user entity to the detailed profile payload.
+// PendingEmail 只暴露仍在占用窗口内的换绑暂存（issue #678）；过期暂存视为
+// 已放弃，不向设置页展示。
 func User2UserDetailedVo(user users.EntityComplete) *vo.UserDetailedVo {
 	userBadges := badgeservice.GetUserBadges(user.Id)
 	return &vo.UserDetailedVo{
 		Id:                  user.Id,
 		Username:            user.Username,
 		Email:               user.Email,
+		PendingEmail:        user.FreshPendingEmail(time.Now()),
 		Nickname:            user.Nickname,
 		AvatarUrl:           user.GetWebAvatarUrl(),
 		ProfileCoverUrl:     user.ProfileCoverUrl,

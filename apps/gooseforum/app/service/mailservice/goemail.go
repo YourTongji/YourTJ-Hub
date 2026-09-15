@@ -164,6 +164,43 @@ func SendEmailChangedEmail(to, username, newEmail string, locale ...string) erro
 	return nil
 }
 
+// SendEmailChangePendingEmail 发送换绑申请通知邮件到旧邮箱（两阶段换绑
+// 第一阶段，issue #678）：告知邮箱所有者有人请求把账号邮箱改绑到 newEmail，
+// 该变更尚未生效——只有新邮箱完成确认后才会真正切换。此时旧邮箱仍可正常
+// 登录/找回密码，邮箱所有者若非本人操作可立即改密止损。
+func SendEmailChangePendingEmail(to, username, newEmail string, locale ...string) error {
+	config := hotdataserve.GetMailSettingsConfigCache()
+	slog.Debug("准备发送换绑申请通知邮件", "to", to, "username", username, "newEmail", newEmail, "enableMail", config.EnableMail)
+	if !config.EnableMail {
+		return errors.New("mail settings config is disabled")
+	}
+	message := mail.NewMsg()
+	if err := message.To(to); err != nil {
+		return fmt.Errorf("failed to set To address: %w", err)
+	}
+	message.Subject(i18n.T(emailBodyLang(locale...), "email.changePending.subject"))
+	if err := setMessageFrom(message, config); err != nil {
+		return err
+	}
+	body, err := generateEmailChangePendingEmailBody(username, newEmail, locale...)
+	if err != nil {
+		return fmt.Errorf("生成邮件内容失败: %w", err)
+	}
+	message.SetBodyString(mail.TypeTextHTML, body)
+
+	client, err := buildClientByConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create mail client: %w", err)
+	}
+	defer func() { _ = client.Close() }()
+	if err = client.DialAndSend(message); err != nil {
+		slog.Debug("换绑申请通知邮件 SMTP 发送失败", "to", to, "username", username, "err", err)
+		return fmt.Errorf("failed to send mail: %w", err)
+	}
+	slog.Debug("换绑申请通知邮件 SMTP 发送成功", "to", to, "username", username)
+	return nil
+}
+
 // SendTestEmailWithConfig 使用指定配置发送测试邮件
 func SendTestEmailWithConfig(config pageConfig.MailSettingsConfig, testEmail string) error {
 	// 使用 go-mail 库直接发送测试邮件

@@ -105,10 +105,12 @@ func Register(c *gin.Context) {
 	// auth.register.failed 错误体，不再区分 auth.username.exists / auth.email.exists，
 	// 消除"具体哪个字段被占用"的子 oracle（邮箱注册状态属 PII 级身份关联信息）。
 	// 两次存在性查询无条件执行，查询次数不随账号状态变化，消除查询次数侧信道。
+	// 邮箱占用同时覆盖两阶段换绑暂存（issue #678）：窗口内的 pending_email
+	// 同样拒绝注册，防止换绑确认前被抢注导致切换时唯一索引冲突。
 	// 注意：注册协议本身（新建账号并自动登录成功 vs 失败）仍固有地区分邮箱是否
 	// 已注册；彻底消除该残余信号需改为异步邮箱验证流程，属产品决策（issue #124 验收项 1）。
 	usernameExists := users.ExistUsername(r.Username)
-	emailExists := users.ExistEmail(r.Email)
+	emailExists := users.ExistEmailOrFreshPending(r.Email, 0)
 	if usernameExists || emailExists {
 		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterFailed, nil))
 		return

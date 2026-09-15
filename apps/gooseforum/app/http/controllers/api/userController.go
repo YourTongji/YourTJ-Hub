@@ -80,7 +80,12 @@ type EditUserEmailReq struct {
 	Password string `json:"password" validate:"required"`
 }
 
-// EditUserEmail updates the current user's email and resets activation state.
+// EditUserEmail 两阶段换绑第一阶段（issue #678）：验证开关开启时只把新邮箱
+// 写入暂存（pending_email）并向新地址发送确认邮件，当前 email 与激活状态
+// 保持不变——旧邮箱在切换完成前持续可登录/找回/占用，封死「换绑释放旧邮箱
+// →旧邮箱再注册」的养号循环。新邮箱激活链接验证通过后由
+// users.CompletePendingEmailSwitch 原子切换（见 ActivateAccount）。
+// 验证开关关闭时保留旧的即时切换语义（邮箱在该模式下不是验证通道）。
 // 修改邮箱需要登录密码二次确认（与 ChangePassword 一致），校验失败在触碰数据库前拒绝。
 func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Response {
 	userEntity, err := req.GetUser()
@@ -101,31 +106,81 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 		return component.FailResponseError(err)
 	}
 
-	if users.ExistEmail(newEmail) {
+	// 重复绑定当前邮箱视同已占用（与旧语义一致；待激活账号重发验证邮件走
+	// resend-activation-email）。
+	if newEmail == userEntity.Email {
+		return component.FailResponseCode(component.MessageAuthEmailExists, nil)
+	}
+	// 占用检查：当前 email + 其他账号仍在窗口内的换绑暂存（本人除外——
+	// 重新暂存同一邮箱 = 再次发起换绑）。
+	if users.ExistEmailOrFreshPending(newEmail, userEntity.Id) {
 		return component.FailResponseCode(component.MessageAuthEmailExists, nil)
 	}
 
-	// 保存新邮箱前记录旧邮箱，用于写库成功后向旧地址发送变更通知。
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	if !securityConfig.EnableEmailVerification {
+		// 邮箱不是验证通道：保留即时切换 + 重置激活的旧语义。
+		oldEmail := userEntity.Email
+		now := time.Now()
+		userEntity.Email = newEmail
+		userEntity.ClearPendingEmail()
+		userEntity.IsActivated = users.ActivationPending
+		userEntity.ActivatedAt = nil
+		userEntity.EmailChangedAt = &now
+		if err = userservice.SaveUser(&userEntity); err != nil {
+			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+		}
+		if err = emailactivationservice.SendActivationEmail(&userEntity); err != nil {
+			slog.Info("验证邮件发送失败", "error", err)
+		}
+		queueEmailChangedNotice(userEntity, oldEmail, newEmail)
+		return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
+	}
+
+	// Claim and expire the address atomically with the registration path.
 	oldEmail := userEntity.Email
 	now := time.Now()
-	userEntity.Email = newEmail
-	userEntity.IsActivated = users.ActivationPending
-	userEntity.ActivatedAt = nil
-	userEntity.EmailChangedAt = &now
-
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// 定向列更新写入暂存（issue #678 review）：全行 Save 会把读取时的
+	// password/token_version 一并回写，与并发的改密 CAS 互踩；定向更新
+	// 只碰暂存两列，且天然受部分唯一索引约束。
+	if err = users.StagePendingEmail(userEntity.Id, newEmail, now); err != nil {
+		if errors.Is(err, users.ErrEmailOccupied) {
+			return component.FailResponseCode(component.MessageAuthEmailExists, nil)
+		}
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
-
-	// 新邮箱：激活邮件
-	if err = emailactivationservice.SendActivationEmail(&userEntity); err != nil {
-		slog.Info("验证邮件发送失败", "error", err)
+	userservice.InvalidateUserInfoCache(userEntity.Id)
+	userEntity.PendingEmail = newEmail
+	userEntity.PendingEmailAt = &now
+	// 新邮箱：变更确认邮件（令牌绑定 pending_email）。
+	if err = emailactivationservice.SendPendingEmailActivation(&userEntity, newEmail); err != nil {
+		slog.Info("换绑确认邮件发送失败", "error", err)
 	}
 
-	// 旧邮箱：变更通知（失败只记日志，不阻断成功响应；
-	// 这是受害者得知邮箱被改的主要途径，失败需以 Error 级暴露以便告警/审计）。
-	if err = mailservice.AddToQueue(mailservice.EmailTask{
+	// 旧邮箱：变更申请通知（失败只记日志，不阻断成功响应；这是邮箱所有者
+	// 得知变更申请的主要途径，Error 级暴露以便告警/审计）。
+	if oldEmail != "" {
+		if err = mailservice.AddToQueue(mailservice.EmailTask{
+			To:       oldEmail,
+			Username: userEntity.Username,
+			NewEmail: newEmail,
+			Type:     "email_change_pending",
+			Locale:   userEntity.Locale,
+		}); err != nil {
+			slog.Error("换绑申请通知入队失败", "userId", userEntity.Id, "oldEmail", oldEmail, "error", err)
+		}
+	}
+
+	return component.SuccessResponseCode("验证邮件已发送，请在新邮箱完成确认", component.MessageUserUpdateSuccess, nil)
+}
+
+// queueEmailChangedNotice 向旧邮箱发送最终变更通知（即时切换路径复用；
+// 两阶段路径的最终通知在切换完成时发送）。
+func queueEmailChangedNotice(userEntity users.EntityComplete, oldEmail, newEmail string) {
+	if oldEmail == "" {
+		return
+	}
+	if err := mailservice.AddToQueue(mailservice.EmailTask{
 		To:       oldEmail,
 		Username: userEntity.Username,
 		NewEmail: newEmail,
@@ -134,8 +189,6 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 	}); err != nil {
 		slog.Error("邮箱变更通知入队失败", "userId", userEntity.Id, "oldEmail", oldEmail, "error", err)
 	}
-
-	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 
 func ResendActivationEmail(req component.BetterRequest[component.Null]) component.Response {
@@ -561,11 +614,25 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
 	}
 
-	userEntity.SetPassword(req.Params.NewPassword)
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// CAS 落库（issue #678 review P1）：单条条件更新写入新哈希并自增
+	// token_version（吊销全部既有会话与重置令牌），同时清除换绑暂存——
+	// 改密证明账号已收回，已签发的换绑确认链接必须随之失效（激活令牌
+	// 不绑定 token_version，不能靠自增吊销）。条件更新同时避免全行 Save
+	// 与并发邮箱切换的竞态回写。
+	passwordHash, hashErr := algorithm.MakePassword(req.Params.NewPassword)
+	if hashErr != nil {
 		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
 	}
+	if err = users.ApplyPasswordChange(userEntity.Id, passwordHash, userEntity.TokenVersion); err != nil {
+		if errors.Is(err, users.ErrConcurrentPasswordChange) {
+			// 读取与写入之间凭据已被并发变更（改密/全端吊销）：按旧密码
+			// 无效处理，客户端重试即走到最新凭据状态。
+			slog.Info("密码变更 CAS 未命中", "userId", userEntity.Id)
+			return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+		}
+		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码修改成功", component.MessageAuthPasswordUpdateSuccess, nil)
 }
@@ -597,11 +664,21 @@ func SetPassword(req component.BetterRequest[SetPasswordReq]) component.Response
 		return component.FailResponseError(err)
 	}
 
-	userEntity.SetPassword(req.Params.NewPassword)
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// CAS 落库（与 ChangePassword 同口径，issue #678 review P1）：设密同样
+	// 自增 token_version 并清除换绑暂存；无邮箱 OAuth 账号当前不可能有
+	// 暂存（暂存要求与当前邮箱不同的新邮箱），清空是幂等防御。
+	passwordHash, hashErr := algorithm.MakePassword(req.Params.NewPassword)
+	if hashErr != nil {
 		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
 	}
+	if err = users.ApplyPasswordChange(userEntity.Id, passwordHash, userEntity.TokenVersion); err != nil {
+		if errors.Is(err, users.ErrConcurrentPasswordChange) {
+			slog.Info("密码设置 CAS 未命中", "userId", userEntity.Id)
+			return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+		}
+		return component.FailResponseCode(component.MessageAuthPasswordUpdateFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码设置成功，请使用新密码重新登录", component.MessageAuthPasswordUpdateSuccess, nil)
 }
@@ -740,11 +817,18 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 		return component.FailResponseError(err)
 	}
 
-	userEntity.SetPassword(req.Params.NewPassword)
-	err = userservice.SaveUser(&userEntity)
-	if err != nil {
+	// CAS 落库（issue #678 review P1，与 ChangePassword 同口径）：重置成功
+	// 写新哈希 + token_version 自增（吊销既有会话/重置令牌），并清除换绑
+	// 暂存——重置证明了对当前邮箱的控制权，视为账号找回完成，可能由攻击者
+	// 会话发起的暂存确认链接必须随之失效。
+	passwordHash, hashErr := algorithm.MakePassword(req.Params.NewPassword)
+	if hashErr != nil {
 		return component.FailResponseCode(component.MessageAuthResetFailed, nil)
 	}
+	if err = users.ApplyPasswordChange(userEntity.Id, passwordHash, userEntity.TokenVersion); err != nil {
+		return component.FailResponseCode(component.MessageAuthResetFailed, nil)
+	}
+	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码重置成功", component.MessageAuthResetSuccess, nil)
 }

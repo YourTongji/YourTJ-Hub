@@ -1026,5 +1026,14 @@
   "refreshFailedRetained": "Refresh failed. Your current content is still here.",
   "scheduleOpenWebShort": "Web version",
   "settingsProfileLinks": "Website and social links",
-  "settingsAvatarSources": "Choose a preset or upload a photo"
+  "settingsAvatarSources": "Choose a preset or upload a photo",
+  "settingsEmailChangeStaged": "Email change request submitted.",
+  "settingsEmailPending": "Awaiting confirmation: {email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -1678,6 +1678,7 @@ export default {
       usernameSaved: 'Benutzername aktualisiert',
       emailSaved: 'E-Mail aktualisiert. Prüfe die Bestätigungs-E-Mail.',
       activationEmailSent: 'Bestätigungs-E-Mail gesendet. Prüfe deinen Posteingang.',
+      emailChangeStaged: 'Wechsel angefragt. Bitte bestätige ihn im Postfach der neuen E-Mail; bis dahin bleibt die aktuelle E-Mail unverändert.',
       passwordChanged: 'Passwort geändert',
       privacySaved: 'Datenschutzeinstellungen gespeichert',
       browserNotificationsEnabled: 'Browser-Benachrichtigungen aktiviert',
@@ -1738,6 +1739,11 @@ export default {
       description: 'Bestätige sie, um Veröffentlichung, Antworten und Kontofunktionen normal nutzen zu können.',
       action: 'Bestätigungs-E-Mail senden',
       sending: 'Wird gesendet',
+    },
+    emailChangePending: {
+      title: 'E-Mail-Wechsel läuft:',
+      description: 'Eine Bestätigungs-E-Mail wurde an {email} gesendet. Der Wechsel wird erst nach der Bestätigung wirksam. Bis dahin funktionieren Anmeldung und Passwort-Wiederherstellung wie gewohnt.',
+      resend: 'Bestätigung erneut senden',
     },
     easterEgg: {
       success: 'Easter Egg aktiviert: dein Avatar sieht heute großartig aus.',

@@ -260,6 +260,9 @@ const emailForm = reactive({
   password: '',
 })
 
+// 两阶段换绑（issue #678）：暂存期内展示换绑进行中横幅，提示去新邮箱确认。
+const pendingEmail = computed(() => page.props.user.pendingEmail || '')
+
 const passwordForm = reactive({
   oldPassword: '',
   newPassword: '',
@@ -949,10 +952,13 @@ async function saveEmail() {
   savingEmail.value = true
   try {
     await saveUserEmail(email, emailForm.password)
-    emailForm.email = email
     editingEmail.value = false
     emailForm.password = ''
-    showStatus(t('settings.status.emailSaved'))
+    // 两阶段换绑（issue #678）：验证开启时提交只暂存新邮箱，当前邮箱不变；
+    // 验证关闭时立即切换。两条路径的最终状态（pending 横幅/新邮箱）都由
+    // SSR props 承载，短暂展示提示后刷新页面拿到权威状态。
+    showStatus(t('settings.status.emailChangeStaged'))
+    window.setTimeout(() => window.location.reload(), 1200)
   } catch (err) {
     showError(err instanceof Error ? err.message : t('api.emailSaveFailed'))
   } finally {
@@ -1888,6 +1894,23 @@ async function toggleBinding(provider: string) {
                       <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
                       <Mail v-else class="h-4 w-4" />
                       {{ sendingActivationEmail ? t('settings.emailVerification.sending') : t('settings.emailVerification.action') }}
+                    </button>
+                  </div>
+                  <!-- 两阶段换绑（issue #678）：暂存期内提示去新邮箱确认；旧邮箱保持可登录/找回。 -->
+                  <div v-if="pendingEmail" class="mt-2 flex flex-col gap-2 border-l-2 border-info bg-info/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span class="min-w-0 text-sm text-info">
+                      <span class="font-semibold">{{ t('settings.emailChangePending.title') }}</span>
+                      <span class="ml-1">{{ t('settings.emailChangePending.description', { email: pendingEmail }) }}</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-info/30 bg-base-100 px-3 text-sm font-semibold text-info hover:bg-info/15 disabled:cursor-wait disabled:opacity-70"
+                      :disabled="sendingActivationEmail"
+                      @click="sendActivationEmail"
+                    >
+                      <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
+                      <Mail v-else class="h-4 w-4" />
+                      {{ t('settings.emailChangePending.resend') }}
                     </button>
                   </div>
                 </div>

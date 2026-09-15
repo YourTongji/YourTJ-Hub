@@ -696,5 +696,14 @@
   "refreshFailedRetained": "Aktualisierung fehlgeschlagen. Die bisherigen Inhalte bleiben sichtbar.",
   "scheduleOpenWebShort": "Webversion",
   "settingsProfileLinks": "Website und soziale Links",
-  "settingsAvatarSources": "Vorlage wählen oder Foto hochladen"
+  "settingsAvatarSources": "Vorlage wählen oder Foto hochladen",
+  "settingsEmailChangeStaged": "Die Anfrage zur Änderung der E-Mail-Adresse wurde gesendet.",
+  "settingsEmailPending": "Bestätigung ausstehend: {email}",
+  "@settingsEmailPending": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  }
 }
