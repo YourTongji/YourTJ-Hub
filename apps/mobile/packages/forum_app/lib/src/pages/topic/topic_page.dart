@@ -39,6 +39,26 @@ class TopicPage extends ConsumerStatefulWidget {
 enum CommentSort { asc, desc, onlyOp }
 
 class _TopicPageState extends ConsumerState<TopicPage> {
+  final GlobalKey _titleKey = GlobalKey();
+  bool _showHeaderTitle = false;
+  bool _titleCheckScheduled = false;
+
+  bool _updateHeaderTitle(ScrollNotification notification) {
+    if (notification.depth != 0 || _titleCheckScheduled) return false;
+    _titleCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _titleCheckScheduled = false;
+      if (!mounted) return;
+      final box = _titleKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      final hidden =
+          box.localToGlobal(Offset(0, box.size.height)).dy <=
+          MediaQuery.paddingOf(context).top + kToolbarHeight;
+      if (hidden != _showHeaderTitle) setState(() => _showHeaderTitle = hidden);
+    });
+    return false;
+  }
+
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
   bool _viewerAuthenticated = false;
   bool _loadingMore = false;
@@ -873,7 +893,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
-    final String appBarTitle = _page.value?.topic.title ?? l10n.topicTitle;
+    final String appBarTitle = _showHeaderTitle
+        ? (_page.value?.topic.title ?? l10n.topicTitle)
+        : l10n.topicTitle;
     return Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
@@ -892,350 +914,377 @@ class _TopicPageState extends ConsumerState<TopicPage> {
             ),
         ],
       ),
-      body: _page.when(
-        loading: () => const GfTopicDetailSkeleton(),
-        error: (e, _) =>
-            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
-        data: (props) {
-          final PostPayload? mainPost = _mainPost(_posts);
-          final List<PostPayload> replyPosts = _visiblePosts(
-            mainPost: mainPost,
-          );
+      body: NotificationListener<ScrollNotification>(
+        onNotification: _updateHeaderTitle,
+        child: _page.when(
+          loading: () => const GfTopicDetailSkeleton(),
+          error: (e, _) => GfErrorRetry(
+            message: resolveErrorMessage(l10n, e),
+            onRetry: _load,
+          ),
+          data: (props) {
+            final PostPayload? mainPost = _mainPost(_posts);
+            final List<PostPayload> replyPosts = _visiblePosts(
+              mainPost: mainPost,
+            );
 
-          return Stack(
-            children: <Widget>[
-              Positioned.fill(
-                child: GfScrollToTop(
-                  semanticLabel: l10n.commonBackToTop,
-                  showButton: false,
-                  controller: _scrollToTop,
-                  threshold: 360,
-                  bottomInset: 84,
-                  builder: (context, scrollController) {
-                    return AppRefreshIndicator(
-                      onRefresh: () => _load(silent: true),
-                      child: CustomScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        controller: scrollController,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: <Widget>[
-                          SliverToBoxAdapter(
-                            child: _TopicHeader(
-                              topic: props.topic,
-                              mainPost: mainPost,
-                              liked: _liked,
-                              bookmarked: _bookmarked,
-                              watched: _watched,
-                              likeCount: _likeCount,
-                              canReportTopic:
-                                  _topicAvailable &&
-                                  !props.permissions.isOwnTopic,
-                              onLike: _toggleLike,
-                              onBookmark: _toggleBookmark,
-                              onWatch: _toggleWatch,
-                              onReportTopic: () => _reportTopic(props.topic),
-                              onReply: _canReply ? () => _openComposer() : null,
-                            ),
-                          ),
-                          const SliverToBoxAdapter(child: GfDivider()),
-                          SliverToBoxAdapter(
-                            child: SizedBox(
-                              key: _discussionKey,
-                              child: _ReplySectionHeader(
-                                count: props.topic.replyCount,
-                                sort: _sort,
-                                onSortChanged: _setCommentSort,
+            return Stack(
+              children: <Widget>[
+                Positioned.fill(
+                  child: GfScrollToTop(
+                    semanticLabel: l10n.commonBackToTop,
+                    showButton: false,
+                    controller: _scrollToTop,
+                    threshold: 360,
+                    bottomInset: 84,
+                    builder: (context, scrollController) {
+                      return AppRefreshIndicator(
+                        onRefresh: () => _load(silent: true),
+                        child: CustomScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          controller: scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          slivers: <Widget>[
+                            SliverToBoxAdapter(
+                              child: _TopicHeader(
+                                titleKey: _titleKey,
+                                topic: props.topic,
+                                mainPost: mainPost,
+                                canReportTopic:
+                                    _topicAvailable &&
+                                    !props.permissions.isOwnTopic,
+                                onReportTopic: () => _reportTopic(props.topic),
                               ),
                             ),
-                          ),
-                          if (_sort == CommentSort.desc
-                              ? _hasMorePosts
-                              : _hasEarlierPosts)
+                            const SliverToBoxAdapter(child: GfDivider()),
                             SliverToBoxAdapter(
-                              child: TextButton(
-                                onPressed: _loadingMore
-                                    ? null
-                                    : () => _loadMore(earlier: true),
-                                child: Text(
-                                  _sort == CommentSort.desc
-                                      ? l10n.topicLaterReplies
-                                      : l10n.topicEarlierReplies,
+                              child: SizedBox(
+                                key: _discussionKey,
+                                child: _ReplySectionHeader(
+                                  count: props.topic.replyCount,
+                                  sort: _sort,
+                                  onSortChanged: _setCommentSort,
                                 ),
                               ),
                             ),
-                          if (replyPosts.isEmpty)
-                            SliverToBoxAdapter(
-                              child: GfEmpty(
-                                icon: Icons.forum_outlined,
-                                message: _sort == CommentSort.onlyOp
-                                    ? (_hasEarlierPosts || _hasMorePosts
-                                          ? l10n.topicOpRepliesPending
-                                          : l10n.topicOpRepliesEmpty)
-                                    : l10n.topicReplies(0),
-                                description: l10n.topicReplyHint,
-                              ),
-                            )
-                          else
-                            SliverList.builder(
-                              itemCount: replyPosts.length,
-                              itemBuilder: (BuildContext context, int index) {
-                                final PostPayload post = replyPosts[index];
-                                return RepaintBoundary(
-                                  key: ValueKey(post.id),
-                                  child: Column(
-                                    children: <Widget>[
-                                      _PostCard(
-                                        post: post,
-                                        showReplyQuote: _showReplyQuote(
-                                          post,
-                                          mainPost,
-                                        ),
-                                        quoteTarget:
-                                            _replyTargets[post.replyToPostId],
-                                        onReply: _canReply
-                                            ? () => _openComposer(replyTo: post)
-                                            : null,
-                                        onReport: () => _reportPost(post),
-                                        onChanged: () => _load(
-                                          silent: true,
-                                          postNo: _currentFloor,
-                                        ),
-                                      ),
-                                      if (index < replyPosts.length - 1)
-                                        const GfDivider(),
-                                    ],
+                            if (_sort == CommentSort.desc
+                                ? _hasMorePosts
+                                : _hasEarlierPosts)
+                              SliverToBoxAdapter(
+                                child: TextButton(
+                                  onPressed: _loadingMore
+                                      ? null
+                                      : () => _loadMore(earlier: true),
+                                  child: Text(
+                                    _sort == CommentSort.desc
+                                        ? l10n.topicLaterReplies
+                                        : l10n.topicEarlierReplies,
                                   ),
-                                );
-                              },
+                                ),
+                              ),
+                            if (replyPosts.isEmpty)
+                              SliverToBoxAdapter(
+                                child: GfEmpty(
+                                  icon: Icons.forum_outlined,
+                                  message: _sort == CommentSort.onlyOp
+                                      ? (_hasEarlierPosts || _hasMorePosts
+                                            ? l10n.topicOpRepliesPending
+                                            : l10n.topicOpRepliesEmpty)
+                                      : l10n.topicReplies(0),
+                                  description: l10n.topicReplyHint,
+                                ),
+                              )
+                            else
+                              SliverList.builder(
+                                itemCount: replyPosts.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final PostPayload post = replyPosts[index];
+                                  return RepaintBoundary(
+                                    key: ValueKey(post.id),
+                                    child: Column(
+                                      children: <Widget>[
+                                        _PostCard(
+                                          post: post,
+                                          showReplyQuote: _showReplyQuote(
+                                            post,
+                                            mainPost,
+                                          ),
+                                          quoteTarget:
+                                              _replyTargets[post.replyToPostId],
+                                          onReply: _canReply
+                                              ? () =>
+                                                    _openComposer(replyTo: post)
+                                              : null,
+                                          onReport: () => _reportPost(post),
+                                          onChanged: () => _load(
+                                            silent: true,
+                                            postNo: _currentFloor,
+                                          ),
+                                        ),
+                                        if (index < replyPosts.length - 1)
+                                          const GfDivider(),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            SliverToBoxAdapter(
+                              child: GfListFooter(
+                                loading: _loadingMore,
+                                hasMore: _sort == CommentSort.desc
+                                    ? _hasEarlierPosts
+                                    : _hasMorePosts,
+                                onLoadMore: () async {
+                                  await _loadMore();
+                                  if (_sort == CommentSort.onlyOp) {
+                                    await _scanForOpReplies();
+                                  }
+                                },
+                              ),
                             ),
-                          SliverToBoxAdapter(
-                            child: GfListFooter(
-                              loading: _loadingMore,
-                              hasMore: _sort == CommentSort.desc
-                                  ? _hasEarlierPosts
-                                  : _hasMorePosts,
-                              onLoadMore: () async {
-                                await _loadMore();
-                                if (_sort == CommentSort.onlyOp) {
-                                  await _scanForOpReplies();
-                                }
-                              },
+                            const SliverToBoxAdapter(
+                              child: SizedBox(height: 104),
                             ),
-                          ),
-                          const SliverToBoxAdapter(
-                            child: SizedBox(height: 104),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
-                // Bound the open composer to the keyboard-resized viewport.
-                top: _composerOpen ? 0 : null,
-                child: SafeArea(
-                  top: false,
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: <Widget>[
-                        if (_composerOpen)
-                          Flexible(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 560),
-                              child: ListenableBuilder(
-                                listenable: _mentionSession,
-                                builder: (context, _) => MentionCandidatesPanel(
-                                  session: _mentionSession,
-                                  messages: MentionPanelMessages(
-                                    listboxLabel: l10n.mentionListboxLabel,
-                                    loading: l10n.mentionLoading,
-                                    noResults: l10n.mentionNoResults,
-                                    searchFailed: l10n.mentionSearchFailed,
-                                    keepTyping: l10n.mentionKeepTyping,
-                                    tagReplyTarget: l10n.mentionTagReplyTarget,
-                                    tagTopicAuthor: l10n.mentionTagTopicAuthor,
-                                    tagParticipant: l10n.mentionTagParticipant,
-                                  ),
-                                  onSelect: _selectMentionCandidate,
-                                ),
-                              ),
-                            ),
-                          ),
-                        _composerOpen
-                            ? ConstrainedBox(
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
+                  // Bound the open composer to the keyboard-resized viewport.
+                  top: _composerOpen ? 0 : null,
+                  child: SafeArea(
+                    top: false,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: <Widget>[
+                          if (_composerOpen)
+                            Flexible(
+                              child: ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   maxWidth: 560,
                                 ),
-                                child: ValueListenableBuilder<TextEditingValue>(
-                                  valueListenable: _replyController,
-                                  builder: (context, value, _) {
-                                    return GfPostComposer(
-                                      hideKeyboardLabel:
-                                          l10n.commonHideKeyboard,
-                                      onCollapse: _closeComposer,
-                                      collapseLabel: l10n.commonCancel,
-                                      controller: _replyController,
-                                      focusNode: _replyFocus,
-                                      targetName: _replyTargetName,
-                                      targetLabel: _replyTargetName == null
-                                          ? null
-                                          : l10n.topicReplyTarget(
-                                              _replyTargetName!,
-                                            ),
-                                      onCloseTarget: () {
-                                        _clearReplyTarget();
-                                        setState(() {});
-                                      },
-                                      onPickImage: _pickReplyImage,
-                                      imageTooltip: l10n.publishToolImage,
-                                      imageUrl: _replyImageUrl == null
-                                          ? null
-                                          : resolveApiAssetUrl(_replyImageUrl!),
-                                      onRemoveImage: _removeReplyImage,
-                                      removeImageTooltip:
-                                          l10n.publishRemoveImage,
-                                      uploading: _uploadingReplyImage,
-                                      publishing: _replying,
-                                      canPublish: value.text.trim().isNotEmpty,
-                                      publishLabel: l10n.commonSend,
-                                      hintText: l10n.topicReplyHint,
-                                      onPublish: _submitReply,
-                                      toolbar: _replyCaptcha == null
-                                          ? null
-                                          : Row(
-                                              children: [
-                                                InkWell(
-                                                  onTap: _replyCaptchaLoading
-                                                      ? null
-                                                      : _loadReplyCaptcha,
-                                                  child: Image.memory(
-                                                    base64Decode(
-                                                      _replyCaptcha!.captchaImg
-                                                          .split(',')
-                                                          .last,
-                                                    ),
-                                                    width: 80,
-                                                    height: 42,
-                                                    fit: BoxFit.contain,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: TextField(
-                                                    key: const Key(
-                                                      'reply-captcha',
-                                                    ),
-                                                    controller:
-                                                        _replyCaptchaCode,
-                                                    decoration: InputDecoration(
-                                                      labelText:
-                                                          l10n.authCaptcha,
-                                                    ),
-                                                    textCapitalization:
-                                                        TextCapitalization
-                                                            .characters,
-                                                  ),
-                                                ),
-                                                IconButton(
-                                                  tooltip: l10n.commonRefresh,
-                                                  onPressed:
-                                                      _replyCaptchaLoading
-                                                      ? null
-                                                      : _loadReplyCaptcha,
-                                                  icon: const Icon(
-                                                    Icons.refresh,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                    );
-                                  },
+                                child: ListenableBuilder(
+                                  listenable: _mentionSession,
+                                  builder: (context, _) =>
+                                      MentionCandidatesPanel(
+                                        session: _mentionSession,
+                                        messages: MentionPanelMessages(
+                                          listboxLabel:
+                                              l10n.mentionListboxLabel,
+                                          loading: l10n.mentionLoading,
+                                          noResults: l10n.mentionNoResults,
+                                          searchFailed:
+                                              l10n.mentionSearchFailed,
+                                          keepTyping: l10n.mentionKeepTyping,
+                                          tagReplyTarget:
+                                              l10n.mentionTagReplyTarget,
+                                          tagTopicAuthor:
+                                              l10n.mentionTagTopicAuthor,
+                                          tagParticipant:
+                                              l10n.mentionTagParticipant,
+                                        ),
+                                        onSelect: _selectMentionCandidate,
+                                      ),
                                 ),
-                              )
-                            : GfFloatingControls(
-                                joinLabel: l10n.topicJoinDiscussion,
-                                actions: <GfTopicAction>[
-                                  if (_topicAvailable) ...[
-                                    GfTopicAction(
-                                      icon: Icons.favorite_border,
-                                      symbol: _liked ? 'heart-filled' : 'heart',
-                                      active: _liked,
-                                      activeColor: colors.error,
-                                      onTap: _toggleLike,
-                                    ),
-                                    GfTopicAction(
-                                      icon: Icons.bookmark_border,
-                                      symbol: _bookmarked
-                                          ? 'bookmark-filled'
-                                          : 'bookmark',
-                                      active: _bookmarked,
-                                      activeColor: colors.warning,
-                                      onTap: _toggleBookmark,
-                                    ),
-                                    GfTopicAction(
-                                      icon: _watched
-                                          ? Icons.notifications
-                                          : Icons.notifications_none,
-                                      symbol: 'bell',
-                                      active: _watched,
-                                      activeColor: colors.primary,
-                                      onTap: _toggleWatch,
-                                    ),
-                                  ],
-                                ],
-                                onOpenReply: _canReply
-                                    ? () => _openComposer()
-                                    : null,
-                                currentNo: _currentFloor,
-                                maxNo: props.postStream.maxPostNo,
-                                onFloorTap: () =>
-                                    setState(() => _railOpen = !_railOpen),
                               ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (_jumping)
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: LinearProgressIndicator(),
-                ),
-              if (_railOpen && !_composerOpen)
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 76,
-                  child: SafeArea(
-                    top: false,
-                    child: GfFloatingSurface(
-                      padding: const EdgeInsets.all(8),
-                      child: GfPostPositionRail(
-                        current: _currentFloor,
-                        max: props.postStream.maxPostNo,
-                        startLabel: l10n.topicEarliest,
-                        endLabel: l10n.topicLatest,
-                        onSelect: _jumpToFloor,
-                        onEarliest: () => _jumpToFloor(1),
-                        onLatest: () =>
-                            _jumpToFloor(props.postStream.maxPostNo),
+                            ),
+                          _composerOpen
+                              ? ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 560,
+                                  ),
+                                  child:
+                                      ValueListenableBuilder<TextEditingValue>(
+                                        valueListenable: _replyController,
+                                        builder: (context, value, _) {
+                                          return GfPostComposer(
+                                            hideKeyboardLabel:
+                                                l10n.commonHideKeyboard,
+                                            onCollapse: _closeComposer,
+                                            collapseLabel: l10n.commonCancel,
+                                            controller: _replyController,
+                                            focusNode: _replyFocus,
+                                            targetName: _replyTargetName,
+                                            targetLabel:
+                                                _replyTargetName == null
+                                                ? null
+                                                : l10n.topicReplyTarget(
+                                                    _replyTargetName!,
+                                                  ),
+                                            onCloseTarget: () {
+                                              _clearReplyTarget();
+                                              setState(() {});
+                                            },
+                                            onPickImage: _pickReplyImage,
+                                            imageTooltip: l10n.publishToolImage,
+                                            imageUrl: _replyImageUrl == null
+                                                ? null
+                                                : resolveApiAssetUrl(
+                                                    _replyImageUrl!,
+                                                  ),
+                                            onRemoveImage: _removeReplyImage,
+                                            removeImageTooltip:
+                                                l10n.publishRemoveImage,
+                                            uploading: _uploadingReplyImage,
+                                            publishing: _replying,
+                                            canPublish: value.text
+                                                .trim()
+                                                .isNotEmpty,
+                                            publishLabel: l10n.commonSend,
+                                            hintText: l10n.topicReplyHint,
+                                            onPublish: _submitReply,
+                                            toolbar: _replyCaptcha == null
+                                                ? null
+                                                : Row(
+                                                    children: [
+                                                      InkWell(
+                                                        onTap:
+                                                            _replyCaptchaLoading
+                                                            ? null
+                                                            : _loadReplyCaptcha,
+                                                        child: Image.memory(
+                                                          base64Decode(
+                                                            _replyCaptcha!
+                                                                .captchaImg
+                                                                .split(',')
+                                                                .last,
+                                                          ),
+                                                          width: 80,
+                                                          height: 42,
+                                                          fit: BoxFit.contain,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: TextField(
+                                                          key: const Key(
+                                                            'reply-captcha',
+                                                          ),
+                                                          controller:
+                                                              _replyCaptchaCode,
+                                                          decoration:
+                                                              InputDecoration(
+                                                                labelText: l10n
+                                                                    .authCaptcha,
+                                                              ),
+                                                          textCapitalization:
+                                                              TextCapitalization
+                                                                  .characters,
+                                                        ),
+                                                      ),
+                                                      IconButton(
+                                                        tooltip:
+                                                            l10n.commonRefresh,
+                                                        onPressed:
+                                                            _replyCaptchaLoading
+                                                            ? null
+                                                            : _loadReplyCaptcha,
+                                                        icon: const Icon(
+                                                          Icons.refresh,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                          );
+                                        },
+                                      ),
+                                )
+                              : GfFloatingControls(
+                                  joinLabel: l10n.topicJoinDiscussion,
+                                  actions: <GfTopicAction>[
+                                    if (_topicAvailable) ...[
+                                      GfTopicAction(
+                                        icon: Icons.favorite_border,
+                                        symbol: _liked
+                                            ? 'heart-filled'
+                                            : 'heart',
+                                        active: _liked,
+                                        title:
+                                            '${l10n.topicLike} · ${formatNumber(_likeCount)}',
+                                        activeColor: colors.error,
+                                        onTap: _toggleLike,
+                                      ),
+                                      GfTopicAction(
+                                        icon: Icons.bookmark_border,
+                                        symbol: _bookmarked
+                                            ? 'bookmark-filled'
+                                            : 'bookmark',
+                                        active: _bookmarked,
+                                        title: _bookmarked
+                                            ? l10n.topicBookmarked
+                                            : l10n.topicBookmark,
+                                        activeColor: colors.warning,
+                                        onTap: _toggleBookmark,
+                                      ),
+                                      GfTopicAction(
+                                        icon: _watched
+                                            ? Icons.notifications
+                                            : Icons.notifications_none,
+                                        symbol: 'bell',
+                                        active: _watched,
+                                        title: _watched
+                                            ? l10n.topicUnwatch
+                                            : l10n.topicWatch,
+                                        activeColor: colors.primary,
+                                        onTap: _toggleWatch,
+                                      ),
+                                    ],
+                                  ],
+                                  onOpenReply: _canReply
+                                      ? () => _openComposer()
+                                      : null,
+                                  currentNo: _currentFloor,
+                                  maxNo: props.postStream.maxPostNo,
+                                  onFloorTap: () =>
+                                      setState(() => _railOpen = !_railOpen),
+                                ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-            ],
-          );
-        },
+                if (_jumping)
+                  const Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(),
+                  ),
+                if (_railOpen && !_composerOpen)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 76,
+                    child: SafeArea(
+                      top: false,
+                      child: GfFloatingSurface(
+                        padding: const EdgeInsets.all(8),
+                        child: GfPostPositionRail(
+                          current: _currentFloor,
+                          max: props.postStream.maxPostNo,
+                          startLabel: l10n.topicEarliest,
+                          endLabel: l10n.topicLatest,
+                          onSelect: _jumpToFloor,
+                          onEarliest: () => _jumpToFloor(1),
+                          onLatest: () =>
+                              _jumpToFloor(props.postStream.maxPostNo),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -1250,32 +1299,18 @@ class _TopicPageState extends ConsumerState<TopicPage> {
 
 class _TopicHeader extends StatelessWidget {
   const _TopicHeader({
+    required this.titleKey,
     required this.topic,
     required this.mainPost,
-    required this.liked,
-    required this.bookmarked,
-    required this.watched,
-    required this.likeCount,
     required this.canReportTopic,
-    required this.onLike,
-    required this.onBookmark,
-    required this.onWatch,
     required this.onReportTopic,
-    this.onReply,
   });
 
+  final Key titleKey;
   final TopicDetailPayload topic;
   final PostPayload? mainPost;
-  final bool liked;
-  final bool bookmarked;
-  final bool watched;
-  final int likeCount;
   final bool canReportTopic;
-  final VoidCallback onLike;
-  final VoidCallback onBookmark;
-  final VoidCallback onWatch;
   final VoidCallback onReportTopic;
-  final VoidCallback? onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -1353,7 +1388,11 @@ class _TopicHeader extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          Text(topic.title, style: GfTheme.typographyOf(context).title1),
+          Text(
+            topic.title,
+            key: titleKey,
+            style: GfTheme.typographyOf(context).title1,
+          ),
           if (available &&
               topic.contentType != 3 &&
               topic.contentType != 0 &&
@@ -1368,10 +1407,10 @@ class _TopicHeader extends StatelessWidget {
             Text(l10n.topicRemoved),
           ] else if (mainPost != null) ...<Widget>[
             const SizedBox(height: 16),
-            GfMarkdownView(data: mainPost!.content),
+            GfMarkdownView(data: mainPost!.content, selectable: true),
           ] else if (topic.description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
-            Text(topic.description, style: GfTheme.typographyOf(context).body),
+            Text(topic.description, style: readingBodyStyle(context)),
           ],
           const SizedBox(height: 18),
           Wrap(
@@ -1390,54 +1429,6 @@ class _TopicHeader extends StatelessWidget {
               ),
             ],
           ),
-          if (available) ...[
-            const SizedBox(height: 12),
-            const GfDivider(),
-            const SizedBox(height: 8),
-            Wrap(
-              key: const ValueKey('topic-inline-actions'),
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                if (onReply != null)
-                  _TopicAction(
-                    symbol: 'corner-down-left',
-                    label: l10n.topicReply,
-                    tooltip: l10n.topicReply,
-                    onTap: onReply,
-                    prominent: true,
-                  ),
-                _TopicAction(
-                  symbol: liked ? 'heart-filled' : 'heart',
-                  label: likeCount > 0
-                      ? formatNumber(likeCount)
-                      : l10n.topicLike,
-                  tooltip: l10n.topicLike,
-                  selected: liked,
-                  color: colors.error,
-                  onTap: onLike,
-                ),
-                _TopicAction(
-                  symbol: bookmarked ? 'bookmark-filled' : 'bookmark',
-                  label: l10n.topicBookmark,
-                  tooltip: bookmarked
-                      ? l10n.topicBookmarked
-                      : l10n.topicBookmark,
-                  selected: bookmarked,
-                  color: colors.warning,
-                  onTap: onBookmark,
-                ),
-                _TopicAction(
-                  symbol: 'bell',
-                  label: watched ? l10n.topicUnwatch : l10n.topicWatch,
-                  tooltip: watched ? l10n.topicUnwatch : l10n.topicWatch,
-                  selected: watched,
-                  color: colors.primary,
-                  onTap: onWatch,
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -1564,56 +1555,6 @@ class _TopicStat extends StatelessWidget {
               ).caption.copyWith(color: color),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TopicAction extends StatelessWidget {
-  const _TopicAction({
-    required this.symbol,
-    required this.label,
-    required this.tooltip,
-    this.selected,
-    this.prominent = false,
-    this.color,
-    this.onTap,
-  });
-  final String symbol;
-  final String label;
-  final String tooltip;
-  final bool? selected;
-  final bool prominent;
-  final Color? color;
-  final VoidCallback? onTap;
-  @override
-  Widget build(BuildContext context) {
-    final colors = GfTheme.colorsOf(context);
-    final foreground = prominent
-        ? colors.primaryContent
-        : selected == true
-        ? color ?? colors.primary
-        : colors.iconMuted;
-    return Semantics(
-      toggled: selected,
-      child: Tooltip(
-        message: tooltip,
-        child: TextButton.icon(
-          onPressed: onTap,
-          icon: GfSymbol(symbol, size: 18),
-          label: Text(label),
-          style: TextButton.styleFrom(
-            foregroundColor: foreground,
-            backgroundColor: prominent
-                ? colors.primary
-                : selected == true
-                ? (color ?? colors.primary).withValues(alpha: .1)
-                : Colors.transparent,
-            minimumSize: const Size(44, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            shape: const StadiumBorder(),
-          ),
         ),
       ),
     );

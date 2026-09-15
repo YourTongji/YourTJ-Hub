@@ -90,6 +90,12 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 （宿主机上执行；上游无头而公网有头 ⇒ 代理层注入）。dev 实例同理
 （`dev.yourtj.de` → `127.0.0.1:5235`）。
 
+### Status data sources
+
+**Current**：运行状态应用由 Netlify 独立提供，论坛侧栏链接到 `https://status.yourtj.de`。
+来源配置属于 Netlify 项目的 Functions 环境变量，不属于论坛实例 TOML 或部署渲染流程。
+完整设置、发布与故障验收见 [Netlify 状态站部署](status-netlify.md)。
+
 ### Umami 访问统计与会话回放
 
 生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载自建 Umami 的

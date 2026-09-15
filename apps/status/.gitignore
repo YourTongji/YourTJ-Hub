@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.netlify/
+.env
+.env.*
+!.env.example
+# Netlify Dev downloads an edge runtime even though this app uses Functions only.
+deno.lock

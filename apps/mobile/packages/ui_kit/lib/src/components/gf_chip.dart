@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 
-/// Small category chip with a leading color dot, mirroring web `.gf-topic-chip`
-/// (base-300 pill, muted 11px text).
+/// Category chip with a leading color dot and a 44px target when interactive.
 class GfChip extends StatelessWidget {
   const GfChip({
     super.key,
@@ -25,8 +24,8 @@ class GfChip extends StatelessWidget {
     final GfRadii radii = GfTheme.radiiOf(context);
 
     final Widget chip = Container(
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      constraints: const BoxConstraints(minHeight: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.base300,
         borderRadius: BorderRadius.circular(radii.selector),
@@ -40,12 +39,16 @@ class GfChip extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: colors.baseContent.withValues(alpha: 0.55),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.baseContent.withValues(alpha: 0.72),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -53,10 +56,16 @@ class GfChip extends StatelessWidget {
     );
 
     if (onTap == null) return chip;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: chip,
+    return Semantics(
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radii.selector),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          child: Center(widthFactor: 1, heightFactor: 1, child: chip),
+        ),
+      ),
     );
   }
 }

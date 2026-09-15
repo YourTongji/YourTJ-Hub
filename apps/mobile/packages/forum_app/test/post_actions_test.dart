@@ -245,6 +245,54 @@ void main() {
     expect(find.text('Delete'), findsNothing);
     expect(find.text('Revision history'), findsOneWidget);
   });
+
+  testWidgets(
+    'dirty reply sheet blocks outside and drag dismissal and confirms close',
+    (tester) async {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post(),
+          onChanged: () async {},
+          onReply: () {},
+          onReport: () {},
+        ),
+      );
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('post-edit-content')),
+        'Keep my draft',
+      );
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.text('Keep my draft'), findsOneWidget);
+      await tester.dragFrom(
+        tester.getTopLeft(find.byType(BottomSheet)) + const Offset(80, 8),
+        const Offset(0, 500),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Keep my draft'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(PostActions)),
+      );
+      expect(find.text(l10n.publishLeaveTitle), findsOneWidget);
+      await tester.tap(find.text(l10n.commonCancel));
+      await tester.pumpAndSettle();
+      expect(find.text('Keep my draft'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.publishDiscard));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('post-edit-content')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('history follows older cursor and represents masked snapshots', (
     tester,
   ) async {

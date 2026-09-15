@@ -68,7 +68,7 @@ class GfUserCard extends StatelessWidget {
         Stack(
           children: [
             Container(
-              height: 176,
+              height: 184,
               padding: const EdgeInsets.only(bottom: 44),
               child: Container(
                 width: double.infinity,
@@ -84,14 +84,23 @@ class GfUserCard extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 16,
+              left: 20,
               top: 96,
-              child: GfAvatar(src: avatarUrl, size: 80, badge: avatarBadge),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colors.base100,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: GfAvatar(src: avatarUrl, size: 80, badge: avatarBadge),
+                ),
+              ),
             ),
           ],
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -114,20 +123,20 @@ class GfUserCard extends StatelessWidget {
                     GfBadge(label: badge.label, color: badge.color),
                 ],
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 '@$username',
                 style: TextStyle(
-                  fontSize: 14,
-                  color: colors.baseContent.withValues(alpha: 0.55),
+                  fontSize: 16,
+                  color: colors.baseContent.withValues(alpha: 0.72),
                 ),
               ),
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
-                const SizedBox(height: 6),
+                const SizedBox(height: 12),
                 Text(
                   bio!.trim(),
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 16,
                     color: colors.baseContent.withValues(alpha: 0.75),
                   ),
                 ),
@@ -151,7 +160,7 @@ class GfUserCard extends StatelessWidget {
                           Text(
                             signature!.trim(),
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               height: 1.45,
                               fontWeight: FontWeight.w500,
                               color: colors.iconMuted,
@@ -180,41 +189,57 @@ class GfUserCard extends StatelessWidget {
               ],
               if (stats.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    for (final (String label, String value) in stats)
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              value,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: colors.baseContent,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colors.baseContent.withValues(
-                                  alpha: 0.55,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final scaledWidth = MediaQuery.textScalerOf(
+                      context,
+                    ).scale(112);
+                    final columns =
+                        MediaQuery.textScalerOf(context).scale(14) <= 20 &&
+                            constraints.maxWidth >= 320
+                        ? stats.length
+                        : (constraints.maxWidth / scaledWidth).floor().clamp(
+                            1,
+                            stats.length,
+                          );
+                    return Wrap(
+                      runSpacing: 16,
+                      children: [
+                        for (final (label, value) in stats)
+                          SizedBox(
+                            width: constraints.maxWidth / columns,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  value,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.baseContent,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    height: 1.35,
+                                    color: colors.baseContent.withValues(
+                                      alpha: 0.72,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                  ],
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ],

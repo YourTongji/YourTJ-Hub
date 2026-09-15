@@ -137,37 +137,21 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 		return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 	}
 
-	// 两阶段换绑第一阶段：只暂存，不动 email/激活状态/冷静期。
-	// 先清掉其他账号对同一邮箱已过期的暂存（部分唯一索引不区分新旧暂存，
-	// 过期行会让本次合法暂存撞索引；占用检查已确认没有新鲜暂存）。
-	if err := users.ClearExpiredPendingEmails(newEmail); err != nil {
-		slog.Error("清理过期换绑暂存失败", "email", newEmail, "error", err)
-		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
-	}
+	// Claim and expire the address atomically with the registration path.
 	oldEmail := userEntity.Email
 	now := time.Now()
 	// 定向列更新写入暂存（issue #678 review）：全行 Save 会把读取时的
 	// password/token_version 一并回写，与并发的改密 CAS 互踩；定向更新
 	// 只碰暂存两列，且天然受部分唯一索引约束。
 	if err = users.StagePendingEmail(userEntity.Id, newEmail, now); err != nil {
+		if errors.Is(err, users.ErrEmailOccupied) {
+			return component.FailResponseCode(component.MessageAuthEmailExists, nil)
+		}
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 	userservice.InvalidateUserInfoCache(userEntity.Id)
 	userEntity.PendingEmail = newEmail
 	userEntity.PendingEmailAt = &now
-	// 暂存写后补偿复查（issue #678 review P2）：并发注册可能在本暂存落库的
-	// 同时把目标邮箱插为自己的当前 email（两列唯一索引互不感知）。此时本
-	// 暂存永远不可能切换成功（切换必撞 email 唯一索引），立即撤销并把邮箱
-	// 留给注册者——注册侧事务内复查与本侧写后复查构成双保险，跨列双占
-	// 至少一侧让步。
-	if users.ExistEmailExcluding(newEmail, userEntity.Id) {
-		if cancelErr := users.CancelPendingEmailSwitch(userEntity.Id, newEmail); cancelErr != nil {
-			slog.Error("撤销与注册冲突的换绑暂存失败", "userId", userEntity.Id, "email", newEmail, "error", cancelErr)
-		}
-		slog.Warn("换绑暂存与并发注册冲突，已撤销", "userId", userEntity.Id, "email", newEmail)
-		return component.FailResponseCode(component.MessageAuthEmailExists, nil)
-	}
-
 	// 新邮箱：变更确认邮件（令牌绑定 pending_email）。
 	if err = emailactivationservice.SendPendingEmailActivation(&userEntity, newEmail); err != nil {
 		slog.Info("换绑确认邮件发送失败", "error", err)

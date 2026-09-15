@@ -6,6 +6,49 @@ import '../helpers.dart';
 
 void main() {
   group('GfFloatingControls', () {
+    testWidgets('review regression: action titles label tappable semantics', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      var taps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          GfFloatingControls(
+            onOpenReply: null,
+            actions: [
+              for (final label in ['点赞 · 12', '收藏', '关注帖子'])
+                GfTopicAction(
+                  icon: Icons.favorite_border,
+                  symbol: 'heart',
+                  title: label,
+                  active: label == '收藏',
+                  activeColor: GfColors.light.primary,
+                  onTap: () => taps++,
+                ),
+            ],
+          ),
+        ),
+      );
+      for (final label in ['点赞 · 12', '收藏', '关注帖子']) {
+        expect(find.byTooltip(label), findsOneWidget);
+        expect(
+          tester.getSemantics(find.bySemanticsLabel(label)),
+          matchesSemantics(
+            label: label,
+            isButton: true,
+            hasTapAction: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasToggledState: true,
+            isToggled: label == '收藏',
+          ),
+        );
+        await tester.tap(find.byTooltip(label));
+      }
+      expect(taps, 3);
+      semantics.dispose();
+    });
+
     testWidgets('localized dock fits narrow screens and large text', (
       tester,
     ) async {
@@ -173,6 +216,34 @@ void main() {
   });
 
   group('GfConversationRow / GfMessageBubble', () {
+    testWidgets('long conversation dates leave room for the name at 2x text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: const SizedBox(
+              width: 320,
+              child: GfConversationRow(
+                avatarUrl: '',
+                name: 'Campus friend',
+                lastMessage: 'See you on campus',
+                time: '15. September 2026, 10:30',
+                unreadCount: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(find.text('Campus friend')).width, greaterThan(80));
+      expect(
+        tester.getRect(find.text('15. September 2026, 10:30')).top,
+        greaterThan(tester.getRect(find.text('Campus friend')).bottom),
+      );
+    });
+
     testWidgets('renders conversation row with unread count', (tester) async {
       await tester.pumpWidget(
         gfApp(

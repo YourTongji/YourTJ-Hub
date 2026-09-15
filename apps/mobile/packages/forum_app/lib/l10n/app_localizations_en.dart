@@ -549,13 +549,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsBio => 'Bio';
 
   @override
-  String get settingsBioEdit => 'Edit bio and signature';
+  String get settingsBioEdit => 'Edit your bio';
 
   @override
   String get settingsAvatar => 'Avatar';
 
   @override
-  String get settingsAvatarUpload => 'Upload avatar (converted to webp)';
+  String get settingsAvatarUpload => 'Choose and crop a profile photo';
 
   @override
   String get settingsAvatarUploading => 'Uploading…';
@@ -1244,7 +1244,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get publishLeaveBody =>
-      'You have unsaved changes. Continue editing or discard them.';
+      'Save a copy on this device before leaving, or discard these changes.';
 
   @override
   String get publishDiscard => 'Discard changes';
@@ -2017,8 +2017,114 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPushPrivacy => 'JPush privacy policy (Android)';
 
   @override
-  String get settingsEmailChangeStaged =>
-      'Change requested. Please confirm it from the new email inbox; your current email stays in place until then.';
+  String get accountFollowing => 'Following';
+
+  @override
+  String get accountFollowers => 'Followers';
+
+  @override
+  String get publishMomentHint => 'Share a moment from campus life';
+
+  @override
+  String get publishArticleHint => 'Share your experience, stories and ideas';
+
+  @override
+  String get publishQuestionHint => 'Ask a question and explore it together';
+
+  @override
+  String get accountContent => 'My content';
+
+  @override
+  String get commonEndOfList => 'You’re all caught up';
+
+  @override
+  String get campusTools => 'Campus tools';
+
+  @override
+  String get campusCoursesTitle => 'Discover courses';
+
+  @override
+  String get campusCoursesEmpty =>
+      'No course reviews yet. Explore the course catalog.';
+
+  @override
+  String get searchDiscoveryDescription =>
+      'Find posts, people and categories, or jump into your campus tools.';
+
+  @override
+  String get notificationsEmptyDescription =>
+      'Replies, mentions and follows will appear here. Explore what’s new on campus.';
+
+  @override
+  String get draftsEmptyDescription =>
+      'Save unfinished ideas as drafts and come back when you’re ready.';
+
+  @override
+  String get messagesSending => 'Sending…';
+
+  @override
+  String get messagesSent => 'Sent';
+
+  @override
+  String get messagesFailed => 'Not sent';
+
+  @override
+  String get messagesRetry => 'Retry sending';
+
+  @override
+  String get draftLocalSaved => 'Saved on this device';
+
+  @override
+  String get draftLocalSaving => 'Saving…';
+
+  @override
+  String get draftLocalSaveFailed => 'Could not save locally. Try again.';
+
+  @override
+  String get draftLocalRestored => 'Your unfinished draft has been restored';
+
+  @override
+  String get draftLocalSection => 'On this device';
+
+  @override
+  String get draftCloudSection => 'Cloud drafts';
+
+  @override
+  String get draftKeepAndLeave => 'Save and leave';
+
+  @override
+  String get draftDeleteLocal => 'Delete local draft';
+
+  @override
+  String get draftLocalOnly => 'Stored only on this device';
+
+  @override
+  String get searchRecent => 'Recent searches';
+
+  @override
+  String get searchClearRecent => 'Clear history';
+
+  @override
+  String get searchCourses => 'Search courses';
+
+  @override
+  String get searchWiki => 'Search Wiki';
+
+  @override
+  String get refreshFailedRetained =>
+      'Refresh failed. Your current content is still here.';
+
+  @override
+  String get scheduleOpenWebShort => 'Web version';
+
+  @override
+  String get settingsProfileLinks => 'Website and social links';
+
+  @override
+  String get settingsAvatarSources => 'Choose a preset or upload a photo';
+
+  @override
+  String get settingsEmailChangeStaged => 'Email change request submitted.';
 
   @override
   String settingsEmailPending(String email) {

@@ -58,7 +58,6 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   AsyncValue<UserProfileProps> _page = const AsyncValue.loading();
-  int _tabIndex = 0;
   int _request = 0;
   bool _loadingMore = false;
   bool _streamLoading = false;
@@ -82,7 +81,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void initState() {
     super.initState();
     _stream = widget.initialStream;
-    _tabIndex = _stream == 'bookmarks' ? 3 : 0;
 
     _load();
   }
@@ -376,7 +374,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         builder: (context, constraints) => SliverToBoxAdapter(
                           child: _ProfileTabs(
                             tabs: tabs,
-                            index: _tabIndex,
+                            // Bookmarks only exists on one's own profile, so
+                            // derive selection from the visible stream keys.
+                            index: tabs.indexWhere((tab) => tab.key == _stream),
                             onChanged: (int index) {
                               if (_stream == tabs[index].key) return;
                               // Retain header collapse, not an arbitrary offset
@@ -388,7 +388,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               controller.jumpTo(retainedOffset);
                               setState(() {
                                 _minimumScrollOffset = retainedOffset;
-                                _tabIndex = index;
                                 _stream = tabs[index].key;
                                 _streamLoading = true;
                                 _streamError = null;

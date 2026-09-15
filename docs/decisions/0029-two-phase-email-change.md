@@ -28,7 +28,7 @@ issue #678 记录了换绑邮箱的释放语义缺陷：`set-user-email`（EditU
 
 1. **第一阶段只暂存**：验证开关开启时，`set-user-email` 仅写入 `pending_email`/`pending_email_at`（7 天占用窗口，不自发起顺延），不动 `email`、激活态与 `EmailChangedAt`。向新邮箱发确认邮件（令牌绑定暂存邮箱），向旧邮箱发「换绑申请」通知（新邮件类型 `email_change_pending`）。验证开关关闭时保留旧即时切换语义（邮箱该模式下不是验证通道）。
 2. **第二阶段原子切换**：激活链接解析出的目标命中新鲜暂存时，单条条件 UPDATE（约束暂存值 + 新鲜度）完成 `email ← pending_email`、清暂存、置已激活、`EmailChangedAt = now`（24h 找回冷静期从真正切换起算）。未命中按无效链接处理；切换完成后向旧邮箱发最终「已变更」通知。
-3. **占用查重扩暂存**：注册与换绑自查重统一走 `ExistEmailOrFreshPending`（当前 email ∪ 窗口内其他账号的 pending，换绑自查排除本人）。窗口外过期暂存视为放弃：不占用、不可确认，重新发起前定向清理（部分唯一索引 `uniq_users_pending_email_nonempty` 不区分新旧，需先清过期行）。
+3. **占用查重扩暂存**：注册与换绑暂存在事务内取得同一邮箱的 PostgreSQL advisory lock，复查占用后写入并持有锁直到提交；SQLite 依赖写事务互斥。注册与换绑自查重统一走 `ExistEmailOrFreshPending`（当前 email ∪ 窗口内其他账号的 pending，换绑自查排除本人）。窗口外过期暂存视为放弃：不占用、不可确认，重新发起前定向清理（部分唯一索引 `uniq_users_pending_email_nonempty` 不区分新旧，需先清过期行）。
 4. **取消与互斥路径**：点击发往当前邮箱的旧激活链接 = 放弃换绑（普通激活并清暂存）；密码重置成功 = 账号找回完成（清暂存）；管理员 CLI 直改邮箱 = 旁路验证（清暂存）。已激活账号发起换绑不再重置激活态（re-pending 副作用随两阶段语义自然消失）。
 5. **resend 支持双目标**：窗口内存在暂存时，`resend-activation-email` 重发暂存邮箱的确认邮件（已激活账号也走此路径）；无暂存且已激活仍返回已验证错误。
 6. **契约与镜像同步**：`setUserEmail`/`resendActivationEmail`/`register` 的契约描述更新；设置页 SSR props（`UserDetailedVo`/`SettingsUserPayload`）新增 `pendingEmail`（仅暴露窗口内暂存），web TS 与 mobile Dart 镜像同 PR 更新。

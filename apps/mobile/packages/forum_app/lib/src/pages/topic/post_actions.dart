@@ -57,21 +57,18 @@ class _PostActionsState extends ConsumerState<PostActions> {
     final post = widget.post;
     final epoch = ref.read(offlineCacheEpochProvider);
     if (action == 'history') {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
+      await showGfBottomSheet<void>(
+        context,
         builder: (_) => PostHistorySheet(postId: post.id),
       );
       return;
     }
     if (action == 'edit') {
-      final saved = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        isDismissible: false,
+      final saved = await showGfBottomSheet<bool>(
+        context,
+        barrierDismissible: false,
+        keyboardAware: true,
         enableDrag: false,
-        useSafeArea: true,
         builder: (_) => PostEditSheet(post: post),
       );
       if (saved == true &&

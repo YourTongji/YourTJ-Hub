@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"hash/fnv"
 	"time"
 
 	"gorm.io/gorm"
@@ -11,8 +12,7 @@ import (
 // 链接完成切换，或已超出占用窗口（视为用户放弃）。调用方按“链接无效”处理。
 var ErrPendingEmailSwitchStale = errors.New("pending email switch stale")
 
-// ErrEmailOccupied 注册事务内占用复查命中（issue #678 review：注册与换绑暂存
-// 并发竞争同一邮箱的跨列残余窗口）。调用方按“邮箱已占用”失败处理。
+// ErrEmailOccupied 表示注册或换绑暂存事务发现邮箱已被其他账号占用。
 var ErrEmailOccupied = errors.New("email occupied")
 
 // PendingEmailSwitchResult 携带切换完成后的用户实体与被替换的旧邮箱，
@@ -35,21 +35,38 @@ func ExistEmailOrFreshPending(email string, excludeUserID uint64) bool {
 		Limit(1).Scan(&id).RowsAffected > 0
 }
 
-// EmailOrFreshPendingOccupiedTx 是 ExistEmailOrFreshPending 的事务内复查变体
-// （issue #678 review P2）：注册在事务内、写入前再查一次，收窄「外层检查通过
-// 后、插行前，他账号对同一邮箱完成换绑暂存提交」的跨列竞争窗口。
-func EmailOrFreshPendingOccupiedTx(tx *gorm.DB, email string, excludeUserID uint64) bool {
+// CheckEmailClaimTx serializes registration and staging claims for one address
+// until the caller's transaction commits. PostgreSQL's cross-column uniqueness
+// needs a shared lock; SQLite already serializes writers (a stale snapshot fails
+// its write rather than committing a second claim). Call inside a transaction.
+func CheckEmailClaimTx(tx *gorm.DB, email string, excludeUserID uint64) error {
+	if tx.Name() == "postgres" {
+		key := fnv.New64a()
+		_, _ = key.Write([]byte("yourtj:email-claim:" + email))
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", int64(key.Sum64())).Error; err != nil {
+			return err
+		}
+	}
+	query := tx
+	if query.Statement.Table == "" {
+		query = query.Table(tableName)
+	}
 	var id uint64
-	cutoff := tx.NowFunc().Add(-PendingEmailWindow)
-	return tx.Table(tableName).Select("1").
-		Where("email = ? OR (pending_email = ? AND pending_email_at >= ?)", email, email, cutoff).
+	result := query.Select("id").
+		Where("email = ? OR (pending_email = ? AND pending_email_at >= ?)", email, email, tx.NowFunc().Add(-PendingEmailWindow)).
 		Where("id <> ?", excludeUserID).
-		Limit(1).Scan(&id).RowsAffected > 0
+		Limit(1).Scan(&id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		return ErrEmailOccupied
+	}
+	return nil
 }
 
 // ExistEmailExcluding 检查邮箱是否已被其他账号的当前 email 占用（不含暂存）。
-// 换绑暂存写入后的补偿复查使用：并发注册若在暂存落库后占用同一邮箱，
-// 该暂存在切换时必撞 email 唯一索引，立即撤销并把邮箱还给占用者。
+// 确认切换前检查历史或管理员操作留下的冲突暂存。
 func ExistEmailExcluding(email string, excludeUserID uint64) bool {
 	var id uint64
 	return builder().Select("1").
@@ -58,27 +75,30 @@ func ExistEmailExcluding(email string, excludeUserID uint64) bool {
 		Limit(1).Scan(&id).RowsAffected > 0
 }
 
-// ClearExpiredPendingEmails 清掉与 email 相同且已超出占用窗口的换绑暂存
-// （过期 = 用户放弃）。部分唯一索引 uniq_users_pending_email_nonempty 不区分
-// 新旧暂存，若不先清掉过期行，新账号对同一邮箱的合法暂存会被索引拒绝。
-// 只按暂存值定向清理，影响行数为 0 是常态。
-func ClearExpiredPendingEmails(email string) error {
-	cutoff := time.Now().Add(-PendingEmailWindow)
-	result := builder().
-		Where("pending_email = ? AND pending_email_at < ?", email, cutoff).
-		Updates(map[string]any{"pending_email": "", "pending_email_at": nil})
-	return result.Error
-}
-
 // StagePendingEmail 写入换绑暂存（两阶段第一阶段）。定向列更新而非全行
-// Save：一是不与并发的密码变更（ApplyPasswordChange CAS）互相回写，
-// 二是天然受部分唯一索引约束——并发对同一邮箱的暂存由数据库拒绝。
+// Save，避免回写并发变更的密码字段。事务内与注册共享邮箱锁，
+// 清理过期暂存并写入新暂存，部分唯一索引保留为数据库约束。
 // 调用方负责用户缓存失效。
 func StagePendingEmail(userID uint64, pendingEmail string, now time.Time) error {
-	return builder().Where(pid, userID).Updates(map[string]any{
-		"pending_email":    pendingEmail,
-		"pending_email_at": now,
-	}).Error
+	return stagePendingEmail(builder(), userID, pendingEmail, now)
+}
+
+func stagePendingEmail(conn *gorm.DB, userID uint64, pendingEmail string, now time.Time) error {
+	return conn.Transaction(func(tx *gorm.DB) error {
+		if err := CheckEmailClaimTx(tx, pendingEmail, userID); err != nil {
+			return err
+		}
+		// Expired claims must be removed under the same lock before the partial
+		// unique index can admit a new owner.
+		if err := tx.Where("pending_email = ? AND pending_email_at < ?", pendingEmail, now.Add(-PendingEmailWindow)).
+			Updates(map[string]any{"pending_email": "", "pending_email_at": nil}).Error; err != nil {
+			return err
+		}
+		return tx.Where(pid, userID).Updates(map[string]any{
+			"pending_email":    pendingEmail,
+			"pending_email_at": now,
+		}).Error
+	})
 }
 
 // ActivateCurrentEmail 以 CAS 条件更新激活当前邮箱，并清除换绑暂存

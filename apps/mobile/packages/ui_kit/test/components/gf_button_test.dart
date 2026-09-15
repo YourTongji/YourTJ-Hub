@@ -8,6 +8,40 @@ import '../helpers.dart';
 
 void main() {
   group('GfButton', () {
+    testWidgets('small buttons have a 44px target and room for scaled labels', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          GfButton(label: 'OK', size: GfButtonSize.small, onPressed: () {}),
+        ),
+      );
+      expect(
+        tester.getSize(find.byType(ElevatedButton)).height,
+        greaterThanOrEqualTo(44),
+      );
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: SizedBox(
+              width: 180,
+              child: GfButton(
+                label: 'Änderungen speichern',
+                expanded: true,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final text = tester.getRect(find.text('Änderungen speichern'));
+      final button = tester.getRect(find.byType(ElevatedButton));
+      expect(button.contains(text.topLeft), isTrue);
+      expect(button.contains(text.bottomRight), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('builds all 7 variants in light and dark', (tester) async {
       await forEachBrightness(tester, (tester, brightness) async {
         for (final GfButtonVariant variant in GfButtonVariant.values) {

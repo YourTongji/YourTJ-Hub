@@ -38,10 +38,8 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
       return;
     }
     if (action == 'history') {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
+      await showGfBottomSheet<void>(
+        context,
         builder: (_) => PostHistorySheet(postId: widget.firstPostId!),
       );
       return;

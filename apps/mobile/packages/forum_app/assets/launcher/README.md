@@ -25,7 +25,8 @@ settings as icon names. Use the wrapper instead of invoking that generator direc
 - Android exports all five legacy densities, adaptive foreground/background and Android 13 themed
   monochrome layers. The 16% foreground inset keeps the mark inside the adaptive safe circle;
   both normal and round launcher references resolve to this icon.
-- Masters live outside Flutter's bundled asset list; they are build/design inputs only.
+- `icon.png` is also bundled for the compact square cat mark in the Home header. The transparent
+  and monochrome masters remain build/design inputs outside the bundled asset list.
 
 An icon change requires rebuilding/installing the app and a new Apple build for store distribution.
 Changing repository PNGs does not replace the icon in an already uploaded or installed binary.

@@ -253,6 +253,7 @@ export default {
     groupPersonal: 'Persönlich',
     groupAdmin: 'Verwaltung',
     nav: {
+      status: "Betriebsstatus",
       topics: 'Themen',
       hot: 'Trending',
       popular: 'Beliebt',

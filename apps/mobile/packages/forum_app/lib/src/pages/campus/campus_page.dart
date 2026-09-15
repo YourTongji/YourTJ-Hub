@@ -8,6 +8,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/root_surface.dart';
+import '../../widgets/campus_shortcuts.dart';
+import '../../widgets/status_views.dart';
 
 final campusCoursesProvider =
     FutureProvider.autoDispose<CourseListResultPayload>(
@@ -63,16 +65,16 @@ class _CampusPageState extends ConsumerState<CampusPage> {
           child: ListView(
             controller: controller,
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(16, top + 16, 16, bottom),
+            padding: EdgeInsets.fromLTRB(20, top + 20, 20, bottom + 24),
             children: [
               InkWell(
                 onTap: () => context.push('/courses'),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(28),
                 child: Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colors.base200,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(28),
                   ),
                   child: Row(
                     children: [
@@ -86,78 +88,77 @@ class _CampusPageState extends ConsumerState<CampusPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  for (final entry in [
-                    ('graduation-cap', l10n.coursesTitle, '/courses'),
-                    ('calendar-days', l10n.scheduleTitle, '/schedule'),
-                    ('book-open', l10n.wikiTitle, '/wiki'),
-                  ])
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => context.push(entry.$3),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Column(
-                            children: [
-                              GfSymbol(entry.$1, size: 28),
-                              const SizedBox(height: 12),
-                              Text(
-                                entry.$2,
-                                textAlign: TextAlign.center,
-                                style: type.small,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              const CampusShortcuts(),
+              const SizedBox(height: 32),
+              Text(l10n.campusCoursesTitle, style: type.title2),
+              const SizedBox(height: 8),
+              Text(
+                l10n.campusExploreCourses,
+                style: type.small.copyWith(color: colors.iconMuted),
               ),
               const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 24),
-              Text(l10n.campusExploreCourses, style: type.title2),
-              const SizedBox(height: 12),
               ref
                   .watch(campusCoursesProvider)
                   .when(
-                    loading: () => const LinearProgressIndicator(),
+                    loading: () => const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: GfLoading(),
+                    ),
                     error: (_, _) => TextButton(
                       onPressed: () => ref.invalidate(campusCoursesProvider),
                       child: Text(l10n.commonRetry),
                     ),
-                    data: (result) => Column(
-                      children: [
-                        for (final course in result.list)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(course.name, style: type.heading),
-                            subtitle: Text(
-                              [
-                                course.department,
-                                course.teacherName ?? '',
-                              ].where((s) => s.isNotEmpty).join(' · '),
-                              style: type.caption,
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
+                    data: (result) => result.list.isEmpty
+                        ? GfEmpty(
+                            message: l10n.campusCoursesEmpty,
+                            icon: Icons.school_outlined,
+                          )
+                        : Material(
+                            color: colors.base200,
+                            borderRadius: BorderRadius.circular(20),
+                            clipBehavior: Clip.antiAlias,
+                            child: Column(
                               children: [
-                                GfSymbol(
-                                  'star',
-                                  size: 16,
-                                  color: colors.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  course.ratingAvg?.toStringAsFixed(1) ?? '—',
-                                ),
+                                for (final course in result.list)
+                                  ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    title: Text(
+                                      course.name,
+                                      style: type.heading,
+                                    ),
+                                    subtitle: Text(
+                                      [
+                                        course.department,
+                                        course.teacherName ?? '',
+                                      ].where((s) => s.isNotEmpty).join(' · '),
+                                      style: type.caption,
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        GfSymbol(
+                                          'star',
+                                          size: 16,
+                                          color: colors.primary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          course.ratingAvg?.toStringAsFixed(
+                                                1,
+                                              ) ??
+                                              '—',
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: () =>
+                                        context.push('/courses/${course.id}'),
+                                  ),
                               ],
                             ),
-                            onTap: () => context.push('/courses/${course.id}'),
                           ),
-                      ],
-                    ),
                   ),
               Align(
                 alignment: Alignment.centerLeft,
@@ -166,21 +167,34 @@ class _CampusPageState extends ConsumerState<CampusPage> {
                   child: Text(l10n.coursesTitle),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Divider(),
               const SizedBox(height: 24),
-              Text(l10n.campusPlanTitle, style: type.heading),
-              const SizedBox(height: 8),
-              Text(
-                l10n.campusPlanDescription,
-                style: type.body.copyWith(color: colors.iconMuted),
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: () => context.push('/schedule'),
-                  child: Text(l10n.scheduleTitle),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GfIconTile('calendar-days', size: 40),
+                    const SizedBox(height: 16),
+                    Text(l10n.campusPlanTitle, style: type.title2),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.campusPlanDescription,
+                      style: type.small.copyWith(
+                        height: 1.5,
+                        color: colors.iconMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    GfButton(
+                      label: l10n.scheduleTitle,
+                      expanded: true,
+                      onPressed: () => context.push('/schedule'),
+                    ),
+                  ],
                 ),
               ),
             ],

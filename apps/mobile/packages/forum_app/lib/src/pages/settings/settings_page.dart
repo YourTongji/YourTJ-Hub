@@ -13,6 +13,7 @@ import 'package:core/core.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../local/writing_store.dart';
 import '../../format.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
@@ -262,11 +263,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _editProfile(SettingsUserPayload user) async {
+  Future<void> _editProfile(
+    SettingsUserPayload user, {
+    ProfileEditSection section = ProfileEditSection.all,
+  }) async {
     final l10n = AppLocalizations.of(context);
     final updated = await showDialog<SettingsUserPayload>(
       context: context,
-      builder: (_) => ProfileEditDialog(user: user),
+      builder: (_) => ProfileEditDialog(user: user, section: section),
     );
     if (updated == null || !mounted) return;
     try {
@@ -315,6 +319,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         context,
         AppLocalizations.of(context).settingsUsernameUpdated,
       );
+    }
+  }
+
+  Future<void> _chooseAvatar() async {
+    final l10n = AppLocalizations.of(context);
+    final preset = await showGfBottomSheet<bool>(
+      context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: Text(l10n.settingsAvatarUpload),
+            onTap: () => Navigator.pop(context, false),
+          ),
+          ListTile(
+            leading: const Icon(Icons.face_outlined),
+            title: Text(l10n.settingsPresetAvatar),
+            onTap: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || preset == null) return;
+    if (preset) {
+      await _pickPresetAvatar();
+    } else {
+      await _pickProfileImage();
     }
   }
 
@@ -451,8 +483,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       await ref.read(userRepositoryProvider).setUserEmail(email, password);
       if (mounted) {
-        // 两阶段换绑（issue #678）：验证开启时提交只暂存新邮箱，当前邮箱
-        // 不变；提示去新邮箱确认并刷新 SSR 状态展示待确认横幅。
+        // The API also supports an immediate switch when verification is off.
+        // Reload the server state to show whether confirmation is pending.
         showGfToast(context, l10n.settingsEmailChangeStaged);
         await _loadUser(silent: true);
       }
@@ -814,6 +846,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: GfTheme.colorsOf(context).base200,
       appBar: GfAppBar(
         leading: GfIconButton(
           icon: Icons.arrow_back,
@@ -839,7 +872,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
           Container(
-            height: 44,
+            height: GfTabBar.heightFor(context),
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: GfTabBar(
@@ -899,13 +932,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        GfSettingRow(
-          symbol: 'languages',
-          title: l10n.settingsAppLanguage,
-          description:
-              appLanguageNames[ref.watch(appLocaleProvider)?.languageCode] ??
-              l10n.settingsLanguageSystem,
-          onTap: () => showAppLanguagePicker(context),
+        Material(
+          color: GfTheme.colorsOf(context).base100,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: GfSettingRow(
+            symbol: 'languages',
+            title: l10n.settingsAppLanguage,
+            description:
+                appLanguageNames[ref.watch(appLocaleProvider)?.languageCode] ??
+                l10n.settingsLanguageSystem,
+            onTap: () => showAppLanguagePicker(context),
+          ),
         ),
         const SizedBox(height: 12),
         _settingsSection(
@@ -924,7 +962,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _snack(l10n.settingsUserDataLoading);
                     return;
                   }
-                  _editProfile(u);
+                  _editProfile(u, section: ProfileEditSection.nickname);
                 },
               ),
               const GfDivider(),
@@ -939,7 +977,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _snack(l10n.settingsUserDataLoading);
                     return;
                   }
-                  _editProfile(u);
+                  _editProfile(u, section: ProfileEditSection.bio);
                 },
               ),
               const GfDivider(),
@@ -948,16 +986,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 title: l10n.settingsAvatar,
                 description: _uploadingAvatar
                     ? l10n.settingsAvatarUploading
-                    : l10n.settingsAvatarUpload,
+                    : l10n.settingsAvatarSources,
                 trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: _uploadingAvatar ? null : () => _pickProfileImage(),
+                onTap: _uploadingAvatar ? null : _chooseAvatar,
               ),
               const GfDivider(),
               GfSettingRow(
-                symbol: 'smile',
-                title: l10n.settingsPresetAvatar,
+                symbol: 'user-round',
+                title: l10n.settingsEditProfile,
+                description: l10n.settingsSignature,
+                onTap: _user.value == null
+                    ? null
+                    : () => _editProfile(_user.value!),
+              ),
+              const GfDivider(),
+              GfSettingRow(
+                symbol: 'link',
+                title: l10n.settingsProfileLinks,
                 trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: _uploadingAvatar ? null : _pickPresetAvatar,
+                onTap: _user.value == null
+                    ? null
+                    : () => _editProfile(
+                        _user.value!,
+                        section: ProfileEditSection.links,
+                      ),
               ),
               const GfDivider(),
               GfSettingRow(
@@ -1349,11 +1401,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     if (choice == null || !mounted) return;
     setState(() => _accountClosing = true);
+    final store = ref.read(writingStoreProvider);
+    final epoch = ref.read(offlineCacheEpochProvider);
+    String? scope;
+    try {
+      scope = await ref.read(writingScopeProvider.future);
+    } catch (_) {
+      /* Account closure remains available. */
+    }
+    if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
     try {
       await ref
           .read(contentRepositoryProvider)
           .closeAccount(mode: choice.mode, password: choice.password);
-      await _signOutLocally();
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      ref.read(offlineCacheEpochProvider.notifier).invalidate();
+      try {
+        if (scope != null) await store.clearAccount(scope);
+      } catch (_) {
+        /* A storage failure must not keep a closed account signed in. */
+      }
+      if (mounted) await _signOutLocally();
     } catch (error) {
       if (mounted) {
         showGfToast(
@@ -1489,7 +1557,7 @@ class _SettingsSessionsSkeleton extends StatelessWidget {
   }
 }
 
-/// 设置分组:标题 + [GfPanel] 容器(web `gf-panel` 语义,移动端全宽无边框)。
+/// Settings sections keep related rows together on an inset surface.
 Widget _settingsSection(
   BuildContext context, {
   required String title,
@@ -1500,7 +1568,7 @@ Widget _settingsSection(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 6),
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Text(
           title,
           style: GfTheme.typographyOf(context).small.copyWith(
@@ -1509,7 +1577,12 @@ Widget _settingsSection(
           ),
         ),
       ),
-      GfPanel(child: child),
+      Material(
+        color: colors.base100,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      ),
     ],
   );
 }
