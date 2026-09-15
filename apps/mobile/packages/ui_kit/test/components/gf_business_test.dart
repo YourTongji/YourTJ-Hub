@@ -173,6 +173,34 @@ void main() {
   });
 
   group('GfConversationRow / GfMessageBubble', () {
+    testWidgets('long conversation dates leave room for the name at 2x text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: const SizedBox(
+              width: 320,
+              child: GfConversationRow(
+                avatarUrl: '',
+                name: 'Campus friend',
+                lastMessage: 'See you on campus',
+                time: '15. September 2026, 10:30',
+                unreadCount: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(find.text('Campus friend')).width, greaterThan(80));
+      expect(
+        tester.getRect(find.text('15. September 2026, 10:30')).top,
+        greaterThan(tester.getRect(find.text('Campus friend')).bottom),
+      );
+    });
+
     testWidgets('renders conversation row with unread count', (tester) async {
       await tester.pumpWidget(
         gfApp(

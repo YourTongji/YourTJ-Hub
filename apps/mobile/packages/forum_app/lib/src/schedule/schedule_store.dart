@@ -325,7 +325,10 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       }
     }
 
-    bool isConfigCollapsed = false;
+    bool isConfigCollapsed =
+        majorSelected.calendarId != null &&
+        majorSelected.grade != null &&
+        majorSelected.major != null;
     final String? collapsedRaw = prefs?.getString(
       ScheduleStorageKeys.configCollapsed,
     );
@@ -652,7 +655,13 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       major: selection.major,
       majorName: selection.majorName,
     );
-    state = state.copyWith(majorSelected: sanitized);
+    state = state.copyWith(
+      majorSelected: sanitized,
+      isConfigCollapsed:
+          sanitized.calendarId != null &&
+          sanitized.grade != null &&
+          sanitized.major != null,
+    );
     _persist(ScheduleStorageKeys.majorSelected, jsonEncode(sanitized.toJson()));
     clearPlansData();
   }

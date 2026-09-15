@@ -200,10 +200,11 @@ class _GfChatInputState extends State<GfChatInput> {
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, 32),
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        textStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        textStyle: GfTheme.typographyOf(context).caption
+                            .copyWith(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(radii.field),
                         ),

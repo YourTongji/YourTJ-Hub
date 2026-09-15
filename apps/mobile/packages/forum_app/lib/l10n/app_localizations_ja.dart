@@ -539,13 +539,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsBio => '自己紹介';
 
   @override
-  String get settingsBioEdit => '自己紹介と署名を編集';
+  String get settingsBioEdit => '自己紹介を編集';
 
   @override
   String get settingsAvatar => 'アバター';
 
   @override
-  String get settingsAvatarUpload => 'アバターをアップロード（WebPに変換）';
+  String get settingsAvatarUpload => '画像を選んでアバター用に切り抜く';
 
   @override
   String get settingsAvatarUploading => 'アップロード中…';
@@ -1227,7 +1227,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishLeaveTitle => '編集内容を残しますか？';
 
   @override
-  String get publishLeaveBody => '未保存の変更があります。編集を続けるか、破棄してください。';
+  String get publishLeaveBody => 'この端末に保存して終了するか、今回の変更を破棄できます。';
 
   @override
   String get publishDiscard => '変更を破棄';
@@ -1965,4 +1965,108 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => 'JPush プライバシーポリシー（Android）';
+
+  @override
+  String get accountFollowing => 'フォロー中';
+
+  @override
+  String get accountFollowers => 'フォロワー';
+
+  @override
+  String get publishMomentHint => 'キャンパスの日常をシェア';
+
+  @override
+  String get publishArticleHint => '経験や物語、考えを書きましょう';
+
+  @override
+  String get publishQuestionHint => '疑問を書いて、みんなで考えましょう';
+
+  @override
+  String get accountContent => '自分のコンテンツ';
+
+  @override
+  String get commonEndOfList => '最後まで読みました';
+
+  @override
+  String get campusTools => 'キャンパスツール';
+
+  @override
+  String get campusCoursesTitle => '授業を見つける';
+
+  @override
+  String get campusCoursesEmpty => '授業レビューはまだありません。授業一覧を見てみましょう。';
+
+  @override
+  String get searchDiscoveryDescription =>
+      '投稿・ユーザー・カテゴリを検索したり、キャンパスツールを開いたりできます。';
+
+  @override
+  String get notificationsEmptyDescription =>
+      '返信・メンション・フォローがここに表示されます。キャンパスの新着情報を見てみましょう。';
+
+  @override
+  String get draftsEmptyDescription => '書きかけのアイデアを下書きに保存して、いつでも続きを書けます。';
+
+  @override
+  String get messagesSending => '送信中…';
+
+  @override
+  String get messagesSent => '送信済み';
+
+  @override
+  String get messagesFailed => '送信できませんでした';
+
+  @override
+  String get messagesRetry => '再送信';
+
+  @override
+  String get draftLocalSaved => 'この端末に保存済み';
+
+  @override
+  String get draftLocalSaving => '保存中…';
+
+  @override
+  String get draftLocalSaveFailed => '端末に保存できませんでした。再試行してください。';
+
+  @override
+  String get draftLocalRestored => '前回の下書きを復元しました';
+
+  @override
+  String get draftLocalSection => 'この端末の下書き';
+
+  @override
+  String get draftCloudSection => 'クラウドの下書き';
+
+  @override
+  String get draftKeepAndLeave => '保存して閉じる';
+
+  @override
+  String get draftDeleteLocal => '端末の下書きを削除';
+
+  @override
+  String get draftLocalOnly => 'この端末にのみ保存';
+
+  @override
+  String get searchRecent => '最近の検索';
+
+  @override
+  String get searchClearRecent => '履歴を消去';
+
+  @override
+  String get searchCourses => '授業を検索';
+
+  @override
+  String get searchWiki => 'Wiki を検索';
+
+  @override
+  String get refreshFailedRetained => '更新できませんでした。現在の内容を表示しています。';
+
+  @override
+  String get scheduleOpenWebShort => 'Web 版';
+
+  @override
+  String get settingsProfileLinks => 'ウェブサイトとSNS';
+
+  @override
+  String get settingsAvatarSources => 'プリセットを選択、または写真をアップロード';
 }

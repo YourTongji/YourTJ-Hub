@@ -1,4 +1,5 @@
 import '../../widgets/root_surface.dart';
+import '../../messages/chat_outbox.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -340,7 +341,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   @override
   void initState() {
     super.initState();
-    _convId = widget.conv.convId;
+    _convId = widget.conv.convId > 0
+        ? widget.conv.convId
+        : ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
     _load();
     _scrollController.addListener(_onScroll);
     // 打开会话即上报已读回执(清服务端未读数)。
@@ -407,6 +410,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
 
   Future<void> _load({bool silent = false}) async {
     if (_convId <= 0) {
+      _convId = ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
+    }
+    if (_convId <= 0) {
       if (mounted) setState(() => _loading = false);
       return;
     }
@@ -439,6 +445,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
           _nextBeforeId = resp.nextBeforeId;
           _loading = false;
         });
+        ref.read(chatOutboxProvider(widget.conv.peerId)).reconcile(_messages);
         if (initial || pinnedToBottom) _scrollToBottom();
       }
       if (newMessages.isNotEmpty &&
@@ -521,26 +528,33 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   }
 
   Future<void> _send(String value) async {
-    final String text = value.trim();
+    final text = value.trim();
     if (text.isEmpty) return;
-    try {
-      final int convId = await ref
-          .read(chatRepositoryProvider)
-          .sendMessage(peerId: widget.conv.peerId, content: text);
-      if (_convId <= 0 && convId > 0) _convId = convId;
-      await _load(silent: true);
-    } catch (e) {
-      if (mounted) {
-        final l10n = AppLocalizations.of(context);
-        showGfToast(context, l10n.messagesSendFailed('$e'), error: true);
-      }
+    final outbox = ref.read(chatOutboxProvider(widget.conv.peerId));
+    final message = outbox.enqueue(text, _latestId);
+    _scrollToBottom();
+    await _sendPending(message);
+  }
+
+  Future<void> _sendPending(PendingMessage message) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final convId = await ref
+        .read(chatOutboxProvider(widget.conv.peerId))
+        .send(message);
+    if (!mounted ||
+        epoch != ref.read(offlineCacheEpochProvider) ||
+        convId == null) {
+      return;
     }
+    if (_convId <= 0 && convId > 0) _convId = convId;
+    await _load(silent: true);
   }
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
+    final outbox = ref.watch(chatOutboxProvider(widget.conv.peerId));
 
     return Scaffold(
       appBar: GfAppBar(
@@ -587,7 +601,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
               color: colors.base100,
               child: _loading
                   ? const GfLoading()
-                  : _messages.isEmpty
+                  : _messages.isEmpty && outbox.items.isEmpty
                   ? _ChatEmptyState(
                       title: l10n.messagesStartChat,
                       description: l10n.messagesFirstMessageTo(
@@ -597,7 +611,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
-                      itemCount: _messages.length + (_loadingOlder ? 1 : 0),
+                      itemCount:
+                          _messages.length +
+                          outbox.items.length +
+                          (_loadingOlder ? 1 : 0),
                       itemBuilder: (BuildContext context, int index) {
                         if (_loadingOlder && index == 0) {
                           return const Padding(
@@ -607,6 +624,63 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                         }
                         final int messageIndex =
                             index - (_loadingOlder ? 1 : 0);
+                        if (messageIndex >= _messages.length) {
+                          final pending =
+                              outbox.items[messageIndex - _messages.length];
+                          final reason = pending.error is ApiException
+                              ? resolveErrorMessage(l10n, pending.error!)
+                              : null;
+                          final failureLabel =
+                              reason == null || reason == l10n.commonLoadFailed
+                              ? l10n.messagesFailed
+                              : '${l10n.messagesFailed} · $reason';
+                          return Padding(
+                            key: ValueKey('pending-${pending.id}'),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                GfMessageBubble(
+                                  text: pending.content,
+                                  mine: true,
+                                ),
+                                if (pending.state == DeliveryState.failed) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      failureLabel,
+                                      style: TextStyle(
+                                        color: colors.error,
+                                        fontSize: 12,
+                                      ),
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => _sendPending(pending),
+                                    icon: const Icon(
+                                      Icons.error_outline,
+                                      size: 18,
+                                    ),
+                                    label: Text(l10n.messagesRetry),
+                                  ),
+                                ] else
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      pending.state == DeliveryState.sending
+                                          ? l10n.messagesSending
+                                          : l10n.messagesSent,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: colors.iconMuted,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }
                         final ChatMessagePayload message =
                             _messages[messageIndex];
                         final bool startsDay =
@@ -755,8 +829,8 @@ class _NewChatSheetState extends State<_NewChatSheet> {
               ),
             ),
           ),
-          SizedBox(
-            height: 48,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -773,7 +847,7 @@ class _NewChatSheetState extends State<_NewChatSheet> {
                   ),
                   GfIconButton(
                     icon: Icons.close,
-                    size: 32,
+                    size: 44,
                     iconSize: 18,
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -830,55 +904,14 @@ class _ConversationEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: colors.info.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(radii.box * 2),
-              ),
-              child: Icon(
-                Icons.chat_bubble_outline,
-                size: 28,
-                color: colors.primary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.baseContent,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.55),
-                fontSize: 14,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 18),
-            GfButton(
-              label: actionLabel,
-              icon: const Icon(Icons.add_comment_outlined, size: 17),
-              onPressed: onStart,
-            ),
-          ],
-        ),
+    return GfEmpty(
+      icon: Icons.chat_bubble_outline,
+      message: title,
+      description: description,
+      action: GfButton(
+        label: actionLabel,
+        icon: const GfSymbol('message-circle', size: 20),
+        onPressed: onStart,
       ),
     );
   }

@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/current_user.dart';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
@@ -34,12 +37,23 @@ class _PublishPageRepository extends PageRepository {
   _PublishPageRepository(super.client, this.payload);
 
   final PagePayload payload;
+  bool offline = false;
   final List<String> paths = <String>[];
 
   @override
   Future<PagePayload> fetch(String path) async {
     paths.add(path);
+    if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;
+  }
+}
+
+class _FailingWritingStore extends WritingStore {
+  bool fail = true;
+  @override
+  Future<void> save(String scope, LocalDraft draft) async {
+    if (fail) throw StateError('disk unavailable');
+    await super.save(scope, draft);
   }
 }
 
@@ -192,6 +206,7 @@ PagePayload _publishPayload({
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
   Future<
     ({
@@ -211,6 +226,9 @@ void main() {
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
+    bool offline = false,
+    int userId = 1,
+    WritingStore? localStore,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -227,6 +245,7 @@ void main() {
         content: content,
       ),
     );
+    pageRepository.offline = offline;
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
@@ -256,6 +275,12 @@ void main() {
       ProviderScope(
         overrides: <Override>[
           tokenStorageProvider.overrideWithValue(storage),
+          apiClientProvider.overrideWithValue(client),
+          currentUserProvider.overrideWith(
+            (ref) async => CurrentUser(id: userId, username: 'alice'),
+          ),
+          if (localStore != null)
+            writingStoreProvider.overrideWithValue(localStore),
           authRepositoryProvider.overrideWithValue(
             _CaptchaAuthRepository(client),
           ),
@@ -279,6 +304,122 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'unfinished article autosaves locally and restores after reopening',
+    (tester) async {
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      editor.controller.replaceText(
+        0,
+        0,
+        '只写到这里',
+        const TextSelection.collapsed(offset: 5),
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pumpAndSettle();
+      expect(find.text('已保存到本机'), findsOneWidget);
+      final scope = writingScope('http://fake.local', 1);
+      final saved = (await WritingStore().drafts(scope)).single;
+      expect(saved.title, isEmpty);
+      expect(saved.categories, isEmpty);
+      expect(saved.content.trim(), '只写到这里');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      expect(
+        tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller
+            .document
+            .toPlainText()
+            .trim(),
+        '只写到这里',
+      );
+      expect(find.text('已恢复上次未完成的内容'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('autosave failure keeps text and exposes a working retry', (
+    tester,
+  ) async {
+    final store = _FailingWritingStore();
+    await pumpPublishPage(tester, editing: false, localStore: store);
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      0,
+      '请保留',
+      const TextSelection.collapsed(offset: 3),
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    expect(find.text('本机保存失败，请重试'), findsOneWidget);
+    expect(editor.controller.document.toPlainText().trim(), '请保留');
+    store.fail = false;
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(find.text('已保存到本机'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('offline editor restores only the signed-in account draft', (
+    tester,
+  ) async {
+    final store = WritingStore();
+    await store.save(
+      writingScope('http://fake.local', 1),
+      const LocalDraft(
+        key: 'new-3',
+        title: 'A 私有草稿',
+        content: '离线继续写',
+        contentType: 3,
+        topicId: 0,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    await pumpPublishPage(tester, editing: false, offline: true);
+    expect(find.text('A 私有草稿'), findsWidgets);
+    expect(
+      tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller
+          .document
+          .toPlainText()
+          .trim(),
+      '离线继续写',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    await pumpPublishPage(tester, editing: false, userId: 2, offline: true);
+    expect(find.text('A 私有草稿'), findsNothing);
+    expect(find.byType(QuillEditor), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('server draft acknowledgement removes the local recovery copy', (
+    tester,
+  ) async {
+    await pumpPublishPage(tester, editing: true);
+    await tester.enterText(find.byType(TextField).first, '云端保存后的标题');
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    final scope = writingScope('http://fake.local', 1);
+    expect(await WritingStore().drafts(scope), hasLength(1));
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pumpAndSettle();
+    expect(await WritingStore().drafts(scope), isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(await WritingStore().drafts(scope), isEmpty);
+  });
 
   testWidgets(
     'writing tools stay above keyboard and format the selected text',
@@ -641,7 +782,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('无分类保存草稿和发布都要求选择分类', (tester) async {
+  testWidgets('无分类内容可保存在本机但发布要求选择分类', (tester) async {
     final result = await pumpPublishPage(tester, editing: false, resultId: 55);
     await tester.enterText(find.byType(TextField).first, '无分类草稿');
     final QuillController controller = tester
@@ -657,11 +798,13 @@ void main() {
 
     await tester.ensureVisible(find.byKey(const Key('publish-save-draft')));
     await tester.tap(find.byKey(const Key('publish-save-draft')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(find.text('已保存到本机'), findsOneWidget);
     expect(result.topicRepository.writes, isEmpty);
 
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
     await tester.pump();
     expect(find.text('请至少选择一个分类'), findsOneWidget);
@@ -805,7 +948,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('保留这次创作？'), findsOneWidget);
-    expect(find.text('尚有未保存的内容。返回编辑，或放弃本次修改。'), findsOneWidget);
+    expect(find.text('可以保存到本机后离开，或放弃本次修改。'), findsOneWidget);
 
     await tester.tap(find.text('继续编辑'));
     await tester.pumpAndSettle();
@@ -817,7 +960,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('预览步无分类时保存草稿与发布都要求先选分区', (tester) async {
+  testWidgets('预览步无分类仍可保存本机草稿但发布要求分类', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -836,7 +979,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('publish-save-draft')));
     await tester.pumpAndSettle();
-    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(find.text('已保存到本机'), findsOneWidget);
     expect(result.topicRepository.writes, isEmpty);
 
     await tester.tap(find.byKey(const Key('publish-appbar-submit')));
@@ -866,6 +1009,30 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
+
+  for (final contentType in [1, 2, 3]) {
+    testWidgets(
+      'type $contentType stays usable with large German text on 320px',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 700);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpPublishPage(
+          tester,
+          editing: false,
+          contentType: contentType,
+          locale: const Locale('de'),
+        );
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('publish-preview')), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+  }
 
   testWidgets('正文图片支持长按拖拽到其他段落', (tester) async {
     tester.view.physicalSize = const Size(390, 844);

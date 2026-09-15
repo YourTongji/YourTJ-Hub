@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-08
+> Last verified: 2026-09-15
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -20,11 +20,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   to the same inset as Web. They grow with their contents and text size; empty announcements take no
   space. Multiple announcements rotate with numbered manual controls; assistive navigation and
   reduced motion disable automatic rotation. Refresh replaces the active announcement safely.
-- `Current`: mobile body text uses 17 logical pixels with system text scaling. Feed cards use
+- `Current`: feed body text uses 17 logical pixels; Markdown reading and publishing body text use
+  18 pixels with a 1.55 line height and system text scaling. Code uses 16 pixels and tables use
+  17 pixels; headings keep a distinct hierarchy and follow the active theme. The first post supports
+  text selection. Feed cards use
   compact vertical padding and one timestamp; embedded Markdown uses smaller paragraph margins
   so short replies do not acquire a large empty footer. Notification rows, conversation rows and
   chat bubbles share the feed's type scale (16 px titles, 15 px secondary text, 13 px timestamps),
   so the messaging surfaces read at the same size as the home feed.
+  Conversation dates move below the preview when they would crowd the sender name, including at
+  enlarged text sizes. Empty notification content respects the overlaid header and navigation insets.
 
 - `Current`: pushed pages use platform-native transitions on iOS — the system
   Cupertino page transition with the interactive edge-swipe back gesture, so
@@ -62,8 +67,12 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   Reaching the top, changing destination or opening the account drawer restores the controls.
   Reduced motion removes the transition; keyboard/modal interaction keeps controls visible.
   Editors and scheduler grids are pushed pages outside this behavior.
-- `Current`: Home, Campus and Notifications have a stable compose button; Messages has a new-chat
-  button. Topic pages keep reply and floor controls in the bottom dock. Pull-to-refresh and
+- `Current`: Home, Campus and Notifications have a compose button that first expands three smaller
+  choices: moment, article and question. Their Lucide icons and purple, amber and emerald tints match
+  Web. Choosing one opens the corresponding editor; tapping outside, the close button or system back
+  dismisses the menu. The menu respects reduced motion and scrolls on short screens.
+  Messages has a direct new-chat button. Topic pages keep reply and floor controls in the bottom dock.
+  Pull-to-refresh and
   reselecting the active root destination provide refresh and return-to-top without changing icons.
   Refreshable pages accept a short pull from the top on release, including empty lists; the gesture
   uses finger travel so tall screens and iOS rubber-band damping do not demand a longer pull.
@@ -99,11 +108,39 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   precedence over topic titles. Protocol-key filtering applies only to heading fields, preserving
   user content and badge names that begin with the same prefix.
 
+- `Current`: Home and global search keep the current list after a failed refresh and show a light
+  failure notice. Pagination errors remain beside an explicit retry action; retry continues the
+  same query/page without discarding prior items. New queries and account changes invalidate old responses.
+- `Current`: outgoing chat messages appear immediately as sending bubbles. Failures retain their text
+  and expose manual retry without replacing a newer input. Acknowledged bubbles stay visible until
+  matched by server history. The session-local outbox survives leaving a conversation and is cleared
+  at the account/session boundary; it is not persisted across app termination. Only one request for
+  each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
+  cannot guarantee exactly-once delivery when manually retried.
+
 ## Language and presentation
 
+- `Current`: bottom sheets size to short content and constrain long, scrollable content to the
+  available viewport. Device safe areas are consumed once: the title starts at the panel's own
+  padding, and the panel background extends behind the bottom home indicator. Scheduler pickers,
+  course filters, account pickers, Wiki contents, language selection and publishing tools share
+  this behavior. Input sheets and confirmation dialogs avoid the software keyboard. Review and
+  reply forms allow the whole form to scroll when enlarged text and the keyboard leave too little
+  space for the editor and actions; drafts survive resizing. Reply editing still confirms discard
+  and prevents dismissal by dragging or tapping outside.
+- `Current`: shared form inputs use 16-pixel text. Buttons have a minimum height of 44–56
+  pixels by size and grow for wrapped or enlarged labels; disabled actions remain visibly muted.
+  Interactive category chips have at least 44-pixel targets. Home, notification and settings tabs
+  grow with system text size, and the overlay's content inset uses the same measured height.
+- `Current`: empty and retry states share a soft icon surface, readable explanation and optional
+  next action, with scrolling on short screens. Empty notifications link back to Home; empty drafts
+  open the three-type compose menu; empty conversations retain their new-message action. List
+  footers distinguish reaching the end from an empty result.
 - `Current`: native launcher icons use Web's YourTJ cat mark. iOS includes opaque device and
   App Store sizes; Android includes legacy densities, adaptive masks and a themed monochrome layer.
-  The launcher artwork is generated independently of the in-app horizontal wordmark.
+  Home reuses the same blue YourTJ cat artwork in a compact square with an accessible brand name.
+  Its white background preserves the original colours in both themes; the mark stays centered in
+  the header.
 
 - `Current`: the native app supports the same four languages as Web: Simplified Chinese, English,
   Japanese and German. Login and Settings expose an immediate language picker with a follow-system
@@ -121,16 +158,25 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   catalog, global search, Wiki and scheduler. Search fields provide a localized clear action and keyboard
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
-- `Current`: topic read-only view/reply counts sit above independent reply, like, bookmark and watch
-  actions. Active actions use Web's semantic tints, actions wrap on narrow screens, and the reply
-  heading has no decorative discussion icon. Topic subscriptions use topic-specific labels; reply
-  commands have no toggle semantics. The dock switches to an accessible icon-only reply action when
+- `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
+  Result scope buttons scroll horizontally to preserve translated labels and counts at larger text
+  sizes. Course and Wiki search actions carry the current query into the matching native page.
+  Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
+  in device preferences only; users can clear them. Storage failure does not block searching.
+- `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
+  share one bottom dock. The AppBar shows a generic topic label until the body title scrolls out of
+  view, then shows that title. Actions use Web's semantic tints and localized accessible labels;
+  the like action includes its count. The reply heading has no decorative discussion icon.
+  Topic subscriptions use topic-specific labels; reply commands have no toggle semantics. The dock switches to an accessible icon-only reply action when
   its label cannot fit, including long translations and enlarged text. SVG icons inherit their enclosing button foreground
   unless a semantic or provider color is explicitly set.
 
 ## Publishing
 
-- `Current`: publishing uses an unframed title and writing canvas. Article formatting tools remain
+- `Current`: publishing uses a type-coloured icon, contextual writing hint and a two-step
+  edit/preview indicator above an unframed, multiline title and writing canvas. Classification sits
+  in a rounded panel below the preview. All three types share these controls and spacing. Article
+  formatting tools remain
   folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
   selection. The heading tool applies heading 2 with a tap and opens a level sheet on long press that
   offers heading 1–3 (matching the Markdown round-trip); the current level is checked and re-picking
@@ -160,25 +206,43 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   is a single undo step, and long document drags auto-scroll at the editor
   edges.
 - `Current`: Next opens the preview/classification step. The step shows one publish action in the
-  AppBar, with the draft action beside it as an icon button (tooltip carries its label, so the bar
-  still fits narrow screens in long-label locales); up to three existing categories can be selected
-  below the rendered image/title/body preview. Publish writes only after this step; saving a draft
-  retains the server's title, body and classification requirements. Moments can derive their title
-  from the first text line.
+  AppBar, with the draft action beside it as an icon button. If a long translation or enlarged text
+  cannot fit, the next/publish action also uses a labelled icon button; up to three existing
+  categories can be selected
+  below the rendered image/title/body preview. Publish writes only after this step. The draft action
+  saves incomplete forms locally; complete forms can be saved as server drafts, subject to the
+  server's title, body and classification requirements. Moments can derive their title from the first text line.
 - `Current`: publishing limits, captcha requests and other API failures use the Web error catalog
   in the selected language, including server-provided parameters.
-- `Current`: unsaved changes prompt before leaving. A server-required captcha is shown in the
-  composer and can be refreshed without discarding content.
-- `Planned`: text-to-image cards and offline draft autosave. No UI claims these features exist.
+- `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
+  the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
+  survive reopening, including when the page metadata request fails. Save progress, success and
+  retryable storage failure are visible. Local recovery has one slot per creation entry type and one
+  per edited topic; switching type retains the entry's slot. A restored editor still obtains current
+  server metadata before publishing.
+- `Current`: drafts show separate local and server sections. Local snapshots use app-private device
+  preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
+  Logging out hides them; logging back into the same account restores access. Explicit discard or
+  successful server acknowledgement removes the matching recovery snapshot; local deletion is
+  confirmed. Account closure attempts to clear that account's local drafts and searches. Serialized
+  writes order deletion after pending saves. Storage failure is reported when saving; OS termination
+  before the debounce/flush completes can lose the newest unsaved input.
+- `Current`: changed editors offer continue, discard, or save to this device and leave. A server-required
+  captcha can be refreshed without discarding content.
+- `Planned`: text-to-image cards. No UI claims this feature exists.
 
 ## Campus and sign-in
 
 - `Current`: Campus previews real reviewed courses and links to the course catalog, scheduler and
   Wiki. It does not display an official personal calendar or claim an enrollment integration.
+  The three tools share semantic icon tiles with search discovery and stack into rows on narrow
+  screens or with large text. Course previews and the planning action have separate inset surfaces;
+  an empty preview still provides access to the course catalog.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
-  non-blocking. A prominent tip opens
+  non-blocking. Completed term/grade/major selection collapses into an editable summary; course,
+  credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
 - `Current`: signed-in plans cloud-sync with the Web scheduler (`GET/PUT/DELETE /api/pk/plans`,
@@ -231,6 +295,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   transfer the native session and may require a separate Web login.
 - `Current`: account settings support username changes and the twelve built-in avatars. Server
   validation remains visible in the username form so rejected names can be corrected and retried.
+- `Current`: Settings' nickname and bio entries edit only their named field. Avatar upload and the
+  twelve presets share one source picker. Website/social links have their own entry; full profile
+  editing retains signature and profile language.
 - `Current`: profile editing includes nickname, bio, signature, website name/URL, profile language
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
@@ -239,9 +306,13 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
 
-- `Current`: the root avatar opens an account drawer with profile, bookmarks, a folded content
-  management group (drafts, content and recycle bin), settings and permission-gated workspaces.
-  The profile overflow retains these infrequent entries. Account controls are outside the public profile.
+- `Current`: the root avatar opens an account drawer with a generous left inset, larger line icons,
+  nickname and account handle. Following/follower counts come from the user's card and open the
+  matching profile streams. Unavailable counts show a placeholder with retry instead of zero; opening
+  the drawer refreshes the card, and account changes discard previous identity data. Profile,
+  bookmarks, drafts, my content, recycle bin and my course reviews are direct entries. Settings and
+  permission-gated workspaces remain available. The profile overflow retains its infrequent entries.
+  Account controls are outside the public profile.
 - `Current`: activity entries distinguish signup, post, like, follow and comment with matching
   icons and localized captions in bordered cards with a content preview and compact timestamp. Stream changes retain the profile header collapse, limiting deep offsets to the start of the
   new stream so loading, empty states and retry actions stay visible. Empty badge lists use
@@ -250,6 +321,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   underline. Avatar overlap participates in layout so it leaves no translated blank space. The role
   label stays beside the name; earned badges appear as bordered title/description cards with colored
   hexagons and their server-provided SVGs. The selected badge remains attached to the avatar.
+  Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
+  narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
+  labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.

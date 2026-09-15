@@ -11,7 +11,9 @@ import '../../server_messages.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
+import '../../local/writing_store.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/campus_shortcuts.dart';
 
 /// 聚合搜索页。结构与 Web SearchPage.vue 保持一致：页面头搜索框、
 /// 四列范围胶囊，以及同一结果卡片中的用户/帖子/分类分组。
@@ -28,13 +30,80 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   String _scope = 'all';
   int _page = 1;
   bool _loadingMore = false;
+  String? _loadMoreError;
   int _generation = 0;
+  List<String> _recent = [];
+  int _historyGeneration = 0;
+
+  Future<void> _loadHistory() async {
+    final generation = ++_historyGeneration;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    try {
+      final owner = await ref.read(writingScopeProvider.future);
+      final recent = await ref.read(writingStoreProvider).history(owner);
+      if (mounted &&
+          generation == _historyGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(() => _recent = recent);
+      }
+    } catch (_) {
+      /* Search works without local storage. */
+    }
+  }
+
+  Future<void> _remember(String query) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    try {
+      final owner = await ref.read(writingScopeProvider.future);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      await ref.read(writingStoreProvider).remember(owner, query);
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        await _loadHistory();
+      }
+    } catch (_) {
+      /* History is optional, never block a search. */
+    }
+  }
+
+  Future<void> _clearHistory() async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    try {
+      final owner = await ref.read(writingScopeProvider.future);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      await ref.read(writingStoreProvider).clearHistory(owner);
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        _historyGeneration++;
+        setState(() => _recent = []);
+      }
+    } catch (error) {
+      if (mounted) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    }
+  }
+
+  void _searchElsewhere(String path) {
+    final query = _query.text.trim();
+    _remember(query);
+    context.push(
+      Uri(
+        path: path,
+        queryParameters: query.isEmpty ? null : {'q': query},
+      ).toString(),
+    );
+  }
+
   final GfScrollToTopController _scrollToTopController =
       GfScrollToTopController();
 
   @override
   void initState() {
     super.initState();
+    _loadHistory();
   }
 
   @override
@@ -52,27 +121,36 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _scope = 'all';
       _page = 1;
       _loadingMore = false;
+      _loadMoreError = null;
     });
   }
 
   Future<void> _search() async {
     final String q = _query.text.trim();
     if (q.isEmpty) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    _remember(q);
+    final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
     setState(() {
       _result = const AsyncValue.loading();
       _page = 1;
       _loadingMore = false;
+      _loadMoreError = null;
     });
     try {
       final SearchPageProps props = await ref
           .read(topicRepositoryProvider)
           .search(query: q, scope: _scope == 'all' ? '' : _scope, page: 1);
-      if (mounted && generation == _generation) {
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() => _result = AsyncValue.data(props));
       }
     } catch (e, st) {
-      if (mounted && generation == _generation) {
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() => _result = AsyncValue.error(e, st));
       }
     }
@@ -81,8 +159,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Future<void> _loadMore() async {
     final SearchPageProps? props = _result?.value;
     if (props == null || _loadingMore || _page >= props.totalPages) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
     final generation = _generation;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final SearchPageProps next = await ref
           .read(topicRepositoryProvider)
@@ -91,7 +173,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             scope: _scope == 'all' ? '' : _scope,
             page: _page + 1,
           );
-      if (mounted && generation == _generation) {
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           _page += 1;
           _result = AsyncValue.data(
@@ -101,10 +185,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           );
         });
       }
-    } catch (_) {
-      // 保留当前结果，用户可再次触发加载。
+    } catch (error) {
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(
+          () => _loadMoreError = resolveErrorMessage(
+            AppLocalizations.of(context),
+            error,
+          ),
+        );
+      }
     } finally {
-      if (mounted && generation == _generation) {
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() => _loadingMore = false);
       }
     }
@@ -117,29 +212,52 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _refresh() async {
-    final String q = _query.text.trim();
+    final String q = _result?.valueOrNull?.query ?? _query.text.trim();
     if (q.isEmpty) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
     setState(() => _loadingMore = false);
     try {
       final SearchPageProps props = await ref
           .read(topicRepositoryProvider)
           .search(query: q, scope: _scope == 'all' ? '' : _scope, page: 1);
-      if (mounted && generation == _generation) {
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           _page = 1;
           _result = AsyncValue.data(props);
         });
       }
     } catch (e, st) {
-      if (mounted && generation == _generation) {
-        setState(() => _result = AsyncValue.error(e, st));
+      if (mounted &&
+          generation == _generation &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        if (_result?.hasValue == true) {
+          showGfToast(
+            context,
+            AppLocalizations.of(context).refreshFailedRetained,
+            error: true,
+          );
+        } else {
+          setState(() => _result = AsyncValue.error(e, st));
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(offlineCacheEpochProvider, (_, next) {
+      _generation++;
+      _historyGeneration++;
+      setState(() {
+        _recent = [];
+        _result = null;
+        _loadingMore = false;
+      });
+      _loadHistory();
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final SearchPageProps? props = _result?.value;
     final String description = props == null
@@ -166,6 +284,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   onSubmitted: (_) => _search(),
                   onClear: _clearSearch,
                 ),
+                if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 0,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _searchElsewhere('/courses'),
+                        icon: const Icon(Icons.school_outlined, size: 18),
+                        label: Text(l10n.searchCourses),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _searchElsewhere('/wiki/search'),
+                        icon: const Icon(Icons.menu_book_outlined, size: 18),
+                        label: Text(l10n.searchWiki),
+                      ),
+                    ],
+                  ),
                 if (props != null) ...[
                   const SizedBox(height: 10),
                   Text(
@@ -203,7 +338,64 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final AsyncValue<SearchPageProps>? result = _result;
     if (result == null) {
-      return GfEmpty(message: l10n.searchEmpty);
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+        children: [
+          if (_recent.isNotEmpty) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.searchRecent,
+                    style: GfTheme.typographyOf(context).title2,
+                  ),
+                ),
+                TextButton(
+                  onPressed: _clearHistory,
+                  child: Text(l10n.searchClearRecent),
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final query in _recent)
+                  ActionChip(
+                    label: Text(
+                      query,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () {
+                      _query.text = query;
+                      _search();
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GfIconTile('search', size: 56),
+          ),
+          const SizedBox(height: 24),
+          Text(l10n.searchEmpty, style: GfTheme.typographyOf(context).title1),
+          const SizedBox(height: 8),
+          Text(
+            l10n.searchDiscoveryDescription,
+            style: GfTheme.typographyOf(context).body.copyWith(
+              color: GfTheme.colorsOf(context).iconMuted,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(l10n.campusTools, style: GfTheme.typographyOf(context).title2),
+          const SizedBox(height: 16),
+          const CampusShortcuts(),
+        ],
+      );
     }
     return result.when(
       loading: () => const GfLoading(),
@@ -220,6 +412,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             props: props,
             scope: _scope,
             loadingMore: _loadingMore,
+            loadMoreError: _loadMoreError,
             hasMore: _page < props.totalPages,
             onLoadMore: _loadMore,
             onRefresh: _refresh,
@@ -253,21 +446,21 @@ class _SearchScopeBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Row(
-        children: <Widget>[
-          for (int index = 0; index < tabs.length; index++) ...<Widget>[
-            if (index > 0) const SizedBox(width: 6),
-            Expanded(
+        children: [
+          for (final tab in tabs)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
               child: _ScopeButton(
-                tab: tabs[index],
-                active: tabs[index].value == selected,
+                tab: tab,
+                active: selected == tab.value,
                 colors: colors,
-                onTap: () => onSelected(tabs[index].value),
+                onTap: () => onSelected(tab.value),
               ),
             ),
-          ],
         ],
       ),
     );
@@ -298,9 +491,11 @@ class _ScopeButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: onTap,
-          child: SizedBox(
-            height: 36,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 Flexible(
@@ -312,19 +507,19 @@ class _ScopeButton extends StatelessWidget {
                       color: active
                           ? colors.neutralContent
                           : colors.baseContent.withValues(alpha: 0.65),
-                      fontSize: 12,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(width: 3),
+                const SizedBox(width: 8),
                 Text(
                   formatNumber(tab.count),
                   style: TextStyle(
                     color: active
                         ? colors.neutralContent.withValues(alpha: 0.7)
                         : colors.baseContent.withValues(alpha: 0.4),
-                    fontSize: 10,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -342,6 +537,7 @@ class _SearchResults extends StatelessWidget {
     required this.props,
     required this.scope,
     required this.loadingMore,
+    this.loadMoreError,
     required this.hasMore,
     required this.onLoadMore,
     required this.onRefresh,
@@ -351,6 +547,7 @@ class _SearchResults extends StatelessWidget {
   final SearchPageProps props;
   final String scope;
   final bool loadingMore;
+  final String? loadMoreError;
   final bool hasMore;
   final VoidCallback onLoadMore;
   final Future<void> Function() onRefresh;
@@ -402,6 +599,7 @@ class _SearchResults extends StatelessWidget {
                         if (props.totalPages > 1)
                           GfListFooter(
                             loading: loadingMore,
+                            error: loadMoreError,
                             hasMore: hasMore,
                             onLoadMore: onLoadMore,
                           ),

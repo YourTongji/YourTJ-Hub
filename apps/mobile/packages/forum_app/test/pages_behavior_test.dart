@@ -1,3 +1,4 @@
+import 'package:forum_app/src/widgets/brand_mark.dart';
 import 'package:image/image.dart' as img;
 import 'dart:async';
 import 'dart:convert';
@@ -5,7 +6,6 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:ui' show Tristate;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +16,7 @@ import 'package:core/core.dart';
 import 'package:auth/auth.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
@@ -287,6 +288,21 @@ class TokenWritingLoginController extends AuthController {
   }
 }
 
+class RetryChatRepository extends RecordingChatRepository {
+  RetryChatRepository(super.client);
+  bool fail = true;
+  @override
+  Future<int> sendMessage({
+    required int peerId,
+    required String content,
+    int msgType = 1,
+  }) async {
+    sent.add((peerId, content));
+    if (fail) throw const NetworkException(fallbackMessage: 'offline');
+    return 9;
+  }
+}
+
 class RecordingChatRepository extends ChatRepository {
   RecordingChatRepository(super.client);
 
@@ -445,6 +461,30 @@ class CountingPageRepository extends PageRepository {
       return parsePayload(topicDetailPayloadJson());
     }
     throw UnimplementedError('unexpected page path: $path');
+  }
+}
+
+class FailingRefreshPageRepository extends CountingPageRepository {
+  FailingRefreshPageRepository(super.client);
+  bool fail = false;
+  @override
+  Future<PagePayload> fetch(String path) {
+    if (fail) throw const NetworkException(fallbackMessage: 'offline');
+    return super.fetch(path);
+  }
+}
+
+class FailingSearchRepository extends PagingTopicRepository {
+  FailingSearchRepository(super.client);
+  bool fail = false;
+  @override
+  Future<SearchPageProps> search({
+    required String query,
+    String scope = '',
+    int page = 1,
+  }) {
+    if (fail) throw const NetworkException(fallbackMessage: 'offline');
+    return super.search(query: query, scope: scope, page: page);
   }
 }
 
@@ -1514,6 +1554,7 @@ void main() {
     OfflineChatCache? chatCache,
     int? currentUserId,
     TokenStorage? tokenStorage,
+    List<Override> extraOverrides = const [],
   }) async {
     final storage = tokenStorage ?? (MemTokenStorage()..write('token'));
     final client = GfApiClient(
@@ -1549,6 +1590,7 @@ void main() {
         ),
         offlineTopicCacheProvider.overrideWithValue(topicCache ?? NoopCache()),
         offlineChatCacheProvider.overrideWithValue(chatCache ?? NoopCache()),
+        ...extraOverrides,
       ],
     );
     addTearDown(container.dispose);
@@ -1644,7 +1686,7 @@ void main() {
     addTearDown(container.dispose);
     await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('回复').first);
+    await tester.tap(find.text('参与讨论'));
     await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     await tester.enterText(
@@ -1713,7 +1755,7 @@ void main() {
   });
 
   testWidgets(
-    'topic uses inline actions without a decorative discussion icon',
+    'topic has one action dock and reveals its title only after scrolling',
     (tester) async {
       final client = GfApiClient(
         dio: Dio(),
@@ -1729,32 +1771,30 @@ void main() {
       await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.forum_outlined), findsNothing);
-      final reply = find.descendant(
-        of: find.byKey(const ValueKey('topic-inline-actions')),
-        matching: find.text('回复'),
-      );
-      final semantics = tester.ensureSemantics();
-
-      final replyButton = find
-          .ancestor(of: reply, matching: find.byType(TextButton))
-          .first;
+      expect(find.byKey(const ValueKey('topic-inline-actions')), findsNothing);
+      expect(find.byType(GfFloatingControls), findsOneWidget);
+      final title =
+          tester.widget<GfAppBar>(find.byType(GfAppBar)).title as Text;
       expect(
-        tester
-            .getSemantics(replyButton)
-            .getSemanticsData()
-            .flagsCollection
-            .isToggled,
-        Tristate.none,
+        title.data,
+        AppLocalizations.of(tester.element(find.byType(GfAppBar))).topicTitle,
       );
-      final watchLabel = AppLocalizations.of(tester.element(reply)).topicWatch;
+      final expectedTitle =
+          (redesignedTopicPayloadJson()['props'] as Map)['topic']['title'];
+      await tester.drag(
+        find.byType(CustomScrollView).first,
+        const Offset(0, -500),
+      );
+      await tester.pumpAndSettle();
       expect(
-        find.descendant(
-          of: find.byKey(const ValueKey('topic-inline-actions')),
-          matching: find.text(watchLabel),
-        ),
-        findsOneWidget,
+        (tester.widget<GfAppBar>(find.byType(GfAppBar)).title as Text).data,
+        expectedTitle,
       );
-      semantics.dispose();
+      final reply = find.text(
+        AppLocalizations.of(
+          tester.element(find.byType(GfFloatingControls)),
+        ).topicJoinDiscussion,
+      );
       await tester.ensureVisible(reply);
       await tester.tap(reply);
       await tester.pumpAndSettle();
@@ -2079,6 +2119,180 @@ void main() {
     },
   );
 
+  testWidgets(
+    'search forwards the typed query and offers clearable recent history',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        extraOverrides: [
+          writingScopeProvider.overrideWith((ref) async => 'site:1'),
+        ],
+      );
+      final router = GoRouter(
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const SearchPage()),
+          GoRoute(
+            path: '/courses',
+            builder: (_, state) =>
+                Scaffold(body: Text(state.uri.queryParameters['q']!)),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+      const query = '高等数学 & 选课';
+      await tester.enterText(find.byType(TextField), query);
+      await tester.tap(find.text('搜索课程'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.queryParameters['q'], query);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('最近搜索'), findsOneWidget);
+      expect(await container.read(writingStoreProvider).history('site:1'), [
+        query,
+      ]);
+      await tester.tap(find.text('清空记录'));
+      await tester.pumpAndSettle();
+      expect(
+        await container.read(writingStoreProvider).history('site:1'),
+        isEmpty,
+      );
+      expect(find.text('最近搜索'), findsNothing);
+    },
+  );
+
+  testWidgets('short search screen keeps the field usable above the keyboard', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: CountingPageRepository(client),
+    );
+    await tester.pumpWidget(app(container, const SearchPage()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '选课');
+    await tester.pumpAndSettle();
+    expect(
+      tester.getBottomLeft(find.byType(TextField)).dy,
+      lessThanOrEqualTo(268),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'local drafts remain accessible when cloud loading fails and can be deleted',
+    (tester) async {
+      await WritingStore().save(
+        'site:1',
+        const LocalDraft(
+          key: 'new-3',
+          title: '本机尚未完成',
+          content: '半句话',
+          contentType: 3,
+          topicId: 0,
+          categories: [],
+          images: [],
+          updatedAt: 1,
+        ),
+      );
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final repo = FailingRefreshPageRepository(client)..fail = true;
+      final container = await makeContainer(
+        pageRepo: repo,
+        extraOverrides: [
+          writingScopeProvider.overrideWith((ref) async => 'site:1'),
+        ],
+      );
+      await tester.pumpWidget(app(container, const DraftsPage()));
+      await tester.pumpAndSettle();
+      expect(find.text('本机尚未完成'), findsOneWidget);
+      await tester.tap(find.byTooltip('删除本机草稿'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('删除本机草稿').last);
+      await tester.pumpAndSettle();
+      expect(await WritingStore().drafts('site:1'), isEmpty);
+      expect(find.text('本机尚未完成'), findsNothing);
+    },
+  );
+
+  testWidgets('home refresh failure preserves the current feed', (
+    tester,
+  ) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final repo = FailingRefreshPageRepository(client);
+    final container = await makeContainer(pageRepo: repo);
+    await tester.pumpWidget(app(container, const HomePage()));
+    await tester.pumpAndSettle();
+    repo.fail = true;
+    await tester.fling(find.byType(GfTopicList), const Offset(0, 400), 1200);
+    await tester.pumpAndSettle();
+    expect(find.text('移动端测试话题'), findsOneWidget);
+    expect(find.text('刷新失败，已保留当前内容'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets(
+    'search refresh and pagination failure retain results and expose retry',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final repo = FailingSearchRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        topicRepo: repo,
+      );
+      await tester.pumpWidget(app(container, const SearchPage()));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '测试');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      repo.fail = true;
+      await tester.tap(find.text('加载更多'));
+      await tester.pumpAndSettle();
+      expect(find.text('结果-第一页'), findsOneWidget);
+      expect(find.text('重试'), findsOneWidget);
+      await tester.fling(
+        find.byType(ListView).first,
+        const Offset(0, 400),
+        1200,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('结果-第一页'), findsOneWidget);
+      repo.fail = false;
+      await tester.tap(find.text('重试'));
+      await tester.pumpAndSettle();
+      expect(find.text('结果-第二页'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 4));
+    },
+  );
+
   group('首页下拉刷新', () {
     testWidgets(
       'returning from settings refreshes the public profile identity',
@@ -2170,7 +2384,7 @@ void main() {
       expect(find.byType(GfTopicCard), findsOneWidget);
       expect(find.byType(GfTopicRow), findsNothing);
       expect(find.text('新建话题'), findsNothing);
-      expect(find.text('YourTJ'), findsOneWidget);
+      expect(find.byType(YourTjMark), findsOneWidget);
       await tester.tap(find.byType(PopupMenuButton<GfTopicFeedMode>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('列表'));
@@ -2397,8 +2611,8 @@ void main() {
         );
         await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.byTooltip('回复').at(1));
-        await tester.tap(find.byTooltip('回复').at(1));
+        await tester.ensureVisible(find.byTooltip('回复').first);
+        await tester.tap(find.byTooltip('回复').first);
         await tester.pump();
         final field = find
             .descendant(
@@ -2443,8 +2657,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(GfPostComposer), findsNothing);
-      await tester.ensureVisible(find.byTooltip('回复').at(1));
-      await tester.tap(find.byTooltip('回复').at(1));
+      await tester.ensureVisible(find.byTooltip('回复').first);
+      await tester.tap(find.byTooltip('回复').first);
       await tester.pump();
 
       final Finder composer = find.byType(GfPostComposer);
@@ -2801,6 +3015,37 @@ void main() {
   });
 
   group('私信列表', () {
+    testWidgets('发送失败保留消息气泡并可重试且保留下一条输入', (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final chats = RetryChatRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        chatRepo: chats,
+      );
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('新私信'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dave'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '不能丢失的消息');
+      await tester.pump();
+      await tester.tap(find.text('发送'));
+      await tester.pumpAndSettle();
+      expect(find.text('不能丢失的消息'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '正在写下一条');
+      chats.fail = false;
+      await tester.tap(find.text('重新发送'));
+      await tester.pumpAndSettle();
+      expect(chats.sent, [(4, '不能丢失的消息'), (4, '不能丢失的消息')]);
+      expect(find.text('正在写下一条'), findsOneWidget);
+      expect(find.text('已发送'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
     testWidgets('新私信弹层可渲染并搜索用户', (tester) async {
       final pageRepo = CountingPageRepository(
         GfApiClient(
@@ -3548,6 +3793,8 @@ void main() {
       await tester.pumpWidget(app(container, const SettingsPage()));
       pages.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
+      await tester.tap(find.text('头像'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('选择预设头像'));
       await tester.pumpAndSettle();
       await tester.tap(
@@ -4068,8 +4315,8 @@ void main() {
       await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.byTooltip('回复').at(1));
-      await tester.tap(find.byTooltip('回复').at(1));
+      await tester.ensureVisible(find.byTooltip('回复').first);
+      await tester.tap(find.byTooltip('回复').first);
       await tester.pumpAndSettle();
       expect(find.text('回复 用户 2'), findsOneWidget);
       expect(find.text('@user2 '), findsOneWidget);
@@ -4166,9 +4413,18 @@ void main() {
 
       await tester.tap(find.text('打开个人主页'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byTooltip('主题'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('主题'));
       await tester.pumpAndSettle();
+      await tester.drag(
+        find.byType(CustomScrollView).first,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Alice 的移动端设计主题'), findsOneWidget);
+      await tester.ensureVisible(find.text('Alice 的移动端设计主题'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Alice 的移动端设计主题'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/p/101');

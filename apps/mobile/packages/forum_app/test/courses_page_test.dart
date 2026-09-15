@@ -426,6 +426,25 @@ GfApiClient _client() => GfApiClient(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('course catalog starts with the forwarded global query', (
+    tester,
+  ) async {
+    final course = FakeCourseRepository(_client());
+    final container = _container(
+      courseRepo: course,
+      pageRepo: FakePageRepository(_client()),
+    );
+    await tester.pumpWidget(
+      _app(container, const CourseCatalogPage(initialQuery: '高等数学')),
+    );
+    await tester.pumpAndSettle();
+    expect(course.listCalls.single.keyword, '高等数学');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '高等数学',
+    );
+  });
+
   group('课程目录', () {
     testWidgets('渲染列表行，滚动到底触发 hasNext 翻页', (tester) async {
       final FakeCourseRepository course = FakeCourseRepository(

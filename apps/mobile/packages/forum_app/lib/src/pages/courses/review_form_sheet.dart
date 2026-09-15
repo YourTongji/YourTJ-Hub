@@ -126,137 +126,160 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     final bool editing = widget.editing != null;
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(
-              editing ? copy.editReviewTitle : copy.writeReviewTitle,
-              style: type.heading.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            // 开课实例选择（编辑模式只读展示）。
-            Expanded(
-              child: ListView(
-                shrinkWrap: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: SizedBox(
+            // Keep a usable editing area when keyboard and large text leave
+            // too little room for the fixed heading/actions. The outer scroll
+            // makes every control reachable without reparenting the editor.
+            height:
+                constraints.maxHeight <
+                    MediaQuery.textScalerOf(context).scale(280)
+                ? MediaQuery.textScalerOf(context).scale(280)
+                : constraints.maxHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Text(
-                    copy.selectOffering,
-                    style: type.caption.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.7),
-                    ),
+                    editing ? copy.editReviewTitle : copy.writeReviewTitle,
+                    style: type.heading.copyWith(fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 6),
-                  for (final CourseOfferingPayload offering in widget.offerings)
-                    _offeringOption(offering, copy, colors, type),
-                  const SizedBox(height: 12),
-                  Text(
-                    copy.ratingLabel,
-                    style: type.caption.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: <Widget>[
-                      for (int star = 1; star <= 5; star++)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(999),
-                            onTap: _submitting
-                                ? null
-                                : () => setState(() => _rating = star),
-                            child: Icon(
-                              star <= _rating ? Icons.star : Icons.star_border,
-                              size: 30,
-                              color: star <= _rating
-                                  ? colors.warning
-                                  : colors.baseContent.withValues(alpha: 0.25),
-                            ),
-                          ),
-                        ),
-                      if (_rating > 0) ...<Widget>[
-                        const SizedBox(width: 8),
+                  const SizedBox(height: 10),
+                  // 开课实例选择（编辑模式只读展示）。
+                  Expanded(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: <Widget>[
                         Text(
-                          '$_rating.0',
-                          style: type.small.copyWith(
-                            fontWeight: FontWeight.w600,
+                          copy.selectOffering,
+                          style: type.caption.copyWith(
                             color: colors.baseContent.withValues(alpha: 0.7),
                           ),
+                        ),
+                        const SizedBox(height: 6),
+                        for (final CourseOfferingPayload offering
+                            in widget.offerings)
+                          _offeringOption(offering, copy, colors, type),
+                        const SizedBox(height: 12),
+                        Text(
+                          copy.ratingLabel,
+                          style: type.caption.copyWith(
+                            color: colors.baseContent.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: <Widget>[
+                            for (int star = 1; star <= 5; star++)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(999),
+                                  onTap: _submitting
+                                      ? null
+                                      : () => setState(() => _rating = star),
+                                  child: Icon(
+                                    star <= _rating
+                                        ? Icons.star
+                                        : Icons.star_border,
+                                    size: 30,
+                                    color: star <= _rating
+                                        ? colors.warning
+                                        : colors.baseContent.withValues(
+                                            alpha: 0.25,
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            if (_rating > 0) ...<Widget>[
+                              const SizedBox(width: 8),
+                              Text(
+                                '$_rating.0',
+                                style: type.small.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.baseContent.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          copy.contentLabel,
+                          style: type.caption.copyWith(
+                            color: colors.baseContent.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        GfTextarea(
+                          controller: _contentController,
+                          hintText: copy.contentPlaceholder,
+                          maxLength: 2000,
+                          enabled: !_submitting,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              _anonymous
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size: 16,
+                              color: colors.baseContent.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                copy.anonymousLabel,
+                                style: type.small.copyWith(
+                                  color: colors.baseContent.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: _anonymous,
+                              onChanged: _submitting
+                                  ? null
+                                  : (bool value) =>
+                                        setState(() => _anonymous = value),
+                            ),
+                          ],
                         ),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    copy.contentLabel,
-                    style: type.caption.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.7),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  GfTextarea(
-                    controller: _contentController,
-                    hintText: copy.contentPlaceholder,
-                    maxLength: 2000,
-                    enabled: !_submitting,
-                  ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Row(
                     children: <Widget>[
-                      Icon(
-                        _anonymous
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 16,
-                        color: colors.baseContent.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          copy.anonymousLabel,
-                          style: type.small.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.7),
-                          ),
+                        child: GfButton(
+                          label: l10n.commonCancel,
+                          variant: GfButtonVariant.ghost,
+                          onPressed: _submitting
+                              ? null
+                              : () => Navigator.pop(context),
                         ),
                       ),
-                      Switch(
-                        value: _anonymous,
-                        onChanged: _submitting
-                            ? null
-                            : (bool value) =>
-                                  setState(() => _anonymous = value),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GfButton(
+                          label: editing ? l10n.commonSave : l10n.reviewSubmit,
+                          loading: _submitting,
+                          onPressed: _submit,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: GfButton(
-                    label: l10n.commonCancel,
-                    variant: GfButtonVariant.ghost,
-                    onPressed: _submitting
-                        ? null
-                        : () => Navigator.pop(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GfButton(
-                    label: editing ? l10n.commonSave : l10n.reviewSubmit,
-                    loading: _submitting,
-                    onPressed: _submit,
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -552,14 +552,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsBio => 'Biografie';
 
   @override
-  String get settingsBioEdit => 'Biografie und Signatur bearbeiten';
+  String get settingsBioEdit => 'Biografie bearbeiten';
 
   @override
   String get settingsAvatar => 'Profilbild';
 
   @override
-  String get settingsAvatarUpload =>
-      'Profilbild hochladen (wird in WebP umgewandelt)';
+  String get settingsAvatarUpload => 'Profilfoto auswählen und zuschneiden';
 
   @override
   String get settingsAvatarUploading => 'Wird hochgeladen …';
@@ -1259,7 +1258,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get publishLeaveBody =>
-      'Du hast ungespeicherte Änderungen. Weiter bearbeiten oder verwerfen.';
+      'Speichere den Entwurf auf diesem Gerät, bevor du gehst, oder verwirf die Änderungen.';
 
   @override
   String get publishDiscard => 'Änderungen verwerfen';
@@ -2038,4 +2037,114 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsPushPrivacy => 'JPush-Datenschutz (Android)';
+
+  @override
+  String get accountFollowing => 'Folge ich';
+
+  @override
+  String get accountFollowers => 'Follower';
+
+  @override
+  String get publishMomentHint => 'Teile einen Moment vom Campus';
+
+  @override
+  String get publishArticleHint =>
+      'Teile Erfahrungen, Geschichten und Gedanken';
+
+  @override
+  String get publishQuestionHint => 'Stelle deine Frage an die Community';
+
+  @override
+  String get accountContent => 'Meine Inhalte';
+
+  @override
+  String get commonEndOfList => 'Alles gelesen';
+
+  @override
+  String get campusTools => 'Campus-Werkzeuge';
+
+  @override
+  String get campusCoursesTitle => 'Kurse entdecken';
+
+  @override
+  String get campusCoursesEmpty =>
+      'Noch keine Kursbewertungen. Entdecke den Kurskatalog.';
+
+  @override
+  String get searchDiscoveryDescription =>
+      'Finde Beiträge, Personen und Kategorien oder öffne deine Campus-Werkzeuge.';
+
+  @override
+  String get notificationsEmptyDescription =>
+      'Antworten, Erwähnungen und neue Follower erscheinen hier. Entdecke Neues auf dem Campus.';
+
+  @override
+  String get draftsEmptyDescription =>
+      'Speichere unfertige Ideen als Entwürfe und schreibe später weiter.';
+
+  @override
+  String get messagesSending => 'Wird gesendet…';
+
+  @override
+  String get messagesSent => 'Gesendet';
+
+  @override
+  String get messagesFailed => 'Nicht gesendet';
+
+  @override
+  String get messagesRetry => 'Erneut senden';
+
+  @override
+  String get draftLocalSaved => 'Auf diesem Gerät gespeichert';
+
+  @override
+  String get draftLocalSaving => 'Wird gespeichert…';
+
+  @override
+  String get draftLocalSaveFailed =>
+      'Lokales Speichern fehlgeschlagen. Bitte erneut versuchen.';
+
+  @override
+  String get draftLocalRestored =>
+      'Dein letzter Entwurf wurde wiederhergestellt';
+
+  @override
+  String get draftLocalSection => 'Auf diesem Gerät';
+
+  @override
+  String get draftCloudSection => 'Cloud-Entwürfe';
+
+  @override
+  String get draftKeepAndLeave => 'Speichern und schließen';
+
+  @override
+  String get draftDeleteLocal => 'Lokalen Entwurf löschen';
+
+  @override
+  String get draftLocalOnly => 'Nur auf diesem Gerät gespeichert';
+
+  @override
+  String get searchRecent => 'Letzte Suchanfragen';
+
+  @override
+  String get searchClearRecent => 'Verlauf löschen';
+
+  @override
+  String get searchCourses => 'Kurse suchen';
+
+  @override
+  String get searchWiki => 'Wiki durchsuchen';
+
+  @override
+  String get refreshFailedRetained =>
+      'Aktualisierung fehlgeschlagen. Die bisherigen Inhalte bleiben sichtbar.';
+
+  @override
+  String get scheduleOpenWebShort => 'Webversion';
+
+  @override
+  String get settingsProfileLinks => 'Website und soziale Links';
+
+  @override
+  String get settingsAvatarSources => 'Vorlage wählen oder Foto hochladen';
 }

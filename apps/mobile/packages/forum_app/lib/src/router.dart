@@ -165,7 +165,10 @@ class _GfShellState extends ConsumerState<GfShell> {
         : const Duration(milliseconds: 200);
     return Scaffold(
       drawer: const AccountDrawer(),
-      onDrawerChanged: (_) => ref.read(readingChromeProvider).show(),
+      onDrawerChanged: (open) {
+        ref.read(readingChromeProvider).show();
+        if (open) ref.invalidate(accountCardProvider);
+      },
       body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification.depth != 0 ||
@@ -309,6 +312,7 @@ final GoRouter appRouter = GoRouter(
       path: '/publish',
       builder: (BuildContext context, GoRouterState state) => PublishPage(
         topicId: publishTopicIdFromUri(state.uri),
+        localDraftKey: state.uri.queryParameters['local'],
         initialContentType: switch (state.uri.queryParameters['type'] ??
             state.uri.queryParameters['contentType']) {
           '1' || 'question' => 1,
@@ -382,7 +386,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
     GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
     GoRoute(path: '/schedule', builder: (_, _) => const SchedulePage()),
-    GoRoute(path: '/courses', builder: (_, _) => const CourseCatalogPage()),
+    GoRoute(
+      path: '/courses',
+      builder: (_, state) =>
+          CourseCatalogPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
+    ),
     GoRoute(
       path: '/courses/:courseId',
       builder: (BuildContext context, GoRouterState state) => CourseDetailPage(
@@ -395,7 +403,11 @@ final GoRouter appRouter = GoRouter(
         ),
       ),
     ),
-    GoRoute(path: '/wiki/search', builder: (_, _) => const WikiSearchPage()),
+    GoRoute(
+      path: '/wiki/search',
+      builder: (_, state) =>
+          WikiSearchPage(initialQuery: state.uri.queryParameters['q'] ?? ''),
+    ),
     GoRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
     GoRoute(
       // 多段 wiki 路径（如 /wiki/guide/getting-started）经 (.*) 通配捕获；
