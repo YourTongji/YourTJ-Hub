@@ -24,6 +24,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
 - forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);
+- independent status: `apps/status/api/openapi.yaml` owns the Netlify `/api/status` response;
+  TypeScript is generated into `apps/status/src/generated/`, with fixture and handler validation in
+  that application's tests. This API is outside Gin and the forum/mobile client contract.
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
   agent administration, operation records, traffic overview, page settings, site settings, and
   data import/export;

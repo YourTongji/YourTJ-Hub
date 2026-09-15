@@ -1,0 +1,10 @@
+packages:
+  - '.'
+allowBuilds:
+  esbuild: true
+  netlify-cli: true
+  sharp: true
+  unix-dgram: false
+minimumReleaseAgeExclude:
+  - '@netlify/blobs@11.1.0'
+  - netlify-cli@27.6.0

@@ -1,0 +1,63 @@
+openapi: 3.1.0
+info:
+  title: YourTJ Status API
+  version: 1.0.0
+  description: Read-only public snapshots collected independently of the forum.
+servers:
+  - url: https://status.yourtj.de
+paths:
+  /api/status:
+    get:
+      operationId: getStatus
+      summary: Read status snapshots
+      description: >-
+        Reads persisted snapshots only; visitors cannot trigger upstream collection.
+        Current resource and uptime sources refresh every minute, history and traffic every five minutes.
+        Data older than 150 seconds (current) or ten minutes (history/traffic) is stale;
+        all data expires after fifteen minutes. fetchedAt is never advanced on failure.
+        The browser rechecks freshness independently of the CDN cache.
+      parameters:
+        - in: query
+          name: range
+          schema: {type: string, enum: [24h, 7d, 30d], default: 24h}
+        - in: query
+          name: serverRange
+          schema: {type: string, enum: [1h, 6h, 24h, 7d], default: 1h}
+      responses:
+        '200':
+          description: Available, stale, unavailable or unconfigured sources
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StatusResponse'}
+        '400':
+          description: Unknown, repeated or unsupported query parameter
+        '503':
+          description: Snapshot storage is unavailable
+components:
+  schemas:
+    StatusSnapshot:
+      $ref: './components.yaml#/StatusSnapshot'
+    StatusServerSource:
+      $ref: './components.yaml#/StatusServerSource'
+    StatusTrafficSource:
+      $ref: './components.yaml#/StatusTrafficSource'
+    StatusServer:
+      $ref: './components.yaml#/StatusServer'
+    StatusSample:
+      $ref: './components.yaml#/StatusSample'
+    StatusLoadPoint:
+      $ref: './components.yaml#/StatusLoadPoint'
+    StatusTraffic:
+      $ref: './components.yaml#/StatusTraffic'
+    StatusTrafficPoint:
+      $ref: './components.yaml#/StatusTrafficPoint'
+    StatusResponse:
+      $ref: './components.yaml#/StatusResponse'
+    StatusUptimeSource:
+      $ref: './components.yaml#/StatusUptimeSource'
+    StatusUptime:
+      $ref: './components.yaml#/StatusUptime'
+    StatusUptimeMonitor:
+      $ref: './components.yaml#/StatusUptimeMonitor'
+    StatusUptimeHeartbeat:
+      $ref: './components.yaml#/StatusUptimeHeartbeat'

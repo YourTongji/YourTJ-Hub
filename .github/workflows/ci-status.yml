@@ -1,0 +1,35 @@
+name: CI / status
+on:
+  push:
+    branches: [dev, main]
+    paths: ['apps/status/**', '.github/workflows/ci-status.yml']
+  pull_request:
+    paths: ['apps/status/**', '.github/workflows/ci-status.yml']
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  ci-status:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/status
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.11.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/status/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm contract:check
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
+      - run: pnpm functions:build

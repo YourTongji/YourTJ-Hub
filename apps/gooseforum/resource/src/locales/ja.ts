@@ -253,6 +253,7 @@ export default {
     groupPersonal: '個人',
     groupAdmin: '管理',
     nav: {
+      status: "稼働状況",
       topics: 'トピック',
       hot: '人気',
       popular: '注目',
