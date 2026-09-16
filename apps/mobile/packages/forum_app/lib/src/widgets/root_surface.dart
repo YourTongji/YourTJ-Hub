@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
 import 'account_drawer.dart';
+import 'compose_menu.dart';
 
 /// Root content scrolls underneath an overlay header. The initial header inset
 /// belongs inside the scroll view, so hiding controls cannot jump the content.
@@ -13,6 +13,7 @@ class RootSurface extends ConsumerWidget {
   const RootSurface({
     super.key,
     required this.title,
+    this.titleWidget,
     required this.body,
     this.actions = const [],
     this.toolbar,
@@ -22,6 +23,7 @@ class RootSurface extends ConsumerWidget {
     this.actionSymbol = 'plus',
   });
   final String title;
+  final Widget? titleWidget;
   final Widget Function(double topInset, double bottomInset) body;
   final List<Widget> actions;
   final Widget? toolbar;
@@ -77,12 +79,16 @@ class RootSurface extends ConsumerWidget {
                                   ),
                                   Expanded(
                                     child: Center(
-                                      child: Text(
-                                        title,
-                                        style: GfTheme.typographyOf(
-                                          context,
-                                        ).title2,
-                                      ),
+                                      child:
+                                          titleWidget ??
+                                          Text(
+                                            title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GfTheme.typographyOf(
+                                              context,
+                                            ).title2,
+                                          ),
                                     ),
                                   ),
                                   if (actions.isEmpty)
@@ -112,7 +118,9 @@ class RootSurface extends ConsumerWidget {
                   heroTag: null,
                   tooltip:
                       actionLabel ?? AppLocalizations.of(context).navPublish,
-                  onPressed: onAction ?? () => context.push('/publish?type=2'),
+                  onPressed:
+                      onAction ??
+                      () => showComposeMenu(context, bottom: hidden ? 16 : 72),
                   child: GfSymbol(
                     actionSymbol,
                     color: colors.primaryContent,

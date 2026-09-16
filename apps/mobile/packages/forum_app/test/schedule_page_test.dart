@@ -286,13 +286,19 @@ ProviderContainer makeContainer(
   );
 }
 
-Widget wrapApp(ProviderContainer container) {
+Widget wrapApp(ProviderContainer container, {double textScale = 1}) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: const Locale('zh'),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: const SchedulePage(),
     ),
   );
@@ -560,7 +566,7 @@ void main() {
 
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
-      expect(find.text('完整版排课器，请到网页端体验'), findsOneWidget);
+      expect(find.text('网页版'), findsOneWidget);
       await tester.ensureVisible(find.text('方案预览'));
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
@@ -586,7 +592,7 @@ void main() {
 
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
-      expect(find.text('完整版排课器，请到网页端体验'), findsOneWidget);
+      expect(find.text('网页版'), findsOneWidget);
       await tester.ensureVisible(find.text('方案预览'));
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
@@ -595,6 +601,8 @@ void main() {
       expect(find.text('高等数学'), findsWidgets);
 
       // 切到第 2 周（课程只占第 1 周）。
+      await tester.ensureVisible(find.byType(DropdownButton<int?>));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(DropdownButton<int?>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('第 2 周').last);
@@ -618,7 +626,7 @@ void main() {
 
       await tester.pumpWidget(wrapApp(container));
       await tester.pumpAndSettle();
-      expect(find.text('完整版排课器，请到网页端体验'), findsOneWidget);
+      expect(find.text('网页版'), findsOneWidget);
       await tester.ensureVisible(find.text('方案预览'));
       await tester.tap(find.text('方案预览'));
       await tester.pumpAndSettle();
@@ -628,7 +636,45 @@ void main() {
       expect(find.text('有事'), findsWidgets);
     });
 
+    testWidgets('方案重命名在小屏大字体和键盘下可保存', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 640);
+      tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(top: 44, bottom: 34);
+      addTearDown(tester.view.reset);
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final notifier = await seededNotifier();
+      final container = makeContainer(notifier);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(wrapApp(container, textScale: 2));
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('方案 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(
+          AppLocalizations.of(
+            tester.element(find.byType(SchedulePage)),
+          ).schedulePlanRename,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '新的方案');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      tester.view.padding = const FakeViewPadding(top: 44);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('保存'));
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      expect(notifier.activePlan.name, '新的方案');
+    });
+
     testWidgets('选班列表呈现预选冲突提示且非阻塞加课', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.padding = const FakeViewPadding(top: 59, bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(top: 59, bottom: 34);
+      addTearDown(tester.view.reset);
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final ScheduleStoreNotifier notifier = ScheduleStoreNotifier();
       await notifier.ready;
@@ -671,7 +717,9 @@ void main() {
       repo.onCourseDetails = (String courseCode) => <PkCourseDetailBrief>[
         const PkCourseDetailBrief(
           code: '110001.01',
-          teachers: <PkTeacherRef>[PkTeacherRef(teacherName: '张老师', teacherCode: 'T1')],
+          teachers: <PkTeacherRef>[
+            PkTeacherRef(teacherName: '张老师', teacherCode: 'T1'),
+          ],
           campus: '四平路校区',
           teachingLanguage: '中文',
           arrangementInfo: <PkArrangementInfo>[
@@ -679,13 +727,32 @@ void main() {
               arrangementText: '周一 1-2节',
               occupyDay: 1,
               occupyTime: <int>[1, 2],
-              occupyWeek: <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+              occupyWeek: <int>[
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+              ],
             ),
           ],
         ),
         const PkCourseDetailBrief(
           code: '110001.02',
-          teachers: <PkTeacherRef>[PkTeacherRef(teacherName: '王老师', teacherCode: 'T2')],
+          teachers: <PkTeacherRef>[
+            PkTeacherRef(teacherName: '王老师', teacherCode: 'T2'),
+          ],
           campus: '四平路校区',
           teachingLanguage: '中文',
           arrangementInfo: <PkArrangementInfo>[
@@ -693,13 +760,33 @@ void main() {
               arrangementText: '周二 3-4节',
               occupyDay: 2,
               occupyTime: <int>[3, 4],
-              occupyWeek: <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+              occupyWeek: <int>[
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+              ],
             ),
           ],
         ),
       ];
 
-      final ProviderContainer container = makeContainer(notifier, repository: repo);
+      final ProviderContainer container = makeContainer(
+        notifier,
+        repository: repo,
+      );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(wrapApp(container));
@@ -721,6 +808,14 @@ void main() {
 
       // 验证 110001.02 属于正常班级，无冲突
       expect(find.text('110001.02'), findsOneWidget);
+      final heading = find.text('选择教学班');
+      final surface = find
+          .ancestor(of: heading, matching: find.byType(Material))
+          .first;
+      expect(tester.getTopLeft(heading).dy - tester.getTopLeft(surface).dy, 14);
+      expect(tester.getBottomLeft(surface).dy, 844);
+      expect(tester.getBottomLeft(find.text('110001.02')).dy, lessThan(810));
+      expect(tester.takeException(), isNull);
 
       // 非阻塞测试：点击冲突班级 110001.01
       await tester.tap(find.text('110001.01'));

@@ -137,10 +137,13 @@ func TestActivationWriteGateAllowsRecoveryForPendingUsers(t *testing.T) {
 	})
 }
 
-// TestActivationWriteGateRevokesWriteAfterRePending 改邮箱把账号重新置为
-// pending（或会话存续期间账号被置为 pending）后，既有会话写请求立即被拒。
+// TestActivationWriteGateRevokesWriteAfterRePending 会话存续期间账号被置为
+// pending 后，既有会话写请求立即被拒。注意两阶段换绑（issue #678）后，
+// set-user-email 不再把已激活账号重置为 pending——已激活账号在换绑暂存期
+// 保留写权限（见第一个子测试），真正触发写封禁的是激活状态真实变化
+// （注册后未激活、管理员重置等，见第二个子测试）。
 func TestActivationWriteGateRevokesWriteAfterRePending(t *testing.T) {
-	t.Run("email change re-pending immediately blocks write", func(t *testing.T) {
+	t.Run("email change keeps write permission during pending switch window", func(t *testing.T) {
 		conn, router := setupActivationWriteGateContractTest(t)
 		enableContractEmailVerification(t, conn)
 		user := createHTTPContractUser(t, conn, contractTestID())
@@ -155,13 +158,14 @@ func TestActivationWriteGateRevokesWriteAfterRePending(t *testing.T) {
 			t.Fatalf("set-user-email messageCode = %q, want user.updateSuccess", got)
 		}
 
+		// 两阶段换绑第一阶段只暂存新邮箱：账号激活状态不变，已激活账号
+		// 不得因发起换绑丢失写权限（issue #678）。
 		recorder := serveJSON(router, "/api/forum/topics/write", `{}`, token)
-		if recorder.Code != http.StatusForbidden {
-			t.Fatalf("post-change topics/write status = %d, want 403: %s", recorder.Code, recorder.Body.String())
+		if recorder.Code == http.StatusForbidden {
+			t.Fatalf("pending-switch topics/write blocked with 403: %s", recorder.Body.String())
 		}
-		envelope := decodeContractEnvelope(t, recorder)
-		if envelope.MessageCode != string(component.MessagePermissionEmailRequired) {
-			t.Fatalf("messageCode = %q, want %q", envelope.MessageCode, component.MessagePermissionEmailRequired)
+		if got := decodeContractEnvelope(t, recorder).MessageCode; got == string(component.MessagePermissionEmailRequired) {
+			t.Fatal("activated user initiating email switch must not receive permission.emailRequired")
 		}
 	})
 

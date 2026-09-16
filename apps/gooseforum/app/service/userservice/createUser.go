@@ -24,6 +24,13 @@ func CreateUser(username, password, email string, needValid bool, locale ...stri
 	}
 	userEntity.IsFrozen = users.StatusNormal
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		// Hold the same address claim as email staging until this insert and
+		// its associated points initialization commit together.
+		if email != "" {
+			if err := users.CheckEmailClaimTx(tx, email, 0); err != nil {
+				return err
+			}
+		}
 		if err := tx.Create(userEntity).Error; err != nil {
 			return err
 		}

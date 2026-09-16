@@ -96,3 +96,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0025](0025-oryn-action-reliability.md) — Oryn 重试期间保持 admission ownership、报告预算与发布 artifact 身份一致。
 - [0026](0026-public-status-projection.md) — 论坛内公开状态投影（已被 0027 替代）。
 - [0027](0027-independent-status-netlify.md) — 独立 Netlify 状态站、定时采集和持久化公开快照。
+
+- [0028](0028-mobile-local-writing-recovery.md) — 移动端按站点和账号隔离本机写作恢复，独立于云端草稿
+
+- [0029](0029-two-phase-email-change.md) — 换绑邮箱两阶段切换：确认后原子切换，旧邮箱在切换前保持占用。

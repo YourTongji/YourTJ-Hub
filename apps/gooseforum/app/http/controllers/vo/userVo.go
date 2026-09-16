@@ -29,6 +29,7 @@ type UserDetailedVo struct {
 	Id                  uint64                    `json:"id"`
 	Username            string                    `json:"username"`
 	Email               string                    `json:"email"`
+	PendingEmail        string                    `json:"pendingEmail"` // 两阶段换绑暂存邮箱（issue #678）；空 = 无进行中的换绑
 	Nickname            string                    `json:"nickname"`
 	AvatarUrl           string                    `json:"avatarUrl"`
 	ProfileCoverUrl     string                    `json:"profileCoverUrl"`

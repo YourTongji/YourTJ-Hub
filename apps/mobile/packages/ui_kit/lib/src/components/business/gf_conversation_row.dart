@@ -68,55 +68,74 @@ class GfConversationRow extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: colors.baseContent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        time,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colors.baseContent.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          lastMessage,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: unreadCount > 0
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: colors.baseContent.withValues(
-                              alpha: unreadCount > 0 ? 0.85 : 0.55,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final timeStyle = TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: colors.baseContent.withValues(alpha: 0.72),
+                  );
+                  final timePainter = TextPainter(
+                    text: TextSpan(
+                      text: time,
+                      style: DefaultTextStyle.of(
+                        context,
+                      ).style.merge(timeStyle),
+                    ),
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                  )..layout();
+                  // Keep at least 120px for identity. Long dates move below the
+                  // preview instead of taking width away from the sender.
+                  final inlineTime =
+                      constraints.maxWidth - timePainter.width >= 120 &&
+                      MediaQuery.textScalerOf(context).scale(16) <= 24;
+                  timePainter.dispose();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: colors.baseContent,
+                              ),
                             ),
                           ),
+                          if (inlineTime) ...[
+                            const SizedBox(width: 8),
+                            Text(time, style: timeStyle),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        lastMessage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: unreadCount > 0
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: colors.baseContent.withValues(
+                            alpha: unreadCount > 0 ? 0.85 : 0.72,
+                          ),
                         ),
                       ),
+                      if (!inlineTime) ...[
+                        const SizedBox(height: 8),
+                        Text(time, style: timeStyle),
+                      ],
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ],

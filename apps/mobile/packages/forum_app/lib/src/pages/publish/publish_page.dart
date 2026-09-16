@@ -12,12 +12,14 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../local/writing_store.dart';
 import '../../asset_url.dart';
 import '../../images/image_upload.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import 'embed_image_move.dart';
+import 'publish_type.dart';
 
 /// Global topic composer aligned with the Web publish workspace.
 ///
@@ -29,6 +31,7 @@ class PublishPage extends ConsumerStatefulWidget {
   const PublishPage({
     super.key,
     this.topicId,
+    this.localDraftKey,
     this.initialContentType = 3,
     this.editTitle,
     this.editContent,
@@ -37,6 +40,7 @@ class PublishPage extends ConsumerStatefulWidget {
   });
 
   final int? topicId;
+  final String? localDraftKey;
   final int initialContentType;
 
   /// Compatibility fallbacks for callers that already have edit data. The
@@ -54,7 +58,8 @@ class PublishPage extends ConsumerStatefulWidget {
 
 enum _ComposeMode { edit, preview }
 
-class _PublishPageState extends ConsumerState<PublishPage> {
+class _PublishPageState extends ConsumerState<PublishPage>
+    with WidgetsBindingObserver {
   static const int _maxCategories = 3;
   static const double _wideWorkspaceBreakpoint = 760;
   static const Duration _previewDebounceDuration = Duration(milliseconds: 200);
@@ -66,6 +71,19 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   int _contentType = 3;
   bool _formatting = false;
   bool _dirty = false;
+  late final WritingStore _localStore;
+  late final OfflineCacheEpoch _session;
+  late final int _epoch;
+  late String _draftKey;
+  String? _owner;
+  Timer? _autosave;
+  int _revision = 0;
+  int _savedRevision = 0;
+  bool _localRestored = false;
+  String _localStatus = '';
+  bool _localSaveFailed = false;
+  bool _finished = false;
+  bool _saveStatusScheduled = false;
   bool _allowPop = false;
   final TextEditingController _title = TextEditingController();
   final List<int> _categoryIds = <int>[];
@@ -97,6 +115,17 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   @override
   void initState() {
     super.initState();
+    _localStore = ref.read(writingStoreProvider);
+    _session = ref.read(offlineCacheEpochProvider.notifier);
+    _epoch = ref.read(offlineCacheEpochProvider);
+    _draftKey =
+        widget.localDraftKey ??
+        (widget.topicId == null
+            ? 'new-${widget.initialContentType}'
+            : 'topic-${widget.topicId}');
+    WidgetsBinding.instance.addObserver(this);
+    _title.addListener(_markDirty);
+    _simple.addListener(_markDirty);
     _converter = widget.markdownConverter ?? MarkdownConverter();
     _currentTopicId = widget.topicId ?? 0;
     _contentType = widget.initialContentType;
@@ -105,7 +134,124 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     _categoryIds.addAll(widget.editCategoryIds ?? const <int>[]);
     _quill = _createController('');
     _previewMarkdown = _markdownFromEditor();
-    _loadEditorData();
+    _initializeDraft();
+  }
+
+  bool get _sessionCurrent => _session.isCurrent(_epoch);
+
+  Future<void> _initializeDraft() async {
+    try {
+      final owner = await ref.read(writingScopeProvider.future);
+      if (!mounted || !_sessionCurrent) return;
+      if (!owner.endsWith(':0')) _owner = owner;
+    } catch (_) {
+      /* Network editor remains usable if identity storage fails. */
+    }
+    if (mounted && _sessionCurrent) await _loadEditorData();
+  }
+
+  void _markDirty() {
+    if (_loading || _finished || !_sessionCurrent) return;
+    _dirty = true;
+    _allowPop = false;
+    _revision++;
+    _localSaveFailed = false;
+    if (!_saveStatusScheduled) {
+      _saveStatusScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _saveStatusScheduled = false;
+        if (mounted &&
+            _sessionCurrent &&
+            !_finished &&
+            !_localSaveFailed &&
+            _revision != _savedRevision) {
+          setState(() {
+            _localStatus = AppLocalizations.of(context).draftLocalSaving;
+            _localSaveFailed = false;
+          });
+        }
+      });
+    }
+    _autosave?.cancel();
+    _autosave = Timer(const Duration(milliseconds: 700), _saveLocal);
+  }
+
+  Future<bool> _saveLocal({bool notify = true}) async {
+    _autosave?.cancel();
+    if (_finished ||
+        !_sessionCurrent ||
+        !_dirty ||
+        _revision == _savedRevision) {
+      return true;
+    }
+    final owner = _owner;
+    final revision = _revision;
+    final l10n = notify ? AppLocalizations.of(context) : null;
+    if (notify && mounted) {
+      setState(() {
+        _localStatus = l10n!.draftLocalSaving;
+        _localSaveFailed = false;
+      });
+    }
+    try {
+      if (owner == null) throw StateError('No draft owner');
+      final draft = LocalDraft(
+        key: _draftKey,
+        title: _title.text,
+        content: _contentType == 3
+            ? _converter.documentToMarkdown(_quill.document)
+            : _simple.text,
+        contentType: _contentType,
+        topicId: _currentTopicId,
+        categories: List.of(_categoryIds),
+        images: List.of(_images),
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      await _localStore.save(owner, draft);
+      if (!mounted || !_sessionCurrent || _finished) return false;
+      _savedRevision = revision;
+      if (notify && revision == _revision) {
+        setState(() => _localStatus = l10n!.draftLocalSaved);
+      }
+      return true;
+    } catch (_) {
+      if (notify && mounted && _sessionCurrent) {
+        setState(() {
+          _localSaveFailed = true;
+          _localStatus = l10n!.draftLocalSaveFailed;
+        });
+      }
+      return false;
+    }
+  }
+
+  Future<void> _restoreLocal() async {
+    final owner = _owner;
+    if (owner == null || _dirty) return;
+    final drafts = await _localStore.drafts(owner);
+    if (!mounted || !_sessionCurrent || _dirty) return;
+    final matching = drafts.where((draft) => draft.key == _draftKey);
+    if (matching.isEmpty) return;
+    final draft = matching.first;
+    _contentType = draft.contentType;
+    _currentTopicId = draft.topicId;
+    _title.text = draft.title;
+    _simple.text = draft.content;
+    _images
+      ..clear()
+      ..addAll(draft.images);
+    _categoryIds
+      ..clear()
+      ..addAll(draft.categories);
+    _replaceEditorDocument(_contentType == 3 ? draft.content : '');
+    _localRestored = true;
+    _dirty = true;
+    _localStatus = AppLocalizations.of(context).draftLocalRestored;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(_saveLocal());
   }
 
   QuillController _createController(String markdown) {
@@ -141,7 +287,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
 
   void _handleEditorChanged() {
     if (!mounted) return;
-    _dirty = true;
+    _markDirty();
     _allowPop = false;
     final bool previewVisible =
         _mode == _ComposeMode.preview ||
@@ -195,7 +341,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       if (props == null) {
         throw const FormatException('publish props');
       }
-      if (!mounted) return;
+      if (!mounted || !_sessionCurrent) return;
 
       final String payloadTitle = props.topic.title.trim().isNotEmpty
           ? props.topic.title
@@ -225,28 +371,52 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         existingImages = existing.topic.images ?? const [];
         if (!mounted) return;
       }
-      _contentType = props.isEditing
-          ? (props.topic.contentType == 0 ? 3 : props.topic.contentType)
-          : widget.initialContentType;
-      _simple.text = payloadContent;
-      _images
-        ..clear()
-        ..addAll(existingImages);
-      _replaceEditorDocument(_contentType == 3 ? payloadContent : '');
-      _dirty = false;
+      if (_owner == null &&
+          payload.layout.viewer.isAuthenticated &&
+          payload.layout.viewer.id > 0) {
+        _owner = writingScope(
+          Uri.parse(ref.read(apiClientProvider).baseUrl).origin,
+          payload.layout.viewer.id,
+        );
+      }
+      final keepEditing = _dirty;
+      if (!keepEditing) {
+        _contentType = props.isEditing
+            ? (props.topic.contentType == 0 ? 3 : props.topic.contentType)
+            : widget.initialContentType;
+        _simple.text = payloadContent;
+        _images
+          ..clear()
+          ..addAll(existingImages);
+        _replaceEditorDocument(_contentType == 3 ? payloadContent : '');
+        _dirty = false;
+      }
       setState(() {
         _currentTopicId = props.topicId > 0 ? props.topicId : _currentTopicId;
         _categories
           ..clear()
           ..addAll(props.categories);
-        _categoryIds
-          ..clear()
-          ..addAll(payloadCategoryIds.take(_maxCategories));
-        _title.text = payloadTitle;
-        _loading = false;
+        if (!keepEditing) {
+          _categoryIds
+            ..clear()
+            ..addAll(payloadCategoryIds.take(_maxCategories));
+          _title.text = payloadTitle;
+        }
       });
+      try {
+        await _restoreLocal();
+      } catch (_) {
+        /* Show the server editor if local storage cannot be read. */
+      }
+      if (mounted && _sessionCurrent) setState(() => _loading = false);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_sessionCurrent) return;
+      try {
+        await _restoreLocal();
+      } catch (_) {
+        /* Keep the load error retryable. */
+      }
+      if (!mounted || !_sessionCurrent) return;
       final AppLocalizations l10n = AppLocalizations.of(context);
       setState(() {
         _loading = false;
@@ -257,6 +427,14 @@ class _PublishPageState extends ConsumerState<PublishPage> {
 
   @override
   void dispose() {
+    // Capture text before disposing controllers; the write retains its owner.
+    if (_dirty && !_finished && _sessionCurrent) {
+      unawaited(_saveLocal(notify: false));
+    }
+    _autosave?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _title.removeListener(_markDirty);
+    _simple.removeListener(_markDirty);
     _previewDebounce?.cancel();
     _dragAutoscrollTimer?.cancel();
     _pageScrollController.dispose();
@@ -269,30 +447,53 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   }
 
   Future<void> _goBack() async {
+    if (_submitting) return;
     if (_mode == _ComposeMode.preview) {
       _selectMode(_ComposeMode.edit);
       return;
     }
     if (_dirty && !_allowPop) {
       final l10n = AppLocalizations.of(context);
-      final discard = await showDialog<bool>(
+      final choice = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
           title: Text(l10n.publishLeaveTitle),
           content: Text(l10n.publishLeaveBody),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(context, 'continue'),
               child: Text(l10n.publishContinue),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(context, 'discard'),
               child: Text(l10n.publishDiscard),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'save'),
+              child: Text(l10n.draftKeepAndLeave),
             ),
           ],
         ),
       );
-      if (discard != true || !mounted) return;
+      if (!mounted || choice == null || choice == 'continue') return;
+      if (choice == 'save') {
+        if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
+      } else {
+        _autosave?.cancel();
+        try {
+          if (_owner != null) await _localStore.delete(_owner!, _draftKey);
+        } catch (_) {
+          if (mounted) {
+            setState(() {
+              _localSaveFailed = true;
+              _localStatus = l10n.draftLocalSaveFailed;
+            });
+          }
+          return;
+        }
+        if (!mounted || !_sessionCurrent) return;
+      }
+      _finished = true;
     }
     setState(() => _allowPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -352,7 +553,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       _contentType = value;
       _simple.text = markdown;
       _previewMarkdown = _markdownFromEditor();
-      _dirty = true;
+      _markDirty();
       _allowPop = false;
     });
   }
@@ -371,11 +572,13 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     final int? currentHeader =
         _quill.getSelectionStyle().attributes[Attribute.header.key]?.value
             as int?;
-    final Attribute? selected = await showModalBottomSheet<Attribute>(
-      context: context,
+    final Attribute? selected = await showGfBottomSheet<Attribute>(
+      context,
+      keyboardAware: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
           children: <Widget>[
             for (final (attribute, label, level) in <(Attribute, String, int)>[
               (Attribute.h1, l10n.publishHeadingLevel1, 1),
@@ -399,7 +602,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
 
   void _toggleCategory(PublishCategoryPayload category, bool selected) {
     setState(() {
-      _dirty = true;
+      _markDirty();
       _allowPop = false;
       _error = '';
       _message = '';
@@ -417,11 +620,13 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   Future<void> _pickAndInsertImage() async {
     if (_uploading || _submitting) return;
     final l10n = AppLocalizations.of(context);
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
+    final source = await showGfBottomSheet<ImageSource>(
+      context,
+      keyboardAware: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
@@ -442,7 +647,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     try {
       final String? url = await pickAndUploadImage(ref: ref, source: source);
       if (url == null || !mounted) return;
-      _dirty = true;
+      _markDirty();
       _allowPop = false;
       if (_contentType != 3) {
         setState(() => _images.add(url));
@@ -565,7 +770,14 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   }
 
   Future<void> _submit({required int topicStatus}) async {
-    if (_submitting || _loading || _loadError.isNotEmpty) return;
+    if (_submitting || _loading || !_sessionCurrent) return;
+    if (_loadError.isNotEmpty) {
+      if (topicStatus == 0 && _localRestored) {
+        _markDirty();
+        await _saveLocal();
+      }
+      return;
+    }
 
     final String title = _title.text.trim().isNotEmpty
         ? _title.text.trim()
@@ -592,6 +804,11 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       validationError = l10n.publishCategoryRequired;
     } else if (content.isEmpty) {
       validationError = l10n.publishContentRequired;
+    }
+    if (topicStatus == 0 && validationError.isNotEmpty) {
+      _markDirty();
+      await _saveLocal();
+      return;
     }
     if (validationError.isNotEmpty) {
       setState(() {
@@ -621,8 +838,16 @@ class _PublishPageState extends ConsumerState<PublishPage> {
             contentType: _contentType,
             images: _contentType == 3 ? null : List.of(_images),
           );
-      if (!mounted) return;
-
+      if (!mounted || !_sessionCurrent) return;
+      _autosave?.cancel();
+      // The server write succeeded; deletion must follow any in-flight autosave.
+      _finished = true;
+      try {
+        if (_owner != null) await _localStore.delete(_owner!, _draftKey);
+      } catch (_) {
+        /* Keep recovery data if deletion fails; server ack remains valid. */
+      }
+      if (!mounted || !_sessionCurrent) return;
       _dirty = false;
       _allowPop = true;
       final int resolvedId = id > 0 ? id : _currentTopicId;
@@ -631,30 +856,43 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         context.pushReplacement('/p/$resolvedId');
         return;
       }
+      _finished = false;
+      _draftKey = 'topic-$_currentTopicId';
+      _localStatus = '';
       setState(() {
         _message = topicStatus == 1
             ? l10n.publishSuccess
             : l10n.publishSavedDraft;
       });
     } on ApiException catch (error) {
-      if (mounted) setState(() => _error = resolveErrorMessage(l10n, error));
+      if (!mounted || !_sessionCurrent) return;
+      if (mounted && _sessionCurrent) {
+        setState(() => _error = resolveErrorMessage(l10n, error));
+      }
       if (error.messageCode == 'common.captchaRequired' ||
           error.messageCode == 'auth.captcha.invalid') {
         await _loadCaptcha();
       }
     } catch (error) {
-      if (mounted) setState(() => _error = l10n.publishFailed('$error'));
+      if (mounted && _sessionCurrent) {
+        setState(() => _error = l10n.publishFailed('$error'));
+      }
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted && _sessionCurrent) setState(() => _submitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(offlineCacheEpochProvider) != _epoch) {
+      return const SizedBox.shrink();
+    }
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return PopScope(
-      canPop: _allowPop || (!_dirty && _mode == _ComposeMode.edit),
+      canPop:
+          !_submitting &&
+          (_allowPop || (!_dirty && _mode == _ComposeMode.edit)),
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _goBack();
       },
@@ -676,31 +914,53 @@ class _PublishPageState extends ConsumerState<PublishPage> {
               // "下書きを保存"/"投稿") overflowed it; expanding and ellipsizing
               // keeps the title shrinkable instead of overflowing the row.
               isExpanded: true,
+              borderRadius: BorderRadius.circular(20),
+              dropdownColor: GfTheme.colorsOf(context).base100,
+              icon: const GfSymbol('chevron-down', size: 16),
+              selectedItemBuilder: (context) => [
+                for (final type in PublishType.values)
+                  LayoutBuilder(
+                    builder: (context, constraints) => Row(
+                      children: [
+                        if (constraints.maxWidth >= 100) ...[
+                          PublishTypeIcon(type, size: 28),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Text(
+                            type.label(l10n),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).bodyStrong.copyWith(fontSize: 16),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
               items: [
-                DropdownMenuItem(
-                  value: 2,
-                  child: Text(
-                    l10n.publishMoment,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                for (final type in PublishType.values)
+                  DropdownMenuItem(
+                    value: type.value,
+                    child: Row(
+                      children: [
+                        PublishTypeIcon(type, size: 28),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            type.label(l10n),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).bodyStrong.copyWith(fontSize: 16),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                DropdownMenuItem(
-                  value: 1,
-                  child: Text(
-                    l10n.publishQuestion,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                DropdownMenuItem(
-                  value: 3,
-                  child: Text(
-                    l10n.publishArticle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
               ],
               onChanged:
                   _currentTopicId > 0 || _submitting || _uploading || _loading
@@ -731,20 +991,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                     ? null
                     : () => _submit(topicStatus: 0),
               ),
-            GfButton(
-              key: const Key('publish-appbar-submit'),
-              label: _mode == _ComposeMode.edit
-                  ? l10n.publishNext
-                  : l10n.publishPublish,
-              variant: GfButtonVariant.primary,
-              size: GfButtonSize.small,
-              loading: _submitting,
-              onPressed: _loading || _uploading || _loadError.isNotEmpty
-                  ? null
-                  : () => _mode == _ComposeMode.edit
-                        ? _selectMode(_ComposeMode.preview)
-                        : _submit(topicStatus: 1),
-            ),
+            _buildSubmitAction(l10n),
           ],
         ),
         body: AbsorbPointer(absorbing: _submitting, child: _buildBody(l10n)),
@@ -767,9 +1014,65 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     );
   }
 
+  Widget _buildSubmitAction(AppLocalizations l10n) {
+    final editing = _mode == _ComposeMode.edit;
+    final label = editing ? l10n.publishNext : l10n.publishPublish;
+    final text = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: (Theme.of(context).textTheme.labelLarge ?? const TextStyle())
+            .copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    // Reserve back, a short type label, spacing, and the optional icon actions.
+    final available =
+        MediaQuery.sizeOf(context).width -
+        56 -
+        40 -
+        16 -
+        (editing ? 0 : 44) -
+        (MediaQuery.viewInsetsOf(context).bottom > 0 ? 44 : 0);
+    final compact = text.width + 24 > available || text.height > 32;
+    text.dispose();
+    final enabled =
+        !_loading &&
+        !_uploading &&
+        !_submitting &&
+        ((editing && _localRestored) || _loadError.isEmpty);
+    void submit() =>
+        editing ? _selectMode(_ComposeMode.preview) : _submit(topicStatus: 1);
+    if (compact) {
+      return IconButton.filled(
+        key: const Key('publish-appbar-submit'),
+        tooltip: label,
+        onPressed: enabled ? submit : null,
+        icon: _submitting
+            ? const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                editing ? Icons.arrow_forward_rounded : Icons.send_rounded,
+                size: 20,
+              ),
+      );
+    }
+    return GfButton(
+      key: const Key('publish-appbar-submit'),
+      label: label,
+      variant: GfButtonVariant.primary,
+      size: GfButtonSize.small,
+      loading: _submitting,
+      onPressed: enabled ? submit : null,
+    );
+  }
+
   Widget _buildBody(AppLocalizations l10n) {
     if (_loading) return const _PublishWorkspaceSkeleton();
-    if (_loadError.isNotEmpty) {
+    if (_loadError.isNotEmpty && !_localRestored) {
       return GfErrorRetry(message: _loadError, onRetry: _loadEditorData);
     }
 
@@ -777,8 +1080,8 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool wide = constraints.maxWidth >= _wideWorkspaceBreakpoint;
         final EdgeInsets pagePadding = EdgeInsets.symmetric(
-          horizontal: wide ? 24 : 16,
-          vertical: 16,
+          horizontal: wide ? 24 : 20,
+          vertical: 20,
         );
 
         return SingleChildScrollView(
@@ -798,6 +1101,37 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    if (_localStatus.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _localStatus,
+                              style: GfTheme.typographyOf(context).caption
+                                  .copyWith(
+                                    color: _localSaveFailed
+                                        ? GfTheme.colorsOf(context).error
+                                        : GfTheme.colorsOf(context).iconMuted,
+                                  ),
+                            ),
+                          ),
+                          if (_localSaveFailed)
+                            TextButton(
+                              onPressed: _saveLocal,
+                              child: Text(l10n.commonRetry),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_loadError.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: _loadEditorData,
+                        icon: const Icon(Icons.cloud_off_outlined),
+                        label: Text(l10n.commonRetry),
+                      ),
+                    _buildComposeGuide(l10n),
+                    const SizedBox(height: 20),
                     if (_mode == _ComposeMode.edit && _contentType != 3) ...[
                       _buildGallery(l10n, editing: true),
                       const SizedBox(height: 16),
@@ -825,7 +1159,19 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                       _buildPreview(l10n),
                     if (_mode == _ComposeMode.preview) ...[
                       const SizedBox(height: 24),
-                      _buildTopicFields(l10n, classification: true),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: GfTheme.colorsOf(
+                            context,
+                          ).base200.withValues(alpha: .65),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: GfTheme.colorsOf(context).line,
+                          ),
+                        ),
+                        child: _buildTopicFields(l10n, classification: true),
+                      ),
                     ],
                     const SizedBox(height: 16),
                     if (_captcha != null) ...[
@@ -877,6 +1223,64 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     );
   }
 
+  Widget _buildComposeGuide(AppLocalizations l10n) {
+    final type = PublishType.fromValue(_contentType);
+    final colors = GfTheme.colorsOf(context);
+    final typography = GfTheme.typographyOf(context);
+    final preview = _mode == _ComposeMode.preview;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (final step in [0, 1]) ...[
+              if (step == 1) const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: step == 0 || preview
+                        ? type.color(context)
+                        : colors.line,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Text(
+              '1 · ${l10n.composeEdit}',
+              style: typography.caption.copyWith(
+                color: preview ? colors.iconMuted : type.color(context),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              '2 · ${l10n.composePreview}',
+              style: typography.caption.copyWith(
+                color: preview ? type.color(context) : colors.iconMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        if (!preview) ...[
+          const SizedBox(height: 12),
+          Text(
+            type.hint(l10n),
+            style: typography.small.copyWith(color: colors.iconMuted),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildTopicFields(
     AppLocalizations l10n, {
     bool classification = false,
@@ -891,8 +1295,10 @@ class _PublishPageState extends ConsumerState<PublishPage> {
           TextField(
             controller: _title,
             maxLength: 100,
+            minLines: 1,
+            maxLines: 3,
             decoration: InputDecoration(
-              hintText: l10n.publishTitleHint,
+              hintText: l10n.publishTitleField,
               hintStyle: TextStyle(
                 color: colors.iconMuted.withValues(alpha: 0.75),
                 fontWeight: FontWeight.w500,
@@ -906,11 +1312,11 @@ class _PublishPageState extends ConsumerState<PublishPage> {
             ),
             textInputAction: TextInputAction.next,
             style: type.heading.copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
             ),
             onChanged: (_) {
-              _dirty = true;
+              _markDirty();
               _allowPop = false;
               if (_error.isNotEmpty || _message.isNotEmpty) {
                 setState(() {
@@ -981,9 +1387,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         controller: _simple,
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
-        style: GfTheme.typographyOf(
-          context,
-        ).body.copyWith(fontSize: 17, height: 1.45),
+        style: readingBodyStyle(context),
         decoration: InputDecoration(
           hintText: l10n.publishBodyPlaceholder,
           border: InputBorder.none,
@@ -999,7 +1403,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         },
       );
     }
-    final type = GfTheme.typographyOf(context);
     final defaults = DefaultStyles.getInstance(context);
     return ConstrainedBox(
       key: const Key('publish-editor'),
@@ -1030,13 +1433,13 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 placeholder: l10n.publishBodyPlaceholder,
                 customStyles: DefaultStyles(
                   paragraph: defaults.paragraph!.copyWith(
-                    style: type.body,
+                    style: readingBodyStyle(context),
                     verticalSpacing: const VerticalSpacing(4, 4),
                   ),
                   placeHolder: defaults.placeHolder!.copyWith(
-                    style: type.body.copyWith(
-                      color: GfTheme.colorsOf(context).iconMuted,
-                    ),
+                    style: readingBodyStyle(
+                      context,
+                    ).copyWith(color: GfTheme.colorsOf(context).iconMuted),
                   ),
                 ),
                 embedBuilders: [
@@ -1328,7 +1731,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                 else
                   SelectableText(
                     _simple.text,
-                    style: type.body.copyWith(fontSize: 17, height: 1.45),
+                    style: readingBodyStyle(context),
                   ),
               ],
             ),
@@ -1354,10 +1757,12 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                         dimension: 24,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Icon(
-                        Icons.add_photo_alternate_outlined,
+                    : GfSymbol(
+                        'image',
                         size: 28,
-                        color: colors.primary,
+                        color: PublishType.fromValue(
+                          _contentType,
+                        ).color(context),
                       ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1399,7 +1804,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                     itemCount: _images.length,
                     onReorderItem: (oldIndex, newIndex) => setState(() {
                       _images.insert(newIndex, _images.removeAt(oldIndex));
-                      _dirty = true;
+                      _markDirty();
                       _allowPop = false;
                     }),
                     itemBuilder: (context, index) => SizedBox(
@@ -1425,7 +1830,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
                               tooltip: l10n.publishRemoveImage,
                               onPressed: () => setState(() {
                                 _images.removeAt(index);
-                                _dirty = true;
+                                _markDirty();
                                 _allowPop = false;
                               }),
                               icon: const Icon(Icons.cancel),

@@ -40,6 +40,32 @@ WikiSearchResult _result(String title) => WikiSearchResult.fromJson({
 });
 
 void main() {
+  testWidgets('initial query immediately searches and stays in the field', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [wikiRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const WikiSearchPage(initialQuery: '选课'),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(repository.requests.keys, ['选课']);
+    repository.requests['选课']!.complete(_result('带关键词的结果'));
+    await tester.pumpAndSettle();
+    expect(find.text('带关键词的结果'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '选课',
+    );
+  });
   testWidgets(
     'search debounces, ignores stale responses, and opens the hit anchor',
     (tester) async {

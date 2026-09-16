@@ -1,7 +1,9 @@
 package userservice
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
@@ -63,6 +65,33 @@ func TestCreateUserRollsBackWhenPointsInitializationFails(t *testing.T) {
 	}
 	var count int64
 	if err := conn.Model(&users.EntityComplete{}).Where("username = ?", "rollback-user").Count(&count).Error; err != nil {
+		t.Fatalf("count rolled back user: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("rolled back user count = %d, want 0", count)
+	}
+}
+
+// 注册事务内占用复查（issue #678 review P2）：目标邮箱命中他账号仍在
+// 窗口内的换绑暂存时，注册必须整体回滚并按占用失败，绝不与暂存双占。
+func TestCreateUserRollsBackWhenEmailFreshlyStaged(t *testing.T) {
+	setupCreateUserTestDB(t)
+	stager := users.MakeUser("staged-email-stager", "password", "staged-stager@example.com")
+	if err := users.Create(stager); err != nil {
+		t.Fatalf("create stager: %v", err)
+	}
+	stagedEmail := "staged-target@example.com"
+	if err := users.StagePendingEmail(stager.Id, stagedEmail, time.Now()); err != nil {
+		t.Fatalf("stage pending email: %v", err)
+	}
+
+	if _, err := CreateUser("staged-register", "password", stagedEmail, false); !errors.Is(err, users.ErrEmailOccupied) {
+		t.Fatalf("CreateUser error = %v, want users.ErrEmailOccupied", err)
+	}
+
+	conn := db.Connect()
+	var count int64
+	if err := conn.Model(&users.EntityComplete{}).Where("username = ?", "staged-register").Count(&count).Error; err != nil {
 		t.Fatalf("count rolled back user: %v", err)
 	}
 	if count != 0 {

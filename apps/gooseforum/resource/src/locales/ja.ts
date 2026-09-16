@@ -1678,6 +1678,7 @@ export default {
       usernameSaved: 'ユーザー名を更新しました',
       emailSaved: 'メールを更新しました。確認メールをご確認ください。',
       activationEmailSent: '確認メールを送信しました。メールをご確認ください。',
+      emailChangeStaged: '変更リクエストを送信しました。新しいメールアドレスで確認を完了してください。完了まで現在のメールアドレスは変更されません。',
       passwordChanged: 'パスワードを変更しました',
       privacySaved: 'プライバシー設定を保存しました',
       browserNotificationsEnabled: 'ブラウザ通知を有効にしました',
@@ -1738,6 +1739,11 @@ export default {
       description: '認証すると投稿、返信、アカウント機能を通常どおり利用できます。',
       action: '確認メールを送信',
       sending: '送信中',
+    },
+    emailChangePending: {
+      title: 'メールアドレス変更の手続き中：',
+      description: '確認メールを {email} に送信しました。新しいメールアドレスで確認を完了すると切り替わります。それまでは現在のメールアドレスでログイン・パスワード再設定が可能です。',
+      resend: '確認メールを再送',
     },
     easterEgg: {
       success: 'イースターエッグ発動：今日のアバターも元気です。',

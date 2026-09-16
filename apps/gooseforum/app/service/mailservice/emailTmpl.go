@@ -25,10 +25,15 @@ var passwordResetTmpl *template.Template
 var emailChangedTemplate string
 var emailChangedTmpl *template.Template
 
+//go:embed email-change-pending.gohtml
+var emailChangePendingTemplate string
+var emailChangePendingTmpl *template.Template
+
 func init() {
 	emailTmpl = template.Must(template.New("activation").Parse(emailTemplate))
 	passwordResetTmpl = template.Must(template.New("passwordReset").Parse(passwordResetTemplate))
 	emailChangedTmpl = template.Must(template.New("emailChanged").Parse(emailChangedTemplate))
+	emailChangePendingTmpl = template.Must(template.New("emailChangePending").Parse(emailChangePendingTemplate))
 }
 
 func generateActivationEmailBody(username, token string, locale ...string) (string, error) {
@@ -82,6 +87,22 @@ func generateEmailChangedEmailBody(username, newEmail string, locale ...string) 
 	return buf.String(), nil
 }
 
+func generateEmailChangePendingEmailBody(username, newEmail string, locale ...string) (string, error) {
+	siteConfig := hotdataserve.GetSiteSettingsConfigCache()
+	lang := emailBodyLang(locale...)
+	var buf bytes.Buffer
+	err := emailChangePendingTmpl.Execute(&buf, map[string]any{
+		"SiteName": siteConfig.SiteName,
+		"Username": username,
+		"NewEmail": newEmail,
+		"Lang":     lang,
+		"T":        i18n.Func(lang),
+	})
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
 func emailSiteBaseURL(siteURL string) string {
 	baseURL := strings.TrimSpace(siteURL)
 	if baseURL == "" {

@@ -1101,7 +1101,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsBioEdit.
   ///
   /// In en, this message translates to:
-  /// **'Edit bio and signature'**
+  /// **'Edit your bio'**
   String get settingsBioEdit;
 
   /// No description provided for @settingsAvatar.
@@ -1113,7 +1113,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAvatarUpload.
   ///
   /// In en, this message translates to:
-  /// **'Upload avatar (converted to webp)'**
+  /// **'Choose and crop a profile photo'**
   String get settingsAvatarUpload;
 
   /// No description provided for @settingsAvatarUploading.
@@ -2367,7 +2367,7 @@ abstract class AppLocalizations {
   /// No description provided for @publishLeaveBody.
   ///
   /// In en, this message translates to:
-  /// **'You have unsaved changes. Continue editing or discard them.'**
+  /// **'Save a copy on this device before leaving, or discard these changes.'**
   String get publishLeaveBody;
 
   /// No description provided for @publishDiscard.
@@ -3767,6 +3767,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'JPush privacy policy (Android)'**
   String get settingsPushPrivacy;
+
+  /// No description provided for @accountFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get accountFollowing;
+
+  /// No description provided for @accountFollowers.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers'**
+  String get accountFollowers;
+
+  /// No description provided for @publishMomentHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Share a moment from campus life'**
+  String get publishMomentHint;
+
+  /// No description provided for @publishArticleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Share your experience, stories and ideas'**
+  String get publishArticleHint;
+
+  /// No description provided for @publishQuestionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a question and explore it together'**
+  String get publishQuestionHint;
+
+  /// No description provided for @accountContent.
+  ///
+  /// In en, this message translates to:
+  /// **'My content'**
+  String get accountContent;
+
+  /// No description provided for @commonEndOfList.
+  ///
+  /// In en, this message translates to:
+  /// **'You’re all caught up'**
+  String get commonEndOfList;
+
+  /// No description provided for @campusTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus tools'**
+  String get campusTools;
+
+  /// No description provided for @campusCoursesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover courses'**
+  String get campusCoursesTitle;
+
+  /// No description provided for @campusCoursesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No course reviews yet. Explore the course catalog.'**
+  String get campusCoursesEmpty;
+
+  /// No description provided for @searchDiscoveryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Find posts, people and categories, or jump into your campus tools.'**
+  String get searchDiscoveryDescription;
+
+  /// No description provided for @notificationsEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies, mentions and follows will appear here. Explore what’s new on campus.'**
+  String get notificationsEmptyDescription;
+
+  /// No description provided for @draftsEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Save unfinished ideas as drafts and come back when you’re ready.'**
+  String get draftsEmptyDescription;
+
+  /// No description provided for @messagesSending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get messagesSending;
+
+  /// No description provided for @messagesSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent'**
+  String get messagesSent;
+
+  /// No description provided for @messagesFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sent'**
+  String get messagesFailed;
+
+  /// No description provided for @messagesRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry sending'**
+  String get messagesRetry;
+
+  /// No description provided for @draftLocalSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on this device'**
+  String get draftLocalSaved;
+
+  /// No description provided for @draftLocalSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get draftLocalSaving;
+
+  /// No description provided for @draftLocalSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save locally. Try again.'**
+  String get draftLocalSaveFailed;
+
+  /// No description provided for @draftLocalRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Your unfinished draft has been restored'**
+  String get draftLocalRestored;
+
+  /// No description provided for @draftLocalSection.
+  ///
+  /// In en, this message translates to:
+  /// **'On this device'**
+  String get draftLocalSection;
+
+  /// No description provided for @draftCloudSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud drafts'**
+  String get draftCloudSection;
+
+  /// No description provided for @draftKeepAndLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and leave'**
+  String get draftKeepAndLeave;
+
+  /// No description provided for @draftDeleteLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete local draft'**
+  String get draftDeleteLocal;
+
+  /// No description provided for @draftLocalOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Stored only on this device'**
+  String get draftLocalOnly;
+
+  /// No description provided for @searchRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent searches'**
+  String get searchRecent;
+
+  /// No description provided for @searchClearRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear history'**
+  String get searchClearRecent;
+
+  /// No description provided for @searchCourses.
+  ///
+  /// In en, this message translates to:
+  /// **'Search courses'**
+  String get searchCourses;
+
+  /// No description provided for @searchWiki.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Wiki'**
+  String get searchWiki;
+
+  /// No description provided for @refreshFailedRetained.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh failed. Your current content is still here.'**
+  String get refreshFailedRetained;
+
+  /// No description provided for @scheduleOpenWebShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Web version'**
+  String get scheduleOpenWebShort;
+
+  /// No description provided for @settingsProfileLinks.
+  ///
+  /// In en, this message translates to:
+  /// **'Website and social links'**
+  String get settingsProfileLinks;
+
+  /// No description provided for @settingsAvatarSources.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a preset or upload a photo'**
+  String get settingsAvatarSources;
+
+  /// No description provided for @settingsEmailChangeStaged.
+  ///
+  /// In en, this message translates to:
+  /// **'Email change request submitted.'**
+  String get settingsEmailChangeStaged;
+
+  /// No description provided for @settingsEmailPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting confirmation: {email}'**
+  String settingsEmailPending(String email);
 }
 
 class _AppLocalizationsDelegate

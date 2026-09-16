@@ -52,6 +52,8 @@ func runUserSetEmail(_ *cobra.Command, args []string) error {
 		return err
 	}
 	user.Email = args[1]
+	// 管理员直改邮箱绕过验证流程：一并丢弃可能残留的两阶段换绑暂存（issue #678）。
+	user.ClearPendingEmail()
 	if err := userservice.SaveUser(&user); err != nil {
 		return fmt.Errorf("save user email: %w", err)
 	}

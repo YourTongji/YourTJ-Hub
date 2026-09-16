@@ -300,7 +300,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: <Widget>[
                 const SchedulerWebTip(),
-                const SizedBox(height: 16),
                 _PlanBar(notifier: _notifier, state: state),
                 const SizedBox(height: 8),
                 if (state.isConfigCollapsed)
@@ -635,7 +634,7 @@ Future<void> _showPlanMenu(
   final AppLocalizations l10n = AppLocalizations.of(context);
   await showGfBottomSheet<void>(
     context,
-    builder: (BuildContext sheetContext) => SafeArea(
+    builder: (BuildContext sheetContext) => SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -692,7 +691,7 @@ Future<void> _promptRename(
     context,
     keyboardAware: true,
     builder: (BuildContext sheetContext) => SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -712,15 +711,16 @@ Future<void> _promptRename(
               },
             ),
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
               children: <Widget>[
                 GfButton(
                   label: l10n.commonCancel,
                   variant: GfButtonVariant.ghost,
                   onPressed: () => Navigator.of(sheetContext).pop(),
                 ),
-                const SizedBox(width: 8),
                 GfButton(
                   label: l10n.commonSave,
                   onPressed: () {
@@ -1897,84 +1897,35 @@ class _StatsFooter extends StatelessWidget {
     final String creditText = stats.totalCredit.toStringAsFixed(
       stats.totalCredit % 1 == 0 ? 0 : 1,
     );
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: colors.base100,
-        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).box),
-        border: Border.all(color: colors.line),
-      ),
-      child: Row(
-        children: <Widget>[
-          _StatItem(
-            value: l10n.scheduleStatsCourses(stats.courseCount),
-            label: '',
-          ),
-          _StatDivider(),
-          _StatItem(value: creditText, label: l10n.scheduleStatsCredits),
-          _StatDivider(),
-          _StatItem(
-            value: '${stats.totalHours}',
-            label: l10n.scheduleStatsHours,
-          ),
-          _StatDivider(),
-          _StatItem(
-            value: '${stats.conflictCount}',
-            label: l10n.scheduleStatsConflicts,
-            highlight: stats.conflictCount > 0,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  const _StatItem({
-    required this.value,
-    required this.label,
-    this.highlight = false,
-  });
-
-  final String value;
-  final String label;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Expanded(
-      child: Column(
-        children: <Widget>[
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 6,
+        children: [
           Text(
-            value,
+            l10n.scheduleStatsCourses(stats.courseCount),
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: highlight ? colors.error : colors.baseContent,
+              color: colors.baseContent,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          if (label.isNotEmpty)
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: colors.baseContent.withValues(alpha: 0.5),
-              ),
+          Text(
+            '$creditText ${l10n.scheduleStatsCredits}',
+            style: TextStyle(color: colors.iconMuted),
+          ),
+          Text(
+            '${stats.totalHours} ${l10n.scheduleStatsHours}',
+            style: TextStyle(color: colors.iconMuted),
+          ),
+          Text(
+            '${stats.conflictCount} ${l10n.scheduleStatsConflicts}',
+            style: TextStyle(
+              color: stats.conflictCount > 0 ? colors.error : colors.iconMuted,
             ),
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _StatDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 24,
-      color: GfTheme.colorsOf(context).line,
     );
   }
 }
@@ -2967,7 +2918,7 @@ class _CourseDetailSheet extends ConsumerWidget {
     final String teacher = teacherNameOf(course);
     final String room = course.occupyRoom ?? '';
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,

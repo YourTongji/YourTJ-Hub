@@ -18,6 +18,7 @@ import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
+import '../../widgets/brand_mark.dart';
 import '../../widgets/announcement_banner.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
@@ -74,6 +75,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
+  String? _loadMoreError;
   GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
   List<CategoryNavPayload> _categories = const <CategoryNavPayload>[];
   final GfScrollToTopController _scrollToTopController =
@@ -133,6 +135,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
     _loadingMore = false;
+    _loadMoreError = null;
     if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       final PagePayload payload = await ref
@@ -144,15 +147,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         return;
       }
       final HomeProps? props = parsePageProps<HomeProps>(payload);
-      if (props == null) {
-        setState(
-          () => _page = AsyncValue.error(
-            AppLocalizations.of(context).commonParseFailed,
-            StackTrace.current,
-          ),
-        );
-        return;
-      }
+      if (props == null) throw const FormatException('home props');
       setState(() {
         _page = AsyncValue.data(props);
         _categories = payload.layout.sidebar.categories;
@@ -165,7 +160,15 @@ class _HomePageState extends ConsumerState<HomePage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      setState(() => _page = AsyncValue.error(e, st));
+      if (silent && _page.hasValue) {
+        showGfToast(
+          context,
+          AppLocalizations.of(context).refreshFailedRetained,
+          error: true,
+        );
+      } else {
+        setState(() => _page = AsyncValue.error(e, st));
+      }
     }
   }
 
@@ -177,7 +180,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sequence = _loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       // 真实分页:按后端 nextUrl 请求下一页(页面级数据通道)。
       final PagePayload payload = await ref
@@ -189,14 +195,28 @@ class _HomePageState extends ConsumerState<HomePage> {
         return;
       }
       final HomeProps? next = parsePageProps<HomeProps>(payload);
-      if (next != null && next.topics.isNotEmpty) {
-        setState(() {
-          _topics.addAll(_mergeInteractions(next.topics, revision));
-          _page = AsyncValue.data(next);
-        });
+      if (next == null) throw const FormatException('home pagination');
+      setState(() {
+        final seen = _topics.map((topic) => topic.id).toSet();
+        _topics.addAll(
+          _mergeInteractions(
+            next.topics.where((topic) => seen.add(topic.id)).toList(),
+            revision,
+          ),
+        );
+        _page = AsyncValue.data(next);
+      });
+    } catch (error) {
+      if (mounted &&
+          sequence == _loadSequence &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(
+          () => _loadMoreError = resolveErrorMessage(
+            AppLocalizations.of(context),
+            error,
+          ),
+        );
       }
-    } catch (_) {
-      // 加载更多失败静默(用户可再次点击)。
     } finally {
       if (mounted && sequence == _loadSequence) {
         setState(() => _loadingMore = false);
@@ -335,6 +355,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return RootSurface(
       title: 'YourTJ',
+      titleWidget: const YourTjMark(),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -342,7 +363,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           onPressed: () => context.push('/search'),
         ),
       ],
-      toolbarHeight: _categories.isEmpty ? 44 : 84,
+      toolbarHeight:
+          GfTabBar.heightFor(context) + (_categories.isEmpty ? 0 : 56),
       toolbar: _page.hasValue
           ? _HomeToolbar(
               props: _page.requireValue,
@@ -368,6 +390,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             edgeOffset: top,
             onRefresh: () => _load(silent: true),
             child: GfTopicList(
+              loadMoreError: _loadMoreError,
               controller: controller,
               padding: EdgeInsets.only(top: top, bottom: bottom),
               header: AnnouncementBanner(announcement: props.announcement),
@@ -428,10 +451,9 @@ class _HomeToolbar extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          // 44px 紧约束行:与原单行工具栏等高,防止 48px 固有的
-          // PopupMenuButton 撑破 toolbarHeight(44+40=84)。
+          // Keep the overlay inset and visible tabs at the same scaled height.
           SizedBox(
-            height: 44,
+            height: GfTabBar.heightFor(context),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
@@ -480,7 +502,7 @@ class _HomeToolbar extends ConsumerWidget {
           // 点击跳转分类页;后端未配置分类时整行不占位。
           if (categories.isNotEmpty)
             SizedBox(
-              height: 40,
+              height: 56,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(
@@ -541,8 +563,8 @@ class _CategoryPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
           child: Row(
             mainAxisSize: MainAxisSize.min,
