@@ -6954,7 +6954,7 @@ export interface components {
         NotificationPayload: {
             /** Format: uint64 */
             id: number;
-            /** @description Notification event type (for example reply/like/system); the payload shape varies with it. */
+            /** @description Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system); the payload shape varies with it. */
             eventType: string;
             isRead: boolean;
             /** @description Notification creation time in RFC 3339 format. */

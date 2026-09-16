@@ -1,6 +1,7 @@
 package nativepushservice
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
@@ -35,8 +36,8 @@ func buildNativePayload(notification eventNotification.Entity, locale string) *n
 
 // webRouteToMobile 把 web 深链（/p/post/{topicId}[/{postNo}]、/u/{userId}、
 // /wiki/...）映射为移动端 App 路由（router.dart：/p/:postId、/u/:userId；
-// App 尚无 wiki/楼层页，wiki 与未知路径回落通知中心）。楼层号与锚点在
-// 移动端无对应页面，按话题级 /p/{topicId} 收敛。
+// wiki 与未知路径回落通知中心）。楼层号复用 TopicPage 的 postNo 查询参数；
+// 只有旧 postId 锚点而没有楼层号时回退话题。
 func webRouteToMobile(webURL string) string {
 	path := strings.TrimSpace(webURL)
 	if path == "" {
@@ -50,13 +51,27 @@ func webRouteToMobile(webURL string) string {
 		switch segs[0] {
 		case "p":
 			if segs[1] == "post" && len(segs) >= 3 {
-				return "/p/" + segs[2]
+				return mobileTopicRoute(segs[2:])
 			}
 		case "topics":
-			return "/p/" + segs[1]
+			return mobileTopicRoute(segs[1:])
 		case "u":
 			return "/u/" + segs[1]
 		}
 	}
 	return mobileFallbackRoute
+}
+
+func mobileTopicRoute(segments []string) string {
+	id, err := strconv.ParseUint(segments[0], 10, 64)
+	if err != nil || id == 0 {
+		return mobileFallbackRoute
+	}
+	route := "/p/" + strconv.FormatUint(id, 10)
+	if len(segments) > 1 {
+		if floor, err := strconv.ParseUint(segments[1], 10, 64); err == nil && floor > 0 {
+			route += "?postNo=" + strconv.FormatUint(floor, 10)
+		}
+	}
+	return route
 }

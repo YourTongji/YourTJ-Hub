@@ -4793,7 +4793,7 @@ NotificationPayload:
       minimum: 1
     eventType:
       type: string
-      description: Notification event type (for example reply/like/system); the payload shape varies with it.
+      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system); the payload shape varies with it.
     isRead:
       type: boolean
     createdAt:

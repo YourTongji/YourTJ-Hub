@@ -8,11 +8,12 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
 
-// 文案表完整性：4 语言 × 全部 7 事件类型的 body 均非空；badge 文案必须保留
+// 文案表完整性：4 语言 × 全部 8 事件类型的 body 均非空；badge 文案必须保留
 // {badge} 占位符（发送前用徽章名替换）；genericTitle 4 语言非空。
 func TestCopyTableComplete(t *testing.T) {
 	langs := []string{"zh", "en", "ja", "de"}
 	eventTypes := []string{
+		eventNotification.EventTypeMention,
 		eventNotification.EventTypeComment,
 		eventNotification.EventTypePostReply,
 		eventNotification.EventTypeTopicPost,
@@ -209,5 +210,21 @@ func TestBuildPushContentCarriesNotificationID(t *testing.T) {
 	}
 	if content.Id != 987654 {
 		t.Errorf("content.Id = %d, want 987654", content.Id)
+	}
+}
+
+func TestBuildPushContentMention(t *testing.T) {
+	for lang, body := range map[string]string{"zh": "提到了你", "en": "mentioned you", "ja": "あなたをメンションしました", "de": "hat dich erwähnt"} {
+		for _, postNo := range []uint64{0, 8} {
+			notification := eventNotification.Entity{EventType: eventNotification.EventTypeMention, Payload: eventNotification.NotificationPayload{TopicId: 512, TopicTitle: "Topic", PostId: 4096, PostNo: postNo}}
+			content := buildPushContent(notification, lang)
+			wantURL := urlconfig.PostDetail(512) + "#post-4096"
+			if postNo > 0 {
+				wantURL = urlconfig.PostDetail(512) + "/8"
+			}
+			if content == nil || content.Body != body || content.URL != wantURL {
+				t.Fatalf("mention %s/%d: %#v", lang, postNo, content)
+			}
+		}
 	}
 }
