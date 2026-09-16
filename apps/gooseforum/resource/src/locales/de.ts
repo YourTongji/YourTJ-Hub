@@ -1774,6 +1774,10 @@ export default {
       noWornBadge: 'Kein Abzeichen',
       badgeNotWearable: 'Nicht tragbar',
     },
+    privateAccount: {
+      title: 'Private Kontodaten',
+      description: 'Deine E-Mail-Adresse dient zur Anmeldung, Verifizierung und Kontowiederherstellung. Sie wird nicht auf deinem öffentlichen Profil oder deiner Benutzerkarte angezeigt.',
+    },
     profile: {
       title: 'Öffentliches Profil',
       description: 'Diese Inhalte erscheinen auf deiner Profilseite und in der Karte beim Überfahren mit der Maus.',

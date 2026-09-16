@@ -65,7 +65,7 @@ vi.mock('../src/runtime/flash-message', () => ({
   useFlashMessages: () => ({ push: vi.fn() }),
 }))
 
-import { changePassword, setPassword } from '../src/runtime/api'
+import { changePassword, setPassword, saveUserEmail, resendActivationEmail } from '../src/runtime/api'
 import SettingsPage from '../src/site/pages/SettingsPage.vue'
 
 const layout: LayoutPayload = {
@@ -219,6 +219,46 @@ describe('SettingsPage canSetPassword 分支（issue #530）', () => {
 
     expect(vi.mocked(setPassword)).toHaveBeenCalledWith('brand-new-pw1')
     expect(vi.mocked(changePassword)).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
+
+describe('SettingsPage public and private profile fields (issue #665)', () => {
+  test('keeps email editing and verification outside the public profile section', async () => {
+    const wrapper = mountPage(false)
+    const publicSection = wrapper.findAll('section').reverse().find(section =>
+      section.find('section-header-stub').exists() && section.find('section-header-stub').attributes('title') === i18n.global.t('settings.profile.title'))!
+    expect(publicSection.text()).toContain(i18n.global.t('auth.username'))
+    expect(publicSection.text()).not.toContain(i18n.global.t('auth.email'))
+    const privateSection = wrapper.findAll('section').reverse().find(section =>
+      section.find('section-header-stub').exists() && section.find('section-header-stub').attributes('title') === i18n.global.t('settings.privateAccount.title'))!
+    expect(privateSection).toBeTruthy()
+    expect(privateSection.find('section-header-stub').attributes('description')).toBe(i18n.global.t('settings.privateAccount.description'))
+    await privateSection.find('button').trigger('click')
+    await privateSection.find('input[type="email"]').setValue('new@example.com')
+    await privateSection.find('input[type="password"]').setValue('current-password')
+    const save = privateSection.findAll('button').find(button => button.text() === i18n.global.t('common.save'))!
+    await save.trigger('click')
+    await flushPromises()
+    expect(saveUserEmail).toHaveBeenCalledWith('new@example.com', 'current-password')
+    wrapper.unmount()
+  })
+
+  test('keeps current-address verification and pending-address resend in the private section', async () => {
+    const props = buildProps(false)
+    props.user.pendingEmail = 'pending@example.com'
+    const wrapper = mount(SettingsPage, {
+      props: { layout: { ...layout, viewer: { ...layout.viewer, requiresEmailVerification: true } }, props },
+      global: { plugins: [i18n], stubs: { UserAvatar: true, AvatarImageEditor: true, CoverImageEditor: true, SectionHeader: true, SiteSelect: true, teleport: true } },
+    })
+    const section = wrapper.findAll('section').reverse().find(section => section.text().includes('pending@example.com'))!
+    expect(section.find('section-header-stub').attributes('title')).toBe(i18n.global.t('settings.privateAccount.title'))
+    expect(section.text()).toContain(i18n.global.t('settings.emailVerification.title'))
+    const resend = section.findAll('button').find(button => button.text() === i18n.global.t('settings.emailChangePending.resend'))!
+    await resend.trigger('click')
+    await flushPromises()
+    expect(resendActivationEmail).toHaveBeenCalled()
     wrapper.unmount()
   })
 })
