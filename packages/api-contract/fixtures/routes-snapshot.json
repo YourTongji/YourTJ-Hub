@@ -137,6 +137,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/stickers"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/storage-migrate-tasks"
   },
   {
@@ -226,6 +230,10 @@
   {
     "method": "GET",
     "path": "/api/forum/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/stickers"
   },
   {
     "method": "GET",
@@ -742,6 +750,18 @@
   {
     "method": "POST",
     "path": "/api/admin/search/maintenance"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/sticker-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/sticker-import"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/sticker-save"
   },
   {
     "method": "POST",

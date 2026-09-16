@@ -1,6 +1,7 @@
 package fileusageservice
 
 import (
+	"errors"
 	"log/slog"
 	"net/url"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"gorm.io/gorm"
 )
 
 type Usage struct {
@@ -117,6 +119,28 @@ func AddAdminUpload(userId uint64, fileName string) {
 	}
 }
 
+// AddStickerUsage pins a sticker image file to its sticker row with an ACTIVE
+// sticker reference. The file stays publicly served and GC-exempt while the
+// sticker row exists; RemoveStickerUsages on delete lets storage GC reclaim it.
+func AddStickerUsage(adminUserID uint64, fileName string, stickerId uint64) error {
+	name := fileNameFromURL(fileName)
+	if name == "" {
+		return errors.New("sticker file name is empty")
+	}
+	return fileUsage.CreateIfAbsent(&fileUsage.Entity{
+		FileName:   name,
+		TargetType: fileUsage.TargetSticker,
+		TargetId:   stickerId,
+		UsageType:  fileUsage.UsageSticker,
+		UserId:     adminUserID,
+	})
+}
+
+// RemoveStickerUsages releases a deleted sticker's file reference.
+func RemoveStickerUsages(stickerId uint64) error {
+	return fileUsage.DeleteTargetUsages(fileUsage.TargetSticker, stickerId, fileUsage.UsageSticker)
+}
+
 // AddUploadOwner records that userId owns the uploaded file. The row is
 // idempotent: a duplicate complete request must not create a second usage row.
 func AddUploadOwner(userID uint64, fileName string) error {
@@ -191,4 +215,9 @@ func fileNameFromURL(value string) string {
 	name := strings.TrimPrefix(parsed.Path, "/file/img/")
 	name = path.Clean("/" + name)
 	return strings.TrimPrefix(name, "/")
+}
+
+// SetStickerUsageTx replaces a sticker reference in the definition transaction.
+func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
+	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName)
 }

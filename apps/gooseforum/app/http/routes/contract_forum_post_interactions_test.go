@@ -18,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -520,31 +521,45 @@ func TestPostWindowHTTPContract(t *testing.T) {
 }
 
 func TestPostRevisionsHTTPContract(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		conn, router := setupForumInteractionContractTest(t)
-		// 固定 id/编辑者/时间戳 + 直接播种 v1 版本，使响应与确定性 fixture 精确一致。
-		createContractAvatarUser(t, conn, 9302, "contract-revision-editor", "/static/pic/3.webp")
-		createContractPublishedTopic(t, conn, 9102, 9251, 9302)
-		createContractReplyPost(t, conn, 9252, 9102, 9302)
-		content := "Original reply content"
-		revision := postRevisions.Entity{
-			PostId:        9252,
-			Version:       1,
-			EditorId:      9302,
-			Content:       content,
-			RenderedHTML:  markdown2html.PostMarkdownToHTML(content),
-			ProcessStatus: posts.ProcessStatusNormal,
-			CreatedAt:     contractInteractionTime,
-		}
-		if err := conn.Create(&revision).Error; err != nil {
-			t.Fatalf("create contract post revision: %v", err)
-		}
-		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/posts/revisions?postId=9252", "", "")
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("post revisions status = %d, want 200: %s", recorder.Code, recorder.Body.String())
-		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-revisions-success.json"))
-	})
+	for index, scenario := range []struct{ name, content, html, fixture string }{
+		{"success", "Original reply content", "<p>Original reply content</p>\n", "post-revisions-success.json"},
+		{"deleted sticker", "[:sticker:deleted_sticker:]", `<p><img src="/file/img/deleted.png"></p>`, "post-revisions-sticker-success.json"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			conn, router := setupForumInteractionContractTest(t)
+			if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+				t.Fatal(err)
+			}
+			// 固定 id/编辑者/时间戳 + 直接播种 v1 版本，使响应与确定性 fixture 精确一致。
+			offset := uint64(index * 10000)
+			username := "contract-revision-editor"
+			if index > 0 {
+				username += "-sticker"
+			}
+			createContractAvatarUser(t, conn, 9302+offset, username, "/static/pic/3.webp")
+			createContractPublishedTopic(t, conn, 9102+offset, 9251+offset, 9302+offset)
+			createContractReplyPost(t, conn, 9252+offset, 9102+offset, 9302+offset)
+			content := scenario.content
+			revision := postRevisions.Entity{
+				PostId:        9252 + offset,
+				Version:       1,
+				EditorId:      9302 + offset,
+				Content:       content,
+				RenderedHTML:  scenario.html,
+				ProcessStatus: posts.ProcessStatusNormal,
+				CreatedAt:     contractInteractionTime,
+			}
+			if err := conn.Create(&revision).Error; err != nil {
+				t.Fatalf("create contract post revision: %v", err)
+			}
+			recorder := serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/forum/posts/revisions?postId=%d", 9252+offset), "", "")
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("post revisions status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, scenario.fixture))
+		})
+
+	}
 
 	t.Run("unknown post returns business failure", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)

@@ -21,7 +21,8 @@ import (
 
 // Increment when persisted HTML rendering changes so existing posts are refreshed.
 func GetPostVersion() uint32 {
-	return 7
+	// 8: 贴纸 token 展开（[:sticker:name:] → 图片）进入持久化渲染。
+	return 8
 }
 
 var md = goldmark.New(

@@ -224,3 +224,8 @@ final pushRepositoryProvider = Provider<PushRepository>((ref) {
 final contentRepositoryProvider = Provider<ContentRepository>(
   (ref) => ContentRepository(ref.watch(apiClientProvider)),
 );
+
+/// 表情包公开库(会话级缓存,一次 app 运行拉取一次,失败下次重试)。
+final stickerLibraryProvider = Provider<StickerLibrary>((ref) {
+  return StickerLibrary(StickerRepository(ref.watch(apiClientProvider)));
+});

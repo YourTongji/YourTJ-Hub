@@ -3,6 +3,7 @@ package forum
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
@@ -426,6 +427,11 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			content = ""
 			rendered = ""
 			masked = true
+		}
+		// History preserves authored content; mutable sticker definitions still
+		// resolve at read time, after visibility masking, to avoid stale image URLs.
+		if !masked && strings.Contains(content, "[:sticker:") {
+			rendered = postservice.RenderPostHTML(content)
 		}
 		editor := userPayloadWithWornBadge(v.EditorId, userMap, wornBadges[v.EditorId])
 		if postEntity.IsAnonymous {

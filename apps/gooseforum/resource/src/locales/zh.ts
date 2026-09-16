@@ -171,6 +171,7 @@ export default {
       insertBefore: '上方',
       insertAfter: '下方',
       emoji: '表情',
+      stickers: '表情包',
       upload: '图片',
       table: '表格',
       undo: '撤销',
@@ -185,6 +186,11 @@ export default {
       help: '帮助',
       uploadImageTip: '上传图片',
     },
+  },
+  stickers: {
+    sources: '表情包来源与许可',
+    pickerTitle: '表情包',
+    empty: '暂无可用表情包',
   },
   common: {
     back: '返回',
@@ -1993,6 +1999,7 @@ export default {
     operationFailed: '操作失败',
     repliesLoadFailed: '回复加载失败',
     searchUsersFailed: '搜索用户失败',
+    stickersLoadFailed: '表情包加载失败',
     revisionsLoadFailed: '编辑历史加载失败',
     notificationsLoadFailed: '通知加载失败',
     likeFailed: '点赞失败',

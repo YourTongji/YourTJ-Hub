@@ -156,6 +156,27 @@ export interface AdminBadge {
   canDelete?: boolean
 }
 
+export interface AdminSticker {
+  id: number
+  name: string
+  fileName: string
+  url: string
+  sortOrder: number
+  isEnabled: boolean
+  createdBy: number
+}
+
+export interface StickerImportIssue {
+  name: string
+  reason: string
+}
+
+export interface StickerImportResult {
+  imported: number
+  skipped: number
+  failed: StickerImportIssue[]
+}
+
 export interface FriendLink {
   name: string
   url: string

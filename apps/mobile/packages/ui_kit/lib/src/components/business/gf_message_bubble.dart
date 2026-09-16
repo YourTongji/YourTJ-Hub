@@ -12,6 +12,7 @@ class GfMessageBubble extends StatelessWidget {
     required this.mine,
     this.time,
     this.maxWidthFactor = 0.88,
+    this.contentSpan,
   });
 
   final String text;
@@ -23,10 +24,19 @@ class GfMessageBubble extends StatelessWidget {
   /// Fraction of available width the bubble may occupy (web `max-w-[88%]`).
   final double maxWidthFactor;
 
+  /// Optional rich content segments replacing the plain [text] body
+  /// (sticker message rendering); null keeps the plain-text path.
+  final InlineSpan? contentSpan;
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
+    final TextStyle contentStyle = TextStyle(
+      fontSize: 15,
+      height: 1.4,
+      color: mine ? colors.primaryContent : colors.baseContent,
+    );
     final Widget bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * maxWidthFactor,
@@ -43,14 +53,12 @@ class GfMessageBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 15,
-          height: 1.4,
-          color: mine ? colors.primaryContent : colors.baseContent,
-        ),
-      ),
+      child: contentSpan == null
+          ? Text(text, style: contentStyle)
+          : Text.rich(
+              TextSpan(children: <InlineSpan>[contentSpan!]),
+              style: contentStyle,
+            ),
     );
 
     final Widget withTime = time == null

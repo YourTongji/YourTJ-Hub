@@ -333,7 +333,8 @@ getPostRevisions:
       fail with HTTP 400 and `common.request.parseFailed`. A missing/zero postId or an
       unknown post fails with `post.notFound` (HTTP 200). Pages follow the version
       cursor: omit beforeVersion (or send 0) for the newest page, then pass the
-      returned beforeVersion for older pages.
+      returned beforeVersion for older pages. Visible revisions containing sticker
+      tokens resolve the current library; removed/disabled stickers remain raw tokens.
     security: []
     parameters:
       - name: postId
@@ -365,6 +366,8 @@ getPostRevisions:
             examples:
               success:
                 externalValue: ../fixtures/post-revisions-success.json
+              currentStickerDefinitions:
+                externalValue: ../fixtures/post-revisions-sticker-success.json
               postNotFound:
                 externalValue: ../fixtures/admin-post-delete-post-not-found.json
       '400':

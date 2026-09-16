@@ -63,6 +63,10 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/BadgesManagementPage.vue'),
     },
     {
+      path: '/admin/stickers',
+      component: () => import('@/admin/pages/management/StickersManagementPage.vue'),
+    },
+    {
       path: '/admin/files/resources',
       component: () => import('@/admin/pages/management/FileResourcesManagementPage.vue'),
     },

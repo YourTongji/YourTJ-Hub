@@ -72,6 +72,8 @@ const props = defineProps<{
   toggleHost?: HTMLElement | null
   /** 后端命中敏感词时，仅用于编辑区定位，不展示敏感词本身 */
   sensitiveWords?: string[]
+  /** 在 emoji 旁注入站点表情包按钮（MADR 0030）：面板由宿主渲染，点击仅 emit open-stickers */
+  stickerPicker?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -79,6 +81,7 @@ const emit = defineEmits<{
   upload: [files: File[]]
   error: [error: Error]
   'toggle-header': []
+  'open-stickers': []
 }>()
 
 const { t, te, locale } = useI18n()
@@ -214,6 +217,39 @@ function uploadToolbarItem(): IMenuItem {
     tip: t('editor.toolbar.uploadImageTip'),
     tipPosition: 'n',
   }
+}
+
+/** 站点表情包按钮（MADR 0030，Lucide sticker 图标）：面板由宿主渲染，这里只触发 open-stickers */
+function stickerToolbarItem(): IMenuItem {
+  return {
+    name: 'sticker',
+    icon: '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><path d="M15 3v5a1 1 0 0 0 1 1h5"/><path d="M8 13h.01"/><path d="M16 13h.01"/><path d="M10 16s.8 1 2 1c1.3 0 2-1 2-1"/></svg>',
+    tip: t('editor.toolbar.stickers'),
+    tipPosition: 'n',
+    click() {
+      emit('open-stickers')
+    },
+  }
+}
+
+/**
+ * stickerPicker 开启时注入表情包按钮（各预设工具栏均含 emoji 项，插到 emoji 旁）。
+ * 桌面放主行 emoji 后（窄窗口由折叠收纳自动收入 more）；移动端主行项数按视口宽度
+ * 精调（触控 28px/项），改为收进 more 子菜单 emoji 旁，不挤占主行。
+ */
+function withStickerItem(list: Array<string | IMenuItem>): Array<string | IMenuItem> {
+  if (!props.stickerPicker) return list
+  const item = stickerToolbarItem()
+  if (!window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+    const emojiIndex = list.findIndex((entry) => (typeof entry === 'string' ? entry : entry.name) === 'emoji')
+    return emojiIndex === -1 ? [item, ...list] : [...list.slice(0, emojiIndex + 1), item, ...list.slice(emojiIndex + 1)]
+  }
+  const moreItem = list.find((entry): entry is IMenuItem & { name: 'more' } => typeof entry === 'object' && entry.name === 'more')
+  if (!moreItem) return [item, ...list]
+  const submenu = moreItem.toolbar ?? []
+  const emojiSub = submenu.findIndex((entry) => (typeof entry === 'string' ? entry : entry.name) === 'emoji')
+  const nextSubmenu = emojiSub === -1 ? [item, ...submenu] : [...submenu.slice(0, emojiSub + 1), item, ...submenu.slice(emojiSub + 1)]
+  return list.map((entry) => (entry === moreItem ? { ...moreItem, toolbar: nextSubmenu } : entry))
 }
 
 /**
@@ -460,7 +496,7 @@ function resolveToolbar(): Array<string | IMenuItem> {
       return (item as IMenuItem).name !== 'upload'
     })
   }
-  return list
+  return withStickerItem(list)
 }
 
 /** 行间公式 / 块级公式：自定义按钮，插入 $...$ / $$...$$ 并交给 Lute 渲染。
@@ -557,6 +593,7 @@ const TOOLBAR_LABEL_KEYS: Record<string, string> = {
   'insert-before': 'editor.toolbar.insertBefore',
   'insert-after': 'editor.toolbar.insertAfter',
   emoji: 'editor.toolbar.emoji',
+  sticker: 'editor.toolbar.stickers',
   upload: 'editor.toolbar.upload',
   table: 'editor.toolbar.table',
   undo: 'editor.toolbar.undo',
@@ -697,6 +734,7 @@ const TOOLBAR_TIP_KEYS: Record<string, string> = {
   upload: 'editor.toolbar.uploadImageTip',
   'math-inline': 'editor.toolbar.mathInline',
   'math-block': 'editor.toolbar.mathBlock',
+  sticker: 'editor.toolbar.stickers',
 }
 
 /** 语言热切换竞态令牌：快速连续切换时只应用最后一次 */
