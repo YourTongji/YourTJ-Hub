@@ -90,6 +90,13 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
   `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
   may enforce forum TOTP there as well).
 
+## Profile visibility
+
+`Current`: Web settings separate public profile fields from private account details. Username,
+display name and profile links belong to the public profile. Email, verification notices and pending
+email-change confirmation appear in a separate private section. Email supports sign-in, verification
+and account recovery; it is not included in the public user card or profile.
+
 ## Account lifecycle
 
 - Registration: forum self-service password registration (with email verification when enabled) is

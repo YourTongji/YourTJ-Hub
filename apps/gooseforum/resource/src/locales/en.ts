@@ -1752,6 +1752,10 @@ export default {
       noWornBadge: 'No badge',
       badgeNotWearable: 'Not wearable',
     },
+    privateAccount: {
+      title: 'Private account details',
+      description: 'Your email is used for sign-in, verification and account recovery. It is not shown on your public profile or user card.',
+    },
     profile: {
       title: 'Public profile',
       description: 'This content appears on your profile page and hover card.',

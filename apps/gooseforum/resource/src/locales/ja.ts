@@ -1774,6 +1774,10 @@ export default {
       noWornBadge: '表示しない',
       badgeNotWearable: '表示不可',
     },
+    privateAccount: {
+      title: '非公開のアカウント情報',
+      description: 'メールアドレスはログイン、認証、アカウント復旧に使用され、公開プロフィールやユーザーカードには表示されません。',
+    },
     profile: {
       title: '公開プロフィール',
       description: 'この内容はプロフィールページとホバーカードに表示されます。',

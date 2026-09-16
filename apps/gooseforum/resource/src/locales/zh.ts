@@ -1754,6 +1754,10 @@ export default {
       noWornBadge: '不佩戴',
       badgeNotWearable: '不可佩戴',
     },
+    privateAccount: {
+      title: '私密账号信息',
+      description: '邮箱仅用于登录、验证和账号找回，不会显示在公开主页或用户卡片中。',
+    },
     profile: {
       title: '公开资料',
       description: '这里的内容会展示在你的个人主页和悬停卡片中。',
