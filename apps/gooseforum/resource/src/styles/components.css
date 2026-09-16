@@ -148,7 +148,8 @@
   }
 
   .gf-icon-button {
-    @apply inline-grid place-items-center text-icon-muted transition hover:bg-base-200 hover:text-base-content;
+    /* Keep icons centered when a responsive caller switches the button to flex. */
+    @apply inline-grid place-items-center justify-center text-icon-muted transition hover:bg-base-200 hover:text-base-content;
     border-radius: var(--gf-radius-field);
   }
 
