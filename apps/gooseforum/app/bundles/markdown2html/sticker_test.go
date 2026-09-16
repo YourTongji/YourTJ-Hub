@@ -97,3 +97,32 @@ func TestStickerTokenReBoundaries(t *testing.T) {
 		}
 	}
 }
+
+func TestStickerReviewExclusionContexts(t *testing.T) {
+	for _, source := range []string{
+		"[docs](https://host/[:sticker:smile:])",
+		"![alt](https://host/[:sticker:smile:])",
+		"<https://host/[:sticker:smile:]>",
+		"[**[:sticker:smile:]**](/target)",
+		"[ref]: https://host/[:sticker:smile:]\n\n[text][ref]",
+		"\\[:sticker:smile:]",
+	} {
+		got := ExpandStickerTokens(source, func(string) (string, bool) { return "/x.png", true })
+		if got != source {
+			t.Errorf("excluded source changed: %q -> %q", source, got)
+		}
+	}
+}
+func TestStickerReviewRepeatedNamesResolveOnce(t *testing.T) {
+	calls := 0
+	ExpandStickerTokens(strings.Repeat("[:sticker:smile:] ", 1000), func(string) (string, bool) { calls++; return "/x.png", true })
+	if calls != 1 {
+		t.Fatalf("resolver called %d times, want 1", calls)
+	}
+}
+func TestStickerReviewEscapesURL(t *testing.T) {
+	rendered := PostMarkdownToHTML(ExpandStickerTokens("[:sticker:smile:]", func(string) (string, bool) { return "https://cdn.example/a)b.png", true }))
+	if !strings.Contains(rendered, `src="https://cdn.example/a%29b.png"`) {
+		t.Fatalf("URL was corrupted: %s", rendered)
+	}
+}

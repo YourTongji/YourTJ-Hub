@@ -607,7 +607,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 :panel-style="mentionPanelStyle"
                 @select="selectMention"
               />
-              <!-- 站点表情包面板（MADR 0022）：锚定编辑区，选中后向光标处插入 token -->
+              <!-- 站点表情包面板（MADR 0030）：锚定编辑区，选中后向光标处插入 token -->
               <StickerPicker
                 :open="stickerPickerOpen"
                 @select="insertStickerToken"

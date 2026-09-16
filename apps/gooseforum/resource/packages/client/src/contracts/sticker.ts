@@ -16,6 +16,7 @@ export interface AdminStickerItem {
 export interface AdminStickerSaveRequest {
   id?: number
   name: string
+  fileName?: string
   sortOrder?: number
   isEnabled?: boolean
 }

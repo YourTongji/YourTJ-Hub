@@ -1787,7 +1787,7 @@ export interface paths {
          *     name and public access `url`. The url follows the storage
          *     configuration: `/file/img/<fileName>` on the local provider or the
          *     configured CDN public-url prefix. The editor sticker picker and the
-         *     client-side `[:sticker:name:]` token replacement (MADR 0022) consume
+         *     client-side `[:sticker:name:]` token replacement (MADR 0030) consume
          *     this list.
          */
         get: operations["forumStickerList"];
@@ -4841,11 +4841,13 @@ export interface paths {
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
          *     creates a new sticker; a positive `id` overwrites name/sortOrder/
-         *     isEnabled of the existing row (the image itself is attached separately
-         *     via upload or pack import). The name is trimmed; a blank name fails
+         *     isEnabled of the existing row. Creating requires `fileName` from the
+         *     caller's image upload; updating may replace it or omit it to preserve
+         *     the image. Unknown, missing or foreign image uploads fail with
+         *     `upload.file.missing`. The name is trimmed; a blank name fails
          *     with `admin.sticker.nameRequired`, a name outside the allowed set
          *     (Unicode letters/digits/underscore/hyphen, 1-64 chars — the token form
-         *     `[:sticker:name:]` requires a sticker-safe identifier, MADR 0022) fails
+         *     `[:sticker:name:]` requires a sticker-safe identifier, MADR 0030) fails
          *     with `admin.sticker.nameInvalid`, and a name already taken by another
          *     row fails with `admin.sticker.nameExists`. A positive `id` matching no
          *     sticker fails with `admin.sticker.notFound`; a persistence failure
@@ -4903,7 +4905,8 @@ export interface paths {
          *     callers without it fail with HTTP 403 and `permission.denied`. This is
          *     a bare gin handler (not the UpButterReq wrapper), but the response
          *     envelope is still the standard ResultStruct JSON. Accepts a multipart
-         *     zip archive (form field `file`, capped at 32MB and 500 entries); each
+         *     zip archive (form field `file`, capped at 32 MiB and 500 entries,
+         *     each image at most 4 MiB, total expanded bytes at most 64 MiB); each
          *     image entry becomes one enabled sticker named after its file stem
          *     (sanitized to a sticker-safe identifier and uniquified server-side
          *     with -2/-3 suffixes on collision). macOS resource forks, dotfiles, and
@@ -4911,7 +4914,8 @@ export interface paths {
          *     (unreadable entry, oversized or forged image, unusable name,
          *     persistence failure) are reported in `result.failed` instead of
          *     blocking the rest of the pack. Exceeding the 500-entry cap appends a
-         *     `name: "..."` / `reason: "tooManyFiles"` issue and stops. Failures
+         *     `name: "..."` / `reason: "tooManyFiles"` issue and stops. Exceeding
+         *     the total expanded-byte budget reports `archiveTooLarge` and stops. Failures
          *     (HTTP 200): missing `file` field → `upload.file.missing`; archive
          *     over 32MB → `admin.sticker.importTooLarge`; non-zip content →
          *     `admin.sticker.importInvalidZip`.
@@ -10969,11 +10973,13 @@ export interface components {
         AdminStickerSaveRequest: {
             /**
              * Format: uint64
-             * @description 0 creates a new sticker; a positive id overwrites name/sortOrder/isEnabled of that row (unknown positive ids fail with `admin.sticker.notFound`, HTTP 200).
+             * @description 0 creates a new sticker; a positive id updates name/sortOrder/isEnabled and optionally the image of that row (unknown positive ids fail with `admin.sticker.notFound`, HTTP 200).
              */
             id?: number;
             /** @description Sticker name (token body), trimmed server-side. Allowed characters are Unicode letters/digits/underscore/hyphen, 1-64 chars (Go pattern `^[\p{L}\p{N}_\-]{1,64}$`). Blank fails with `admin.sticker.nameRequired`; disallowed characters fail with `admin.sticker.nameInvalid`; a name taken by another row fails with `admin.sticker.nameExists` (all HTTP 200). */
             name?: string;
+            /** @description An existing image upload owned by the caller, as a storage key or its public URL. Required when id is 0; omission preserves the current image when updating. Missing, unknown, non-image or foreign uploads fail with `upload.file.missing`. The image reference is registered atomically with the sticker. */
+            fileName?: string;
             /** @description Ascending sort weight. */
             sortOrder?: number;
             /** @description Disabled stickers stay hidden from the public list. */
@@ -11000,12 +11006,12 @@ export interface components {
              * @description Machine-readable per-entry failure reason.
              * @enum {string}
              */
-            reason: "entryOpenFailed" | "tooLarge" | "invalidImage" | "unusableName" | "saveFailed" | "tooManyFiles";
+            reason: "entryOpenFailed" | "tooLarge" | "invalidImage" | "unusableName" | "saveFailed" | "tooManyFiles" | "archiveTooLarge";
         };
         AdminStickerImportResult: {
             /** @description Entries persisted as enabled stickers. */
             imported: number;
-            /** @description Entries silently ignored (directories, dotfiles, macOS resource forks, unsupported extensions). */
+            /** @description Non-directory entries ignored (dotfiles, macOS resource forks, unsupported extensions). Directories do not contribute to this count. */
             skipped: number;
             /** @description Per-entry failures, reported instead of blocking the rest of the pack (empty array when none). */
             failed: components["schemas"]["AdminStickerImportIssue"][];

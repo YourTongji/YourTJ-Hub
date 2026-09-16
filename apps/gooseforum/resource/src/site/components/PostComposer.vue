@@ -53,7 +53,7 @@ const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 const editorReady = ref(false)
 const editorInitFailed = ref(false)
 const uploadingImage = ref(false)
-// 站点表情包面板（MADR 0022）：面板开关；点选/外部点击由面板与宿主协同关闭
+// 站点表情包面板（MADR 0030）：面板开关；点选/外部点击由面板与宿主协同关闭
 const stickerPickerOpen = ref(false)
 
 // Vditor 异步就绪（after()）前在编辑区显示加载占位；初始化失败时结束 loading，避免转圈不止
@@ -361,7 +361,7 @@ function submit() {
                 :panel-style="mentionPanelStyle"
                 @select="selectMention"
               />
-              <!-- 站点表情包面板（MADR 0022）：锚定编辑区，选中后向光标处插入 token -->
+              <!-- 站点表情包面板（MADR 0030）：锚定编辑区，选中后向光标处插入 token -->
               <StickerPicker
                 :open="stickerPickerOpen"
                 @select="insertStickerToken"

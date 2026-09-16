@@ -3,7 +3,7 @@ import { getForumStickers } from '@/runtime/api'
 import type { StickerItem } from '@gooseforum/client'
 
 /**
- * 启用表情包库（MADR 0022）：编辑器选择面板数据源。
+ * 启用表情包库（MADR 0030）：编辑器选择面板数据源。
  * 模块级缓存全站共享一份（发布页 / 回复面板 / 快捷发布弹窗三个编辑器实例
  * 只发一次请求）；拉取失败后下次打开面板自动重试。
  */

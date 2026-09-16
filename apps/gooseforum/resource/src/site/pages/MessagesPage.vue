@@ -43,7 +43,7 @@ const unreadStatus = useUnreadStatus()
 const { stickers, ensureStickers } = useStickerLibrary()
 const stickerUrlMap = computed(() => new Map(stickers.value.map((item) => [item.name, item.url])))
 
-/** 气泡分段：识别到的启用表情包渲染为内联图，未知/停用 token 保持原文（MADR 0022） */
+/** 气泡分段：识别到的启用表情包渲染为内联图，未知/停用 token 保持原文（MADR 0030） */
 function messageSegments(content: string) {
   return parseStickerSegments(content, stickerUrlMap.value)
 }

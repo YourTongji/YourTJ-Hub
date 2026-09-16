@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"gorm.io/gorm"
 )
 
 type Usage struct {
@@ -214,4 +215,9 @@ func fileNameFromURL(value string) string {
 	name := strings.TrimPrefix(parsed.Path, "/file/img/")
 	name = path.Clean("/" + name)
 	return strings.TrimPrefix(name, "/")
+}
+
+// SetStickerUsageTx replaces a sticker reference in the definition transaction.
+func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
+	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName)
 }

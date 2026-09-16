@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -116,4 +117,15 @@ func HasActiveReferences(fileName string) bool {
 		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0
+}
+
+// ReplaceStickerTx couples the definition and its active file reference.
+func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
+	if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", TargetSticker, stickerID, UsageSticker).Delete(&Entity{}).Error; err != nil {
+		return err
+	}
+	if fileName == "" {
+		return nil
+	}
+	return tx.Create(&Entity{FileName: fileName, TargetType: TargetSticker, TargetId: stickerID, UsageType: UsageSticker, UserId: userID}).Error
 }

@@ -41,3 +41,9 @@
   同名冲突时后者加 `-2` 后缀。`pack` 字段标识来源包。
 - 再分发需保留并随附本声明及上述各许可证文本（CC BY 4.0 需署名；
   Apache-2.0 需保留许可证声明；MIT 需保留版权与许可声明）。
+
+## 随包许可证
+
+- [flowerhd — CC BY 4.0](LICENSE-flowerhd.txt)，授权声明见[来源 README](https://github.com/k4yt3x/flowerhd#开源许可)。
+- [EmojiPackage — Apache License 2.0](LICENSE-EmojiPackage.txt)。
+- [WXMemeStickers — MIT License](LICENSE-WXMemeStickers.txt)。

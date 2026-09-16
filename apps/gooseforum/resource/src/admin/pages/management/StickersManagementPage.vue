@@ -19,6 +19,7 @@ import {
 } from '@/admin/components/ui/dialog'
 import ManagementTable from './ManagementTable.vue'
 import { deleteSticker, getStickers, importStickerPack, saveSticker } from '@/admin/runtime/api'
+import { uploadImageFile } from '@/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import type { AdminPayload, AdminSticker, ManageHomeProps, StickerImportIssue, StickerImportResult } from '@/admin/types'
 
@@ -29,7 +30,7 @@ defineProps<{
 // 与后端 stickerservice.ValidateName 的 `[\p{L}\p{N}_\-]{1,64}` 保持一致。
 const stickerNamePattern = /^[\p{L}\p{N}_-]{1,64}$/u
 
-const emptyStickerForm = { id: 0, name: '', sortOrder: 1000, isEnabled: true }
+const emptyStickerForm = { id: 0, name: '', fileName: '', sortOrder: 1000, isEnabled: true }
 
 const loading = ref(false)
 const saving = ref(false)
@@ -40,6 +41,7 @@ const stickers = ref<AdminSticker[]>([])
 const editing = ref<AdminSticker | null>(null)
 const deletingSticker = ref<AdminSticker | null>(null)
 const savingToggleId = ref<number | null>(null)
+const imageFile = ref<File | null>(null)
 const form = reactive({ ...emptyStickerForm })
 const importOpen = ref(false)
 const importFile = ref<File | null>(null)
@@ -60,6 +62,7 @@ const importReasonTexts: Record<string, string> = {
   unusableName: 'k00vgx',
   saveFailed: 'k00vgy',
   tooManyFiles: 'k00vgz',
+  archiveTooLarge: 'k00vh6',
 }
 
 function importReasonText(issue: StickerImportIssue) {
@@ -102,13 +105,20 @@ async function loadStickers() {
 }
 
 function openCreate() {
+  imageFile.value = null
   Object.assign(form, emptyStickerForm)
   editing.value = { id: 0, name: '', fileName: '', url: '', sortOrder: 1000, isEnabled: true, createdBy: 0 }
 }
 
 function openEdit(sticker: AdminSticker) {
-  Object.assign(form, { id: sticker.id, name: sticker.name, sortOrder: sticker.sortOrder, isEnabled: sticker.isEnabled })
+  imageFile.value = null
+  Object.assign(form, { fileName: '', id: sticker.id, name: sticker.name, sortOrder: sticker.sortOrder, isEnabled: sticker.isEnabled })
   editing.value = sticker
+}
+
+function onImageChange(event: Event) {
+  imageFile.value = (event.target as HTMLInputElement).files?.[0] || null
+  form.fileName = ''
 }
 
 async function submitSticker() {
@@ -121,9 +131,16 @@ async function submitSticker() {
     adminToast.warning(adminText('k00vgo'))
     return
   }
+  if (!form.id && !imageFile.value && !form.fileName) {
+    adminToast.warning(adminText('k00vh4'))
+    return
+  }
   saving.value = true
   try {
-    await saveSticker({ id: form.id, name, sortOrder: Number(form.sortOrder || 0), isEnabled: form.isEnabled })
+    if (imageFile.value && !form.fileName) {
+      form.fileName = await uploadImageFile(imageFile.value, imageFile.value.name)
+    }
+    await saveSticker({ id: form.id, name, ...(form.fileName ? { fileName: form.fileName } : {}), sortOrder: Number(form.sortOrder || 0), isEnabled: form.isEnabled })
     editing.value = null
     await loadStickers()
     adminToast.success(adminText('k000e'))
@@ -255,7 +272,7 @@ onMounted(() => {
       </tr>
     </ManagementTable>
 
-    <Dialog :open="editing !== null" @update:open="(open) => !open && (editing = null)">
+    <Dialog :open="editing !== null" @update:open="(open) => !open && !saving && (editing = null)">
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{{ form.id ? adminText('k00vgf') : adminText('k00vgb') }}</DialogTitle>
@@ -265,6 +282,11 @@ onMounted(() => {
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00af') }}
             <Input v-model="form.name" />
+          </label>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k0088') }}
+            <input type="file" accept="image/*" :disabled="saving" @change="onImageChange" />
+            <img v-if="editing?.url && !imageFile" :src="editing.url" :alt="editing.name" class="size-16 object-contain" />
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00bf') }}
@@ -278,7 +300,7 @@ onMounted(() => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" type="button" @click="editing = null">{{ adminText('k009q') }}</Button>
+            <Button variant="outline" type="button" :disabled="saving" @click="editing = null">{{ adminText('k009q') }}</Button>
             <Button type="submit" :disabled="saving">{{ saving ? adminText('k005f') : adminText('k005g') }}</Button>
           </DialogFooter>
         </form>

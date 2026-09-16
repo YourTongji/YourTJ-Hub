@@ -1,5 +1,5 @@
 /// 表情包域契约镜像（对应 packages/api-contract 的 paths/admin-stickers.yaml 与
-/// paths/forum-read.yaml#forumStickerList，MADR 0022）。
+/// paths/forum-read.yaml#forumStickerList，MADR 0030）。
 ///
 /// 手写维护（user_content.dart / wiki_search.dart 同风格）：Dart 代码生成仍为
 /// Planned，未跑 build_runner，因此不使用 freezed part 文件。字段名与
@@ -55,16 +55,19 @@ class StickerSaveRequest {
   const StickerSaveRequest({
     this.id = 0,
     required this.name,
+    this.fileName,
     this.sortOrder = 0,
     this.isEnabled = true,
   });
   final int id;
   final String name;
+  final String? fileName;
   final int sortOrder;
   final bool isEnabled;
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
+    'fileName': ?fileName,
     'sortOrder': sortOrder,
     'isEnabled': isEnabled,
   };

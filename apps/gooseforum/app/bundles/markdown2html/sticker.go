@@ -2,15 +2,12 @@ package markdown2html
 
 import (
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 )
 
-// stickerTokenRe 匹配表情包 token [:sticker:name:]：name 为贴纸安全字符集
-// （非空白、非冒号、非方括号），长度与 stickers.name 一致（<=64）。
 var stickerTokenRe = regexp.MustCompile(`\[:sticker:([^:\[\]\s]{1,64}):\]`)
 
 type stickerRange struct {
@@ -18,108 +15,103 @@ type stickerRange struct {
 	name       string
 }
 
-// stickerExclusions 收集表情包 token 不展开的源文本区间：行内代码/代码块/
-// 链接/图片/autolink/原始 HTML 的内容范围。goldmark 会在链接语法边界处
-// 把 [:sticker: 拆进不同文本节点，因此 token 定位必须走整段源文本正则，
-// 代码等排除语义则由 AST 区间承接——两层各取所长。
-func stickerExclusions(source []byte) [][2]int {
-	doc := GetParser().Parser().Parse(text.NewReader(source))
-	ranges := make([][2]int, 0, 8)
-	add := func(start, stop int) {
-		if stop > start {
-			ranges = append(ranges, [2]int{start, stop})
-		}
+// Accept token starts only from real prose nodes. Link destinations, reference
+// definitions, raw HTML and code have no eligible Text node; unlike exclusion
+// ranges derived from link children this also protects the entire destination.
+func stickerRanges(markdown string) []stickerRange {
+	if !strings.Contains(markdown, "[:sticker:") {
+		return nil
 	}
+	source := []byte(markdown)
+	doc := GetParser().Parser().Parse(text.NewReader(source))
+	var prose [][2]int
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
 		switch node := n.(type) {
-		case *ast.CodeSpan, *ast.Link, *ast.Image, *ast.AutoLink:
-			// 行内构造：取子文本节点首尾覆盖的跨度（链接文本可能被
-			// goldmark 拆成多个 Text 节点，首尾跨度一并覆盖间隙）。
-			start, stop := -1, -1
-			for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-				if tn, ok := child.(*ast.Text); ok {
-					if start < 0 {
-						start = tn.Segment.Start
-					}
-					stop = tn.Segment.Stop
-				}
+		case *ast.Text:
+			if !node.IsRaw() {
+				prose = append(prose, [2]int{node.Segment.Start, node.Segment.Stop})
 			}
-			add(start, stop)
+		case *ast.CodeSpan, *ast.Link, *ast.Image, *ast.AutoLink, *ast.CodeBlock, *ast.FencedCodeBlock, *ast.HTMLBlock, *ast.RawHTML:
 			return ast.WalkSkipChildren, nil
-		case *ast.CodeBlock, *ast.FencedCodeBlock, *ast.HTMLBlock:
-			lines := node.Lines()
-			if lines.Len() > 0 {
-				add(lines.At(0).Start, lines.At(lines.Len()-1).Stop)
-			}
-			return ast.WalkSkipChildren, nil
-		case *ast.RawHTML:
-			if node.Segments.Len() > 0 {
-				add(node.Segments.At(0).Start, node.Segments.At(node.Segments.Len()-1).Stop)
-			}
 		}
 		return ast.WalkContinue, nil
 	})
-	return ranges
-}
-
-// inMathSegment 报告 [start,end) 是否与任一 math 段重叠。
-func inMathSegment(segments []mathSegment, start, end int) bool {
-	for _, segment := range segments {
-		if start < segment.end && segment.start < end {
-			return true
+	math := extractMathSegments(markdown)
+	var tokens []stickerRange
+	segment := 0
+	for _, m := range stickerTokenRe.FindAllSubmatchIndex(source, -1) {
+		for segment < len(prose) && prose[segment][1] <= m[0] {
+			segment++
 		}
-	}
-	return false
-}
-
-// ExpandStickerTokens 把源 Markdown 中的 [:sticker:name:] 重写为标准图片
-// 语法 ![sticker:name](url)，使其进入既有渲染/净化管线；resolver 返回
-// false（未知或停用表情）时 token 原样保留。代码/链接/图片/autolink/
-// 原始 HTML/数学公式内的 token 不展开。
-func ExpandStickerTokens(markdown string, resolve func(name string) (url string, ok bool)) string {
-	if !strings.Contains(markdown, "[:sticker:") {
-		return markdown
-	}
-	source := []byte(markdown)
-	tokens := make([]stickerRange, 0, 4)
-	for _, match := range stickerTokenRe.FindAllSubmatchIndex(source, -1) {
-		tokens = append(tokens, stickerRange{
-			start: match[0],
-			end:   match[1],
-			name:  string(source[match[2]:match[3]]),
-		})
-	}
-	if len(tokens) == 0 {
-		return markdown
-	}
-	sort.Slice(tokens, func(i, j int) bool { return tokens[i].start < tokens[j].start })
-	exclusions := stickerExclusions(source)
-	mathSegments := extractMathSegments(markdown)
-	excluded := func(start, end int) bool {
-		for _, r := range exclusions {
-			if start < r[1] && r[0] < end {
-				return true
+		if segment == len(prose) || m[0] < prose[segment][0] {
+			continue
+		}
+		slashes := 0
+		for i := m[0] - 1; i >= 0 && source[i] == '\\'; i-- {
+			slashes++
+		}
+		if slashes%2 != 0 {
+			continue
+		}
+		excluded := false
+		for _, r := range math {
+			if m[0] < r.end && r.start < m[1] {
+				excluded = true
+				break
 			}
 		}
-		return inMathSegment(mathSegments, start, end)
+		if !excluded {
+			tokens = append(tokens, stickerRange{m[0], m[1], string(source[m[2]:m[3]])})
+		}
 	}
+	return tokens
+}
+
+// ExtractStickerNames returns distinct prose tokens for one batched lookup.
+func ExtractStickerNames(markdown string) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, token := range stickerRanges(markdown) {
+		if !seen[token.name] {
+			seen[token.name] = true
+			names = append(names, token.name)
+		}
+	}
+	return names
+}
+
+// EscapeMarkdownImageURL preserves URL bytes that could terminate a Markdown
+// destination. Percent escapes survive the existing sanitizer and image viewer.
+func EscapeMarkdownImageURL(url string) string {
+	return strings.NewReplacer("(", "%28", ")", "%29", "<", "%3C", ">", "%3E", " ", "%20", "\\", "%5C", "\n", "%0A", "\r", "%0D", "\t", "%09").Replace(url)
+}
+
+func ExpandStickerTokens(markdown string, resolve func(string) (string, bool)) string {
 	var rewritten strings.Builder
 	cursor := 0
-	for _, token := range tokens {
-		if token.start < cursor || excluded(token.start, token.end) {
+	resolved := map[string]string{}
+	for _, token := range stickerRanges(markdown) {
+		url, cached := resolved[token.name]
+		if !cached {
+			value, ok := resolve(token.name)
+			if ok {
+				url = value
+			}
+			resolved[token.name] = url
+		}
+		if url == "" {
 			continue
 		}
-		url, ok := resolve(token.name)
-		if !ok {
-			continue
-		}
-		rewritten.Write(source[cursor:token.start])
-		rewritten.WriteString("![sticker:" + token.name + "](" + url + ")")
+		rewritten.WriteString(markdown[cursor:token.start])
+		rewritten.WriteString("![sticker:" + token.name + "](" + EscapeMarkdownImageURL(url) + ")")
 		cursor = token.end
 	}
-	rewritten.Write(source[cursor:])
+	if cursor == 0 {
+		return markdown
+	}
+	rewritten.WriteString(markdown[cursor:])
 	return rewritten.String()
 }

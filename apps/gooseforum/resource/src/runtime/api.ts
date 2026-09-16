@@ -388,7 +388,7 @@ export async function searchForumUsers(query: string, signal?: AbortSignal): Pro
   return result.users ?? []
 }
 
-/** 启用表情包列表（编辑器选择面板，MADR 0022）：公开只读，仅启用项、按 sortOrder 排序。 */
+/** 启用表情包列表（编辑器选择面板，MADR 0030）：公开只读，仅启用项、按 sortOrder 排序。 */
 export async function getForumStickers(): Promise<StickerItem[]> {
   const response = await fetch('/api/forum/stickers', {
     headers: {

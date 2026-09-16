@@ -328,7 +328,7 @@ export function getStickers() {
   return getJson<AdminSticker[]>('/api/admin/stickers', adminText('k00vgc'))
 }
 
-export function saveSticker(data: { id: number, name: string, sortOrder: number, isEnabled: boolean }) {
+export function saveSticker(data: { id: number, name: string, fileName?: string, sortOrder: number, isEnabled: boolean }) {
   return postJson<unknown>('/api/admin/sticker-save', data, adminText('k00vgd'))
 }
 

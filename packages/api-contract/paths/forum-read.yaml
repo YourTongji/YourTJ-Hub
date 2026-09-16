@@ -99,7 +99,7 @@ forumStickerList:
       name and public access `url`. The url follows the storage
       configuration: `/file/img/<fileName>` on the local provider or the
       configured CDN public-url prefix. The editor sticker picker and the
-      client-side `[:sticker:name:]` token replacement (MADR 0022) consume
+      client-side `[:sticker:name:]` token replacement (MADR 0030) consume
       this list.
     security: []
     responses:

@@ -100,3 +100,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0028](0028-mobile-local-writing-recovery.md) — 移动端按站点和账号隔离本机写作恢复，独立于云端草稿
 
 - [0029](0029-two-phase-email-change.md) — 换绑邮箱两阶段切换：确认后原子切换，旧邮箱在切换前保持占用。
+
+- [0030](0030-global-sticker-library.md) — 管理员维护全局表情包库，正文 token 动态展开并复用附件存储生命周期。

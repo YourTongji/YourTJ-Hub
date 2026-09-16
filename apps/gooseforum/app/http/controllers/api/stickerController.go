@@ -1,19 +1,12 @@
 package api
 
 import (
-	"archive/zip"
-	"bytes"
+	"errors"
 	"io"
-	"log/slog"
 	"net/http"
-	"path"
-	"strings"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/gin-gonic/gin"
 )
@@ -53,7 +46,11 @@ func StickerList(req component.BetterRequest[component.Null]) component.Response
 // PublicStickerList returns enabled stickers with public access paths; the
 // editor picker and client-side token replacement consume it.
 func PublicStickerList() component.Response {
-	return component.SuccessResponse(stickerservice.EnabledList())
+	items, err := stickerservice.EnabledList()
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(items)
 }
 
 // StickerSaveReq creates (Id == 0) or updates (Id != 0) one sticker row.
@@ -61,45 +58,31 @@ func PublicStickerList() component.Response {
 type StickerSaveReq struct {
 	Id        uint64 `json:"id"`
 	Name      string `json:"name"`
+	FileName  string `json:"fileName"`
 	SortOrder int    `json:"sortOrder"`
 	IsEnabled bool   `json:"isEnabled"`
 }
 
+func stickerWriteError(err error, fallback component.MessageCode) component.Response {
+	code := fallback
+	switch {
+	case errors.Is(err, stickerservice.ErrNameRequired):
+		code = component.MessageAdminStickerNameRequired
+	case errors.Is(err, stickerservice.ErrNameInvalid):
+		code = component.MessageAdminStickerNameInvalid
+	case errors.Is(err, stickerservice.ErrNameExists):
+		code = component.MessageAdminStickerNameExists
+	case errors.Is(err, stickerservice.ErrFileRequired):
+		code = component.MessageUploadFileMissing
+	case errors.Is(err, stickerservice.ErrNotFound):
+		code = component.MessageAdminStickerNotFound
+	}
+	return component.FailResponseCode(code, nil)
+}
 func SaveSticker(req component.BetterRequest[StickerSaveReq]) component.Response {
-	name := strings.TrimSpace(req.Params.Name)
-	if name == "" {
-		return component.FailResponseCode(component.MessageAdminStickerNameRequired, nil)
-	}
-	if !stickerservice.ValidateName(name) {
-		return component.FailResponseCode(component.MessageAdminStickerNameInvalid, nil)
-	}
-	if req.Params.Id == 0 {
-		if sticker.GetByName(name).Id != 0 {
-			return component.FailResponseCode(component.MessageAdminStickerNameExists, nil)
-		}
-		entity := sticker.Entity{
-			Name:      name,
-			SortOrder: req.Params.SortOrder,
-			IsEnabled: req.Params.IsEnabled,
-			CreatedBy: req.UserId,
-		}
-		if err := sticker.Save(&entity); err != nil {
-			return component.FailResponseCode(component.MessageAdminStickerSaveFailed, nil)
-		}
-		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
-	}
-	entity := sticker.GetById(req.Params.Id)
-	if entity.Id == 0 {
-		return component.FailResponseCode(component.MessageAdminStickerNotFound, nil)
-	}
-	if existing := sticker.GetByName(name); existing.Id != 0 && existing.Id != entity.Id {
-		return component.FailResponseCode(component.MessageAdminStickerNameExists, nil)
-	}
-	entity.Name = name
-	entity.SortOrder = req.Params.SortOrder
-	entity.IsEnabled = req.Params.IsEnabled
-	if err := sticker.Save(&entity); err != nil {
-		return component.FailResponseCode(component.MessageAdminStickerSaveFailed, nil)
+	err := stickerservice.Save(betterRequestContext(req), req.UserId, stickerservice.SaveInput{Id: req.Params.Id, Name: req.Params.Name, FileName: req.Params.FileName, SortOrder: req.Params.SortOrder, IsEnabled: req.Params.IsEnabled})
+	if err != nil {
+		return stickerWriteError(err, component.MessageAdminStickerSaveFailed)
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }
@@ -111,133 +94,52 @@ type StickerDeleteReq struct {
 }
 
 func DeleteSticker(req component.BetterRequest[StickerDeleteReq]) component.Response {
-	entity := sticker.GetById(req.Params.Id)
-	if entity.Id == 0 {
-		return component.FailResponseCode(component.MessageAdminStickerNotFound, nil)
-	}
-	if err := sticker.DeleteById(entity.Id); err != nil {
-		return component.FailResponseCode(component.MessageAdminStickerDeleteFailed, nil)
-	}
-	if err := fileusageservice.RemoveStickerUsages(entity.Id); err != nil {
-		// The row is gone; a stranded usage row only delays GC, never leaks access.
-		slog.Error("remove sticker usage failed", "stickerId", entity.Id, "err", err)
+	if err := stickerservice.Delete(betterRequestContext(req), req.Params.Id); err != nil {
+		return stickerWriteError(err, component.MessageAdminStickerDeleteFailed)
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }
 
-const (
-	// stickerImportMaxZipBytes caps the uploaded archive (pre-uncompression).
-	stickerImportMaxZipBytes = 32 << 20
-	// stickerImportMaxFiles caps entries per import to bound request time.
-	stickerImportMaxFiles = 500
-	// stickerImportStickerPath mirrors preset storage for easy identification.
-	stickerImportStickerPath = "stickers"
-)
-
-// StickerImportResult reports one pack import outcome per entry bucket.
-type StickerImportResult struct {
-	Imported int                  `json:"imported"`
-	Skipped  int                  `json:"skipped"`
-	Failed   []StickerImportIssue `json:"failed"`
-}
-
-type StickerImportIssue struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason"`
-}
-
-// ImportStickerPack accepts a multipart zip (form field "file") of images.
-// Each image becomes one sticker named after its file stem (sanitized and
-// uniquified server-side). Entry-level failures are reported, not fatal:
-// one bad image must not block the rest of the pack.
+// ImportStickerPack handles only multipart transport; the service owns all
+// validation, naming, storage, and reference lifecycle decisions.
 func ImportStickerPack(c *gin.Context) {
-	fileHeader, err := c.FormFile("file")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, stickerservice.ImportMaxZipBytes+(1<<20))
+	header, err := c.FormFile("file")
+	if c.Request.MultipartForm != nil {
+		defer func() { _ = c.Request.MultipartForm.RemoveAll() }()
+	}
 	if err != nil {
-		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadFileMissing, nil))
+		code := component.MessageUploadFileMissing
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			code = component.MessageAdminStickerImportTooLarge
+		}
+		c.JSON(http.StatusOK, component.FailDataCode(code, nil))
 		return
 	}
-	if fileHeader.Size > stickerImportMaxZipBytes {
+	if header.Size > stickerservice.ImportMaxZipBytes {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageAdminStickerImportTooLarge, nil))
 		return
 	}
-	file, err := fileHeader.Open()
+	file, err := header.Open()
 	if err != nil {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestParseFailed, nil))
 		return
 	}
 	defer func() { _ = file.Close() }()
-	archive, err := io.ReadAll(io.LimitReader(file, stickerImportMaxZipBytes+1))
-	if err != nil || len(archive) > stickerImportMaxZipBytes {
+	data, err := io.ReadAll(io.LimitReader(file, stickerservice.ImportMaxZipBytes+1))
+	if err != nil || len(data) > stickerservice.ImportMaxZipBytes {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageAdminStickerImportTooLarge, nil))
 		return
 	}
-	zipReader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	result, err := stickerservice.ImportPack(c.Request.Context(), c.GetUint64("userId"), data)
 	if err != nil {
-		c.JSON(http.StatusOK, component.FailDataCode(component.MessageAdminStickerImportInvalidZip, nil))
+		code := component.MessageOperationFailed
+		if errors.Is(err, stickerservice.ErrInvalidZip) {
+			code = component.MessageAdminStickerImportInvalidZip
+		}
+		c.JSON(http.StatusOK, component.FailDataCode(code, nil))
 		return
-	}
-
-	adminUserId := c.GetUint64("userId")
-	result := StickerImportResult{Failed: []StickerImportIssue{}}
-	for _, entry := range zipReader.File {
-		if result.Imported+result.Skipped+len(result.Failed) >= stickerImportMaxFiles {
-			result.Failed = append(result.Failed, StickerImportIssue{Name: "...", Reason: "tooManyFiles"})
-			break
-		}
-		if entry.FileInfo().IsDir() {
-			continue
-		}
-		// 忽略 macOS 资源目录与 dotfiles。
-		base := path.Base(entry.Name)
-		if base == "" || strings.HasPrefix(base, ".") || strings.Contains(entry.Name, "__MACOSX") {
-			continue
-		}
-		contentType, ok := imagepolicy.ContentTypeForExt(path.Ext(base))
-		if !ok {
-			result.Skipped++
-			continue
-		}
-		// 归档条目不落盘，无 zip-slip 风险；仍限制解压体积防解压炸弹。
-		reader, err := entry.Open()
-		if err != nil {
-			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "entryOpenFailed"})
-			continue
-		}
-		data, err := io.ReadAll(io.LimitReader(reader, filedata.MaxFileSize+1))
-		_ = reader.Close()
-		if err != nil || len(data) > filedata.MaxFileSize {
-			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "tooLarge"})
-			continue
-		}
-		if err := validateUploadedImage(bytes.NewReader(data), contentType); err != nil {
-			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "invalidImage"})
-			continue
-		}
-		name, ok := stickerservice.UniqueName(stickerservice.StemName(base))
-		if !ok {
-			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "unusableName"})
-			continue
-		}
-		fileEntity, err := filedata.SaveFileFromUpload(adminUserId, data, base, stickerImportStickerPath)
-		if err != nil {
-			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "saveFailed"})
-			continue
-		}
-		row := sticker.Entity{
-			Name:      name,
-			FileName:  fileEntity.Name,
-			IsEnabled: true,
-			CreatedBy: adminUserId,
-		}
-		if err := sticker.Save(&row); err != nil {
-			_ = filedata.DeleteByName(fileEntity.Name)
-			result.Failed = append(result.Failed, StickerImportIssue{Name: base, Reason: "saveFailed"})
-			continue
-		}
-		if err := fileusageservice.AddStickerUsage(adminUserId, fileEntity.Name, row.Id); err != nil {
-			slog.Error("register imported sticker usage failed", "stickerId", row.Id, "err", err)
-		}
-		result.Imported++
 	}
 	c.JSON(http.StatusOK, component.SuccessDataCode(result, component.MessageOperationSuccess, nil))
 }

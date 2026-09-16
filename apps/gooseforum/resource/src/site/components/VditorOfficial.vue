@@ -72,7 +72,7 @@ const props = defineProps<{
   toggleHost?: HTMLElement | null
   /** 后端命中敏感词时，仅用于编辑区定位，不展示敏感词本身 */
   sensitiveWords?: string[]
-  /** 在 emoji 旁注入站点表情包按钮（MADR 0022）：面板由宿主渲染，点击仅 emit open-stickers */
+  /** 在 emoji 旁注入站点表情包按钮（MADR 0030）：面板由宿主渲染，点击仅 emit open-stickers */
   stickerPicker?: boolean
 }>()
 const emit = defineEmits<{
@@ -219,7 +219,7 @@ function uploadToolbarItem(): IMenuItem {
   }
 }
 
-/** 站点表情包按钮（MADR 0022，Lucide sticker 图标）：面板由宿主渲染，这里只触发 open-stickers */
+/** 站点表情包按钮（MADR 0030，Lucide sticker 图标）：面板由宿主渲染，这里只触发 open-stickers */
 function stickerToolbarItem(): IMenuItem {
   return {
     name: 'sticker',

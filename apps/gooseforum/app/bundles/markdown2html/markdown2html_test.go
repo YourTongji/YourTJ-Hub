@@ -22,7 +22,7 @@ type markdownCompatCase struct {
 
 func TestMarkdownVersions(t *testing.T) {
 	if got := GetPostVersion(); got != 8 {
-		// 8: 贴纸 token 展开（MADR 0022）进入持久化渲染后的版本。
+		// 8: 贴纸 token 展开（MADR 0030）进入持久化渲染后的版本。
 		t.Fatalf("GetPostVersion() = %d, want 8", got)
 	}
 	if GetParser() == nil {

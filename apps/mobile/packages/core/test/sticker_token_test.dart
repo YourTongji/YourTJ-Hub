@@ -8,6 +8,37 @@ void main() {
       '哭哭': '/file/img/stickers/cry.png',
     };
 
+    for (final source in <String>[
+      '`[:sticker:smile:]`',
+      '```\n[:sticker:smile:]\n```',
+      '    [:sticker:smile:]',
+      '[[:sticker:smile:]](/target)',
+      '[**[:sticker:smile:]**](/target)',
+      '[link](https://example.test/[:sticker:smile:])',
+      '![image](https://example.test/[:sticker:smile:])',
+      '<https://example.test/[:sticker:smile:]>',
+      '[ref]: https://example.test/[:sticker:smile:]\n\n[link][ref]',
+      '<div>[:sticker:smile:]</div>',
+      'before <span title="[:sticker:smile:]">text</span> after',
+      r'$[:sticker:smile:]$',
+      r'$$[:sticker:smile:]$$',
+      '\$\$\n\n[:sticker:smile:]\n\n\$\$',
+      r'\begin{align}[:sticker:smile:]\end{align}',
+      r'\([:sticker:smile:]\)',
+      r'\[[:sticker:smile:]\]',
+      r'\[:sticker:smile:]',
+    ]) {
+      test('preserves Markdown context: $source', () {
+        expect(expandStickerTokens(source, urlByName), source);
+      });
+    }
+    test('escapes Markdown destination punctuation', () {
+      expect(
+        expandStickerTokens('[:sticker:smile:]', {'smile': '/a)b (c.png'}),
+        '![sticker:smile](/a%29b%20%28c.png)',
+      );
+    });
+
     test('无 token 快路径原样返回同一字符串', () {
       const String content = '普通文本 #标题 ![img](/a.png) [:sticker 没有token';
       expect(expandStickerTokens(content, urlByName), same(content));

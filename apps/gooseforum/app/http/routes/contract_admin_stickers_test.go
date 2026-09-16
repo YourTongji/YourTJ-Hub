@@ -3,9 +3,13 @@ package routes
 import (
 	"archive/zip"
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
@@ -18,12 +22,13 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 // 本文件覆盖 SiteManager 权限组 stickers/sticker-save/sticker-delete/sticker-import
-// 4 条管理路由 + 公开 forum/stickers 列表的契约测试（MADR 0022，issue #277 后续切片）。
+// 4 条管理路由 + 公开 forum/stickers 列表的契约测试（MADR 0030，issue #277 后续切片）。
 // stickers（主库）与 filedata（独立 db4fileconnect 库）、file_usages 行在各子测试间
 // 清删；import 的文件仅写 BLOB（本地 provider），不落盘。存储公开前缀缓存在测试
 // 首尾清理，保证 url 断言走默认 /file/img 路径。
@@ -247,9 +252,20 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 
 	t.Run("success creates the sticker", func(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
-		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
-			`{"id":0,"name":"contract_new","sortOrder":7,"isEnabled":true}`,
-			"admin-sticker-action-success.json")
+		manager := createContractSiteManager(t, conn)
+		file, err := filedata.SaveFileFromUpload(manager.Id, contractTinyPNG, "single.png", "test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = filedata.DeleteByName(file.Name) })
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, path,
+			fmt.Sprintf(`{"id":0,"name":"contract_new","fileName":"/file/img/%s","sortOrder":7,"isEnabled":true}`, file.Name), contractSessionToken(t, manager))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-sticker-action-success.json"))
+		var references int64
+		conn.Model(&fileUsage.Entity{}).Where("file_name = ? AND target_type = ? AND status = ?", file.Name, fileUsage.TargetSticker, fileUsage.UsageStatusActive).Count(&references)
+		if references != 1 {
+			t.Fatalf("active references = %d", references)
+		}
 		created := sticker.GetByName("contract_new")
 		if created.Id == 0 || created.SortOrder != 7 || !created.IsEnabled {
 			t.Fatalf("created sticker = %#v, want contract_new enabled sortOrder 7", created)
@@ -379,4 +395,115 @@ func TestAdminStickerImportHTTPContract(t *testing.T) {
 	})
 
 	adminStickersGuardScenarios(t, http.MethodPost, path)
+}
+
+func TestStickerReviewRejectsImageLessCreate(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	serveAdminStickersOK(t, conn, router, http.MethodPost, "/api/admin/sticker-save", `{"name":"empty_image","isEnabled":true}`, "admin-img-upload-file-missing.json")
+}
+func TestStickerReviewUsageFailureRollsBackImport(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	if err := conn.Callback().Create().Before("gorm:create").Register("sticker_usage_failure", func(tx *gorm.DB) {
+		if tx.Statement.Table == "file_usages" {
+			_ = tx.AddError(errors.New("usage unavailable"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Create().Remove("sticker_usage_failure") })
+	manager := createContractSiteManager(t, conn)
+	result := serveStickerImport(router, "/api/admin/sticker-import", contractStickerZip(t, map[string][]byte{"review.png": contractTinyPNG}), contractSessionToken(t, manager))
+	var files int64
+	db4fileconnect.Connect().Model(&filedata.Entity{}).Where("user_id = ?", manager.Id).Count(&files)
+	if files != 0 {
+		t.Fatalf("rollback leaked %d uploaded files", files)
+	}
+	if bytes.Contains(result.Body.Bytes(), []byte(`"imported":1`)) || sticker.GetByName("review").Id != 0 {
+		t.Fatalf("usage failure reported success: %s", result.Body.String())
+	}
+}
+
+func TestStickerReviewImportBudgetAndSkippedEntries(t *testing.T) {
+	_, _ = setupAdminStickersContractTest(t)
+	result, err := stickerservice.ImportPack(context.Background(), 0, contractStickerZip(t, map[string][]byte{
+		"folder/": nil, ".hidden.png": contractTinyPNG, "__MACOSX/._a.png": contractTinyPNG, "readme.txt": []byte("text"),
+	}))
+	if err != nil || result.Skipped != 3 || len(result.Failed) != 0 {
+		t.Fatalf("skipped result = %+v, %v", result, err)
+	}
+	entries := map[string][]byte{}
+	for i := 0; i < 17; i++ {
+		entries[fmt.Sprintf("%02d.png", i)] = make([]byte, filedata.MaxFileSize)
+	}
+	result, err = stickerservice.ImportPack(context.Background(), 0, contractStickerZip(t, entries))
+	if err != nil || result.Imported != 0 || len(result.Failed) != 17 || result.Failed[16].Reason != "archiveTooLarge" {
+		t.Fatalf("aggregate size result = %+v, %v", result, err)
+	}
+}
+
+func TestStickerReviewConcurrentImportNames(t *testing.T) {
+	conn, _ := setupAdminStickersContractTest(t)
+	var group sync.WaitGroup
+	failures := make(chan error, 2)
+	for range 2 {
+		group.Go(func() {
+			_, err := stickerservice.ImportImage(context.Background(), 0, contractTinyPNG, "race.png", "race", 0, false)
+			failures <- err
+		})
+	}
+	group.Wait()
+	close(failures)
+	for err := range failures {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"race", "race-2"} {
+		row := sticker.GetByName(name)
+		if row.Id == 0 {
+			t.Fatalf("missing %s", name)
+		}
+		t.Cleanup(func() { _ = filedata.DeleteByName(row.FileName) })
+		var references int64
+		conn.Model(&fileUsage.Entity{}).Where("target_type = ? AND target_id = ?", fileUsage.TargetSticker, row.Id).Count(&references)
+		if references != 1 {
+			t.Fatalf("%s references = %d", name, references)
+		}
+	}
+}
+
+func TestStickerReviewPublicQueryFailureIsNotEmptySuccess(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	if err := conn.Callback().Query().Before("gorm:query").Register("sticker_query_failure", func(tx *gorm.DB) {
+		if tx.Statement.Table == "stickers" {
+			_ = tx.AddError(errors.New("database unavailable"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove("sticker_query_failure") })
+	result := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/stickers", "", "")
+	if bytes.Contains(result.Body.Bytes(), []byte(`"code":0`)) {
+		t.Fatalf("database failure returned success: %s", result.Body.String())
+	}
+}
+
+func TestStickerReviewImageOwnershipAndDisabledCreate(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	manager := createContractSiteManager(t, conn)
+	file, err := filedata.SaveFileFromUpload(manager.Id, contractTinyPNG, "owned.png", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = filedata.DeleteByName(file.Name) })
+	other := createContractSiteManager(t, conn)
+	body := fmt.Sprintf(`{"name":"owned","fileName":%q,"isEnabled":false}`, file.Name)
+	rejected := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/sticker-save", body, contractSessionToken(t, other))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rejected), contractFixture(t, "admin-img-upload-file-missing.json"))
+	saved := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/sticker-save", body, contractSessionToken(t, manager))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, saved), contractFixture(t, "admin-sticker-action-success.json"))
+	row := sticker.GetByName("owned")
+	if row.Id == 0 || row.IsEnabled || row.FileName != file.Name {
+		t.Fatalf("disabled row = %+v", row)
+	}
 }

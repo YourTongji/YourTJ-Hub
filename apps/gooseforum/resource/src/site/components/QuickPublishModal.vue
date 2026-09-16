@@ -440,7 +440,7 @@ function handleBodyInput() {
   refreshMentionSession()
 }
 
-// 站点表情包面板（MADR 0022）：选中后向编辑器光标处插入 [:sticker:name:] token
+// 站点表情包面板（MADR 0030）：选中后向编辑器光标处插入 [:sticker:name:] token
 const stickerPickerOpen = ref(false)
 
 function insertStickerToken(name: string) {
@@ -911,7 +911,7 @@ async function handleSubmit() {
               :panel-style="mentionPanelStyle"
               @select="selectMention"
             />
-            <!-- 站点表情包面板（MADR 0022）：工具栏在底部，面板向上展开 -->
+            <!-- 站点表情包面板（MADR 0030）：工具栏在底部，面板向上展开 -->
             <StickerPicker
               :open="stickerPickerOpen"
               placement="above"

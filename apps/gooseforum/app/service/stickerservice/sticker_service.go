@@ -2,7 +2,6 @@ package stickerservice
 
 import (
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -18,16 +17,6 @@ var stickerNameRe = regexp.MustCompile(`^[\p{L}\p{N}_\-]{1,64}$`)
 // ValidateName reports whether name is a sticker-safe identifier.
 func ValidateName(name string) bool {
 	return stickerNameRe.MatchString(name)
-}
-
-// ResolveURL resolves an enabled sticker name to its public access path.
-// Unknown or disabled stickers keep the raw token in rendered output.
-func ResolveURL(name string) (string, bool) {
-	entity := sticker.GetByName(name)
-	if entity.Id == 0 || !entity.IsEnabled || entity.FileName == "" {
-		return "", false
-	}
-	return storageservice.PublicAccessPath(entity.FileName), true
 }
 
 // ResolveURLFor returns the public access path for one sticker entity,
@@ -61,8 +50,11 @@ type StickerItem struct {
 
 // EnabledList returns enabled stickers with public access paths, ordered by
 // sort_order for stable picker layout.
-func EnabledList() []StickerItem {
-	entities := sticker.AllEnabled()
+func EnabledList() ([]StickerItem, error) {
+	entities, err := sticker.AllEnabled()
+	if err != nil {
+		return nil, err
+	}
 	items := make([]StickerItem, 0, len(entities))
 	for _, entity := range entities {
 		if entity.FileName == "" {
@@ -70,7 +62,7 @@ func EnabledList() []StickerItem {
 		}
 		items = append(items, StickerItem{Name: entity.Name, URL: storageservice.PublicAccessPath(entity.FileName)})
 	}
-	return items
+	return items, nil
 }
 
 // SanitizeName normalizes raw file-name-derived input into a sticker-safe
@@ -100,23 +92,13 @@ func SanitizeName(raw string) string {
 	return name
 }
 
-// UniqueName derives a conflict-free sticker name from raw input by appending
-// -2, -3, ... suffixes on collision with existing rows.
-func UniqueName(raw string) (string, bool) {
-	base := SanitizeName(raw)
-	if base == "" {
-		return "", false
-	}
-	name := base
-	for suffix := 2; ; suffix++ {
-		if sticker.GetByName(name).Id == 0 {
-			return name, true
+func ResolveURLs(names []string) (map[string]string, error) {
+	entities, err := sticker.EnabledByNames(names)
+	urls := make(map[string]string, len(entities))
+	for _, entity := range entities {
+		if entity.FileName != "" {
+			urls[entity.Name] = ResolveURLFor(entity)
 		}
-		suffixText := "-" + strconv.Itoa(suffix)
-		runes := []rune(base)
-		if len(runes)+len([]rune(suffixText)) > sticker.MaxNameLen {
-			runes = runes[:sticker.MaxNameLen-len([]rune(suffixText))]
-		}
-		name = string(runes) + suffixText
 	}
+	return urls, err
 }

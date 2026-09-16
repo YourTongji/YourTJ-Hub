@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('StickerPicker 表情包选择面板（MADR 0022）', () => {
+describe('StickerPicker 表情包选择面板（MADR 0030）', () => {
   test('打开时拉取启用贴纸并渲染懒加载网格预览', async () => {
     getForumStickers.mockResolvedValue(stickers)
     const StickerPicker = await importStickerPicker()

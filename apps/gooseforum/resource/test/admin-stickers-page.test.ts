@@ -3,8 +3,10 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import StickersManagementPage from '../src/admin/pages/management/StickersManagementPage.vue'
 import { deleteSticker, getStickers, importStickerPack, saveSticker } from '../src/admin/runtime/api'
+import { uploadImageFile } from '../src/runtime/api'
 import type { AdminPayload, AdminSticker } from '../src/admin/types'
 
+vi.mock('../src/runtime/api', () => ({ uploadImageFile: vi.fn() }))
 vi.mock('../src/admin/runtime/api', () => ({
   deleteSticker: vi.fn(),
   getStickers: vi.fn(),
@@ -90,8 +92,17 @@ describe('stickers management page', () => {
     await nameInput!.setValue('chiikawa')
     await form.trigger('submit')
 
+    expect(saveSticker).not.toHaveBeenCalled()
+    const image = new File(['png'], 'smile.png', { type: 'image/png' })
+    const input = body.get('input[type="file"][accept="image/*"]')
+    Object.defineProperty(input.element, 'files', { value: [image], configurable: true })
+    await input.trigger('change')
+    vi.mocked(uploadImageFile).mockResolvedValue('/file/img/owned.png')
+    await form.trigger('submit')
+    await flushPromises()
+    expect(uploadImageFile).toHaveBeenCalledWith(image, 'smile.png')
     expect(saveSticker).toHaveBeenCalledTimes(1)
-    expect(saveSticker).toHaveBeenCalledWith({ id: 0, name: 'chiikawa', sortOrder: 1000, isEnabled: true })
+    expect(saveSticker).toHaveBeenCalledWith({ id: 0, name: 'chiikawa', fileName: '/file/img/owned.png', sortOrder: 1000, isEnabled: true })
     expect(getStickers).toHaveBeenCalledTimes(2)
   })
 

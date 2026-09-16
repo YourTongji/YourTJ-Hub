@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { useStickerLibrary } from '@/site/composables/useStickerLibrary'
 
 /**
- * 表情包选择面板（MADR 0022）：网格展示启用贴纸图预览，点选后向宿主
+ * 表情包选择面板（MADR 0030）：网格展示启用贴纸图预览，点选后向宿主
  * emit select(name)。数据走 useStickerLibrary 全站共享缓存，打开时按需拉取。
  * GIF 动图直接 <img loading="lazy"> 展示；样式对齐 MessagesPage 自建 emoji
  * 面板（gf-menu-surface 浮层 + daisyUI token，深浅色自动跟随）。
