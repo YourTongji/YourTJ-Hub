@@ -345,6 +345,10 @@ onMounted(() => {
       </DialogContent>
     </Dialog>
 
+    <a href="https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/gooseforum/app/console/stickerpresets/preset_stickers/NOTICE.md" target="_blank" rel="noopener noreferrer" class="mt-4 inline-block text-sm text-muted-foreground underline">
+      {{ adminText('k00vh7') }}
+    </a>
+
     <AdminConfirmDialog
       :open="deletingSticker !== null"
       :title="adminText('k00vgq')"

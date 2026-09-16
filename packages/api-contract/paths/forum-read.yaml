@@ -93,8 +93,10 @@ forumStickerList:
     summary: List enabled stickers for the editor picker and token replacement
     operationId: forumStickerList
     description: |
-      Fully public endpoint: no authentication, no rate limit, no input, and
-      no business failure branch. Returns enabled stickers only, ordered by
+      Public endpoint with no authentication or input. Uses the configurable
+      `sticker.list` per-IP quota (default 60 requests per 60 seconds); a
+      database failure returns `common.operation.failed` rather than a cached
+      empty success. Returns enabled stickers only, ordered by
       sortOrder ascending then id ascending, each with its globally unique
       name and public access `url`. The url follows the storage
       configuration: `/file/img/<fileName>` on the local provider or the
@@ -112,3 +114,18 @@ forumStickerList:
             examples:
               success:
                 externalValue: ../fixtures/forum-sticker-list-success.json
+      '429':
+        description: Sticker list quota exceeded.
+        headers:
+          Retry-After:
+            schema:
+              type: integer
+              minimum: 1
+            description: Seconds until the quota resets.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/forum-sticker-rate-limited.json

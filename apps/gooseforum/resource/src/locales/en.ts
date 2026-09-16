@@ -188,6 +188,7 @@ export default {
     },
   },
   stickers: {
+    sources: 'Sticker sources and licenses',
     pickerTitle: 'Stickers',
     empty: 'No stickers available',
   },

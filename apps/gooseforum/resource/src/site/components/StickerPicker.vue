@@ -95,6 +95,9 @@ function selectSticker(sticker: StickerItem) {
     <div v-else-if="stickers.length === 0" class="px-2 py-4 text-center text-sm text-base-content/55">
       {{ t('stickers.empty') }}
     </div>
+    <a href="https://github.com/YourTongji/YourTJ-Hub/blob/dev/apps/gooseforum/app/console/stickerpresets/preset_stickers/NOTICE.md" target="_blank" rel="noopener noreferrer" class="mt-2 block border-t border-base-content/10 pt-2 text-center text-xs text-base-content/60 underline">
+      {{ t('stickers.sources') }}
+    </a>
   </div>
 </template>
 

@@ -187,6 +187,7 @@ export default {
     },
   },
   stickers: {
+    sources: 'スタンプの出典とライセンス',
     pickerTitle: 'スタンプ',
     empty: '利用可能なスタンプがありません',
   },

@@ -41,8 +41,3 @@ func Manifest() ([]Preset, error) {
 func Load(file string) ([]byte, error) {
 	return presetFS.ReadFile(path.Join("preset_stickers", file))
 }
-
-// NOTICE returns the bundled attribution notice text.
-func NOTICE() ([]byte, error) {
-	return presetFS.ReadFile("preset_stickers/NOTICE.md")
-}

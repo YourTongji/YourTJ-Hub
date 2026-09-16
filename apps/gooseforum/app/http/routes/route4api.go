@@ -285,7 +285,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
-	forumApi.GET("stickers", ginUpNP(api.PublicStickerList))
+	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
 	// wiki 分站：公开读。
 	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")

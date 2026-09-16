@@ -945,4 +945,5 @@ export default {
   "k00vh4": "Keine Upload-Datei empfangen.",
   "k00vh5": "Import des Sticker-Pakets fehlgeschlagen. Bitte erneut versuchen.",
   "k00vh6": "Das entpackte Archiv überschreitet die Gesamtgröße von 64 MB.",
+  "k00vh7": "Sticker-Quellen und Lizenzen",
 } as const

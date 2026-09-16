@@ -945,4 +945,5 @@ export default {
   "k00vh4": "No upload file was received.",
   "k00vh5": "Failed to import the sticker pack. Please retry.",
   "k00vh6": "The expanded archive exceeds the total size limit (64 MB).",
+  "k00vh7": "Sticker sources and licenses",
 } as const

@@ -71,7 +71,7 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	stickersAPI.POST("/sticker-save", UpButterReq(api.SaveSticker))
 	stickersAPI.POST("/sticker-delete", UpButterReq(api.DeleteSticker))
 	stickersAPI.POST("/sticker-import", api.ImportStickerPack)
-	router.GET("/api/forum/stickers", ginUpNP(api.PublicStickerList))
+	router.GET("/api/forum/stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
 	return conn, router
 }
 
@@ -505,5 +505,20 @@ func TestStickerReviewImageOwnershipAndDisabledCreate(t *testing.T) {
 	row := sticker.GetByName("owned")
 	if row.Id == 0 || row.IsEnabled || row.FileName != file.Name {
 		t.Fatalf("disabled row = %+v", row)
+	}
+}
+
+func TestStickerReviewPublicRateLimit(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	restrictContractRateLimit(t, conn, "sticker.list")
+	for range 5 {
+		_ = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/stickers", "", "")
+	}
+	result := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/stickers", "", "")
+	if result.Code != http.StatusTooManyRequests || result.Header().Get("Retry-After") == "" {
+		t.Fatalf("rate limit response = %d %s", result.Code, result.Body.String())
+	}
+	if !bytes.Contains(result.Body.Bytes(), []byte(`"action":"sticker.list"`)) {
+		t.Fatal(result.Body.String())
 	}
 }

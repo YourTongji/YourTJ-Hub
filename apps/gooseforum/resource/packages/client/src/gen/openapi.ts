@@ -1781,8 +1781,10 @@ export interface paths {
         };
         /**
          * List enabled stickers for the editor picker and token replacement
-         * @description Fully public endpoint: no authentication, no rate limit, no input, and
-         *     no business failure branch. Returns enabled stickers only, ordered by
+         * @description Public endpoint with no authentication or input. Uses the configurable
+         *     `sticker.list` per-IP quota (default 60 requests per 60 seconds); a
+         *     database failure returns `common.operation.failed` rather than a cached
+         *     empty success. Returns enabled stickers only, ordered by
          *     sortOrder ascending then id ascending, each with its globally unique
          *     name and public access `url`. The url follows the storage
          *     configuration: `/file/img/<fileName>` on the local provider or the
@@ -14093,6 +14095,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForumStickerListResponse"];
+                };
+            };
+            /** @description Sticker list quota exceeded. */
+            429: {
+                headers: {
+                    /** @description Seconds until the quota resets. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

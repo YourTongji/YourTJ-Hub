@@ -188,6 +188,7 @@ export default {
     },
   },
   stickers: {
+    sources: '表情包来源与许可',
     pickerTitle: '表情包',
     empty: '暂无可用表情包',
   },
