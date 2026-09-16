@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+const { fetchNotifications } = vi.hoisted(() => ({ fetchNotifications: vi.fn() }))
+vi.mock('../src/runtime/api', () => ({ fetchNotifications }))
+
 import type * as BrowserNotificationModule from '../src/runtime/browser-notification'
 
 // 模块持有 lastShownAt/channel 内部状态，逐测试 vi.resetModules 保证隔离。
@@ -75,6 +78,7 @@ function stubGlobals(options: { withBroadcastChannel?: boolean } = {}) {
 function stubDocument() {
   vi.stubGlobal('document', {
     cookie: '',
+    documentElement: { lang: 'zh' },
     get hidden() {
       return pageHidden
     },
@@ -82,6 +86,8 @@ function stubDocument() {
 }
 
 beforeEach(async () => {
+  fetchNotifications.mockReset()
+  fetchNotifications.mockResolvedValue({ items: [] })
   vi.useFakeTimers()
   pageHidden = true
   storage = createStorage()
@@ -319,5 +325,63 @@ describe('通知点击 SPA 导航桥', () => {
     notification.onclick?.()
     expect(spy).toHaveBeenCalledWith('/notifications')
     expect((window as unknown as { location: { href: string } }).location.href).toBe('http://localhost:3010/')
+  })
+})
+
+describe('mention notifications', () => {
+  test.each([['zh', '提到了你'], ['en', 'mentioned you'], ['ja', 'あなたにメンションしました'], ['de', 'hat dich erwähnt']])('uses mention copy in %s', async (locale, body) => {
+    enableForTest()
+    const { setLocale } = await import('../src/runtime/i18n')
+    await setLocale(locale as 'zh' | 'en' | 'ja' | 'de')
+    mod.showBrowserNotification('mention')
+    expect(FakeNotification.instances[0].options.body).toBe(body)
+  })
+
+  test.each([['/p/post/512/8', 8], ['/p/post/512#post-4096', 0]])('opens the mentioned post at %s', async (url, postNo) => {
+    enableForTest()
+    fetchNotifications.mockResolvedValue({ items: [{ id: 100, eventType: 'mention', actor: { username: 'Alice' }, topic: { id: 512 }, payload: { topicId: 512, postId: 4096, postNo } }] })
+    await mod.maybeNotifyUnread(false, true, 'mention', 100)
+    expect(fetchNotifications).toHaveBeenCalledWith('all', 101, 1)
+    const notice = FakeNotification.instances[0]
+    expect(notice.options.body).toBe('Alice 提到了你')
+    notice.onclick?.()
+    expect(window.location.href).toBe(url)
+  })
+
+  test('query failure keeps mention copy and the notification-center fallback', async () => {
+    enableForTest()
+    fetchNotifications.mockRejectedValue(new Error('offline'))
+    await mod.maybeNotifyUnread(false, true, 'mention', 100)
+    const notice = FakeNotification.instances[0]
+    expect(notice.options.body).toBe('提到了你')
+    notice.onclick?.()
+    expect(window.location.href).toBe('/notifications')
+  })
+
+  test('missing fields and mismatched rows cannot redirect to an unrelated target', async () => {
+    enableForTest()
+    fetchNotifications.mockResolvedValue({ items: [{ id: 99, eventType: 'mention', topic: { url: '//evil.example' } }] })
+    await mod.maybeNotifyUnread(false, true, 'mention', 100)
+    FakeNotification.instances[0].onclick?.()
+    expect(window.location.href).toBe('/notifications')
+  })
+
+  test('clearing unread state discards an in-flight mention', async () => {
+    enableForTest()
+    let resolve!: (value: unknown) => void
+    fetchNotifications.mockReturnValue(new Promise(done => { resolve = done }))
+    const pending = mod.maybeNotifyUnread(false, true, 'mention', 100)
+    mod.maybeNotifyUnread(true, false, '', 0)
+    resolve({ items: [] })
+    await pending
+    expect(FakeNotification.instances).toHaveLength(0)
+  })
+
+  test('foreground and disabled notices do not fetch extra data', async () => {
+    await mod.maybeNotifyUnread(false, true, 'mention', 100)
+    enableForTest()
+    pageHidden = false
+    await mod.maybeNotifyUnread(true, true, 'mention', 200)
+    expect(fetchNotifications).not.toHaveBeenCalled()
   })
 })

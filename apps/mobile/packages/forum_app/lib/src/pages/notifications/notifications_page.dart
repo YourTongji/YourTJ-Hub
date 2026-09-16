@@ -5,6 +5,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'notification_text.dart';
+import 'notification_target.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../server_messages.dart';
 
@@ -119,19 +120,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   /// - 关注/徽章 → /u/:actorId
   void _openNotification(NotificationPayload n) {
     _markRead(n);
-    final int? topicId = n.topic?.id ?? n.payload.topicId;
-    if (topicId != null && topicId > 0) {
-      context.push('/p/$topicId');
-      return;
-    }
-    if (n.eventType == 'follow' ||
-        n.eventType == 'badge' ||
-        n.payload.metadata?.profileUrl != null) {
-      final int actorId = n.actor.id;
-      if (actorId > 0) {
-        context.push('/u/$actorId');
-      }
-    }
+    final target = notificationTarget(n);
+    if (target != null) context.push(target);
   }
 
   @override

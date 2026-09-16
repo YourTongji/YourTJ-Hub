@@ -1,5 +1,7 @@
 import { i18n } from './i18n'
 import { navigateAppTo } from './app-navigation'
+import { fetchNotifications } from './api'
+import type { NotificationPayload } from '@gooseforum/client'
 
 /**
  * 浏览器级通知（Web Notification API，issue #444）。
@@ -20,6 +22,7 @@ const NOTIFICATION_TAG = 'goose:unread'
 
 // latestNotificationType → i18n body 文案键；未列出的类型（system 等）走通用文案。
 const BODY_KEY_BY_TYPE: Record<string, string> = {
+  mention: 'notifications.templates.mention',
   comment: 'notifications.newComment',
   post_reply: 'notifications.newComment',
   topic_post: 'notifications.newComment',
@@ -126,9 +129,9 @@ function markShown() {
 /**
  * 展示浏览器通知。全部条件满足才弹：
  * 浏览器支持、偏好开启、权限已授予、页面处于后台、去重窗口内未被其他标签页弹过。
- * 点击通知聚焦页面并 SPA 跳转通知中心；导航桥未注册时回退整页跳转。
+ * mention 带有已查询的楼层目标时直达楼层；缺字段/失败回退通知中心。
  */
-export function showBrowserNotification(type: string): boolean {
+function canShowBrowserNotification(): boolean {
   if (!isBrowserNotificationSupported()) return false
   if (!isBrowserNotificationEnabled()) return false
   if (window.Notification.permission !== 'granted') return false
@@ -136,21 +139,55 @@ export function showBrowserNotification(type: string): boolean {
   const shownAt = Math.max(lastShownAt, readShownAt())
   if (Date.now() - shownAt < DEDUP_WINDOW_MS) return false
 
+  return true
+}
+
+function mentionTarget(item?: NotificationPayload): string {
+  const positive = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+  const topicId = item?.payload?.topicId ?? item?.topic?.id
+  if (!positive(topicId)) return '/notifications'
+  const base = `/p/post/${topicId}`
+  const postNo = item?.payload?.postNo
+  if (positive(postNo)) return `${base}/${postNo}`
+  const postId = item?.payload?.postId
+  return positive(postId) ? `${base}#post-${postId}` : base
+}
+
+export function showBrowserNotification(type: string, item?: NotificationPayload): boolean {
+  if (!canShowBrowserNotification()) return false
+  const actor = type === 'mention' ? (item?.actor?.username || item?.payload?.actorName || '').trim() : ''
+  const verb = i18n.global.t(bodyKeyForType(type))
+  const target = type === 'mention' ? mentionTarget(item) : '/notifications'
   const notification = new window.Notification(i18n.global.t('notifications.title'), {
-    body: i18n.global.t(bodyKeyForType(type)),
+    body: actor ? `${actor} ${verb}` : verb,
     icon: NOTIFICATION_ICON,
     tag: NOTIFICATION_TAG,
   })
   notification.onclick = () => {
     notification.close()
     window.focus()
-    if (!navigateAppTo('/notifications')) {
+    if (!navigateAppTo(target)) {
       // 导航桥未注册（极端时序）：回退整页跳转，保证点击必然可达通知中心
-      window.location.href = '/notifications'
+      window.location.href = target
     }
   }
   markShown()
   return true
+}
+
+async function showMentionNotification(id: number) {
+  if (!canShowBrowserNotification()) return
+  let item: NotificationPayload | undefined
+  try {
+    // Cursor is exclusive: this bounded query selects this exact notification,
+    // even if newer arrivals have changed the first page in the meantime.
+    const result = await fetchNotifications('all', id + 1, 1)
+    item = result.items.find(candidate => candidate.id === id && candidate.eventType === 'mention')
+  } catch {
+    // Preserve the generic mention notice when the detail request is unavailable.
+  }
+  if (lastNotifiedUnreadId !== id || item?.isRead) return
+  showBrowserNotification('mention', item)
 }
 
 /**
@@ -178,6 +215,7 @@ export function maybeNotifyUnread(previous: boolean, current: boolean, type: str
   if (id > lastNotifiedUnreadId) {
     // 先推进再尝试弹：去重窗口/权限缺失抑制时避免下轮对同一 id 重复尝试
     lastNotifiedUnreadId = id
+    if (type === 'mention' && Number.isSafeInteger(id + 1)) return showMentionNotification(id)
     showBrowserNotification(type)
   }
 }

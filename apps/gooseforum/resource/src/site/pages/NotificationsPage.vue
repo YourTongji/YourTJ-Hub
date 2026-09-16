@@ -203,7 +203,7 @@ function notificationTitleText(item: NotificationPayload) {
 }
 
 function notificationTemplateText(item: NotificationPayload) {
-  const templateKey = item.payload.templateKey as string | undefined
+  const templateKey = item.payload.templateKey
   switch (templateKey) {
     case 'notifications.templates.comment':
       return t('notifications.templates.comment')

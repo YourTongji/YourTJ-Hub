@@ -7,7 +7,7 @@ import (
 )
 
 // buildNativePayload 按事件类型渲染标题/正文；route 为移动端 App 路由
-// （/p/{topicId}），web 深链（/p/post/...）正确映射。
+// （/p/{topicId}?postNo=楼层号），web 深链（/p/post/...）正确映射。
 func TestBuildNativePayloadComment(t *testing.T) {
 	notification := eventNotification.Entity{
 		Id:        987654,
@@ -29,9 +29,9 @@ func TestBuildNativePayloadComment(t *testing.T) {
 	if msg.Title != "话题标题" {
 		t.Errorf("comment title = %q, want payload TopicTitle", msg.Title)
 	}
-	// /p/post/1001/3（楼层深链）→ App /p/1001（楼层号无对应页面，收敛到话题级）。
-	if msg.Route != "/p/1001" {
-		t.Errorf("comment route = %q, want /p/1001", msg.Route)
+	// 楼层号由 App 现有 initialPostNo 查询参数接收。
+	if msg.Route != "/p/1001?postNo=3" {
+		t.Errorf("comment route = %q, want /p/1001?postNo=3", msg.Route)
 	}
 }
 
@@ -87,10 +87,10 @@ func TestWebRouteToMobile(t *testing.T) {
 	}{
 		{"", mobileFallbackRoute},
 		{"/p/post/1001", "/p/1001"},
-		{"/p/post/1001/3", "/p/1001"},
+		{"/p/post/1001/3", "/p/1001?postNo=3"},
 		{"/p/post/1001#post-2001", "/p/1001"},
 		{"/topics/42", "/p/42"},
-		{"/topics/42/1", "/p/42"},
+		{"/topics/42/1", "/p/42?postNo=1"},
 		{"/u/7", "/u/7"},
 		{"/wiki/guide/intro", mobileFallbackRoute},
 		{"/notifications", mobileFallbackRoute},
@@ -99,6 +99,15 @@ func TestWebRouteToMobile(t *testing.T) {
 	for _, c := range cases {
 		if got := webRouteToMobile(c.webURL); got != c.want {
 			t.Errorf("webRouteToMobile(%q) = %q, want %q", c.webURL, got, c.want)
+		}
+	}
+}
+
+func TestBuildNativePayloadMention(t *testing.T) {
+	for locale, body := range map[string]string{"zh": "提到了你", "en": "mentioned you", "ja": "あなたをメンションしました", "de": "hat dich erwähnt"} {
+		msg := buildNativePayload(eventNotification.Entity{EventType: eventNotification.EventTypeMention, Payload: eventNotification.NotificationPayload{TopicId: 512, PostId: 4096, PostNo: 8}}, locale)
+		if msg == nil || msg.Body != body || msg.Route != "/p/512?postNo=8" {
+			t.Fatalf("mention %s: %#v", locale, msg)
 		}
 	}
 }

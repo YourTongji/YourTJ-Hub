@@ -453,7 +453,7 @@ void main() {
     );
   });
   test('notification navigation is restricted to actual app routes', () {
-    for (final route in ['/p/12', '/u/34', '/notifications']) {
+    for (final route in ['/p/12', '/p/12?postNo=8', '/u/34', '/notifications']) {
       expect(pushRoute(route), route);
     }
     for (final route in [
