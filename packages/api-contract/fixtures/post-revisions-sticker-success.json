@@ -1,0 +1,22 @@
+{
+  "result": {
+    "postId": 19252,
+    "versions": [
+      {
+        "version": 1,
+        "editor": {
+          "id": 19302,
+          "username": "contract-revision-editor-sticker",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "content": "[:sticker:deleted_sticker:]",
+        "renderedHTML": "<p>[:sticker:deleted_sticker:]</p>\n",
+        "processStatus": 0,
+        "createdAt": "2026-08-01T12:00:00Z"
+      }
+    ],
+    "hasMore": false,
+    "beforeVersion": 0
+  },
+  "code": 0
+}

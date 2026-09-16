@@ -2714,7 +2714,7 @@ PostRevisionPayload:
       description: Revision markdown snapshot; emptied when the revision is masked for non-moderators.
     renderedHTML:
       type: string
-      description: Rendered HTML snapshot; emptied when the revision is masked for non-moderators.
+      description: Rendered HTML snapshot; revisions containing sticker tokens resolve current sticker definitions on read. Emptied when the revision is masked for non-moderators.
     processStatus:
       type: integer
       enum: [0, 1, 2]

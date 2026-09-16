@@ -734,7 +734,8 @@ export interface paths {
          *     fail with HTTP 400 and `common.request.parseFailed`. A missing/zero postId or an
          *     unknown post fails with `post.notFound` (HTTP 200). Pages follow the version
          *     cursor: omit beforeVersion (or send 0) for the newest page, then pass the
-         *     returned beforeVersion for older pages.
+         *     returned beforeVersion for older pages. Visible revisions containing sticker
+         *     tokens resolve the current library; removed/disabled stickers remain raw tokens.
          */
         get: operations["getPostRevisions"];
         put?: never;
@@ -6785,7 +6786,7 @@ export interface components {
             editor: components["schemas"]["TopicAuthorPayload"];
             /** @description Revision markdown snapshot; emptied when the revision is masked for non-moderators. */
             content: string;
-            /** @description Rendered HTML snapshot; emptied when the revision is masked for non-moderators. */
+            /** @description Rendered HTML snapshot; revisions containing sticker tokens resolve current sticker definitions on read. Emptied when the revision is masked for non-moderators. */
             renderedHTML: string;
             /**
              * @description 0 normal, 1 blocked, 2 pending moderation.

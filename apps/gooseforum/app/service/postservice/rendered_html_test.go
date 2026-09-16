@@ -99,6 +99,9 @@ func TestStickerReviewCurrentDefinitionsOverridePersistedHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := ensureRenderedHTML(post, func(*posts.Entity) error { t.Fatal("dynamic sticker HTML must not be persisted on read"); return nil })
+	if post.RenderedHTML != got {
+		t.Fatalf("payload readers still see stale entity HTML: %s", post.RenderedHTML)
+	}
 	if err != nil || strings.Contains(got, "fresh.png") || !strings.Contains(got, "[:sticker:render_fresh:]") {
 		t.Fatalf("disabled sticker still served: %s / %v", got, err)
 	}

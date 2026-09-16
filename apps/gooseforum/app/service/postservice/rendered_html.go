@@ -47,7 +47,11 @@ func ensureRenderedHTML(entity *posts.Entity, save func(*posts.Entity) error) (s
 	// Sticker definitions are mutable. Resolve only token-bearing posts at read
 	// time, so disable/delete/rename/import never leave stale persisted URLs.
 	if strings.Contains(entity.Content, "[:sticker:") {
-		return RenderPostHTML(entity.Content), nil
+		// Payload builders also consume the entity in place. Refresh that request's
+		// copy without persisting mutable sticker definitions into the HTML cache.
+		entity.RenderedHTML = RenderPostHTML(entity.Content)
+		entity.RenderedVersion = markdown2html.GetPostVersion()
+		return entity.RenderedHTML, nil
 	}
 	if entity.RenderedVersion >= markdown2html.GetPostVersion() && entity.RenderedHTML != "" {
 		return entity.RenderedHTML, nil
