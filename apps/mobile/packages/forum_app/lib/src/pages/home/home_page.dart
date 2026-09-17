@@ -172,6 +172,43 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
+  /// 从话题详情返回:按 id 原位更新已加载话题的最新状态(点赞/收藏/未读),
+  /// 不把第一页 payload 写入 _page——分页游标(nextUrl/hasNext)保留,
+  /// 「加载更多」从原进度继续;列表长度不回缩,滚动位置不跳顶
+  /// (MADR 0012 Preserve scroll position)。下拉刷新仍走 _load(silent: true)
+  /// 的整页重置语义,两条静默路径分开接线。
+  Future<void> _refreshAfterReturn() async {
+    if (!mounted || _topics.isEmpty) return;
+    final sequence = ++_loadSequence;
+    final revision = _interactionRevision;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    try {
+      final PagePayload payload = await ref
+          .read(pageRepositoryProvider)
+          .home(sort: _sort);
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      final HomeProps? props = parsePageProps<HomeProps>(payload);
+      if (props == null) return;
+      final Map<int, TopicPayload> incoming = {
+        for (final TopicPayload topic in props.topics) topic.id: topic,
+      };
+      setState(() {
+        // 只原位替换已加载条目:不追加新热帖、不移除已消失条目,
+        // 保证列表形状与滚动位置稳定。
+        for (var i = 0; i < _topics.length; i++) {
+          final TopicPayload? fresh = incoming[_topics[i].id];
+          if (fresh != null) _topics[i] = _mergeInteraction(fresh, revision);
+        }
+      });
+    } catch (_) {
+      // 返回刷新失败静默:保留当前列表与分页进度。
+    }
+  }
+
   Future<void> _loadMore() async {
     final HomeProps? props = _page.value;
     if (props == null || !props.pagination.hasNext || _loadingMore) return;
@@ -400,7 +437,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               onLikeTopic: _toggleTopicInteraction,
               onBookmarkTopic: (topic, target) =>
                   _toggleTopicInteraction(topic, target, bookmark: true),
-              onReturnFromTopic: () => _load(silent: true),
+              onReturnFromTopic: _refreshAfterReturn,
               hasMore: props.pagination.hasNext,
               onLoadMore: _loadMore,
             ),

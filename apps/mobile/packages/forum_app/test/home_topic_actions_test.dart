@@ -8,6 +8,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
+import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
@@ -52,6 +53,76 @@ class _Pages extends PageRepository {
   @override
   Future<PagePayload> fetch(String path) async =>
       pending == null ? payload() : pending!.future;
+}
+
+/// 两级以上分页的 fake:home() 返回第一页,fetch() 按 nextUrl 返回后续页,
+/// 用于验证「从详情返回」与「下拉刷新」两条静默路径的不同合并语义。
+class _PagedPages extends _Pages {
+  _PagedPages() : super();
+  int homeCalls = 0;
+  int page1LikeCount = 5;
+  int page2LikeCount = 5;
+  int page3LikeCount = 5;
+
+  PagePayload _topicPage(
+    int id,
+    int likeCount, {
+    required bool hasNext,
+    required String nextUrl,
+  }) {
+    final data = homePayloadJson();
+    final props = data['props'] as Map<String, dynamic>;
+    final first = (props['topics'] as List).first as Map<String, dynamic>;
+    props['topics'] = [
+      {
+        ...first,
+        'id': id,
+        'title': 'Topic $id',
+        'likeCount': likeCount,
+        'liked': false,
+        'bookmarked': false,
+      },
+    ];
+    props['pagination'] = {
+      'page': 1,
+      'nextPage': hasNext ? 2 : 0,
+      'hasNext': hasNext,
+      'nextUrl': nextUrl,
+    };
+    return parsePayload(data);
+  }
+
+  @override
+  Future<PagePayload> home({String sort = ''}) async {
+    homeCalls++;
+    return _topicPage(
+      100,
+      page1LikeCount,
+      hasNext: true,
+      nextUrl: '/?sort=latest&page=2',
+    );
+  }
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path.endsWith('page=3')) {
+      return _topicPage(300, page3LikeCount, hasNext: false, nextUrl: '');
+    }
+    if (path.endsWith('page=2')) {
+      return _topicPage(
+        200,
+        page2LikeCount,
+        hasNext: true,
+        nextUrl: '/?sort=latest&page=3',
+      );
+    }
+    return _topicPage(
+      100,
+      page1LikeCount,
+      hasNext: true,
+      nextUrl: '/?sort=latest&page=2',
+    );
+  }
 }
 
 class _Topics extends TopicRepository {
@@ -274,5 +345,82 @@ void main() {
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.favorite), findsNothing);
+  });
+  testWidgets(
+    'returning from a topic keeps loaded pages and updates in place',
+    (tester) async {
+      final pages = _PagedPages();
+      await pump(tester, pages, _Topics(pages));
+
+      // 用户先滑出第 2、3 页:分页进度在本地累积,游标推进到末页。
+      await tester.ensureVisible(find.text('加载更多'));
+      await tester.tap(find.text('加载更多'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('加载更多'));
+      await tester.tap(find.text('加载更多'));
+      await tester.pumpAndSettle();
+      expect(find.text('Topic 100'), findsOneWidget);
+      expect(find.text('Topic 200'), findsOneWidget);
+      expect(find.text('Topic 300'), findsOneWidget);
+
+      // 读者离开期间第一条话题的服务端状态变化(点赞数更新)。
+      pages.page1LikeCount = 9;
+
+      // 基线:accountLayoutProvider 等既有消费者在挂载期也会读 home(),
+      // 因此只统计返回路径自身的增量。
+      final homeCallsBeforeReturn = pages.homeCalls;
+
+      // 从详情返回触发 onReturnFromTopic。
+      tester
+          .widget<GfTopicList>(find.byType(GfTopicList))
+          .onReturnFromTopic
+          ?.call();
+      await tester.pumpAndSettle();
+
+      // 已加载的多页内容保留:列表不回缩到第一页。
+      expect(find.text('Topic 100'), findsOneWidget);
+      expect(find.text('Topic 200'), findsOneWidget);
+      expect(find.text('Topic 300'), findsOneWidget);
+      // 按 id 原位更新:首条话题拿到最新点赞数。
+      expect(
+        tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
+        9,
+      );
+      // 返回刷新只追加一次第一页读取、不重置分页游标。
+      expect(pages.homeCalls, homeCallsBeforeReturn + 1);
+      expect(
+        tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('pull to refresh still resets pagination to the first page', (
+    tester,
+  ) async {
+    final pages = _PagedPages();
+    await pump(tester, pages, _Topics(pages));
+    await tester.ensureVisible(find.text('加载更多'));
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+    expect(find.text('Topic 200'), findsOneWidget);
+
+    pages.page1LikeCount = 9;
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    // 下拉刷新保留既有语义:整页重置回第一页并展示最新状态。
+    expect(find.text('Topic 200'), findsNothing);
+    expect(find.text('Topic 100'), findsOneWidget);
+    expect(
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
+      9,
+    );
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
+      isTrue,
+    );
   });
 }
