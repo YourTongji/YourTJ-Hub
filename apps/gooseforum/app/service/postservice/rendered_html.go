@@ -2,15 +2,25 @@ package postservice
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 )
 
-// RenderPostHTML 渲染帖子正文，并把解析到有效用户的 @mention 渲染为
-// 指向 /u/{userId} 的链接；未知/失效用户名保持普通文本。
+// RenderPostHTML 渲染帖子正文：先把 [:sticker:name:] 表情包 token 展开为
+// 标准图片语法（未知/停用表情保持原样），再把解析到有效用户的 @mention
+// 渲染为指向 /u/{userId} 的链接；未知/失效用户名保持普通文本。
 func RenderPostHTML(content string) string {
+	if names := markdown2html.ExtractStickerNames(content); len(names) > 0 {
+		urls, err := stickerservice.ResolveURLs(names)
+		if err != nil {
+			slog.Warn("resolve sticker images failed", "error", err)
+		}
+		content = markdown2html.ExpandStickerTokens(content, func(name string) (string, bool) { value, ok := urls[name]; return value, ok })
+	}
 	usernames := markdown2html.ExtractUsernames(content)
 	if len(usernames) == 0 {
 		return markdown2html.PostMarkdownToHTML(content)
@@ -33,6 +43,15 @@ func EnsureRenderedHTML(entity *posts.Entity) string {
 func ensureRenderedHTML(entity *posts.Entity, save func(*posts.Entity) error) (string, error) {
 	if entity == nil || entity.Id == 0 {
 		return "", nil
+	}
+	// Sticker definitions are mutable. Resolve only token-bearing posts at read
+	// time, so disable/delete/rename/import never leave stale persisted URLs.
+	if strings.Contains(entity.Content, "[:sticker:") {
+		// Payload builders also consume the entity in place. Refresh that request's
+		// copy without persisting mutable sticker definitions into the HTML cache.
+		entity.RenderedHTML = RenderPostHTML(entity.Content)
+		entity.RenderedVersion = markdown2html.GetPostVersion()
+		return entity.RenderedHTML, nil
 	}
 	if entity.RenderedVersion >= markdown2html.GetPostVersion() && entity.RenderedHTML != "" {
 		return entity.RenderedHTML, nil

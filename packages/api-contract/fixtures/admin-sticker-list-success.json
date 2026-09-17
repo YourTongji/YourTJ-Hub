@@ -1,0 +1,23 @@
+{
+  "result": [
+    {
+      "id": 9101,
+      "name": "smile",
+      "fileName": "stickers/9f1c2d3e-0000-4000-8000-000000000001.png",
+      "url": "/file/img/stickers/9f1c2d3e-0000-4000-8000-000000000001.png",
+      "sortOrder": 1,
+      "isEnabled": true,
+      "createdBy": 0
+    },
+    {
+      "id": 9102,
+      "name": "梗图-冲",
+      "fileName": "",
+      "url": "",
+      "sortOrder": 2,
+      "isEnabled": false,
+      "createdBy": 0
+    }
+  ],
+  "code": 0
+}

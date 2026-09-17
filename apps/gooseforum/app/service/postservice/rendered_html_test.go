@@ -8,6 +8,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
@@ -76,5 +77,32 @@ func TestRenderPostHTMLWithMention(t *testing.T) {
 	plain := RenderPostHTML("no mentions here")
 	if strings.Contains(plain, `<a href="/u/`) {
 		t.Fatalf("RenderPostHTML() = %q, no mentions must not link", plain)
+	}
+}
+
+func TestStickerReviewCurrentDefinitionsOverridePersistedHTML(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	row := sticker.Entity{Name: "render_fresh", FileName: "stickers/fresh.png", IsEnabled: true}
+	if err := sticker.Save(&row); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Delete(&row) })
+	post := &posts.Entity{Id: 9, Content: "[:sticker:render_fresh:]", RenderedHTML: RenderPostHTML("[:sticker:render_fresh:]"), RenderedVersion: markdown2html.GetPostVersion()}
+	if !strings.Contains(post.RenderedHTML, "fresh.png") {
+		t.Fatal(post.RenderedHTML)
+	}
+	row.IsEnabled = false
+	if err := sticker.Save(&row); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ensureRenderedHTML(post, func(*posts.Entity) error { t.Fatal("dynamic sticker HTML must not be persisted on read"); return nil })
+	if post.RenderedHTML != got {
+		t.Fatalf("payload readers still see stale entity HTML: %s", post.RenderedHTML)
+	}
+	if err != nil || strings.Contains(got, "fresh.png") || !strings.Contains(got, "[:sticker:render_fresh:]") {
+		t.Fatalf("disabled sticker still served: %s / %v", got, err)
 	}
 }

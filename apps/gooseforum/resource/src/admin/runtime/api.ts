@@ -7,6 +7,7 @@ import type {
   AdminAgentRotateResult,
   AdminTaskRow,
   AdminTopic,
+  AdminSticker,
   AdminBadge,
   AdminCategory,
   AdminCategoryModerator,
@@ -16,6 +17,7 @@ import type {
   AdminRole,
   AdminUser,
   AnnouncementConfig,
+  StickerImportResult,
   ImportReport,
   TopicSource,
   DailyTraffic,
@@ -320,6 +322,24 @@ export function saveBadge(data: AdminBadge) {
 
 export function deleteBadge(code: string) {
   return postJson<unknown>('/api/admin/badge-delete', { code }, adminText('k001e'))
+}
+
+export function getStickers() {
+  return getJson<AdminSticker[]>('/api/admin/stickers', adminText('k00vgc'))
+}
+
+export function saveSticker(data: { id: number, name: string, fileName?: string, sortOrder: number, isEnabled: boolean }) {
+  return postJson<unknown>('/api/admin/sticker-save', data, adminText('k00vgd'))
+}
+
+export function deleteSticker(id: number) {
+  return postJson<unknown>('/api/admin/sticker-delete', { id }, adminText('k00vge'))
+}
+
+export function importStickerPack(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<StickerImportResult>('/api/admin/sticker-import', body, adminText('k001u'))
 }
 
 export function getSiteSettings() {

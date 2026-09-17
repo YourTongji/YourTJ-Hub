@@ -1,9 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import 'package:core/core.dart';
+
 import '../asset_url.dart';
+import '../providers.dart';
 
 /// Shared prose scale for reading, writing and preview.
 TextStyle readingBodyStyle(BuildContext context) =>
@@ -18,7 +22,12 @@ TextStyle readingBodyStyle(BuildContext context) =>
 /// - 表格:line 边框
 /// - 图片:object-contain + max-height min(360, 70vh) + 圆角边框
 /// 图片点击打开 [GfImageViewer] 全屏查看(web MarkdownImageViewer.vue 语义)。
-class GfMarkdownView extends StatefulWidget {
+///
+/// 帖子 content 是 raw markdown(表情包 token 未展开,服务端只展开
+/// renderedContent HTML 链路):渲染前把 `[:sticker:name:]` 重写为标准图片
+/// 语法复用图片渲染/点击查看链路;表情包库未就绪时先用原文渲染,拉取完成
+/// 后异步刷新,未知/停用 token 保持原文。
+class GfMarkdownView extends ConsumerStatefulWidget {
   const GfMarkdownView({
     super.key,
     required this.data,
@@ -34,11 +43,20 @@ class GfMarkdownView extends StatefulWidget {
   final bool selectable;
 
   @override
-  State<GfMarkdownView> createState() => _GfMarkdownViewState();
+  ConsumerState<GfMarkdownView> createState() => _GfMarkdownViewState();
 }
 
-class _GfMarkdownViewState extends State<GfMarkdownView> {
+class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   late Widget _markdownBody;
+
+  /// 本条内容渲染时表情包库是否已就绪(决定要不要在库就绪后刷新)。
+  bool _stickersResolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureStickersResolved();
+  }
 
   @override
   void didChangeDependencies() {
@@ -52,18 +70,36 @@ class _GfMarkdownViewState extends State<GfMarkdownView> {
     if (oldWidget.data != widget.data ||
         oldWidget.selectable != widget.selectable ||
         !listEquals(oldWidget.images, widget.images)) {
+      _ensureStickersResolved();
       _markdownBody = _buildMarkdownBody();
     }
   }
 
-  List<String> _extractImages() {
+  /// 内容含 token 且表情包库未就绪时触发一次拉取,完成后刷新渲染。
+  void _ensureStickersResolved() {
+    if (_stickersResolved || !containsStickerToken(widget.data)) return;
+    _stickersResolved = true;
+    ref
+        .read(stickerLibraryProvider)
+        .load()
+        .then((_) {
+          if (mounted) setState(_rebuildMarkdownBody);
+        })
+        .catchError((Object _) {
+          // 拉取失败保持原文渲染;库不缓存失败,下次重建(切换楼层等)重试。
+          if (mounted) _stickersResolved = false;
+        });
+  }
+
+  void _rebuildMarkdownBody() {
+    _markdownBody = _buildMarkdownBody();
+  }
+
+  List<String> _extractImages(String data) {
     // Local storage uploads intentionally return `/file/img/...`; keep both
     // relative and absolute destinations so the viewer mirrors the renderer.
     final RegExp re = RegExp(r'!\[[^\]]*\]\(([^)\s]+)\)');
-    return re
-        .allMatches(widget.data)
-        .map((m) => m.group(1)!)
-        .toList(growable: false);
+    return re.allMatches(data).map((m) => m.group(1)!).toList(growable: false);
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
@@ -82,7 +118,12 @@ class _GfMarkdownViewState extends State<GfMarkdownView> {
   Widget _buildMarkdownBody() {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
-    final List<String> sourceUrls = widget.images ?? _extractImages();
+    final String data = expandStickerTokens(
+      widget.data,
+      ref.read(stickerLibraryProvider).urlByName,
+    );
+    // 从展开后的内容提取图片引用,让贴纸图也进入点击查看的图片列表。
+    final List<String> sourceUrls = widget.images ?? _extractImages(data);
     final List<String> resolvedUrls = sourceUrls
         .map(resolveApiAssetUrl)
         .toList(growable: false);
@@ -96,7 +137,7 @@ class _GfMarkdownViewState extends State<GfMarkdownView> {
         .round();
 
     return MarkdownWidget(
-      data: widget.data,
+      data: data,
       selectable: widget.selectable,
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(

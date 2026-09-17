@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：303
-- /api JSON 路由：239，已入契约：240（100%），已知未覆盖：0
+- 快照路由总数：308
+- /api JSON 路由：244，已入契约：245（100%），已知未覆盖：0
 - 非 API 排除路由：63
 
-## 已覆盖（240）
+## 已覆盖（245）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -40,6 +40,7 @@
 | GET | `/api/admin/site-settings` | `adminGetSiteSettings` |
 | GET | `/api/admin/site-theme` | `adminGetSiteTheme` |
 | GET | `/api/admin/sponsors` | `adminGetSponsors` |
+| GET | `/api/admin/stickers` | `adminStickerList` |
 | GET | `/api/admin/storage-migrate-tasks` | `adminListStorageMigrateTasks` |
 | GET | `/api/admin/storage-settings` | `adminGetStorageSettings` |
 | GET | `/api/admin/terms-of-service` | `adminGetTermsOfService` |
@@ -61,6 +62,7 @@
 | GET | `/api/forum/posts/window` | `getPostWindow` |
 | GET | `/api/forum/push/config` | `getPushConfig` |
 | GET | `/api/forum/search` | `searchForum` |
+| GET | `/api/forum/stickers` | `forumStickerList` |
 | GET | `/api/forum/unread-status` | `getUnreadStatus` |
 | GET | `/api/forum/user/deleted-content` | `deletedContentList` |
 | GET | `/api/forum/user/my-content` | `myContentList` |
@@ -139,6 +141,9 @@
 | POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
 | POST | `/api/admin/search/maintenance` | `adminSearchMaintenance` |
+| POST | `/api/admin/sticker-delete` | `adminStickerDelete` |
+| POST | `/api/admin/sticker-import` | `adminStickerImport` |
+| POST | `/api/admin/sticker-save` | `adminStickerSave` |
 | POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
 | POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
 | POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |

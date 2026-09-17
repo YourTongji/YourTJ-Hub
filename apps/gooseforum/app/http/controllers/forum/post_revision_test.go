@@ -3,6 +3,7 @@ package forum
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -476,5 +478,22 @@ func TestPostRevisionsHidesBlockedVersionFromNonModerator(t *testing.T) {
 	_, modVersions, _, _ := decodeRevisions(t, resMod)
 	if modVersions[1].Content != "blocked-period body" {
 		t.Fatalf("moderator blocked version = %#v, want visible", modVersions[1])
+	}
+}
+
+func TestPostRevisionsUsesCurrentStickerDefinitions(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	const authorID uint64 = 938801
+	createRevisionUser(t, conn, authorID, "sticker-history")
+	createRevisionFixture(t, conn, 938802, 938803, authorID, 1, []postRevisions.Entity{
+		{Version: 1, EditorId: authorID, Content: "[:sticker:deleted_sticker:]", RenderedHTML: `<p><img src="/file/img/deleted.png"></p>`, ProcessStatus: posts.ProcessStatusNormal},
+	})
+	res := PostRevisions(component.BetterRequest[PostRevisionsReq]{UserId: authorID, Params: PostRevisionsReq{PostID: 938803}})
+	_, versions, _, _ := decodeRevisions(t, res)
+	if len(versions) != 1 || strings.Contains(versions[0].RenderedHTML, "deleted.png") || !strings.Contains(versions[0].RenderedHTML, "[:sticker:deleted_sticker:]") {
+		t.Fatalf("stale sticker revision = %+v", versions)
 	}
 }

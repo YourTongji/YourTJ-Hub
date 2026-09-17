@@ -170,6 +170,7 @@ export default {
       insertBefore: 'Oben',
       insertAfter: 'Unten',
       emoji: 'Emoji',
+      stickers: 'Sticker',
       upload: 'Bild',
       table: 'Tabelle',
       undo: 'Rückgängig',
@@ -184,6 +185,11 @@ export default {
       help: 'Hilfe',
       uploadImageTip: 'Bild hochladen',
     },
+  },
+  stickers: {
+    sources: 'Sticker-Quellen und Lizenzen',
+    pickerTitle: 'Sticker',
+    empty: 'Keine Sticker verfügbar',
   },
   common: {
     back: 'Zurück',
@@ -1774,6 +1780,10 @@ export default {
       noWornBadge: 'Kein Abzeichen',
       badgeNotWearable: 'Nicht tragbar',
     },
+    privateAccount: {
+      title: 'Private Kontodaten',
+      description: 'Deine E-Mail-Adresse dient zur Anmeldung, Verifizierung und Kontowiederherstellung. Sie wird nicht auf deinem öffentlichen Profil oder deiner Benutzerkarte angezeigt.',
+    },
     profile: {
       title: 'Öffentliches Profil',
       description: 'Diese Inhalte erscheinen auf deiner Profilseite und in der Karte beim Überfahren mit der Maus.',
@@ -1981,6 +1991,7 @@ export default {
     replyDeleteFailed: 'Löschen der Antwort fehlgeschlagen',
     repliesLoadFailed: 'Laden der Antworten fehlgeschlagen',
     searchUsersFailed: 'Benutzersuche fehlgeschlagen',
+    stickersLoadFailed: 'Laden der Sticker fehlgeschlagen',
     revisionsLoadFailed: 'Laden des Verlaufs fehlgeschlagen',
     operationFailed: 'Vorgang fehlgeschlagen',
     notificationsLoadFailed: 'Laden der Benachrichtigungen fehlgeschlagen',

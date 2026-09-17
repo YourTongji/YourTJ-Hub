@@ -281,6 +281,43 @@ void main() {
       expect(find.text('我的消息'), findsOneWidget);
       expect(find.text('对方消息'), findsOneWidget);
     });
+
+    testWidgets('contentSpan replaces plain text body, text path unchanged', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          Column(
+            children: <Widget>[
+              GfMessageBubble(
+                text: '[:sticker:smile:]',
+                mine: false,
+                contentSpan: TextSpan(
+                  children: <InlineSpan>[
+                    const TextSpan(text: '前 '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: ColoredBox(color: Colors.amber),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GfMessageBubble(text: '纯文本', mine: true),
+            ],
+          ),
+        ),
+      );
+      // 富内容路径:token 原文不出现,内联占位渲染。
+      expect(find.text('[:sticker:smile:]'), findsNothing);
+      expect(find.textContaining('前'), findsOneWidget);
+      expect(find.byType(ColoredBox), findsOneWidget);
+      // 纯文本路径不受影响。
+      expect(find.text('纯文本'), findsOneWidget);
+    });
   });
 
   group('GfDraftRow / GfUserCard / GfSettingRow', () {

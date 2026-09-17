@@ -1,0 +1,273 @@
+adminStickerList:
+  get:
+    tags: [Admin]
+    summary: List every sticker row for the admin console
+    operationId: adminStickerList
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied`. Returns every sticker row (enabled and disabled),
+      ordered by sortOrder ascending then id ascending. `url` follows the
+      storage configuration: `/file/img/<fileName>` on the local provider or
+      the configured CDN public-url prefix; empty when no image is attached
+      yet. JSON binding is lenient: query string and body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All sticker rows including disabled ones (empty array when none exist).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerSave:
+  post:
+    tags: [Admin]
+    summary: Create or update a sticker row
+    operationId: adminStickerSave
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+      creates a new sticker; a positive `id` overwrites name/sortOrder/
+      isEnabled of the existing row. Creating requires `fileName` from the
+      caller's image upload; updating may replace it or omit it to preserve
+      the image. Unknown, missing or foreign image uploads fail with
+      `upload.file.missing`. The name is trimmed; a blank name fails
+      with `admin.sticker.nameRequired`, a name outside the allowed set
+      (Unicode letters/digits/underscore/hyphen, 1-64 chars — the token form
+      `[:sticker:name:]` requires a sticker-safe identifier, MADR 0030) fails
+      with `admin.sticker.nameInvalid`, and a name already taken by another
+      row fails with `admin.sticker.nameExists`. A positive `id` matching no
+      sticker fails with `admin.sticker.notFound`; a persistence failure
+      fails with `admin.sticker.saveFailed` (all HTTP 200). JSON binding is
+      lenient: a malformed body binds to zero values and fails as
+      `admin.sticker.nameRequired` (HTTP 200) because the trimmed name is
+      empty.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminStickerSaveRequest
+    responses:
+      '200':
+        description: "Sticker saved (`result` is the string `success`), or a legacy business failure envelope (`admin.sticker.nameRequired` / `admin.sticker.nameInvalid` / `admin.sticker.nameExists` / `admin.sticker.notFound` / `admin.sticker.saveFailed`)."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-action-success.json
+              fileRequired:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+              nameRequired:
+                externalValue: ../fixtures/admin-sticker-name-required.json
+              nameExists:
+                externalValue: ../fixtures/admin-sticker-name-exists.json
+              stickerNotFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerDelete:
+  post:
+    tags: [Admin]
+    summary: Delete a sticker row
+    operationId: adminStickerDelete
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. The
+      sticker row is hard-deleted and its file usage released so the storage
+      GC can reclaim the image when no other reference remains. Unknown ids
+      (including a missing/zero id) fail with `admin.sticker.notFound`;
+      a persistence failure fails with `admin.sticker.deleteFailed` (both
+      HTTP 200). JSON binding is lenient: a malformed body binds to zero
+      values and fails as `admin.sticker.notFound`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminStickerDeleteRequest
+    responses:
+      '200':
+        description: "Sticker deleted (`result` is the string `success`), or a legacy business failure envelope (`admin.sticker.notFound` / `admin.sticker.deleteFailed`)."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-action-success.json
+              stickerNotFound:
+                externalValue: ../fixtures/admin-sticker-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminStickerImport:
+  post:
+    tags: [Admin]
+    summary: Import a zip pack of sticker images
+    operationId: adminStickerImport
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. This is
+      a bare gin handler (not the UpButterReq wrapper), but the response
+      envelope is still the standard ResultStruct JSON. Accepts a multipart
+      zip archive (form field `file`, capped at 32 MiB and 500 entries,
+      each image at most 4 MiB, total expanded bytes at most 64 MiB); each
+      image entry becomes one enabled sticker named after its file stem
+      (sanitized to a sticker-safe identifier and uniquified server-side
+      with -2/-3 suffixes on collision). macOS resource forks, dotfiles, and
+      unsupported extensions are silently skipped; entry-level failures
+      (unreadable entry, oversized or forged image, unusable name,
+      persistence failure) are reported in `result.failed` instead of
+      blocking the rest of the pack. Exceeding the 500-entry cap appends a
+      `name: "..."` / `reason: "tooManyFiles"` issue and stops. Exceeding
+      the total expanded-byte budget reports `archiveTooLarge` and stops. Failures
+      (HTTP 200): missing `file` field → `upload.file.missing`; archive
+      over 32MB → `admin.sticker.importTooLarge`; non-zip content →
+      `admin.sticker.importInvalidZip`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: Zip archive of sticker images (≤32MB, ≤500 entries).
+    responses:
+      '200':
+        description: Per-entry import outcome buckets (`result.failed` entries are non-fatal), or a legacy business failure envelope (`upload.file.missing` / `admin.sticker.importTooLarge` / `admin.sticker.importInvalidZip`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminStickerImportResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-sticker-import-success.json
+              fileMissing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+              importTooLarge:
+                externalValue: ../fixtures/admin-sticker-import-too-large.json
+              importInvalidZip:
+                externalValue: ../fixtures/admin-sticker-import-invalid-zip.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

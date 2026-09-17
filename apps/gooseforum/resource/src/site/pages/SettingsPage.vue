@@ -1855,65 +1855,6 @@ async function toggleBinding(provider: string) {
                     <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelUsernameEdit">{{ t('common.cancel') }}</button>
                   </div>
                 </label>
-                <div class="block min-w-0">
-                  <span class="text-sm font-medium text-base-content/75">{{ t('auth.email') }}</span>
-                  <div v-if="!editingEmail" class="mt-1 flex min-w-0 items-center gap-2">
-                    <div class="flex h-10 min-w-0 flex-1 items-center rounded-md border border-line bg-base-200/70 px-3 text-sm font-medium text-base-content">
-                      <span class="truncate">{{ emailForm.email }}</span>
-                    </div>
-                    <button
-                      type="button"
-                      class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-primary/20 bg-info/10 px-3 text-sm font-semibold text-primary hover:border-primary/20 hover:bg-info/10"
-                      @click="editingEmail = true"
-                    >
-                      <Pencil class="h-4 w-4" />
-                      {{ t('common.edit') }}
-                    </button>
-                  </div>
-                  <div v-else class="mt-1 flex min-w-0 flex-col gap-2">
-                    <input v-model="emailForm.email" type="email" class="gf-input min-w-0 border-primary/40 ring-4 ring-primary/20" />
-                    <div class="flex min-w-0 gap-2">
-                      <input v-model="emailForm.password" type="password" class="gf-input min-w-0 flex-1" :placeholder="t('settings.account.currentPassword')" autocomplete="current-password" />
-                      <button type="button" class="gf-button gf-button-lg gf-button-primary shrink-0" :disabled="savingEmail" @click="saveEmail">
-                        {{ savingEmail ? t('settings.savingShort') : t('common.save') }}
-                      </button>
-                      <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelEmailEdit">{{ t('common.cancel') }}</button>
-                    </div>
-                  </div>
-                  <div v-if="layout.viewer.requiresEmailVerification" class="mt-2 flex flex-col gap-2 border-l-2 border-warning bg-warning/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span class="min-w-0 text-sm text-warning">
-                      <span class="font-semibold">{{ t('settings.emailVerification.title') }}</span>
-                      <span class="ml-1 text-warning">{{ t('settings.emailVerification.description') }}</span>
-                    </span>
-                    <button
-                      type="button"
-                      class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-base-100 px-3 text-sm font-semibold text-warning hover:bg-warning/15 disabled:cursor-wait disabled:opacity-70"
-                      :disabled="sendingActivationEmail"
-                      @click="sendActivationEmail"
-                    >
-                      <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
-                      <Mail v-else class="h-4 w-4" />
-                      {{ sendingActivationEmail ? t('settings.emailVerification.sending') : t('settings.emailVerification.action') }}
-                    </button>
-                  </div>
-                  <!-- 两阶段换绑（issue #678）：暂存期内提示去新邮箱确认；旧邮箱保持可登录/找回。 -->
-                  <div v-if="pendingEmail" class="mt-2 flex flex-col gap-2 border-l-2 border-info bg-info/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span class="min-w-0 text-sm text-info">
-                      <span class="font-semibold">{{ t('settings.emailChangePending.title') }}</span>
-                      <span class="ml-1">{{ t('settings.emailChangePending.description', { email: pendingEmail }) }}</span>
-                    </span>
-                    <button
-                      type="button"
-                      class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-info/30 bg-base-100 px-3 text-sm font-semibold text-info hover:bg-info/15 disabled:cursor-wait disabled:opacity-70"
-                      :disabled="sendingActivationEmail"
-                      @click="sendActivationEmail"
-                    >
-                      <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
-                      <Mail v-else class="h-4 w-4" />
-                      {{ t('settings.emailChangePending.resend') }}
-                    </button>
-                  </div>
-                </div>
                 <label class="block min-w-0">
                   <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.displayName') }}</span>
                   <input v-model="profileForm.nickname" class="gf-input mt-1" />
@@ -1974,6 +1915,71 @@ async function toggleBinding(provider: string) {
                   <Loader2 v-if="savingProfile" class="h-4 w-4 animate-spin" />
                   <span>{{ savingProfile ? t('settings.savingShort') : t('settings.profile.save') }}</span>
                 </button>
+              </div>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'profile'">
+            <SectionHeader :icon="Mail" :title="t('settings.privateAccount.title')" :description="t('settings.privateAccount.description')" />
+            <div class="max-w-xl p-4">
+              <div class="block min-w-0">
+                <span class="text-sm font-medium text-base-content/75">{{ t('auth.email') }}</span>
+                <div v-if="!editingEmail" class="mt-1 flex min-w-0 items-center gap-2">
+                  <div class="flex h-10 min-w-0 flex-1 items-center rounded-md border border-line bg-base-200/70 px-3 text-sm font-medium text-base-content">
+                    <span class="truncate">{{ emailForm.email }}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-primary/20 bg-info/10 px-3 text-sm font-semibold text-primary hover:border-primary/20 hover:bg-info/10"
+                    @click="editingEmail = true"
+                  >
+                    <Pencil class="h-4 w-4" />
+                    {{ t('common.edit') }}
+                  </button>
+                </div>
+                <div v-else class="mt-1 flex min-w-0 flex-col gap-2">
+                  <input v-model="emailForm.email" type="email" class="gf-input min-w-0 border-primary/40 ring-4 ring-primary/20" />
+                  <div class="flex min-w-0 gap-2">
+                    <input v-model="emailForm.password" type="password" class="gf-input min-w-0 flex-1" :placeholder="t('settings.account.currentPassword')" autocomplete="current-password" />
+                    <button type="button" class="gf-button gf-button-lg gf-button-primary shrink-0" :disabled="savingEmail" @click="saveEmail">
+                      {{ savingEmail ? t('settings.savingShort') : t('common.save') }}
+                    </button>
+                    <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelEmailEdit">{{ t('common.cancel') }}</button>
+                  </div>
+                </div>
+                <div v-if="layout.viewer.requiresEmailVerification" class="mt-2 flex flex-col gap-2 border-l-2 border-warning bg-warning/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span class="min-w-0 text-sm text-warning">
+                    <span class="font-semibold">{{ t('settings.emailVerification.title') }}</span>
+                    <span class="ml-1 text-warning">{{ t('settings.emailVerification.description') }}</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-base-100 px-3 text-sm font-semibold text-warning hover:bg-warning/15 disabled:cursor-wait disabled:opacity-70"
+                    :disabled="sendingActivationEmail"
+                    @click="sendActivationEmail"
+                  >
+                    <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
+                    <Mail v-else class="h-4 w-4" />
+                    {{ sendingActivationEmail ? t('settings.emailVerification.sending') : t('settings.emailVerification.action') }}
+                  </button>
+                </div>
+                <!-- 两阶段换绑（issue #678）：暂存期内提示去新邮箱确认；旧邮箱保持可登录/找回。 -->
+                <div v-if="pendingEmail" class="mt-2 flex flex-col gap-2 border-l-2 border-info bg-info/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span class="min-w-0 text-sm text-info">
+                    <span class="font-semibold">{{ t('settings.emailChangePending.title') }}</span>
+                    <span class="ml-1">{{ t('settings.emailChangePending.description', { email: pendingEmail }) }}</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-info/30 bg-base-100 px-3 text-sm font-semibold text-info hover:bg-info/15 disabled:cursor-wait disabled:opacity-70"
+                    :disabled="sendingActivationEmail"
+                    @click="sendActivationEmail"
+                  >
+                    <Loader2 v-if="sendingActivationEmail" class="h-4 w-4 animate-spin" />
+                    <Mail v-else class="h-4 w-4" />
+                    {{ t('settings.emailChangePending.resend') }}
+                  </button>
+                </div>
               </div>
             </div>
           </section>

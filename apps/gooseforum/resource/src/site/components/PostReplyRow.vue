@@ -121,7 +121,7 @@ function lastEditedLabel(post: PostPayload) {
             <CornerDownLeft class="h-3.5 w-3.5" />
             <span class="sr-only">{{ t('topic.reply') }}</span>
           </button>
-          <button v-if="canLike" type="button" class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-50" :class="{ 'text-error hover:text-error': actionState.isLiked }" :title="t('topic.like')" :disabled="actionState.actingLike" @click="emit('like')">
+          <button v-if="canLike" type="button" class="inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-50" :class="{ 'text-error hover:text-error': actionState.isLiked }" :title="t('topic.like')" :disabled="actionState.actingLike" @click="emit('like')">
             <Heart class="h-3.5 w-3.5" :fill="actionState.isLiked ? 'currentColor' : 'none'" />
             <span v-if="actionState.likeCount" class="hidden text-xs font-semibold tabular-nums sm:inline">{{ formatNumber(actionState.likeCount) }}</span>
             <span class="sr-only">{{ t('topic.like') }}</span>

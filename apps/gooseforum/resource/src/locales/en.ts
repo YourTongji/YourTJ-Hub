@@ -171,6 +171,7 @@ export default {
       insertBefore: 'Above',
       insertAfter: 'Below',
       emoji: 'Emoji',
+      stickers: 'Stickers',
       upload: 'Image',
       table: 'Table',
       undo: 'Undo',
@@ -185,6 +186,11 @@ export default {
       help: 'Help',
       uploadImageTip: 'Upload image',
     },
+  },
+  stickers: {
+    sources: 'Sticker sources and licenses',
+    pickerTitle: 'Stickers',
+    empty: 'No stickers available',
   },
   common: {
     back: 'Back',
@@ -1752,6 +1758,10 @@ export default {
       noWornBadge: 'No badge',
       badgeNotWearable: 'Not wearable',
     },
+    privateAccount: {
+      title: 'Private account details',
+      description: 'Your email is used for sign-in, verification and account recovery. It is not shown on your public profile or user card.',
+    },
     profile: {
       title: 'Public profile',
       description: 'This content appears on your profile page and hover card.',
@@ -1987,6 +1997,7 @@ export default {
     operationFailed: 'Operation failed',
     repliesLoadFailed: 'Failed to load replies',
     searchUsersFailed: 'Failed to search users',
+    stickersLoadFailed: 'Failed to load stickers',
     revisionsLoadFailed: 'Failed to load edit history',
     notificationsLoadFailed: 'Failed to load notifications',
     likeFailed: 'Failed to like',

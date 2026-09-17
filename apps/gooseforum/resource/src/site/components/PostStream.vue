@@ -2085,7 +2085,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 <button
                   v-if="viewer.isAuthenticated && !post.isHidden && !isPostRemoved(post)"
                   type="button"
-                  class="h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
+                  class="h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:min-w-8 sm:px-1.5"
                   :class="[
                     isFirstPost(post) ? 'hidden sm:inline-flex' : 'inline-flex',
                     { 'text-error hover:text-error': postActionState(post).isLiked },

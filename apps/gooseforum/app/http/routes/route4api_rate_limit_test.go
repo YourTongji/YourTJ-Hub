@@ -84,3 +84,12 @@ func TestPostRevealRateLimitWired(t *testing.T) {
 	}
 	t.Fatalf("RateLimitPostReveal (%q) missing from default rate-limit config", middleware.RateLimitPostReveal)
 }
+
+func TestStickerListDefaultRateLimit(t *testing.T) {
+	for _, rule := range defaultconfig.GetDefaultRateLimitConfig().Actions {
+		if rule.Action == middleware.RateLimitStickerList && rule.LimitPerIp > 0 {
+			return
+		}
+	}
+	t.Fatal("sticker list must have an enabled default quota")
+}

@@ -774,6 +774,8 @@ export interface NotificationListResponse {
 }
 
 export type NotificationTemplateKey =
+  | 'notifications.templates.mention'
+  | 'notifications.templates.like'
   | 'notifications.templates.comment'
   | 'notifications.templates.postReply'
   | 'notifications.templates.topicPost'

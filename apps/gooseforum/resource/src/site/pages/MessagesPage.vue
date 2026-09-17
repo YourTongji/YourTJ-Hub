@@ -4,6 +4,8 @@ import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send
 import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError, type ChatMessagePayload } from '@/runtime/api'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { formatChatTime } from '@/runtime/format'
+import { parseStickerSegments, stickerPreviewLabel } from '@/site/utils/sticker-token'
+import { useStickerLibrary } from '@/site/composables/useStickerLibrary'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import type { ChatItemPayload, LayoutPayload, MessagesPageProps, UserConnectionPayload } from '@gooseforum/client'
@@ -38,6 +40,13 @@ const sensitiveWords = ref<string[]>([])
 const messagesEl = ref<HTMLElement | null>(null)
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const unreadStatus = useUnreadStatus()
+const { stickers, ensureStickers } = useStickerLibrary()
+const stickerUrlMap = computed(() => new Map(stickers.value.map((item) => [item.name, item.url])))
+
+/** 气泡分段：识别到的启用表情包渲染为内联图，未知/停用 token 保持原文（MADR 0030） */
+function messageSegments(content: string) {
+  return parseStickerSegments(content, stickerUrlMap.value)
+}
 const messagePageLimit = 30
 const emojis = ['😀', '😂', '😍', '😊', '😭', '👍', '🙏', '🔥', '✨', '🎉', '🤔', '👀', '❤️', '🙌', '👏', '✅']
 
@@ -58,6 +67,7 @@ const filteredUsers = computed(() => {
 })
 
 onMounted(() => {
+  void ensureStickers()
   const params = new URLSearchParams(window.location.search)
   const targetUserId = Number(params.get('userId') || 0)
   if (targetUserId) {
@@ -292,7 +302,7 @@ async function startChat(user: UserConnectionPayload) {
                 </div>
                 <div class="mt-1 flex items-center gap-2">
                   <p class="min-w-0 flex-1 truncate text-sm" :class="conversation.unreadCount ? 'font-semibold text-base-content' : 'text-base-content/55'">
-                    {{ conversation.lastMsg || t('messages.noMessagesYet') }}
+                    {{ stickerPreviewLabel(conversation.lastMsg) || t('messages.noMessagesYet') }}
                   </p>
                 </div>
               </div>
@@ -351,7 +361,16 @@ async function startChat(user: UserConnectionPayload) {
                       class="whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm [border-radius:var(--gf-radius-box)] md:px-4"
                       :class="message.isSelf ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content'"
                     >
-                      {{ message.content }}
+                      <template v-for="(segment, index) in messageSegments(message.content)" :key="index">
+                        <img
+                          v-if="segment.type === 'sticker'"
+                          :src="segment.url"
+                          :alt="`[:sticker:${segment.name}:]`"
+                          class="inline-block h-14 w-14 max-w-full align-middle object-contain"
+                          loading="lazy"
+                        />
+                        <template v-else>{{ segment.text }}</template>
+                      </template>
                     </div>
                     <time class="mt-1 block text-[11px] text-base-content/55" :class="message.isSelf ? 'text-right' : ''">{{ formatChatTime(message.createdAt) }}</time>
                   </div>

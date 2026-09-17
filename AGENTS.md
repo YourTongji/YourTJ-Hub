@@ -54,6 +54,11 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   the user content lifecycle (my-content/deleted-content lists, content-restore/batch-delete/
   purge/event, account-close), aggregate search (`/api/forum/search`) and public
   site statistics,
+  the sticker library (`GET /api/forum/stickers` public enabled list + `/api/admin/`
+  `stickers`/`sticker-save`/`sticker-delete`/`sticker-import` admin CRUD and zip pack
+  import; token `[:sticker:name:]` expanded server-side at render for posts/replies and
+  client-side in chat bubbles (web segmented renderer) and mobile (markdown pre-expansion +
+  inline image spans) via the public list API, MADR 0030),
   with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
   paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
   `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a
@@ -65,7 +70,7 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 ```
 apps/
   gooseforum/  The forum itself (upstream fork; module path github.com/YourTongji/YourTJ-Hub/apps/gooseforum)
-    main.go            Entry point (cobra: serve / migrate / seed-demo / mock-topics / mock-posts / rebuild-search-index ...)
+    main.go            Entry point (cobra: serve / migrate / seed-demo / seed-stickers / mock-topics / mock-posts / rebuild-search-index ...)
     config.toml       Runtime config (gitignored; bring your own locally)
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package

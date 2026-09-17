@@ -628,6 +628,57 @@ void main() {
       expect(response.result, isNull);
     });
   });
+
+  group('表情包 Sticker* 契约镜像', () {
+    test('公开列表解析真实 fixture (forum-sticker-list-success)', () {
+      final fixture = _contractFixture('forum-sticker-list-success.json');
+      final list = (fixture['result'] as List)
+          .map(
+            (e) => StickerItemPayload.fromJson(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .toList();
+      expect(list, hasLength(1));
+      expect(list.first.name, 'smile');
+      expect(list.first.url, startsWith('/file/img/stickers/'));
+    });
+
+    test('管理端行与导入结果解析（含 failed 条目）', () {
+      final admin = StickerAdminItemPayload.fromJson({
+        'id': 7,
+        'name': '滑稽',
+        'fileName': 'stickers/uuid.png',
+        'url': '/file/img/stickers/uuid.png',
+        'sortOrder': 3,
+        'isEnabled': true,
+        'createdBy': 1,
+      });
+      expect(admin.id, 7);
+      expect(admin.name, '滑稽');
+      expect(admin.isEnabled, isTrue);
+
+      final importFixture = _contractFixture(
+        'admin-sticker-import-success.json',
+      );
+      final imported = StickerImportResultPayload.fromJson(
+        Map<String, dynamic>.from(importFixture['result'] as Map),
+      );
+      expect(imported.imported, 1);
+      expect(imported.skipped, 1);
+      expect(imported.failed, hasLength(1));
+      expect(imported.failed.first.reason, 'invalidImage');
+    });
+
+    test('缺字段容错回落默认值', () {
+      final item = StickerItemPayload.fromJson({});
+      expect(item.name, '');
+      expect(item.url, '');
+      final result = StickerImportResultPayload.fromJson({});
+      expect(result.imported, 0);
+      expect(result.failed, isEmpty);
+    });
+  });
 }
 
 Map<String, dynamic> _contractFixture(String filename) {

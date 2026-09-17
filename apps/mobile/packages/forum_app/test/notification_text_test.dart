@@ -1,6 +1,10 @@
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/l10n/app_localizations_en.dart';
+import 'package:forum_app/l10n/app_localizations_ja.dart';
+import 'package:forum_app/l10n/app_localizations_de.dart';
+import 'package:forum_app/src/pages/notifications/notification_target.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/pages/notifications/notification_text.dart';
 
@@ -32,6 +36,49 @@ NotificationPayload notification({
 );
 
 void main() {
+  test('mention text in every locale and stable floor navigation', () {
+    for (final locale in <AppLocalizations>[
+      AppLocalizationsZh(),
+      AppLocalizationsEn(),
+      AppLocalizationsJa(),
+      AppLocalizationsDe(),
+    ]) {
+      final text = notificationText(
+        notification(
+          event: 'mention',
+          template: 'notifications.templates.mention',
+        ),
+        locale,
+      );
+      expect(text.$1, locale.notificationMention('Alice'));
+      expect(text.$2, 'Actual preview');
+    }
+    for (final floor in <int?>[null, 0, 8]) {
+      final item = NotificationPayload.fromJson({
+        'id': 2048,
+        'eventType': 'mention',
+        'isRead': false,
+        'createdAt': '',
+        'title': '',
+        'content': '',
+        'actor': {'id': 1024, 'username': 'Alice'},
+        'payload': {
+          'actorId': 1024,
+          'topicId': 512,
+          'postId': 4096,
+          'postNo': ?floor,
+          'templateKey': 'notifications.templates.mention',
+        },
+      });
+      expect(item.payload.templateKey, 'notifications.templates.mention');
+      expect(
+        notificationTarget(item),
+        floor == 8 ? '/p/512?postNo=8' : '/p/512',
+      );
+    }
+    expect(notificationTarget(notification(event: 'mention')), isNull);
+    expect(notificationTarget(notification(event: 'follow')), '/u/1');
+  });
   test('user text beginning with notifications stays literal', () {
     final en = AppLocalizationsEn();
     final item = notification(

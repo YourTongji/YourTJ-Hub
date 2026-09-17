@@ -2714,7 +2714,7 @@ PostRevisionPayload:
       description: Revision markdown snapshot; emptied when the revision is masked for non-moderators.
     renderedHTML:
       type: string
-      description: Rendered HTML snapshot; emptied when the revision is masked for non-moderators.
+      description: Rendered HTML snapshot; revisions containing sticker tokens resolve current sticker definitions on read. Emptied when the revision is masked for non-moderators.
     processStatus:
       type: integer
       enum: [0, 1, 2]
@@ -4793,7 +4793,7 @@ NotificationPayload:
       minimum: 1
     eventType:
       type: string
-      description: Notification event type (for example reply/like/system); the payload shape varies with it.
+      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system); the payload shape varies with it.
     isRead:
       type: boolean
     createdAt:
@@ -9639,6 +9639,184 @@ PkMaterializeResponse:
               $ref: '#/PkMaterializeResult'
     - $ref: '#/ApiFailure'
 
+# ================= 表情包库（MADR 0030）=================
+
+StickerItem:
+  type: object
+  required: [name, url]
+  properties:
+    name:
+      type: string
+      description: Globally unique sticker name, the `[:sticker:name:]` token body; letters/digits/underscore/hyphen only, 1-64 chars.
+    url:
+      type: string
+      description: Public access path — `/file/img/<fileName>` on the local provider or the configured CDN public-url prefix.
+  additionalProperties: false
+
+ForumStickerListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/StickerItem'
+          description: Enabled stickers only, sortOrder ascending then id ascending (empty array when none exist).
+
+ForumStickerListResponse:
+  oneOf:
+    - $ref: '#/ForumStickerListSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerItem:
+  type: object
+  required: [id, name, fileName, url, sortOrder, isEnabled, createdBy]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Sticker row id (the handle used by the save/delete operations).
+    name:
+      type: string
+      description: Globally unique sticker name (token body).
+    fileName:
+      type: string
+      description: Stored file name; empty when no image is attached yet.
+    url:
+      type: string
+      description: Public access path (`/file/img/<fileName>` or CDN prefix); empty when fileName is empty.
+    sortOrder:
+      type: integer
+      description: Ascending sort weight (ties break by id ascending).
+    isEnabled:
+      type: boolean
+      description: Disabled rows stay hidden from the public list but remain editable here.
+    createdBy:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Admin user id that created/imported the sticker; 0 when unrecorded.
+  additionalProperties: false
+
+AdminStickerListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminStickerItem'
+          description: All sticker rows including disabled ones, sortOrder ascending then id ascending.
+
+AdminStickerListResponse:
+  oneOf:
+    - $ref: '#/AdminStickerListSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerSaveRequest:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 creates a new sticker; a positive id updates name/sortOrder/isEnabled and optionally the image of that row (unknown positive ids fail with `admin.sticker.notFound`, HTTP 200).
+    name:
+      type: string
+      maxLength: 64
+      description: Sticker name (token body), trimmed server-side. Allowed characters are Unicode letters/digits/underscore/hyphen, 1-64 chars (Go pattern `^[\p{L}\p{N}_\-]{1,64}$`). Blank fails with `admin.sticker.nameRequired`; disallowed characters fail with `admin.sticker.nameInvalid`; a name taken by another row fails with `admin.sticker.nameExists` (all HTTP 200).
+    fileName:
+      type: string
+      description: An existing image upload owned by the caller, as a storage key or its public URL. Required when id is 0; omission preserves the current image when updating. Missing, unknown, non-image or foreign uploads fail with `upload.file.missing`. The image reference is registered atomically with the sticker.
+    sortOrder:
+      type: integer
+      description: Ascending sort weight.
+    isEnabled:
+      type: boolean
+      description: Disabled stickers stay hidden from the public list.
+  additionalProperties: false
+
+AdminStickerDeleteRequest:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Sticker to delete; 0 or unknown ids fail with `admin.sticker.notFound` (HTTP 200).
+  additionalProperties: false
+
+AdminStickerActionSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: success
+        messageCode:
+          type: string
+          const: common.operation.success
+
+AdminStickerActionResponse:
+  oneOf:
+    - $ref: '#/AdminStickerActionSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminStickerImportIssue:
+  type: object
+  required: [name, reason]
+  properties:
+    name:
+      type: string
+      description: Offending archive entry base name, or `...` when the 500-entry cap stopped the import.
+    reason:
+      type: string
+      enum: [entryOpenFailed, tooLarge, invalidImage, unusableName, saveFailed, tooManyFiles, archiveTooLarge]
+      description: Machine-readable per-entry failure reason.
+  additionalProperties: false
+
+AdminStickerImportResult:
+  type: object
+  required: [imported, skipped, failed]
+  properties:
+    imported:
+      type: integer
+      minimum: 0
+      description: Entries persisted as enabled stickers.
+    skipped:
+      type: integer
+      minimum: 0
+      description: Non-directory entries ignored (dotfiles, macOS resource forks, unsupported extensions). Directories do not contribute to this count.
+    failed:
+      type: array
+      items:
+        $ref: '#/AdminStickerImportIssue'
+      description: Per-entry failures, reported instead of blocking the rest of the pack (empty array when none).
+  additionalProperties: false
+
+AdminStickerImportSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/AdminStickerImportResult'
+        messageCode:
+          type: string
+          const: common.operation.success
+
+AdminStickerImportResponse:
+  oneOf:
+    - $ref: '#/AdminStickerImportSuccess'
+    - $ref: '#/ApiFailure'
 SearchMaintenanceRequest:
   type: object
   required:

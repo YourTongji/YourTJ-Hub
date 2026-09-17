@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -33,6 +34,16 @@ func ReplaceTargetUsages(targetType string, targetId uint64, usageTypes []string
 		return nil
 	}
 	return db.Create(&usages).Error
+}
+
+// DeleteTargetUsages removes one usage type's rows for a target (e.g. a
+// deleted sticker releasing its file reference so storage GC can reclaim it).
+func DeleteTargetUsages(targetType string, targetId uint64, usageType string) error {
+	return builder().
+		Where(queryopt.Eq("target_type", targetType)).
+		Where(queryopt.Eq("target_id", targetId)).
+		Where(queryopt.Eq("usage_type", usageType)).
+		Delete(&Entity{}).Error
 }
 
 // MarkTargetRecovering 将某内容的附件引用转入受限恢复态（删除后 30 天窗口）。
@@ -106,4 +117,15 @@ func HasActiveReferences(fileName string) bool {
 		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0
+}
+
+// ReplaceStickerTx couples the definition and its active file reference.
+func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
+	if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", TargetSticker, stickerID, UsageSticker).Delete(&Entity{}).Error; err != nil {
+		return err
+	}
+	if fileName == "" {
+		return nil
+	}
+	return tx.Create(&Entity{FileName: fileName, TargetType: TargetSticker, TargetId: stickerID, UsageType: UsageSticker, UserId: userID}).Error
 }

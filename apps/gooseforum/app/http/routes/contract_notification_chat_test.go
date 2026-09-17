@@ -154,6 +154,33 @@ func TestNotificationListHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-success.json"))
 	})
 
+	t.Run("mention success", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		// 固定 id/时间戳/payload；actor/topic 名称直接存于 payload（hydrate 为
+		// best-effort 补强，无对应 users/topics 行时保留存储值），使响应与确定性
+		// fixture 精确一致。
+		createContractNotification(t, conn, 2049, user.Id, eventNotification.EventTypeMention, false,
+			eventNotification.NotificationPayload{
+				Title:          "notifications.templates.mention",
+				TemplateKey:    eventNotification.TemplateMention,
+				TemplateParams: eventNotification.NotificationTemplateParams{Preview: "正文预览"},
+				Content:        "tongji_user 提到了你",
+				ActorId:        1024,
+				ActorName:      "tongji_user",
+				TopicId:        512,
+				TopicTitle:     "期中复习资料汇总",
+				PostId:         4096,
+				PostNo:         8,
+			},
+			time.Date(2026, 8, 15, 10, 20, 30, 0, time.UTC))
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications?cursor=2050&limit=1", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("notifications status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-mention-success.json"))
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
 		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications", "", "")
