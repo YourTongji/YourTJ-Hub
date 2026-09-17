@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import maplibregl, {
-  type GeoJSONSource,
-  type MapLayerMouseEvent,
-} from 'maplibre-gl'
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?url'
+import * as maplibregl from 'maplibre-gl'
+import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
+// v6 dropped the prebuilt CSP bundle; ?worker&url has Vite bundle the ESM
+// worker into one self-contained same-origin chunk, keeping script-src 'self'.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { categoryColors, makeMapStyle, selectableLayers } from './style'
 import {
