@@ -29,7 +29,7 @@ require (
 	github.com/markbates/goth v1.82.0
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/minio/minio-go/v7 v7.3.0
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/mojocn/base64Captcha v1.3.8
 	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/pquerna/otp v1.5.0
