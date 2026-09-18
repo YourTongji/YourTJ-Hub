@@ -1108,6 +1108,7 @@ function updateComposerOpen(open: boolean) {
 }
 
 function openFloatingPostComposer() {
+  if (props.viewer.isAuthenticated && !props.canPost) return
   if (editingPostId.value) {
     cancelEditPost()
   }
