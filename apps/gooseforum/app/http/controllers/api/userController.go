@@ -122,14 +122,14 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 		// 邮箱不是验证通道：保留即时切换 + 重置激活的旧语义。
 		oldEmail := userEntity.Email
 		now := time.Now()
+		if err = users.UpdateEmailVerificationDisabled(userEntity.Id, newEmail, now); err != nil {
+			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+		}
 		userEntity.Email = newEmail
 		userEntity.ClearPendingEmail()
 		userEntity.IsActivated = users.ActivationPending
 		userEntity.ActivatedAt = nil
 		userEntity.EmailChangedAt = &now
-		if err = userservice.SaveUser(&userEntity); err != nil {
-			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
-		}
 		if err = emailactivationservice.SendActivationEmail(&userEntity); err != nil {
 			slog.Info("验证邮件发送失败", "error", err)
 		}
