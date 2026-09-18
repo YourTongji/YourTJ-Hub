@@ -172,15 +172,40 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
-  /// 从话题详情返回:按 id 原位更新已加载话题的最新状态(点赞/收藏/未读),
-  /// 不把第一页 payload 写入 _page——分页游标(nextUrl/hasNext)保留,
-  /// 「加载更多」从原进度继续;列表长度不回缩,滚动位置不跳顶
-  /// (MADR 0012 Preserve scroll position)。下拉刷新仍走 _load(silent: true)
-  /// 的整页重置语义,两条静默路径分开接线。
+  /// 从话题详情返回:先消费详情页带回的话题增量(unseen/点赞/收藏/计数,
+  /// 条目落在任何已加载页都生效),再后台请求第一页,按 id 原位更新已加载
+  /// 话题的最新状态。不把第一页 payload 写入 _page——分页游标
+  /// (nextUrl/hasNext)保留,「加载更多」从原进度继续;列表长度不回缩,
+  /// 滚动位置不跳顶(MADR 0012 Preserve scroll position)。下拉刷新仍走
+  /// _load(silent: true) 的整页重置语义,两条静默路径分开接线。
   Future<void> _refreshAfterReturn() async {
-    if (!mounted || _topics.isEmpty) return;
-    final sequence = ++_loadSequence;
+    if (!mounted) return;
     final revision = _interactionRevision;
+    final Map<int, TopicReturnState> returned = Map.of(
+      ref.read(topicReturnStatesProvider),
+    );
+    if (returned.isNotEmpty) {
+      ref.read(topicReturnStatesProvider).clear();
+      setState(() {
+        for (var i = 0; i < _topics.length; i++) {
+          final TopicReturnState? state = returned[_topics[i].id];
+          if (state == null) continue;
+          _topics[i] = _mergeInteraction(
+            _topics[i].copyWith(
+              unseen: state.unseen,
+              liked: state.liked,
+              bookmarked: state.bookmarked,
+              likeCount: state.likeCount,
+              replyCount: state.replyCount,
+              viewCount: state.viewCount,
+            ),
+            revision,
+          );
+        }
+      });
+    }
+    if (_topics.isEmpty) return;
+    final sequence = ++_loadSequence;
     final epoch = ref.read(offlineCacheEpochProvider);
     // 在途「加载更多」已随序号失效,其 finally 的同序号守卫不会清理加载态,
     // 这里必须像 _load 一样接管,否则 _loadingMore 卡死、分页失效。

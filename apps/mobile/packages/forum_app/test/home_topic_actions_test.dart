@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
+import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
@@ -145,6 +147,33 @@ class _HangingPages extends _PagedPages {
     }
     return super.fetch(path);
   }
+}
+
+/// 详情页 fake:/p/post/ 返回详情 fixture,点赞状态可调。
+class _DetailPages extends _Pages {
+  bool detailLiked = false;
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path.startsWith('/p/post/')) {
+      final data = topicDetailPayloadJson();
+      (data['props']['topic'] as Map<String, dynamic>)['isLiked'] = detailLiked;
+      return parsePayload(data);
+    }
+    return super.fetch(path);
+  }
+}
+
+/// no-op 离线缓存:详情页失败回退路径不触达真实 sqlite。
+class _NoopOfflineCache implements OfflineTopicCache {
+  @override
+  Future<void> put(int topicId, Map<String, dynamic> payload) async {}
+  @override
+  Future<PagePayload?> get(int topicId) async => null;
+  @override
+  Future<void> clear() async {}
+  @override
+  Future<void> close() async {}
 }
 
 class _Topics extends TopicRepository {
@@ -520,5 +549,104 @@ void main() {
       tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
       isTrue,
     );
+  });
+
+  testWidgets('detail updates hand back to topics beyond page one in place', (
+    tester,
+  ) async {
+    final pages = _PagedPages();
+    final container = await pump(tester, pages, _Topics(pages));
+    await tester.ensureVisible(find.text('加载更多'));
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+    expect(find.text('Topic 200'), findsOneWidget);
+
+    // 详情页带回第 2 页话题的增量:点赞数 5 → 9、已点赞、已读。
+    container.read(topicReturnStatesProvider)[200] = (
+      unseen: false,
+      liked: true,
+      bookmarked: false,
+      likeCount: 9,
+      replyCount: 2,
+      viewCount: 10,
+    );
+    tester
+        .widget<GfTopicList>(find.byType(GfTopicList))
+        .onReturnFromTopic
+        ?.call();
+    await tester.pumpAndSettle();
+
+    // 原位合并:第 2 页卡片拿到最新状态,列表形状与游标不动。
+    expect(
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).at(1)).likeCount,
+      9,
+    );
+    expect(
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).at(1)).liked,
+      isTrue,
+    );
+    expect(find.text('Topic 100'), findsOneWidget);
+    expect(find.text('Topic 200'), findsOneWidget);
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
+      isTrue,
+    );
+    // 增量消费即清空,不会被后续返回重复应用。
+    expect(container.read(topicReturnStatesProvider), isEmpty);
+  });
+
+  testWidgets('detail hands fresh topic state back for the return refresh', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final pages = _DetailPages();
+    final container = ProviderContainer(
+      overrides: [
+        tokenStorageProvider.overrideWithValue(_Tokens()),
+        pageRepositoryProvider.overrideWithValue(pages),
+        topicRepositoryProvider.overrideWithValue(_Topics(pages)),
+        offlineTopicCacheProvider.overrideWithValue(_NoopOfflineCache()),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const TopicPage(topicId: 100),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+// 打开详情即记录服务器读取真相:已读、点赞状态与计数。
+    final TopicReturnState? onOpen = container
+        .read(topicReturnStatesProvider)[100];
+    expect(onOpen, isNotNull);
+    expect(onOpen!.unseen, isFalse);
+    expect(onOpen.liked, isFalse);
+    expect(onOpen.likeCount, 2);
+
+    // 点赞成功后就地更新带回状态(失败回滚不写入)。
+    final GfFloatingControls controls = tester.widget(
+      find.byType(GfFloatingControls),
+    );
+    controls.actions
+        .firstWhere((GfTopicAction action) => action.symbol == 'heart')
+        .onTap();
+    await tester.pumpAndSettle();
+
+    final TopicReturnState? afterLike = container
+        .read(topicReturnStatesProvider)[100];
+    expect(afterLike!.liked, isTrue);
+    expect(afterLike.likeCount, 3);
+
+    // markdown_widget 的 VisibilityDetector 会创建 500ms 延迟 Timer,
+    // 需推进时钟让其过期,避免 "Timer is still pending"。
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
   });
 }
