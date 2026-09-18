@@ -1327,6 +1327,11 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 	isQuestionTopic := firstPost != nil && firstPost.ContentType == posts.ContentTypeQuestion
 
 	res := make([]PostPayload, 0, len(postEntities))
+	renderEntities := append([]*posts.Entity(nil), postEntities...)
+	for _, parent := range postMap {
+		renderEntities = append(renderEntities, parent)
+	}
+	postservice.EnsureRenderedHTMLBatch(renderEntities)
 	replyTargets := make([]ReplyTargetPayload, 0, len(seenMissingParentIDs))
 	seenReplyTargets := make(map[uint64]struct{}, len(seenMissingParentIDs))
 	for _, item := range postEntities {
@@ -1339,7 +1344,6 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		} else {
 			author = authorPayload(item.UserId)
 		}
-		postservice.EnsureRenderedHTML(item)
 		replyToName, replyToUserID := "", uint64(0)
 		if item.ReplyToPostId > 0 {
 			if parent, ok := postMap[item.ReplyToPostId]; ok && parent != nil && parent.TopicId == item.TopicId && (parent.ProcessStatus == 0 || canModerate) {
