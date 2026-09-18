@@ -1327,7 +1327,9 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 	isQuestionTopic := firstPost != nil && firstPost.ContentType == posts.ContentTypeQuestion
 
 	res := make([]PostPayload, 0, len(postEntities))
-	renderEntities := append([]*posts.Entity(nil), postEntities...)
+	// postMap 以全部非空楼层指针初始化并补充缺失父帖，取其值渲染即为整页
+	// 全量且不重复，避免同一贴纸帖进入队列两次被重复渲染。
+	renderEntities := make([]*posts.Entity, 0, len(postMap))
 	for _, parent := range postMap {
 		renderEntities = append(renderEntities, parent)
 	}

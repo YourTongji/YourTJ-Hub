@@ -609,7 +609,7 @@ func TestTopicWindowStickerBatchHTTPContract(t *testing.T) {
 		t.Fatalf("posts = %d, want 2", len(payload.Result.Posts))
 	}
 	for _, post := range payload.Result.Posts {
-		if post.ID == 9351 && !strings.Contains(post.RenderedContent, "window_ok.png") {
+		if post.ID == 9704 && !strings.Contains(post.RenderedContent, "window_ok.png") {
 			t.Fatalf("sticker post rendered = %q, want read-time expanded sticker", post.RenderedContent)
 		}
 	}
