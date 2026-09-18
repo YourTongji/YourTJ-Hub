@@ -125,6 +125,8 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 		if err = users.UpdateEmailVerificationDisabled(userEntity.Id, newEmail, now); err != nil {
 			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 		}
+		// 定向更新绕过了 SaveUser 的缓存刷新：手动失效，避免中间件 2 分钟读到旧邮箱/激活态。
+		userservice.InvalidateUserInfoCache(userEntity.Id)
 		userEntity.Email = newEmail
 		userEntity.ClearPendingEmail()
 		userEntity.IsActivated = users.ActivationPending

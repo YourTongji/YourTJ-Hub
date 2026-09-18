@@ -117,6 +117,11 @@ func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
 		Update("worn_badge_code", badgeCode).Error
 }
 
+// UpdateEmailVerificationDisabled 写入验证禁用模式下的即时邮箱切换（issue #702）。
+// 必须是定向列更新而非全行 Save：全行 Save 会把读取时快照的 password/token_version
+// 一并回写，静默回滚读-写间隙内提交的并发改密 CAS（ApplyPasswordChange），已吊销的
+// 会话随 token_version 回滚重新生效。调用方负责用户缓存失效（与 StagePendingEmail
+// 相同的契约）。
 func UpdateEmailVerificationDisabled(userID uint64, email string, changedAt time.Time) error {
 	return builder().Where(queryopt.Eq(pid, userID)).Updates(map[string]any{
 		"email":            email,
