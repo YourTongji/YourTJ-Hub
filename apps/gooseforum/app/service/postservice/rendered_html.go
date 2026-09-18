@@ -64,16 +64,24 @@ func EnsureRenderedHTMLBatch(entities []*posts.Entity) {
 		slog.Warn("resolve sticker images failed", "error", err)
 	}
 	for _, entity := range entities {
-		if entity == nil {
+		if entity == nil || entity.Id == 0 {
 			continue
 		}
 		if strings.Contains(entity.Content, "[:sticker:") {
-			entity.RenderedHTML = renderPostHTML(entity.Content, urls)
-			entity.RenderedVersion = markdown2html.GetPostVersion()
+			refreshStickerHTMLInPlace(entity, urls)
 		} else {
 			EnsureRenderedHTML(entity)
 		}
 	}
+}
+
+// refreshStickerHTMLInPlace re-renders a token-bearing post at read time with the
+// payload-scoped sticker URL map (nil resolves just for this entity), refreshing the
+// in-place copy consumed by payload builders. Mutable sticker definitions are never
+// persisted into the HTML cache.
+func refreshStickerHTMLInPlace(entity *posts.Entity, stickerURLs map[string]string) {
+	entity.RenderedHTML = renderPostHTML(entity.Content, stickerURLs)
+	entity.RenderedVersion = markdown2html.GetPostVersion()
 }
 
 func EnsureRenderedHTML(entity *posts.Entity) string {
@@ -93,8 +101,7 @@ func ensureRenderedHTML(entity *posts.Entity, save func(*posts.Entity) error) (s
 	if strings.Contains(entity.Content, "[:sticker:") {
 		// Payload builders also consume the entity in place. Refresh that request's
 		// copy without persisting mutable sticker definitions into the HTML cache.
-		entity.RenderedHTML = RenderPostHTML(entity.Content)
-		entity.RenderedVersion = markdown2html.GetPostVersion()
+		refreshStickerHTMLInPlace(entity, nil)
 		return entity.RenderedHTML, nil
 	}
 	if entity.RenderedVersion >= markdown2html.GetPostVersion() && entity.RenderedHTML != "" {

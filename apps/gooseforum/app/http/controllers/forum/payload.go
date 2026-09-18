@@ -1457,7 +1457,9 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	target.IsAuthorDeleted = isAuthorDeletedVisibility(parent.VisibilityStatus)
 	target.IsModeratorRemoved = isModeratorRemovedVisibility(parent.VisibilityStatus)
 	if !target.IsAuthorDeleted && !target.IsModeratorRemoved {
-		target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+		// buildPostPayloads 已对 postMap 全量执行 EnsureRenderedHTMLBatch（含读时
+		// 贴纸解析），这里直接复用就地结果，避免每个引用目标再各查一次贴纸表。
+		target.RenderedContent = parent.RenderedHTML
 	}
 	target.Unavailable = false
 	return target
