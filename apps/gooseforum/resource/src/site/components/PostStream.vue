@@ -1108,6 +1108,9 @@ function updateComposerOpen(open: boolean) {
 }
 
 function openFloatingPostComposer() {
+  // issue #707：深链/浮层入口与回复按钮同门槛（!isAuthenticated || canPost）；
+  // 访客放行，交给 PostComposer 内置登录门引导。
+  if (props.viewer.isAuthenticated && !props.canPost) return
   if (editingPostId.value) {
     cancelEditPost()
   }

@@ -120,7 +120,8 @@ export function makeSportsDetails(data: CampusData): FeatureCollection {
       !track &&
       !straight &&
       tracks.some((t) => {
-        const tf = fieldFrame(t)!
+        const tf = fieldFrame(t)
+        if (!tf) return false
         const c = f.properties.center,
           tc = t.properties.center
         return (

@@ -249,3 +249,65 @@ it('keeps the Hubei straight track west of the infield', () => {
   }
   expect(centerX('track')).toBeLessThan(centerX('infield'))
 })
+
+it('skips a degenerate track instead of aborting the sports details build', () => {
+  // issue #700: a track footprint without any segment ≥3 m and under 10 m²
+  // makes fieldFrame return undefined; the containment probe must skip it
+  // rather than dereference it and crash the whole campus map style build.
+  const degenerateTrack = {
+    type: 'Feature',
+    id: 'way/test-degenerate',
+    properties: {
+      category: 'sport',
+      center: [121.5, 31.286],
+      campus: true,
+      leisure: 'track',
+      name: '退化跑道',
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [121.5, 31.286],
+          [121.500001, 31.286],
+          [121.500001, 31.286001],
+          [121.5, 31.286001],
+          [121.5, 31.286],
+        ],
+      ],
+    },
+  }
+  const pitch = {
+    type: 'Feature',
+    id: 'way/test-pitch',
+    properties: {
+      category: 'sport',
+      center: [121.5, 31.2862],
+      campus: true,
+      sport: 'soccer',
+      name: '测试球场',
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [121.4999, 31.286],
+          [121.5001, 31.286],
+          [121.5001, 31.2864],
+          [121.4999, 31.2864],
+          [121.4999, 31.286],
+        ],
+      ],
+    },
+  }
+  const details = makeSportsDetails({
+    type: 'FeatureCollection',
+    features: [degenerateTrack, pitch],
+  } as unknown as CampusData)
+  expect(
+    details.features.some((f) => f.properties?.parent === 'way/test-degenerate'),
+  ).toBe(false)
+  expect(
+    details.features.some((f) => f.properties?.parent === 'way/test-pitch'),
+  ).toBe(true)
+})
