@@ -117,6 +117,22 @@ func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
 		Update("worn_badge_code", badgeCode).Error
 }
 
+// UpdateEmailVerificationDisabled 写入验证禁用模式下的即时邮箱切换（issue #702）。
+// 必须是定向列更新而非全行 Save：全行 Save 会把读取时快照的 password/token_version
+// 一并回写，静默回滚读-写间隙内提交的并发改密 CAS（ApplyPasswordChange），已吊销的
+// 会话随 token_version 回滚重新生效。调用方负责用户缓存失效（与 StagePendingEmail
+// 相同的契约）。
+func UpdateEmailVerificationDisabled(userID uint64, email string, changedAt time.Time) error {
+	return builder().Where(queryopt.Eq(pid, userID)).Updates(map[string]any{
+		"email":            email,
+		"pending_email":    "",
+		"pending_email_at": nil,
+		"is_activated":     ActivationPending,
+		"activated_at":     nil,
+		"email_changed_at": changedAt,
+	}).Error
+}
+
 // CloseAccount 注销账号（PRD R10）：软删用户并清空对外展示字段。
 // 历史内容仍保留 userId 指向，渲染层因用户不可见而回退为「已注销用户」。
 func CloseAccount(userID uint64) error {
