@@ -82,9 +82,7 @@ class WritingStore {
     if (!ok) throw StateError('Local draft could not be saved');
   });
   Future<void> delete(String scope, String key) => _write((prefs) async {
-    if (!await prefs.remove('${_prefix(scope)}draft:$key')) {
-      throw StateError('Local draft could not be deleted');
-    }
+    await prefs.remove('${_prefix(scope)}draft:$key');
   });
   Future<List<LocalDraft>> drafts(String scope) async {
     await _tail;
@@ -133,15 +131,11 @@ class WritingStore {
     for (final key in prefs.getKeys().where(
       (key) => key.startsWith(_prefix(scope)),
     )) {
-      if (!await prefs.remove(key)) {
-        throw StateError('Local account data could not be cleared');
-      }
+      await prefs.remove(key);
     }
   });
 
   Future<void> clearHistory(String scope) => _write((prefs) async {
-    if (!await prefs.remove('${_prefix(scope)}history')) {
-      throw StateError('History could not be cleared');
-    }
+    await prefs.remove('${_prefix(scope)}history');
   });
 }

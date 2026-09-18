@@ -7,10 +7,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func All() []Entity {
+func All() ([]Entity, error) {
 	entities := make([]Entity, 0)
-	builder().Order("sort_order ASC").Order("id ASC").Find(&entities)
-	return entities
+	err := builder().Order("sort_order ASC").Order("id ASC").Find(&entities).Error
+	return entities, err
 }
 
 func AllEnabled() ([]Entity, error) {
@@ -22,16 +22,16 @@ func AllEnabled() ([]Entity, error) {
 	return entities, result.Error
 }
 
-func GetByName(name string) Entity {
+func GetByName(name string) (Entity, error) {
 	var entity Entity
-	builder().Where(queryopt.Eq("name", name)).First(&entity)
-	return entity
+	err := builder().Where(queryopt.Eq("name", name)).First(&entity).Error
+	return entity, err
 }
 
-func GetById(id uint64) Entity {
+func GetById(id uint64) (Entity, error) {
 	var entity Entity
-	builder().Where(queryopt.Eq("id", id)).First(&entity)
-	return entity
+	err := builder().Where(queryopt.Eq("id", id)).First(&entity).Error
+	return entity, err
 }
 
 func Save(entity *Entity) error {

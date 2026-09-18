@@ -266,7 +266,7 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 		if references != 1 {
 			t.Fatalf("active references = %d", references)
 		}
-		created := sticker.GetByName("contract_new")
+		created, _ := sticker.GetByName("contract_new")
 		if created.Id == 0 || created.SortOrder != 7 || !created.IsEnabled {
 			t.Fatalf("created sticker = %#v, want contract_new enabled sortOrder 7", created)
 		}
@@ -281,7 +281,7 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
 			`{"id":9101,"name":"smile","sortOrder":9,"isEnabled":false}`,
 			"admin-sticker-action-success.json")
-		updated := sticker.GetById(contractStickerID)
+		updated, _ := sticker.GetById(contractStickerID)
 		if updated.SortOrder != 9 || updated.IsEnabled {
 			t.Fatalf("updated sticker = %#v, want sortOrder 9 disabled", updated)
 		}
@@ -319,7 +319,7 @@ func TestAdminStickerDeleteHTTPContract(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
 		seedContractSticker(t, conn, contractStickerID, "smile", "stickers/9f1c2d3e-0000-4000-8000-000000000001.png", 1, true)
 		serveAdminStickersOK(t, conn, router, http.MethodPost, path, `{"id":9101}`, "admin-sticker-action-success.json")
-		if got := sticker.GetById(contractStickerID); got.Id != 0 {
+		if got, _ := sticker.GetById(contractStickerID); got.Id != 0 {
 			t.Fatalf("sticker %d still readable after delete", contractStickerID)
 		}
 	})
@@ -343,7 +343,7 @@ func TestAdminStickerImportHTTPContract(t *testing.T) {
 			"broken.png": []byte("PNG forgery bytes"),
 		})
 		serveAdminStickersImportOK(t, conn, router, archive, "admin-sticker-import-success.json")
-		created := sticker.GetByName("smile")
+		created, _ := sticker.GetByName("smile")
 		if created.Id == 0 || !created.IsEnabled || created.FileName == "" {
 			t.Fatalf("imported sticker = %#v, want enabled row named smile", created)
 		}
@@ -418,7 +418,8 @@ func TestStickerReviewUsageFailureRollsBackImport(t *testing.T) {
 	if files != 0 {
 		t.Fatalf("rollback leaked %d uploaded files", files)
 	}
-	if bytes.Contains(result.Body.Bytes(), []byte(`"imported":1`)) || sticker.GetByName("review").Id != 0 {
+	review, _ := sticker.GetByName("review")
+	if bytes.Contains(result.Body.Bytes(), []byte(`"imported":1`)) || review.Id != 0 {
 		t.Fatalf("usage failure reported success: %s", result.Body.String())
 	}
 }
@@ -459,7 +460,7 @@ func TestStickerReviewConcurrentImportNames(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"race", "race-2"} {
-		row := sticker.GetByName(name)
+		row, _ := sticker.GetByName(name)
 		if row.Id == 0 {
 			t.Fatalf("missing %s", name)
 		}
@@ -502,7 +503,7 @@ func TestStickerReviewImageOwnershipAndDisabledCreate(t *testing.T) {
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rejected), contractFixture(t, "admin-img-upload-file-missing.json"))
 	saved := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/sticker-save", body, contractSessionToken(t, manager))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, saved), contractFixture(t, "admin-sticker-action-success.json"))
-	row := sticker.GetByName("owned")
+	row, _ := sticker.GetByName("owned")
 	if row.Id == 0 || row.IsEnabled || row.FileName != file.Name {
 		t.Fatalf("disabled row = %+v", row)
 	}

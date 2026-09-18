@@ -14,12 +14,19 @@ import (
 // 标准图片语法（未知/停用表情保持原样），再把解析到有效用户的 @mention
 // 渲染为指向 /u/{userId} 的链接；未知/失效用户名保持普通文本。
 func RenderPostHTML(content string) string {
+	return renderPostHTML(content, nil)
+}
+
+func renderPostHTML(content string, stickerURLs map[string]string) string {
 	if names := markdown2html.ExtractStickerNames(content); len(names) > 0 {
-		urls, err := stickerservice.ResolveURLs(names)
-		if err != nil {
-			slog.Warn("resolve sticker images failed", "error", err)
+		if stickerURLs == nil {
+			var err error
+			stickerURLs, err = stickerservice.ResolveURLs(names)
+			if err != nil {
+				slog.Warn("resolve sticker images failed", "error", err)
+			}
 		}
-		content = markdown2html.ExpandStickerTokens(content, func(name string) (string, bool) { value, ok := urls[name]; return value, ok })
+		content = markdown2html.ExpandStickerTokens(content, func(name string) (string, bool) { value, ok := stickerURLs[name]; return value, ok })
 	}
 	usernames := markdown2html.ExtractUsernames(content)
 	if len(usernames) == 0 {
@@ -30,6 +37,43 @@ func RenderPostHTML(content string) string {
 		return markdown2html.PostMarkdownToHTML(content)
 	}
 	return markdown2html.PostMarkdownToHTMLWithMentions(content, targets)
+}
+
+func EnsureRenderedHTMLBatch(entities []*posts.Entity) {
+	names := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, entity := range entities {
+		if entity == nil {
+			continue
+		}
+		for _, name := range markdown2html.ExtractStickerNames(entity.Content) {
+			if _, ok := seen[name]; !ok {
+				seen[name] = struct{}{}
+				names = append(names, name)
+			}
+		}
+	}
+	if len(names) == 0 {
+		for _, entity := range entities {
+			EnsureRenderedHTML(entity)
+		}
+		return
+	}
+	urls, err := stickerservice.ResolveURLs(names)
+	if err != nil {
+		slog.Warn("resolve sticker images failed", "error", err)
+	}
+	for _, entity := range entities {
+		if entity == nil {
+			continue
+		}
+		if strings.Contains(entity.Content, "[:sticker:") {
+			entity.RenderedHTML = renderPostHTML(entity.Content, urls)
+			entity.RenderedVersion = markdown2html.GetPostVersion()
+		} else {
+			EnsureRenderedHTML(entity)
+		}
+	}
 }
 
 func EnsureRenderedHTML(entity *posts.Entity) string {

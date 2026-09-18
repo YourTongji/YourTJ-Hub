@@ -117,6 +117,17 @@ func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
 		Update("worn_badge_code", badgeCode).Error
 }
 
+func UpdateEmailVerificationDisabled(userID uint64, email string, changedAt time.Time) error {
+	return builder().Where(queryopt.Eq(pid, userID)).Updates(map[string]any{
+		"email":            email,
+		"pending_email":    "",
+		"pending_email_at": nil,
+		"is_activated":     ActivationPending,
+		"activated_at":     nil,
+		"email_changed_at": changedAt,
+	}).Error
+}
+
 // CloseAccount 注销账号（PRD R10）：软删用户并清空对外展示字段。
 // 历史内容仍保留 userId 指向，渲染层因用户不可见而回退为「已注销用户」。
 func CloseAccount(userID uint64) error {
