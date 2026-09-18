@@ -48,6 +48,23 @@ final offlineCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
   OfflineCacheEpoch.new,
 );
 
+/// 详情页带回的话题最新状态:打开详情即记录服务器读取真相(未读清除、
+/// 计数、点赞/收藏),动作成功后就地更新。列表页返回刷新时按 id 原位
+/// 合并并清空——不依赖条目落在第几页;watch 离线纪元,换账号自动作废。
+typedef TopicReturnState = ({
+  bool unseen,
+  bool? liked,
+  bool? bookmarked,
+  int likeCount,
+  int replyCount,
+  int viewCount,
+});
+
+final topicReturnStatesProvider = Provider<Map<int, TopicReturnState>>((ref) {
+  ref.watch(offlineCacheEpochProvider);
+  return <int, TopicReturnState>{};
+});
+
 /// Dio 实例(测试可 override 注入 mock adapter)。
 final dioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 
