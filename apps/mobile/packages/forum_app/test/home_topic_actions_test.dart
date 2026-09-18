@@ -63,6 +63,8 @@ class _PagedPages extends _Pages {
   int page1LikeCount = 5;
   int page2LikeCount = 5;
   int page3LikeCount = 5;
+  bool failHome = false;
+  bool emptyHomeProps = false;
 
   PagePayload _topicPage(
     int id,
@@ -95,6 +97,11 @@ class _PagedPages extends _Pages {
   @override
   Future<PagePayload> home({String sort = ''}) async {
     homeCalls++;
+    if (failHome) throw StateError('home refresh failed');
+    if (emptyHomeProps) {
+      final data = homePayloadJson()..['props'] = <String, dynamic>{};
+      return parsePayload(data);
+    }
     return _topicPage(
       100,
       page1LikeCount,
@@ -122,6 +129,21 @@ class _PagedPages extends _Pages {
       hasNext: true,
       nextUrl: '/?sort=latest&page=2',
     );
+  }
+}
+
+/// page=2 首次请求可挂起的 fake:模拟「加载更多」在途期间发生返回刷新。
+class _HangingPages extends _PagedPages {
+  Completer<void>? gate;
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path.endsWith('page=2') && gate != null) {
+      final waiter = gate!;
+      gate = null;
+      await waiter.future;
+    }
+    return super.fetch(path);
   }
 }
 
@@ -418,6 +440,82 @@ void main() {
       tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
       9,
     );
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
+      isTrue,
+    );
+  });
+
+  testWidgets('return while load-more is in flight keeps pagination usable', (
+    tester,
+  ) async {
+    final pages = _HangingPages();
+    await pump(tester, pages, _Topics(pages));
+    await tester.ensureVisible(find.text('加载更多'));
+
+    // 第二页请求在途时用户点进详情并返回:返回刷新使旧请求失效并接管加载态。
+    final gate = Completer<void>();
+    pages.gate = gate;
+    await tester.tap(find.text('加载更多'));
+    await tester.pump();
+    tester
+        .widget<GfTopicList>(find.byType(GfTopicList))
+        .onReturnFromTopic
+        ?.call();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 失效的在途请求不得卡死加载态:再次「加载更多」仍能继续翻页。
+    await tester.ensureVisible(find.text('加载更多'));
+    await tester.tap(find.text('加载更多'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Topic 200'), findsOneWidget);
+  });
+
+  testWidgets('failed return refresh keeps the list and shows the notice', (
+    tester,
+  ) async {
+    final pages = _PagedPages();
+    await pump(tester, pages, _Topics(pages));
+    await tester.ensureVisible(find.text('加载更多'));
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+    expect(find.text('Topic 200'), findsOneWidget);
+
+    pages.failHome = true;
+    tester
+        .widget<GfTopicList>(find.byType(GfTopicList))
+        .onReturnFromTopic
+        ?.call();
+    await tester.pumpAndSettle();
+
+    // 列表与分页进度保留,并按 Home 失败刷新的产品约定轻提示。
+    expect(find.text('Topic 100'), findsOneWidget);
+    expect(find.text('Topic 200'), findsOneWidget);
+    expect(find.textContaining('刷新失败'), findsOneWidget);
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
+      isTrue,
+    );
+  });
+
+  testWidgets('unparseable return payload keeps the list with the notice', (
+    tester,
+  ) async {
+    final pages = _PagedPages();
+    await pump(tester, pages, _Topics(pages));
+    pages.emptyHomeProps = true;
+    tester
+        .widget<GfTopicList>(find.byType(GfTopicList))
+        .onReturnFromTopic
+        ?.call();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Topic 100'), findsOneWidget);
+    expect(find.textContaining('刷新失败'), findsOneWidget);
     expect(
       tester.widget<GfTopicList>(find.byType(GfTopicList)).hasMore,
       isTrue,

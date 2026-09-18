@@ -182,6 +182,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sequence = ++_loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
+    // 在途「加载更多」已随序号失效,其 finally 的同序号守卫不会清理加载态,
+    // 这里必须像 _load 一样接管,否则 _loadingMore 卡死、分页失效。
+    _loadingMore = false;
+    _loadMoreError = null;
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
@@ -192,7 +196,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         return;
       }
       final HomeProps? props = parsePageProps<HomeProps>(payload);
-      if (props == null) return;
+      if (props == null) throw const FormatException('home props');
       final Map<int, TopicPayload> incoming = {
         for (final TopicPayload topic in props.topics) topic.id: topic,
       };
@@ -205,7 +209,18 @@ class _HomePageState extends ConsumerState<HomePage> {
         }
       });
     } catch (_) {
-      // 返回刷新失败静默:保留当前列表与分页进度。
+      // 返回刷新失败:保留当前列表与分页进度,并按 Home 失败刷新的
+      // 产品约定轻提示(docs/product/mobile-experience.md)。
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      showGfToast(
+        context,
+        AppLocalizations.of(context).refreshFailedRetained,
+        error: true,
+      );
     }
   }
 
