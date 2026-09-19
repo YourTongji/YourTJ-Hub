@@ -3,6 +3,7 @@ package migration
 import (
 	_ "embed"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"log/slog"
 	"regexp"
 	"strconv"
@@ -637,6 +638,7 @@ func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
 		&sticker.Entity{},
+		&campus.Binding{},
 		&course.Entity{},
 		&course.AliasEntity{},
 		&course.TermEntity{},

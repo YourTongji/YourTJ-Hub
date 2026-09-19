@@ -18,16 +18,14 @@ import {
   HoverCardRoot,
   HoverCardTrigger,
 } from 'reka-ui'
+import ScheduleTimeGrid from './ScheduleTimeGrid.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import ScheduleConflictWarningDialog from '@/site/components/schedule/ScheduleConflictWarningDialog.vue'
 import ScheduleExportDialog from '@/site/components/schedule/ScheduleExportDialog.vue'
 import ScheduleExternalToolsTip from '@/site/components/schedule/ScheduleExternalToolsTip.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
-import { courseColorSlotFor, courseContentVar, courseSlotVar } from '@/site/utils/courseColors'
 import {
-  clusterBySections,
-  consolidateSameClassArrangements,
   currentWeekForDate,
   formatWeeksText,
   MAX_WEEK,
@@ -35,23 +33,15 @@ import {
 import { conflictBaseOf, deriveConflicts, CUSTOM_EVENT_CODE_PREFIX, type PkConflictItem } from '@/site/utils/pkConflict'
 import { sectionTimesFor } from '@/site/utils/sectionTimes'
 import {
-  cardMinHeightFor,
-  cellInnerHeightFor,
-  compactTeacherName as compactTeacherNames,
-  computeRowHeights,
-  dayPartLabelForRow,
+  buildTimetableGrid,
   formatDisplayWeeks as formatDisplayWeeksWith,
-  interactiveRowMetrics,
   teacherName as courseTeacherName,
-  weekParityLabel,
 } from '@/site/utils/timetableGrid'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
 const { t } = useI18n()
 const store = useScheduleStore()
 
-/** 周几 i18n key（与 locales schedule.weekdays.* 对齐）。 */
-const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 /** 「全部周次」下拉哨兵值（reka-ui SelectItem 不允许空字符串 value）。 */
 const WEEK_ALL = 'all'
 
@@ -169,51 +159,9 @@ function isCustomEvent(course: PkCourseOnTable): boolean {
   return course.code.startsWith(CUSTOM_EVENT_CODE_PREFIX)
 }
 
-function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
-  if (isCustomEvent(course)) {
-    return {
-      '--card-accent': 'var(--gf-color-base-content)',
-      '--card-bg': 'color-mix(in oklab, var(--gf-color-base-200) 80%, var(--gf-color-base-100))',
-      '--card-bg-hover': 'var(--gf-color-base-200)',
-      '--card-border': 'var(--gf-color-line)',
-      '--card-title': 'var(--gf-color-base-content)',
-      '--card-sub': 'color-mix(in oklab, var(--gf-color-base-content) 70%, transparent)',
-      '--card-shadow-hover': '0 2px 8px -2px rgba(0, 0, 0, 0.08), 0 1px 3px -1px rgba(0, 0, 0, 0.04)',
-      backgroundColor: 'var(--card-bg)',
-      borderColor: 'var(--card-border)',
-      color: 'var(--card-title)',
-    }
-  }
-  const seed = course.code || course.courseName || course.showText || 'course'
-  const slot = courseColorSlotFor(seed)
-  const slotVar = courseSlotVar(slot)
-  return {
-    '--card-accent': `var(${slotVar})`,
-    // 借鉴参考图的柔和莫兰迪/马卡龙粉彩色底（11% 槽位色轻盈融合）
-    '--card-bg': `color-mix(in oklab, var(${slotVar}) 11%, var(--gf-color-base-100))`,
-    '--card-bg-hover': `color-mix(in oklab, var(${slotVar}) 17%, var(--gf-color-base-100))`,
-    // 极轻微的同色系半透细边框，呈现「不包裹」的自然悬浮感
-    '--card-border': `color-mix(in oklab, var(${slotVar}) 18%, transparent)`,
-    // 标题文字：以 base-content 为底混入 45% 槽位色，确保与浅色/深色底对比度均 ≥8:1
-    '--card-title': `color-mix(in oklab, var(${slotVar}) 45%, var(--gf-color-base-content))`,
-    // 次级文字（教师、周次）
-    '--card-sub': `color-mix(in oklab, var(${slotVar}) 25%, var(--gf-color-base-content))`,
-    '--card-badge-bg': `color-mix(in oklab, var(${slotVar}) 12%, transparent)`,
-    // 自然柔和环境光沉降阴影
-    '--card-shadow-hover': '0 3px 10px -2px rgba(0, 0, 0, 0.08), 0 1px 3px -1px rgba(0, 0, 0, 0.04)',
-    backgroundColor: 'var(--card-bg)',
-    borderColor: 'var(--card-border)',
-    color: 'var(--card-title)',
-  }
-}
 
 function teacherName(course: PkCourseOnTable): string {
   return courseTeacherName(course)
-}
-
-/** 课程卡片内紧凑展示教师名（最多展示 2 位，超量显示「首位 等」，防多位教师撑满空间）。 */
-function compactTeacherName(raw: string): string {
-  return compactTeacherNames(raw, 2)
 }
 
 /** 课程学分（从已加课程列表中匹配）。 */
@@ -253,41 +201,6 @@ function courseSubline(course: PkCourseOnTable): string {
   if (course.occupyRoom) parts.push(course.occupyRoom)
   if (parts.length > 0) return parts.join(' ')
   return course.arrangementText || course.showText
-}
-
-/**
- * 动态计算每行的基准与扩展高度（共享实现见 timetableGrid）：
- * 单双周多门课纵向堆叠时该行自动增高，同行单门课均分撑满扩展后的行高。
- * 交互网格按移动/桌面切换行高度量。
- */
-const computedRowHeights = computed<number[]>(() =>
-  computeRowHeights(
-    {
-      cellCourses: cellCourses.value,
-      cellSpans: cellSpans.value,
-      occupiedGrid: occupiedGrid.value,
-    },
-    interactiveRowMetrics(isMobile.value),
-  ),
-)
-
-function cellInnerHeight(rIndex: number, dayIndex: number): number {
-  return cellInnerHeightFor(
-    cellSpans.value?.[rIndex]?.[dayIndex] || 1,
-    computedRowHeights.value,
-    interactiveRowMetrics(isMobile.value),
-    rIndex,
-  )
-}
-
-function cardMinHeight(rIndex: number, dayIndex: number, courseCount: number): number {
-  return cardMinHeightFor(
-    cellSpans.value?.[rIndex]?.[dayIndex] || 1,
-    computedRowHeights.value,
-    courseCount,
-    interactiveRowMetrics(isMobile.value),
-    rIndex,
-  )
 }
 
 // ---- 桌面端课程块浮动预览微卡片 ----
@@ -357,65 +270,16 @@ function filteredCourses(): PkCourseOnTable[] {
 }
 
 function updateTimeTable() {
-  const maxRows = store.readTimeTableRows()
-  const spans = Array.from({ length: maxRows }, () => Array(7).fill(1) as number[])
-  const covered = Array.from({ length: maxRows }, () => Array(7).fill(false) as boolean[])
-  const coursesGrid = Array.from({ length: maxRows }, () =>
-    Array.from({ length: 7 }, () => [] as PkCourseOnTable[]),
-  )
-
-  const safeCourses = filteredCourses().filter(
-    (course) =>
-      Array.isArray(course?.occupyTime) &&
-      course.occupyTime.length > 0 &&
-      typeof course?.occupyDay === 'number' &&
-      course.occupyDay >= 1 &&
-      course.occupyDay <= 7 &&
-      course.occupyTime.every((slot) => slot >= 1 && slot <= maxRows),
-  )
-
-  const byDay: PkCourseOnTable[][] = Array.from({ length: 7 }, () => [])
-  for (const course of safeCourses) byDay[course.occupyDay - 1].push(course)
-
-  // 节次区间聚类：相交（含部分重叠/包含）的课程同格渲染，
-  // 避免一块的 rowspan 吞掉部分重叠的另一块（容忍式冲突必须可见）。
-  for (let day = 0; day < 7; day++) {
-    for (const cluster of clusterBySections(byDay[day])) {
-      const consolidatedItems = consolidateSameClassArrangements(cluster.items)
-      const row = cluster.start - 1
-      spans[row][day] = cluster.end - row
-      coursesGrid[row][day] = consolidatedItems
-      for (let r = row + 1; r < row + spans[row][day]; r++) {
-        if (r < maxRows) covered[r][day] = true
-      }
-    }
-  }
-
-  cellSpans.value = spans
-  cellCourses.value = coursesGrid
-  occupiedGrid.value = covered
-}
-
-/** 单双周标识提取（多课/紧凑展示用；共享实现见 timetableGrid）。 */
-function weekParityBadge(weeks: readonly number[] | undefined): string | null {
-  return weekParityLabel(weeks, t)
+  const grid = buildTimetableGrid(filteredCourses(), store.readTimeTableRows())
+  cellCourses.value = grid.cellCourses
+  cellSpans.value = grid.cellSpans
+  occupiedGrid.value = grid.occupiedGrid
 }
 
 /** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
 const hasCourses = computed(() => cellCourses.value.some((row) => row.some((cell) => cell.length > 0)))
 
 const sectionTimes = computed(() => sectionTimesFor(store.readTimeTableRows(), store.state.sectionTimeOverrides))
-
-/** 每行节次的起止时间（无数据返回空串）。 */
-function sectionTimeText(index: number): string {
-  const item = sectionTimes.value[index]
-  return item ? `${item.start}-${item.end}` : ''
-}
-
-/** 该行是否为某时段分组首行（渲染分组标签；共享实现见 timetableGrid）。 */
-function dayPartLabelAt(index: number): string | null {
-  return dayPartLabelForRow(index + 1, sectionTimes.value, t)
-}
 
 /** 该格在当前周次视图下是否已被占用（单周模式按周过滤，空格可点选加课）。 */
 function cellOccupiedForView(dayIndex: number, rowIndex: number): boolean {
@@ -686,221 +550,21 @@ onBeforeUnmount(() => {
         :icon="BookOpen"
         :title="t('schedule.selectMajorFirst')"
       />
-      <table
+      <ScheduleTimeGrid
         v-if="hasCourses || cellCourses.length === 0"
-        class="w-full border-collapse table-fixed"
-        :class="isMobile ? 'min-w-[530px]' : 'min-w-[640px]'"
-      >
-        <thead>
-          <tr class="bg-base-200/60 h-9 md:h-10">
-            <th class="w-[50px] border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 sm:w-[60px] md:w-[86px] md:p-2 md:text-xs">
-              {{ t('schedule.arrangement') }}
-            </th>
-            <th
-              v-for="day in WEEKDAY_KEYS"
-              :key="day"
-              class="border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
-            >
-              {{ t(`schedule.weekdays.${day}`) }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="(row, index) in cellCourses"
-            :key="index"
-            class="border-b border-line/70"
-            :style="{ height: `${computedRowHeights[index]}px` }"
-            :class="[index === cellCourses.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
-          >
-            <td
-              class="h-px border border-line/70 p-0.5 text-center text-[11px] font-semibold text-base-content/70 overflow-hidden md:p-2 md:text-xs"
-            >
-              <span v-if="dayPartLabelAt(index)" class="mb-0.5 block text-[10px] font-bold text-primary/80">
-                {{ dayPartLabelAt(index) }}
-              </span>
-              {{ t('schedule.sectionLabel', { section: index + 1 }) }}
-              <span v-if="sectionTimeText(index)" class="hidden md:block whitespace-nowrap text-[9px] font-normal text-base-content/45 tabular-nums">
-                {{ sectionTimeText(index) }}
-              </span>
-              <div v-if="sectionTimes[index]" class="md:hidden mt-0.5 text-[8.5px] font-mono leading-[1.1] text-base-content/50 tabular-nums">
-                <span class="block">{{ sectionTimes[index]?.start }}</span>
-                <span class="block text-[8px] opacity-75">{{ sectionTimes[index]?.end }}</span>
-              </div>
-            </td>
-            <template v-for="(courses, dayIndex) in row" :key="dayIndex">
-              <!-- rowspan 已占用的列槽不渲染 td，否则整行多出一列导致错位 -->
-              <td
-                v-if="!occupiedGrid[index][dayIndex]"
-                class="h-px border border-line/70 p-[2px] align-top text-left md:p-1"
-                :rowspan="cellSpans[index][dayIndex]"
-                :tabindex="courses.length > 0 ? undefined : 0"
-                :role="courses.length > 0 ? undefined : 'button'"
-                :aria-label="courses.length > 0 ? undefined : t('schedule.emptyCell')"
-                @click="handleCellClick(dayIndex, index)"
-                @keydown.enter.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
-                @keydown.space.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
-              >
-                <!-- 课程卡片网格容器：h-full w-full flex flex-col -->
-                <div
-                  v-if="courses.length > 0"
-                  class="h-full w-full flex min-h-0 flex-col"
-                  :class="courses.length > 1 ? 'gap-1' : ''"
-                  :style="{ minHeight: `${cellInnerHeight(index, dayIndex)}px` }"
-                >
-                  <div
-                    v-for="(course, courseIndex) in courses"
-                    :key="course.code + '_' + courseIndex"
-                    class="schedule-course-card relative flex min-h-0 min-w-0 flex-1 flex-col justify-between overflow-hidden rounded-xl border select-none cursor-pointer text-left transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1"
-                    :class="[
-                      courses.length > 1 || cellSpans[index][dayIndex] === 1
-                        ? 'p-1 md:p-1.5'
-                        : 'p-1 sm:p-1.5 md:p-2',
-                    ]"
-                    :style="[courseCardStyle(course), { minHeight: `${cardMinHeight(index, dayIndex, courses.length)}px` }]"
-                    tabindex="0"
-                    role="button"
-                    :aria-label="courseAriaLabel(course)"
-                    @click.stop="openCourseDetail(course)"
-                    @keydown.enter.stop.prevent="openCourseDetail(course)"
-                    @keydown.space.stop.prevent="openCourseDetail(course)"
-                    @touchstart.stop="onPressStart(course, $event)"
-                    @touchmove.stop="onPressMove($event)"
-                    @touchend.stop="onPressCancel()"
-                    @touchcancel.stop="onPressCancel()"
-                    @mousedown.stop="onPressStart(course, $event)"
-                    @mouseup.stop="onPressCancel()"
-                    @mouseleave.stop="onPressCancel()"
-                    @mouseenter="onCourseMouseEnter(course, $event)"
-                    @mouseleave="onCourseMouseLeave"
-                  >
-                    <!-- 冲突角标：右上角轻盈半透警告徽标 -->
-                    <span
-                      v-if="isConflicted(course) && !isCustomEvent(course)"
-                      class="absolute right-1 top-1 z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-error/15 text-error border border-error/30 text-[9px] shadow-2xs transition-transform hover:scale-110"
-                      :aria-label="t('schedule.conflictBadge')"
-                    >
-                      <AlertTriangle class="h-2 w-2" />
-                    </span>
-
-                    <!-- 紧凑/同格多课模式（span=1 或 courses.length > 1） -->
-                    <template v-if="courses.length > 1 || cellSpans[index][dayIndex] === 1">
-                      <div class="min-w-0 h-full flex-1 flex flex-col justify-between gap-1">
-                        <div class="min-w-0">
-                          <!-- 顶部不包裹短条（借鉴参考图） -->
-                          <div
-                            v-if="!isCustomEvent(course)"
-                            class="mx-auto mb-1 h-[2.5px] w-5 rounded-full opacity-65 transition-opacity group-hover:opacity-90"
-                            :style="{ backgroundColor: 'var(--card-accent)' }"
-                            aria-hidden="true"
-                          />
-                          <div class="min-w-0">
-                            <span
-                              class="block truncate font-semibold text-[10.5px] sm:text-[11px] leading-tight text-[var(--card-title)]"
-                            >
-                              {{ course.courseName || course.code }}
-                            </span>
-                            <span
-                              v-if="course.code && !isCustomEvent(course)"
-                              class="hidden md:block font-mono text-[9px] opacity-60 tabular-nums truncate"
-                            >
-                              #{{ course.code }}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div class="flex items-center justify-between gap-1 text-[9.5px] sm:text-[10px] min-w-0 leading-none">
-                          <span
-                            v-if="course.occupyRoom"
-                            class="inline-flex items-center gap-0.5 sm:gap-1 min-w-0 font-medium text-[var(--card-title)] opacity-90"
-                          >
-                            <MapPin class="hidden md:inline-block h-2.5 w-2.5 shrink-0 opacity-60" />
-                            <span class="break-all md:truncate">{{ course.occupyRoom }}</span>
-                          </span>
-                          <span
-                            v-if="weekParityBadge(course.occupyWeek)"
-                            class="rounded px-0.5 sm:px-1 py-0.2 text-[8px] sm:text-[8.5px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0"
-                          >
-                            {{ weekParityBadge(course.occupyWeek) }}
-                          </span>
-                          <span
-                            v-else-if="formatWeeksText(course.occupyWeek)"
-                            class="text-[8.5px] sm:text-[9px] opacity-70 tabular-nums truncate font-mono"
-                          >
-                            {{ formatWeeksText(course.occupyWeek) }}
-                          </span>
-                        </div>
-                      </div>
-                    </template>
-
-                    <!-- 标准舒展模式（span >= 2 且单门课） -->
-                    <template v-else>
-                      <div class="flex h-full min-h-0 w-full flex-col justify-between gap-1 md:gap-1.5">
-                        <!-- 顶部：不包裹短条 + 课名 + 课号 -->
-                        <div class="min-w-0">
-                          <!-- 顶部居中短条：不包裹、自然悬浮、呼应课程色彩 -->
-                          <div
-                            v-if="!isCustomEvent(course)"
-                            class="mx-auto mb-1 md:mb-1.5 h-[3px] w-7 rounded-full opacity-70 transition-opacity group-hover:opacity-95"
-                            :style="{ backgroundColor: 'var(--card-accent)' }"
-                            aria-hidden="true"
-                          />
-                          <h3
-                            class="block font-semibold tracking-tight text-[11px] sm:text-xs md:text-[12.5px] leading-tight md:leading-snug line-clamp-2 break-all text-[var(--card-title)]"
-                          >
-                            {{ course.courseName || course.code }}
-                          </h3>
-                          <span
-                            v-if="course.code && !isCustomEvent(course)"
-                            class="hidden md:block mt-0.5 font-mono text-[9px] opacity-60 tabular-nums truncate"
-                          >
-                            #{{ course.code }}
-                          </span>
-                        </div>
-
-                        <!-- 中部：教室（纯净教室名，移动端免除 MapPin 挤占空间，保证完整可读） -->
-                        <div v-if="course.occupyRoom" class="my-auto py-0.5 min-w-0">
-                          <div
-                            class="flex items-center gap-1 md:gap-1.5 min-w-0 text-[10.5px] md:text-[11px] font-medium text-[var(--card-title)]"
-                          >
-                            <MapPin class="hidden md:inline-block h-3 w-3 shrink-0 opacity-65 text-primary" />
-                            <span class="break-all md:truncate leading-tight">{{ course.occupyRoom }}</span>
-                          </div>
-                        </div>
-
-                        <!-- 底部：教师与周次（清爽层级排版，移动端免除 User 图标以完整呈现教师姓名） -->
-                        <div class="min-w-0 space-y-0.5 text-[9.5px] sm:text-[10px] md:text-[10.5px] leading-tight text-[var(--card-sub)]">
-                          <!-- 教师：精炼为首位+等，防多位教师炸裂撑满空间 -->
-                          <div
-                            v-if="teacherName(course) && !isCustomEvent(course)"
-                            class="flex items-center gap-1 md:gap-1.5 font-medium opacity-85"
-                          >
-                            <User class="hidden md:inline-block h-2.5 w-2.5 shrink-0 opacity-55" />
-                            <span class="break-all md:truncate">{{ compactTeacherName(teacherName(course)) }}</span>
-                          </div>
-
-                          <!-- 周次：解析为 1-15周(单) 等优雅文本 -->
-                          <div class="flex items-center gap-1 md:gap-1.5 text-[9px] sm:text-[9.5px] md:text-[10px] opacity-80">
-                            <span
-                              v-if="weekParityBadge(course.occupyWeek)"
-                              class="rounded px-0.5 md:px-1 py-0.2 text-[8px] md:text-[8.5px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0"
-                            >
-                              {{ weekParityBadge(course.occupyWeek) }}
-                            </span>
-                            <span class="truncate font-mono tabular-nums">
-                              {{ formatDisplayWeeks(course.occupyWeek) }}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </td>
-            </template>
-          </tr>
-        </tbody>
-      </table>
+        :grid="{ cellCourses, cellSpans, occupiedGrid }"
+        :section-times="sectionTimes"
+        :is-mobile="isMobile"
+        :is-conflicted="isConflicted"
+        :course-label="courseAriaLabel"
+        @cell-click="handleCellClick"
+        @open-detail="openCourseDetail"
+        @press-start="onPressStart"
+        @press-move="onPressMove"
+        @press-cancel="onPressCancel"
+        @course-enter="onCourseMouseEnter"
+        @course-leave="onCourseMouseLeave"
+      />
 
       <!-- 课表导出底部水印 -->
       <div v-if="hasCourses" class="border-t border-line/50 bg-base-200/20 px-4 py-2 flex items-center justify-between text-[11px] text-base-content/45 sm:px-6">
@@ -1017,23 +681,3 @@ onBeforeUnmount(() => {
     />
   </div>
 </template>
-
-<style scoped>
-.schedule-course-card {
-  transition-property: transform, box-shadow, background-color, border-color;
-  transition-duration: 160ms;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@media (hover: hover) {
-  .schedule-course-card:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--card-shadow-hover, 0 3px 10px -2px rgba(0, 0, 0, 0.08));
-    background-color: var(--card-bg-hover, var(--card-bg)) !important;
-  }
-}
-
-.schedule-course-card:active {
-  transform: scale(0.985);
-}
-</style>

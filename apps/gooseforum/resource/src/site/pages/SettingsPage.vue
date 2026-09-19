@@ -2208,6 +2208,7 @@ async function toggleBinding(provider: string) {
           </section>
 
           <section v-show="activeTab === 'binding'">
+ <a href="/campus" class="mb-5 flex items-center justify-between rounded-lg border border-line p-5"><div><strong class="text-sm">{{ t('campus.identity') }}</strong><p class="mt-1 text-xs text-base-content/55">{{ t('campus.settingsHint') }}</p></div><span class="text-xs text-primary">{{ t('campus.manageConnection') }}</span></a>
             <SectionHeader :icon="Mail" :title="t('settings.binding.title')">
               <template #actions>
                 <button type="button" class="text-xs font-medium text-primary hover:text-primary" @click="loadBindings">{{ t('settings.binding.refresh') }}</button>

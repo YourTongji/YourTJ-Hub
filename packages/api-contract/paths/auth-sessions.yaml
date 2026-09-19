@@ -191,16 +191,17 @@ mobileWebSession:
         name: target
         schema:
           type: string
-          enum: [admin, moderation, courseManagement, courseReviews]
+          enum: [admin, moderation, courseManagement, courseReviews, campus]
           default: admin
         description: Fixed workspace destination; each target checks its existing permissions.
     description: |
       First-party mobile WebView handoff. Requires an explicit valid human Bearer session and
       at least one admin permission (admin), moderation-workbench access (moderation), or the
       independent CourseManager/Admin permission (courseManagement and courseReviews).
+      The campus target requires only a live human session and redirects to /campus.
       Cookie-only authentication is rejected. Installs the same
       session as an HttpOnly, SameSite=Lax cookie (Secure on HTTPS deployments), then redirects
-      exclusively to /admin, /moderation, /moderation/courses or /moderation/course-reviews.
+      exclusively to /admin, /moderation, /moderation/courses, /moderation/course-reviews or /campus.
       Arbitrary redirect targets are never accepted; no token appears in the URL,
       response body, or New-Token header. Responses are no-store. Normal admin role, revocation,
       writable-account, and CSRF checks continue to apply to all subsequent operations.

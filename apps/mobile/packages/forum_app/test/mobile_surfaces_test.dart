@@ -8,6 +8,7 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/campus/campus_page.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -74,15 +75,7 @@ void main() {
             accountLayoutProvider.overrideWith(
               (_) async => LayoutPayload.fromJson(minimalLayoutJson()),
             ),
-            campusCoursesProvider.overrideWith(
-              (_) async => const CourseListResultPayload(
-                list: [],
-                page: 1,
-                size: 3,
-                total: 0,
-                hasNext: false,
-              ),
-            ),
+            currentUserProvider.overrideWith((_) async => null),
           ],
         );
         addTearDown(container.dispose);
@@ -139,7 +132,7 @@ void main() {
           tester.element(find.byType(CampusShortcuts)),
         );
         for (final (label, path) in [
-          (l10n.coursesTitle, '/courses'),
+          (l10n.campusCourseReviews, '/courses'),
           (l10n.scheduleTitle, '/schedule'),
           (l10n.wikiTitle, '/wiki'),
         ]) {
@@ -157,6 +150,27 @@ void main() {
         router.go('/campus');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        // The same destinations are one tap from the actual campus landing page,
+        // including for guests; popping returns to Campus rather than Home.
+        for (final (label, path) in [
+          (l10n.campusCourseReviews, '/courses'),
+          (l10n.scheduleTitle, '/schedule'),
+          (l10n.wikiTitle, '/wiki'),
+        ]) {
+          final action = find.descendant(
+            of: find.byType(CampusShortcuts),
+            matching: find.text(label),
+          );
+          await tester.ensureVisible(action);
+          await tester.tap(action);
+          await tester.pumpAndSettle();
+          expect(router.state.uri.path, path);
+          expect(router.canPop(), isTrue);
+          router.pop();
+          await tester.pumpAndSettle();
+          expect(router.state.uri.path, '/campus');
+          expect(tester.takeException(), isNull);
+        }
         router.go('/settings');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

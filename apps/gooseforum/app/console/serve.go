@@ -408,7 +408,9 @@ func newHTTPServer(address string, handler http.Handler) *http.Server {
 func newGinEngine() *gin.Engine {
 	if setting.IsDebug() {
 		gin.SetMode(gin.DebugMode)
-		return gin.Default()
+		app := gin.New()
+		app.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/api/campus/tongji/callback"}}))
+		return app
 	} else {
 		gin.DisableConsoleColor()
 		gin.SetMode(gin.ReleaseMode)

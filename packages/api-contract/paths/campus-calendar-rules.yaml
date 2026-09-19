@@ -1,0 +1,466 @@
+{
+  "components": {
+    "schemas": {
+      "CampusHoliday": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "startDate",
+          "endDate"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(20[0-9]{2}|2100)-[0-9]{2}-[0-9]{2}$"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(20[0-9]{2}|2100)-[0-9]{2}-[0-9]{2}$"
+          }
+        }
+      },
+      "CampusCalendarMove": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "fromDate",
+          "toDate"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(20[0-9]{2}|2100)-[0-9]{2}-[0-9]{2}$"
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(20[0-9]{2}|2100)-[0-9]{2}-[0-9]{2}$"
+          }
+        }
+      },
+      "CampusCalendarRules": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "holidays",
+          "moves"
+        ],
+        "properties": {
+          "holidays": {
+            "type": "array",
+            "maxItems": 60,
+            "items": {
+              "$ref": "#/components/schemas/CampusHoliday"
+            }
+          },
+          "moves": {
+            "type": "array",
+            "maxItems": 120,
+            "items": {
+              "$ref": "#/components/schemas/CampusCalendarMove"
+            }
+          }
+        }
+      },
+      "CampusCalendarSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "rules"
+        ],
+        "properties": {
+          "revision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/CampusCalendarRules"
+          }
+        }
+      },
+      "CampusCalendarDraft": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rules",
+          "warnings"
+        ],
+        "properties": {
+          "rules": {
+            "$ref": "#/components/schemas/CampusCalendarRules"
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      },
+      "CampusCalendarParseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "year",
+          "text"
+        ],
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 2100
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          }
+        }
+      },
+      "CampusCalendarSettingsResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "result"
+            ],
+            "properties": {
+              "code": {
+                "type": "integer",
+                "const": 0
+              },
+              "result": {
+                "$ref": "#/components/schemas/CampusCalendarSettings"
+              }
+            }
+          }
+        ]
+      },
+      "CampusCalendarDraftResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "result"
+            ],
+            "properties": {
+              "code": {
+                "type": "integer",
+                "const": 0
+              },
+              "result": {
+                "$ref": "#/components/schemas/CampusCalendarDraft"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "rules": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusCalendarRules",
+      "operationId": "campusCalendarRules",
+      "description": "Authenticated read of administrator-confirmed date rules; includes a content revision. No private school data.",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Success; private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusCalendarSettingsResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-calendar-rules-success.json"
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "description": "Invalid dates, overlapping/conflicting rules or malformed input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Session required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "adminRules": {
+    "get": {
+      "tags": [
+        "Admin"
+      ],
+      "summary": "adminCampusCalendarRules",
+      "operationId": "adminCampusCalendarRules",
+      "description": "SiteManager required. Read the current published rules and revision.",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Success; private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusCalendarSettingsResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-calendar-rules-success.json"
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "description": "Invalid dates, overlapping/conflicting rules or malformed input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Session required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      }
+    },
+    "post": {
+      "tags": [
+        "Admin"
+      ],
+      "summary": "adminSaveCampusCalendarRules",
+      "operationId": "adminSaveCampusCalendarRules",
+      "description": "SiteManager required. Validate and atomically replace all rules; revision must match the latest read (409 otherwise). Dates are explicit, holiday ranges inclusive. Each move removes the original occurrence and replaces the actual destination day with the source day timetable, preserving source teaching weeks. Reject overlapping holidays, duplicate sources/targets, chains/cycles and targets on holidays. AI parse does not save.",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Success; private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusCalendarSettingsResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-calendar-rules-success.json"
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "description": "Invalid dates, overlapping/conflicting rules or malformed input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Session required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CampusCalendarSettings"
+            }
+          }
+        }
+      }
+    }
+  },
+  "parse": {
+    "post": {
+      "tags": [
+        "Admin"
+      ],
+      "summary": "adminParseCampusCalendarRules",
+      "operationId": "adminParseCampusCalendarRules",
+      "description": "SiteManager required. Parse only submitted notice and explicit year through the AI summary provider (admin config, then deployment fallback). Independent of the public course-summary display switch; shares the global generation quota and 30 second deadline. No private campus data sent. Strict JSON and date validation; draft/warnings returned without persisting. User must review, edit and save explicitly.",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Success; private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusCalendarDraftResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-calendar-draft-success.json"
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "description": "Invalid dates, overlapping/conflicting rules or malformed input.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Session required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CampusCalendarParseRequest"
+            }
+          }
+        }
+      }
+    }
+  }
+}

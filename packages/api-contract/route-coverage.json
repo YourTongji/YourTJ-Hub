@@ -265,6 +265,11 @@
       "method": "POST",
       "path": "/file/img-upload",
       "reason": "multipart 文件上传端点，不纳入 JSON API 契约"
+    },
+    {
+      "method": "GET",
+      "path": "/campus",
+      "reason": "SSR campus shell; private data uses controlled /api/campus operations"
     }
   ],
   "knownUncovered": []

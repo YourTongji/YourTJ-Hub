@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"log/slog"
 	"time"
 
@@ -255,10 +256,11 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		slog.Error("delete pk schedule snapshot on account close failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if err := users.CloseAccount(req.UserId); err != nil {
-		slog.Error("close account failed", "userId", req.UserId, "err", err)
+	if err := campusservice.CloseForUser(req.UserId, func() error { return users.CloseAccount(req.UserId) }); err != nil {
+		slog.Error("close account and campus connection failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
+
 	// 会话吊销先于订阅清理完成：注销已提交后，token_version 自增与缓存失效
 	// 是安全关键步骤（不完成则旧会话在缓存 TTL 内仍被接受），绝不能被后续
 	// 清理失败阻断（review P2）。

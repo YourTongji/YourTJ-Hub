@@ -64,3 +64,7 @@ export 'src/gen/post_revision.dart';
 export 'src/gen/wiki_search.dart';
 
 export 'src/gen/own_course_reviews.dart';
+
+export 'src/gen/campus.dart';
+
+export 'src/api/repositories/campus_repository.dart';

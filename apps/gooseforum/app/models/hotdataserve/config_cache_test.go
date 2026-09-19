@@ -38,3 +38,17 @@ func TestMergeDefaultRateLimitActionsAddsRewardAbuseGuards(t *testing.T) {
 		t.Fatal("unknown action should not be indexed")
 	}
 }
+
+func TestCampusDefaultsAreUserScopedAndPreserveOverrides(t *testing.T) {
+	cfg := pageConfig.RateLimitConfig{Actions: []pageConfig.RateLimitRule{{Action: "campus.read", WindowSeconds: 60, LimitPerUser: 7}}}
+	mergeDefaultRateLimitActions(&cfg)
+	cfg.BuildActionIndex()
+	read, ok := cfg.RuleForAction("campus.read")
+	if !ok || read.LimitPerUser != 7 {
+		t.Fatal("campus override lost")
+	}
+	authorize, ok := cfg.RuleForAction("campus.authorize")
+	if !ok || authorize.LimitPerUser <= 0 || authorize.LimitPerIp != 0 {
+		t.Fatal("campus authorization needs an independent per-user default")
+	}
+}

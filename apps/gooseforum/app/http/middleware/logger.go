@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"log/slog"
+	"net/url"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
@@ -18,7 +19,7 @@ func AccessLog(c *gin.Context) {
 
 	startTime := time.Now()
 	path := c.Request.URL.Path
-	raw := c.Request.URL.RawQuery
+	raw := logQuery(c.Request.URL)
 
 	c.Next()
 
@@ -58,4 +59,12 @@ func AccessLog(c *gin.Context) {
 	}); err != nil {
 		slog.Warn("network access log record failed", "err", err)
 	}
+}
+
+// OAuth credentials and state must never enter application or network-access logs.
+func logQuery(u *url.URL) string {
+	if u.Path == "/api/campus/tongji/callback" {
+		return ""
+	}
+	return u.RawQuery
 }

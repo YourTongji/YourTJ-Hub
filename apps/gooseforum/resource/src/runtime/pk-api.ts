@@ -5,6 +5,7 @@
 // 所有函数走 `readPkResponse`，错误抛 `Error`（msg 优先，fallback 兜底）。
 
 import { i18n } from './i18n'
+import type { SectionTime } from '@/site/utils/sectionTimes'
 import type {
   PkCalendar,
   PkCourse,
@@ -303,4 +304,9 @@ export function getPkCourseReviewBrief(input: PkCourseReviewBriefInput): Promise
     `/api/pk/course-review-brief?${query.toString()}`,
     t('api.pkCourseReviewBriefFailed'),
   )
+}
+
+/** Public display settings shared with the private campus timetable. */
+export function getPkSectionTimes(): Promise<{ sectionTimes: SectionTime[]; maxRowsDefault: number }> {
+  return getPk('/api/pk/section-times', '节次作息暂不可用')
 }
