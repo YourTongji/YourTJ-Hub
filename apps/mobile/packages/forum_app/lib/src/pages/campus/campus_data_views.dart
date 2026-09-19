@@ -8,6 +8,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../widgets/schedule_time_grid.dart';
 import 'campus_helpers.dart';
+import 'campus_calendar_export.dart';
 
 class CampusMetrics extends StatelessWidget {
   const CampusMetrics({super.key, required this.data});
@@ -174,6 +175,8 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        CampusCalendarExportButton(enabled: widget.data.events.isNotEmpty),
+        const SizedBox(height: 12),
         Wrap(
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,

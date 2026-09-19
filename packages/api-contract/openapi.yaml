@@ -51,6 +51,8 @@ tags:
   - name: Files
     description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
+  /api/campus/calendar-export:
+    $ref: ./paths/campus.yaml#/calendarExport
   /api/campus/status:
     $ref: ./paths/campus.yaml#/status
   /api/campus/tongji/start:
@@ -659,6 +661,10 @@ components:
       $ref: ./paths/campus.yaml#/components/schemas/CampusMessageDetail
     CampusMessageDetailResponse:
       $ref: ./paths/campus.yaml#/components/schemas/CampusMessageDetailResponse
+    CampusCalendarExport:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusCalendarExport
+    CampusCalendarExportResponse:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusCalendarExportResponse
     CampusDataset:
       $ref: ./paths/campus.yaml#/components/schemas/CampusDataset
     CampusStatusResponse:

@@ -1081,5 +1081,10 @@
   "campusCet": "CET results",
   "campusCourses": "Course results",
   "campusSchoolLogin": "School sign-in",
-  "campusUpstreamGaps": "Sports, health and course changes are not available. This client has no exam permission."
+  "campusUpstreamGaps": "Sports, health and course changes are not available. This client has no exam permission.",
+  "campusExportCalendar": "Export course calendar",
+  "campusExportingCalendar": "Exporting…",
+  "campusExportCalendarHint": "Export the whole term as an .ics file to save or share with a calendar app. This snapshot does not sync timetable changes. The file contains courses and locations.",
+  "campusCalendarIncomplete": "Term dates, teaching weeks or class times are incomplete. Refresh and try again.",
+  "campusCalendarEmpty": "There are no scheduled classes to export this term."
 }

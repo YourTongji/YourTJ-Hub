@@ -20,7 +20,7 @@ import (
 func TestCampusRoutesRequireSessionAndCSRF(t *testing.T) {
 	db, router := setupHTTPContractTest(t)
 	campusRoutes(router)
-	for _, r := range []struct{ method, path string }{{"GET", "/api/campus/status"}, {"GET", "/api/campus/data/grades"}, {"GET", "/api/campus/data/profile"}, {"GET", "/api/campus/messages/123"}, {"POST", "/api/campus/tongji/start"}, {"POST", "/api/campus/tongji/confirm"}, {"POST", "/api/campus/tongji/unbind"}} {
+	for _, r := range []struct{ method, path string }{{"GET", "/api/campus/status"}, {"GET", "/api/campus/calendar-export"}, {"GET", "/api/campus/data/grades"}, {"GET", "/api/campus/data/profile"}, {"GET", "/api/campus/messages/123"}, {"POST", "/api/campus/tongji/start"}, {"POST", "/api/campus/tongji/confirm"}, {"POST", "/api/campus/tongji/unbind"}} {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, httptest.NewRequest(r.method, r.path, strings.NewReader(`{}`)))
 		if w.Code != http.StatusUnauthorized {
@@ -57,6 +57,20 @@ func TestCampusMobileHandoff(t *testing.T) {
 	router.ServeHTTP(w, r)
 	if w.Code != 401 {
 		t.Fatal("cookie-only handoff accepted")
+	}
+}
+
+func TestCampusCalendarExportDisabledResponseIsPrivate(t *testing.T) {
+	db, router := setupHTTPContractTest(t)
+	campusRoutes(router)
+	t.Setenv("CAMPUS_REDIRECT_URI", "disabled")
+	u := createHTTPContractUser(t, db, contractTestID())
+	req := httptest.NewRequest(http.MethodGet, "/api/campus/calendar-export", nil)
+	req.Header.Set("Authorization", "Bearer "+contractSessionToken(t, u))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Cache-Control") != "private, no-store" || !strings.Contains(w.Body.String(), "campus.disabled") {
+		t.Fatalf("invalid private export failure: status=%d cache=%s", w.Code, w.Header().Get("Cache-Control"))
 	}
 }
 
@@ -122,7 +136,7 @@ func TestCampusDoesNotConsumeLoginOrCatalogBudgets(t *testing.T) {
 			ratelimit.Default().Allow(action+":ip:192.0.2.1", 200, time.Minute)
 		}
 	}
-	for _, path := range []string{"/api/campus/data/calendar", "/api/campus/messages/123", "/api/campus/tongji/start"} {
+	for _, path := range []string{"/api/campus/calendar-export", "/api/campus/data/calendar", "/api/campus/messages/123", "/api/campus/tongji/start"} {
 		method := "GET"
 		if strings.HasSuffix(path, "start") {
 			method = "POST"

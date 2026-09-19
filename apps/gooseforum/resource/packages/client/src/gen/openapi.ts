@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/campus/calendar-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * campusCalendarExport
+         * @description Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; manual holiday adjustments are not inferred. Never persisted or publicly addressable.
+         */
+        get: operations["campusCalendarExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/campus/status": {
         parameters: {
             query?: never;
@@ -6438,6 +6458,15 @@ export interface components {
         CampusMessageDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CampusMessageDetail"];
         };
+        CampusCalendarExport: {
+            filename: string;
+            /** @description UTF-8 RFC 5545 calendar with CRLF folding and UTC event times. Private data; persist only through explicit user export. */
+            content: string;
+            eventCount: number;
+        };
+        CampusCalendarExportResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CampusCalendarExport"];
+        };
         CampusDataset: {
             /** @enum {string} */
             key: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile";
@@ -11512,6 +11541,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    campusCalendarExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarExportResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     campusStatus: {
         parameters: {
             query?: never;

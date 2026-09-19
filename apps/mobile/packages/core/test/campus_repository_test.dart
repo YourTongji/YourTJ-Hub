@@ -15,6 +15,31 @@ class Storage implements TokenStorage {
 
 void main() {
   test(
+    'calendar export parses the shared contract and uses the forum session',
+    () async {
+      final dio = Dio();
+      final cancel = CancelToken();
+      dio.httpClientAdapter = MockAdapter((r) async {
+        expect(r.path, '/api/campus/calendar-export');
+        expect(r.headers['Authorization'], 'Bearer test-session');
+        return ResponseData(200, {
+          'code': 0,
+          'result': {
+            'filename': 'yourtj-courses-2026-09-14.ics',
+            'content': 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+            'eventCount': 2,
+          },
+        });
+      });
+      final result = await CampusRepository(
+        GfApiClient(dio: dio, tokenStorage: Storage()),
+      ).exportCalendar(cancelToken: cancel);
+      expect(result.filename, endsWith('.ics'));
+      expect(result.eventCount, 2);
+      expect(result.content, startsWith('BEGIN:VCALENDAR\r\n'));
+    },
+  );
+  test(
     'campus mutations use session headers and exact revision bodies',
     () async {
       final dio = Dio();

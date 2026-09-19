@@ -72,6 +72,8 @@ String campusError(AppLocalizations l, Object? e) {
       'campus.identityUnavailable' ||
       'campus.connectionChanged' => l.campusIdentityConflict,
       'campus.messageUnavailable' => l.campusMessageUnavailable,
+      'campus.calendarIncomplete' => l.campusCalendarIncomplete,
+      'campus.calendarEmpty' => l.campusCalendarEmpty,
       'campus.disabled' => l.campusDisabled,
       _ => l.campusUnavailable,
     };

@@ -2219,4 +2219,21 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get campusUpstreamGaps =>
       '体力測定・健康・授業変更のデータは現在利用できません。このアプリは試験情報へのアクセス権限がありません。';
+
+  @override
+  String get campusExportCalendar => '授業カレンダーを書き出す';
+
+  @override
+  String get campusExportingCalendar => '書き出し中…';
+
+  @override
+  String get campusExportCalendarHint =>
+      '学期全体を .ics ファイルとして保存し、カレンダーアプリで共有できます。時間割の変更は自動同期されません。授業名と場所が含まれます。';
+
+  @override
+  String get campusCalendarIncomplete =>
+      '学期の日付、授業週または時限の情報が不足しています。更新して再試行してください。';
+
+  @override
+  String get campusCalendarEmpty => 'この学期に書き出せる授業予定はありません。';
 }

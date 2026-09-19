@@ -7,6 +7,7 @@ class CampusBinding {
     required this.needsAuthorization,
   });
   final String maskedId;
+
   /// Current identity binding time; preserved on same-identity reauthorization.
   final String boundAt;
   final String revision;
@@ -226,5 +227,23 @@ class CampusMessageDetail extends CampusMessageSummary {
         links: (json['links'] as List)
             .map((v) => CampusMessageLink.fromJson(v as Map<String, dynamic>))
             .toList(),
+      );
+}
+
+/// Explicit private iCalendar snapshot; never place in the offline cache.
+class CampusCalendarExport {
+  const CampusCalendarExport({
+    required this.filename,
+    required this.content,
+    required this.eventCount,
+  });
+  final String filename;
+  final String content;
+  final int eventCount;
+  factory CampusCalendarExport.fromJson(Map<String, dynamic> json) =>
+      CampusCalendarExport(
+        filename: json['filename'] as String,
+        content: json['content'] as String,
+        eventCount: json['eventCount'] as int,
       );
 }

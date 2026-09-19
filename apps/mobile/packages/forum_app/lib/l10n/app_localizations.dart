@@ -4259,6 +4259,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sports, health and course changes are not available. This client has no exam permission.'**
   String get campusUpstreamGaps;
+
+  /// No description provided for @campusExportCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Export course calendar'**
+  String get campusExportCalendar;
+
+  /// No description provided for @campusExportingCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting…'**
+  String get campusExportingCalendar;
+
+  /// No description provided for @campusExportCalendarHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Export the whole term as an .ics file to save or share with a calendar app. This snapshot does not sync timetable changes. The file contains courses and locations.'**
+  String get campusExportCalendarHint;
+
+  /// No description provided for @campusCalendarIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Term dates, teaching weeks or class times are incomplete. Refresh and try again.'**
+  String get campusCalendarIncomplete;
+
+  /// No description provided for @campusCalendarEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no scheduled classes to export this term.'**
+  String get campusCalendarEmpty;
 }
 
 class _AppLocalizationsDelegate

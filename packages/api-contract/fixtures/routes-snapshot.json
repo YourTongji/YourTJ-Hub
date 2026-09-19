@@ -185,6 +185,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/campus/calendar-export"
+  },
+  {
+    "method": "GET",
     "path": "/api/campus/data/:dataset"
   },
   {

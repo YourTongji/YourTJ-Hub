@@ -6,10 +6,11 @@ import type { CampusDataset, CampusDatasetKey, CampusStatus, LayoutPayload } fro
 import { CampusError } from '../src/runtime/campus-api'
 import CampusPage from '../src/site/pages/CampusPage.vue'
 
-const api = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn(), message: vi.fn(), confirm: vi.fn(), start: vi.fn() }))
+const api = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn(), message: vi.fn(), confirm: vi.fn(), start: vi.fn(), exportCalendar: vi.fn() }))
 vi.mock('@/runtime/campus-api', async original => ({
   ...await original<typeof import('../src/runtime/campus-api')>(), campusAPI: api,
 }))
+vi.mock('@/runtime/pk-api', () => ({ getPkSectionTimes: async () => ({ sectionTimes: [] }) }))
 beforeEach(() => { sessionStorage.clear(); history.replaceState(null, '', '/campus') })
 afterEach(() => { vi.restoreAllMocks(); vi.resetAllMocks() })
 const status: CampusStatus = { enabled: true, binding: { maskedId: '***01', revision: 'first', needsAuthorization: false }, candidate: null }
@@ -31,6 +32,69 @@ async function clickTab(wrapper: ReturnType<typeof setup>, label: string) {
   await wrapper.findAll('nav[aria-label="校园内容"] button').find(b => b.text() === label)!.trigger('click')
   await flushPromises()
 }
+
+function exportSetup() {
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...await original(key), events: key === 'timetable' ? [{ name: '数学', day: 1, start: 1, end: 2, weeks: [1], room: '', campus: '', teacher: '', credits: '' }] : [] }))
+  return wrapper
+}
+
+test('exports all-term calendar via a private request and releases the download on exit', async () => {
+  const wrapper = exportSetup()
+  const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-calendar')
+  const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    expect(this.download).toBe('yourtj-courses-2026-09-14.ics')
+  })
+  api.exportCalendar.mockResolvedValue({ filename: 'yourtj-courses-2026-09-14.ics', content: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n', eventCount: 24 })
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '我的课表')
+    await wrapper.findAll('button').find(b => b.text() === '导出课程日历')!.trigger('click')
+    await flushPromises()
+    expect(api.exportCalendar).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(create.mock.calls[0]![0]).toMatchObject({ type: 'text/calendar;charset=utf-8' })
+    expect(click).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain('24 次课程日程')
+    await clickTab(wrapper, '校园概览')
+    expect(revoke).toHaveBeenCalledWith('blob:test-calendar')
+  } finally { wrapper.unmount() }
+})
+
+test('leaving the timetable cancels export and ignores late private content', async () => {
+  const wrapper = exportSetup()
+  const create = vi.spyOn(URL, 'createObjectURL')
+  let resolve!: (value: unknown) => void
+  api.exportCalendar.mockImplementation(() => new Promise(done => { resolve = done }))
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '我的课表')
+    await wrapper.findAll('button').find(b => b.text() === '导出课程日历')!.trigger('click')
+    const signal = api.exportCalendar.mock.calls[0]![0] as AbortSignal
+    await clickTab(wrapper, '校园概览')
+    expect(signal.aborted).toBe(true)
+    resolve({ filename: 'private.ics', content: 'private late data', eventCount: 1 })
+    await flushPromises()
+    expect(create).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
+
+test('export failures stay visible and can be retried without downloading', async () => {
+  const wrapper = exportSetup()
+  const create = vi.spyOn(URL, 'createObjectURL')
+  api.exportCalendar.mockRejectedValue(new CampusError('campus.calendarIncomplete', '课表缺少周次'))
+  try {
+    await flushPromises()
+    await clickTab(wrapper, '我的课表')
+    const button = wrapper.findAll('button').find(b => b.text() === '导出课程日历')!
+    await button.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toBe('课表缺少周次')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(create).not.toHaveBeenCalled()
+  } finally { wrapper.unmount() }
+})
 
 test('home shows the personal day and latest messages without loading academic records or tool links', async () => {
   const wrapper = setup()

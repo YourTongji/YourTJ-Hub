@@ -2308,4 +2308,22 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusUpstreamGaps =>
       'Sport-, Gesundheits- und Kursänderungsdaten sind nicht verfügbar. Diese App hat keinen Zugriff auf Prüfungsdaten.';
+
+  @override
+  String get campusExportCalendar => 'Kurskalender exportieren';
+
+  @override
+  String get campusExportingCalendar => 'Wird exportiert…';
+
+  @override
+  String get campusExportCalendarHint =>
+      'Das ganze Semester als .ics-Datei speichern oder mit einer Kalender-App teilen. Änderungen werden nicht automatisch synchronisiert. Die Datei enthält Kurse und Orte.';
+
+  @override
+  String get campusCalendarIncomplete =>
+      'Semestertermine, Unterrichtswochen oder Kurszeiten sind unvollständig. Bitte aktualisieren und erneut versuchen.';
+
+  @override
+  String get campusCalendarEmpty =>
+      'Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden.';
 }

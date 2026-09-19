@@ -2203,4 +2203,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusUpstreamGaps => '体测、健康与调课暂未取得可用数据；考试接口未获当前应用授权。';
+
+  @override
+  String get campusExportCalendar => '导出课程日历';
+
+  @override
+  String get campusExportingCalendar => '正在导出…';
+
+  @override
+  String get campusExportCalendarHint =>
+      '导出整个学期的 .ics 文件，可保存或分享至其他日历 App；不会自动同步调课。文件包含课程和上课地点。';
+
+  @override
+  String get campusCalendarIncomplete => '校历日期、课程周次或节次信息不完整，暂时无法准确导出。请刷新后重试。';
+
+  @override
+  String get campusCalendarEmpty => '本学期没有可导出的课程安排。';
 }

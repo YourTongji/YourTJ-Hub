@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +30,12 @@ func campusFailure(c *gin.Context, err error) {
 	case errors.Is(err, campusservice.ErrMessageNotFound):
 		status = http.StatusNotFound
 		message = "campus.messageUnavailable"
+	case errors.Is(err, campusservice.ErrCalendarIncomplete):
+		status = http.StatusConflict
+		message = "campus.calendarIncomplete"
+	case errors.Is(err, campusservice.ErrCalendarEmpty):
+		status = http.StatusConflict
+		message = "campus.calendarEmpty"
 	case errors.Is(err, campusservice.ErrConflict):
 		status = http.StatusConflict
 		message = "campus.identityUnavailable"
@@ -152,4 +160,18 @@ func CampusMessage(c *gin.Context) {
 		return
 	}
 	c.JSON(200, component.SuccessData(d))
+}
+
+func CampusCalendarExport(c *gin.Context) {
+	s := campusService(c)
+	if s == nil {
+		return
+	}
+	settings := defaultconfig.NormalizeStoredScheduleSettings(pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{}))
+	d, err := s.ExportCalendar(c.Request.Context(), c.GetUint64("userId"), settings.SectionTimes)
+	if err != nil {
+		campusFailure(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, component.SuccessData(d))
 }

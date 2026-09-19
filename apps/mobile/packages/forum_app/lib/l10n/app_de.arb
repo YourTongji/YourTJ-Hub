@@ -751,5 +751,10 @@
   "campusCet": "CET-Ergebnisse",
   "campusCourses": "Kursleistungen",
   "campusSchoolLogin": "Hochschulanmeldung",
-  "campusUpstreamGaps": "Sport-, Gesundheits- und Kursänderungsdaten sind nicht verfügbar. Diese App hat keinen Zugriff auf Prüfungsdaten."
+  "campusUpstreamGaps": "Sport-, Gesundheits- und Kursänderungsdaten sind nicht verfügbar. Diese App hat keinen Zugriff auf Prüfungsdaten.",
+  "campusExportCalendar": "Kurskalender exportieren",
+  "campusExportingCalendar": "Wird exportiert…",
+  "campusExportCalendarHint": "Das ganze Semester als .ics-Datei speichern oder mit einer Kalender-App teilen. Änderungen werden nicht automatisch synchronisiert. Die Datei enthält Kurse und Orte.",
+  "campusCalendarIncomplete": "Semestertermine, Unterrichtswochen oder Kurszeiten sind unvollständig. Bitte aktualisieren und erneut versuchen.",
+  "campusCalendarEmpty": "Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden."
 }

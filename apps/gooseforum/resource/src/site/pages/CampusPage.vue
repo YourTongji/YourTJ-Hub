@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CampusStatus, CampusDataset, CampusDatasetKey, CampusMessageSummary, CampusMessageDetail, LayoutPayload } from '@gooseforum/client'
-import { ArrowUpRight, Bell, BookOpen, CalendarDays, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, GraduationCap, Link2, Loader2, RefreshCw, ShieldCheck, Shuffle, Unplug } from '@lucide/vue'
+import { ArrowUpRight, Bell, BookOpen, CalendarDays, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, Download, GraduationCap, Link2, Loader2, RefreshCw, ShieldCheck, Shuffle, Unplug } from '@lucide/vue'
 import { campusAPI, CampusError } from '@/runtime/campus-api'
 import PageHeader from '@/site/components/PageHeader.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
@@ -21,6 +21,45 @@ const failures = ref<Partial<Record<CampusDatasetKey, string>>>({})
 const now = ref(new Date())
 const clock = computed(() => campusClock(now.value))
 const wish = ref(randomCampusWish())
+const exporting = ref(false), exportMessage = ref(''), exportError = ref('')
+let exportController: AbortController | null = null
+let exportRequest = 0
+const exportURLs = new Set<string>()
+function cancelExport() {
+  exportRequest++
+  exportController?.abort()
+  exporting.value = false
+  exportMessage.value = ''
+  exportError.value = ''
+  for (const url of exportURLs) URL.revokeObjectURL(url)
+  exportURLs.clear()
+}
+async function exportCalendar() {
+  if (exporting.value) return
+  const request = ++exportRequest, epoch = generation
+  exportController = new AbortController()
+  exporting.value = true
+  exportMessage.value = ''
+  exportError.value = ''
+  try {
+    const result = await campusAPI.exportCalendar(exportController.signal)
+    if (epoch !== generation || request !== exportRequest) return
+    const url = URL.createObjectURL(new Blob([result.content], { type: 'text/calendar;charset=utf-8' }))
+    exportURLs.add(url)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = result.filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => { URL.revokeObjectURL(url); exportURLs.delete(url) }, 1000)
+    exportMessage.value = `已生成 ${result.eventCount} 次课程日程，请打开下载的 .ics 文件导入日历。`
+  } catch (e) {
+    if (epoch !== generation || request !== exportRequest) return
+    exportError.value = e instanceof Error ? e.message : '导出失败，请稍后重试。'
+    if (e instanceof CampusError && e.code === 'campus.authorizationRequired' && status.value?.binding) status.value.binding.needsAuthorization = true
+  } finally { if (request === exportRequest) exporting.value = false }
+}
 const dateLabel = computed(() => `${clock.value.date} ${clock.value.weekday}`)
 const displayName = computed(() => data.value.profile?.metrics.find(m => m.label === '姓名')?.value || '同学')
 let clockTimer: ReturnType<typeof setInterval> | undefined
@@ -102,6 +141,7 @@ function messageDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric' }).format(date)
 }
 function resetData() {
+  cancelExport()
   returningMessageId = null
   generation++
   closeMessage()
@@ -149,11 +189,13 @@ async function loadData(targets = activeKeys(), force = false) {
   }))
 }
 async function refresh() {
+  cancelExport()
   error.value = ''
   try { await loadStatus(); await loadData(activeKeys(), true) }
   catch (e) { error.value = e instanceof Error ? e.message : '读取失败' }
 }
 async function authorize(mode: 'bind' | 'replace' | 'reauthorize') {
+  cancelExport()
   busy.value = true
   error.value = ''
   try {
@@ -167,6 +209,7 @@ async function authorize(mode: 'bind' | 'replace' | 'reauthorize') {
   catch (e) { error.value = (e as Error).message; busy.value = false }
 }
 async function confirm(resumeMessage = false) {
+  cancelExport()
   const selected = resumeMessage ? selectedMessage.value : null
   const returning = returningMessageId
   const request = messageRequest
@@ -194,6 +237,7 @@ async function confirm(resumeMessage = false) {
   } finally { busy.value = false }
 }
 async function unbind() {
+  cancelExport()
   const binding = status.value?.binding
   if (!binding) return
   busy.value = true
@@ -202,7 +246,7 @@ async function unbind() {
   catch (e) { error.value = (e as Error).message }
   finally { busy.value = false }
 }
-function setTab(key: string) { tab.value = key; filter.value = ''; void loadData() }
+function setTab(key: string) { cancelExport(); tab.value = key; filter.value = ''; void loadData() }
 function displayMetric(value: string) {
   return /^-?\d+\.\d+$/.test(value) ? value.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') : value
 }
@@ -397,6 +441,14 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
               <button class="gf-button gf-button-xs gf-button-secondary ml-2 text-xs" :disabled="currentWeek === null" @click="week = currentWeek ?? 1">本周</button>
             </div>
           </div>
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+            <p id="campus-export-hint" class="min-w-0 flex-1 text-xs leading-5 text-base-content/55">导出整个学期的 .ics 文件，可导入其他日历 App；不会自动同步调课。文件包含课程和上课地点。</p>
+            <button class="gf-button gf-button-sm gf-button-secondary shrink-0 text-xs" :disabled="exporting || busy || !courses.length || status.binding.needsAuthorization" aria-describedby="campus-export-hint" @click="exportCalendar">
+              <Loader2 v-if="exporting" class="h-3.5 w-3.5 spinning" /><Download v-else class="h-3.5 w-3.5" />{{ exporting ? '正在导出…' : '导出课程日历' }}
+            </button>
+          </div>
+          <p v-if="exportError" role="alert" class="gf-status-message gf-status-message-error m-4">{{ exportError }}</p>
+          <p v-else-if="exportMessage" role="status" class="gf-status-message gf-status-message-info m-4">{{ exportMessage }}</p>
           <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failures.timetable }}</p>
           <EmptyState v-if="!data.timetable && !failures.timetable" loading title="正在读取课表…" />
           <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" title="课表暂时无法读取" description="学校服务暂不可用，请稍后刷新。" />

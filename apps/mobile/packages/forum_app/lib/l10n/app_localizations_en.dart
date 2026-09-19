@@ -2282,4 +2282,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get campusUpstreamGaps =>
       'Sports, health and course changes are not available. This client has no exam permission.';
+
+  @override
+  String get campusExportCalendar => 'Export course calendar';
+
+  @override
+  String get campusExportingCalendar => 'Exporting…';
+
+  @override
+  String get campusExportCalendarHint =>
+      'Export the whole term as an .ics file to save or share with a calendar app. This snapshot does not sync timetable changes. The file contains courses and locations.';
+
+  @override
+  String get campusCalendarIncomplete =>
+      'Term dates, teaching weeks or class times are incomplete. Refresh and try again.';
+
+  @override
+  String get campusCalendarEmpty =>
+      'There are no scheduled classes to export this term.';
 }

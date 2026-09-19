@@ -2,6 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { campusAPI, CampusError } from '../src/runtime/campus-api'
 afterEach(() => vi.unstubAllGlobals())
 describe('private campus client', () => {
+  it('exports with the forum session, no caching, and cancellation', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ code: 0, result: { content: 'calendar' } }) })
+    vi.stubGlobal('fetch', fetch)
+    const controller = new AbortController()
+    await campusAPI.exportCalendar(controller.signal)
+    expect(fetch).toHaveBeenCalledWith('/api/campus/calendar-export', expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', signal: controller.signal }))
+  })
   it('never caches school records or exposes tokens', async () => {
     const payload = { key: 'grades', status: 'ready', rows: [] }
     const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ code: 0, result: payload }) })

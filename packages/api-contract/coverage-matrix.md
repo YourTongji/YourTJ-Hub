@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：316
-- /api JSON 路由：251，已入契约：252（100%），已知未覆盖：0
+- 快照路由总数：317
+- /api JSON 路由：252，已入契约：253（100%），已知未覆盖：0
 - 非 API 排除路由：64
 
-## 已覆盖（252）
+## 已覆盖（253）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -50,6 +50,7 @@
 | GET | `/api/admin/wiki/sync/webhook-secret` | `getWikiWebhookSecret` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
 | GET | `/api/auth/mobile-web-session` | `mobileWebSession` |
+| GET | `/api/campus/calendar-export` | `campusCalendarExport` |
 | GET | `/api/campus/data/:dataset` | `campusDataset` |
 | GET | `/api/campus/messages/:messageId` | `campusMessage` |
 | GET | `/api/campus/status` | `campusStatus` |

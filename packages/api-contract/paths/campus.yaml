@@ -803,6 +803,49 @@
             }
           }
         ]
+      },
+      "CampusCalendarExport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "filename",
+          "content",
+          "eventCount"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "pattern": "^yourtj-courses-\\d{4}-\\d{2}-\\d{2}\\.ics$"
+          },
+          "content": {
+            "type": "string",
+            "description": "UTF-8 RFC 5545 calendar with CRLF folding and UTC event times. Private data; persist only through explicit user export.",
+            "minLength": 1
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          }
+        }
+      },
+      "CampusCalendarExportResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/CampusCalendarExport"
+              }
+            }
+          }
+        ]
       }
     }
   },
@@ -871,6 +914,61 @@
           }
         }
       ]
+    }
+  },
+  "calendarExport": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusCalendarExport",
+      "operationId": "campusCalendarExport",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; manual holiday adjustments are not inferred. Never persisted or publicly addressable.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusCalendarExportResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-calendar-export-success.json"
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

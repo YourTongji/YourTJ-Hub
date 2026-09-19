@@ -136,10 +136,27 @@ class FakeCampusRepository extends CampusRepository {
   final requested = <String>[];
   final cancellations = <CancelToken>[];
   Completer<CampusDataset>? pendingProfile;
+  Completer<CampusCalendarExport>? pendingExport;
+  Object? exportError;
   Object? messageError;
   Object? confirmError;
   int confirmed = 0;
   String? unbound;
+  @override
+  Future<CampusCalendarExport> exportCalendar({
+    CancelToken? cancelToken,
+  }) async {
+    requested.add('calendar-export');
+    if (cancelToken != null) cancellations.add(cancelToken);
+    if (exportError != null) throw exportError!;
+    if (pendingExport != null) return pendingExport!.future;
+    return const CampusCalendarExport(
+      filename: 'yourtj-courses-2026-09-14.ics',
+      content: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+      eventCount: 2,
+    );
+  }
+
   @override
   Future<CampusStatus> status({CancelToken? cancelToken}) async {
     if (cancelToken != null) cancellations.add(cancelToken);
