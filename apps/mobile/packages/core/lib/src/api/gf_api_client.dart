@@ -60,6 +60,7 @@ class GfApiClient {
 
   Future<T> get<T>(
     String path, {
+    CancelToken? cancelToken,
     Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
     JsonParser<T>? parser,
@@ -67,6 +68,7 @@ class GfApiClient {
     final response = await _request(
       () => dio.get(
         path,
+        cancelToken: cancelToken,
         queryParameters: queryParameters,
         options: Options(headers: headers),
       ),
@@ -76,6 +78,7 @@ class GfApiClient {
 
   Future<T> post<T>(
     String path, {
+    CancelToken? cancelToken,
     Object? body,
     Map<String, dynamic>? headers,
     JsonParser<T>? parser,
@@ -83,6 +86,7 @@ class GfApiClient {
     final response = await _request(
       () => dio.post(
         path,
+        cancelToken: cancelToken,
         data: body,
         options: Options(headers: headers),
       ),

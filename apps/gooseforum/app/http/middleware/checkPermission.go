@@ -65,19 +65,19 @@ func CheckWritableAccountAllowPendingActivation(c *gin.Context) {
 func checkWritableAccount(c *gin.Context, allowPendingActivation bool) {
 	userId := c.GetUint64("userId")
 	if userId == 0 {
-		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
+		abortGuardFailure(c, http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		c.Abort()
 		return
 	}
 
 	user, ok := userservice.GetUserInfo(userId)
 	if !ok {
-		c.JSON(http.StatusForbidden, component.FailDataCode(component.MessagePermissionResolveFailed, nil))
+		abortGuardFailure(c, http.StatusForbidden, component.FailDataCode(component.MessagePermissionResolveFailed, nil))
 		c.Abort()
 		return
 	}
 	if user.IsFrozen == users.StatusFrozen {
-		c.JSON(http.StatusForbidden, component.FailDataCode(
+		abortGuardFailure(c, http.StatusForbidden, component.FailDataCode(
 			component.MessagePermissionUserFrozen,
 			component.MessageParams{
 				"action":     "写入",
@@ -90,7 +90,7 @@ func checkWritableAccount(c *gin.Context, allowPendingActivation bool) {
 	if !allowPendingActivation {
 		securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
 		if securityConfig.EnableEmailVerification && user.IsActivated == users.ActivationPending {
-			c.JSON(http.StatusForbidden, component.FailDataCode(
+			abortGuardFailure(c, http.StatusForbidden, component.FailDataCode(
 				component.MessagePermissionEmailRequired,
 				component.MessageParams{
 					"action":     "写入",

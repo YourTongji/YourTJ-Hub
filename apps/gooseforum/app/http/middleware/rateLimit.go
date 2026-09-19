@@ -28,23 +28,25 @@ const (
 	// RateLimitTotpSetup/Enable/Disable 限流 TOTP 账户管理中的凭据校验入口：
 	// setup 校验账户密码、enable/disable 校验 6 位验证码（disable 也接受密码），
 	// 未限流时会话窃取者可无限暴力破解，配额对齐 password.change。
-	RateLimitTotpSetup     = "totp.setup"
-	RateLimitTotpEnable    = "totp.enable"
-	RateLimitTotpDisable   = "totp.disable"
-	RateLimitTopicWrite    = "topic.write"
-	RateLimitTopicStatus   = "topic.status"
-	RateLimitPostCreate    = "post.create"
-	RateLimitPostUpdate    = "post.update"
-	RateLimitPostDelete    = "post.delete"
-	RateLimitMessageSend   = "message.send"
-	RateLimitUpload        = "upload"
-	RateLimitInteract      = "interact"
-	RateLimitLLMSIndex     = "llms.index"
-	RateLimitLLMSFull      = "llms.full"
-	RateLimitLLMSTopic     = "llms.topic"
-	RateLimitMCPAuth       = "mcp.auth"
-	RateLimitCourseCatalog = "course.catalog"
-	RateLimitStickerList   = "sticker.list"
+	RateLimitTotpSetup       = "totp.setup"
+	RateLimitTotpEnable      = "totp.enable"
+	RateLimitTotpDisable     = "totp.disable"
+	RateLimitTopicWrite      = "topic.write"
+	RateLimitTopicStatus     = "topic.status"
+	RateLimitPostCreate      = "post.create"
+	RateLimitPostUpdate      = "post.update"
+	RateLimitPostDelete      = "post.delete"
+	RateLimitMessageSend     = "message.send"
+	RateLimitUpload          = "upload"
+	RateLimitInteract        = "interact"
+	RateLimitLLMSIndex       = "llms.index"
+	RateLimitLLMSFull        = "llms.full"
+	RateLimitLLMSTopic       = "llms.topic"
+	RateLimitMCPAuth         = "mcp.auth"
+	RateLimitCourseCatalog   = "course.catalog"
+	RateLimitCampusRead      = "campus.read"
+	RateLimitCampusAuthorize = "campus.authorize"
+	RateLimitStickerList     = "sticker.list"
 	// RateLimitWikiWebhook wiki GitHub webhook（公开、无 JWT）：限流防
 	// 未认证调用方用 5MiB 请求体刷 HMAC 计算（CPU DoS），60s 窗口 per-IP。
 	RateLimitWikiWebhook   = "wiki.webhook"
@@ -153,7 +155,7 @@ func applyRateLimit(c *gin.Context, action string) {
 			"window", rule.WindowSeconds,
 		)
 		c.Header("Retry-After", strconv.Itoa(seconds))
-		c.AbortWithStatusJSON(http.StatusTooManyRequests, component.FailDataCode(
+		abortGuardFailure(c, http.StatusTooManyRequests, component.FailDataCode(
 			component.MessageRateLimited,
 			component.MessageParams{
 				"action":            action,

@@ -1,0 +1,22 @@
+{
+  "code": 0,
+  "result": {
+    "rules": {
+      "holidays": [
+        {
+          "name": "国庆节",
+          "startDate": "2026-10-01",
+          "endDate": "2026-10-07"
+        }
+      ],
+      "moves": [
+        {
+          "name": "国庆补课",
+          "fromDate": "2026-10-06",
+          "toDate": "2026-09-20"
+        }
+      ]
+    },
+    "warnings": []
+  }
+}

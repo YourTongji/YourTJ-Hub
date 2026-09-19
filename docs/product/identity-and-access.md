@@ -322,3 +322,7 @@ support.
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,
   recovery codes hashed, codes shown exactly once during setup).
+
+## Official campus connection
+
+`Current`: [My campus](campus.md) supports a private, bidirectionally unique Tongji identity binding with explicit confirmation, unbind and atomic replacement. This is separate from forum OAuth login. School access/refresh tokens are server-side encrypted credentials; expired refresh authorization reserves the identity and prompts reauthorization. Forum account closure clears campus credentials before invalidating the account.

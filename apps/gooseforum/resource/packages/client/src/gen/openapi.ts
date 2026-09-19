@@ -4,6 +4,230 @@
  */
 
 export interface paths {
+    "/api/campus/calendar-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * campusCalendarRules
+         * @description Authenticated read of administrator-confirmed date rules; includes a content revision. No private school data.
+         */
+        get: operations["campusCalendarRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/campus/calendar-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * adminCampusCalendarRules
+         * @description SiteManager required. Read the current published rules and revision.
+         */
+        get: operations["adminCampusCalendarRules"];
+        put?: never;
+        /**
+         * adminSaveCampusCalendarRules
+         * @description SiteManager required. Validate and atomically replace all rules; revision must match the latest read (409 otherwise). Dates are explicit, holiday ranges inclusive. Each move removes the original occurrence and replaces the actual destination day with the source day timetable, preserving source teaching weeks. Reject overlapping holidays, duplicate sources/targets, chains/cycles and targets on holidays. AI parse does not save.
+         */
+        post: operations["adminSaveCampusCalendarRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/campus/calendar-rules/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * adminParseCampusCalendarRules
+         * @description SiteManager required. Parse only submitted notice and explicit year through the AI summary provider (admin config, then deployment fallback). Independent of the public course-summary display switch; shares the global generation quota and 30 second deadline. No private campus data sent. Strict JSON and date validation; draft/warnings returned without persisting. User must review, edit and save explicitly.
+         */
+        post: operations["adminParseCampusCalendarRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/calendar-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * campusCalendarExport
+         * @description Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; confirmed holiday rules apply by default, preserving original teaching weeks for makeup dates. No unconfirmed holiday is inferred. Never persisted or publicly addressable.
+         */
+        get: operations["campusCalendarExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * campusStatus
+         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.
+         */
+        get: operations["campusStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/tongji/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * campusStart
+         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.
+         */
+        post: operations["campusStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/tongji/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Finish Tongji authorization and return to identity confirmation
+         * @description Validates session-bound state, S256, nonce, RS256 ID token and student identifier. Consumes the authorization attempt once. Every handled callback redirects to a clean campus URL with no-referrer and private, no-store, including missing/invalid/revoked sessions, non-writable accounts, rate limits, disabled configuration and upstream failures. Rejected guards never exchange the code.
+         */
+        get: operations["campusCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/tongji/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * campusConfirm
+         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.
+         */
+        post: operations["campusConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/tongji/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * campusUnbind
+         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.
+         */
+        post: operations["campusUnbind"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/messages/{messageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one campus message
+         * @description Private plain-text message body and explicit links. Requires the message to appear in the current user list. No automatic remote media loads. A 409 campus.messageAuthorizationRequired response requests updated school authorization, preserving the current binding.
+         */
+        get: operations["campusMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/campus/data/{dataset}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * campusDataset
+         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. The profile dataset exposes only the authenticated student’s own name for a greeting. Academic datasets can be loaded on demand.
+         */
+        get: operations["campusDataset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/login": {
         parameters: {
             query?: never;
@@ -363,9 +587,10 @@ export interface paths {
          * @description First-party mobile WebView handoff. Requires an explicit valid human Bearer session and
          *     at least one admin permission (admin), moderation-workbench access (moderation), or the
          *     independent CourseManager/Admin permission (courseManagement and courseReviews).
+         *     The campus target requires only a live human session and redirects to /campus.
          *     Cookie-only authentication is rejected. Installs the same
          *     session as an HttpOnly, SameSite=Lax cookie (Secure on HTTPS deployments), then redirects
-         *     exclusively to /admin, /moderation, /moderation/courses or /moderation/course-reviews.
+         *     exclusively to /admin, /moderation, /moderation/courses, /moderation/course-reviews or /campus.
          *     Arbitrary redirect targets are never accepted; no token appears in the URL,
          *     response body, or New-Token header. Responses are no-store. Normal admin role, revocation,
          *     writable-account, and CSRF checks continue to apply to all subsequent operations.
@@ -6232,6 +6457,141 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CampusBinding: {
+            maskedId: string;
+            /**
+             * Format: date-time
+             * @description Time the current official identity was bound. Replacing the identity resets this time; renewing authorization for the same identity preserves it.
+             */
+            boundAt: string;
+            revision: string;
+            needsAuthorization: boolean;
+        };
+        CampusCandidate: {
+            maskedId: string;
+            /** @enum {string} */
+            mode: "bind" | "replace" | "reauthorize";
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CampusStatus: {
+            enabled: boolean;
+            binding: components["schemas"]["CampusBinding"] | null;
+            candidate: components["schemas"]["CampusCandidate"] | null;
+        };
+        CampusMetric: {
+            label: string;
+            value: string;
+            unit: string;
+        };
+        CampusPoint: {
+            label: string;
+            value: number;
+        };
+        CampusEvent: {
+            name: string;
+            teacher: string;
+            room: string;
+            campus: string;
+            credits: string;
+            day: number;
+            start: number;
+            end: number;
+            weeks: number[];
+        };
+        CampusMessageSummary: {
+            id: string;
+            title: string;
+            publisher: string;
+            publishedAt: string;
+        };
+        CampusMessageLink: {
+            label: string;
+            /** Format: uri */
+            url: string;
+        };
+        CampusMessageDetail: {
+            id: string;
+            title: string;
+            publisher: string;
+            publishedAt: string;
+            /** @description Plain text; never execute this as HTML. */
+            content: string;
+            links: components["schemas"]["CampusMessageLink"][];
+        };
+        CampusMessageDetailResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CampusMessageDetail"];
+        };
+        CampusHoliday: {
+            name: string;
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+        };
+        CampusCalendarMove: {
+            name: string;
+            /** Format: date */
+            fromDate: string;
+            /** Format: date */
+            toDate: string;
+        };
+        CampusCalendarRules: {
+            holidays: components["schemas"]["CampusHoliday"][];
+            moves: components["schemas"]["CampusCalendarMove"][];
+        };
+        CampusCalendarSettings: {
+            revision: string;
+            rules: components["schemas"]["CampusCalendarRules"];
+        };
+        CampusCalendarDraft: {
+            rules: components["schemas"]["CampusCalendarRules"];
+            warnings: string[];
+        };
+        CampusCalendarParseRequest: {
+            year: number;
+            text: string;
+        };
+        CampusCalendarSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["CampusCalendarSettings"];
+        };
+        CampusCalendarDraftResponse: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["CampusCalendarDraft"];
+        };
+        CampusCalendarExport: {
+            filename: string;
+            /** @description UTF-8 RFC 5545 calendar with CRLF folding and UTC event times. Private data; persist only through explicit user export. */
+            content: string;
+            eventCount: number;
+        };
+        CampusCalendarExportResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CampusCalendarExport"];
+        };
+        CampusDataset: {
+            /** @enum {string} */
+            key: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile";
+            /** @enum {string} */
+            status: "ready" | "empty" | "unavailable";
+            /** Format: date-time */
+            updatedAt: string;
+            metrics: components["schemas"]["CampusMetric"][];
+            series: components["schemas"]["CampusPoint"][];
+            events: components["schemas"]["CampusEvent"][];
+            columns: string[];
+            rows: string[][];
+            /** @description Only populated for messages; newest publication first. IDs are decimal strings. */
+            messages?: components["schemas"]["CampusMessageSummary"][];
+        };
+        CampusStatusResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CampusStatus"];
+        };
+        CampusDatasetResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CampusDataset"];
+        };
         SearchMaintenanceRequest: {
             /** @enum {string} */
             index: "all" | "topics" | "users" | "categories" | "courses" | "wiki_pages";
@@ -11285,6 +11645,520 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    campusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarSettingsResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCampusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarSettingsResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveCampusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampusCalendarSettings"];
+            };
+        };
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarSettingsResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminParseCampusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampusCalendarParseRequest"];
+            };
+        };
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarDraftResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusCalendarExport: {
+        parameters: {
+            query?: {
+                /** @description Apply the latest administrator-confirmed holiday and teaching-date rules. False exports the unadjusted school timetable. */
+                applyAdjustments?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarExportResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "bind" | "replace" | "reauthorize";
+                };
+            };
+        };
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        code: 0;
+                        result: {
+                            /** Format: uri */
+                            url: string;
+                        };
+                    };
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusCallback: {
+        parameters: {
+            query?: {
+                state?: string;
+                code?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to /campus with success or failure status; no credential in Location. */
+            303: {
+                headers: {
+                    Location?: string;
+                    "Cache-Control"?: "private, no-store";
+                    "Referrer-Policy"?: "no-referrer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    campusConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccess"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusUnbind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccess"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                messageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusMessageDetailResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful private response; Cache-Control: private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusDatasetResponse"];
+                };
+            };
+            /** @description Missing, invalid or revoked forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -11789,7 +12663,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Fixed workspace destination; each target checks its existing permissions. */
-                target?: "admin" | "moderation" | "courseManagement" | "courseReviews";
+                target?: "admin" | "moderation" | "courseManagement" | "courseReviews" | "campus";
             };
             header?: never;
             path?: never;

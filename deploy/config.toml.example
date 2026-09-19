@@ -179,3 +179,11 @@ api_key = ""
 model = "qwen3.6-flash-2026-04-16"
 temperature = 0.3
 max_tokens = 1024
+
+# Private campus connection; all empty disables it. Never put user tokens here.
+[campus]
+clientId = ""
+clientSecret = ""
+redirectUri = ""
+encryptionKey = ""
+identityKey = ""

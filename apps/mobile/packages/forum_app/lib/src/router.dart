@@ -14,6 +14,7 @@ import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/campus/campus_page.dart';
+import 'pages/campus/campus_explore_page.dart';
 import 'pages/content/content_page.dart';
 import 'pages/category/category_page.dart';
 import 'pages/courses/catalog_page.dart';
@@ -390,6 +391,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/moderation/course-reviews',
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
+    ),
+    GoRoute(path: '/campus/official', redirect: (_, _) => '/campus'),
+    GoRoute(
+      path: '/campus/explore',
+      builder: (_, _) => const CampusExplorePage(),
     ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),

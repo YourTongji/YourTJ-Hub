@@ -46,6 +46,7 @@ export const pageComponents = [
   'publish.index',
   'search.index',
   'campus.map',
+  'campus.home',
   'course.index',
   'course.detail',
   'course.reviewModeration',
@@ -78,6 +79,7 @@ export interface PagePayloadMap {
   'publish.index': PublishPageProps
   'search.index': SearchPageProps
   'campus.map': Record<string, never>
+  'campus.home': Record<string, never>
   'course.index': CourseCatalogPageProps
   'course.detail': CourseDetailPageProps
   'course.reviewModeration': CourseReviewModerationPageProps

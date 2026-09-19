@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：308
-- /api JSON 路由：244，已入契约：245（100%），已知未覆盖：0
-- 非 API 排除路由：63
+- 快照路由总数：321
+- /api JSON 路由：256，已入契约：257（100%），已知未覆盖：0
+- 非 API 排除路由：64
 
-## 已覆盖（245）
+## 已覆盖（257）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -19,6 +19,7 @@
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
 | GET | `/api/admin/badges` | `adminListBadges` |
+| GET | `/api/admin/campus/calendar-rules` | `adminCampusCalendarRules` |
 | GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
 | GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
 | GET | `/api/admin/data/import/tasks` | `adminListImportTasks` |
@@ -50,6 +51,12 @@
 | GET | `/api/admin/wiki/sync/webhook-secret` | `getWikiWebhookSecret` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
 | GET | `/api/auth/mobile-web-session` | `mobileWebSession` |
+| GET | `/api/campus/calendar-export` | `campusCalendarExport` |
+| GET | `/api/campus/calendar-rules` | `campusCalendarRules` |
+| GET | `/api/campus/data/:dataset` | `campusDataset` |
+| GET | `/api/campus/messages/:messageId` | `campusMessage` |
+| GET | `/api/campus/status` | `campusStatus` |
+| GET | `/api/campus/tongji/callback` | `campusCallback` |
 | GET | `/api/forum/courses` | `listCourses` |
 | GET | `/api/forum/courses/:courseId` | `getCourse` |
 | GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
@@ -97,6 +104,8 @@
 | POST | `/api/admin/ai-summary-models` | `adminListAiSummaryModels` |
 | POST | `/api/admin/badge-delete` | `adminDeleteBadge` |
 | POST | `/api/admin/badge-save` | `adminSaveBadge` |
+| POST | `/api/admin/campus/calendar-rules` | `adminSaveCampusCalendarRules` |
+| POST | `/api/admin/campus/calendar-rules/parse` | `adminParseCampusCalendarRules` |
 | POST | `/api/admin/category-delete` | `adminCategoryDelete` |
 | POST | `/api/admin/category-list` | `adminCategoryList` |
 | POST | `/api/admin/category-moderator-add` | `adminCategoryModeratorAdd` |
@@ -164,6 +173,9 @@
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
 | POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
 | POST | `/api/auth/totp/verify` | `verifyTotpLogin` |
+| POST | `/api/campus/tongji/confirm` | `campusConfirm` |
+| POST | `/api/campus/tongji/start` | `campusStart` |
+| POST | `/api/campus/tongji/unbind` | `campusUnbind` |
 | POST | `/api/change-password` | `changePassword` |
 | POST | `/api/forgot-password` | `forgotPassword` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |
@@ -263,7 +275,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，63）
+## 排除（非 JSON API，64）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -278,6 +290,7 @@
 | GET | `/assets/*filepath` | go:embed 静态资源（StaticFS 展开 GET+HEAD） |
 | GET | `/c/:slug/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/c/:slug/:id/l/:sort` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/campus` | SSR campus shell; private data uses controlled /api/campus operations |
 | GET | `/courses` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/courses/:courseId` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/drafts` | SSR 页面（GoHTML 三模渲染），非 JSON API |

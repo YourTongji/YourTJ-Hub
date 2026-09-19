@@ -20,6 +20,7 @@ class RootSurface extends ConsumerWidget {
     this.toolbar,
     this.toolbarHeight = 0,
     this.onAction,
+    this.showComposeAction = true,
     this.actionLabel,
     this.actionSymbol = 'plus',
   });
@@ -31,6 +32,7 @@ class RootSurface extends ConsumerWidget {
   final Widget? toolbar;
   final double toolbarHeight;
   final VoidCallback? onAction;
+  final bool showComposeAction;
   final String? actionLabel;
   final String actionSymbol;
 
@@ -114,25 +116,27 @@ class RootSurface extends ConsumerWidget {
                   ),
                 ),
               ),
-              AnimatedPositioned(
-                duration: duration,
-                curve: Curves.easeOut,
-                right: 16,
-                bottom: (hidden ? 16 : 72) + bottom,
-                child: FloatingActionButton(
-                  heroTag: null,
-                  tooltip:
-                      actionLabel ?? AppLocalizations.of(context).navPublish,
-                  onPressed:
-                      onAction ??
-                      () => showComposeMenu(context, bottom: hidden ? 16 : 72),
-                  child: GfSymbol(
-                    actionSymbol,
-                    color: colors.primaryContent,
-                    size: 28,
+              if (showComposeAction)
+                AnimatedPositioned(
+                  duration: duration,
+                  curve: Curves.easeOut,
+                  right: 16,
+                  bottom: (hidden ? 16 : 72) + bottom,
+                  child: FloatingActionButton(
+                    heroTag: null,
+                    tooltip:
+                        actionLabel ?? AppLocalizations.of(context).navPublish,
+                    onPressed:
+                        onAction ??
+                        () =>
+                            showComposeMenu(context, bottom: hidden ? 16 : 72),
+                    child: GfSymbol(
+                      actionSymbol,
+                      color: colors.primaryContent,
+                      size: 28,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
