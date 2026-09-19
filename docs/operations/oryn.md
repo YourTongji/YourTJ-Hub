@@ -16,7 +16,7 @@ Repair publication additionally requires sandboxed application validation and an
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/95ab55b7870860562a4848dbce536ec72cbe2fba)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/f46317be263a6973f4c91320bddcfa9146d488c5)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
@@ -25,9 +25,12 @@ work or side effects; repeated settlement cannot downgrade terminal work.
 
 Manual runs use the selected workflow commit. Issue/PR events load the current default branch (`dev`),
 never the contributor's PR head as executable workflow or operator policy. The model sees target source
-as evidence. The model is `glm-5.3-flash` through the official Zhipu Coding Plan endpoint, with
-`reasoning_effort=max`, thinking enabled, image input, and a configured 1,000,000-token context window.
-The context setting is not a one-million-token capacity benchmark. The default task budget is 1800
+as evidence. The model is `deepseek-v4.1-flash` through OpenCode Go, with
+`reasoning_effort=max` and thinking enabled. The conservative profile uses 128,000 context tokens,
+32,768 output tokens and text input; it does not enable image input. Oryn identifies itself with its
+own User-Agent and a fresh `x-opencode-session` per Core invocation, reused across tool calls and
+report retries. See [OpenCode Go's client requirements](https://opencode.ai/docs/go/).
+The default task budget is 1800
 seconds, manually overridable within 10–3000 seconds.
 
 PR review receives change statistics and a complete paged file inventory. Core reads per-file diffs on
@@ -103,11 +106,14 @@ In YourTJ-Hub → Settings → Secrets and variables → Actions, add:
 | --- | --- | --- |
 | Variable | `ORYN_APP_CLIENT_ID` | The App Client ID (`Iv...`), not its installation ID |
 | Secret | `ORYN_APP_PRIVATE_KEY` | Entire generated PEM private key |
-| Secret | `ORYN_GLM_API_KEY` | Zhipu Coding Plan API key; another repository's secret is not inherited |
+| Secret | `ORYN_OPENCODE_GO_API_KEY` | OpenCode Go API key; another repository's secret is not inherited |
 
-Optional overrides: `ORYN_MODEL` (default `oryn/glm-5.3-flash`), `ORYN_BASE_URL`
-(default `https://open.bigmodel.cn/api/coding/paas/v4`), `ORYN_TASK_TIMEOUT_SECONDS` (default 1800),
+Optional overrides: `ORYN_MODEL` (default `opencode-go/deepseek-v4.1-flash`), `ORYN_BASE_URL`
+(default `https://opencode.ai/zen/go/v1`), `ORYN_TASK_TIMEOUT_SECONDS` (default 1800),
 `ORYN_REQUEST_TIMEOUT_SECONDS` (optional 1–3000 seconds; defaults to the remaining task budget). The workflow fixes reasoning at `max`.
+The SDK appends `/chat/completions` to the base URL. If `ORYN_MODEL` or `ORYN_BASE_URL` variables
+already exist, update or remove them: they override the workflow defaults. Keep the Go key in a
+Repository secret, not a Variable or an Environment secret (these jobs select no Environment).
 The bot login is derived from the App token action's slug output; no manual login variable is needed.
 
 Leave automation variables unset during preflight. From Actions → Oryn → Run workflow, retain
@@ -146,10 +152,8 @@ The operator controls token grants and policy; text in issues/PRs cannot enable 
 Disable the event/schedule execution variables to stop new automatic work; use the item's stop command
 for an active task. Preserve receipts when rotating keys or upgrading the runtime.
 
-The deployed App passed [live preflight](https://github.com/YourTongji/YourTJ-Hub/actions/runs/34367999977).
-A [real GLM review and publication](https://github.com/YourTongji/YourTJ-Hub/actions/runs/34368176030)
-completed with 20 tool calls and explicit max reasoning, producing a Chinese source review, Mermaid
-and four advisory labels on issue #594. This review did not execute repair validation.
+Model access must be verified with a real, non-publishing review after configuring the Go secret.
+Preflight and deterministic runtime fixtures do not establish live provider access.
 
 ## Failure diagnostics and request budgets
 

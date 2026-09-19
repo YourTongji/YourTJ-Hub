@@ -20,7 +20,7 @@ on:
     secrets:
       ORYN_APP_PRIVATE_KEY:
         required: true
-      ORYN_GLM_API_KEY:
+      ORYN_OPENCODE_GO_API_KEY:
         required: true
 permissions:
   contents: read
@@ -111,8 +111,8 @@ jobs:
         run: bun script/run-workflow.ts
         env:
           JOB_FILE: .artifacts/plan/${{ inputs.slug }}/jobs/${{ inputs.number }}.json
-          ORYN_API_KEY: ${{ secrets.ORYN_GLM_API_KEY }}
-          ORYN_BASE_URL: ${{ vars.ORYN_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          ORYN_API_KEY: ${{ secrets.ORYN_OPENCODE_GO_API_KEY }}
+          ORYN_BASE_URL: ${{ vars.ORYN_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
           ORYN_VARIANT: max
           ORYN_REQUEST_TIMEOUT_SECONDS: ${{ vars.ORYN_REQUEST_TIMEOUT_SECONDS }}
           ORYN_READ_TOKEN: ${{ steps.target.outputs.token }}
