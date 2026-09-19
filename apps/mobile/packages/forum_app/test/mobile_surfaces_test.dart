@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
-import 'package:forum_app/src/pages/campus/campus_page.dart';
+import 'package:forum_app/src/pages/campus/campus_explore_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -90,7 +90,10 @@ void main() {
           initialLocation: '/search',
           routes: [
             GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
-            GoRoute(path: '/campus', builder: (_, _) => const CampusPage()),
+            GoRoute(
+              path: '/campus',
+              builder: (_, _) => const CampusExplorePage(),
+            ),
             GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
             GoRoute(
               path: '/notifications',

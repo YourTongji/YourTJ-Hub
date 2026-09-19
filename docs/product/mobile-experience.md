@@ -235,11 +235,19 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 ## Campus and sign-in
 
-- `Current`: Campus previews real reviewed courses and links to the course catalog, scheduler and
-  Wiki. It does not display an official personal calendar or claim an enrollment integration.
-  The three tools share semantic icon tiles with search discovery and stack into rows on narrow
-  screens or with large text. Course previews and the planning action have separate inset surfaces;
-  an empty preview still provides access to the course catalog.
+- `Current`: Campus opens a native private overview with the school teaching week, time-aware
+  greeting, recent notices and today's courses. Weekly timetable, academic records and charts,
+  calendars, notice bodies and identity management use the existing campus API. GPA is loaded only
+  on the academic tab. The timetable shares the planner renderer without its editing or storage.
+  Public course previews, scheduler and Wiki links live under Explore campus and remain shared with
+  search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+- `Current`: school authorization uses the current native forum session in a restricted WebView.
+  The initial Bearer header goes only to the first-party session handoff; school navigation receives
+  no native credential. The server callback returns to a native confirmation, including resuming
+  a notice after a permission update. Private records stay in page memory; leaving the campus tab,
+  backgrounding or switching sessions drops the view and cancels requests.
+- `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
+  cover navigation policy, session handoff, confirmation, stale responses and native rendering.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action

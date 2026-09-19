@@ -246,3 +246,7 @@ final contentRepositoryProvider = Provider<ContentRepository>(
 final stickerLibraryProvider = Provider<StickerLibrary>((ref) {
   return StickerLibrary(StickerRepository(ref.watch(apiClientProvider)));
 });
+
+final campusRepositoryProvider = Provider<CampusRepository>((ref) {
+  return CampusRepository(ref.watch(apiClientProvider));
+});

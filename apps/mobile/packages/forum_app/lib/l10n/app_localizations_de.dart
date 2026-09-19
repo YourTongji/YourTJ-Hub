@@ -1207,7 +1207,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navCampus => 'Campus';
 
   @override
-  String get campusTitle => 'Dein Campus, vernetzt';
+  String get campusTitle => 'Mein Campus';
 
   @override
   String get campusSubtitle =>
@@ -2163,4 +2163,149 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusOfficialSubtitle =>
       'Tongji verbinden: Stundenplan, Noten und Mitteilungen';
+
+  @override
+  String get campusToday => 'Heute';
+
+  @override
+  String get campusTimetable => 'Mein Stundenplan';
+
+  @override
+  String get campusAcademics => 'Studienleistungen';
+
+  @override
+  String get campusMessages => 'Campus-Mitteilungen';
+
+  @override
+  String get campusCalendars => 'Semesterkalender';
+
+  @override
+  String get campusConnection => 'Verbindung';
+
+  @override
+  String get campusExplore => 'Campus entdecken';
+
+  @override
+  String get campusTodayCourses => 'Heutige Kurse';
+
+  @override
+  String get campusNoClasses => 'Heute keine Kurse. Genieße den Tag.';
+
+  @override
+  String get campusNoNotices => 'Noch keine Mitteilungen';
+
+  @override
+  String get campusAllNotices => 'Alle Mitteilungen';
+
+  @override
+  String get campusBind => 'Tongji-Identität verbinden';
+
+  @override
+  String get campusReauthorize => 'Hochschulzugriff erneuern';
+
+  @override
+  String get campusReplace => 'Verknüpfte Identität ändern';
+
+  @override
+  String get campusUnbind => 'Verknüpfung aufheben';
+
+  @override
+  String get campusUnbindBody =>
+      'Beim Trennen werden die Campus-Zugangsdaten entfernt und die Identität freigegeben. Für erneuten Zugriff bitte neu verbinden.';
+
+  @override
+  String get campusConfirmBinding => 'Verbindung bestätigen';
+
+  @override
+  String get campusConfirmUpdate => 'Erneuerten Zugriff bestätigen';
+
+  @override
+  String get campusConfirmBody =>
+      'Die Hochschulanmeldung ist abgeschlossen. Identität prüfen und bestätigen. Bis dahin bleibt die bisherige Verbindung erhalten.';
+
+  @override
+  String get campusPrivacy =>
+      'Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.';
+
+  @override
+  String get campusDisabled => 'Die Campus-Verbindung ist hier nicht aktiviert';
+
+  @override
+  String get campusUnavailable =>
+      'Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusNoData => 'Noch keine Einträge';
+
+  @override
+  String get campusAuthRequired =>
+      'Bitte den Hochschulzugriff erneuern. Die Identität bleibt verknüpft.';
+
+  @override
+  String get campusIdentityConflict =>
+      'Diese Identität ist bereits verknüpft oder die Verbindung wurde geändert. Bitte aktualisieren.';
+
+  @override
+  String get campusAuthExpired =>
+      'Dieser Anmeldeversuch ist abgelaufen. Bitte erneut starten.';
+
+  @override
+  String get campusMessageUnavailable =>
+      'Diese Mitteilung ist nicht verfügbar. Bitte die Liste aktualisieren.';
+
+  @override
+  String get campusMorning => 'Guten Morgen';
+
+  @override
+  String get campusNoon => 'Guten Tag';
+
+  @override
+  String get campusAfternoon => 'Guten Nachmittag';
+
+  @override
+  String get campusEvening => 'Guten Abend';
+
+  @override
+  String get campusNight => 'Noch wach?';
+
+  @override
+  String get campusWish1 =>
+      'Möge deine Inspiration stabiler sein als das Campus-WLAN.';
+
+  @override
+  String get campusWish2 =>
+      'Das Glück ist unterwegs. Vielleicht steht es gerade an einer roten Ampel.';
+
+  @override
+  String get campusWish3 =>
+      'Warum war das Mathebuch traurig? Es hatte zu viele Probleme.';
+
+  @override
+  String get campusWish4 =>
+      'Lass dir Zeit. Auch Bäume wachsen nicht an einem Tag.';
+
+  @override
+  String get campusAnotherWish => 'Ein anderer Gedanke';
+
+  @override
+  String get campusWeekUnknown => 'Semesterwoche nicht verfügbar';
+
+  @override
+  String get campusCreditProgress => 'Studienfortschritt';
+
+  @override
+  String get campusGradeTrend => 'Notendurchschnitt je Semester';
+
+  @override
+  String get campusCet => 'CET-Ergebnisse';
+
+  @override
+  String get campusCourses => 'Kursleistungen';
+
+  @override
+  String get campusSchoolLogin => 'Hochschulanmeldung';
+
+  @override
+  String get campusUpstreamGaps =>
+      'Sport-, Gesundheits- und Kursänderungsdaten sind nicht verfügbar. Diese App hat keinen Zugriff auf Prüfungsdaten.';
 }

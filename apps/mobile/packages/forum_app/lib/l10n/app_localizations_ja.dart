@@ -1182,7 +1182,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get navCampus => 'キャンパス';
 
   @override
-  String get campusTitle => 'キャンパスとつながる';
+  String get campusTitle => 'マイキャンパス';
 
   @override
   String get campusSubtitle => '授業を探し、時間割を組み、キャンパスの知識を共有しましょう。';
@@ -2083,4 +2083,140 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusOfficialSubtitle => '同済アカウントを連携して、時間割・成績・大学のお知らせを確認';
+
+  @override
+  String get campusToday => '今日';
+
+  @override
+  String get campusTimetable => '時間割';
+
+  @override
+  String get campusAcademics => '学業記録';
+
+  @override
+  String get campusMessages => '大学のお知らせ';
+
+  @override
+  String get campusCalendars => '学年暦';
+
+  @override
+  String get campusConnection => '連携';
+
+  @override
+  String get campusExplore => 'キャンパスを探索';
+
+  @override
+  String get campusTodayCourses => '今日の授業';
+
+  @override
+  String get campusNoClasses => '今日は授業がありません。よい一日を。';
+
+  @override
+  String get campusNoNotices => 'お知らせはありません';
+
+  @override
+  String get campusAllNotices => 'すべてのお知らせ';
+
+  @override
+  String get campusBind => '同済のアカウントを連携';
+
+  @override
+  String get campusReauthorize => '大学の認証を更新';
+
+  @override
+  String get campusReplace => '連携アカウントを変更';
+
+  @override
+  String get campusUnbind => '連携解除';
+
+  @override
+  String get campusUnbindBody => '連携解除により大学へのアクセス情報を削除します。利用を再開するには再度連携してください。';
+
+  @override
+  String get campusConfirmBinding => '連携を確定';
+
+  @override
+  String get campusConfirmUpdate => '認証の更新を確定';
+
+  @override
+  String get campusConfirmBody =>
+      '大学の認証が完了しました。アカウントを確認して確定してください。確定までは元の連携が保持されます。';
+
+  @override
+  String get campusPrivacy =>
+      '一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。';
+
+  @override
+  String get campusDisabled => 'このサイトでは大学連携が有効になっていません';
+
+  @override
+  String get campusUnavailable => '大学のデータを取得できません。後でもう一度お試しください。';
+
+  @override
+  String get campusNoData => '記録はありません';
+
+  @override
+  String get campusAuthRequired => '大学の認証を更新してください。連携は保持されています。';
+
+  @override
+  String get campusIdentityConflict =>
+      'すでに連携されているか、連携状態が変更されました。更新して再試行してください。';
+
+  @override
+  String get campusAuthExpired => '認証の有効期限が切れました。もう一度開始してください。';
+
+  @override
+  String get campusMessageUnavailable => 'このお知らせは利用できません。一覧を更新してください。';
+
+  @override
+  String get campusMorning => 'おはようございます';
+
+  @override
+  String get campusNoon => 'こんにちは';
+
+  @override
+  String get campusAfternoon => 'こんにちは';
+
+  @override
+  String get campusEvening => 'こんばんは';
+
+  @override
+  String get campusNight => '夜も更けました';
+
+  @override
+  String get campusWish1 => 'ひらめきが学内 Wi-Fi より安定しますように。';
+
+  @override
+  String get campusWish2 => '幸運は向かっています。今は信号待ちかもしれません。';
+
+  @override
+  String get campusWish3 => '数学の本が悲しい理由？問題が多すぎるから。';
+
+  @override
+  String get campusWish4 => 'ゆっくりでも大丈夫。木も一日では大きくなりません。';
+
+  @override
+  String get campusAnotherWish => '別のひとこと';
+
+  @override
+  String get campusWeekUnknown => '授業週を取得できません';
+
+  @override
+  String get campusCreditProgress => '単位の進捗';
+
+  @override
+  String get campusGradeTrend => '学期別 GPA';
+
+  @override
+  String get campusCet => 'CET 成績';
+
+  @override
+  String get campusCourses => '授業成績';
+
+  @override
+  String get campusSchoolLogin => '大学の公式ログイン';
+
+  @override
+  String get campusUpstreamGaps =>
+      '体力測定・健康・授業変更のデータは現在利用できません。このアプリは試験情報へのアクセス権限がありません。';
 }

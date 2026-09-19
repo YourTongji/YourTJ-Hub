@@ -23,8 +23,16 @@ import 'admin_navigation.dart';
 /// The complete first-party console shares Web's authorization and forms. The
 /// native session is sent once in a header; no credentials enter URL or script.
 class AdminPage extends ConsumerStatefulWidget {
-  const AdminPage({super.key, this.target = MobileWebTarget.admin});
+  const AdminPage({
+    super.key,
+    this.target = MobileWebTarget.admin,
+    this.campusAuthorizationUrl,
+  });
   final MobileWebTarget target;
+
+  /// Native campus uses this view only for the existing-session handoff and
+  /// official school login. The callback's first-party redirect returns to Dart.
+  final Uri? campusAuthorizationUrl;
   @override
   ConsumerState<AdminPage> createState() => _AdminPageState();
 }
@@ -41,6 +49,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   bool _downloading = false;
   bool _allowPop = false;
   bool _starting = false;
+  bool _schoolStarted = false;
 
   @override
   void initState() {
@@ -64,6 +73,13 @@ class _AdminPageState extends ConsumerState<AdminPage> {
           !_navigation.isSecureOrigin) {
         throw StateError('Unsupported embedded browser origin or platform');
       }
+      final schoolUrl = widget.campusAuthorizationUrl;
+      if (schoolUrl != null &&
+          (widget.target != MobileWebTarget.campus ||
+              !_navigation.isSchoolAuthorization(schoolUrl))) {
+        throw StateError('Invalid school authorization destination');
+      }
+      _schoolStarted = false;
       // A failed previous cleanup is retried before another credential is used.
       await _cleanup.catchError((Object _) {});
       await WebViewCookieManager().clearCookies();
@@ -160,11 +176,40 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   Future<NavigationDecision> _navigate(NavigationRequest request) async {
     final uri = Uri.tryParse(request.url);
     if (uri == null || !mounted) return NavigationDecision.prevent;
-    if (_navigation.isExport(uri)) {
+    if (widget.campusAuthorizationUrl == null && _navigation.isExport(uri)) {
       if (request.isMainFrame) unawaited(_download(uri));
       return NavigationDecision.prevent;
     }
     if (_navigation.isSameOrigin(uri)) {
+      final schoolUrl = widget.campusAuthorizationUrl;
+      if (schoolUrl != null && request.isMainFrame && uri.path == '/campus') {
+        if (!_schoolStarted && uri.query.isEmpty) {
+          _schoolStarted = true;
+          // Do not carry the native Bearer header to the school origin.
+          unawaited(_controller!.loadRequest(schoolUrl));
+        } else if (_schoolStarted &&
+            const [
+              'ready',
+              'failed',
+            ].contains(uri.queryParameters['authorization'])) {
+          setState(() => _allowPop = true);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(
+                context,
+              ).pop(uri.queryParameters['authorization'] == 'ready');
+            }
+          });
+        }
+        return NavigationDecision.prevent;
+      }
+      if (schoolUrl != null &&
+          !const [
+            '/api/auth/mobile-web-session',
+            '/api/campus/tongji/callback',
+          ].contains(uri.path)) {
+        return NavigationDecision.prevent;
+      }
       if (uri.path == '/login') {
         _fail();
         return NavigationDecision.prevent;
@@ -177,7 +222,8 @@ class _AdminPageState extends ConsumerState<AdminPage> {
         _navigation.isSchoolOrigin(uri)) {
       return NavigationDecision.navigate;
     }
-    if (request.isMainFrame &&
+    if (widget.campusAuthorizationUrl == null &&
+        request.isMainFrame &&
         ['https', 'http', 'mailto'].contains(uri.scheme)) {
       // External pages never inherit cookies or the initial Bearer header.
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -251,7 +297,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   }
 
   String _title(AppLocalizations l10n) => switch (widget.target) {
-    MobileWebTarget.campus => l10n.navCampus,
+    MobileWebTarget.campus =>
+      widget.campusAuthorizationUrl == null
+          ? l10n.navCampus
+          : l10n.campusSchoolLogin,
     MobileWebTarget.admin => l10n.profileAdmin,
     MobileWebTarget.moderation => l10n.profileModeration,
     MobileWebTarget.courseManagement => l10n.coursesManagement,
@@ -401,7 +450,9 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                l10n.adminUnavailable,
+                                widget.campusAuthorizationUrl == null
+                                    ? l10n.adminUnavailable
+                                    : l10n.campusAuthExpired,
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
