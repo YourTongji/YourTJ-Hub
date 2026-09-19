@@ -25,3 +25,5 @@ export function createGooseClient(options: GooseClientOptions = {}) {
 }
 
 export type GooseClient = ReturnType<typeof createGooseClient>
+
+export * from './contracts/campus.js'

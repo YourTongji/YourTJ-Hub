@@ -18,7 +18,7 @@ final campusCoursesProvider =
           .list(size: 3, onlyWithReviews: true),
     );
 
-/// Campus tools and real course previews; no official personal timetable.
+/// Campus tools, course previews and the authenticated official campus workspace.
 class CampusPage extends ConsumerStatefulWidget {
   const CampusPage({super.key});
   @override
@@ -89,6 +89,17 @@ class _CampusPageState extends ConsumerState<CampusPage> {
               ),
               const SizedBox(height: 16),
               const CampusShortcuts(),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const GfSymbol('verified_user'),
+                title: Text(l10n.campusOfficialTitle, style: type.heading),
+                subtitle: Text(
+                  l10n.campusOfficialSubtitle,
+                  style: type.caption,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/campus/official'),
+              ),
               const SizedBox(height: 32),
               Text(l10n.campusCoursesTitle, style: type.title2),
               const SizedBox(height: 8),

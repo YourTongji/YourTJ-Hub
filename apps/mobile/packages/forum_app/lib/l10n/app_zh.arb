@@ -1035,5 +1035,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "我的校园 · 官方身份",
+  "campusOfficialSubtitle": "绑定同济账号，查看课表、成绩与校园消息"
 }

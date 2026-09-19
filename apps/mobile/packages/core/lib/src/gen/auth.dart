@@ -154,4 +154,10 @@ abstract class SuccessMessagePayload with _$SuccessMessagePayload {
 }
 
 /// Query mirror for GET /api/auth/mobile-web-session (fixed server targets).
-enum MobileWebTarget { admin, moderation, courseManagement, courseReviews }
+enum MobileWebTarget {
+  admin,
+  moderation,
+  courseManagement,
+  courseReviews,
+  campus,
+}

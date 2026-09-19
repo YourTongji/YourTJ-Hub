@@ -2065,4 +2065,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsEmailPending(String email) {
     return '待确认：$email';
   }
+
+  @override
+  String get campusOfficialTitle => '我的校园 · 官方身份';
+
+  @override
+  String get campusOfficialSubtitle => '绑定同济账号，查看课表、成绩与校园消息';
 }

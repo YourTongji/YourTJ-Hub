@@ -1035,5 +1035,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "My campus · official identity",
+  "campusOfficialSubtitle": "Connect Tongji for your timetable, grades and campus notices"
 }

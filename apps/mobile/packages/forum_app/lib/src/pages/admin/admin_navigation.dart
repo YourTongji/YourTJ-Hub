@@ -22,6 +22,12 @@ class AdminNavigation {
       uri.host == origin.host &&
       uri.port == origin.port;
 
+  bool isSchoolOrigin(Uri uri) =>
+      uri.scheme == 'https' &&
+      uri.userInfo.isEmpty &&
+      uri.port == 443 &&
+      const ['api.tongji.edu.cn', 'iam.tongji.edu.cn'].contains(uri.host);
+
   bool isExport(Uri uri) =>
       isSameOrigin(uri) &&
       uri.query.isEmpty &&

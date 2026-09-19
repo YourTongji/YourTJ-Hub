@@ -2156,4 +2156,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsEmailPending(String email) {
     return 'Bestätigung ausstehend: $email';
   }
+
+  @override
+  String get campusOfficialTitle => 'Mein Campus · offizielle Identität';
+
+  @override
+  String get campusOfficialSubtitle =>
+      'Tongji verbinden: Stundenplan, Noten und Mitteilungen';
 }

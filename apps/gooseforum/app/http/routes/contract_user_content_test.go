@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"net/http"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ func setupUserContentContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		// AccountClose 的注销前置必需步骤会删除快照（issue #557 review P1），
 		// 本 harness 实测注销成功路径，表必须存在。
 		&pk.ScheduleSnapshotEntity{},
+		&campus.Binding{},
 	); err != nil {
 		t.Fatalf("migrate user content contract tables: %v", err)
 	}

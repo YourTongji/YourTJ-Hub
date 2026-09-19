@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "result": {
+    "id": "123",
+    "title": "图书馆开放时间",
+    "publisher": "图书馆",
+    "publishedAt": "2026-09-19T10:00:00+08:00",
+    "content": "周末照常开放。\n\n请留意各分馆的开放时间。",
+    "links": [
+      {
+        "label": "图书馆",
+        "url": "https://www.lib.tongji.edu.cn/"
+      }
+    ]
+  }
+}

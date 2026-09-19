@@ -385,6 +385,10 @@ final GoRouter appRouter = GoRouter(
       path: '/moderation/course-reviews',
       builder: (_, _) => const AdminPage(target: MobileWebTarget.courseReviews),
     ),
+    GoRoute(
+      path: '/campus/official',
+      builder: (_, _) => const AdminPage(target: MobileWebTarget.campus),
+    ),
     GoRoute(path: '/admin', builder: (_, _) => const AdminPage()),
     GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
     GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),

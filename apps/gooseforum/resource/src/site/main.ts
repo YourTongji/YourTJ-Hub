@@ -48,7 +48,13 @@ function installNotoSerifSc() {
 installNotoSerifSc()
 
 function commitPage(nextPage: typeof initialPage) {
-  if (currentPage.value.payload.layout.umamiEnabled !== nextPage.payload.layout.umamiEnabled) {
+  const previousComponent = currentPage.value.payload.component
+  const nextComponent = nextPage.payload.component
+  // Unload scripts from the public document before any private campus component
+  // mounts. The reverse transition also clears school data from page memory.
+  const campusBoundary = previousComponent !== nextComponent &&
+    (previousComponent === 'campus.home' || nextComponent === 'campus.home')
+  if (campusBoundary || currentPage.value.payload.layout.umamiEnabled !== nextPage.payload.layout.umamiEnabled) {
     window.location.reload()
     return
   }

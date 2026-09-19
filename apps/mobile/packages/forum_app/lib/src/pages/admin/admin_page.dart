@@ -171,6 +171,12 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       }
       return NavigationDecision.navigate;
     }
+    // School login stays in this private view so the callback retains the
+    // original first-party session. The native Bearer is sent only at handoff.
+    if (widget.target == MobileWebTarget.campus &&
+        _navigation.isSchoolOrigin(uri)) {
+      return NavigationDecision.navigate;
+    }
     if (request.isMainFrame &&
         ['https', 'http', 'mailto'].contains(uri.scheme)) {
       // External pages never inherit cookies or the initial Bearer header.
@@ -245,6 +251,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   }
 
   String _title(AppLocalizations l10n) => switch (widget.target) {
+    MobileWebTarget.campus => l10n.navCampus,
     MobileWebTarget.admin => l10n.profileAdmin,
     MobileWebTarget.moderation => l10n.profileModeration,
     MobileWebTarget.courseManagement => l10n.coursesManagement,

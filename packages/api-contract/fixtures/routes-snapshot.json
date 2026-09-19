@@ -185,6 +185,22 @@
   },
   {
     "method": "GET",
+    "path": "/api/campus/data/:dataset"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campus/messages/:messageId"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campus/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campus/tongji/callback"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/courses"
   },
   {
@@ -346,6 +362,10 @@
   {
     "method": "GET",
     "path": "/c/:slug/:id/l/:sort"
+  },
+  {
+    "method": "GET",
+    "path": "/campus"
   },
   {
     "method": "GET",
@@ -842,6 +862,18 @@
   {
     "method": "POST",
     "path": "/api/auth/totp/verify"
+  },
+  {
+    "method": "POST",
+    "path": "/api/campus/tongji/confirm"
+  },
+  {
+    "method": "POST",
+    "path": "/api/campus/tongji/start"
+  },
+  {
+    "method": "POST",
+    "path": "/api/campus/tongji/unbind"
   },
   {
     "method": "POST",

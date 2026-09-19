@@ -2130,4 +2130,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsEmailPending(String email) {
     return 'Awaiting confirmation: $email';
   }
+
+  @override
+  String get campusOfficialTitle => 'My campus · official identity';
+
+  @override
+  String get campusOfficialSubtitle =>
+      'Connect Tongji for your timetable, grades and campus notices';
 }

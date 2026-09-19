@@ -705,5 +705,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "マイキャンパス・公式認証",
+  "campusOfficialSubtitle": "同済アカウントを連携して、時間割・成績・大学のお知らせを確認"
 }

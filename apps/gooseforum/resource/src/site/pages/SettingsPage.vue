@@ -2208,6 +2208,7 @@ async function toggleBinding(provider: string) {
           </section>
 
           <section v-show="activeTab === 'binding'">
+ <a href="/campus" class="mb-5 flex items-center justify-between rounded-lg border border-line p-5"><div><strong class="text-sm">同济官方身份</strong><p class="mt-1 text-xs text-base-content/55">在我的校园中绑定、换绑或解除官方身份连接</p></div><span class="text-xs text-primary">管理校园连接 →</span></a>
             <SectionHeader :icon="Mail" :title="t('settings.binding.title')">
               <template #actions>
                 <button type="button" class="text-xs font-medium text-primary hover:text-primary" @click="loadBindings">{{ t('settings.binding.refresh') }}</button>

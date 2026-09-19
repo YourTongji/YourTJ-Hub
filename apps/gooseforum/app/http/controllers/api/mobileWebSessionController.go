@@ -35,6 +35,9 @@ func MobileWebSession(c *gin.Context) {
 	roleID, roleOK := userservice.GetUserRoleId(userID)
 	allowed := roleOK && permission.CheckAnyRole(roleID)
 	switch target {
+	case "campus":
+		destination = "/campus"
+		allowed = true
 	case "admin":
 	case "moderation":
 		destination = "/moderation"

@@ -50,6 +50,11 @@ jobs:
         uses: ./.github/actions/render-config
         with:
           env: main
+          campus-client-id: ${{ secrets.CAMPUS_CLIENT_ID }}
+          campus-client-secret: ${{ secrets.CAMPUS_CLIENT_SECRET }}
+          campus-redirect-uri: ${{ secrets.CAMPUS_REDIRECT_URI }}
+          campus-encryption-key: ${{ secrets.CAMPUS_ENCRYPTION_KEY }}
+          campus-identity-key: ${{ secrets.CAMPUS_IDENTITY_KEY }}
           signing-key: ${{ secrets.SIGNING_KEY }}
           pg-dsn: ${{ secrets.PG_DSN }}
           meili-master-key: ${{ secrets.MEILI_MASTER_KEY }}

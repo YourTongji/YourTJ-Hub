@@ -3983,6 +3983,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Awaiting confirmation: {email}'**
   String settingsEmailPending(String email);
+
+  /// No description provided for @campusOfficialTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My campus · official identity'**
+  String get campusOfficialTitle;
+
+  /// No description provided for @campusOfficialSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Tongji for your timetable, grades and campus notices'**
+  String get campusOfficialSubtitle;
 }
 
 class _AppLocalizationsDelegate

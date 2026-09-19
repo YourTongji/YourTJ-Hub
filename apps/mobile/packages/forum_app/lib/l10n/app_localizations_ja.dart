@@ -2077,4 +2077,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String settingsEmailPending(String email) {
     return '確認待ち：$email';
   }
+
+  @override
+  String get campusOfficialTitle => 'マイキャンパス・公式認証';
+
+  @override
+  String get campusOfficialSubtitle => '同済アカウントを連携して、時間割・成績・大学のお知らせを確認';
 }

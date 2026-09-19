@@ -18,6 +18,7 @@ export const pageLoaders = {
   'theme.preview': () => import('@/site/pages/ThemePreviewPage.vue'),
   'publish.index': () => import('@/site/pages/PublishPage.vue'),
   'search.index': () => import('@/site/pages/SearchPage.vue'),
+  'campus.home': () => import('@/site/pages/CampusPage.vue'),
   'campus.map': () => import('@/site/pages/CampusMapPage.vue'),
   'course.index': () => import('@/site/pages/CourseCatalogPage.vue'),
   'course.detail': () => import('@/site/pages/CourseDetailPage.vue'),

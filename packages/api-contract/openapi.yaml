@@ -30,6 +30,8 @@ info:
 servers:
   - url: /
 tags:
+  - name: Campus
+    description: Private Tongji identity binding and school data.
   - name: Authentication
     description: Session login and authentication flows.
   - name: Forum
@@ -49,6 +51,20 @@ tags:
   - name: Files
     description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
+  /api/campus/status:
+    $ref: ./paths/campus.yaml#/status
+  /api/campus/tongji/start:
+    $ref: ./paths/campus.yaml#/start
+  /api/campus/tongji/callback:
+    $ref: ./paths/campus.yaml#/callback
+  /api/campus/tongji/confirm:
+    $ref: ./paths/campus.yaml#/confirm
+  /api/campus/tongji/unbind:
+    $ref: ./paths/campus.yaml#/unbind
+  /api/campus/messages/{messageId}:
+    $ref: ./paths/campus.yaml#/message
+  /api/campus/data/{dataset}:
+    $ref: ./paths/campus.yaml#/dataset
   /api/login:
     $ref: ./paths/auth.yaml#/login
   /api/login-public-key:
@@ -623,6 +639,32 @@ components:
       bearerFormat: agt_
       description: Opaque Agent bearer token (agt_...) issued once at Agent create/rotate time. Cookies and human JWTs are never accepted.
   schemas:
+    CampusBinding:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusBinding
+    CampusCandidate:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusCandidate
+    CampusStatus:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusStatus
+    CampusMetric:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusMetric
+    CampusPoint:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusPoint
+    CampusEvent:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusEvent
+    CampusMessageSummary:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusMessageSummary
+    CampusMessageLink:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusMessageLink
+    CampusMessageDetail:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusMessageDetail
+    CampusMessageDetailResponse:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusMessageDetailResponse
+    CampusDataset:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusDataset
+    CampusStatusResponse:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusStatusResponse
+    CampusDatasetResponse:
+      $ref: ./paths/campus.yaml#/components/schemas/CampusDatasetResponse
     SearchMaintenanceRequest:
       $ref: ./components/schemas.yaml#/SearchMaintenanceRequest
     SearchIndexCheck:

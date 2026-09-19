@@ -174,3 +174,7 @@ See the [status specification](../product/server-status.md),
   and memory) before changing defaults.
 - For OpenAPI-covered operations, contract changes ship in the same PR: Go behavior/struct →
   `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation remains Planned.
+
+## Private campus connection
+
+`Current`: `campusservice` owns school OAuth and typed presentation projections; `models/forum/campus` owns the encrypted binding and unique identity reservation. Controllers authenticate the forum session, enforce CSRF/writable-account gates and return no-store responses. Vue `/campus` and the App embedded entry share the same API and retain the single binary deployment. School records are request-scoped; only credentials are encrypted in the primary database. See [campus product semantics](../product/campus.md) and [operations](../operations/campus.md).

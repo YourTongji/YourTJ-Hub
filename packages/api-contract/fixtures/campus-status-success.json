@@ -1,0 +1,13 @@
+{
+  "result": {
+    "enabled": true,
+    "binding": {
+      "maskedId": "23••••01",
+      "boundAt": "2026-09-19T00:00:00Z",
+      "revision": "fictional-revision",
+      "needsAuthorization": false
+    },
+    "candidate": null
+  },
+  "code": 0
+}

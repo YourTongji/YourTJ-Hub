@@ -3,7 +3,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetchPage: vi.fn(async () => ({ layout: { umamiEnabled: false } })),
-  payload: { layout: { umamiEnabled: false, theme: {} } },
+  navigate: vi.fn(),
+  payload: { component: 'home.index', layout: { umamiEnabled: false, theme: {} } },
 }))
 
 vi.mock('vue', async (original) => ({
@@ -16,7 +17,7 @@ vi.mock('@/runtime/payload', () => ({ readInitialPayload: () => mocks.payload, u
 vi.mock('@/runtime/router', () => ({
   fetchPage: mocks.fetchPage,
   preparePayload: async (payload: unknown) => ({ payload, component: {} }),
-  installNavigation: () => ({ isReady: async () => {}, push: vi.fn() }),
+  installNavigation: (_initial: unknown, _view: unknown, commit: (page: unknown) => void) => { mocks.navigate.mockImplementation(commit); return { isReady: async () => {}, push: vi.fn() } },
 }))
 vi.mock('@/runtime/i18n', () => ({ currentLocale: () => 'zh', i18n: {} }))
 vi.mock('@/runtime/flash-message', () => ({ hydrateFlashMessages: vi.fn() }))
@@ -40,4 +41,13 @@ test('an idle or background tab does not fetch a full page to poll analytics con
   window.dispatchEvent(new Event('pageshow'))
   await Promise.resolve()
   expect(mocks.fetchPage).not.toHaveBeenCalled()
+})
+
+test('entering private campus unloads existing document scripts even when analytics is already disabled', async () => {
+  vi.resetModules()
+  vi.spyOn(document.head, 'appendChild').mockImplementation((node) => node)
+  const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+  await import('../src/site/main')
+  mocks.navigate({ payload: { ...mocks.payload, component: 'campus.home' }, component: {} })
+  expect(reload).toHaveBeenCalledOnce()
 })

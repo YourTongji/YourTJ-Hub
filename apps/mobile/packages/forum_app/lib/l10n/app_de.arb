@@ -705,5 +705,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "Mein Campus · offizielle Identität",
+  "campusOfficialSubtitle": "Tongji verbinden: Stundenplan, Noten und Mitteilungen"
 }
