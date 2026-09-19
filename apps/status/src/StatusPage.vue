@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
-import { Activity, ArrowDown, ArrowUp, Clock3, Cpu, Database, Globe2, HardDrive, Radio, RefreshCw, Users, Wifi } from '@lucide/vue'
+import { Activity, ArrowDown, ArrowUp, CircleAlert, CircleCheck, CircleHelp, CircleX, Clock3, Cpu, Database, Globe2, HardDrive, Radio, RefreshCw, Users, Wifi } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { StatusRange, StatusServerRange, StatusSnapshot } from '@/types'
 import { getStatus } from '@/runtime/status-api'
@@ -45,6 +45,21 @@ const signal = computed(() => {
   }
   if (!serverFresh.value) return 'unknown'
   return isRecentStatusTime(current.value?.observedAt, now.value, 150_000) ? 'live' : 'noSignal'
+})
+const signalPresentation = computed(() => {
+  switch (signal.value) {
+    case 'servicesUp':
+    case 'live':
+      return { icon: CircleCheck, tone: 'ok' }
+    case 'servicesDown':
+      return { icon: CircleX, tone: 'error' }
+    case 'servicesDegraded':
+    case 'servicesMaintenance':
+    case 'servicesPending':
+      return { icon: CircleAlert, tone: 'warning' }
+    default:
+      return { icon: CircleHelp, tone: 'muted' }
+  }
 })
 const rangeOptions = computed(() => [
   { value: '24h' as const, label: t('status.range24h') },
@@ -170,7 +185,10 @@ function sourceStatusClass(source: 'server' | 'traffic' | 'uptime') {
       <div class="status-hero-main">
         <div class="status-signal-label">
           <div class="status-signal-copy">
-            <h2 id="status-signal" aria-live="polite">{{ t(`status.${signal}`) }}</h2>
+            <div class="status-signal-heading">
+              <span class="status-signal-icon" :class="`is-${signalPresentation.tone}`" aria-hidden="true"><component :is="signalPresentation.icon" :size="30" :stroke-width="1.8" /></span>
+              <h2 id="status-signal" aria-live="polite">{{ t(`status.${signal}`) }}</h2>
+            </div>
             <p>{{ t('status.probeNote') }}</p>
           </div>
         </div>
@@ -284,6 +302,12 @@ function sourceStatusClass(source: 'server' | 'traffic' | 'uptime') {
 .status-hero-main { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; min-width: 0; }
 .status-signal-label { min-width: 0; }
 .status-signal-copy { min-width: 0; }
+.status-signal-heading { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; }
+.status-signal-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 30px; height: 30px; }
+.status-signal-icon.is-ok { color: var(--gf-color-success); }
+.status-signal-icon.is-error { color: var(--gf-color-error); }
+.status-signal-icon.is-warning { color: var(--gf-color-warning); }
+.status-signal-icon.is-muted { color: var(--gf-color-icon-muted); }
 .status-signal-copy h2 { margin: 0; font-size: clamp(1.35rem, 1.1rem + .9vw, 1.85rem); line-height: 1.18; font-weight: 700; letter-spacing: -.045em; text-wrap: balance; }
 .status-signal-copy p { max-width: 58ch; margin-top: 4px; font-size: 12px; line-height: 1.55; color: var(--gf-color-icon-muted); text-wrap: pretty; }
 .status-live-label { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 0; font-size: 12px; color: var(--gf-color-icon-muted); white-space: nowrap; }
