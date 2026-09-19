@@ -78,6 +78,38 @@ void main() {
       expect(find.text('Edit'), findsOneWidget);
       expect(find.text('Delete'), findsOneWidget);
     });
+
+    testWidgets('popup menus open below their trigger', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 100),
+                child: PopupMenuButton<String>(
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'one', child: Text('One')),
+                    PopupMenuItem(value: 'two', child: Text('Two')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Rect trigger = tester.getRect(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getRect(find.text('One')).top,
+        greaterThanOrEqualTo(trigger.bottom),
+      );
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('GfFloatingSurface', () {
@@ -145,6 +177,58 @@ void main() {
   });
 
   group('GfBottomSheet', () {
+    testWidgets('sheet is above a nested shell overlay', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.padding = const FakeViewPadding(bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+      addTearDown(tester.view.reset);
+      late BuildContext page;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Stack(
+            children: [
+              Positioned.fill(
+                child: Navigator(
+                  onGenerateRoute: (_) => MaterialPageRoute<void>(
+                    builder: (context) {
+                      page = context;
+                      return const SizedBox();
+                    },
+                  ),
+                ),
+              ),
+              Positioned(
+                key: const Key('shell-navigation'),
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 80,
+                child: ColoredBox(color: Colors.black),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      showGfBottomSheet<void>(
+        page,
+        builder: (_) => const SizedBox(key: Key('sheet-content'), height: 200),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('sheet-content')), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-navigation')).hitTestable(),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+      Navigator.of(page, rootNavigator: true).pop();
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('short sheets consume safe areas once and fit their content', (
       tester,
     ) async {

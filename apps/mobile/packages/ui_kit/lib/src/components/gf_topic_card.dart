@@ -35,6 +35,10 @@ class GfTopicCard extends StatefulWidget {
     this.pinned = false,
     this.unseen = false,
     this.hot = false,
+    this.onSaveImage,
+    this.saveImageLabel = 'Save image',
+    this.onShareImage,
+    this.shareImageLabel = 'Share image',
   });
 
   final String title;
@@ -63,6 +67,10 @@ class GfTopicCard extends StatefulWidget {
   final bool pinned;
   final bool unseen;
   final bool hot;
+  final Future<void> Function(String imageUrl)? onSaveImage;
+  final String saveImageLabel;
+  final Future<void> Function(String imageUrl)? onShareImage;
+  final String shareImageLabel;
 
   @override
   State<GfTopicCard> createState() => _GfTopicCardState();
@@ -181,12 +189,29 @@ class _GfTopicCardState extends State<GfTopicCard>
 
     Widget photo(int index, {double? width, double height = 104}) =>
         GestureDetector(
-          onTap: () => Navigator.of(context).push(
+          onTap: () => Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  GfImageViewer(images: allImages, initialIndex: index),
+              builder: (_) => GfImageViewer(
+                images: allImages,
+                initialIndex: index,
+                onSaveImage: widget.onSaveImage,
+                saveImageLabel: widget.saveImageLabel,
+                onShareImage: widget.onShareImage,
+                shareImageLabel: widget.shareImageLabel,
+              ),
             ),
           ),
+          onLongPress: widget.onSaveImage == null
+              ? null
+              : () async {
+                  final bool save = await showGfImageSaveSheet(
+                    context,
+                    saveImageLabel: widget.saveImageLabel,
+                  );
+                  if (save && context.mounted) {
+                    await widget.onSaveImage!(allImages[index]);
+                  }
+                },
           child: _TopicImage(
             url: images[index],
             width: width,

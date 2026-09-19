@@ -9,18 +9,44 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../providers.dart';
 
-/// Published Web announcements, with natural height for HTML and large text.
+/// 首页公告栏：采用圆角微渐变卡片、流体指示胶囊与折叠入口设计。
 class AnnouncementBanner extends ConsumerStatefulWidget {
-  const AnnouncementBanner({super.key, required this.announcement});
+  const AnnouncementBanner({
+    super.key,
+    required this.announcement,
+    this.collapsed,
+    this.onCollapsedChanged,
+  });
+
   final AnnouncementPayload announcement;
+
+  /// Optional shared state supplied by the host feed. When omitted, the
+  /// banner keeps its own state for standalone uses and tests.
+  final bool? collapsed;
+  final ValueChanged<bool>? onCollapsedChanged;
 
   @override
   ConsumerState<AnnouncementBanner> createState() => _AnnouncementBannerState();
 }
 
-class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner> {
+class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
+    with AutomaticKeepAliveClientMixin<AnnouncementBanner> {
   Timer? _timer;
   int _current = 0;
+  bool _isCollapsed = false;
+
+  bool get _collapsed => widget.collapsed ?? _isCollapsed;
+
+  void _setCollapsed(bool value) {
+    if (widget.collapsed != null) {
+      widget.onCollapsedChanged?.call(value);
+      return;
+    }
+    setState(() => _isCollapsed = value);
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 
   List<AnnouncementItemPayload> get _items {
     if (!widget.announcement.enabled) return const [];
@@ -53,7 +79,6 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner> {
     _timer?.cancel();
     if (_items.length > 1) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-        // Respect screen readers, reduced motion and manual selection.
         if (!mounted ||
             MediaQuery.accessibleNavigationOf(context) ||
             MediaQuery.disableAnimationsOf(context)) {
@@ -90,29 +115,184 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner> {
     return true;
   }
 
+  String _snippetFor(AnnouncementItemPayload item) {
+    final title = item.title.trim();
+    final bodyText = _stripHtml(item.html);
+    if (title.isNotEmpty && bodyText.isNotEmpty) {
+      return '$title：$bodyText';
+    }
+    if (title.isNotEmpty) return title;
+    return bodyText;
+  }
+
+  static String _stripHtml(String html) {
+    if (html.isEmpty) return '';
+    return html
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // The banner lives inside a lazy ListView. Keep its interaction state
+    // alive while it is scrolled out of the viewport.
+    super.build(context);
     final items = _items;
     if (items.isEmpty) return const SizedBox.shrink();
+    if (_current >= items.length) _current = 0;
     final item = items[_current];
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.05),
-        border: Border(
-          bottom: BorderSide(color: colors.primary.withValues(alpha: 0.15)),
+        color: colors.base100,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [colors.primary.withValues(alpha: 0.09), colors.base100]
+              : [colors.primary.withValues(alpha: 0.045), colors.base100],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colors.primary.withValues(alpha: isDark ? 0.22 : 0.16),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.primary.withValues(alpha: isDark ? 0.08 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          if (items.length <= 1) return;
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -120) {
+            setState(() => _current = (_current + 1) % items.length);
+            _restart();
+          } else if (velocity > 120) {
+            setState(
+              () => _current = (_current - 1 + items.length) % items.length,
+            );
+            _restart();
+          }
+        },
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          child: _collapsed
+              ? _buildCollapsed(context, item, colors)
+              : _buildExpanded(context, item, items, colors, type),
         ),
       ),
+    );
+  }
+
+  Widget _buildCollapsed(
+    BuildContext context,
+    AnnouncementItemPayload item,
+    GfColors colors,
+  ) {
+    final snippet = _snippetFor(item);
+    return InkWell(
+      key: const Key('announcement-collapsed-tap'),
+      onTap: () => _setCollapsed(false),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: ExcludeSemantics(
+                child: GfSymbol('bell', size: 12, color: colors.primary),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '公告',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: colors.primary,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                snippet,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: colors.baseContent.withValues(alpha: 0.82),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Semantics(
+              label: '展开公告',
+              button: true,
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: GfSymbol(
+                  'chevron-down',
+                  size: 13,
+                  color: colors.baseContent.withValues(alpha: 0.45),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpanded(
+    BuildContext context,
+    AnnouncementItemPayload item,
+    List<AnnouncementItemPayload> items,
+    GfColors colors,
+    GfTypography type,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            alignment: Alignment.center,
             child: ExcludeSemantics(
-              child: GfSymbol('bell', size: 18, color: colors.primary),
+              child: GfSymbol('bell', size: 14, color: colors.primary),
             ),
           ),
           const SizedBox(width: 10),
@@ -121,35 +301,180 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (item.title.trim().isNotEmpty)
-                  Text(item.title.trim(), style: type.bodyStrong),
-                if (item.title.trim().isNotEmpty && item.html.trim().isNotEmpty)
-                  const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '公告',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: colors.primary,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                    if (item.title.trim().isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.title.trim(),
+                          style: type.bodyStrong.copyWith(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.1,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ] else
+                      const Spacer(),
+                    Semantics(
+                      button: true,
+                      label: '折叠公告',
+                      child: InkWell(
+                        key: const Key('announcement-collapse-btn'),
+                        onTap: () => _setCollapsed(true),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '收起',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.baseContent.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              RotatedBox(
+                                quarterTurns: 2,
+                                child: GfSymbol(
+                                  'chevron-down',
+                                  size: 11,
+                                  color: colors.baseContent.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 if (item.html.trim().isNotEmpty)
                   HtmlWidget(
                     item.html,
                     baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
-                    textStyle: type.body,
+                    textStyle: type.body.copyWith(
+                      fontSize: 12.5,
+                      height: 1.45,
+                      color: colors.baseContent.withValues(alpha: 0.85),
+                    ),
                     customStylesBuilder: (element) =>
                         element.localName == 'p' ? {'margin': '0 0 4px'} : null,
                     onTapUrl: _open,
                   ),
-                if (items.length > 1)
-                  Wrap(
+                if (items.length > 1) ...[
+                  const SizedBox(height: 10),
+                  Row(
                     children: [
                       for (var i = 0; i < items.length; i++)
                         Semantics(
                           selected: i == _current,
-                          child: TextButton(
-                            onPressed: () {
+                          label: '第 ${i + 1} 条公告',
+                          child: GestureDetector(
+                            key: Key('announcement-dot-$i'),
+                            onTap: () {
                               setState(() => _current = i);
                               _restart();
                             },
-                            child: Text('${i + 1} / ${items.length}'),
+                            behavior: HitTestBehavior.opaque,
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                right: 6,
+                                top: 3,
+                                bottom: 3,
+                              ),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeInOutCubic,
+                                width: i == _current ? 16.0 : 5.0,
+                                height: 4.5,
+                                decoration: BoxDecoration(
+                                  color: i == _current
+                                      ? colors.primary
+                                      : colors.baseContent.withValues(
+                                          alpha: 0.22,
+                                        ),
+                                  borderRadius: BorderRadius.circular(2.5),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
+                      const Spacer(),
+                      InkWell(
+                        key: const Key('announcement-prev-btn'),
+                        onTap: () {
+                          setState(
+                            () => _current =
+                                (_current - 1 + items.length) % items.length,
+                          );
+                          _restart();
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: GfSymbol(
+                            'chevron-left',
+                            size: 13,
+                            color: colors.baseContent.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        key: const Key('announcement-next-btn'),
+                        onTap: () {
+                          setState(
+                            () => _current = (_current + 1) % items.length,
+                          );
+                          _restart();
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: GfSymbol(
+                            'chevron-right',
+                            size: 13,
+                            color: colors.baseContent.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
+                ],
               ],
             ),
           ),

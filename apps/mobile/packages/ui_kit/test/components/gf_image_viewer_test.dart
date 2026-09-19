@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
 
 void main() {
   group('GfImageViewer', () {
-    testWidgets('single image builds viewer chrome in both themes',
-        (tester) async {
+    testWidgets('single image builds viewer chrome in both themes', (
+      tester,
+    ) async {
       await forEachBrightness(tester, (tester, brightness) async {
         await tester.pumpWidget(
           gfApp(
@@ -59,15 +61,89 @@ void main() {
     testWidgets('actual size toggle swaps icon', (tester) async {
       await tester.pumpWidget(
         gfApp(
-          GfImageViewer(
-            images: const <String>['https://example.com/a.png'],
-          ),
+          GfImageViewer(images: const <String>['https://example.com/a.png']),
         ),
       );
       expect(find.byIcon(Icons.zoom_in_map), findsOneWidget);
       await tester.tap(find.byIcon(Icons.zoom_in_map));
       await tester.pump();
       expect(find.byIcon(Icons.zoom_out_map), findsOneWidget);
+    });
+
+    testWidgets('long press exposes save image without copy image', (
+      tester,
+    ) async {
+      String? savedUrl;
+      const String imageUrl = 'https://example.com/a.png';
+      await tester.pumpWidget(
+        gfApp(
+          GfImageViewer(
+            images: const <String>[imageUrl],
+            onSaveImage: (String url) async => savedUrl = url,
+            saveImageLabel: '保存图片',
+          ),
+        ),
+      );
+
+      await tester.longPress(find.byType(ExtendedImage));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('保存图片'), findsOneWidget);
+      expect(find.text('复制图片'), findsNothing);
+      await tester.tap(find.text('保存图片'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(savedUrl, imageUrl);
+    });
+
+    testWidgets('share button exposes the currently focused image', (
+      tester,
+    ) async {
+      String? sharedUrl;
+      const List<String> images = <String>[
+        'https://example.com/a.png',
+        'https://example.com/b.png',
+      ];
+      await tester.pumpWidget(
+        gfApp(
+          GfImageViewer(
+            images: images,
+            initialIndex: 1,
+            onShareImage: (String url) async => sharedUrl = url,
+            shareImageLabel: '分享图片',
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.share_outlined), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.share_outlined));
+      await tester.pump();
+      expect(sharedUrl, images[1]);
+    });
+
+    testWidgets('double tap is handled by the image gesture surface', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          GfImageViewer(
+            images: const <String>[
+              'https://example.com/a.png',
+              'https://example.com/b.png',
+            ],
+          ),
+        ),
+      );
+
+      final Finder image = find.byType(ExtendedImage).first;
+      await tester.tap(image);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(image);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('1 / 2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

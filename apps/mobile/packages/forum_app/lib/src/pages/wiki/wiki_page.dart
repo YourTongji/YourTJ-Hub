@@ -10,6 +10,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../../format.dart';
+import '../../images/image_save.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
@@ -212,11 +213,21 @@ class _WikiPageState extends ConsumerState<WikiPage> {
   }
 
   void _openImageViewer(String url) {
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
           backgroundColor: const Color(0xFF000000),
-          body: SafeArea(child: GfImageViewer(images: <String>[url])),
+          body: SafeArea(
+            child: GfImageViewer(
+              images: <String>[url],
+              onSaveImage: (String imageUrl) =>
+                  saveImageFromUrl(context, imageUrl),
+              saveImageLabel: AppLocalizations.of(context).imageSave,
+              onShareImage: (String imageUrl) =>
+                  shareImageFromUrl(context, imageUrl),
+              shareImageLabel: AppLocalizations.of(context).topicShare,
+            ),
+          ),
         ),
       ),
     );

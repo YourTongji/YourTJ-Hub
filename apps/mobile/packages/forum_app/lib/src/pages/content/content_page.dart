@@ -353,6 +353,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   !item.canPermanent
                               ? null
                               : PopupMenuButton<String>(
+                                  useRootNavigator: true,
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),
                                   itemBuilder: (_) => [

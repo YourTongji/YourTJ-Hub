@@ -42,6 +42,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   AsyncValue<HomeProps> _page = const AsyncValue.loading();
   String _sort = '';
+  bool _announcementCollapsed = false;
   int _loadSequence = 0;
   int _interactionRevision = 0;
   final _pendingInteractions = <(int, bool)>{};
@@ -127,6 +128,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     } catch (_) {
       // The in-memory choice remains valid for this session.
     }
+  }
+
+  void _setAnnouncementCollapsed(bool collapsed) {
+    if (_announcementCollapsed == collapsed) return;
+    setState(() => _announcementCollapsed = collapsed);
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -470,7 +476,11 @@ class _HomePageState extends ConsumerState<HomePage> {
               loadMoreError: _loadMoreError,
               controller: controller,
               padding: EdgeInsets.only(top: top, bottom: bottom),
-              header: AnnouncementBanner(announcement: props.announcement),
+              header: AnnouncementBanner(
+                announcement: props.announcement,
+                collapsed: _announcementCollapsed,
+                onCollapsedChanged: _setAnnouncementCollapsed,
+              ),
               loading: _loadingMore,
               topics: _topics,
               feedMode: _feedMode,
@@ -558,6 +568,7 @@ class _HomeToolbar extends ConsumerWidget {
                   const SizedBox(width: 8),
                   PopupMenuButton<GfTopicFeedMode>(
                     tooltip: l10n.topicFeedModeList,
+                    useRootNavigator: true,
                     icon: const GfSymbol('sliders-horizontal', size: 20),
                     onSelected: onFeedModeSelected,
                     itemBuilder: (_) => [

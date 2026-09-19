@@ -10,6 +10,7 @@ Future<T?> showGfAlertDialog<T>(
   // native Dialog own viewport constraints while retaining our themed content.
   return showDialog<T>(
     context: context,
+    useRootNavigator: true,
     builder: (context) => Dialog(
       insetPadding: const EdgeInsets.all(16),
       child: Builder(builder: builder),

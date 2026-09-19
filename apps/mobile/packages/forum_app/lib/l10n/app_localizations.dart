@@ -198,6 +198,24 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// No description provided for @imageSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save image'**
+  String get imageSave;
+
+  /// No description provided for @imageSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Image saved'**
+  String get imageSaved;
+
+  /// No description provided for @imageSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save the image. Try again later.'**
+  String get imageSaveFailed;
+
   /// No description provided for @commonLoading.
   ///
   /// In en, this message translates to:

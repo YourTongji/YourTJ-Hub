@@ -6,7 +6,9 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../asset_url.dart';
+import '../images/image_save.dart';
 import '../providers.dart';
 
 /// Shared prose scale for reading, writing and preview.
@@ -103,12 +105,19 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
           backgroundColor: const Color(0xFF000000),
           body: SafeArea(
-            child: GfImageViewer(images: urls, initialIndex: index),
+            child: GfImageViewer(
+              images: urls,
+              initialIndex: index,
+              onSaveImage: (String url) => saveImageFromUrl(context, url),
+              saveImageLabel: AppLocalizations.of(context).imageSave,
+              onShareImage: (String url) => shareImageFromUrl(context, url),
+              shareImageLabel: AppLocalizations.of(context).topicShare,
+            ),
           ),
         ),
       ),
@@ -191,6 +200,14 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                     resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
                     index < 0 ? 0 : index,
                   );
+                },
+                onLongPress: () async {
+                  final bool save = await showGfImageSaveSheet(
+                    context,
+                    saveImageLabel: AppLocalizations.of(context).imageSave,
+                  );
+                  if (!mounted || !save) return;
+                  await saveImageFromUrl(context, resolvedUrl);
                 },
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: maxImageHeight),

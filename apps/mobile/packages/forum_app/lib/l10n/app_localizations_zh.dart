@@ -57,6 +57,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String get imageSave => '保存图片';
+
+  @override
+  String get imageSaved => '图片已保存';
+
+  @override
+  String get imageSaveFailed => '图片保存失败，请稍后重试';
+
+  @override
   String get commonLoading => '加载中…';
 
   @override
