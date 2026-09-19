@@ -178,3 +178,10 @@ See the [status specification](../product/server-status.md),
 ## Private campus connection
 
 `Current`: `campusservice` owns school OAuth and typed presentation projections; `models/forum/campus` owns the encrypted binding and unique identity reservation. Controllers authenticate the forum session, enforce CSRF/writable-account gates and return no-store responses. Vue `/campus` and the native Flutter campus pages share the same API and retain the single binary deployment. School records are request-scoped; only credentials are encrypted in the primary database. See [campus product semantics](../product/campus.md) and [operations](../operations/campus.md).
+
+`Current`: `calendaradjustment` validates administrator-confirmed holiday and teaching-date
+rules, persisted through `pageConfig`'s compare-and-swap API. It drafts public notices through
+`aiservice.SummaryConfig`, sharing the summary provider configuration and quota. `campusservice`
+applies confirmed rules to original dated occurrences before emitting ICS; source teaching
+weeks and stable event identities are preserved. Both clients explicitly choose whether to
+apply rules. The LLM does not receive private timetables.

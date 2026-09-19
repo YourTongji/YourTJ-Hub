@@ -8,11 +8,22 @@ class CampusRepository {
   CampusRepository(this._client);
   final GfApiClient _client;
 
-  Future<CampusCalendarExport> exportCalendar({CancelToken? cancelToken}) =>
+  Future<CampusCalendarExport> exportCalendar({
+    bool applyAdjustments = true,
+    CancelToken? cancelToken,
+  }) => _client.get(
+    '/api/campus/calendar-export',
+    queryParameters: {'applyAdjustments': applyAdjustments},
+    cancelToken: cancelToken,
+    parser: (v) => CampusCalendarExport.fromJson(v as Map<String, dynamic>),
+  );
+
+  Future<CampusCalendarSettings> calendarRules({CancelToken? cancelToken}) =>
       _client.get(
-        '/api/campus/calendar-export',
+        '/api/campus/calendar-rules',
         cancelToken: cancelToken,
-        parser: (v) => CampusCalendarExport.fromJson(v as Map<String, dynamic>),
+        parser: (v) =>
+            CampusCalendarSettings.fromJson(v as Map<String, dynamic>),
       );
 
   Future<CampusStatus> status({CancelToken? cancelToken}) => _client.get(

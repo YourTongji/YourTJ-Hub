@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import 'campus_helpers.dart';
+import 'campus_calendar_rules.dart';
 import 'campus_state.dart';
 
 class CampusCalendarExportButton extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class CampusCalendarExportButton extends ConsumerStatefulWidget {
 class _CampusCalendarExportButtonState
     extends ConsumerState<CampusCalendarExportButton> {
   bool _busy = false;
+  bool _applyAdjustments = true;
   String? _error;
 
   Future<void> _export(BuildContext anchor) async {
@@ -41,7 +43,7 @@ class _CampusCalendarExportButtonState
     try {
       final result = await ref
           .read(campusControllerProvider.notifier)
-          .exportCalendar();
+          .exportCalendar(applyAdjustments: _applyAdjustments);
       if (result == null || !active()) return;
       final root = await getTemporaryDirectory();
       if (!active()) return;
@@ -81,6 +83,15 @@ class _CampusCalendarExportButtonState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l.campusApplyAdjustments),
+          subtitle: Text(l.campusApplyAdjustmentsHint),
+          value: _applyAdjustments,
+          onChanged: _busy
+              ? null
+              : (value) => setState(() => _applyAdjustments = value),
+        ),
         Builder(
           builder: (anchor) => GfButton(
             label: _busy ? l.campusExportingCalendar : l.campusExportCalendar,
@@ -94,6 +105,7 @@ class _CampusCalendarExportButtonState
                 : null,
           ),
         ),
+        const CampusCalendarRulesView(),
         const SizedBox(height: 8),
         Text(
           l.campusExportCalendarHint,

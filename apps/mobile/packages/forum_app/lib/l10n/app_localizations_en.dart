@@ -2300,4 +2300,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get campusCalendarEmpty =>
       'There are no scheduled classes to export this term.';
+
+  @override
+  String get campusApplyAdjustments => 'Apply holiday adjustments';
+
+  @override
+  String get campusApplyAdjustmentsHint =>
+      'Use administrator-confirmed holidays and makeup dates; otherwise use the original timetable.';
+
+  @override
+  String get campusCalendarRules => 'View published adjustments';
+
+  @override
+  String get campusCalendarRulesHint =>
+      'Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.';
+
+  @override
+  String get campusNoCalendarRules =>
+      'No adjustments are published. The original timetable will be exported.';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return 'Classes from $original move to $actual';
+  }
 }

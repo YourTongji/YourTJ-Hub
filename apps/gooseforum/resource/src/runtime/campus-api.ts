@@ -9,6 +9,8 @@ const messages: Record<string, string> = {
   'campus.messageAuthorizationRequired': '查看消息正文需要更新学校授权，当前身份绑定会保留。',
   'campus.messageUnavailable': '这条消息已失效或不在你的消息列表中。',
   'campus.calendarIncomplete': '校历日期、课程周次或节次信息不完整，暂时无法准确导出。请刷新后重试。',
+  'campus.rulesUnavailable': '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。',
+  'campus.rulesInvalid': '已发布的调休规则无效，请联系管理员，或关闭调休后导出原课表。',
   'campus.calendarEmpty': '本学期没有可导出的课程安排。',
 }
 export class CampusError extends Error { constructor(public code: string, message: string) { super(message) } }
@@ -29,5 +31,5 @@ export const campusAPI = {
   unbind: (revision: string) => request<null>('tongji/unbind', { revision }),
   dataset: (key: CampusDatasetKey, signal?: AbortSignal) => request<CampusDataset>(`data/${key}`, undefined, signal),
   message: (id: string, signal?: AbortSignal) => request<CampusMessageDetail>(`messages/${encodeURIComponent(id)}`, undefined, signal),
-  exportCalendar: (signal?: AbortSignal) => request<CampusCalendarExport>('calendar-export', undefined, signal),
+  exportCalendar: (signal?: AbortSignal, applyAdjustments = true) => request<CampusCalendarExport>(`calendar-export?applyAdjustments=${applyAdjustments}`, undefined, signal),
 }

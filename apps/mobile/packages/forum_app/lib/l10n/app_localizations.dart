@@ -4289,6 +4289,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'There are no scheduled classes to export this term.'**
   String get campusCalendarEmpty;
+
+  /// No description provided for @campusApplyAdjustments.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply holiday adjustments'**
+  String get campusApplyAdjustments;
+
+  /// No description provided for @campusApplyAdjustmentsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use administrator-confirmed holidays and makeup dates; otherwise use the original timetable.'**
+  String get campusApplyAdjustmentsHint;
+
+  /// No description provided for @campusCalendarRules.
+  ///
+  /// In en, this message translates to:
+  /// **'View published adjustments'**
+  String get campusCalendarRules;
+
+  /// No description provided for @campusCalendarRulesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.'**
+  String get campusCalendarRulesHint;
+
+  /// No description provided for @campusNoCalendarRules.
+  ///
+  /// In en, this message translates to:
+  /// **'No adjustments are published. The original timetable will be exported.'**
+  String get campusNoCalendarRules;
+
+  /// No description provided for @campusMakeupDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Classes from {original} move to {actual}'**
+  String campusMakeupDate(String original, String actual);
 }
 
 class _AppLocalizationsDelegate

@@ -10,6 +10,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/calendaradjustment"
 )
 
 func calendarFixture() (Dataset, Dataset) {
@@ -151,5 +152,45 @@ func TestCalendarExportUsesPrivateRefreshAndBindingFence(t *testing.T) {
 	result, err = s.ExportCalendar(context.Background(), 1, nil)
 	if !errors.Is(err, campus.ErrChanged) || result.Content != "" {
 		t.Fatal("unlinked identity exported private calendar")
+	}
+}
+
+func TestCalendarHolidayMovesPreserveSourceWeeksAndReplaceTarget(t *testing.T) {
+	cal, _ := calendarFixture()
+	table := Dataset{Events: []Event{
+		{Name: "四周周二", Day: 2, Start: 1, End: 2, Weeks: []int{4}},
+		{Name: "一周周二", Day: 2, Start: 1, End: 2, Weeks: []int{1}},
+		{Name: "原周日课程", Day: 7, Start: 1, End: 2, Weeks: []int{1}},
+		{Name: "中秋课程", Day: 5, Start: 1, End: 2, Weeks: []int{2}},
+		{Name: "四周周三", Day: 3, Start: 3, End: 4, Weeks: []int{4}},
+	}}
+	rules := calendaradjustment.Rules{Holidays: []calendaradjustment.Holiday{{Name: "中秋", StartDate: "2026-09-25", EndDate: "2026-09-27"}, {Name: "国庆", StartDate: "2026-10-01", EndDate: "2026-10-07"}}, Moves: []calendaradjustment.Move{{Name: "补课", FromDate: "2026-10-06", ToDate: "2026-09-20"}, {Name: "补课", FromDate: "2026-10-07", ToDate: "2026-10-10"}}}
+	original, err := buildCalendar(cal, table, nil, "owner", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := buildCalendar(cal, table, nil, "owner", time.Now(), rules)
+	if err != nil || result.EventCount != 3 {
+		t.Fatalf("count=%d err=%v", result.EventCount, err)
+	}
+	for _, want := range []string{"DTSTART:20260920T000000Z", "DTSTART:20260915T000000Z", "DTSTART:20261010T020000Z", "SUMMARY:四周周二", "SUMMARY:四周周三"} {
+		if !strings.Contains(result.Content, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	for _, bad := range []string{"SUMMARY:原周日课程", "SUMMARY:中秋课程", "DTSTART:20261006", "DTSTART:20261007"} {
+		if strings.Contains(result.Content, bad) {
+			t.Errorf("unadjusted %s", bad)
+		}
+	}
+	for _, line := range strings.Split(result.Content, "\r\n") {
+		if strings.HasPrefix(line, "UID:") && !strings.Contains(original.Content, line) {
+			t.Fatal("moving an event changed its identity")
+		}
+	}
+	// Disabling rules recovers the original five occurrences.
+	disabled, err := buildCalendar(cal, table, nil, "owner", time.Now(), calendaradjustment.Empty())
+	if err != nil || disabled.EventCount != 5 {
+		t.Fatal("cannot opt out")
 	}
 }

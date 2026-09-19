@@ -35,8 +35,14 @@ for (const width of [320, 1280]) {
       await button.waitFor()
       const box = await button.boundingBox()
       assert.ok(box && box.x >= 0 && box.x + box.width <= width, 'export control stays in the viewport')
+      const toggle = page.getByRole('switch', { name: '开启调休规则' })
+      assert.equal(await toggle.isChecked(), true)
+      await page.getByText('开启调休规则', { exact: true }).click()
+      assert.equal(await toggle.isChecked(), false)
       const pending = page.waitForEvent('download')
+      const exportRequest = page.waitForRequest(r => r.url().includes('calendar-export?applyAdjustments=false'))
       await button.click()
+      await exportRequest
       const download = await pending
       assert.equal(download.suggestedFilename(), calendar.result.filename)
       const stream = await download.createReadStream()

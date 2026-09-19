@@ -756,5 +756,21 @@
   "campusExportingCalendar": "Wird exportiert…",
   "campusExportCalendarHint": "Das ganze Semester als .ics-Datei speichern oder mit einer Kalender-App teilen. Änderungen werden nicht automatisch synchronisiert. Die Datei enthält Kurse und Orte.",
   "campusCalendarIncomplete": "Semestertermine, Unterrichtswochen oder Kurszeiten sind unvollständig. Bitte aktualisieren und erneut versuchen.",
-  "campusCalendarEmpty": "Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden."
+  "campusCalendarEmpty": "Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden.",
+  "campusApplyAdjustments": "Terminänderungen anwenden",
+  "campusApplyAdjustmentsHint": "Bestätigte Feiertage und Ersatztermine verwenden; sonst gilt der ursprüngliche Stundenplan.",
+  "campusCalendarRules": "Veröffentlichte Änderungen ansehen",
+  "campusCalendarRulesHint": "Änderungen gelten nur für den Kalenderexport. Der Stundenplan zeigt die ursprünglichen Termine. Exporte nutzen die neuesten Regeln.",
+  "campusNoCalendarRules": "Keine Änderungen hinterlegt. Der ursprüngliche Stundenplan wird exportiert.",
+  "campusMakeupDate": "Unterricht vom {original} findet am {actual} statt",
+  "@campusMakeupDate": {
+    "placeholders": {
+      "original": {
+        "type": "String"
+      },
+      "actual": {
+        "type": "String"
+      }
+    }
+  }
 }

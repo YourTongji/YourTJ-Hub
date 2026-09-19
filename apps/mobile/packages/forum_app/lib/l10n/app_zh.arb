@@ -1086,5 +1086,21 @@
   "campusExportingCalendar": "正在导出…",
   "campusExportCalendarHint": "导出整个学期的 .ics 文件，可保存或分享至其他日历 App；不会自动同步调课。文件包含课程和上课地点。",
   "campusCalendarIncomplete": "校历日期、课程周次或节次信息不完整，暂时无法准确导出。请刷新后重试。",
-  "campusCalendarEmpty": "本学期没有可导出的课程安排。"
+  "campusCalendarEmpty": "本学期没有可导出的课程安排。",
+  "campusApplyAdjustments": "开启调休规则",
+  "campusApplyAdjustmentsHint": "按管理员确认的放假与补课日期导出；未设置时使用原课表。",
+  "campusCalendarRules": "查看已发布的调休规则",
+  "campusCalendarRulesHint": "仅影响开启调休后的日历导出，页面课表仍为学校原始安排。导出使用最新规则。",
+  "campusNoCalendarRules": "管理员尚未设置调休，按学校原课表导出。",
+  "campusMakeupDate": "{actual} 上 {original} 的课",
+  "@campusMakeupDate": {
+    "placeholders": {
+      "original": {
+        "type": "String"
+      },
+      "actual": {
+        "type": "String"
+      }
+    }
+  }
 }

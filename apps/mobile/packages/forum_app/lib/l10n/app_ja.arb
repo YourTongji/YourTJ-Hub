@@ -756,5 +756,21 @@
   "campusExportingCalendar": "書き出し中…",
   "campusExportCalendarHint": "学期全体を .ics ファイルとして保存し、カレンダーアプリで共有できます。時間割の変更は自動同期されません。授業名と場所が含まれます。",
   "campusCalendarIncomplete": "学期の日付、授業週または時限の情報が不足しています。更新して再試行してください。",
-  "campusCalendarEmpty": "この学期に書き出せる授業予定はありません。"
+  "campusCalendarEmpty": "この学期に書き出せる授業予定はありません。",
+  "campusApplyAdjustments": "振替授業を適用",
+  "campusApplyAdjustmentsHint": "管理者が確認した休講日・振替日を使用します。未設定の場合は元の時間割を使用します。",
+  "campusCalendarRules": "公開中の振替ルールを表示",
+  "campusCalendarRulesHint": "振替はカレンダー出力にのみ適用されます。画面は元の時間割を表示し、出力時に最新ルールを使用します。",
+  "campusNoCalendarRules": "振替ルールは未設定です。元の時間割を出力します。",
+  "campusMakeupDate": "{original} の授業を {actual} に振替",
+  "@campusMakeupDate": {
+    "placeholders": {
+      "original": {
+        "type": "String"
+      },
+      "actual": {
+        "type": "String"
+      }
+    }
+  }
 }

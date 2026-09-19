@@ -137,6 +137,27 @@ class FakeCampusRepository extends CampusRepository {
   final cancellations = <CancelToken>[];
   Completer<CampusDataset>? pendingProfile;
   Completer<CampusCalendarExport>? pendingExport;
+  @override
+  Future<CampusCalendarSettings> calendarRules({
+    CancelToken? cancelToken,
+  }) async {
+    requested.add('calendar-rules');
+    return const CampusCalendarSettings(
+      revision: 'demo-rules',
+      rules: CampusCalendarRules(
+        holidays: [],
+        moves: [
+          CampusCalendarMove(
+            name: '国庆补课',
+            fromDate: '2026-10-06',
+            toDate: '2026-09-20',
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool? lastApplyAdjustments;
   Object? exportError;
   Object? messageError;
   Object? confirmError;
@@ -144,8 +165,10 @@ class FakeCampusRepository extends CampusRepository {
   String? unbound;
   @override
   Future<CampusCalendarExport> exportCalendar({
+    bool applyAdjustments = true,
     CancelToken? cancelToken,
   }) async {
+    lastApplyAdjustments = applyAdjustments;
     requested.add('calendar-export');
     if (cancelToken != null) cancellations.add(cancelToken);
     if (exportError != null) throw exportError!;

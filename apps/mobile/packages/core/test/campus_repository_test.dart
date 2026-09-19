@@ -21,6 +21,7 @@ void main() {
       final cancel = CancelToken();
       dio.httpClientAdapter = MockAdapter((r) async {
         expect(r.path, '/api/campus/calendar-export');
+        expect(r.queryParameters['applyAdjustments'], isFalse);
         expect(r.headers['Authorization'], 'Bearer test-session');
         return ResponseData(200, {
           'code': 0,
@@ -33,7 +34,7 @@ void main() {
       });
       final result = await CampusRepository(
         GfApiClient(dio: dio, tokenStorage: Storage()),
-      ).exportCalendar(cancelToken: cancel);
+      ).exportCalendar(applyAdjustments: false, cancelToken: cancel);
       expect(result.filename, endsWith('.ics'));
       expect(result.eventCount, 2);
       expect(result.content, startsWith('BEGIN:VCALENDAR\r\n'));

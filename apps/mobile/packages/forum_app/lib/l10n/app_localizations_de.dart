@@ -2326,4 +2326,27 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusCalendarEmpty =>
       'Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden.';
+
+  @override
+  String get campusApplyAdjustments => 'Terminänderungen anwenden';
+
+  @override
+  String get campusApplyAdjustmentsHint =>
+      'Bestätigte Feiertage und Ersatztermine verwenden; sonst gilt der ursprüngliche Stundenplan.';
+
+  @override
+  String get campusCalendarRules => 'Veröffentlichte Änderungen ansehen';
+
+  @override
+  String get campusCalendarRulesHint =>
+      'Änderungen gelten nur für den Kalenderexport. Der Stundenplan zeigt die ursprünglichen Termine. Exporte nutzen die neuesten Regeln.';
+
+  @override
+  String get campusNoCalendarRules =>
+      'Keine Änderungen hinterlegt. Der ursprüngliche Stundenplan wird exportiert.';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return 'Unterricht vom $original findet am $actual statt';
+  }
 }

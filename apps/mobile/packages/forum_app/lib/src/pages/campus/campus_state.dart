@@ -50,10 +50,15 @@ class CampusController extends StateNotifier<CampusViewState> {
   final Set<String> _loading = {};
   String tab = 'today';
 
-  Future<CampusCalendarExport?> exportCalendar() async {
+  Future<CampusCalendarExport?> exportCalendar({
+    bool applyAdjustments = true,
+  }) async {
     final generation = _generation;
     try {
-      final result = await repository.exportCalendar(cancelToken: _cancel);
+      final result = await repository.exportCalendar(
+        applyAdjustments: applyAdjustments,
+        cancelToken: _cancel,
+      );
       return mounted && generation == _generation ? result : null;
     } catch (e) {
       if (!mounted || generation != _generation) return null;

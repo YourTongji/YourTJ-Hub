@@ -2236,4 +2236,26 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusCalendarEmpty => 'この学期に書き出せる授業予定はありません。';
+
+  @override
+  String get campusApplyAdjustments => '振替授業を適用';
+
+  @override
+  String get campusApplyAdjustmentsHint =>
+      '管理者が確認した休講日・振替日を使用します。未設定の場合は元の時間割を使用します。';
+
+  @override
+  String get campusCalendarRules => '公開中の振替ルールを表示';
+
+  @override
+  String get campusCalendarRulesHint =>
+      '振替はカレンダー出力にのみ適用されます。画面は元の時間割を表示し、出力時に最新ルールを使用します。';
+
+  @override
+  String get campusNoCalendarRules => '振替ルールは未設定です。元の時間割を出力します。';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return '$original の授業を $actual に振替';
+  }
 }

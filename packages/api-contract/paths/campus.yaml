@@ -931,7 +931,7 @@
           "accessTokenCookie": []
         }
       ],
-      "description": "Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; manual holiday adjustments are not inferred. Never persisted or publicly addressable.",
+      "description": "Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; confirmed holiday rules apply by default, preserving original teaching weeks for makeup dates. No unconfirmed holiday is inferred. Never persisted or publicly addressable.",
       "responses": {
         "200": {
           "description": "Successful private response; Cache-Control: private, no-store.",
@@ -968,7 +968,19 @@
             }
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "in": "query",
+          "name": "applyAdjustments",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          },
+          "description": "Apply the latest administrator-confirmed holiday and teaching-date rules. False exports the unadjusted school timetable."
+        }
+      ]
     }
   }
 }

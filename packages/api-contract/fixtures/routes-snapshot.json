@@ -53,6 +53,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/campus/calendar-rules"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/data/export/download/:taskId"
   },
   {
@@ -186,6 +190,10 @@
   {
     "method": "GET",
     "path": "/api/campus/calendar-export"
+  },
+  {
+    "method": "GET",
+    "path": "/api/campus/calendar-rules"
   },
   {
     "method": "GET",
@@ -598,6 +606,14 @@
   {
     "method": "POST",
     "path": "/api/admin/badge-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/campus/calendar-rules"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/campus/calendar-rules/parse"
   },
   {
     "method": "POST",

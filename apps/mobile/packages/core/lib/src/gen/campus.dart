@@ -247,3 +247,95 @@ class CampusCalendarExport {
         eventCount: json['eventCount'] as int,
       );
 }
+
+// Admin-confirmed public teaching-date rules; absolute dates, never personal data.
+class CampusHoliday {
+  const CampusHoliday({
+    required this.name,
+    required this.startDate,
+    required this.endDate,
+  });
+  final String name, startDate, endDate;
+  factory CampusHoliday.fromJson(Map<String, dynamic> j) => CampusHoliday(
+    name: j['name'] as String,
+    startDate: j['startDate'] as String,
+    endDate: j['endDate'] as String,
+  );
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'startDate': startDate,
+    'endDate': endDate,
+  };
+}
+
+class CampusCalendarMove {
+  const CampusCalendarMove({
+    required this.name,
+    required this.fromDate,
+    required this.toDate,
+  });
+  final String name, fromDate, toDate;
+  factory CampusCalendarMove.fromJson(Map<String, dynamic> j) =>
+      CampusCalendarMove(
+        name: j['name'] as String,
+        fromDate: j['fromDate'] as String,
+        toDate: j['toDate'] as String,
+      );
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'fromDate': fromDate,
+    'toDate': toDate,
+  };
+}
+
+class CampusCalendarRules {
+  const CampusCalendarRules({required this.holidays, required this.moves});
+  final List<CampusHoliday> holidays;
+  final List<CampusCalendarMove> moves;
+  factory CampusCalendarRules.fromJson(Map<String, dynamic> j) =>
+      CampusCalendarRules(
+        holidays: (j['holidays'] as List)
+            .map((v) => CampusHoliday.fromJson(v as Map<String, dynamic>))
+            .toList(),
+        moves: (j['moves'] as List)
+            .map((v) => CampusCalendarMove.fromJson(v as Map<String, dynamic>))
+            .toList(),
+      );
+  Map<String, dynamic> toJson() => {
+    'holidays': holidays.map((v) => v.toJson()).toList(),
+    'moves': moves.map((v) => v.toJson()).toList(),
+  };
+}
+
+class CampusCalendarSettings {
+  const CampusCalendarSettings({required this.revision, required this.rules});
+  final String revision;
+  final CampusCalendarRules rules;
+  factory CampusCalendarSettings.fromJson(Map<String, dynamic> j) =>
+      CampusCalendarSettings(
+        revision: j['revision'] as String,
+        rules: CampusCalendarRules.fromJson(j['rules'] as Map<String, dynamic>),
+      );
+  Map<String, dynamic> toJson() => {
+    'revision': revision,
+    'rules': rules.toJson(),
+  };
+}
+
+class CampusCalendarDraft {
+  const CampusCalendarDraft({required this.rules, required this.warnings});
+  final CampusCalendarRules rules;
+  final List<String> warnings;
+  factory CampusCalendarDraft.fromJson(Map<String, dynamic> j) =>
+      CampusCalendarDraft(
+        rules: CampusCalendarRules.fromJson(j['rules'] as Map<String, dynamic>),
+        warnings: (j['warnings'] as List).cast<String>(),
+      );
+}
+
+class CampusCalendarParseRequest {
+  const CampusCalendarParseRequest({required this.year, required this.text});
+  final int year;
+  final String text;
+  Map<String, dynamic> toJson() => {'year': year, 'text': text};
+}

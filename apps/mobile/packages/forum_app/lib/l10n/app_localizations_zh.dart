@@ -2219,4 +2219,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusCalendarEmpty => '本学期没有可导出的课程安排。';
+
+  @override
+  String get campusApplyAdjustments => '开启调休规则';
+
+  @override
+  String get campusApplyAdjustmentsHint => '按管理员确认的放假与补课日期导出；未设置时使用原课表。';
+
+  @override
+  String get campusCalendarRules => '查看已发布的调休规则';
+
+  @override
+  String get campusCalendarRulesHint => '仅影响开启调休后的日历导出，页面课表仍为学校原始安排。导出使用最新规则。';
+
+  @override
+  String get campusNoCalendarRules => '管理员尚未设置调休，按学校原课表导出。';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return '$actual 上 $original 的课';
+  }
 }

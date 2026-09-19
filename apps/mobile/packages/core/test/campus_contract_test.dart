@@ -12,6 +12,18 @@ void main() {
           as Map<String, dynamic>;
     }
 
+    final rules = CampusCalendarSettings.fromJson(
+      result('campus-calendar-rules-success.json'),
+    );
+    expect(rules.rules.holidays.single.startDate, '2026-10-01');
+    expect(rules.rules.moves.single.fromDate, '2026-10-06');
+    expect(rules.rules.moves.single.toDate, '2026-09-20');
+    expect(rules.toJson(), result('campus-calendar-rules-success.json'));
+    final draft = CampusCalendarDraft.fromJson(
+      result('campus-calendar-draft-success.json'),
+    );
+    expect(draft.warnings, isEmpty);
+    expect(draft.rules.moves.single.toDate, '2026-09-20');
     final status = CampusStatus.fromJson(result('campus-status-success.json'));
     expect(status.binding!.maskedId, '23••••01');
     expect(status.candidate, isNull);

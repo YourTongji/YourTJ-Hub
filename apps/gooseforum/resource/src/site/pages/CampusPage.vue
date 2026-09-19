@@ -6,6 +6,7 @@ import { campusAPI, CampusError } from '@/runtime/campus-api'
 import PageHeader from '@/site/components/PageHeader.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import CampusCalendarRules from '@/site/components/CampusCalendarRules.vue'
 import CampusTimetable from '@/site/components/CampusTimetable.vue'
 import CampusMessageDialog from '@/site/components/CampusMessageDialog.vue'
 import { timetableCourseStyle } from '@/site/utils/timetableCourseStyle'
@@ -21,6 +22,7 @@ const failures = ref<Partial<Record<CampusDatasetKey, string>>>({})
 const now = ref(new Date())
 const clock = computed(() => campusClock(now.value))
 const wish = ref(randomCampusWish())
+const applyAdjustments = ref(true)
 const exporting = ref(false), exportMessage = ref(''), exportError = ref('')
 let exportController: AbortController | null = null
 let exportRequest = 0
@@ -42,7 +44,7 @@ async function exportCalendar() {
   exportMessage.value = ''
   exportError.value = ''
   try {
-    const result = await campusAPI.exportCalendar(exportController.signal)
+    const result = await campusAPI.exportCalendar(exportController.signal, applyAdjustments.value)
     if (epoch !== generation || request !== exportRequest) return
     const url = URL.createObjectURL(new Blob([result.content], { type: 'text/calendar;charset=utf-8' }))
     exportURLs.add(url)
@@ -442,11 +444,17 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             </div>
           </div>
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <p id="campus-export-hint" class="min-w-0 flex-1 text-xs leading-5 text-base-content/55">导出整个学期的 .ics 文件，可导入其他日历 App；不会自动同步调课。文件包含课程和上课地点。</p>
+            <p id="campus-export-hint" class="min-w-0 flex-1 text-xs leading-5 text-base-content/55">导出整个学期的 .ics 文件，可导入其他日历 App；应用已发布的调休规则；文件不会自动更新。文件包含课程和上课地点。</p>
+            <label class="flex shrink-0 cursor-pointer items-center gap-2 text-xs">
+              <input v-model="applyAdjustments" type="checkbox" role="switch" class="peer sr-only" :disabled="exporting" />
+              <span aria-hidden="true" class="relative h-5 w-9 rounded-full bg-base-content/20 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-base-100 after:shadow-sm after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary peer-disabled:opacity-50"></span>
+              开启调休规则
+            </label>
             <button class="gf-button gf-button-sm gf-button-secondary shrink-0 text-xs" :disabled="exporting || busy || !courses.length || status.binding.needsAuthorization" aria-describedby="campus-export-hint" @click="exportCalendar">
               <Loader2 v-if="exporting" class="h-3.5 w-3.5 spinning" /><Download v-else class="h-3.5 w-3.5" />{{ exporting ? '正在导出…' : '导出课程日历' }}
             </button>
           </div>
+          <CampusCalendarRules />
           <p v-if="exportError" role="alert" class="gf-status-message gf-status-message-error m-4">{{ exportError }}</p>
           <p v-else-if="exportMessage" role="status" class="gf-status-message gf-status-message-info m-4">{{ exportMessage }}</p>
           <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failures.timetable }}</p>

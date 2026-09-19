@@ -19,6 +19,7 @@ func campusRoutes(app *gin.Engine) {
 	g.GET("/status", api.CampusStatus)
 	g.GET("/data/:dataset", middleware.RateLimit(middleware.RateLimitCampusRead), api.CampusDataset)
 	g.GET("/messages/:messageId", middleware.RateLimit(middleware.RateLimitCampusRead), api.CampusMessage)
+	g.GET("/calendar-rules", middleware.RateLimit(middleware.RateLimitCampusRead), api.CampusCalendarRules)
 	g.GET("/calendar-export", middleware.RateLimit(middleware.RateLimitCampusRead), api.CampusCalendarExport)
 	g.POST("/tongji/start", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitCampusAuthorize), api.CampusStart)
 	g.GET("/tongji/callback", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitCampusAuthorize), api.CampusCallback)

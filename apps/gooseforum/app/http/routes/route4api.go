@@ -498,6 +498,9 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("campus/calendar-rules", api.CampusCalendarRules).
+		POST("campus/calendar-rules", api.SaveCampusCalendarRules).
+		POST("campus/calendar-rules/parse", api.ParseCampusCalendarRules).
 		GET("schedule-settings", UpButterReq(api.GetScheduleSettings)).
 		POST("save-schedule-settings", UpButterReq(api.SaveScheduleSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).

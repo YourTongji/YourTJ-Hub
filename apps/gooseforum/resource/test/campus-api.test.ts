@@ -7,7 +7,9 @@ describe('private campus client', () => {
     vi.stubGlobal('fetch', fetch)
     const controller = new AbortController()
     await campusAPI.exportCalendar(controller.signal)
-    expect(fetch).toHaveBeenCalledWith('/api/campus/calendar-export', expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', signal: controller.signal }))
+    expect(fetch).toHaveBeenCalledWith('/api/campus/calendar-export?applyAdjustments=true', expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', signal: controller.signal }))
+    await campusAPI.exportCalendar(controller.signal, false)
+    expect(fetch).toHaveBeenLastCalledWith('/api/campus/calendar-export?applyAdjustments=false', expect.any(Object))
   })
   it('never caches school records or exposes tokens', async () => {
     const payload = { key: 'grades', status: 'ready', rows: [] }

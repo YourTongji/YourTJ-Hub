@@ -4,6 +4,70 @@
  */
 
 export interface paths {
+    "/api/campus/calendar-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * campusCalendarRules
+         * @description Authenticated read of administrator-confirmed date rules; includes a content revision. No private school data.
+         */
+        get: operations["campusCalendarRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/campus/calendar-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * adminCampusCalendarRules
+         * @description SiteManager required. Read the current published rules and revision.
+         */
+        get: operations["adminCampusCalendarRules"];
+        put?: never;
+        /**
+         * adminSaveCampusCalendarRules
+         * @description SiteManager required. Validate and atomically replace all rules; revision must match the latest read (409 otherwise). Dates are explicit, holiday ranges inclusive. Each move removes the original occurrence and replaces the actual destination day with the source day timetable, preserving source teaching weeks. Reject overlapping holidays, duplicate sources/targets, chains/cycles and targets on holidays. AI parse does not save.
+         */
+        post: operations["adminSaveCampusCalendarRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/campus/calendar-rules/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * adminParseCampusCalendarRules
+         * @description SiteManager required. Parse only submitted notice and explicit year through the AI summary provider (admin config, then deployment fallback). Independent of the public course-summary display switch; shares the global generation quota and 30 second deadline. No private campus data sent. Strict JSON and date validation; draft/warnings returned without persisting. User must review, edit and save explicitly.
+         */
+        post: operations["adminParseCampusCalendarRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/campus/calendar-export": {
         parameters: {
             query?: never;
@@ -13,7 +77,7 @@ export interface paths {
         };
         /**
          * campusCalendarExport
-         * @description Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; manual holiday adjustments are not inferred. Never persisted or publicly addressable.
+         * @description Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; confirmed holiday rules apply by default, preserving original teaching weeks for makeup dates. No unconfirmed holiday is inferred. Never persisted or publicly addressable.
          */
         get: operations["campusCalendarExport"];
         put?: never;
@@ -6458,6 +6522,46 @@ export interface components {
         CampusMessageDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CampusMessageDetail"];
         };
+        CampusHoliday: {
+            name: string;
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+        };
+        CampusCalendarMove: {
+            name: string;
+            /** Format: date */
+            fromDate: string;
+            /** Format: date */
+            toDate: string;
+        };
+        CampusCalendarRules: {
+            holidays: components["schemas"]["CampusHoliday"][];
+            moves: components["schemas"]["CampusCalendarMove"][];
+        };
+        CampusCalendarSettings: {
+            revision: string;
+            rules: components["schemas"]["CampusCalendarRules"];
+        };
+        CampusCalendarDraft: {
+            rules: components["schemas"]["CampusCalendarRules"];
+            warnings: string[];
+        };
+        CampusCalendarParseRequest: {
+            year: number;
+            text: string;
+        };
+        CampusCalendarSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["CampusCalendarSettings"];
+        };
+        CampusCalendarDraftResponse: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["CampusCalendarDraft"];
+        };
         CampusCalendarExport: {
             filename: string;
             /** @description UTF-8 RFC 5545 calendar with CRLF folding and UTC event times. Private data; persist only through explicit user export. */
@@ -11541,9 +11645,208 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    campusCalendarExport: {
+    campusCalendarRules: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarSettingsResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCampusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarSettingsResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveCampusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampusCalendarSettings"];
+            };
+        };
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarSettingsResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminParseCampusCalendarRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampusCalendarParseRequest"];
+            };
+        };
+        responses: {
+            /** @description Success; private, no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusCalendarDraftResponse"];
+                };
+            };
+            /** @description Invalid dates, overlapping/conflicting rules or malformed input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Session required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Permission, CSRF, storage or AI failure. Codes: campus.rulesChanged (409), campus.rulesAIUnavailable (503), campus.rulesAIOutput (502), campus.rulesLimited (429), campus.rulesUnavailable (503). */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    campusCalendarExport: {
+        parameters: {
+            query?: {
+                /** @description Apply the latest administrator-confirmed holiday and teaching-date rules. False exports the unadjusted school timetable. */
+                applyAdjustments?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

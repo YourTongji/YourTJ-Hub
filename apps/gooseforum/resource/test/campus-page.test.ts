@@ -53,7 +53,7 @@ test('exports all-term calendar via a private request and releases the download 
     await clickTab(wrapper, '我的课表')
     await wrapper.findAll('button').find(b => b.text() === '导出课程日历')!.trigger('click')
     await flushPromises()
-    expect(api.exportCalendar).toHaveBeenCalledWith(expect.any(AbortSignal))
+    expect(api.exportCalendar).toHaveBeenCalledWith(expect.any(AbortSignal), true)
     expect(create.mock.calls[0]![0]).toMatchObject({ type: 'text/calendar;charset=utf-8' })
     expect(click).toHaveBeenCalledOnce()
     expect(wrapper.text()).toContain('24 次课程日程')

@@ -45,3 +45,20 @@ Automated tests cover signature/issuer/audience/nonce checks, callback replay an
 ## Native App
 
 `Current`: native campus uses the same configuration and APIs. School credentials never reach Dart. The authenticated WebView is used only for the native-session handoff and official school authorization; the server callback returns to the native confirmation. No additional client secret, callback scheme or mobile database is required. `Partial`: physical-device school sign-in remains an explicit validation gap; use a user-authorized official login to validate it.
+
+## Teaching-date rules
+
+`Current`: SiteManager administrators manage rules at `/admin/settings/campus-calendar`.
+AI drafting reuses the AI summary provider configuration (admin provider settings first,
+`[ai_summary]` fallback), its shared global generation quota and a 30-second cancellable
+request. The public course-summary display switch does not gate this explicit administrator action. Missing configuration or invalid model output leaves published rules unchanged;
+manual editing remains available. Only the entered public notice and explicit year reach
+the provider; no personal campus records are included. Draft notices are not persisted.
+
+Confirmed absolute-date rules use the existing `page_config` storage under
+`campusCalendarAdjustments`; no schema migration or new secret is needed. Saving compares
+the loaded content revision atomically, rejecting stale edits. Rules take effect on the next
+export with adjustments enabled, without restarting. To remove an adjustment, delete its row
+and apply; clearing both lists restores unadjusted exports. Check each year's school teaching
+notice rather than inferring makeup lessons from national workday calendars. Previously
+imported calendar files cannot be retracted or updated by the server.

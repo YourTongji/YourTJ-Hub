@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/calendaradjustment"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/gin-gonic/gin"
 )
@@ -167,8 +168,22 @@ func CampusCalendarExport(c *gin.Context) {
 	if s == nil {
 		return
 	}
+	apply := c.DefaultQuery("applyAdjustments", "true")
+	if apply != "true" && apply != "false" {
+		calendarRulesFailure(c, calendaradjustment.ErrInvalid)
+		return
+	}
+	rules := calendaradjustment.Empty()
+	if apply == "true" {
+		stored, err := calendaradjustment.Read(c.Request.Context())
+		if err != nil {
+			calendarRulesFailure(c, err)
+			return
+		}
+		rules = stored.Rules
+	}
 	settings := defaultconfig.NormalizeStoredScheduleSettings(pageConfig.GetConfigByPageType(pageConfig.ScheduleSettings, pageConfig.ScheduleSettingsConfig{}))
-	d, err := s.ExportCalendar(c.Request.Context(), c.GetUint64("userId"), settings.SectionTimes)
+	d, err := s.ExportCalendar(c.Request.Context(), c.GetUint64("userId"), settings.SectionTimes, rules)
 	if err != nil {
 		campusFailure(c, err)
 		return
