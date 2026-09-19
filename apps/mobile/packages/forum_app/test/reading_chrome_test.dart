@@ -73,6 +73,7 @@ void main() {
               drawer: const Drawer(child: Text('drawer')),
               body: RootSurface(
                 title: 'YourTJ',
+                showLogo: true,
                 onAction: () {},
                 body: (top, bottom) => ListView(
                   controller: scroll,

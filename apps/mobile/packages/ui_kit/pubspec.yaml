@@ -25,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    - assets/logos/
     - assets/LICENSE-lucide.txt
     - assets/LICENSE-simple-icons.txt
     - assets/LICENSE-lucide.txt

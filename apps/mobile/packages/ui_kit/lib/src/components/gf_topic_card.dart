@@ -7,7 +7,6 @@ import 'atoms/gf_avatar.dart';
 import 'gf_card.dart';
 import 'gf_chip.dart';
 import 'gf_topic_row.dart';
-import 'gf_image_viewer.dart';
 
 /// Mobile topic-feed card aligned with the web `TopicFeedPreview` surface.
 class GfTopicCard extends StatefulWidget {
@@ -180,19 +179,11 @@ class _GfTopicCardState extends State<GfTopicCard>
     final singleImage = images.length == 1 && portrait;
 
     Widget photo(int index, {double? width, double height = 104}) =>
-        GestureDetector(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  GfImageViewer(images: allImages, initialIndex: index),
-            ),
-          ),
-          child: _TopicImage(
-            url: images[index],
-            width: width,
-            height: height,
-            fit: portrait ? BoxFit.cover : BoxFit.contain,
-          ),
+        _TopicImage(
+          url: images[index],
+          width: width,
+          height: height,
+          fit: portrait ? BoxFit.cover : BoxFit.contain,
         );
 
     final Widget textContent = Column(

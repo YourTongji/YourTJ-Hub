@@ -27,6 +27,7 @@ dependencies:
   go_router: ^17.3.0
   flutter_widget_from_html_core: ^0.17.3
   image_picker: ^1.1.2
+  gal: ^2.3.2
   url_launcher: ^6.3.2
   markdown_widget: ^2.3.2
   image: ^4.5.4

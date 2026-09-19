@@ -1,4 +1,3 @@
-import 'package:forum_app/src/widgets/brand_mark.dart';
 import 'package:forum_app/src/widgets/campus_shortcuts.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
@@ -179,7 +178,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(YourTjMark), findsOneWidget);
+    expect(find.byType(GfLogo), findsOneWidget);
     appRouter.push('/profile');
     await tester.pumpAndSettle();
 

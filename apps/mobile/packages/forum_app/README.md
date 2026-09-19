@@ -34,6 +34,32 @@ flutter run --dart-define=YOURTJ_OIDC_ISSUER=http://localhost:5234/api/oauth \
             --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
 ```
 
+构建 Android Debug 安装包时使用 ABI 分离，避免把 arm32、arm64 和 x86_64 的 native
+库同时打进一个 APK。完整的 OIDC 模拟器流程已由 `apps/mobile/scripts/oidc_e2e.sh run`
+自动按设备 ABI 选择对应产物；手动构建时可使用：
+
+```bash
+flutter build apk --debug --split-per-abi
+# 输出：build/app/outputs/flutter-apk/app-{armeabi-v7a,arm64-v8a,x86_64}-debug.apk
+```
+
+连接 dev 真实后端时必须同时注入 API 与 OIDC 地址，物理手机不要使用默认的
+`10.0.2.2` 模拟器地址：
+
+```bash
+flutter build apk --debug --split-per-abi \
+  --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
+  --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
+  --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+```
+
+也可以直接运行仓库脚本，避免误装未注入地址的旧 `app-debug.apk`：
+
+```bash
+# 在仓库根目录执行
+bash apps/mobile/scripts/build_dev_apk.sh
+```
+
 CI(`ci-mobile`)对 `apps/mobile/**` 运行同一组 bootstrap / analyze / test。
 
 ## 本地设备集成测试
