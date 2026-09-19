@@ -139,6 +139,11 @@ func CloseForUser(id uint64, closeAccount func() error) error {
 	if instance != nil {
 		instance.dropPending(id)
 	}
+	// Keep the binding intact when account closure fails so the user can retry
+	// without losing the credentials that still belong to the active account.
+	if err := closeAccount(); err != nil {
+		return err
+	}
 	if err := store.DeleteForUser(id); err != nil {
 		return err
 	}
@@ -153,7 +158,7 @@ func CloseForUser(id uint64, closeAccount func() error) error {
 		}
 	}
 
-	return closeAccount()
+	return nil
 }
 func Mask(value string) string {
 	r := []rune(strings.TrimSpace(value))
