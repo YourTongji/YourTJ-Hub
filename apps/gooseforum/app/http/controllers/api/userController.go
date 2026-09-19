@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -310,6 +311,10 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		userEntity.Locale = i18n.Normalize(req.Params.Locale)
 	}
 	userEntity.ExternalInformation = req.Params.ExternalInformation
+	externalInformationJSON, err := json.Marshal(userEntity.ExternalInformation)
+	if err != nil {
+		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+	}
 
 	err = userservice.UpdateUserFields(userEntity.Id, map[string]any{
 		"nickname":             userEntity.Nickname,
@@ -318,7 +323,7 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		"website":              userEntity.Website,
 		"website_name":         userEntity.WebsiteName,
 		"locale":               userEntity.Locale,
-		"external_information": userEntity.ExternalInformation,
+		"external_information": string(externalInformationJSON),
 	})
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
