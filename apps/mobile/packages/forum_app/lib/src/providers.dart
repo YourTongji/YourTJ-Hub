@@ -73,7 +73,13 @@ final dioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 final authDioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 
 Dio _localizedDio(Ref ref) {
-  final dio = Dio();
+  final dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 20),
+    ),
+  );
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {

@@ -53,6 +53,13 @@ flutter build apk --debug --split-per-abi \
   --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
 ```
 
+也可以直接运行仓库脚本，避免误装未注入地址的旧 `app-debug.apk`：
+
+```bash
+# 在仓库根目录执行
+bash apps/mobile/scripts/build_dev_apk.sh
+```
+
 CI(`ci-mobile`)对 `apps/mobile/**` 运行同一组 bootstrap / analyze / test。
 
 ## 本地设备集成测试
