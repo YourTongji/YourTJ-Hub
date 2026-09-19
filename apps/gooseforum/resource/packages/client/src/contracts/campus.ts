@@ -1,3 +1,4 @@
+// School callbacks use a clean 303 redirect even on session/account rejection.
 import type { components } from '../gen/openapi.js'
 export type CampusStatus = components['schemas']['CampusStatus']
 export type CampusDataset = components['schemas']['CampusDataset']

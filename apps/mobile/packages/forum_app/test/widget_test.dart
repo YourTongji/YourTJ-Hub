@@ -117,14 +117,29 @@ void main() {
     navigation.onSelected(1);
     await tester.pumpAndSettle();
     expect(appRouter.state.uri.path, '/campus');
-    expect(find.text('从同学的真实评价，发现适合你的课'), findsOneWidget);
+    expect(
+      find.text(AppLocalizationsZh().campusOfficialSubtitle),
+      findsOneWidget,
+    );
+    expect(find.byType(FloatingActionButton), findsNothing);
+    await tester.tap(find.byTooltip('探索校园'));
+    await tester.pumpAndSettle();
+    expect(appRouter.state.uri.path, '/campus/explore');
+    expect(find.text(AppLocalizationsZh().campusCoursesTitle), findsOneWidget);
+    appRouter.pop();
+    await tester.pumpAndSettle();
+    expect(appRouter.state.uri.path, '/campus');
+
+    // Search remains a global browsing destination, reachable from home.
+    appRouter.go('/');
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('搜索'));
     await tester.pumpAndSettle();
     expect(appRouter.state.uri.path, '/search');
     expect(appRouter.canPop(), isTrue);
     appRouter.pop();
     await tester.pumpAndSettle();
-    expect(appRouter.state.uri.path, '/campus');
+    expect(appRouter.state.uri.path, '/');
 
     appRouter.go('/');
     await tester.pumpAndSettle();

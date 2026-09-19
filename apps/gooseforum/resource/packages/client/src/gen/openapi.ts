@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Finish Tongji authorization and return to identity confirmation
-         * @description Validates session-bound state, S256, nonce, RS256 ID token and student identifier. Consumes the authorization attempt once. The callback URL is scrubbed with a redirect and no-referrer.
+         * @description Validates session-bound state, S256, nonce, RS256 ID token and student identifier. Consumes the authorization attempt once. Every handled callback redirects to a clean campus URL with no-referrer and private, no-store, including missing/invalid/revoked sessions, non-writable accounts, rate limits, disabled configuration and upstream failures. Rejected guards never exchange the code.
          */
         get: operations["campusCallback"];
         put?: never;
@@ -6375,7 +6375,10 @@ export interface components {
     schemas: {
         CampusBinding: {
             maskedId: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Time the current official identity was bound. Replacing the identity resets this time; renewing authorization for the same identity preserves it.
+             */
             boundAt: string;
             revision: string;
             needsAuthorization: boolean;
@@ -11616,27 +11619,11 @@ export interface operations {
             303: {
                 headers: {
                     Location?: string;
+                    "Cache-Control"?: "private, no-store";
+                    "Referrer-Policy"?: "no-referrer";
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Missing, invalid or revoked forum session. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure. */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
             };
         };
     };

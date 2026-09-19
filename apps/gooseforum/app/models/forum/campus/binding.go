@@ -32,13 +32,18 @@ func (s Store) Get(id uint64) (Binding, error) {
 	return b, err
 }
 
-// Replace uses both database uniqueness and optimistic concurrency. Verifying a
-// replacement never releases the old identity until this statement commits.
+// Replace uses database uniqueness and optimistic concurrency. created_at tracks
+// the current identity binding and survives same-identity reauthorization. The old
+// identity is not released until this statement commits.
 func (s Store) Replace(b Binding, previous string) error {
 	if previous == "" {
 		return s.DB.Create(&b).Error
 	}
-	r := s.DB.Model(&Binding{}).Where("user_id = ? AND revision = ? AND lease_until < ?", b.UserID, previous, time.Now().Unix()).Updates(map[string]any{"identity_key": b.IdentityKey, "revision": b.Revision, "sealed": b.Sealed, "needs_authorization": false, "lease_until": 0})
+	r := s.DB.Model(&Binding{}).Where("user_id = ? AND revision = ? AND lease_until < ?", b.UserID, previous, time.Now().Unix()).Updates(map[string]any{
+		"created_at":   gorm.Expr("CASE WHEN identity_key <> ? THEN ? ELSE created_at END", b.IdentityKey, time.Now()),
+		"identity_key": b.IdentityKey, "revision": b.Revision, "sealed": b.Sealed,
+		"needs_authorization": false, "lease_until": 0,
+	})
 	if r.Error != nil {
 		return r.Error
 	}

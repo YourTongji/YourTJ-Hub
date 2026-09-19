@@ -1,4 +1,4 @@
-/// Mirrors /api/campus. No school credential or raw student ID is exposed. The private profile may contain the viewer’s name.
+/// Mirrors /api/campus. School callbacks always return a clean 303 redirect, including session rejection. No school credential or raw student ID is exposed. The private profile may contain the viewer’s name.
 class CampusBinding {
   const CampusBinding({
     required this.maskedId,
@@ -7,6 +7,7 @@ class CampusBinding {
     required this.needsAuthorization,
   });
   final String maskedId;
+  /// Current identity binding time; preserved on same-identity reauthorization.
   final String boundAt;
   final String revision;
   final bool needsAuthorization;

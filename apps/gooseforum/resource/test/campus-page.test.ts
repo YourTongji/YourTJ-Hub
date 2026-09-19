@@ -1,28 +1,29 @@
 // @vitest-environment happy-dom
 import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
 import type { CampusDataset, CampusDatasetKey, CampusStatus, LayoutPayload } from '@gooseforum/client'
 import { CampusError } from '../src/runtime/campus-api'
 import CampusPage from '../src/site/pages/CampusPage.vue'
 
-const api = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn(), message: vi.fn(), confirm: vi.fn() }))
+const api = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn(), message: vi.fn(), confirm: vi.fn(), start: vi.fn() }))
 vi.mock('@/runtime/campus-api', async original => ({
   ...await original<typeof import('../src/runtime/campus-api')>(), campusAPI: api,
 }))
-afterEach(() => vi.resetAllMocks())
+beforeEach(() => { sessionStorage.clear(); history.replaceState(null, '', '/campus') })
+afterEach(() => { vi.restoreAllMocks(); vi.resetAllMocks() })
 const status: CampusStatus = { enabled: true, binding: { maskedId: '***01', revision: 'first', needsAuthorization: false }, candidate: null }
 function dataset(key: CampusDatasetKey): CampusDataset {
   return { key, status: 'ready', updatedAt: '2026-09-19T00:00:00Z', metrics: [], columns: [], rows: [], events: [], series: [] }
 }
-function setup(candidate: CampusStatus['candidate'] = null) {
-  api.status.mockResolvedValue({ ...status, candidate })
+function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first') {
+  api.status.mockResolvedValue({ ...status, binding: {...status.binding!, revision}, candidate })
   api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...dataset(key),
     metrics: key === 'summary' ? [{ label: '综合 GPA', value: '3.72', unit: '' }] : key === 'profile' ? [{ label: '姓名', value: '测试同学', unit: '' }] : key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }] : [],
     messages: key === 'messages' ? Array.from({ length: 7 }, (_, i) => ({ id: String(i + 1), title: `校园通知 ${i + 1}`, publisher: '学校', publishedAt: '2026-09-19T10:00:00+08:00' })) : undefined,
   }))
   return mount(CampusPage, {
-    props: { layout: { viewer: { isAuthenticated: true } } as LayoutPayload, props: {} }, attachTo: document.body,
+    props: { layout: { viewer: { isAuthenticated: true, id: userId } } as LayoutPayload, props: {} }, attachTo: document.body,
     global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh: { common: { loadingShort: '加载中' } } } })] },
   })
 }
@@ -137,3 +138,45 @@ test('a failed confirmation stays visible inside the message dialog', async () =
     expect(api.message).toHaveBeenCalledOnce()
   } finally { wrapper.unmount() }
 })
+
+for (const scenario of ['present', 'removed', 'different-account', 'different-binding', 'expired', 'failed']) {
+ test(`school round trip resumes only a valid message intent: ${scenario}`, async () => {
+  vi.spyOn(window.location, 'assign').mockImplementation(() => {})
+  api.start.mockResolvedValue({ url: 'https://school.test/authorize' })
+  api.message.mockRejectedValue(new CampusError('campus.messageAuthorizationRequired', '需要更新授权'))
+  const first = setup()
+  await flushPromises()
+  await clickTab(first, '校园消息')
+  await first.findAll('button').find(b => b.text().includes('校园通知 1'))!.trigger('click')
+  await flushPromises()
+  Array.from(document.querySelectorAll('[role="dialog"] button')).find(b => b.textContent === '更新学校授权')!.dispatchEvent(new MouseEvent('click'))
+  await flushPromises()
+  expect(api.start).toHaveBeenCalledWith('reauthorize')
+  const saved = sessionStorage.getItem('yourtj:campus-message-return')
+  expect(saved).not.toBeNull()
+  expect(saved).not.toContain('校园通知')
+  first.unmount()
+  if (scenario === 'expired') {
+   const intent = JSON.parse(saved!)
+   intent.expiresAt = Date.now() - 1
+   sessionStorage.setItem('yourtj:campus-message-return', JSON.stringify(intent))
+  }
+  history.replaceState(null, '', `/campus?authorization=${scenario === 'failed' ? 'failed' : 'ready'}`)
+  const second = setup({ mode: 'reauthorize', maskedId: '***01', expiresAt: 'later' }, scenario === 'different-account' ? 99 : 42, scenario === 'different-binding' ? 'other' : 'first')
+  if (scenario === 'removed') api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({...dataset(key), messages: []}))
+  api.message.mockReset().mockResolvedValue({id:'1', title:'新标题', content:'恢复后的正文', links:[]})
+  api.confirm.mockResolvedValue(null)
+  try {
+   await flushPromises()
+   expect(sessionStorage.getItem('yourtj:campus-message-return')).toBeNull()
+   api.status.mockResolvedValue({...status, binding: {...status.binding!, revision:'renewed'}})
+   await second.findAll('button').find(b => b.text() === '确认更新授权')!.trigger('click')
+   await flushPromises()
+   if (scenario === 'present') {
+    expect(second.find('nav button[aria-current="page"]').text()).toBe('校园消息')
+    expect(api.message).toHaveBeenCalledWith('1', expect.any(AbortSignal))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('恢复后的正文')
+   } else { expect(api.message).not.toHaveBeenCalled() }
+  } finally { second.unmount() }
+ })
+}

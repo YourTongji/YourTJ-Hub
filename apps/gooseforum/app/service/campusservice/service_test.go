@@ -19,6 +19,7 @@ type fakeProvider struct {
 	id               string
 	err              error
 	refreshes        atomic.Int32
+	revocations      atomic.Int32
 	entered, release chan struct{}
 }
 
@@ -43,7 +44,7 @@ func (p *fakeProvider) Data(context.Context, string, string) (any, error) {
 	}
 	return map[string]any{"name": "test term", "week": float64(1)}, nil
 }
-func (p *fakeProvider) Revoke(context.Context, Credentials)                  {}
+func (p *fakeProvider) Revoke(context.Context, Credentials)                  { p.revocations.Add(1) }
 func (p *fakeProvider) Message(context.Context, string, string) (any, error) { return nil, ErrUpstream }
 func setup(t *testing.T) (*Service, *fakeProvider) {
 	t.Helper()
@@ -266,5 +267,32 @@ func TestStaleCredentialCannotAcquireRefreshLease(t *testing.T) {
 	}
 	if e := s.store.Acquire(old); e == nil {
 		t.Fatal("old refresh credential acquired lease")
+	}
+}
+
+func TestBoundAtTracksIdentityReplacementOnly(t *testing.T) {
+	s, p := setup(t)
+	bind(t, s, 1)
+	original := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Second)
+	if err := s.store.DB.Model(&campus.Binding{}).Where("user_id = ?", 1).Update("created_at", original).Error; err != nil {
+		t.Fatal(err)
+	}
+	prepare(t, s, 1, "reauthorize")
+	if err := s.Confirm(1, "session"); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := s.Status(1, "session")
+	if state.Binding.BoundAt != original.Format(time.RFC3339) {
+		t.Fatal("reauthorization changed original binding time")
+	}
+	p.id = "replacement-student"
+	prepare(t, s, 1, "replace")
+	if err := s.Confirm(1, "session"); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = s.Status(1, "session")
+	at, err := time.Parse(time.RFC3339, state.Binding.BoundAt)
+	if err != nil || !at.After(original) {
+		t.Fatal("replacement retained previous identity binding time")
 	}
 }

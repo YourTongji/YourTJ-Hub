@@ -2,6 +2,8 @@
   "enabled": true,
   "skipAdmin": true,
   "actions": [
+    { "action": "campus.read", "windowSeconds": 60, "limitPerIp": 0, "limitPerUser": 120 },
+    { "action": "campus.authorize", "windowSeconds": 900, "limitPerIp": 0, "limitPerUser": 30 },
     { "action": "register", "windowSeconds": 3600, "limitPerIp": 20, "limitPerUser": 0 },
     { "action": "login", "windowSeconds": 900, "limitPerIp": 60, "limitPerUser": 0 },
     { "action": "oidc.authorize", "windowSeconds": 900, "limitPerIp": 120, "limitPerUser": 0 },

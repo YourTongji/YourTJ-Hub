@@ -101,3 +101,20 @@ func TestGatewayWrappedOAuthErrorAndPKCE(t *testing.T) {
 		t.Fatal("authorization parameters missing")
 	}
 }
+
+func TestReauthorizationForcesSchoolLogin(t *testing.T) {
+	p := NewProvider(Config{ClientID: "client"})
+	for _, mode := range []string{"bind", "replace", "reauthorize"} {
+		u, err := url.Parse(p.Authorize("state", "nonce", "verifier", mode))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := ""
+		if mode != "bind" {
+			want = "login"
+		}
+		if u.Query().Get("prompt") != want {
+			t.Errorf("%s prompt = %q, want %q", mode, u.Query().Get("prompt"), want)
+		}
+	}
+}

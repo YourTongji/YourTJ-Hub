@@ -1,6 +1,7 @@
 package campusservice
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
@@ -128,12 +130,29 @@ func CloseForUser(id uint64, closeAccount func() error) error {
 	lock := &lifecycleLocks[id%64]
 	lock.Lock()
 	defer lock.Unlock()
-	if instance := service.Load(); instance != nil {
+	instance := service.Load()
+	if instance == nil {
+		instance, _ = Default()
+	}
+	store := campus.Store{DB: dbconnect.Connect()}
+	binding, readErr := store.Get(id)
+	if instance != nil {
 		instance.dropPending(id)
 	}
-	if err := (campus.Store{DB: dbconnect.Connect()}).DeleteForUser(id); err != nil {
+	if err := store.DeleteForUser(id); err != nil {
 		return err
 	}
+	// Local deletion is authoritative even with disabled configuration or corrupt
+	// ciphertext. Revocation is best effort and bounded, just like explicit unlink.
+	if instance != nil && readErr == nil {
+		var credentials Credentials
+		if instance.config.open(id, binding.Sealed, &credentials) == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			instance.provider.Revoke(ctx, credentials)
+		}
+	}
+
 	return closeAccount()
 }
 func Mask(value string) string {

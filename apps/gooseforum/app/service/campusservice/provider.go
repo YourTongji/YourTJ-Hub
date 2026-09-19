@@ -51,7 +51,7 @@ func (p *TongjiProvider) Authorize(state, nonce, verifier, mode string) string {
 	h := sha256.Sum256([]byte(verifier))
 	q := url.Values{"client_id": {p.Config.ClientID}, "redirect_uri": {p.Config.RedirectURI}, "response_type": {"code"}, "scope": {Scopes}, "state": {state}, "nonce": {nonce}, "code_challenge_method": {"S256"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(h[:])}, "kc_idp_hint": {"tjiam"}}
 	// A switch must actually offer a different identity instead of silently using SSO.
-	if mode == "replace" {
+	if mode == "replace" || mode == "reauthorize" {
 		q.Set("prompt", "login")
 	}
 	return p.Issuer + "/protocol/openid-connect/auth?" + q.Encode()

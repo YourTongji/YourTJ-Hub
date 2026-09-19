@@ -9,6 +9,7 @@ import EmptyState from '@/site/components/EmptyState.vue'
 import CampusTimetable from '@/site/components/CampusTimetable.vue'
 import CampusMessageDialog from '@/site/components/CampusMessageDialog.vue'
 import { timetableCourseStyle } from '@/site/utils/timetableCourseStyle'
+import { saveCampusMessageReturn, takeCampusMessageReturn } from '@/site/utils/campusMessageReturn'
 import { campusClock, randomCampusWish } from '@/site/utils/campusGreeting'
 
 const page = defineProps<{ layout: LayoutPayload; props: Record<string, never> }>()
@@ -56,6 +57,7 @@ const messageDetail = ref<CampusMessageDetail | null>(null)
 let messageController: AbortController | null = null
 let messageRequest = 0
 let messageTrigger: HTMLElement | null = null
+let returningMessageId: string | null = null
 function closeMessage() {
   messageRequest++
   messageController?.abort()
@@ -100,6 +102,7 @@ function messageDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric' }).format(date)
 }
 function resetData() {
+  returningMessageId = null
   generation++
   closeMessage()
   loading.value = false
@@ -153,23 +156,31 @@ async function refresh() {
 async function authorize(mode: 'bind' | 'replace' | 'reauthorize') {
   busy.value = true
   error.value = ''
-  try { const { url } = await campusAPI.start(mode); window.location.assign(url) }
+  try {
+    const { url } = await campusAPI.start(mode)
+    saveCampusMessageReturn(mode === 'reauthorize' && selectedMessage.value && status.value?.binding ? {
+      userId: page.layout.viewer.id, revision: status.value.binding.revision,
+      messageId: selectedMessage.value.id, tab: tab.value === 'messages' ? 'messages' : 'overview',
+    } : null)
+    window.location.assign(url)
+  }
   catch (e) { error.value = (e as Error).message; busy.value = false }
 }
 async function confirm(resumeMessage = false) {
   const selected = resumeMessage ? selectedMessage.value : null
+  const returning = returningMessageId
   const request = messageRequest
   const trigger = messageTrigger
   busy.value = true
   error.value = ''
   try {
     await campusAPI.confirm()
-    const reopen = selected && messageOpen.value && request === messageRequest
+    const reopenId = returning || (selected && messageOpen.value && request === messageRequest ? selected.id : null)
     resetData()
     await refresh()
     // Recheck the refreshed list, rather than carrying private metadata across
     // a credential change. A close while confirmation was pending stays closed.
-    const message = reopen && messages.value.find(m => m.id === selected.id)
+    const message = reopenId && messages.value.find(m => m.id === reopenId)
     if (message) {
       messageTrigger = trigger
       selectedMessage.value = message
@@ -209,9 +220,19 @@ onMounted(async () => {
     now.value = new Date()
     if (previous !== clock.value.date && tab.value === 'overview') void loadData(['calendar', 'timetable'], true)
   }, 60_000)
-  if (new URLSearchParams(location.search).get('authorization') === 'failed') error.value = '学校认证未完成或已失效，请重新发起。原绑定未改变。'
+  const returning = takeCampusMessageReturn()
+  const authorization = new URLSearchParams(location.search).get('authorization')
+  if (authorization === 'failed') error.value = '学校认证未完成或已失效，请重新发起。原绑定未改变。'
   if (page.layout.viewer.isAuthenticated) {
-    try { await loadStatus(); await loadData() }
+    try {
+      await loadStatus()
+      if (authorization === 'ready' && returning && returning.userId === page.layout.viewer.id &&
+        returning.revision === status.value?.binding?.revision && status.value?.candidate?.mode === 'reauthorize') {
+        returningMessageId = returning.messageId
+        tab.value = returning.tab
+      }
+      await loadData()
+    }
     catch (e) { error.value = (e as Error).message }
   }
 })

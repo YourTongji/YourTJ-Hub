@@ -364,7 +364,7 @@
           "accessTokenCookie": []
         }
       ],
-      "description": "Validates session-bound state, S256, nonce, RS256 ID token and student identifier. Consumes the authorization attempt once. The callback URL is scrubbed with a redirect and no-referrer.",
+      "description": "Validates session-bound state, S256, nonce, RS256 ID token and student identifier. Consumes the authorization attempt once. Every handled callback redirects to a clean campus URL with no-referrer and private, no-store, including missing/invalid/revoked sessions, non-writable accounts, rate limits, disabled configuration and upstream failures. Rejected guards never exchange the code.",
       "parameters": [
         {
           "in": "query",
@@ -396,25 +396,21 @@
               "schema": {
                 "type": "string"
               }
-            }
-          }
-        },
-        "default": {
-          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
-          "content": {
-            "application/json": {
+            },
+            "Cache-Control": {
               "schema": {
-                "$ref": "../components/schemas.yaml#/ApiFailure"
+                "type": "string",
+                "enum": [
+                  "private, no-store"
+                ]
               }
-            }
-          }
-        },
-        "401": {
-          "description": "Missing, invalid or revoked forum session.",
-          "content": {
-            "application/json": {
+            },
+            "Referrer-Policy": {
               "schema": {
-                "$ref": "../components/schemas.yaml#/ApiFailure"
+                "type": "string",
+                "enum": [
+                  "no-referrer"
+                ]
               }
             }
           }
@@ -438,7 +434,8 @@
           },
           "boundAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Time the current official identity was bound. Replacing the identity resets this time; renewing authorization for the same identity preserves it."
           },
           "revision": {
             "type": "string"

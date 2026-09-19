@@ -86,17 +86,18 @@ func CampusStart(c *gin.Context) {
 	c.JSON(200, component.SuccessData(gin.H{"url": u}))
 }
 func CampusCallback(c *gin.Context) {
-	s := campusService(c)
-	if s == nil {
-		return
-	}
-	e := s.Callback(c.Request.Context(), c.GetUint64("userId"), c.GetString("currentJti"), c.Query("state"), c.Query("code"))
-	destination := "/campus?authorization=ready"
-	if e != nil {
-		destination = "/campus?authorization=failed"
+	// A disabled integration or upstream failure still leaves a clean browser URL.
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Referrer-Policy", "no-referrer")
+	destination := "/campus?authorization=failed"
+	if s, err := campusservice.Default(); err == nil {
+		if err = s.Callback(c.Request.Context(), c.GetUint64("userId"), c.GetString("currentJti"), c.Query("state"), c.Query("code")); err == nil {
+			destination = "/campus?authorization=ready"
+		}
 	}
 	c.Redirect(http.StatusSeeOther, destination)
 }
+
 func CampusConfirm(c *gin.Context) {
 	s := campusService(c)
 	if s == nil {
