@@ -1,7 +1,9 @@
 # Mobile symbols
 
-The SVG symbols are the Lucide paths used by the Web design, with the unified mobile design's
-1.8-pixel stroke. The upstream license is retained in `LICENSE-lucide.txt`.
+The four bottom-navigation pairs (`house`, `graduation-cap`, `bell`, and `mail`) are copied from
+ReIcon's `O`/`F` variants so inactive and active states share the same 24px geometry. ReIcon's
+1.5-pixel stroke is preserved for outline variants; filled variants use the matching ReIcon path.
+Other shared symbols retain their existing source and licensing metadata.
 Google and GitHub marks identify their respective sign-in providers and preserve the approved
 Figma artwork. `GfSymbol` keeps Google's original colors and tints monochrome symbols with the
 current theme. Interactive wrappers supply accessible names; the artwork itself is decorative.
