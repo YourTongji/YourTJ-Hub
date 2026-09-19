@@ -1,17 +1,18 @@
 import type { CampusDataset, CampusDatasetKey, CampusStatus, CampusMessageDetail, CampusCalendarExport } from '@gooseforum/client'
+import { i18n } from '@/runtime/i18n'
 const messages: Record<string, string> = {
-  'campus.disabled': '校园连接尚未启用，请联系站点管理员。',
-  'campus.upstreamUnavailable': '学校服务暂时不可用，请稍后重试。',
-  'campus.authorizationRequired': '需要重新授权以继续同步，已绑定的身份仍然保留。',
-  'campus.authorizationExpired': '这次认证已过期或失效，请重新发起。',
-  'campus.identityUnavailable': '该身份无法绑定，可能已被其他账号绑定，或连接状态已改变。原绑定未改变。',
-  'campus.connectionChanged': '绑定状态已改变，请刷新页面后重试。',
-  'campus.messageAuthorizationRequired': '查看消息正文需要更新学校授权，当前身份绑定会保留。',
-  'campus.messageUnavailable': '这条消息已失效或不在你的消息列表中。',
-  'campus.calendarIncomplete': '校历日期、课程周次或节次信息不完整，暂时无法准确导出。请刷新后重试。',
-  'campus.rulesUnavailable': '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。',
-  'campus.rulesInvalid': '已发布的调休规则无效，请联系管理员，或关闭调休后导出原课表。',
-  'campus.calendarEmpty': '本学期没有可导出的课程安排。',
+  'campus.disabled': 'campus.errorDisabled',
+  'campus.upstreamUnavailable': 'campus.errorUpstream',
+  'campus.authorizationRequired': 'campus.errorAuthorization',
+  'campus.authorizationExpired': 'campus.errorExpired',
+  'campus.identityUnavailable': 'campus.errorIdentity',
+  'campus.connectionChanged': 'campus.errorChanged',
+  'campus.messageAuthorizationRequired': 'campus.errorMessageAuthorization',
+  'campus.messageUnavailable': 'campus.errorMessage',
+  'campus.calendarIncomplete': 'campus.errorCalendar',
+  'campus.rulesUnavailable': 'campus.errorRulesUnavailable',
+  'campus.rulesInvalid': 'campus.errorPublishedRules',
+  'campus.calendarEmpty': 'campus.errorEmptyCalendar',
 }
 export class CampusError extends Error { constructor(public code: string, message: string) { super(message) } }
 async function request<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -21,7 +22,7 @@ async function request<T>(path: string, body?: unknown, signal?: AbortSignal): P
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const data = await response.json()
-  if (!response.ok || data.code !== 0) throw new CampusError(data.messageCode || '', messages[data.messageCode] || (response.status === 401 ? '请先登录 YourTJ。' : response.status === 429 ? '请求较频繁，请稍后重试。' : '操作失败，请稍后重试。'))
+  if (!response.ok || data.code !== 0) throw new CampusError(data.messageCode || '', i18n.global.t(Object.hasOwn(messages, data.messageCode) ? messages[data.messageCode]! : response.status === 401 ? 'campus.errorLogin' : response.status === 429 ? 'campus.errorLimited' : 'campus.errorFailed'))
   return data.result as T
 }
 export const campusAPI = {

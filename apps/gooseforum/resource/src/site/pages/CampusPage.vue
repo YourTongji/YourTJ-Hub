@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { campusFieldKey } from '@/site/utils/campusFields'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { CampusStatus, CampusDataset, CampusDatasetKey, CampusMessageSummary, CampusMessageDetail, LayoutPayload } from '@gooseforum/client'
 import { ArrowUpRight, Bell, BookOpen, CalendarDays, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, Download, GraduationCap, Link2, Loader2, RefreshCw, ShieldCheck, Shuffle, Unplug } from '@lucide/vue'
+import { setBaseDocumentTitle } from '@/runtime/document-title'
 import { campusAPI, CampusError } from '@/runtime/campus-api'
 import PageHeader from '@/site/components/PageHeader.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
@@ -13,6 +16,8 @@ import { timetableCourseStyle } from '@/site/utils/timetableCourseStyle'
 import { saveCampusMessageReturn, takeCampusMessageReturn } from '@/site/utils/campusMessageReturn'
 import { campusClock, randomCampusWish } from '@/site/utils/campusGreeting'
 
+const { t, locale } = useI18n()
+const fieldLabel = (value: string) => { const key = campusFieldKey(value); return key ? t(key) : value }
 const page = defineProps<{ layout: LayoutPayload; props: Record<string, never> }>()
 const status = ref<CampusStatus | null>(null)
 const loading = ref(false), busy = ref(false), error = ref(''), unbindOpen = ref(false)
@@ -20,7 +25,7 @@ const tab = ref('overview'), week = ref(1), filter = ref('')
 const data = ref<Partial<Record<CampusDatasetKey, CampusDataset>>>({})
 const failures = ref<Partial<Record<CampusDatasetKey, string>>>({})
 const now = ref(new Date())
-const clock = computed(() => campusClock(now.value))
+const clock = computed(() => campusClock(now.value, locale.value))
 const wish = ref(randomCampusWish())
 const applyAdjustments = ref(true)
 const exporting = ref(false), exportMessage = ref(''), exportError = ref('')
@@ -55,22 +60,22 @@ async function exportCalendar() {
     link.click()
     link.remove()
     setTimeout(() => { URL.revokeObjectURL(url); exportURLs.delete(url) }, 1000)
-    exportMessage.value = `已生成 ${result.eventCount} 次课程日程，请打开下载的 .ics 文件导入日历。`
+    exportMessage.value = t('campus.exportSuccess', { count: result.eventCount })
   } catch (e) {
     if (epoch !== generation || request !== exportRequest) return
-    exportError.value = e instanceof Error ? e.message : '导出失败，请稍后重试。'
+    exportError.value = e instanceof Error ? e.message : t('campus.exportFailed')
     if (e instanceof CampusError && e.code === 'campus.authorizationRequired' && status.value?.binding) status.value.binding.needsAuthorization = true
   } finally { if (request === exportRequest) exporting.value = false }
 }
 const dateLabel = computed(() => `${clock.value.date} ${clock.value.weekday}`)
-const displayName = computed(() => data.value.profile?.metrics.find(m => m.label === '姓名')?.value || '同学')
+const displayName = computed(() => data.value.profile?.metrics.find(m => m.label === '姓名')?.value || t('campus.student'))
 let clockTimer: ReturnType<typeof setInterval> | undefined
 let controller = new AbortController()
 let generation = 0
 const pendingKeys = new Set<CampusDatasetKey>()
-const tabs = [{ key: 'overview', label: '校园概览' }, { key: 'timetable', label: '我的课表' }, { key: 'grades', label: '学业记录' }, { key: 'cet', label: '四六级' }, { key: 'messages', label: '校园消息' }, { key: 'terms', label: '校历' }, { key: 'services', label: '连接状态' }]
-const names: Record<CampusDatasetKey, string> = { profile: '个人姓名', calendar: '当前校历', timetable: '个人课表', grades: '本科成绩', summary: '学业汇总', cet: '四六级成绩', terms: '历年校历', messages: '学校消息', sports: '体测数据', health: '体测健康', arrangements: '调课安排' }
-const keys = Object.keys(names) as CampusDatasetKey[]
+const tabs = computed(() => [{ key: 'overview', label: t('campus.overview') }, { key: 'timetable', label: t('campus.timetable') }, { key: 'grades', label: t('campus.grades') }, { key: 'cet', label: t('campus.cet') }, { key: 'messages', label: t('campus.messages') }, { key: 'terms', label: t('campus.terms') }, { key: 'services', label: t('campus.services') }])
+const keys: CampusDatasetKey[] = ['profile', 'calendar', 'timetable', 'grades', 'summary', 'cet', 'terms', 'messages', 'sports', 'health', 'arrangements']
+const names = computed<Record<CampusDatasetKey, string>>(() => ({ profile: t('campus.dataProfile'), calendar: t('campus.dataCalendar'), timetable: t('campus.dataTimetable'), grades: t('campus.dataGrades'), summary: t('campus.dataSummary'), cet: t('campus.dataCet'), terms: t('campus.dataTerms'), messages: t('campus.dataMessages'), sports: t('campus.dataSports'), health: t('campus.dataHealth'), arrangements: t('campus.dataArrangements') }))
 const current = computed(() => data.value[tab.value as CampusDatasetKey])
 const rows = computed(() => (current.value?.rows || []).filter(r => !filter.value || r.some(c => c.toLowerCase().includes(filter.value.toLowerCase()))))
 const summary = computed(() => data.value.summary?.metrics || [])
@@ -84,7 +89,7 @@ const courses = computed(() => data.value.timetable?.events || [])
 const weekCourses = computed(() => courses.value.filter(c => !c.weeks.length || c.weeks.includes(week.value)))
 const today = computed(() => clock.value.day)
 const todayCourses = computed(() => currentWeek.value === null ? [] : courses.value.filter(c => c.day === today.value && (!c.weeks.length || c.weeks.includes(currentWeek.value!))).sort((a,b) => a.start - b.start))
-const todayTitle = computed(() => failures.value.timetable || data.value.timetable?.status === 'unavailable' ? '课表暂时无法读取' : !data.value.timetable ? '正在读取今日课表…' : currentWeek.value === null ? '暂时无法确定教学周' : '今天没有安排课程')
+const todayTitle = computed(() => failures.value.timetable || data.value.timetable?.status === 'unavailable' ? t('campus.timetableUnavailable') : !data.value.timetable ? t('campus.todayLoading') : currentWeek.value === null ? t('campus.weekUnknown') : t('campus.noTodayCourses'))
 const totalCredits = computed(() => Number(summary.value.find(m => m.label === '要求学分')?.value) || 0)
 const completedCredits = computed(() => Number(summary.value.find(m => m.label === '已修学分')?.value) || 0)
 const creditProgress = computed(() => totalCredits.value ? Math.max(0, Math.min(100, completedCredits.value / totalCredits.value * 100)) : 0)
@@ -127,7 +132,7 @@ async function loadMessage() {
     if (epoch === generation && request === messageRequest) messageDetail.value = value
   } catch (e) {
     if (epoch !== generation || request !== messageRequest) return
-    messageError.value = e instanceof Error ? e.message : '消息暂时无法读取。'
+    messageError.value = e instanceof Error ? e.message : t('campus.messageLoadFailed')
     messageNeedsAuthorization.value = e instanceof CampusError && ['campus.messageAuthorizationRequired', 'campus.authorizationRequired'].includes(e.code)
   } finally { if (request === messageRequest) messageLoading.value = false }
 }
@@ -140,7 +145,7 @@ function openMessage(message: CampusMessageSummary, event: Event) {
 }
 function messageDate(value: string) {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric' }).format(date)
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(locale.value, { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric' }).format(date)
 }
 function resetData() {
   cancelExport()
@@ -183,7 +188,7 @@ async function loadData(targets = activeKeys(), force = false) {
       if (key === 'calendar' && currentWeek.value !== null) week.value = currentWeek.value
     } catch (e) {
       if (epoch !== generation || controller.signal.aborted) return
-      failures.value[key] = e instanceof Error ? e.message : '读取失败'
+      failures.value[key] = e instanceof Error ? e.message : t('campus.loadFailed')
       if (e instanceof CampusError && e.code === 'campus.authorizationRequired' && status.value?.binding) status.value.binding.needsAuthorization = true
     } finally {
       if (epoch === generation) { pendingKeys.delete(key); loading.value = pendingKeys.size > 0 }
@@ -194,7 +199,7 @@ async function refresh() {
   cancelExport()
   error.value = ''
   try { await loadStatus(); await loadData(activeKeys(), true) }
-  catch (e) { error.value = e instanceof Error ? e.message : '读取失败' }
+  catch (e) { error.value = e instanceof Error ? e.message : t('campus.loadFailed') }
 }
 async function authorize(mode: 'bind' | 'replace' | 'reauthorize') {
   cancelExport()
@@ -256,11 +261,14 @@ function courseStyle(name: string) {
   return timetableCourseStyle(name)
 }
 function serviceState(key: CampusDatasetKey) {
-  if (failures.value[key]) return '读取失败'
+  if (failures.value[key]) return t('campus.loadFailed')
   const state = data.value[key]?.status
-  return state === 'ready' ? '已连接' : state === 'empty' ? '暂无记录' : state === 'unavailable' ? '学校服务暂不可用' : loading.value ? '同步中' : '尚未同步'
+  return state === 'ready' ? t('campus.connected') : state === 'empty' ? t('campus.empty') : state === 'unavailable' ? t('campus.unavailable') : loading.value ? t('campus.syncing') : t('campus.notSynced')
 }
 onMounted(async () => {
+  watch(() => t('campus.title'), title => {
+    setBaseDocumentTitle([title, page.layout.site?.name].filter(Boolean).join(' - '))
+  }, { immediate: true })
   clockTimer = setInterval(() => {
     const previous = clock.value.date
     now.value = new Date()
@@ -268,7 +276,7 @@ onMounted(async () => {
   }, 60_000)
   const returning = takeCampusMessageReturn()
   const authorization = new URLSearchParams(location.search).get('authorization')
-  if (authorization === 'failed') error.value = '学校认证未完成或已失效，请重新发起。原绑定未改变。'
+  if (authorization === 'failed') error.value = t('campus.authorizationFailed')
   if (page.layout.viewer.isAuthenticated) {
     try {
       await loadStatus()
@@ -287,18 +295,18 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
 
 <template>
   <main class="campus-page min-w-0 pb-8">
-    <PageHeader title="我的校园" description="查看课表、学业记录与校园消息。" compact>
+    <PageHeader :title="t('campus.title')" :description="t('campus.description')" compact>
       <template #actions>
         <span class="mr-1 hidden text-xs text-base-content/55 sm:inline">{{ dateLabel }}</span>
         <button
           v-if="status?.binding"
           class="gf-button gf-button-sm gf-button-secondary text-xs"
           :disabled="loading || busy"
-          aria-label="刷新校园数据"
+          :aria-label="t('campus.refreshData')"
           @click="refresh"
         >
           <RefreshCw class="h-3.5 w-3.5" :class="{ spinning: loading }" />
-          {{ loading ? '同步中' : '刷新' }}
+          {{ loading ? t('campus.syncing') : t('campus.refresh') }}
         </button>
       </template>
     </PageHeader>
@@ -306,13 +314,13 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
     <div v-if="error" class="gf-status-message gf-status-message-error mx-4 mb-4 sm:mx-0" role="alert">{{ error }}</div>
 
     <section v-if="!page.layout.viewer.isAuthenticated" class="gf-card overflow-hidden py-6">
-      <EmptyState :icon="GraduationCap" title="连接你的同济校园" description="登录 YourTJ，绑定同济官方身份后查看自己的校园数据。">
-        <a class="gf-button gf-button-md gf-button-primary" href="/login?redirect=%2Fcampus">登录 YourTJ <ArrowUpRight class="h-4 w-4" /></a>
+      <EmptyState :icon="GraduationCap" :title="t('campus.connectTitle')" :description="t('campus.connectDescription')">
+        <a class="gf-button gf-button-md gf-button-primary" href="/login?redirect=%2Fcampus">{{ t('campus.login') }} <ArrowUpRight class="h-4 w-4" /></a>
       </EmptyState>
     </section>
     <section v-else-if="!status" class="gf-card overflow-hidden" aria-live="polite">
-      <EmptyState :loading="!error" :icon="ShieldCheck" :title="error ? '暂时无法读取连接状态' : '正在读取连接状态…'">
-        <button v-if="error" class="gf-button gf-button-sm gf-button-secondary" @click="refresh">重试</button>
+      <EmptyState :loading="!error" :icon="ShieldCheck" :title="error ? t('campus.statusUnavailable') : t('campus.statusLoading')">
+        <button v-if="error" class="gf-button gf-button-sm gf-button-secondary" @click="refresh">{{ t('campus.retry') }}</button>
       </EmptyState>
     </section>
     <template v-else>
@@ -322,65 +330,65 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-sm font-semibold">同济官方身份</h2>
-            <span v-if="status.binding" class="gf-badge gf-badge-info">已认证</span>
+            <h2 class="text-sm font-semibold">{{ t('campus.identity') }}</h2>
+            <span v-if="status.binding" class="gf-badge gf-badge-info">{{ t('campus.verified') }}</span>
           </div>
           <p class="mt-1 text-xs text-base-content/55">
-            <span v-if="status.binding" class="tabular-nums">{{ status.binding.maskedId }} · 校园数据仅自己可见</span>
-            <span v-else>绑定一个官方身份，即可连接校园服务。</span>
+            <span v-if="status.binding" class="tabular-nums">{{ status.binding.maskedId }} · {{ t('campus.privateData') }}</span>
+            <span v-else>{{ t('campus.bindHint') }}</span>
           </p>
         </div>
         <div class="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
           <template v-if="status.binding">
-            <button v-if="status.binding.needsAuthorization" class="gf-button gf-button-sm gf-button-primary text-xs" :disabled="busy" @click="authorize('reauthorize')">重新授权</button>
-            <button class="gf-button gf-button-sm gf-button-secondary text-xs" :disabled="busy" @click="authorize('replace')">换绑身份</button>
-            <button class="gf-button gf-button-sm gf-button-muted text-xs" :disabled="busy" @click="unbindOpen = true">解绑</button>
+            <button v-if="status.binding.needsAuthorization" class="gf-button gf-button-sm gf-button-primary text-xs" :disabled="busy" @click="authorize('reauthorize')">{{ t('campus.reauthorize') }}</button>
+            <button class="gf-button gf-button-sm gf-button-secondary text-xs" :disabled="busy" @click="authorize('replace')">{{ t('campus.replace') }}</button>
+            <button class="gf-button gf-button-sm gf-button-muted text-xs" :disabled="busy" @click="unbindOpen = true">{{ t('campus.unbind') }}</button>
           </template>
           <button v-else class="gf-button gf-button-sm gf-button-primary text-xs" :disabled="busy || !status.enabled" @click="authorize('bind')">
             <Loader2 v-if="busy" class="h-3.5 w-3.5 spinning" />
             <Link2 v-else class="h-3.5 w-3.5" />
-            {{ status.enabled ? '连接同济账号' : '校园连接尚未启用' }}
+            {{ status.enabled ? t('campus.connect') : t('campus.disabled') }}
           </button>
         </div>
       </section>
 
       <p v-if="status.binding?.needsAuthorization" class="gf-status-message gf-status-message-info mx-4 mb-4 sm:mx-0">
-        学校授权需要更新。身份绑定仍然保留，重新授权后即可继续同步。
+        {{ t('campus.authorizationHint') }}
       </p>
       <section v-if="status.candidate" class="gf-card mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
-          <h2 class="flex items-center gap-2 text-sm font-semibold"><ShieldCheck class="h-4 w-4 shrink-0 text-primary" />{{ status.candidate.mode === 'reauthorize' ? '学校认证已完成，等待确认更新' : '确认连接 ' + status.candidate.maskedId }}</h2>
+          <h2 class="flex items-center gap-2 text-sm font-semibold"><ShieldCheck class="h-4 w-4 shrink-0 text-primary" />{{ status.candidate.mode === 'reauthorize' ? t('campus.pendingUpdate') : t('campus.confirmConnection', { id: status.candidate.maskedId }) }}</h2>
           <p class="mt-1 text-xs leading-5 text-base-content/55">
-            已通过学校认证。{{ status.candidate.mode === 'replace' ? '确认后将替换当前绑定。' : status.candidate.mode === 'reauthorize' ? '点击确认更新授权后，新权限才会生效，无需再次前往学校登录。' : '确认后可在 YourTJ 查看自己的校园数据。' }}
+            {{ status.candidate.mode === 'replace' ? t('campus.candidateReplace') : status.candidate.mode === 'reauthorize' ? t('campus.candidateUpdate') : t('campus.candidateBind') }}
           </p>
         </div>
         <button class="gf-button gf-button-sm gf-button-primary self-end whitespace-nowrap text-xs sm:self-auto" :disabled="busy" @click="confirm()">
           <Loader2 v-if="busy" class="h-3.5 w-3.5 spinning" /><Check v-else class="h-3.5 w-3.5" />
-          确认{{ status.candidate.mode === 'replace' ? '换绑' : status.candidate.mode === 'reauthorize' ? '更新授权' : '绑定' }}
+          {{ status.candidate.mode === 'replace' ? t('campus.confirmReplace') : status.candidate.mode === 'reauthorize' ? t('campus.confirmUpdate') : t('campus.confirmBind') }}
         </button>
       </section>
-      <div v-if="unbindOpen" class="gf-card mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" role="alertdialog" aria-label="确认解绑">
+      <div v-if="unbindOpen" class="gf-card mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" role="alertdialog" :aria-label="t('campus.confirmUnbind')">
         <div>
-          <h2 class="text-sm font-semibold">解除官方身份连接？</h2>
-          <p class="mt-1 text-xs leading-5 text-base-content/55">将删除本站保存的校园凭据，停止数据同步。之后可重新绑定，论坛内容不会受影响。</p>
+          <h2 class="text-sm font-semibold">{{ t('campus.unbindTitle') }}</h2>
+          <p class="mt-1 text-xs leading-5 text-base-content/55">{{ t('campus.unbindDescription') }}</p>
         </div>
         <div class="flex shrink-0 justify-end gap-2">
-          <button class="gf-button gf-button-sm gf-button-secondary text-xs" :disabled="busy" @click="unbindOpen = false">取消</button>
-          <button class="gf-button gf-button-sm gf-button-danger text-xs" :disabled="busy" @click="unbind"><Unplug class="h-3.5 w-3.5" />确认解绑</button>
+          <button class="gf-button gf-button-sm gf-button-secondary text-xs" :disabled="busy" @click="unbindOpen = false">{{ t('campus.cancel') }}</button>
+          <button class="gf-button gf-button-sm gf-button-danger text-xs" :disabled="busy" @click="unbind"><Unplug class="h-3.5 w-3.5" />{{ t('campus.confirmUnbind') }}</button>
         </div>
       </div>
 
       <section v-if="!status.binding" class="gf-card overflow-hidden">
-        <EmptyState :icon="GraduationCap" title="在这里查看你的校园日常" description="完成同济官方认证，即可查看课表、学业进度与学校消息。" />
+        <EmptyState :icon="GraduationCap" :title="t('campus.welcomeTitle')" :description="t('campus.welcomeDescription')" />
         <div class="grid grid-cols-3 divide-x divide-line border-y border-line bg-base-200/50 py-4 text-center text-xs text-base-content/75">
-          <div><CalendarDays class="mx-auto mb-2 h-5 w-5 text-primary" />一周课表</div>
-          <div><ChartNoAxesCombined class="mx-auto mb-2 h-5 w-5 text-primary" />学业记录</div>
-          <div><ShieldCheck class="mx-auto mb-2 h-5 w-5 text-primary" />私密连接</div>
+          <div><CalendarDays class="mx-auto mb-2 h-5 w-5 text-primary" />{{ t('campus.weeklyTimetable') }}</div>
+          <div><ChartNoAxesCombined class="mx-auto mb-2 h-5 w-5 text-primary" />{{ t('campus.grades') }}</div>
+          <div><ShieldCheck class="mx-auto mb-2 h-5 w-5 text-primary" />{{ t('campus.privateConnection') }}</div>
         </div>
-        <p class="px-4 py-3 text-xs leading-5 text-base-content/55">学校密码只在学校登录页输入；授权会自动续期，失效时会提示重新授权。</p>
+        <p class="px-4 py-3 text-xs leading-5 text-base-content/55">{{ t('campus.passwordHint') }}</p>
       </section>
       <template v-else>
-        <nav class="gf-card mb-4 flex gap-1 overflow-x-auto bg-base-200/60 p-2" aria-label="校园内容">
+        <nav class="gf-card mb-4 flex gap-1 overflow-x-auto bg-base-200/60 p-2" :aria-label="t('campus.content')">
           <button
             v-for="item in tabs"
             :key="item.key"
@@ -395,20 +403,20 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           <section class="gf-card p-4 sm:p-5">
             <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/55">
               <CalendarDays class="h-4 w-4 text-primary" />
-              <span v-if="currentWeek !== null" class="font-medium text-primary">第 {{ currentWeek }} 周</span>
-              <span v-else>{{ failures.calendar ? '校历暂不可用' : '教学周待更新' }}</span>
+              <span v-if="currentWeek !== null" class="font-medium text-primary">{{ t('campus.week', { week: currentWeek }) }}</span>
+              <span v-else>{{ failures.calendar ? t('campus.calendarUnavailable') : t('campus.weekPending') }}</span>
               <span aria-hidden="true">·</span><span>{{ clock.weekday }}</span>
               <span class="ml-auto">{{ clock.date }}</span>
             </div>
-            <h2 class="mt-4 text-xl font-semibold sm:text-2xl">{{ clock.greeting }}，{{ displayName }}</h2>
+            <h2 class="mt-4 text-xl font-semibold sm:text-2xl">{{ t(clock.greeting, { name: displayName }) }}</h2>
             <div class="mt-3 flex items-start gap-2">
-              <p class="min-w-0 flex-1 text-sm leading-6 text-base-content/65">{{ wish }}</p>
-              <button class="gf-icon-button h-7 w-7 shrink-0" aria-label="换一句祝福" title="换一句" @click="wish = randomCampusWish(wish)"><Shuffle class="h-3.5 w-3.5" /></button>
+              <p class="min-w-0 flex-1 text-sm leading-6 text-base-content/65">{{ t(wish) }}</p>
+              <button class="gf-icon-button h-7 w-7 shrink-0" :aria-label="t('campus.anotherWish')" :title="t('campus.shuffle')" @click="wish = randomCampusWish(wish)"><Shuffle class="h-3.5 w-3.5" /></button>
             </div>
           </section>
           <section class="gf-card overflow-hidden">
-            <SectionHeader title="校园消息" :icon="Bell">
-              <template #actions><button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('messages')">查看全部 <ArrowUpRight class="h-3.5 w-3.5" /></button></template>
+            <SectionHeader :title="t('campus.messages')" :icon="Bell">
+              <template #actions><button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('messages')">{{ t('campus.viewAll') }} <ArrowUpRight class="h-3.5 w-3.5" /></button></template>
             </SectionHeader>
             <div v-if="recentMessages.length" class="divide-y divide-line">
               <button v-for="message in recentMessages" :key="message.id" class="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-base-200/60 disabled:cursor-default" :disabled="!message.id" @click="openMessage(message, $event)">
@@ -417,17 +425,17 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
                 <ChevronRight class="mt-1 h-4 w-4 shrink-0 text-base-content/40" />
               </button>
             </div>
-            <EmptyState v-else :icon="Bell" :loading="!data.messages && !failures.messages" :title="failures.messages || data.messages?.status === 'unavailable' ? '校园消息暂时无法读取' : data.messages ? '暂无校园消息' : '正在读取校园消息…'" />
+            <EmptyState v-else :icon="Bell" :loading="!data.messages && !failures.messages" :title="failures.messages || data.messages?.status === 'unavailable' ? t('campus.messagesUnavailable') : data.messages ? t('campus.noMessages') : t('campus.messagesLoading')" />
           </section>
           <section class="gf-card overflow-hidden">
-            <SectionHeader title="今日课表" :icon="CalendarDays">
-              <template #actions><button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('timetable')">查看一周 <ArrowUpRight class="h-3.5 w-3.5" /></button></template>
+            <SectionHeader :title="t('campus.todayTimetable')" :icon="CalendarDays">
+              <template #actions><button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('timetable')">{{ t('campus.viewWeek') }} <ArrowUpRight class="h-3.5 w-3.5" /></button></template>
             </SectionHeader>
-            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.timetable || failures.calendar || '可切换到一周课表查看其他课程。'" />
+            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.timetable || failures.calendar || t('campus.todayHint')" />
             <div v-else class="space-y-2 p-4">
               <article v-for="(course,index) in todayCourses" :key="index" class="flex items-start gap-3 rounded-xl border p-3" :style="courseStyle(course.name)">
-                <span class="w-16 shrink-0 rounded-field bg-base-100/60 py-2 text-center text-xs font-semibold tabular-nums text-[var(--card-title)]">{{ course.start }}–{{ course.end }} 节</span>
-                <div class="min-w-0"><h3 class="text-sm font-semibold">{{ course.name }}</h3><p class="mt-1 text-xs leading-5 text-base-content/55">{{ course.room || '地点待定' }}<template v-if="course.teacher"> · {{ course.teacher }}</template></p></div>
+                <span class="w-16 shrink-0 rounded-field bg-base-100/60 py-2 text-center text-xs font-semibold tabular-nums text-[var(--card-title)]">{{ t('campus.periods', { start: course.start, end: course.end }) }}</span>
+                <div class="min-w-0"><h3 class="text-sm font-semibold">{{ course.name }}</h3><p class="mt-1 text-xs leading-5 text-base-content/55">{{ course.room || t('campus.roomPending') }}<template v-if="course.teacher"> · {{ course.teacher }}</template></p></div>
               </article>
             </div>
           </section>
@@ -435,53 +443,53 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
 
         <section v-else-if="tab === 'timetable'" class="gf-card overflow-hidden">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <h2 class="text-sm font-semibold">一周课表</h2>
+            <h2 class="text-sm font-semibold">{{ t('campus.weeklyTimetable') }}</h2>
             <div class="flex items-center gap-1 text-xs">
-              <button class="gf-icon-button h-8 w-8 disabled:opacity-40" aria-label="上一周" :disabled="week <= 1" @click="week--"><ChevronLeft class="h-4 w-4" /></button>
-              <span class="min-w-16 text-center font-medium tabular-nums">第 {{ week }} 周</span>
-              <button class="gf-icon-button h-8 w-8 disabled:opacity-40" aria-label="下一周" :disabled="week >= termWeeks" @click="week++"><ChevronRight class="h-4 w-4" /></button>
-              <button class="gf-button gf-button-xs gf-button-secondary ml-2 text-xs" :disabled="currentWeek === null" @click="week = currentWeek ?? 1">本周</button>
+              <button class="gf-icon-button h-8 w-8 disabled:opacity-40" :aria-label="t('campus.previousWeek')" :disabled="week <= 1" @click="week--"><ChevronLeft class="h-4 w-4" /></button>
+              <span class="min-w-16 text-center font-medium tabular-nums">{{ t('campus.week', { week }) }}</span>
+              <button class="gf-icon-button h-8 w-8 disabled:opacity-40" :aria-label="t('campus.nextWeek')" :disabled="week >= termWeeks" @click="week++"><ChevronRight class="h-4 w-4" /></button>
+              <button class="gf-button gf-button-xs gf-button-secondary ml-2 text-xs" :disabled="currentWeek === null" @click="week = currentWeek ?? 1">{{ t('campus.thisWeek') }}</button>
             </div>
           </div>
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <p id="campus-export-hint" class="min-w-0 flex-1 text-xs leading-5 text-base-content/55">导出整个学期的 .ics 文件，可导入其他日历 App；应用已发布的调休规则；文件不会自动更新。文件包含课程和上课地点。</p>
+            <p id="campus-export-hint" class="min-w-0 flex-1 text-xs leading-5 text-base-content/55">{{ t('campus.exportHint') }}</p>
             <label class="flex shrink-0 cursor-pointer items-center gap-2 text-xs">
               <input v-model="applyAdjustments" type="checkbox" role="switch" class="peer sr-only" :disabled="exporting" />
               <span aria-hidden="true" class="relative h-5 w-9 rounded-full bg-base-content/20 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-base-100 after:shadow-sm after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-4 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary peer-disabled:opacity-50"></span>
-              开启调休规则
+              {{ t('campus.applyAdjustments') }}
             </label>
             <button class="gf-button gf-button-sm gf-button-secondary shrink-0 text-xs" :disabled="exporting || busy || !courses.length || status.binding.needsAuthorization" aria-describedby="campus-export-hint" @click="exportCalendar">
-              <Loader2 v-if="exporting" class="h-3.5 w-3.5 spinning" /><Download v-else class="h-3.5 w-3.5" />{{ exporting ? '正在导出…' : '导出课程日历' }}
+              <Loader2 v-if="exporting" class="h-3.5 w-3.5 spinning" /><Download v-else class="h-3.5 w-3.5" />{{ exporting ? t('campus.exporting') : t('campus.exportCalendar') }}
             </button>
           </div>
           <CampusCalendarRules />
           <p v-if="exportError" role="alert" class="gf-status-message gf-status-message-error m-4">{{ exportError }}</p>
           <p v-else-if="exportMessage" role="status" class="gf-status-message gf-status-message-info m-4">{{ exportMessage }}</p>
           <p v-if="failures.timetable" class="gf-status-message gf-status-message-error m-4">{{ failures.timetable }}</p>
-          <EmptyState v-if="!data.timetable && !failures.timetable" loading title="正在读取课表…" />
-          <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" title="课表暂时无法读取" description="学校服务暂不可用，请稍后刷新。" />
+          <EmptyState v-if="!data.timetable && !failures.timetable" loading :title="t('campus.timetableLoading')" />
+          <EmptyState v-else-if="failures.timetable || data.timetable?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.timetableUnavailable')" :description="t('campus.schoolRetry')" />
           <template v-else>
-            <p v-if="!weekCourses.length" class="px-4 py-3 text-sm text-base-content/55">本周暂无课程安排。</p>
+            <p v-if="!weekCourses.length" class="px-4 py-3 text-sm text-base-content/55">{{ t('campus.noWeekCourses') }}</p>
             <div class="p-2 sm:p-4"><CampusTimetable :courses="courses" :week="week" :today="today" /></div>
           </template>
-          <p class="border-t border-line px-4 py-3 text-xs leading-5 text-base-content/55">第 {{ week }} 周 · {{ weekCourses.length }} 次课程安排。选课计划可在“选课排课”中单独管理。</p>
+          <p class="border-t border-line px-4 py-3 text-xs leading-5 text-base-content/55">{{ t('campus.weekSummary', { week, count: weekCourses.length }) }}</p>
         </section>
 
         <section v-else-if="tab === 'services'" class="gf-card overflow-hidden">
-          <SectionHeader title="数据连接" description="同济大学开放平台" :icon="Link2" />
+          <SectionHeader :title="t('campus.dataConnection')" :description="t('campus.platform')" :icon="Link2" />
           <div class="divide-y divide-line px-4">
             <div v-for="key in keys" :key="key" class="flex items-center justify-between gap-3 py-3.5">
               <h3 class="text-sm font-medium">{{ names[key] }}</h3>
               <span class="gf-badge shrink-0" :class="data[key]?.status === 'ready' ? 'gf-badge-info' : 'gf-badge-muted'">{{ serviceState(key) }}</span>
             </div>
           </div>
-          <p class="border-t border-line bg-base-200/50 px-4 py-3 text-xs leading-6 text-base-content/55">体测和调课目前未获得可用数据；考试安排未对当前应用开放。各项服务独立读取，暂不可用的项目不会显示为零分或零条记录。</p>
+          <p class="border-t border-line bg-base-200/50 px-4 py-3 text-xs leading-6 text-base-content/55">{{ t('campus.serviceHint') }}</p>
         </section>
 
         <section v-else-if="tab === 'messages'" class="gf-card overflow-hidden">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <h2 class="text-sm font-semibold">校园消息</h2>
-            <label class="w-full sm:w-64"><span class="sr-only">搜索校园消息</span><input v-model="filter" class="gf-input h-9 text-xs" type="search" placeholder="搜索标题或发布单位" /></label>
+            <h2 class="text-sm font-semibold">{{ t('campus.messages') }}</h2>
+            <label class="w-full sm:w-64"><span class="sr-only">{{ t('campus.searchMessages') }}</span><input v-model="filter" class="gf-input h-9 text-xs" type="search" :placeholder="t('campus.searchMessagesPlaceholder')" /></label>
           </div>
           <div v-if="filteredMessages.length" class="divide-y divide-line">
             <button v-for="message in filteredMessages" :key="message.id" class="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-base-200/60" :disabled="!message.id" @click="openMessage(message, $event)">
@@ -489,46 +497,46 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
               <time class="mt-1 shrink-0 text-xs text-base-content/45" :datetime="message.publishedAt">{{ messageDate(message.publishedAt) }}</time><ChevronRight class="mt-1 h-4 w-4 shrink-0 text-base-content/40" />
             </button>
           </div>
-          <EmptyState v-else :icon="Bell" :loading="!data.messages && !failures.messages" :title="failures.messages || data.messages?.status === 'unavailable' ? '校园消息暂时无法读取' : filter ? '没有匹配的消息' : '暂无校园消息'" />
+          <EmptyState v-else :icon="Bell" :loading="!data.messages && !failures.messages" :title="failures.messages || data.messages?.status === 'unavailable' ? t('campus.messagesUnavailable') : filter ? t('campus.noMatchingMessages') : t('campus.noMessages')" />
         </section>
 
         <section v-else class="gf-card overflow-hidden">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
             <h2 class="text-sm font-semibold">{{ names[tab as CampusDatasetKey] }}</h2>
-            <label class="w-full sm:w-64"><span class="sr-only">搜索记录</span><input v-model="filter" class="gf-input h-9 text-xs" type="search" placeholder="搜索课程、学期或标题" /></label>
+            <label class="w-full sm:w-64"><span class="sr-only">{{ t('campus.searchRecords') }}</span><input v-model="filter" class="gf-input h-9 text-xs" type="search" :placeholder="t('campus.searchRecordsPlaceholder')" /></label>
           </div>
           <div v-if="tab === 'grades' && summary.length" class="border-b border-line">
             <dl class="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-              <div v-for="metric in summary" :key="metric.label" class="bg-base-100 p-4"><dt class="text-xs text-base-content/55">{{ metric.label }}</dt><dd class="mt-2 text-2xl font-semibold tabular-nums">{{ displayMetric(metric.value) }}<span class="ml-1 text-xs font-normal text-base-content/55">{{ metric.unit }}</span></dd></div>
+              <div v-for="metric in summary" :key="metric.label" class="bg-base-100 p-4"><dt class="text-xs text-base-content/55">{{ fieldLabel(metric.label) }}</dt><dd class="mt-2 text-2xl font-semibold tabular-nums">{{ displayMetric(metric.value) }}<span class="ml-1 text-xs font-normal text-base-content/55">{{ fieldLabel(metric.unit) }}</span></dd></div>
             </dl>
-            <div v-if="totalCredits" class="border-t border-line px-4 py-3"><div class="mb-2 flex justify-between text-xs text-base-content/55"><span>学分进度</span><span>{{ completedCredits }} / {{ totalCredits }} 学分</span></div><div class="h-2 overflow-hidden rounded-full bg-base-300"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${creditProgress}%` }"></div></div></div>
+            <div v-if="totalCredits" class="border-t border-line px-4 py-3"><div class="mb-2 flex justify-between text-xs text-base-content/55"><span>{{ t('campus.creditProgress') }}</span><span>{{ t('campus.creditsProgress', { completed: completedCredits, total: totalCredits }) }}</span></div><div class="h-2 overflow-hidden rounded-full bg-base-300"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${creditProgress}%` }"></div></div></div>
           </div>
           <p v-if="tab === 'grades' && failures.summary" class="gf-status-message gf-status-message-error m-4">{{ failures.summary }}</p>
           <dl v-if="current?.metrics.length" class="flex flex-wrap gap-x-8 gap-y-4 border-b border-line p-4">
             <div v-for="metric in current.metrics" :key="metric.label">
-              <dt class="text-xs text-base-content/55">{{ metric.label }}</dt>
-              <dd class="mt-1 text-xl font-semibold tabular-nums">{{ displayMetric(metric.value) }}<span class="ml-1 text-xs font-normal text-base-content/55">{{ metric.unit }}</span></dd>
+              <dt class="text-xs text-base-content/55">{{ fieldLabel(metric.label) }}</dt>
+              <dd class="mt-1 text-xl font-semibold tabular-nums">{{ displayMetric(metric.value) }}<span class="ml-1 text-xs font-normal text-base-content/55">{{ fieldLabel(metric.unit) }}</span></dd>
             </div>
           </dl>
           <div v-if="current?.series.length" class="border-b border-line bg-base-200/40 p-4 sm:p-5">
-            <h3 class="mb-4 text-sm font-semibold">{{ tab === 'grades' ? '各学期平均绩点' : '历次考试成绩' }}</h3>
+            <h3 class="mb-4 text-sm font-semibold">{{ tab === 'grades' ? t('campus.gradeChart') : t('campus.examChart') }}</h3>
             <div v-for="(point,index) in current.series" :key="index" class="campus-chart-row mb-3">
               <span class="text-xs leading-5 text-base-content/75">{{ point.label }}</span>
               <div class="h-2 overflow-hidden rounded-full bg-base-300" aria-hidden="true"><div class="h-full rounded-full bg-primary/75" :style="{ width: `${Math.max(0, Math.min(100, point.value / (tab === 'cet' ? 710 : 5) * 100))}%` }"></div></div>
               <strong class="text-right text-xs font-semibold tabular-nums">{{ point.value }}</strong>
             </div>
-            <p class="mt-4 text-xs text-base-content/55">{{ tab === 'grades' ? '按学校返回学期顺序展示，坐标上限 5。' : '笔试分数，上限 710。' }}</p>
+            <p class="mt-4 text-xs text-base-content/55">{{ tab === 'grades' ? t('campus.gradeChartHint') : t('campus.examChartHint') }}</p>
           </div>
-          <EmptyState v-if="failures[tab as CampusDatasetKey] || current?.status === 'unavailable'" :icon="BookOpen" title="暂时无法读取" :description="failures[tab as CampusDatasetKey] || '学校服务暂不可用，请稍后重试。'" />
-          <EmptyState v-else-if="!current" loading title="正在读取学校记录…" />
-          <EmptyState v-else-if="!rows.length" :icon="BookOpen" :title="filter ? '没有匹配的记录' : '学校暂无相关记录'" />
+          <EmptyState v-if="failures[tab as CampusDatasetKey] || current?.status === 'unavailable'" :icon="BookOpen" :title="t('campus.recordsUnavailable')" :description="failures[tab as CampusDatasetKey] || t('campus.errorUpstream')" />
+          <EmptyState v-else-if="!current" loading :title="t('campus.recordsLoading')" />
+          <EmptyState v-else-if="!rows.length" :icon="BookOpen" :title="filter ? t('campus.noMatchingRecords') : t('campus.noRecords')" />
           <div v-else class="overflow-x-auto">
             <table class="campus-records w-full text-left text-sm">
-              <thead class="bg-base-200/60 text-xs text-base-content/55"><tr><th v-for="column in current.columns" :key="column" scope="col">{{ column }}</th></tr></thead>
+              <thead class="bg-base-200/60 text-xs text-base-content/55"><tr><th v-for="column in current.columns" :key="column" scope="col">{{ fieldLabel(column) }}</th></tr></thead>
               <tbody class="divide-y divide-line"><tr v-for="(row,index) in rows" :key="index" class="hover:bg-base-200/60"><td v-for="(cell,i) in row" :key="i">{{ cell || '—' }}</td></tr></tbody>
             </table>
           </div>
-          <p v-if="current" class="border-t border-line px-4 py-3 text-xs text-base-content/55">{{ rows.length }} 条{{ tab === 'messages' ? '已读取消息（列表）' : '记录' }} · {{ new Date(current.updatedAt).toLocaleTimeString('zh-CN') }} 同步</p>
+          <p v-if="current" class="border-t border-line px-4 py-3 text-xs text-base-content/55">{{ t('campus.recordsSynced', { count: rows.length, time: new Date(current.updatedAt).toLocaleTimeString(locale, { timeZone: 'Asia/Shanghai' }) }) }}</p>
         </section>
       </template>
     </template>
@@ -536,8 +544,8 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
     <CampusMessageDialog :open="messageOpen" :summary="selectedMessage" :detail="messageDetail" :loading="messageLoading" :error="messageError" :needs-authorization="messageNeedsAuthorization" :pending-authorization="status?.candidate?.mode === 'reauthorize'" :busy="busy" @close="closeMessage" @retry="loadMessage" @confirm-authorization="confirm(true)" @authorize="authorize('reauthorize')" />
 
     <footer class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3 text-xs text-base-content/45 sm:px-0">
-      <ShieldCheck class="h-3.5 w-3.5 shrink-0" /><span>校园数据仅自己可见 · 不会发布到论坛</span>
-      <a class="ml-auto inline-flex items-center gap-1 hover:text-primary" href="https://github.com/oierxjn/OneTJ" target="_blank" rel="noopener noreferrer">感谢 OneTJ <ArrowUpRight class="h-3 w-3" /></a>
+      <ShieldCheck class="h-3.5 w-3.5 shrink-0" /><span>{{ t('campus.privacyFooter') }}</span>
+      <a class="ml-auto inline-flex items-center gap-1 hover:text-primary" href="https://github.com/oierxjn/OneTJ" target="_blank" rel="noopener noreferrer">{{ t('campus.thanks') }} <ArrowUpRight class="h-3 w-3" /></a>
     </footer>
   </main>
 </template>

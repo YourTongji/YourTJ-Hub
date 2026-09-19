@@ -116,7 +116,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k00gp'), url: '/admin/settings/terms', icon: ScrollText, permission: AdminPermission.SiteManager },
       { title: adminText('k00gu'), url: '/admin/settings/privacy', icon: ShieldCheck, permission: AdminPermission.SiteManager },
       { title: adminText('k00t4'), url: '/admin/settings/onesystem', icon: RefreshCw, permission: AdminPermission.SiteManager },
-      { title: '校园调休规则', url: '/admin/settings/campus-calendar', icon: Calendar, permission: AdminPermission.SiteManager },
+      { title: t('campus.adminTitle'), url: '/admin/settings/campus-calendar', icon: Calendar, permission: AdminPermission.SiteManager },
       { title: adminText('k00u1'), url: '/admin/settings/schedule', icon: Clock, permission: AdminPermission.SiteManager },
     ],
   },

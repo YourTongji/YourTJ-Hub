@@ -2,6 +2,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
+import zh from '../src/locales/zh'
+import en from '../src/locales/en'
+import ja from '../src/locales/ja'
+import de from '../src/locales/de'
 import type { CampusDataset, CampusDatasetKey, CampusStatus, LayoutPayload } from '@gooseforum/client'
 import { CampusError } from '../src/runtime/campus-api'
 import CampusPage from '../src/site/pages/CampusPage.vue'
@@ -17,7 +21,7 @@ const status: CampusStatus = { enabled: true, binding: { maskedId: '***01', revi
 function dataset(key: CampusDatasetKey): CampusDataset {
   return { key, status: 'ready', updatedAt: '2026-09-19T00:00:00Z', metrics: [], columns: [], rows: [], events: [], series: [] }
 }
-function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first') {
+function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revision = 'first', locale = 'zh') {
   api.status.mockResolvedValue({ ...status, binding: {...status.binding!, revision}, candidate })
   api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...dataset(key),
     metrics: key === 'summary' ? [{ label: '综合 GPA', value: '3.72', unit: '' }] : key === 'profile' ? [{ label: '姓名', value: '测试同学', unit: '' }] : key === 'calendar' ? [{ label: '教学周', value: '3', unit: '周' }] : [],
@@ -25,7 +29,7 @@ function setup(candidate: CampusStatus['candidate'] = null, userId = 42, revisio
   }))
   return mount(CampusPage, {
     props: { layout: { viewer: { isAuthenticated: true, id: userId } } as LayoutPayload, props: {} }, attachTo: document.body,
-    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh: { common: { loadingShort: '加载中' } } } })] },
+    global: { plugins: [createI18n({ legacy: false, locale, messages: { zh, en, ja, de } })] },
   })
 }
 async function clickTab(wrapper: ReturnType<typeof setup>, label: string) {
@@ -244,3 +248,43 @@ for (const scenario of ['present', 'removed', 'different-account', 'different-bi
   } finally { second.unmount() }
  })
 }
+
+// Display translations must preserve school field identifiers and week/GPA calculations.
+test.each([['en', 'My campus', 'Week 3', 'Academic records', 'Overall GPA', 'Export course calendar'], ['ja', 'マイキャンパス', '第 3 週', '学業記録', '総合 GPA', '授業カレンダーをエクスポート'], ['de', 'Mein Campus', 'Woche 3', 'Studienleistungen', 'Gesamt-GPA', 'Stundenplan exportieren']])('campus renders %s controls and academic labels', async (locale, title, week, grades, gpa, exportLabel) => {
+  const wrapper = setup(null, 42, 'first', locale)
+  try {
+    await flushPromises()
+    expect(wrapper.text()).toContain(title)
+    expect(wrapper.text()).toContain(week)
+    expect(wrapper.text()).not.toContain('换绑身份')
+    expect(wrapper.text()).not.toContain('校园数据仅自己可见')
+    await wrapper.findAll('nav button').find(b => b.text() === grades)!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(gpa)
+    expect(wrapper.text()).toContain('3.72')
+    await wrapper.findAll('nav button')[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(exportLabel)
+  } finally { wrapper.unmount() }
+})
+
+test('switching language updates the current greeting, wish and tabs without fetching private data again', async () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0)
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    const calls = api.dataset.mock.calls.length
+    expect(wrapper.text()).toContain(zh.campus.wish0)
+    wrapper.vm.$i18n.locale = 'en'
+    await flushPromises()
+    expect(wrapper.text()).toContain(en.campus.wish0)
+    expect(wrapper.text()).toContain(en.campus.title)
+    expect(document.title).toContain(en.campus.title)
+    expect(wrapper.text()).toContain('Week 3')
+    expect(wrapper.text()).not.toContain('星期')
+    expect(wrapper.text()).not.toContain(zh.campus.wish0)
+    expect(api.dataset).toHaveBeenCalledTimes(calls)
+    await wrapper.get('button[aria-label="Show another wish"]').trigger('click')
+    expect(wrapper.text()).toContain(en.campus.wish1)
+  } finally { wrapper.unmount() }
+})

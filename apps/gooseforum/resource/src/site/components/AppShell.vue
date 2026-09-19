@@ -21,6 +21,7 @@ import {
   Palette,
   PenSquare,
   Scale,
+  School,
   Sun,
   TrendingUp,
   Search,
@@ -157,7 +158,7 @@ const browseItems = computed<SidebarNavItem[]>(() => [
 
 // 功能组：站点能力页。
 const functionItems = computed<SidebarNavItem[]>(() => [
-  sidebarItem('campus', '我的校园', '/campus'),
+  sidebarItem('campus', t('campus.title'), '/campus'),
   sidebarItem('campusMap', t('campusMap.atlas'), '/map'),
   sidebarItem('courses', t('shell.nav.courses'), '/courses'),
   sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
@@ -270,7 +271,7 @@ const sidebarIconMap = {
   popular: TrendingUp,
   courses: BookOpen,
   schedule: CalendarRange,
-  campus: Map,
+  campus: School,
   campusMap: Map,
   wiki: Library,
   messages: Inbox,
