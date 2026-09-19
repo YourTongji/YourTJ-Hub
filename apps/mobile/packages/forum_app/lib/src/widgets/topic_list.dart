@@ -7,7 +7,6 @@ import '../../l10n/app_localizations.dart';
 import '../format.dart';
 import 'status_views.dart';
 import '../asset_url.dart';
-import '../images/image_save.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -185,10 +184,6 @@ Widget _topicCard(
         ),
     ],
     imageUrls: images,
-    onSaveImage: (String url) => saveImageFromUrl(context, url),
-    saveImageLabel: l10n.imageSave,
-    onShareImage: (String url) => shareImageFromUrl(context, url),
-    shareImageLabel: l10n.topicShare,
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
       l10n: l10n,
