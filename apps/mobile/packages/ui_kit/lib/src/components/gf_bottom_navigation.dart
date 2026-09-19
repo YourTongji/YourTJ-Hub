@@ -32,7 +32,7 @@ class GfBottomNavigation extends StatelessWidget {
     required this.onSelected,
     this.onAction,
     this.actionLabel = '发布',
-    this.actionSymbol = 'plus',
+    this.actionIcon = Icons.add,
     this.showLabels = true,
   });
 
@@ -41,7 +41,7 @@ class GfBottomNavigation extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final VoidCallback? onAction;
   final String actionLabel;
-  final String actionSymbol;
+  final IconData actionIcon;
   final bool showLabels;
 
   @override
@@ -80,7 +80,7 @@ class GfBottomNavigation extends StatelessWidget {
               ),
               if (onAction != null)
                 _ComposeAction(
-                  symbol: actionSymbol,
+                  icon: actionIcon,
                   label: actionLabel,
                   onTap: onAction,
                 ),
@@ -201,12 +201,12 @@ class _Destination extends StatelessWidget {
 
 class _ComposeAction extends StatelessWidget {
   const _ComposeAction({
-    required this.symbol,
+    required this.icon,
     required this.label,
     required this.onTap,
   });
 
-  final String symbol;
+  final IconData icon;
   final String label;
   final VoidCallback? onTap;
 
@@ -235,11 +235,7 @@ class _ComposeAction extends StatelessWidget {
                   child: SizedBox(
                     width: 44,
                     height: 44,
-                    child: GfSymbol(
-                      symbol,
-                      size: 25,
-                      color: colors.primaryContent,
-                    ),
+                    child: Icon(icon, size: 25, color: colors.primaryContent),
                   ),
                 ),
                 const SizedBox(height: 1),
