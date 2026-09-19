@@ -19,6 +19,18 @@
   "imageSave": "Bild speichern",
   "imageSaved": "Bild gespeichert",
   "imageSaveFailed": "Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.",
+  "announcementLabel": "Ankündigung",
+  "announcementCollapse": "Ankündigung einklappen",
+  "announcementCollapseAction": "Einklappen",
+  "announcementExpand": "Ankündigung ausklappen",
+  "announcementItem": "Ankündigung {index}",
+  "@announcementItem": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "commonLoading": "Wird geladen…",
   "commonLoadMore": "Mehr laden",
   "commonRetry": "Erneut versuchen",

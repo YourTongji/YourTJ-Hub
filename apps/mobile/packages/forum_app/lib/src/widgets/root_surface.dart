@@ -14,6 +14,7 @@ class RootSurface extends ConsumerWidget {
     super.key,
     this.title = '',
     this.titleWidget,
+    this.showLogo = false,
     required this.body,
     this.actions = const [],
     this.toolbar,
@@ -24,6 +25,7 @@ class RootSurface extends ConsumerWidget {
   });
   final String title;
   final Widget? titleWidget;
+  final bool showLogo;
   final Widget Function(double topInset, double bottomInset) body;
   final List<Widget> actions;
   final Widget? toolbar;
@@ -81,7 +83,7 @@ class RootSurface extends ConsumerWidget {
                                     child: Center(
                                       child:
                                           titleWidget ??
-                                          (title.isEmpty || title == 'YourTJ'
+                                          (showLogo || title.isEmpty
                                               ? const GfLogo(size: 32)
                                               : Text(
                                                   title,

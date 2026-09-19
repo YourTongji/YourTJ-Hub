@@ -66,6 +66,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imageSaveFailed => '图片保存失败，请稍后重试';
 
   @override
+  String get announcementLabel => '公告';
+
+  @override
+  String get announcementCollapse => '折叠公告';
+
+  @override
+  String get announcementCollapseAction => '收起';
+
+  @override
+  String get announcementExpand => '展开公告';
+
+  @override
+  String announcementItem(int index) {
+    return '第 $index 条公告';
+  }
+
+  @override
   String get commonLoading => '加载中…';
 
   @override

@@ -3,17 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
+import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/widgets/announcement_banner.dart';
 
 void main() {
   Future<void> pump(
     WidgetTester tester,
-    AnnouncementPayload announcement,
-  ) async {
+    AnnouncementPayload announcement, {
+    Locale locale = const Locale('zh'),
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Column(
               children: [AnnouncementBanner(announcement: announcement)],
@@ -62,6 +67,21 @@ void main() {
       ),
     );
     expect(find.textContaining('欢迎来到', findRichText: true), findsWidgets);
+  });
+  testWidgets('announcement chrome follows the selected locale', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const AnnouncementPayload(
+        enabled: true,
+        html: '<p>System maintenance</p>',
+      ),
+      locale: const Locale('en'),
+    );
+
+    expect(find.text('Announcement'), findsOneWidget);
+    expect(find.text('Collapse'), findsOneWidget);
   });
   testWidgets('legacy HTML announcements remain readable', (tester) async {
     await pump(
@@ -138,6 +158,9 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: gfThemeData(Brightness.light),
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: MediaQuery(
               data: const MediaQueryData(textScaler: TextScaler.linear(2)),
               child: const Scaffold(
@@ -235,6 +258,9 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: gfThemeData(Brightness.light),
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: ListView(
                 children: const [
@@ -289,6 +315,9 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: StatefulBuilder(
               builder: (context, setState) => ListView(

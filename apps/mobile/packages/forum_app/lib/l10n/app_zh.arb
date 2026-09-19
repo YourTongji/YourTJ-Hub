@@ -19,6 +19,18 @@
   "imageSave": "保存图片",
   "imageSaved": "图片已保存",
   "imageSaveFailed": "图片保存失败，请稍后重试",
+  "announcementLabel": "公告",
+  "announcementCollapse": "折叠公告",
+  "announcementCollapseAction": "收起",
+  "announcementExpand": "展开公告",
+  "announcementItem": "第 {index} 条公告",
+  "@announcementItem": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "commonLoading": "加载中…",
   "commonLoadMore": "加载更多",
   "commonRetry": "重试",

@@ -7,6 +7,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../providers.dart';
 
 /// 首页公告栏：采用圆角微渐变卡片、流体指示胶囊与折叠入口设计。
@@ -144,6 +145,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
     final item = items[_current];
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -189,8 +191,8 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
           curve: Curves.easeInOutCubic,
           alignment: Alignment.topCenter,
           child: _collapsed
-              ? _buildCollapsed(context, item, colors)
-              : _buildExpanded(context, item, items, colors, type),
+              ? _buildCollapsed(context, item, colors, l10n)
+              : _buildExpanded(context, item, items, colors, type, l10n),
         ),
       ),
     );
@@ -200,6 +202,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
     BuildContext context,
     AnnouncementItemPayload item,
     GfColors colors,
+    AppLocalizations l10n,
   ) {
     final snippet = _snippetFor(item);
     return InkWell(
@@ -230,7 +233,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                '公告',
+                l10n.announcementLabel,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -254,7 +257,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
             ),
             const SizedBox(width: 6),
             Semantics(
-              label: '展开公告',
+              label: l10n.announcementExpand,
               button: true,
               child: Padding(
                 padding: const EdgeInsets.all(2),
@@ -277,6 +280,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
     List<AnnouncementItemPayload> items,
     GfColors colors,
     GfTypography type,
+    AppLocalizations l10n,
   ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
@@ -313,7 +317,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        '公告',
+                        l10n.announcementLabel,
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -340,7 +344,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                       const Spacer(),
                     Semantics(
                       button: true,
-                      label: '折叠公告',
+                      label: l10n.announcementCollapse,
                       child: InkWell(
                         key: const Key('announcement-collapse-btn'),
                         onTap: () => _setCollapsed(true),
@@ -354,7 +358,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                '收起',
+                                l10n.announcementCollapseAction,
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
@@ -402,7 +406,7 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                       for (var i = 0; i < items.length; i++)
                         Semantics(
                           selected: i == _current,
-                          label: '第 ${i + 1} 条公告',
+                          label: l10n.announcementItem(i + 1),
                           child: GestureDetector(
                             key: Key('announcement-dot-$i'),
                             onTap: () {

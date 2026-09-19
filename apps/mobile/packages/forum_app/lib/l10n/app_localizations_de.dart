@@ -72,6 +72,23 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.';
 
   @override
+  String get announcementLabel => 'Ankündigung';
+
+  @override
+  String get announcementCollapse => 'Ankündigung einklappen';
+
+  @override
+  String get announcementCollapseAction => 'Einklappen';
+
+  @override
+  String get announcementExpand => 'Ankündigung ausklappen';
+
+  @override
+  String announcementItem(int index) {
+    return 'Ankündigung $index';
+  }
+
+  @override
   String get commonLoading => 'Wird geladen…';
 
   @override

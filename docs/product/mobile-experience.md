@@ -18,8 +18,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: Home announcements render optional titles and HTML bodies, including the legacy
   single-HTML payload. A small bell sits in a separate leading column, with title and body aligned
   to the same inset as Web. They grow with their contents and text size; empty announcements take no
-  space. Multiple announcements rotate with numbered manual controls; assistive navigation and
-  reduced motion disable automatic rotation. Refresh replaces the active announcement safely.
+  space. Multiple announcements rotate automatically and expose capsule indicators plus previous/
+  next controls when expanded. The banner can collapse to a single-line ticker; the collapsed state
+  is shared across the latest, popular and trending tabs. Assistive navigation and reduced motion
+  disable automatic rotation. Refresh replaces the active announcement safely.
 - `Current`: feed body text uses 17 logical pixels; Markdown reading and publishing body text use
   18 pixels with a 1.55 line height and system text scaling. Code uses 16 pixels and tables use
   17 pixels; headings keep a distinct hierarchy and follow the active theme. The first post supports
@@ -45,7 +47,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
-  up to three previews with a total count. Tapping opens the full gallery with zoom.
+  up to three previews with a total count. Tapping the feed card opens the topic; the full gallery
+  with zoom is available from inside the topic view.
+- `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image lightbox. It
+  supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
+  system sharing; feed previews deliberately keep their card navigation and do not open the lightbox.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics, and the like metric shows the topic's total like count. Actions switch
   their selected icon and the like count immediately (likes adjust the shown total by one)

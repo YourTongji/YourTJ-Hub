@@ -148,16 +148,16 @@ class _Destination extends StatelessWidget {
                                 color: foreground,
                               )
                             : (item.symbol != null
-                                ? GfSymbol(
-                                    item.symbol!,
-                                    size: 26,
-                                    color: foreground,
-                                  )
-                                : Icon(
-                                    selected ? item.selectedIcon : item.icon,
-                                    size: 24,
-                                    color: foreground,
-                                  )),
+                                  ? GfSymbol(
+                                      item.symbol!,
+                                      size: 26,
+                                      color: foreground,
+                                    )
+                                  : Icon(
+                                      selected ? item.selectedIcon : item.icon,
+                                      size: 24,
+                                      color: foreground,
+                                    )),
                       ),
                       if (item.badge)
                         Positioned(
@@ -179,6 +179,20 @@ class _Destination extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (!showLabel)
+                  Container(
+                    key: selected
+                        ? const ValueKey<String>(
+                            'gf-bottom-navigation-selected-indicator',
+                          )
+                        : null,
+                    width: selected ? 4 : 0,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: foreground,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 if (showLabel) const SizedBox(height: 2),
                 if (showLabel)
                   Text(

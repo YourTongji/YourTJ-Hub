@@ -111,6 +111,7 @@ void main() {
         GfBottomNavigation(
           currentIndex: 0,
           onSelected: (_) {},
+          showLabels: false,
           items: const <GfBottomNavigationItem>[
             GfBottomNavigationItem(
               label: '首页',
@@ -150,6 +151,12 @@ void main() {
           .widgetList<GfSymbol>(find.byType(GfSymbol))
           .map((symbol) => symbol.name),
       ['house-filled', 'graduation-cap', 'bell', 'mail'],
+    );
+    expect(
+      find.byKey(
+        const ValueKey<String>('gf-bottom-navigation-selected-indicator'),
+      ),
+      findsOneWidget,
     );
   });
 

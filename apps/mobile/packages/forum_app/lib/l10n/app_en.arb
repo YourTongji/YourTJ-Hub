@@ -19,6 +19,18 @@
   "imageSave": "Save image",
   "imageSaved": "Image saved",
   "imageSaveFailed": "Couldn’t save the image. Try again later.",
+  "announcementLabel": "Announcement",
+  "announcementCollapse": "Collapse announcement",
+  "announcementCollapseAction": "Collapse",
+  "announcementExpand": "Expand announcement",
+  "announcementItem": "Announcement {index}",
+  "@announcementItem": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "commonLoading": "Loading…",
   "commonLoadMore": "Load more",
   "commonRetry": "Retry",
