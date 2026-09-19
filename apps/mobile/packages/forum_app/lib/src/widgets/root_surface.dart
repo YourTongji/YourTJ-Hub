@@ -12,7 +12,7 @@ import 'compose_menu.dart';
 class RootSurface extends ConsumerWidget {
   const RootSurface({
     super.key,
-    required this.title,
+    this.title = '',
     this.titleWidget,
     required this.body,
     this.actions = const [],
@@ -81,14 +81,17 @@ class RootSurface extends ConsumerWidget {
                                     child: Center(
                                       child:
                                           titleWidget ??
-                                          Text(
-                                            title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: GfTheme.typographyOf(
-                                              context,
-                                            ).title2,
-                                          ),
+                                          (title.isEmpty || title == 'YourTJ'
+                                              ? const GfLogo(size: 32)
+                                              : Text(
+                                                  title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GfTheme.typographyOf(
+                                                    context,
+                                                  ).title2,
+                                                )),
                                     ),
                                   ),
                                   if (actions.isEmpty)

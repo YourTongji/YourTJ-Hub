@@ -1,4 +1,3 @@
-import 'package:forum_app/src/widgets/brand_mark.dart';
 import 'package:image/image.dart' as img;
 import 'dart:async';
 import 'dart:convert';
@@ -2582,7 +2581,7 @@ void main() {
       expect(find.byType(GfTopicCard), findsOneWidget);
       expect(find.byType(GfTopicRow), findsNothing);
       expect(find.text('新建话题'), findsNothing);
-      expect(find.byType(YourTjMark), findsOneWidget);
+      expect(find.byType(GfLogo), findsOneWidget);
       await tester.tap(find.byType(PopupMenuButton<GfTopicFeedMode>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('列表'));

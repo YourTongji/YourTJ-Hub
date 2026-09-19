@@ -18,7 +18,6 @@ import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
-import '../../widgets/brand_mark.dart';
 import '../../widgets/announcement_banner.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
@@ -437,8 +436,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
     return RootSurface(
-      title: 'YourTJ',
-      titleWidget: const YourTjMark(),
+      titleWidget: const GfLogo(size: 32),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
