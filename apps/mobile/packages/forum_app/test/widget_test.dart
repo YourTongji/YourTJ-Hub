@@ -1,4 +1,5 @@
 import 'package:forum_app/src/widgets/brand_mark.dart';
+import 'package:forum_app/src/widgets/campus_shortcuts.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -117,6 +118,13 @@ void main() {
     navigation.onSelected(1);
     await tester.pumpAndSettle();
     expect(appRouter.state.uri.path, '/campus');
+    expect(find.byType(CampusShortcuts), findsOneWidget);
+    expect(
+      tester
+          .widget<GfBottomNavigation>(find.byType(GfBottomNavigation))
+          .currentIndex,
+      1,
+    );
     expect(
       find.text(AppLocalizationsZh().campusOfficialSubtitle),
       findsOneWidget,

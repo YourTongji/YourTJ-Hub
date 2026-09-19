@@ -13,6 +13,7 @@ import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/campus_shortcuts.dart';
 import 'campus_connection.dart';
 import 'campus_data_views.dart';
 import 'campus_helpers.dart';
@@ -32,27 +33,39 @@ class _CampusAccount extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    Widget publicSurface(Widget content) => RootSurface(
+      title: l.campusTitle,
+      showComposeAction: false,
+      actions: [
+        IconButton(
+          tooltip: l.campusExplore,
+          icon: const GfSymbol('graduation-cap'),
+          onPressed: () => context.push('/campus/explore'),
+        ),
+      ],
+      body: (top, bottom) => ListView(
+        padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
+        children: [
+          const CampusShortcuts(),
+          const SizedBox(height: 24),
+          content,
+        ],
+      ),
+    );
     return ref
         .watch(currentUserProvider)
         .when(
-          loading: () => const Center(child: GfLoading()),
-          error: (_, _) => GfErrorRetry(
-            message: l.campusUnavailable,
-            onRetry: () => ref.invalidate(currentUserProvider),
+          loading: () => publicSurface(const GfLoading()),
+          error: (_, _) => publicSurface(
+            GfErrorRetry(
+              message: l.campusUnavailable,
+              onRetry: () => ref.invalidate(currentUserProvider),
+            ),
           ),
           data: (user) => user == null
-              ? RootSurface(
-                  title: l.campusTitle,
-                  showComposeAction: false,
-                  actions: [
-                    IconButton(
-                      tooltip: l.campusExplore,
-                      icon: const GfSymbol('graduation-cap'),
-                      onPressed: () => context.push('/campus/explore'),
-                    ),
-                  ],
-                  body: (top, bottom) => ListView(
-                    padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom),
+              ? publicSurface(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
                         l.campusOfficialSubtitle,
@@ -523,7 +536,13 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
             controller: controller,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
-            children: [content],
+            children: [
+              if (_tab == 'today') ...[
+                const CampusShortcuts(),
+                const SizedBox(height: 24),
+              ],
+              content,
+            ],
           ),
         ),
       ),

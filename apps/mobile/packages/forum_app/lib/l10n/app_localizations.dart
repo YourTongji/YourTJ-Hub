@@ -102,6 +102,12 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @campusCourseReviews.
+  ///
+  /// In en, this message translates to:
+  /// **'Course reviews'**
+  String get campusCourseReviews;
+
   /// No description provided for @myCourseReviewsTitle.
   ///
   /// In en, this message translates to:

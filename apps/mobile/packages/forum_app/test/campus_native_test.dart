@@ -14,6 +14,7 @@ import 'package:forum_app/src/pages/campus/campus_message_page.dart';
 import 'package:forum_app/src/pages/campus/campus_state.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
+import 'package:forum_app/src/widgets/campus_shortcuts.dart';
 import 'package:forum_app/src/widgets/schedule_time_grid.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/campus_fixtures.dart';
@@ -32,18 +33,26 @@ class CampusPkRepository extends PkRepository {
   Future<SectionTimesPayload?> sectionTimes() async => null;
 }
 
+class UnavailableCampusRepository extends FakeCampusRepository {
+  @override
+  Future<CampusStatus> status({CancelToken? cancelToken}) async =>
+      throw const ApiException(fallbackMessage: 'School unavailable');
+}
+
 Widget campusTestApp(
   FakeCampusRepository repository, {
   Widget child = const CampusPage(),
   double scale = 1,
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('zh'),
+  bool signedIn = true,
 }) => ProviderScope(
   overrides: [
     campusRepositoryProvider.overrideWithValue(repository),
     pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
     currentUserProvider.overrideWith(
-      (ref) async => const CurrentUser(id: 1, username: 'demo'),
+      (ref) async =>
+          signedIn ? const CurrentUser(id: 1, username: 'demo') : null,
     ),
     accountLayoutProvider.overrideWith(
       (ref) async => LayoutPayload.fromJson(minimalLayoutJson()),
@@ -65,6 +74,65 @@ Widget campusTestApp(
 );
 
 void main() {
+  testWidgets('public campus tools remain available when school status fails', (
+    tester,
+  ) async {
+    await tester.pumpWidget(campusTestApp(UnavailableCampusRepository()));
+    await tester.pumpAndSettle();
+    expect(find.byType(CampusShortcuts), findsOneWidget);
+    expect(
+      find.text(
+        AppLocalizations.of(
+          tester.element(find.byType(CampusPage)),
+        ).campusUnavailable,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  for (final signedIn in [false, true]) {
+    for (final bound in [false, true]) {
+      testWidgets(
+        'campus tools appear directly with signedIn=$signedIn bound=$bound',
+        (tester) async {
+          final repo = FakeCampusRepository();
+          if (!bound) {
+            repo.current = const CampusStatus(
+              enabled: true,
+              binding: null,
+              candidate: null,
+            );
+          }
+          await tester.pumpWidget(campusTestApp(repo, signedIn: signedIn));
+          await tester.pumpAndSettle();
+          expect(find.byType(CampusShortcuts), findsOneWidget);
+          final l = AppLocalizations.of(
+            tester.element(find.byType(CampusPage)),
+          );
+          for (final label in [
+            l.campusCourseReviews,
+            l.scheduleTitle,
+            l.wikiTitle,
+          ]) {
+            expect(
+              find.descendant(
+                of: find.byType(CampusShortcuts),
+                matching: find.text(label),
+              ),
+              findsOneWidget,
+            );
+          }
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+        },
+      );
+    }
+  }
+
   test(
     'home loads only home datasets; stale refresh response cannot restore old identity',
     () async {

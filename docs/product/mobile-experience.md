@@ -239,8 +239,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   greeting, recent notices and today's courses. Weekly timetable, academic records and charts,
   calendars, notice bodies and identity management use the existing campus API. GPA is loaded only
   on the academic tab. The timetable shares the planner renderer without its editing or storage.
-  Public course previews, scheduler and Wiki links live under Explore campus and remain shared with
-  search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+  The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
+  have visible shortcuts at the top of its home view, also available to guests, unbound users and
+  when school services fail. Pushed tools return to the Campus destination. Explore campus retains
+  public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
 - `Current`: school authorization uses the current native forum session in a restricted WebView.
   The initial Bearer header goes only to the first-party session handoff; school navigation receives
   no native credential. The server callback returns to a native confirmation, including resuming
