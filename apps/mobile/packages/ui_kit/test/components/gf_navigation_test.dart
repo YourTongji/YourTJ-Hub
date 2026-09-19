@@ -96,6 +96,7 @@ void main() {
     expect(find.text('消息'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
     expect(find.text('发布'), findsOneWidget);
+    expect(tester.widget<GfSymbol>(find.byType(GfSymbol)).name, 'plus');
 
     await tester.tap(find.text('我的'));
     expect(selected, 3);
