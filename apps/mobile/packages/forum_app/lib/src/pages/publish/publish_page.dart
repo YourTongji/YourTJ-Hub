@@ -185,6 +185,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       return true;
     }
     final owner = _owner;
+    if (owner == null) return true;
     final revision = _revision;
     final l10n = notify ? AppLocalizations.of(context) : null;
     if (notify && mounted) {
@@ -194,7 +195,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
       });
     }
     try {
-      if (owner == null) throw StateError('No draft owner');
       final draft = LocalDraft(
         key: _draftKey,
         title: _title.text,
