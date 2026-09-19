@@ -59,3 +59,25 @@ func TestUpdateEmailVerificationDisabledPreservesConcurrentPasswordChange(t *tes
 		t.Fatalf("updatedAt = %v, want ~%v (email change must stay observable)", row.UpdatedAt, changedAt)
 	}
 }
+
+func TestUpdateFieldsPreservesConcurrentPasswordChange(t *testing.T) {
+	setupUserIsolationTestDB(t)
+	user := MakeUser("fields-cas-user", "old-password", "fields-cas@example.com")
+	if err := Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	newHash := mustHash(t, "new-password")
+	if err := ApplyPasswordChange(user.Id, newHash, user.TokenVersion); err != nil {
+		t.Fatalf("concurrent password change: %v", err)
+	}
+	if err := UpdateFields(user.Id, map[string]any{"username": "fields-cas-renamed"}); err != nil {
+		t.Fatalf("update fields: %v", err)
+	}
+	row, err := Get(user.Id)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if row.Username != "fields-cas-renamed" || row.Password != newHash || row.TokenVersion != user.TokenVersion+1 {
+		t.Fatalf("targeted update changed unrelated credentials: username=%q tokenVersion=%d", row.Username, row.TokenVersion)
+	}
+}

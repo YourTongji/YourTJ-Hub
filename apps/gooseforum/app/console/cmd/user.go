@@ -38,8 +38,9 @@ func runUserSetPassword(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	expectedTokenVersion := user.TokenVersion
 	user.SetPassword(args[1])
-	if err := userservice.SaveUser(&user); err != nil {
+	if err := users.ApplyPasswordChange(user.Id, user.Password, expectedTokenVersion); err != nil {
 		return fmt.Errorf("save user password: %w", err)
 	}
 	fmt.Printf("Password updated for user %d (%s).\n", user.Id, user.Username)
@@ -51,13 +52,10 @@ func runUserSetEmail(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	user.Email = args[1]
-	// 管理员直改邮箱绕过验证流程：一并丢弃可能残留的两阶段换绑暂存（issue #678）。
-	user.ClearPendingEmail()
-	if err := userservice.SaveUser(&user); err != nil {
+	if err := userservice.UpdateUserFields(user.Id, map[string]any{"email": args[1], "pending_email": "", "pending_email_at": nil}); err != nil {
 		return fmt.Errorf("save user email: %w", err)
 	}
-	fmt.Printf("Email updated for user %d (%s): %s\n", user.Id, user.Username, user.Email)
+	fmt.Printf("Email updated for user %d (%s): %s\n", user.Id, user.Username, args[1])
 	return nil
 }
 
@@ -85,8 +83,7 @@ func runUserSetAdmin(_ *cobra.Command, args []string) error {
 	}
 	permission.InvalidateRole(roleEntity.Id)
 
-	user.RoleId = roleEntity.Id
-	if err := userservice.SaveUser(&user); err != nil {
+	if err := userservice.UpdateUserFields(user.Id, map[string]any{"role_id": roleEntity.Id}); err != nil {
 		return fmt.Errorf("save user role: %w", err)
 	}
 	fmt.Printf("User %d (%s) is now an administrator.\n", user.Id, user.Username)

@@ -111,6 +111,13 @@ func Save(entity *EntityComplete) error {
 	return result.Error
 }
 
+// UpdateFields writes only the columns owned by the caller. In particular, it
+// must be used for request-scoped edits so a stale EntityComplete cannot
+// overwrite a concurrent password change or token-version increment.
+func UpdateFields(userID uint64, fields map[string]any) error {
+	return builder().Where(queryopt.Eq(pid, userID)).Updates(fields).Error
+}
+
 func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
 	return builder().
 		Where(queryopt.Eq(pid, userID)).

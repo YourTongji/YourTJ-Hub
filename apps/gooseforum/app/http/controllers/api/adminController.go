@@ -403,7 +403,11 @@ func EditUser(req component.BetterRequest[EditUserReq]) component.Response {
 		opt = true
 	}
 	if opt {
-		if err := userservice.SaveUser(&user); err != nil {
+		if err := userservice.UpdateUserFields(user.Id, map[string]any{
+			"is_frozen":    user.IsFrozen,
+			"is_activated": user.IsActivated,
+			"role_id":      user.RoleId,
+		}); err != nil {
 			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 		}
 		optlogger.UserOptCode(req.UserId, optlogger.EditUser, user.Id, "admin.opt.user.updated", optlogger.MessageParams{
@@ -1504,7 +1508,7 @@ func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) 
 // permission.CheckAnyRole（角色持有 permission.All() 任一管理/治理权限，与
 // adminApi 组各子组挂载的权限枚举一致；Admin 角色隐式覆盖其余全部），覆盖
 // 首位管理员与 UserManager/SiteManager 等管理账号。逐用户走
-// userservice.SaveUser（DB 保存 + 用户信息缓存即时刷新），避免中间件 2 分钟
+// userservice.UpdateUserFields（定向 DB 更新 + 用户缓存失效），避免中间件 2 分钟
 // TTL 缓存继续读到旧 pending 状态而把刚激活的管理账号再次锁死。冻结账号跳过
 // （治理冻结优先于激活状态，不由本开关解除）。
 func activatePendingAdminAccounts() error {
@@ -1525,8 +1529,12 @@ func activatePendingAdminAccounts() error {
 		if !permission.CheckAnyRole(user.RoleId) {
 			continue
 		}
-		user.Activate()
-		if err := userservice.SaveUser(user); err != nil {
+		now := time.Now()
+		user.ActivatedAt = &now
+		if err := userservice.UpdateUserFields(user.Id, map[string]any{
+			"is_activated": users.ActivationSuccess,
+			"activated_at": now,
+		}); err != nil {
 			return err
 		}
 		slog.Info("activated pending admin while enabling email verification", "userId", user.Id)
