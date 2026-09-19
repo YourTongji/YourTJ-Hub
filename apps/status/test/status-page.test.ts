@@ -29,6 +29,9 @@ it('renders live metrics and distinguishes a real zero from missing data', async
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
   expect(wrapper.get('#status-signal').text()).toBe('服务器探针正常')
+  expect(wrapper.get('.status-footer').text()).toBe('© 2026 YourTJ Community | 公开统计数据')
+  expect(wrapper.findAll('.status-source-chip')).toHaveLength(3)
+  expect(wrapper.get('.status-source-chip').text()).toContain('Komari')
   expect(wrapper.get('.metric-active strong').text()).toBe('0')
   expect(wrapper.text()).toContain('8,060')
   expect(wrapper.findAll('.chart-bucket').length).toBeGreaterThan(20)
@@ -86,6 +89,14 @@ it('shows chart tooltips to keyboard users', async () => {
   expect(wrapper.get('.chart-tooltip').text()).toContain('页面浏览')
   await wrapper.findAll('.chart-bucket').at(-1)!.trigger('blur')
   expect(wrapper.find('.chart-tooltip').exists()).toBe(false)
+})
+
+it('shows resource chart tooltips to keyboard users', async () => {
+  const wrapper = await open()
+  await wrapper.findAll('.resource-point-hit').at(-1)!.trigger('focus')
+  expect(wrapper.get('.resource-tooltip').text()).toContain('CPU')
+  await wrapper.findAll('.resource-point-hit').at(-1)!.trigger('blur')
+  expect(wrapper.find('.resource-tooltip').exists()).toBe(false)
 })
 
 it('switches resource history independently and hides the previous scope while loading', async () => {

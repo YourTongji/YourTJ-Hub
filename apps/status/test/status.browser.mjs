@@ -32,8 +32,27 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
       })
       await page.goto(`${origin}/?lang=${lang}&theme=${theme}`)
       await page.locator('.chart-bucket').first().waitFor()
+      const favicon = await page.locator('link[rel="icon"]').getAttribute('href')
+      assert.equal(favicon, '/app_logo-favicon.png', 'status tab should use the rounded app logo')
+      assert.equal((await page.request.get(`${origin}${favicon}`)).status(), 200, 'rounded favicon should be served')
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page must not overflow')
       assert.ok(await page.locator('.status-page button').evaluateAll(buttons => buttons.every(button => { const r = button.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth })), 'all buttons remain in the viewport')
+      const brandMarkStyle = await page.locator('.brand-mark').evaluate(el => {
+        const style = getComputedStyle(el)
+        return { background: style.backgroundColor, radius: style.borderRadius }
+      })
+      assert.match(brandMarkStyle.background, /oklch\(1 0 0\)/, 'navbar logo should have a white backing')
+      assert.equal(brandMarkStyle.radius, '50%', 'navbar logo backing should stay circular')
+      if (width <= 640) {
+        const headerLayout = await page.locator('.gf-page-header').evaluate(header => {
+          const title = header.querySelector('h1').getBoundingClientRect()
+          const description = header.querySelector('p').getBoundingClientRect()
+          const refresh = header.querySelector('.status-refresh').getBoundingClientRect()
+          return { titleY: title.y, titleBottom: title.bottom, descriptionY: description.y, refreshY: refresh.y, refreshBottom: refresh.bottom }
+        })
+        assert.ok(Math.abs(headerLayout.refreshY - headerLayout.titleY) < 6, 'refresh should stay beside the mobile title')
+        assert.ok(headerLayout.descriptionY >= Math.max(headerLayout.titleBottom, headerLayout.refreshBottom) - 1, 'description should remain below the title row')
+      }
       const uptimeHeight = await page.locator('.uptime-section').evaluate(el => el.getBoundingClientRect().height)
       const checks = page.locator('.heartbeat-strip button')
       await checks.first().hover()
@@ -62,6 +81,16 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
         await page.locator('.status-resource-range button').nth(index).click()
         await page.waitForFunction(index => document.querySelectorAll('.status-resource-range button')[index].getAttribute('aria-pressed') === 'true' && !document.querySelector('.status-refresh').disabled, index)
         await page.locator('.resource-history svg').waitFor()
+        await page.locator('.resource-point-hit').last().hover()
+        await page.locator('.resource-tooltip').waitFor()
+        assert.match(await page.locator('.resource-tooltip').textContent(), /CPU/)
+        assert.notEqual(await page.locator('.resource-axis-cpu').textContent(), '0%50%100%', 'CPU axis should adapt to the visible data')
+        assert.deepEqual(await page.locator('.resource-selection-cpu').evaluate(el => {
+          const style = getComputedStyle(el)
+          return { width: style.width, height: style.height, radius: style.borderRadius }
+        }), { width: '8px', height: '8px', radius: '50%' }, 'selected anchor should stay circular')
+        await page.locator('.resource-ticks').hover()
+        await page.waitForFunction(() => !document.querySelector('.resource-tooltip'))
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'resource range and date labels must not overflow')
       }
       assert.deepEqual(errors, [])

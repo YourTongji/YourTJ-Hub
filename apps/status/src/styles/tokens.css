@@ -28,9 +28,9 @@
   --gf-color-tooltip-bg: oklch(30.5% 0.007 250);
   --gf-color-tooltip-content: oklch(97% 0 0);
 
-  --gf-radius-selector: 0.5rem;
-  --gf-radius-field: 0.5rem;
-  --gf-radius-box: 0.5rem;
+  --gf-radius-selector: 0.625rem;
+  --gf-radius-field: 0.625rem;
+  --gf-radius-box: 1rem;
 
   --gf-text-xs: 0.6875rem;
   --gf-text-sm: 0.75rem;
@@ -66,5 +66,4 @@
   --gf-color-warning-content: oklch(12.8% 0 0);
   --gf-color-error: oklch(71.2% 0.194 13.428);
   --gf-color-error-content: oklch(12.8% 0 0);
-
 }

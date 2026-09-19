@@ -12,10 +12,12 @@ it('positions samples across the full daily span and connects downsampled interv
     global: { plugins: [i18n] },
   })
   try {
-    expect(wrapper.findAll('circle').map(p => Number(p.attributes('cx')))).toEqual([0, 6, 360, 720])
-    expect(wrapper.get('.cpu-line').attributes('d')).toBe('M0.00,130.00 L6.00,130.00 M360.00,130.00 M720.00,130.00')
+    expect(wrapper.findAll('.resource-point-hit').map(p => Number(p.attributes('cx')))).toEqual([0, 6, 360, 720])
+    expect(wrapper.get('.cpu-line').attributes('d')).toBe('M0.00,85.00 L6.00,85.00 M360.00,85.00 M720.00,85.00')
+    expect(wrapper.get('.cpu-area').attributes('d')).toMatch(/Z$/)
+    expect(wrapper.findAll('.grid-line')).toHaveLength(8)
     expect(wrapper.get('.resource-ticks').text()).toMatch(/13/)
     await wrapper.setProps({ range: '7d', points: [point(10080), point(5040), point(0)] })
-    expect(wrapper.findAll('circle').map(p => Number(p.attributes('cx')))).toEqual([0, 360, 720])
+    expect(wrapper.findAll('.resource-point-hit').map(p => Number(p.attributes('cx')))).toEqual([0, 360, 720])
   } finally { wrapper.unmount() }
 })

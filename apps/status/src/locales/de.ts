@@ -2,6 +2,7 @@ export default {
   status: {
     community: "Zur Community",
     theme: "Design wechseln",
+    language: "Sprache",
     historyStale: "Verlaufsdaten wurden nicht aktualisiert",
     availabilityTitle: "Dienstverfügbarkeit",
     availabilityDescription: "Zugriffsprüfungen durch einen unabhängigen Überwachungsdienst.",
@@ -89,7 +90,7 @@ export default {
     unavailableNote: "Die Quelle ist nicht verfügbar. Ein neuer Abruf erfolgt automatisch.",
     unconfiguredNote: "Echte Daten erscheinen, sobald die Verwaltung diese Quelle verbindet.",
     partialNote: "Einige Messwerte fehlen. Andere Daten werden weiterhin angezeigt.",
-    footnote: "Öffentliche Summen · Keine einzelnen Besuchsaufzeichnungen",
+    footnote: "© {year} YourTJ Community {separator} Öffentliche Statistiken",
     chartLabel: "{time}: {views} Seitenaufrufe, {visitors} eindeutige Besucher",
     usedOf: "{used} / {total}",
     timeRange: "{start} — {end}",

@@ -2,6 +2,7 @@ export default {
   status: {
     community: "Community",
     theme: "Toggle theme",
+    language: "Language",
     historyStale: "History has not updated",
     availabilityTitle: "Service availability",
     availabilityDescription: "Availability and response time from an independent monitor.",
@@ -89,7 +90,7 @@ export default {
     unavailableNote: "This source is unavailable. We will retry automatically.",
     unconfiguredNote: "Live data will appear after this source is configured.",
     partialNote: "Some metrics are unavailable. Other readings are still shown.",
-    footnote: "Public aggregates; no individual visit records",
+    footnote: "© {year} YourTJ Community {separator} Public statistics",
     chartLabel: "{time}: {views} page views, {visitors} unique visitors",
     usedOf: "{used} / {total}",
     timeRange: "{start} — {end}",
