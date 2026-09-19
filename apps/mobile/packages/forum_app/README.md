@@ -43,6 +43,16 @@ flutter build apk --debug --split-per-abi
 # 输出：build/app/outputs/flutter-apk/app-{armeabi-v7a,arm64-v8a,x86_64}-debug.apk
 ```
 
+连接 dev 真实后端时必须同时注入 API 与 OIDC 地址，物理手机不要使用默认的
+`10.0.2.2` 模拟器地址：
+
+```bash
+flutter build apk --debug --split-per-abi \
+  --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
+  --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
+  --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+```
+
 CI(`ci-mobile`)对 `apps/mobile/**` 运行同一组 bootstrap / analyze / test。
 
 ## 本地设备集成测试
