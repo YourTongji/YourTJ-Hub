@@ -4819,7 +4819,9 @@ export interface paths {
          *     ordered by sortOrder ascending then id ascending. `url` follows the
          *     storage configuration: `/file/img/<fileName>` on the local provider or
          *     the configured CDN public-url prefix; empty when no image is attached
-         *     yet. JSON binding is lenient: query string and body are ignored.
+         *     yet. JSON binding is lenient: query string and body are ignored. A
+         *     database failure returns the legacy business failure envelope
+         *     `common.operation.failed` (HTTP 200) rather than a silent empty success.
          */
         get: operations["adminStickerList"];
         put?: never;
