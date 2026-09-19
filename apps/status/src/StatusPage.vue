@@ -243,7 +243,14 @@ function sourceStatusClass(source: 'server' | 'traffic' | 'uptime') {
   font-variant-numeric: tabular-nums;
 }
 .status-page :deep(.gf-page-header) { position: relative; align-items: flex-end; margin-bottom: 22px; padding: 10px 4px 2px; }
-.status-page :deep(.gf-page-header h1) { font-size: clamp(1.8rem, 1.45rem + 1.4vw, 2.5rem); line-height: 1.12; letter-spacing: -.055em; }
+.status-page :deep(.gf-page-header h1) { font-size: clamp(1.8rem, 1.45rem + 1.4vw, 2.5rem); line-height: 1.2; letter-spacing: -.055em; }
+.status-page :deep(.gf-page-header-title) {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1.15px color-mix(in oklch, var(--gf-color-base-content) 44%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 54%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 54%, transparent 100%);
+}
 .status-page :deep(.gf-page-header > div:first-child > p) { max-width: 42rem; margin-top: 8px; text-wrap: pretty; }
 .status-refresh {
   min-height: 38px;
