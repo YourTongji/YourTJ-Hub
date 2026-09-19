@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
+import 'package:image/image.dart' as image;
 
 Future<bool> saveImageToGallery(Uint8List bytes, String fileName) async {
   // gal's Android implementation considers API 29's non-album access
@@ -11,8 +12,27 @@ Future<bool> saveImageToGallery(Uint8List bytes, String fileName) async {
       !await Gal.requestAccess(toAlbum: toAlbum)) {
     return false;
   }
-  await Gal.putImageBytes(bytes, name: _galleryName(fileName));
-  return true;
+  final String name = _galleryName(fileName);
+  try {
+    await Gal.putImageBytes(bytes, name: name);
+    return true;
+  } on GalException catch (error) {
+    // Permission and storage failures are not fixed by changing the image
+    // format. Do not hide those states behind a second native write attempt.
+    if (error.type != GalExceptionType.notSupportedFormat &&
+        error.type != GalExceptionType.unexpected) {
+      return false;
+    }
+    final image.Image? decoded = image.decodeImage(bytes);
+    if (decoded == null) return false;
+    final Uint8List pngBytes = Uint8List.fromList(image.encodePng(decoded));
+    try {
+      await Gal.putImageBytes(pngBytes, name: '$name.png');
+      return true;
+    } on GalException {
+      return false;
+    }
+  }
 }
 
 String _galleryName(String fileName) {
