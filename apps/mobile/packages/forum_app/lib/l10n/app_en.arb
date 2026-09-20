@@ -1106,7 +1106,7 @@
   "campusApplyAdjustments": "Apply holiday adjustments",
   "campusApplyAdjustmentsHint": "Use administrator-confirmed holidays and makeup dates; otherwise use the original timetable.",
   "campusCalendarRules": "View published adjustments",
-  "campusCalendarRulesHint": "Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.",
+  "campusCalendarRulesHint": "Today’s classes and exports with adjustments enabled use published rules. The weekly grid keeps the original timetable. Refresh or export to read the latest rules.",
   "campusNoCalendarRules": "No adjustments are published. The original timetable will be exported.",
   "campusMakeupDate": "Classes from {original} move to {actual}",
   "@campusMakeupDate": {
@@ -1121,5 +1121,33 @@
   },
   "loginTongji": "Continue with Tongji SSO",
   "loginTongjiHint": "First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.",
-  "loginTongjiPolicies": "By continuing, you agree to the published policies:"
+  "loginTongjiPolicies": "By continuing, you agree to the published policies:",
+  "campusTodayMakeup": "{name}: today follows the timetable for {date}.",
+  "@campusTodayMakeup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTodayHoliday": "{name}: no classes today.",
+  "@campusTodayHoliday": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTodayMoved": "{name}: today’s classes have moved to another date.",
+  "@campusTodayMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable."
 }

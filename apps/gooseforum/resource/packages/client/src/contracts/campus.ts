@@ -13,3 +13,5 @@ export type CampusCalendarRules = components['schemas']['CampusCalendarRules']
 export type CampusCalendarSettings = components['schemas']['CampusCalendarSettings']
 export type CampusCalendarDraft = components['schemas']['CampusCalendarDraft']
 export type CampusCalendarParseRequest = components['schemas']['CampusCalendarParseRequest']
+
+export type CampusTeachingDay = components['schemas']['CampusTeachingDay']

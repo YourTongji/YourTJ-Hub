@@ -2,6 +2,9 @@ import adminRaw from './admin-raw.de.generated'
 
 export default {
   campus: {
+    todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",
+    todayHoliday: "{name}: Heute finden keine Lehrveranstaltungen statt.",
+    todayMoved: "{name}: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.",
     title: "Mein Campus",
     description: "Stundenplan, Studienleistungen und Campus-Nachrichten ansehen.",
     refreshData: "Campus-Daten aktualisieren",
@@ -121,7 +124,7 @@ export default {
     messageLoadFailed: "Die Nachricht konnte nicht geladen werden.",
     rulesTitle: "Veröffentlichte Feiertagsregeln ansehen",
     rulesLoading: "Wird geladen…",
-    rulesHint: "Die Regeln gelten nur für Exporte mit aktivierten Anpassungen. Die Seite zeigt den Originalstundenplan; Exporte verwenden die zuletzt veröffentlichten Regeln.",
+    rulesHint: "Die heutigen Kurse und Exporte mit aktivierten Anpassungen nutzen veröffentlichte Regeln. Die Wochenansicht bleibt unverändert. Beim Aktualisieren oder Exportieren werden die neuesten Regeln geladen.",
     rulesEmpty: "Keine Feiertagsregeln veröffentlicht. Der Originalstundenplan wird exportiert.",
     holiday: "Unterrichtsfrei",
     makeup: "Nachholunterricht",
