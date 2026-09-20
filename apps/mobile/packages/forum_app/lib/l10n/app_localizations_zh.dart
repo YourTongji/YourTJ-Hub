@@ -2260,7 +2260,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusCalendarRules => '查看已发布的调休规则';
 
   @override
-  String get campusCalendarRulesHint => '仅影响开启调休后的日历导出，页面课表仍为学校原始安排。导出使用最新规则。';
+  String get campusCalendarRulesHint =>
+      '今日课表和开启调休的日历导出应用已发布规则；周课表保留学校原始安排。刷新或导出时读取最新规则。';
 
   @override
   String get campusNoCalendarRules => '管理员尚未设置调休，按学校原课表导出。';
@@ -2278,4 +2279,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';
+
+  @override
+  String campusTodayMakeup(String name, String date) {
+    return '$name：今天按 $date 的课表上课。';
+  }
+
+  @override
+  String campusTodayHoliday(String name) {
+    return '$name：今天放假停课。';
+  }
+
+  @override
+  String campusTodayMoved(String name) {
+    return '$name：今天的课程已调整至其他日期。';
+  }
+
+  @override
+  String get campusRulesUnavailable => '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。';
 }

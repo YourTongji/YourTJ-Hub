@@ -2279,7 +2279,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusCalendarRulesHint =>
-      '振替はカレンダー出力にのみ適用されます。画面は元の時間割を表示し、出力時に最新ルールを使用します。';
+      '今日の授業と規則を有効にしたカレンダー出力に公開規則を適用します。週間表は元の時間割を表示します。更新または出力時に最新規則を読み込みます。';
 
   @override
   String get campusNoCalendarRules => '振替ルールは未設定です。元の時間割を出力します。';
@@ -2298,4 +2298,23 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginTongjiPolicies => '続行すると、公開されている規約に同意したものとみなされます：';
+
+  @override
+  String campusTodayMakeup(String name, String date) {
+    return '$name：今日は $date の時間割で授業を行います。';
+  }
+
+  @override
+  String campusTodayHoliday(String name) {
+    return '$name：今日は休講です。';
+  }
+
+  @override
+  String campusTodayMoved(String name) {
+    return '$name：今日の授業は別の日に移動しました。';
+  }
+
+  @override
+  String get campusRulesUnavailable =>
+      '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
 }

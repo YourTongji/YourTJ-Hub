@@ -63,11 +63,49 @@ void main() {
     },
   );
 
+  for (final kind in ['makeup', 'holiday']) {
+    test(
+      'cached today preserves server teaching-day semantics: $kind',
+      () async {
+        final base = campusFixture('today');
+        final today = CampusDataset(
+          key: 'today',
+          status: kind == 'holiday' ? 'empty' : 'ready',
+          updatedAt: '',
+          metrics: [],
+          columns: [],
+          rows: [],
+          series: [],
+          events: kind == 'holiday' ? [] : base.events,
+          teachingDay: CampusTeachingDay(
+            date: base.teachingDay!.date,
+            sourceDate: kind == 'holiday' ? '' : base.teachingDay!.sourceDate,
+            kind: kind,
+            label: '国庆节',
+            sectionCount: 11,
+          ),
+        );
+        final cache = CampusMemoryCache();
+        addTearDown(cache.dispose);
+        final repo = ControlledCampusRepository()..todayOverride = today;
+        final first = CampusController(repo, cache: cache);
+        await first.refresh();
+        first.dispose();
+        final second = CampusController(repo, cache: cache);
+        addTearDown(second.dispose);
+        await second.refresh(reuseCache: true);
+        expect(second.state.data['today'], same(today));
+        expect(repo.requested.where((key) => key == 'today').length, 1);
+        expect(repo.requested, isNot(contains('timetable')));
+      },
+    );
+  }
+
   test('five minute TTL is measured from fetch, not last reuse', () async {
     var now = DateTime.utc(2026, 9, 20, 1);
     final cache = CampusMemoryCache(now: () => now);
     addTearDown(cache.dispose);
-    final repo = ControlledCampusRepository();
+    final repo = ControlledCampusRepository()..now = () => now;
     final controller = CampusController(repo, cache: cache);
     addTearDown(controller.dispose);
     await controller.refresh();
@@ -187,6 +225,21 @@ void main() {
       messageCode: 'campus.connectionChanged',
     ),
     const ApiException(fallbackMessage: '', statusCode: 401),
+    const ApiException(
+      fallbackMessage: '',
+      statusCode: 403,
+      messageCode: 'permission.userFrozen',
+    ),
+    const ApiException(
+      fallbackMessage: '',
+      statusCode: 403,
+      messageCode: 'permission.resolveFailed',
+    ),
+    const ApiException(
+      fallbackMessage: '',
+      statusCode: 503,
+      messageCode: 'campus.disabled',
+    ),
   ]) {
     test(
       'identity error clears cache and fences other inflight responses: $error',
@@ -208,23 +261,49 @@ void main() {
     );
   }
 
+  for (final code in ['auth.csrf.rejected', 'permission.emailRequired']) {
+    test('non-identity 403 preserves binding and cached data: $code', () async {
+      final repo = ControlledCampusRepository()
+        ..confirmError = ApiException(
+          fallbackMessage: '',
+          statusCode: 403,
+          messageCode: code,
+        );
+      final controller = CampusController(repo);
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      final before = controller.state.data;
+      expect(
+        await controller.change((c) => repo.confirm(cancelToken: c)),
+        isFalse,
+      );
+      expect(controller.state.status?.binding?.revision, testBinding.revision);
+      expect(controller.state.data, before);
+      expect(controller.state.error, repo.confirmError);
+      expect(
+        controller.cache.restore(testBinding.revision).keys,
+        unorderedEquals(campusTabKeys['today']!),
+      );
+    });
+  }
+
   test(
     'Shanghai midnight removes old teaching data before loading new day',
     () async {
       var now = DateTime.utc(2026, 9, 20, 15, 59);
       final cache = CampusMemoryCache(now: () => now);
       addTearDown(cache.dispose);
-      final repo = ControlledCampusRepository();
+      final repo = ControlledCampusRepository()..now = () => now;
       final controller = CampusController(repo, cache: cache);
       addTearDown(controller.dispose);
       await controller.refresh();
       now = now.add(const Duration(minutes: 2));
-      repo.pending['timetable'] = Completer();
+      repo.pending['today'] = Completer();
       final refreshing = controller.refreshVisible();
-      expect(controller.state.data, isNot(contains('timetable')));
-      repo.pending['timetable']!.complete(campusFixture('timetable'));
+      expect(controller.state.data, isNot(contains('today')));
+      repo.pending['today']!.complete(campusFixture('today', now: now));
       await refreshing;
-      expect(repo.requested.where((k) => k == 'timetable').length, 2);
+      expect(repo.requested.where((k) => k == 'today').length, 2);
       expect(repo.requested.where((k) => k == 'calendar').length, 2);
       expect(repo.requested.where((k) => k == 'messages').length, 1);
     },
@@ -235,16 +314,23 @@ void main() {
     final cache = CampusMemoryCache(now: () => now);
     addTearDown(cache.dispose);
     final repo = ControlledCampusRepository()
-      ..pending['timetable'] = Completer();
+      ..now = (() => now)
+      ..pending['today'] = Completer();
     final controller = CampusController(repo, cache: cache);
     addTearDown(controller.dispose);
     final refreshing = controller.refresh();
     await Future<void>.delayed(Duration.zero);
     now = now.add(const Duration(minutes: 2));
-    repo.pending['timetable']!.complete(campusFixture('timetable'));
+    repo.pending['today']!.complete(
+      campusFixture('today', now: now.subtract(const Duration(minutes: 2))),
+    );
     await refreshing;
-    expect(controller.state.data, isNot(contains('timetable')));
-    expect(cache.restore(testBinding.revision), isNot(contains('timetable')));
+    expect(controller.state.data, isNot(contains('today')));
+    expect(cache.restore(testBinding.revision), isNot(contains('today')));
+    repo.pending.clear();
+    await controller.refreshVisible();
+    expect(controller.state.data['today']?.teachingDay?.date, '2026-09-21');
+    expect(repo.requested.where((k) => k == 'today').length, 2);
   });
 
   test(
@@ -340,12 +426,15 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('calendar failure cannot display an unfiltered daily timetable', (
+  testWidgets('calendar failure still renders server-adjusted today only', (
     tester,
   ) async {
     final repo = ControlledCampusRepository()..errors['calendar'] = failure;
     await tester.pumpWidget(campusTestApp(repo));
     await tester.pumpAndSettle();
+    expect(find.text('第四周周二的数学'), findsOneWidget);
+    expect(find.textContaining('国庆补课'), findsOneWidget);
+    expect(repo.requested, isNot(contains('timetable')));
     expect(find.textContaining('课程 '), findsNothing);
     expect(find.text('教学楼 A101 · 四平路 · 示例教师'), findsNothing);
     expect(tester.takeException(), isNull);

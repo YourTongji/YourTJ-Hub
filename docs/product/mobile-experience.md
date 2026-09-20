@@ -243,7 +243,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: Campus opens a native private overview with the school teaching week, time-aware
   greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
-  calendars, notice bodies and identity management use the existing campus API. GPA is loaded only
+  calendars, notice bodies and identity management use the existing campus API. Today’s timetable
+  uses the server-resolved Shanghai teaching date, including holidays,
+  makeup source weeks and explanatory notices; it refreshes across school-local midnight.
+  The export-only adjustment switch does not disable this display. GPA is loaded only
   on the academic tab. The timetable shares the planner renderer without its editing or storage.
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
   have visible shortcuts at the top of its home view, also available to guests, unbound users and

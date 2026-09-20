@@ -199,7 +199,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     if (data.status != 'ready' && data.status != 'empty') {
       return Text(l.campusUnavailable);
     }
-    if (data.status == 'empty') return Text(l.campusNoData);
+    if (data.status == 'empty' && key != 'today') return Text(l.campusNoData);
     return ready(data);
   }
 
@@ -283,54 +283,60 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         const SizedBox(height: 20),
         _section(
           l.campusTodayCourses,
-          _dataset(
-            state,
-            'calendar',
-            (_) => _dataset(state, 'timetable', (data) {
-              if (week == null) return Text(l.campusWeekUnknown);
-              final today =
-                  campusCoursesForWeek(
-                      data.events,
-                      week,
-                    ).where((e) => e.day == clock.weekday).toList()
-                    ..sort((a, b) => a.start.compareTo(b.start));
-              if (today.isEmpty) return Text(l.campusNoClasses);
-              final times = sectionTimesFor(
-                data.events.any((e) => e.end == 12) ? 12 : 11,
-                _times.isEmpty ? null : _times,
-              );
-              return Column(
-                children: [
-                  for (final e in today)
-                    GfCard(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            '${times[e.start - 1].start}–${times[e.end - 1].end} · ${l.schedulePeriodRange('${e.start}–${e.end}')}',
-                            style: GfTheme.typographyOf(context).caption,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            e.name,
-                            style: GfTheme.typographyOf(context).heading,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            [
-                              e.room,
-                              e.campus,
-                              e.teacher,
-                            ].where((s) => s.isNotEmpty).join(' · '),
-                          ),
-                        ],
-                      ),
+          _dataset(state, 'today', (data) {
+            final day = data.teachingDay;
+            if (day == null || day.date != campusDateKey(now)) {
+              return const CircularProgressIndicator();
+            }
+            final today = data.events;
+            final notice = switch (day.kind) {
+              'makeup' => l.campusTodayMakeup(day.label, day.sourceDate),
+              'holiday' => l.campusTodayHoliday(day.label),
+              'moved' => l.campusTodayMoved(day.label),
+              _ => '',
+            };
+            final times = sectionTimesFor(
+              day.sectionCount,
+              _times.isEmpty ? null : _times,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (notice.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(notice),
+                  ),
+                if (today.isEmpty) Text(l.campusNoClasses),
+                for (final e in today)
+                  GfCard(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '${times[e.start - 1].start}–${times[e.end - 1].end} · ${l.schedulePeriodRange('${e.start}–${e.end}')}',
+                          style: GfTheme.typographyOf(context).caption,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          e.name,
+                          style: GfTheme.typographyOf(context).heading,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          [
+                            e.room,
+                            e.campus,
+                            e.teacher,
+                          ].where((s) => s.isNotEmpty).join(' · '),
+                        ),
+                      ],
                     ),
-                ],
-              );
-            }),
-          ),
+                  ),
+              ],
+            );
+          }),
         ),
         _section(
           l.campusMessages,

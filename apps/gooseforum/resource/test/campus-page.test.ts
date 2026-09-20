@@ -288,3 +288,104 @@ test('switching language updates the current greeting, wish and tabs without fet
     expect(wrapper.text()).toContain(en.campus.wish1)
   } finally { wrapper.unmount() }
 })
+
+test('today displays the adjusted teaching day returned by the server, not the current weekday', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-09-20T01:00:00Z'))
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...await original(key),
+    teachingDay: key === 'today' ? { date: '2026-09-20', sourceDate: '2026-10-06', kind: 'makeup', label: '国庆补课', sectionCount: 11 } : undefined,
+    events: key === 'today' ? [{ name: '第四周周二的数学', day: 2, start: 1, end: 2, weeks: [4], room: 'A101', campus: '', teacher: '', credits: '' }] : [],
+  }))
+  try {
+    await flushPromises()
+    expect(wrapper.text()).toContain('第四周周二的数学')
+    expect(wrapper.text()).toContain('国庆补课')
+    expect(wrapper.text()).toContain('2026-10-06')
+  } finally { wrapper.unmount(); vi.useRealTimers() }
+})
+
+test('holiday notices and failed adjustment reads never fall back to original classes', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-01T01:00:00Z'))
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  api.dataset.mockImplementation(async (key: CampusDatasetKey) => ({ ...await original(key),
+    status: key === 'today' ? 'empty' : 'ready',
+    teachingDay: key === 'today' ? { date: '2026-10-01', sourceDate: '', kind: 'holiday', label: '国庆节', sectionCount: 11 } : undefined,
+  }))
+  try {
+    await flushPromises()
+    expect(wrapper.text()).toContain('国庆节：今天放假停课')
+    const working = api.dataset.getMockImplementation()!
+    api.dataset.mockImplementation(async (key: CampusDatasetKey) => {
+      if (key === 'today') throw new CampusError('campus.rulesUnavailable', '调休规则暂不可用')
+      return working(key)
+    })
+    await wrapper.get('button[aria-label="刷新校园数据"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('调休规则暂不可用')
+    expect(wrapper.text()).not.toContain('今天放假停课')
+    expect(wrapper.text()).not.toContain('今天没有安排课程')
+  } finally { wrapper.unmount(); vi.useRealTimers() }
+})
+
+test('crossing Shanghai midnight reloads the server teaching day', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  vi.setSystemTime(new Date('2026-09-19T15:59:30Z'))
+  const wrapper = setup()
+  try {
+    await flushPromises()
+    api.dataset.mockClear()
+    vi.advanceTimersByTime(60_000)
+    await flushPromises()
+    expect(api.dataset).toHaveBeenCalledWith('today', expect.any(AbortSignal))
+    expect(api.dataset).toHaveBeenCalledWith('calendar', expect.any(AbortSignal))
+  } finally { wrapper.unmount(); vi.useRealTimers() }
+})
+
+for (const lateResult of ['success', 'failure']) {
+ test(`midnight replaces pending daily reads and fences their late ${lateResult}`, async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  vi.setSystemTime(new Date('2026-09-19T15:59:30Z'))
+  const wrapper = setup()
+  const original = api.dataset.getMockImplementation()!
+  const reads: Record<string, { signal: AbortSignal; resolve: (value: CampusDataset) => void; reject: (error: Error) => void }[]> = { today: [], calendar: [] }
+  api.dataset.mockImplementation((key: CampusDatasetKey, signal: AbortSignal) => {
+    if (!reads[key]) return original(key, signal)
+    return new Promise<CampusDataset>((resolve, reject) => { reads[key]!.push({ signal, resolve, reject }) })
+  })
+  try {
+    await flushPromises()
+    expect(reads.today).toHaveLength(1)
+    expect(reads.calendar).toHaveLength(1)
+    vi.advanceTimersByTime(60_000)
+    await flushPromises()
+    expect(reads.today).toHaveLength(2)
+    expect(reads.calendar).toHaveLength(2)
+    for (const key of ['today', 'calendar']) {
+      const old = reads[key]![0]!
+      expect(old.signal.aborted).toBe(true)
+      if (lateResult === 'success') old.resolve({ ...dataset(key as CampusDatasetKey),
+        teachingDay: key === 'today' ? { date: '2026-09-19', sourceDate: '', kind: 'holiday', label: '过期假期', sectionCount: 11 } : undefined,
+        metrics: key === 'calendar' ? [{ label: '教学周', value: '99', unit: '周' }] : [],
+      })
+      else old.reject(new Error('过期请求失败'))
+    }
+    await flushPromises()
+    expect(wrapper.get('button[aria-label="刷新校园数据"]').attributes('disabled')).toBeDefined()
+    reads.calendar![1]!.resolve({ ...dataset('calendar'), metrics: [{ label: '教学周', value: '4', unit: '周' }] })
+    reads.today![1]!.resolve({ ...dataset('today'),
+      teachingDay: { date: '2026-09-20', sourceDate: '2026-10-06', kind: 'makeup', label: '新一天补课', sectionCount: 11 },
+      events: [{ name: '新一天的数学', day: 2, start: 1, end: 2, weeks: [4], room: '', campus: '', teacher: '', credits: '' }],
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('新一天的数学')
+    expect(wrapper.text()).toContain('第 4 周')
+    expect(wrapper.text()).not.toContain('过期')
+    expect(wrapper.text()).not.toContain('第 99 周')
+    expect(wrapper.get('button[aria-label="刷新校园数据"]').attributes('disabled')).toBeUndefined()
+  } finally { wrapper.unmount(); vi.useRealTimers() }
+ })
+}

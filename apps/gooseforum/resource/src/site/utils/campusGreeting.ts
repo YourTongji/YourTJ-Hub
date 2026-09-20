@@ -5,7 +5,9 @@ const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export function campusClock(date: Date, locale = 'zh') {
   const hour = Number(hourFormat.format(date))
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map(p => [p.type, p.value]))
   return {
+    isoDate: `${parts.year}-${parts.month}-${parts.day}`,
     weekday: new Intl.DateTimeFormat(locale, { timeZone, weekday: 'long' }).format(date),
     // Course selection always follows the school timezone, independent of display language.
     day: weekdays.indexOf(dayFormat.format(date)) + 1,

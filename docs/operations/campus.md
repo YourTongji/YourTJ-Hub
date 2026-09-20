@@ -58,7 +58,10 @@ the provider; no personal campus records are included. Draft notices are not per
 Confirmed absolute-date rules use the existing `page_config` storage under
 `campusCalendarAdjustments`; no schema migration or new secret is needed. Saving compares
 the loaded content revision atomically, rejecting stale edits. Rules take effect on the next
-export with adjustments enabled, without restarting. To remove an adjustment, delete its row
+today-timetable read and on exports with adjustments enabled, without restarting.
+The `today` dataset uses the same teaching-date rules on Web and Flutter and always
+applies published adjustments. Rule/calendar errors remain visible instead of falling
+back to the original schedule; the original weekly grid stays unchanged. To remove an adjustment, delete its row
 and apply; clearing both lists restores unadjusted exports. Check each year's school teaching
 notice rather than inferring makeup lessons from national workday calendars. Previously
 imported calendar files cannot be retracted or updated by the server.

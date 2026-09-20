@@ -6,7 +6,7 @@ import '../../providers.dart';
 import 'campus_memory_cache.dart';
 
 const campusTabKeys = <String, List<String>>{
-  'today': ['profile', 'calendar', 'messages', 'timetable'],
+  'today': ['profile', 'calendar', 'messages', 'today'],
   'timetable': ['calendar', 'timetable'],
   'academics': ['summary', 'grades', 'cet'],
   'messages': ['messages'],
@@ -174,10 +174,16 @@ class CampusController extends StateNotifier<CampusViewState> {
         )
         .map((e) => e.key)
         .toList();
+    final day = state.data['today']?.teachingDay;
+    if (day != null && day.date != CampusMemoryCache.schoolDate(cache.now())) {
+      expired.addAll(['today', 'calendar']);
+    }
     if (expired.isEmpty) return;
     final data = {...state.data};
+    final errors = {...state.errors};
     for (final key in expired) {
       data.remove(key);
+      errors.remove(key);
       _receivedAt.remove(key);
       cache.forget(key);
     }
@@ -188,7 +194,7 @@ class CampusController extends StateNotifier<CampusViewState> {
       refreshing: state.refreshing,
       error: state.error,
       data: data,
-      errors: state.errors,
+      errors: errors,
     );
   }
 
@@ -334,13 +340,15 @@ final campusControllerProvider =
       )..refresh(reuseCache: true);
     });
 
+// A 403 can reject an operation (CSRF/email verification) without invalidating
+// the session or school binding. Only explicit identity failures clear all data.
 bool _invalidatesIdentity(Object error) =>
     isCampusAuthorizationError(error) ||
     (error is ApiException &&
         (error.statusCode == 401 ||
-            error.statusCode == 403 ||
             const [
               'campus.connectionChanged',
               'campus.disabled',
-              'campus.notBound',
+              'permission.resolveFailed',
+              'permission.userFrozen',
             ].contains(error.messageCode)));
