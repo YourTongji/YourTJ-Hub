@@ -151,7 +151,7 @@ func FreezeUsersByBannedUsernames(bannedUsernames []string, actorUserId uint64) 
 			continue
 		}
 		user.IsFrozen = users.StatusFrozen
-		if err := userservice.SaveUser(user); err != nil {
+		if err := userservice.UpdateUserFields(user.Id, map[string]any{"is_frozen": users.StatusFrozen}); err != nil {
 			return err
 		}
 		logUserFrozen(actorUserId, user.Id, user.Username)

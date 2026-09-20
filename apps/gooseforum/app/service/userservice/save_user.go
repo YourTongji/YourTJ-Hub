@@ -16,3 +16,12 @@ func RefreshUserCaches(userEntity *users.EntityComplete) {
 	}
 	refreshUserInfo(*userEntity)
 }
+
+func UpdateUserFields(userID uint64, fields map[string]any) error {
+	if err := users.UpdateFields(userID, fields); err != nil {
+		return err
+	}
+	InvalidateUserInfoCache(userID)
+	InvalidateUserPublicProfileCache(userID)
+	return nil
+}
