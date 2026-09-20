@@ -42,11 +42,12 @@ type Service struct {
 	provider Provider
 	mu       sync.Mutex
 	pending  map[uint64]*pending
+	logins   map[string]*loginAttempt
 	allowed  func(uint64) bool
 }
 
 func New(c Config, s campus.Store, p Provider) *Service {
-	return &Service{config: c, store: s, provider: p, pending: make(map[uint64]*pending)}
+	return &Service{config: c, store: s, provider: p, pending: make(map[uint64]*pending), logins: make(map[string]*loginAttempt)}
 }
 func (s *Service) dropPending(id uint64) { s.mu.Lock(); delete(s.pending, id); s.mu.Unlock() }
 func (s *Service) Status(id uint64, session string) (Status, error) {

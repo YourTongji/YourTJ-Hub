@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import TongjiLoginButton from '@/site/components/TongjiLoginButton.vue'
 import PasswordInput from '@/site/components/PasswordInput.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
@@ -76,6 +77,17 @@ const subtitle = computed(() => {
   return t('auth.loginSubtitle')
 })
 
+const showTongji = computed(() => mode.value !== 'forgot' && page.props.tongjiReady && !!page.props.tongjiUrl)
+const tongjiNotice = computed(() => {
+  switch (page.props.tongjiNotice) {
+    case 'unavailable': return t('auth.tongjiUnavailable')
+    case 'accountExists': return t('auth.tongjiAccountExists')
+    case 'signupDisabled': return t('auth.tongjiSignupDisabled')
+    case 'accountUnavailable': return t('auth.tongjiAccountUnavailable')
+    case 'failed': return t('auth.tongjiFailed')
+    default: return ''
+  }
+})
 // 忘记密码页与 oauthNotice 注册引导页不展示第三方登录入口：后者是被 OAuth
 // 回调按 #531 明确送来密码注册的身份，再点 GitHub/Google 会原样回到本页
 // （PR #552 review P2：避免「按提示注册，却再次回到同一页」的可见循环）。
@@ -339,6 +351,7 @@ function onToggleTheme() {
             <button type="button" class="gf-segmented-item" :class="mode === 'register' ? 'gf-segmented-item-active' : 'gf-segmented-item-idle'" @click="switchMode('register')">{{ t('shell.register') }}</button>
           </div>
 
+          <p v-if="tongjiNotice" class="gf-status-message gf-status-message-error mb-4">{{ tongjiNotice }}</p>
           <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
           <p v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">{{ t('auth.oauthNoAccount') }}</p>
@@ -510,37 +523,41 @@ function onToggleTheme() {
               </figure>
             </div>
 
-            <div v-if="showSocial">
+            <div v-if="showSocial || showTongji">
               <h2 class="text-xs font-bold uppercase tracking-wide text-base-content/45">{{ t('auth.continueWith') }}</h2>
               <div class="mt-3 space-y-2.5">
-                <a :href="page.props.githubUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
-                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.79-.26.79-.58v-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.83 2.81 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 6c1.02 0 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.19.69.8.58A12.01 12.01 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />
-                  </svg>
-                  GitHub
-                </a>
+                <TongjiLoginButton v-if="showTongji" :href="page.props.tongjiUrl!" :terms="page.props.termsOfServiceEnabled" :privacy="page.props.privacyPolicyEnabled" />
+                <template v-if="showSocial">
+                  <a :href="page.props.githubUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.79-.26.79-.58v-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.83 2.81 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 6c1.02 0 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.19.69.8.58A12.01 12.01 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />
+                    </svg>
+                    GitHub
+                  </a>
 
-                <a v-if="page.props.googleReady" :href="page.props.googleUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
-                  <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.91-4.2 2.91-7.22Z" />
-                    <path fill="#34A853" d="M12 21.72c2.64 0 4.86-.87 6.48-2.36l-3.14-2.45c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.53A9.79 9.79 0 0 0 12 21.72Z" />
-                    <path fill="#FBBC05" d="M6.49 13.77A5.88 5.88 0 0 1 6.18 12c0-.61.11-1.2.31-1.77V7.7H3.24A9.77 9.77 0 0 0 2.2 12c0 1.56.37 3.04 1.04 4.3l3.25-2.53Z" />
-                    <path fill="#EA4335" d="M12 6.17c1.44 0 2.73.5 3.75 1.49l2.81-2.81C16.86 3.28 14.64 2.28 12 2.28a9.79 9.79 0 0 0-8.76 5.42l3.25 2.53C7.27 7.9 9.44 6.17 12 6.17Z" />
-                  </svg>
-                  Google
-                </a>
-                <button v-else type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70" disabled>
-                  {{ t('auth.googleUnavailable') }}
-                </button>
+                  <a v-if="page.props.googleReady" :href="page.props.googleUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.91-4.2 2.91-7.22Z" />
+                      <path fill="#34A853" d="M12 21.72c2.64 0 4.86-.87 6.48-2.36l-3.14-2.45c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.53A9.79 9.79 0 0 0 12 21.72Z" />
+                      <path fill="#FBBC05" d="M6.49 13.77A5.88 5.88 0 0 1 6.18 12c0-.61.11-1.2.31-1.77V7.7H3.24A9.77 9.77 0 0 0 2.2 12c0 1.56.37 3.04 1.04 4.3l3.25-2.53Z" />
+                      <path fill="#EA4335" d="M12 6.17c1.44 0 2.73.5 3.75 1.49l2.81-2.81C16.86 3.28 14.64 2.28 12 2.28a9.79 9.79 0 0 0-8.76 5.42l3.25 2.53C7.27 7.9 9.44 6.17 12 6.17Z" />
+                    </svg>
+                    Google
+                  </a>
+                  <button v-else type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70" disabled>
+                    {{ t('auth.googleUnavailable') }}
+                  </button>
+                </template>
               </div>
             </div>
           </div>
         </aside>
       </div>
 
-      <div v-if="showSocial" class="mb-6 w-full px-4 md:hidden">
+      <div v-if="showSocial || showTongji" class="mb-6 w-full px-4 md:hidden">
         <h2 class="mb-2 text-center text-xs font-bold uppercase tracking-wide text-base-content/45">{{ t('auth.continueWith') }}</h2>
-        <div class="grid grid-cols-2 gap-2">
+        <TongjiLoginButton v-if="showTongji" :href="page.props.tongjiUrl!" :terms="page.props.termsOfServiceEnabled" :privacy="page.props.privacyPolicyEnabled" class="mb-3" />
+        <div v-if="showSocial" class="grid grid-cols-2 gap-2">
           <a :href="page.props.githubUrl" class="gf-button gf-button-md gf-button-secondary w-full">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.79-.26.79-.58v-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.83 2.81 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 6c1.02 0 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.19.69.8.58A12.01 12.01 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />

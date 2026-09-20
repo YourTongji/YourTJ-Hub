@@ -15,12 +15,18 @@ import 'pages_behavior_test.dart' show NoopCache;
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
 class _Options implements HttpClientAdapter {
-  _Options({required this.domains, required this.policies, this.fail = false});
+  _Options({
+    required this.domains,
+    required this.policies,
+    this.fail = false,
+    this.tongji = false,
+  });
   final headers = <String?>[];
   @override
   void close({bool force = false}) {}
   final List<String> domains;
   final bool policies;
+  final bool tongji;
   bool fail;
   @override
   Future<ResponseBody> fetch(
@@ -46,6 +52,8 @@ class _Options implements HttpClientAdapter {
               'redirectUrl': '/',
               'githubUrl': '',
               'googleReady': false,
+              'tongjiReady': tongji,
+              'tongjiUrl': '/api/auth/tongji',
               'allowedDomains': domains,
               'termsOfServiceEnabled': policies,
               'privacyPolicyEnabled': policies,
@@ -93,6 +101,7 @@ void main() {
     bool fail = false,
     bool oldSession = false,
     bool register = true,
+    bool tongji = false,
   }) async {
     await tester.binding.setSurfaceSize(const Size(390, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -105,7 +114,12 @@ void main() {
       baseUrl: 'http://fake.local',
     );
     final auth = _Auth(client, staged);
-    final options = _Options(domains: domains, policies: policies, fail: fail);
+    final options = _Options(
+      domains: domains,
+      policies: policies,
+      fail: fail,
+      tongji: tongji,
+    );
     final container = ProviderContainer(
       overrides: [
         dioProvider.overrideWithValue(Dio()..httpClientAdapter = options),
@@ -150,6 +164,29 @@ void main() {
     await tester.enterText(input('Password'), 'test-password');
     await tester.enterText(input('Confirm password'), 'test-password');
   }
+
+  for (final register in [false, true]) {
+    testWidgets(
+      'Tongji sign-in appears in register=$register when configured',
+      (tester) async {
+        await pump(tester, register: register, tongji: true);
+        final button = find.widgetWithText(
+          OutlinedButton,
+          'Continue with Tongji SSO',
+        );
+        expect(button, findsOneWidget);
+        expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
+        expect(find.textContaining('student-ID@tongji.edu.cn'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets('Tongji sign-in stays hidden without campus configuration', (
+    tester,
+  ) async {
+    await pump(tester, register: false);
+    expect(find.text('Continue with Tongji SSO'), findsNothing);
+  });
 
   testWidgets(
     'sign-in loads social availability before entering registration',

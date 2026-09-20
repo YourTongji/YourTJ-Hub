@@ -1054,10 +1054,10 @@
   "campusReauthorize": "更新学校授权",
   "campusReplace": "更换绑定身份",
   "campusUnbind": "解绑身份",
-  "campusUnbindBody": "解绑后清除校园访问凭据，并释放身份占用。再次使用时需要重新连接。",
+  "campusUnbindBody": "将删除校园凭据并停用该同济身份登录。账号邮箱和论坛内容保留，可通过邮箱找回设置密码，之后也可重新绑定。",
   "campusConfirmBinding": "确认绑定",
   "campusConfirmUpdate": "确认更新授权",
-  "campusConfirmBody": "学校认证已完成，请核对身份后确认。确认前保留原有绑定。",
+  "campusConfirmBody": "学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。",
   "campusPrivacy": "一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。",
   "campusDisabled": "本站尚未启用校园连接",
   "campusUnavailable": "学校暂未提供可用数据，请稍后重试。",
@@ -1103,5 +1103,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "loginTongji": "同济统一认证登录",
+  "loginTongjiHint": "首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。",
+  "loginTongjiPolicies": "继续即表示同意本站公布的条款："
 }

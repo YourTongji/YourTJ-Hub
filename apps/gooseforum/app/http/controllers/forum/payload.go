@@ -34,6 +34,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
@@ -123,6 +124,9 @@ type LoginPageProps struct {
 	GitHubURL             string   `json:"githubUrl"`
 	GoogleURL             string   `json:"googleUrl"`
 	GoogleReady           bool     `json:"googleReady"`
+	TongjiReady           bool     `json:"tongjiReady"`
+	TongjiURL             string   `json:"tongjiUrl"`
+	TongjiNotice          string   `json:"tongjiNotice"`
 	TermsOfServiceEnabled bool     `json:"termsOfServiceEnabled"`
 	PrivacyPolicyEnabled  bool     `json:"privacyPolicyEnabled"`
 	AllowedDomains        []string `json:"allowedDomains"`
@@ -986,9 +990,18 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	}
 	githubURL := "/api/auth/github"
 	googleURL := "/api/auth/google"
+	tongjiURL := "/api/auth/tongji"
+	_, campusErr := campusservice.Configured()
+	tongjiNotice := c.Query("tongjiNotice")
+	switch tongjiNotice {
+	case "failed", "unavailable", "accountExists", "signupDisabled", "accountUnavailable":
+	default:
+		tongjiNotice = ""
+	}
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
 		googleURL += "?redirect=" + url.QueryEscape(redirectURL)
+		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
 		InitialMode:           mode,
@@ -996,6 +1009,9 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		GitHubURL:             githubURL,
 		GoogleURL:             googleURL,
 		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
+		TongjiReady:           campusErr == nil,
+		TongjiURL:             tongjiURL,
+		TongjiNotice:          tongjiNotice,
 		TermsOfServiceEnabled: hotdataserve.GetTermsOfServiceConfigCache().Enabled,
 		PrivacyPolicyEnabled:  hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		AllowedDomains:        hotdataserve.GetSecuritySettingsConfigCache().AllowedDomains,

@@ -170,7 +170,7 @@ void main() {
     expect(await storage.read(), 'forum-jwt-1');
   });
 
-  for (final provider in ['google', 'github']) {
+  for (final provider in ['google', 'github', 'tongji']) {
     test('$provider selection preserves the PKCE exchange and nonce', () async {
       final storage = MemoryTokenStorage();
       final appAuth = FakeAppAuth(

@@ -285,7 +285,7 @@
 | GET | `/activate` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/admin` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/admin/*path` | SSR 页面（GoHTML 三模渲染），非 JSON API |
-| GET | `/api/auth/:provider` | goth 浏览器 302 重定向流程（HTML/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进 |
+| GET | `/api/auth/:provider` | 浏览器重定向入口：GitHub/Google 使用 goth；tongji 使用校园授权配置和 /api/campus/tongji/callback，在服务端保留登录用途及安全续跳，不返回 JSON。 |
 | GET | `/api/auth/:provider/callback` | goth 浏览器 302 重定向流程（HTML 错误页/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进 |
 | GET | `/assets/*filepath` | go:embed 静态资源（StaticFS 展开 GET+HEAD） |
 | GET | `/c/:slug/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API |

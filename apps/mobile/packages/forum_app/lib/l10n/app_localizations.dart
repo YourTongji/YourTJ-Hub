@@ -4095,7 +4095,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusUnbindBody.
   ///
   /// In en, this message translates to:
-  /// **'Unlinking removes campus credentials and releases this identity. Connect again to access school data.'**
+  /// **'This removes campus credentials and disables sign-in with this Tongji identity. Your email and forum content remain. Use email password recovery to set a password, or link an identity again.'**
   String get campusUnbindBody;
 
   /// No description provided for @campusConfirmBinding.
@@ -4113,7 +4113,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusConfirmBody.
   ///
   /// In en, this message translates to:
-  /// **'School sign-in is complete. Check the identity and confirm; your existing connection is kept until then.'**
+  /// **'Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.'**
   String get campusConfirmBody;
 
   /// No description provided for @campusPrivacy.
@@ -4331,6 +4331,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Classes from {original} move to {actual}'**
   String campusMakeupDate(String original, String actual);
+
+  /// No description provided for @loginTongji.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Tongji SSO'**
+  String get loginTongji;
+
+  /// No description provided for @loginTongjiHint.
+  ///
+  /// In en, this message translates to:
+  /// **'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.'**
+  String get loginTongjiHint;
+
+  /// No description provided for @loginTongjiPolicies.
+  ///
+  /// In en, this message translates to:
+  /// **'By continuing, you agree to the published policies:'**
+  String get loginTongjiPolicies;
 }
 
 class _AppLocalizationsDelegate

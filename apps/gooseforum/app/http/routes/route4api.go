@@ -187,7 +187,11 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.GET("site-theme/tokens", ginUpNP(api.GetPublicSiteThemeTokens))
 	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
 	baseApi.POST("reset-password", middleware.RateLimit(middleware.RateLimitResetPassword), UpButterReq(api.ResetPassword))
-	baseApi.GET("auth/:provider", api.ProviderLogin)
+	baseApi.GET("auth/:provider", func(c *gin.Context) {
+		if c.Param("provider") == "tongji" {
+			middleware.RateLimit(middleware.RateLimitLogin)(c)
+		}
+	}, api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
 
 	// 内建 OIDC Provider（/api/oauth）。逐个静态挂载已实现端点，避免

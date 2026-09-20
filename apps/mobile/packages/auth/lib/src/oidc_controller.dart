@@ -49,7 +49,10 @@ class OidcController extends ChangeNotifier {
 
   /// 发起 OIDC 登录:授权 → 后端兑换 → 存 token。
   Future<bool> login({String? provider}) async {
-    if (provider != null && provider != 'google' && provider != 'github') {
+    if (provider != null &&
+        provider != 'google' &&
+        provider != 'github' &&
+        provider != 'tongji') {
       throw ArgumentError.value(provider, 'provider');
     }
     _busy = true;

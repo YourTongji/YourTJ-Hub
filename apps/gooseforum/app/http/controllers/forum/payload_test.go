@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -196,5 +197,37 @@ func TestLoginPagePayloadAllowedDomainsNeverNull(t *testing.T) {
 	}
 	if payload.Props.AllowedDomains == nil {
 		t.Fatalf("props.allowedDomains = null, want non-null array (issue #643); body=%s", recorder.Body.String())
+	}
+}
+
+func TestLoginPageTongjiAvailabilityAndSafeNotice(t *testing.T) {
+	t.Setenv("CAMPUS_CLIENT_ID", "test-client")
+	t.Setenv("CAMPUS_ENCRYPTION_KEY", strings.Repeat("e", 32))
+	t.Setenv("CAMPUS_IDENTITY_KEY", strings.Repeat("i", 32))
+	t.Setenv("CAMPUS_REDIRECT_URI", "https://forum.example/api/campus/tongji/callback")
+	for _, tc := range []struct{ query, notice, target string }{
+		{"?redirect=%2Fcampus&tongjiNotice=accountExists", "accountExists", "/api/auth/tongji?redirect=%2Fcampus"},
+		{"?redirect=https%3A%2F%2Fevil.test&tongjiNotice=private-upstream-value", "", "/api/auth/tongji"},
+	} {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/login"+tc.query, nil)
+		props := buildLoginPageProps(ctx)
+		if !props.TongjiReady || props.TongjiNotice != tc.notice || props.TongjiURL != tc.target {
+			t.Fatalf("wrong login props: ready=%t,notice=%s,url=%s", props.TongjiReady, props.TongjiNotice, props.TongjiURL)
+		}
+		encoded, err := json.Marshal(props)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(encoded), "test-client") || strings.Contains(string(encoded), strings.Repeat("e", 32)) {
+			t.Fatal("provider configuration leaked")
+		}
+	}
+	t.Setenv("CAMPUS_REDIRECT_URI", "disabled")
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/login", nil)
+	if buildLoginPageProps(ctx).TongjiReady {
+		t.Fatal("unconfigured provider shown")
 	}
 }

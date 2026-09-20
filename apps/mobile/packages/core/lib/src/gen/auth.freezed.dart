@@ -25,6 +25,9 @@ mixin _$LoginPageProps {
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
   bool get googleReady => throw _privateConstructorUsedError;
+  bool get tongjiReady => throw _privateConstructorUsedError;
+  String get tongjiUrl => throw _privateConstructorUsedError;
+  String get tongjiNotice => throw _privateConstructorUsedError;
   bool get termsOfServiceEnabled => throw _privateConstructorUsedError;
   bool get privacyPolicyEnabled => throw _privateConstructorUsedError;
   List<String> get allowedDomains => throw _privateConstructorUsedError;
@@ -54,6 +57,9 @@ abstract class $LoginPagePropsCopyWith<$Res> {
     String redirectUrl,
     String githubUrl,
     bool googleReady,
+    bool tongjiReady,
+    String tongjiUrl,
+    String tongjiNotice,
     bool termsOfServiceEnabled,
     bool privacyPolicyEnabled,
     List<String> allowedDomains,
@@ -80,6 +86,9 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
+    Object? tongjiReady = null,
+    Object? tongjiUrl = null,
+    Object? tongjiNotice = null,
     Object? termsOfServiceEnabled = null,
     Object? privacyPolicyEnabled = null,
     Object? allowedDomains = null,
@@ -103,6 +112,18 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
                 ? _value.googleReady
                 : googleReady // ignore: cast_nullable_to_non_nullable
                       as bool,
+            tongjiReady: null == tongjiReady
+                ? _value.tongjiReady
+                : tongjiReady // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            tongjiUrl: null == tongjiUrl
+                ? _value.tongjiUrl
+                : tongjiUrl // ignore: cast_nullable_to_non_nullable
+                      as String,
+            tongjiNotice: null == tongjiNotice
+                ? _value.tongjiNotice
+                : tongjiNotice // ignore: cast_nullable_to_non_nullable
+                      as String,
             termsOfServiceEnabled: null == termsOfServiceEnabled
                 ? _value.termsOfServiceEnabled
                 : termsOfServiceEnabled // ignore: cast_nullable_to_non_nullable
@@ -139,6 +160,9 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
     String redirectUrl,
     String githubUrl,
     bool googleReady,
+    bool tongjiReady,
+    String tongjiUrl,
+    String tongjiNotice,
     bool termsOfServiceEnabled,
     bool privacyPolicyEnabled,
     List<String> allowedDomains,
@@ -164,6 +188,9 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
+    Object? tongjiReady = null,
+    Object? tongjiUrl = null,
+    Object? tongjiNotice = null,
     Object? termsOfServiceEnabled = null,
     Object? privacyPolicyEnabled = null,
     Object? allowedDomains = null,
@@ -187,6 +214,18 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
             ? _value.googleReady
             : googleReady // ignore: cast_nullable_to_non_nullable
                   as bool,
+        tongjiReady: null == tongjiReady
+            ? _value.tongjiReady
+            : tongjiReady // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        tongjiUrl: null == tongjiUrl
+            ? _value.tongjiUrl
+            : tongjiUrl // ignore: cast_nullable_to_non_nullable
+                  as String,
+        tongjiNotice: null == tongjiNotice
+            ? _value.tongjiNotice
+            : tongjiNotice // ignore: cast_nullable_to_non_nullable
+                  as String,
         termsOfServiceEnabled: null == termsOfServiceEnabled
             ? _value.termsOfServiceEnabled
             : termsOfServiceEnabled // ignore: cast_nullable_to_non_nullable
@@ -216,6 +255,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     required this.redirectUrl,
     required this.githubUrl,
     required this.googleReady,
+    this.tongjiReady = false,
+    this.tongjiUrl = '',
+    this.tongjiNotice = '',
     this.termsOfServiceEnabled = false,
     this.privacyPolicyEnabled = false,
     final List<String> allowedDomains = const <String>[],
@@ -233,6 +275,15 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   final String githubUrl;
   @override
   final bool googleReady;
+  @override
+  @JsonKey()
+  final bool tongjiReady;
+  @override
+  @JsonKey()
+  final String tongjiUrl;
+  @override
+  @JsonKey()
+  final String tongjiNotice;
   @override
   @JsonKey()
   final bool termsOfServiceEnabled;
@@ -255,7 +306,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   String toString() {
-    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
+    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -271,6 +322,12 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
                 other.githubUrl == githubUrl) &&
             (identical(other.googleReady, googleReady) ||
                 other.googleReady == googleReady) &&
+            (identical(other.tongjiReady, tongjiReady) ||
+                other.tongjiReady == tongjiReady) &&
+            (identical(other.tongjiUrl, tongjiUrl) ||
+                other.tongjiUrl == tongjiUrl) &&
+            (identical(other.tongjiNotice, tongjiNotice) ||
+                other.tongjiNotice == tongjiNotice) &&
             (identical(other.termsOfServiceEnabled, termsOfServiceEnabled) ||
                 other.termsOfServiceEnabled == termsOfServiceEnabled) &&
             (identical(other.privacyPolicyEnabled, privacyPolicyEnabled) ||
@@ -291,6 +348,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     redirectUrl,
     githubUrl,
     googleReady,
+    tongjiReady,
+    tongjiUrl,
+    tongjiNotice,
     termsOfServiceEnabled,
     privacyPolicyEnabled,
     const DeepCollectionEquality().hash(_allowedDomains),
@@ -320,6 +380,9 @@ abstract class _LoginPageProps implements LoginPageProps {
     required final String redirectUrl,
     required final String githubUrl,
     required final bool googleReady,
+    final bool tongjiReady,
+    final String tongjiUrl,
+    final String tongjiNotice,
     final bool termsOfServiceEnabled,
     final bool privacyPolicyEnabled,
     final List<String> allowedDomains,
@@ -337,6 +400,12 @@ abstract class _LoginPageProps implements LoginPageProps {
   String get githubUrl;
   @override
   bool get googleReady;
+  @override
+  bool get tongjiReady;
+  @override
+  String get tongjiUrl;
+  @override
+  String get tongjiNotice;
   @override
   bool get termsOfServiceEnabled;
   @override

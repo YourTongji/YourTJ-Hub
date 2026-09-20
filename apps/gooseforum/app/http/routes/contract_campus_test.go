@@ -171,3 +171,20 @@ func TestCampusReadQuotaIsPerUserBehindSharedNAT(t *testing.T) {
 		}
 	}
 }
+
+func TestTongjiLoginCallbackDoesNotRequireForumSessionAndScrubsFailure(t *testing.T) {
+	_, router := setupHTTPContractTest(t)
+	campusRoutes(router)
+	t.Setenv("CAMPUS_REDIRECT_URI", "disabled")
+	for _, query := range []string{"state=login.test&code=private-code", "state=login.test&error=access_denied"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/campus/tongji/callback?"+query, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != 303 || rec.Header().Get("Location") != "/login?tongjiNotice=unavailable" {
+			t.Fatalf("login callback: %d %s", rec.Code, rec.Header().Get("Location"))
+		}
+		if rec.Header().Get("Cache-Control") != "private, no-store" || rec.Header().Get("Referrer-Policy") != "no-referrer" || strings.Contains(rec.Body.String(), "private-code") {
+			t.Fatal("callback privacy failure")
+		}
+	}
+}

@@ -104,13 +104,13 @@ func TestGatewayWrappedOAuthErrorAndPKCE(t *testing.T) {
 
 func TestReauthorizationForcesSchoolLogin(t *testing.T) {
 	p := NewProvider(Config{ClientID: "client"})
-	for _, mode := range []string{"bind", "replace", "reauthorize"} {
+	for _, mode := range []string{"bind", "replace", "reauthorize", "login"} {
 		u, err := url.Parse(p.Authorize("state", "nonce", "verifier", mode))
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := ""
-		if mode != "bind" {
+		if mode == "replace" || mode == "reauthorize" {
 			want = "login"
 		}
 		if u.Query().Get("prompt") != want {

@@ -2133,7 +2133,8 @@ class AppLocalizationsJa extends AppLocalizations {
   String get campusUnbind => '連携解除';
 
   @override
-  String get campusUnbindBody => '連携解除により大学へのアクセス情報を削除します。利用を再開するには再度連携してください。';
+  String get campusUnbindBody =>
+      'キャンパス認証情報を削除し、この同済大学IDでのログインを無効にします。メールと投稿は残ります。メールでパスワードを再設定するか、再度IDを連携できます。';
 
   @override
   String get campusConfirmBinding => '連携を確定';
@@ -2143,7 +2144,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusConfirmBody =>
-      '大学の認証が完了しました。アカウントを確認して確定してください。確定までは元の連携が保持されます。';
+      '大学のIDをご確認ください。確認後はログインに使われ、変更時は以前のIDを置き換えます。メールは変わりません。';
 
   @override
   String get campusPrivacy =>
@@ -2261,4 +2262,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String campusMakeupDate(String original, String actual) {
     return '$original の授業を $actual に振替';
   }
+
+  @override
+  String get loginTongji => '同済大学の統合認証でログイン';
+
+  @override
+  String get loginTongjiHint =>
+      '初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。';
+
+  @override
+  String get loginTongjiPolicies => '続行すると、公開されている規約に同意したものとみなされます：';
 }

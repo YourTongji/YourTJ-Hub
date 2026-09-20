@@ -641,6 +641,11 @@ components:
       in: cookie
       name: access_token
       description: HTTP-only JWT session cookie created by successful login.
+    tongjiLoginCookie:
+      type: apiKey
+      in: cookie
+      name: yourtj_tongji_login
+      description: Ten-minute HttpOnly browser proof for login-purpose Tongji state, issued by GET /api/auth/tongji; not a forum session.
     agentBearerAuth:
       type: http
       scheme: bearer

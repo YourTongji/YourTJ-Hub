@@ -6,11 +6,11 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-19
+> Last verified: 2026-09-20
 
 ## Configuration
 
-`Current`: the Go binary accepts the following environment variables (or their `[campus]` TOML equivalents). An absent client, invalid callback, or key shorter than 32 characters disables the connection. Existing installations remain disabled until configured. No access token is placed in application configuration.
+`Current`: the Go binary accepts the following environment variables (or their `[campus]` TOML equivalents). An absent client, invalid callback, or key shorter than 32 characters disables the connection. Existing installations remain disabled until configured. No access token is placed in application configuration. The same configuration enables Tongji login/registration; no additional school callback or secret is required.
 
 | Environment secret | TOML key | Meaning |
 |---|---|---|
@@ -26,15 +26,15 @@ Generate independent keys with a cryptographic generator (for example `openssl r
 
 ## Data and environments
 
-`campus_identity_bindings` is an additive AutoMigrate table in the primary PostgreSQL/SQLite schema. No school password, raw student ID column or academic-record table exists. Delete/unlink removes live database credentials; ordinary encrypted backup retention still applies. Access to backups and campus secrets must be kept separate.
+`campus_identity_bindings` is an additive AutoMigrate table in the primary PostgreSQL/SQLite schema. No school password, raw student ID column or academic-record table exists. New Tongji-registered accounts keep the derived student-ID@tongji.edu.cn as their ordinary private users.email; it follows account email retention and backup rules. Delete/unlink removes live database credentials; ordinary encrypted backup retention still applies. Access to backups and campus secrets must be kept separate.
 
 `sync-db-from-main.sh` excludes the table's data from PostgreSQL dumps. In SQLite mode it deletes rows and vacuums the temporary snapshot before installation. The dev instance therefore starts without production identity reservations or tokens. Do not restore an unfiltered production backup to a running dev instance. Proxy access logging must omit the entire query of `/api/campus/tongji/callback`; the app's access/panic logs and local Gin logger already exclude it. Callback session/account/rate-limit rejections also return a clean 303 redirect with no-referrer; this does not replace proxy log filtering for the incoming request. Do not capture bearer headers or upstream bodies in diagnostics. Campus documents disable Umami and custom site scripts; navigation across the campus boundary reloads the document to unload existing trackers.
 
-Authorization attempts are in-memory, expire after ten minutes, and fail safely after restart; the current deployment uses one process. A refresh lease lasts one minute, with bounded school requests. An interrupted refresh may require reauthorization if the provider has already rotated its token. Account closure and unlink both attempt bounded, best-effort refresh-token revocation when credentials can be decrypted. Unlink is locally authoritative; per-token remote revocation is best effort and does not log out other OneTJ sessions.
+Binding and anonymous login attempts have separate purpose and browser/session proofs. Both are in-memory, expire after ten minutes, and fail safely after restart; the current deployment uses one process. A refresh lease lasts one minute, with bounded school requests. An interrupted refresh may require reauthorization if the provider has already rotated its token. Account closure and unlink both attempt bounded, best-effort refresh-token revocation when credentials can be decrypted. Unlink is locally authoritative; per-token remote revocation is best effort and does not log out other OneTJ sessions.
 
 Message body reads request the `rt_onetongji_msg_detail` scope. Existing authorizations without this scope receive an update-authorization prompt when opening a message. Reauthorization accepts only the currently bound identity and preserves the old binding until confirmation. List access is checked before each detail read; details are projected to plain text and explicit HTTP(S) links, with no automatic remote resource loads.
 
-Campus reads use the independent `campus.read` action (120 requests per user per minute); authorization start and callback share `campus.authorize` (30 requests per user per 15 minutes). Neither has a default per-IP quota or consumes login/course-catalog budgets. Existing saved configurations inherit missing campus defaults, and administrators can override them in rate-limit settings.
+Campus reads use the independent `campus.read` action (120 requests per user per minute); authorization start and callback share `campus.authorize` (30 requests per user per 15 minutes). Neither has a default per-IP quota or consumes login/course-catalog budgets. Anonymous Tongji login start and callback use the existing login per-IP budget; private campus reads and authenticated binding do not consume it. Existing saved configurations inherit missing campus defaults, and administrators can override them in rate-limit settings.
 
 ## Verification and diagnostics
 
@@ -62,3 +62,21 @@ export with adjustments enabled, without restarting. To remove an adjustment, de
 and apply; clearing both lists restores unadjusted exports. Check each year's school teaching
 notice rather than inferring makeup lessons from national workday calendars. Previously
 imported calendar files cannot be retracted or updated by the server.
+
+## Sign-in and registration
+
+`Current`: Web `/api/auth/tongji` and the App's `login_hint=tongji` use the configured campus
+provider. School registration requires signup to be enabled, the daily quota to be available and
+`tongji.edu.cn` to be allowed (or no domain restriction). Existing bindings can still sign in when
+new registration is closed. Signup creates no usable password and grants no administrator role;
+users may establish a password through the normal email recovery flow. Current and pending email
+collisions require account recovery/login followed by explicit campus binding, not automatic merging.
+
+`Current`: live and dev campus bindings remain separate. A production account copied to dev keeps its
+ordinary email but has no campus binding there; use an existing login method and bind in dev before
+using school sign-in. Unbinding removes the school login method without changing email or activation.
+Changing the identity HMAC key without migrating existing bindings also breaks sign-in lookup and
+must follow the same maintenance procedure as campus uniqueness.
+
+`Partial`: the sign-in/account-creation/mobile OIDC chain is covered with a simulated upstream.
+Real school registration and physical-device AppAuth return require an authorized device test.

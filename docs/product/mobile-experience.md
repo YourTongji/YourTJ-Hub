@@ -417,3 +417,13 @@ local widget tests do not imply those gates passed.
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.
+
+## Tongji sign-in
+
+`Current`: native login and registration show “Tongji SSO” when the public login options declare
+campus configuration ready. The entry explains automatic activated registration and links published
+policies. AppAuth supplies `login_hint=tongji` to the built-in OIDC provider; the backend handles the
+school callback and resumes the existing PKCE/nonce exchange. The App stores only its forum session,
+never a school access/refresh token. Existing bindings sign in to the same forum account; new users
+receive a private student-ID@tongji.edu.cn email without a separate activation step. All four UI
+languages are supported. `Partial`: physical-device school sign-in has not been validated.
