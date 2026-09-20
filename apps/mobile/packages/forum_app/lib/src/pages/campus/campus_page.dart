@@ -105,12 +105,21 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   void initState() {
     super.initState();
     // A notice may have kept the shared connection alive while this tab was
-    // hidden. Re-entering the overview must request its own datasets again.
-    unawaited(ref.read(campusControllerProvider.notifier).loadTab('today'));
+    // hidden. Verify the binding before reusing any foreground cache.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(
+          ref.read(campusControllerProvider.notifier).enterTab('today'),
+        );
+      }
+    });
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.campus, _scroll);
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        unawaited(ref.read(campusControllerProvider.notifier).refreshVisible());
+      }
     });
     unawaited(_loadTimes());
   }
@@ -273,59 +282,63 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         ),
         const SizedBox(height: 20),
         _section(
+          l.campusTodayCourses,
+          _dataset(
+            state,
+            'calendar',
+            (_) => _dataset(state, 'timetable', (data) {
+              if (week == null) return Text(l.campusWeekUnknown);
+              final today =
+                  campusCoursesForWeek(
+                      data.events,
+                      week,
+                    ).where((e) => e.day == clock.weekday).toList()
+                    ..sort((a, b) => a.start.compareTo(b.start));
+              if (today.isEmpty) return Text(l.campusNoClasses);
+              final times = sectionTimesFor(
+                data.events.any((e) => e.end == 12) ? 12 : 11,
+                _times.isEmpty ? null : _times,
+              );
+              return Column(
+                children: [
+                  for (final e in today)
+                    GfCard(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '${times[e.start - 1].start}–${times[e.end - 1].end} · ${l.schedulePeriodRange('${e.start}–${e.end}')}',
+                            style: GfTheme.typographyOf(context).caption,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            e.name,
+                            style: GfTheme.typographyOf(context).heading,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            [
+                              e.room,
+                              e.campus,
+                              e.teacher,
+                            ].where((s) => s.isNotEmpty).join(' · '),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            }),
+          ),
+        ),
+        _section(
           l.campusMessages,
           _dataset(state, 'messages', (data) => _messages(data, recent: true)),
           action: TextButton(
             onPressed: () => _select('messages'),
             child: Text(l.campusAllNotices),
           ),
-        ),
-        _section(
-          l.campusTodayCourses,
-          _dataset(state, 'timetable', (data) {
-            if (week == null) return Text(l.campusWeekUnknown);
-            final today =
-                campusCoursesForWeek(
-                    data.events,
-                    week,
-                  ).where((e) => e.day == clock.weekday).toList()
-                  ..sort((a, b) => a.start.compareTo(b.start));
-            if (today.isEmpty) return Text(l.campusNoClasses);
-            final times = sectionTimesFor(
-              data.events.any((e) => e.end == 12) ? 12 : 11,
-              _times.isEmpty ? null : _times,
-            );
-            return Column(
-              children: [
-                for (final e in today)
-                  GfCard(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '${times[e.start - 1].start}–${times[e.end - 1].end} · ${l.schedulePeriodRange('${e.start}–${e.end}')}',
-                          style: GfTheme.typographyOf(context).caption,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          e.name,
-                          style: GfTheme.typographyOf(context).heading,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          [
-                            e.room,
-                            e.campus,
-                            e.teacher,
-                          ].where((s) => s.isNotEmpty).join(' · '),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            );
-          }),
         ),
       ],
     );
@@ -441,6 +454,11 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (state.refreshing)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: LinearProgressIndicator(semanticsLabel: l.commonLoading),
+            ),
           if (state.status?.candidate != null || state.needsAuthorization)
             const Padding(
               padding: EdgeInsets.only(bottom: 24),

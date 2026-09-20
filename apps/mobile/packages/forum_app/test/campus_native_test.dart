@@ -196,6 +196,19 @@ void main() {
       await tester.pumpWidget(campusTestApp(repo));
       await tester.pumpAndSettle();
       expect(find.textContaining('演示同学'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('今日课表')).dy,
+        lessThan(
+          tester
+              .getTopLeft(
+                find.descendant(
+                  of: find.byType(ListView),
+                  matching: find.text('校园消息'),
+                ),
+              )
+              .dy,
+        ),
+      );
       expect(find.text('综合 GPA'), findsNothing);
       expect(repo.requested, isNot(contains('grades')));
       await tester.tap(find.text('学业记录').first);
@@ -264,6 +277,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('演示同学'), findsNothing);
     expect(repo.cancellations.every((c) => c.isCancelled), isTrue);
+  });
+  testWidgets('quick campus tab return reuses data after status verification', (
+    tester,
+  ) async {
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    final repo = FakeCampusRepository();
+    await tester.pumpWidget(
+      campusTestApp(
+        repo,
+        child: ValueListenableBuilder<bool>(
+          valueListenable: visible,
+          builder: (_, active, _) =>
+              TickerMode(enabled: active, child: const CampusPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final requests = List<String>.of(repo.requested);
+    visible.value = false;
+    await tester.pumpAndSettle();
+    expect(find.textContaining('演示同学'), findsNothing);
+    visible.value = true;
+    await tester.pumpAndSettle();
+    expect(find.textContaining('演示同学'), findsOneWidget);
+    expect(repo.requested, requests);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
   });
   testWidgets(
     'notification reads selectable plain text and clears on app background',
