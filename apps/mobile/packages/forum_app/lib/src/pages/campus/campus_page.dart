@@ -105,12 +105,21 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   void initState() {
     super.initState();
     // A notice may have kept the shared connection alive while this tab was
-    // hidden. Re-entering the overview must request its own datasets again.
-    unawaited(ref.read(campusControllerProvider.notifier).loadTab('today'));
+    // hidden. Verify the binding before reusing any foreground cache.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(
+          ref.read(campusControllerProvider.notifier).enterTab('today'),
+        );
+      }
+    });
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.campus, _scroll);
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        unawaited(ref.read(campusControllerProvider.notifier).refreshVisible());
+      }
     });
     unawaited(_loadTimes());
   }
@@ -190,7 +199,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     if (data.status != 'ready' && data.status != 'empty') {
       return Text(l.campusUnavailable);
     }
-    if (data.status == 'empty') return Text(l.campusNoData);
+    if (data.status == 'empty' && key != 'today') return Text(l.campusNoData);
     return ready(data);
   }
 
@@ -273,30 +282,32 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         ),
         const SizedBox(height: 20),
         _section(
-          l.campusMessages,
-          _dataset(state, 'messages', (data) => _messages(data, recent: true)),
-          action: TextButton(
-            onPressed: () => _select('messages'),
-            child: Text(l.campusAllNotices),
-          ),
-        ),
-        _section(
           l.campusTodayCourses,
-          _dataset(state, 'timetable', (data) {
-            if (week == null) return Text(l.campusWeekUnknown);
-            final today =
-                campusCoursesForWeek(
-                    data.events,
-                    week,
-                  ).where((e) => e.day == clock.weekday).toList()
-                  ..sort((a, b) => a.start.compareTo(b.start));
-            if (today.isEmpty) return Text(l.campusNoClasses);
+          _dataset(state, 'today', (data) {
+            final day = data.teachingDay;
+            if (day == null || day.date != campusDateKey(now)) {
+              return const CircularProgressIndicator();
+            }
+            final today = data.events;
+            final notice = switch (day.kind) {
+              'makeup' => l.campusTodayMakeup(day.label, day.sourceDate),
+              'holiday' => l.campusTodayHoliday(day.label),
+              'moved' => l.campusTodayMoved(day.label),
+              _ => '',
+            };
             final times = sectionTimesFor(
-              data.events.any((e) => e.end == 12) ? 12 : 11,
+              day.sectionCount,
               _times.isEmpty ? null : _times,
             );
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (notice.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(notice),
+                  ),
+                if (today.isEmpty) Text(l.campusNoClasses),
                 for (final e in today)
                   GfCard(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -326,6 +337,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
               ],
             );
           }),
+        ),
+        _section(
+          l.campusMessages,
+          _dataset(state, 'messages', (data) => _messages(data, recent: true)),
+          action: TextButton(
+            onPressed: () => _select('messages'),
+            child: Text(l.campusAllNotices),
+          ),
         ),
       ],
     );
@@ -441,6 +460,11 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (state.refreshing)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: LinearProgressIndicator(semanticsLabel: l.commonLoading),
+            ),
           if (state.status?.candidate != null || state.needsAuthorization)
             const Padding(
               padding: EdgeInsets.only(bottom: 24),

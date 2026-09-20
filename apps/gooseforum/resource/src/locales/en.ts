@@ -2,6 +2,9 @@ import adminRaw from './admin-raw.en.generated'
 
 export default {
   campus: {
+    todayMakeup: "{name}: today follows the timetable for {date}.",
+    todayHoliday: "{name}: no classes today.",
+    todayMoved: "{name}: today’s classes have moved to another date.",
     title: "My campus",
     description: "View your timetable, academic records and campus messages.",
     refreshData: "Refresh campus data",
@@ -121,7 +124,7 @@ export default {
     messageLoadFailed: "The message could not be loaded.",
     rulesTitle: "View published holiday rules",
     rulesLoading: "Loading…",
-    rulesHint: "These rules only affect exports with adjustments enabled. The page shows the original school timetable; exports use the latest published rules.",
+    rulesHint: "Today’s classes and exports with adjustments enabled use published rules. The weekly grid keeps the original timetable. Refresh or export to read the latest rules.",
     rulesEmpty: "No holiday rules have been published. Exports use the original timetable.",
     holiday: "No classes",
     makeup: "Makeup classes",

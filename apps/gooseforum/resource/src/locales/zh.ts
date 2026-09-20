@@ -2,6 +2,9 @@ import adminRaw from './admin-raw.generated'
 
 export default {
   campus: {
+    todayMakeup: "{name}：今天按 {date} 的课表上课。",
+    todayHoliday: "{name}：今天放假停课。",
+    todayMoved: "{name}：今天的课程已调整至其他日期。",
     title: "我的校园",
     description: "查看课表、学业记录与校园消息。",
     refreshData: "刷新校园数据",
@@ -121,7 +124,7 @@ export default {
     messageLoadFailed: "消息暂时无法读取。",
     rulesTitle: "查看已发布的调休规则",
     rulesLoading: "正在读取…",
-    rulesHint: "仅影响开启调休后的日历导出；页面课表仍显示学校原始安排。导出时使用最新已发布规则。",
+    rulesHint: "今日课表和开启调休的日历导出应用已发布规则；周课表保留学校原始安排。刷新或导出时读取最新规则。",
     rulesEmpty: "管理员尚未设置调休，按学校原课表导出。",
     holiday: "停课",
     makeup: "补课",

@@ -286,7 +286,7 @@
           "accessTokenCookie": []
         }
       ],
-      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. The profile dataset exposes only the authenticated student’s own name for a greeting. Academic datasets can be loaded on demand.",
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. The profile dataset exposes only the authenticated student’s own name for a greeting. Academic datasets can be loaded on demand. The today dataset uses the current Asia/Shanghai date and published holiday/makeup rules, sharing original teaching-date semantics with calendar export. Makeup uses the source date week and weekday, replaces target-day classes and removes source-day classes. It always applies adjustments independently of the export switch. Failed rules or incomplete source dates produce an error, never an unadjusted or empty fallback. teachingDay describes the date and adjustment; events retain original day/weeks and must not be filtered again by clients.",
       "responses": {
         "200": {
           "description": "Successful private response; Cache-Control: private, no-store.",
@@ -298,6 +298,9 @@
               "examples": {
                 "success": {
                   "externalValue": "../fixtures/campus-dataset-success.json"
+                },
+                "today": {
+                  "externalValue": "../fixtures/campus-today-success.json"
                 }
               }
             }
@@ -342,7 +345,8 @@
               "sports",
               "health",
               "arrangements",
-              "profile"
+              "profile",
+              "today"
             ]
           }
         }
@@ -618,7 +622,8 @@
               "sports",
               "health",
               "arrangements",
-              "profile"
+              "profile",
+              "today"
             ]
           },
           "status": {
@@ -672,6 +677,9 @@
             "items": {
               "$ref": "#/components/schemas/CampusMessageSummary"
             }
+          },
+          "teachingDay": {
+            "$ref": "#/components/schemas/CampusTeachingDay"
           }
         },
         "additionalProperties": false
@@ -849,6 +857,46 @@
             }
           }
         ]
+      },
+      "CampusTeachingDay": {
+        "type": "object",
+        "description": "Present for today. Source date is empty on holidays or when classes moved away. sectionCount uses the full original timetable for consistent historical period times.",
+        "required": [
+          "date",
+          "sourceDate",
+          "kind",
+          "label",
+          "sectionCount"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "sourceDate": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "none",
+              "holiday",
+              "makeup",
+              "moved"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "sectionCount": {
+            "type": "integer",
+            "enum": [
+              11,
+              12
+            ]
+          }
+        },
+        "additionalProperties": false
       }
     }
   },

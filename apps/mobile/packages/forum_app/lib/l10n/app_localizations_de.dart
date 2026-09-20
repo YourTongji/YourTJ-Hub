@@ -2369,7 +2369,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusCalendarRulesHint =>
-      'Änderungen gelten nur für den Kalenderexport. Der Stundenplan zeigt die ursprünglichen Termine. Exporte nutzen die neuesten Regeln.';
+      'Die heutigen Kurse und Exporte mit aktivierten Anpassungen nutzen veröffentlichte Regeln. Die Wochenansicht bleibt unverändert. Beim Aktualisieren oder Exportieren werden die neuesten Regeln geladen.';
 
   @override
   String get campusNoCalendarRules =>
@@ -2412,4 +2412,23 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get linkPreviewCampusFallbackDescription =>
       'Zugriff nur aus dem Campusnetz';
+
+  @override
+  String campusTodayMakeup(String name, String date) {
+    return '$name: Heute gilt der Stundenplan vom $date.';
+  }
+
+  @override
+  String campusTodayHoliday(String name) {
+    return '$name: Heute finden keine Lehrveranstaltungen statt.';
+  }
+
+  @override
+  String campusTodayMoved(String name) {
+    return '$name: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.';
+  }
+
+  @override
+  String get campusRulesUnavailable =>
+      'Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.';
 }

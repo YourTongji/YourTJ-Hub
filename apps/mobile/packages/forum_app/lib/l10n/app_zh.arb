@@ -1106,7 +1106,7 @@
   "campusApplyAdjustments": "开启调休规则",
   "campusApplyAdjustmentsHint": "按管理员确认的放假与补课日期导出；未设置时使用原课表。",
   "campusCalendarRules": "查看已发布的调休规则",
-  "campusCalendarRulesHint": "仅影响开启调休后的日历导出，页面课表仍为学校原始安排。导出使用最新规则。",
+  "campusCalendarRulesHint": "今日课表和开启调休的日历导出应用已发布规则；周课表保留学校原始安排。刷新或导出时读取最新规则。",
   "campusNoCalendarRules": "管理员尚未设置调休，按学校原课表导出。",
   "campusMakeupDate": "{actual} 上 {original} 的课",
   "@campusMakeupDate": {
@@ -1128,5 +1128,33 @@
   "linkPreviewRememberDomain": "本次浏览期间不再询问此域名",
   "linkPreviewContinue": "继续访问",
   "linkPreviewCampusFallbackTitle": "校园网",
-  "linkPreviewCampusFallbackDescription": "需校园网络访问"
+  "linkPreviewCampusFallbackDescription": "需校园网络访问",
+  "campusTodayMakeup": "{name}：今天按 {date} 的课表上课。",
+  "@campusTodayMakeup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTodayHoliday": "{name}：今天放假停课。",
+  "@campusTodayHoliday": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTodayMoved": "{name}：今天的课程已调整至其他日期。",
+  "@campusTodayMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "campusRulesUnavailable": "暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。"
 }

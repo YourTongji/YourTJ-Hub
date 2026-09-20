@@ -2,7 +2,9 @@ import { getStore, type Store } from '@netlify/blobs'
 import type { Context } from '@netlify/functions'
 import type { SnapshotStore, Stored } from './snapshots'
 export function storeName(deploy: Pick<Context['deploy'], 'context' | 'id' | 'published'>): string {
-  if (deploy.context === 'production' && deploy.published) return 'status-v1'
+  // Scheduled and HTTP invocations can disagree on `published`. Route by the
+  // deployment context so collectors and readers always use the same store.
+  if (deploy.context === 'production') return 'status-v1'
   if (!deploy.id) return 'status-local-v1'
   return `status-preview-v1-${deploy.id}`
 }

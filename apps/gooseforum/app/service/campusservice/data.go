@@ -30,15 +30,16 @@ type Event struct {
 	Credits string `json:"credits"`
 }
 type Dataset struct {
-	Key       string           `json:"key"`
-	Status    string           `json:"status"`
-	UpdatedAt string           `json:"updatedAt"`
-	Metrics   []Metric         `json:"metrics"`
-	Columns   []string         `json:"columns"`
-	Rows      [][]string       `json:"rows"`
-	Events    []Event          `json:"events"`
-	Series    []Point          `json:"series"`
-	Messages  []MessageSummary `json:"messages,omitempty"`
+	TeachingDay *TeachingDay     `json:"teachingDay,omitempty"`
+	Key         string           `json:"key"`
+	Status      string           `json:"status"`
+	UpdatedAt   string           `json:"updatedAt"`
+	Metrics     []Metric         `json:"metrics"`
+	Columns     []string         `json:"columns"`
+	Rows        [][]string       `json:"rows"`
+	Events      []Event          `json:"events"`
+	Series      []Point          `json:"series"`
+	Messages    []MessageSummary `json:"messages,omitempty"`
 }
 
 func emptyDataset(key, status string) Dataset {

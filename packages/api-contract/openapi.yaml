@@ -694,6 +694,8 @@ components:
       $ref: ./paths/campus.yaml#/components/schemas/CampusCalendarExport
     CampusCalendarExportResponse:
       $ref: ./paths/campus.yaml#/components/schemas/CampusCalendarExportResponse
+    CampusTeachingDay:
+      $ref: "./paths/campus.yaml#/components/schemas/CampusTeachingDay"
     CampusDataset:
       $ref: ./paths/campus.yaml#/components/schemas/CampusDataset
     CampusStatusResponse:

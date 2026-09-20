@@ -4365,7 +4365,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusCalendarRulesHint.
   ///
   /// In en, this message translates to:
-  /// **'Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.'**
+  /// **'Today’s classes and exports with adjustments enabled use published rules. The weekly grid keeps the original timetable. Refresh or export to read the latest rules.'**
   String get campusCalendarRulesHint;
 
   /// No description provided for @campusNoCalendarRules.
@@ -4433,6 +4433,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Requires campus network access'**
   String get linkPreviewCampusFallbackDescription;
+
+  /// No description provided for @campusTodayMakeup.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: today follows the timetable for {date}.'**
+  String campusTodayMakeup(String name, String date);
+
+  /// No description provided for @campusTodayHoliday.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: no classes today.'**
+  String campusTodayHoliday(String name);
+
+  /// No description provided for @campusTodayMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}: today’s classes have moved to another date.'**
+  String campusTodayMoved(String name);
+
+  /// No description provided for @campusRulesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.'**
+  String get campusRulesUnavailable;
 }
 
 class _AppLocalizationsDelegate

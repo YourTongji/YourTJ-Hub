@@ -776,7 +776,7 @@
   "campusApplyAdjustments": "Terminänderungen anwenden",
   "campusApplyAdjustmentsHint": "Bestätigte Feiertage und Ersatztermine verwenden; sonst gilt der ursprüngliche Stundenplan.",
   "campusCalendarRules": "Veröffentlichte Änderungen ansehen",
-  "campusCalendarRulesHint": "Änderungen gelten nur für den Kalenderexport. Der Stundenplan zeigt die ursprünglichen Termine. Exporte nutzen die neuesten Regeln.",
+  "campusCalendarRulesHint": "Die heutigen Kurse und Exporte mit aktivierten Anpassungen nutzen veröffentlichte Regeln. Die Wochenansicht bleibt unverändert. Beim Aktualisieren oder Exportieren werden die neuesten Regeln geladen.",
   "campusNoCalendarRules": "Keine Änderungen hinterlegt. Der ursprüngliche Stundenplan wird exportiert.",
   "campusMakeupDate": "Unterricht vom {original} findet am {actual} statt",
   "@campusMakeupDate": {
@@ -798,5 +798,33 @@
   "linkPreviewRememberDomain": "Für diese Domain in dieser Sitzung nicht erneut fragen",
   "linkPreviewContinue": "Weiter",
   "linkPreviewCampusFallbackTitle": "Campusnetz",
-  "linkPreviewCampusFallbackDescription": "Zugriff nur aus dem Campusnetz"
+  "linkPreviewCampusFallbackDescription": "Zugriff nur aus dem Campusnetz",
+"campusTodayMakeup": "{name}: Heute gilt der Stundenplan vom {date}.",
+"@campusTodayMakeup": {
+  "placeholders": {
+    "name": {
+      "type": "String"
+    },
+    "date": {
+      "type": "String"
+    }
+  }
+},
+"campusTodayHoliday": "{name}: Heute finden keine Lehrveranstaltungen statt.",
+"@campusTodayHoliday": {
+  "placeholders": {
+    "name": {
+      "type": "String"
+    }
+  }
+},
+"campusTodayMoved": "{name}: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.",
+"@campusTodayMoved": {
+  "placeholders": {
+    "name": {
+      "type": "String"
+    }
+  }
+},
+"campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren."
 }

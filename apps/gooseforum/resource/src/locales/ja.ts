@@ -2,6 +2,9 @@ import adminRaw from './admin-raw.ja.generated'
 
 export default {
   campus: {
+    todayMakeup: "{name}：今日は {date} の時間割で授業を行います。",
+    todayHoliday: "{name}：今日は休講です。",
+    todayMoved: "{name}：今日の授業は別の日に移動しました。",
     title: "マイキャンパス",
     description: "時間割、学業記録、大学からのお知らせを確認できます。",
     refreshData: "キャンパス情報を更新",
@@ -121,7 +124,7 @@ export default {
     messageLoadFailed: "お知らせを読み込めませんでした。",
     rulesTitle: "公開済みの休講・振替規則を表示",
     rulesLoading: "読み込み中…",
-    rulesHint: "規則は有効にしたカレンダー出力にのみ適用されます。画面は大学の元の時間割を表示し、出力時は最新の公開規則を使用します。",
+    rulesHint: "今日の授業と規則を有効にしたカレンダー出力に公開規則を適用します。週間表は元の時間割を表示します。更新または出力時に最新規則を読み込みます。",
     rulesEmpty: "規則はまだ公開されていません。元の時間割を出力します。",
     holiday: "休講",
     makeup: "振替授業",
