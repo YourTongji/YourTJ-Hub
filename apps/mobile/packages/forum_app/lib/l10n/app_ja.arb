@@ -739,10 +739,10 @@
   "campusReauthorize": "大学の認証を更新",
   "campusReplace": "連携アカウントを変更",
   "campusUnbind": "連携解除",
-  "campusUnbindBody": "連携解除により大学へのアクセス情報を削除します。利用を再開するには再度連携してください。",
+  "campusUnbindBody": "キャンパス認証情報を削除し、この同済大学IDでのログインを無効にします。メールと投稿は残ります。メールでパスワードを再設定するか、再度IDを連携できます。",
   "campusConfirmBinding": "連携を確定",
   "campusConfirmUpdate": "認証の更新を確定",
-  "campusConfirmBody": "大学の認証が完了しました。アカウントを確認して確定してください。確定までは元の連携が保持されます。",
+  "campusConfirmBody": "大学のIDをご確認ください。確認後はログインに使われ、変更時は以前のIDを置き換えます。メールは変わりません。",
   "campusPrivacy": "一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。",
   "campusDisabled": "このサイトでは大学連携が有効になっていません",
   "campusUnavailable": "大学のデータを取得できません。後でもう一度お試しください。",
@@ -788,5 +788,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "loginTongji": "同済大学の統合認証でログイン",
+  "loginTongjiHint": "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。",
+  "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます："
 }

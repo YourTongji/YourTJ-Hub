@@ -2241,7 +2241,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusUnbindBody =>
-      'Beim Trennen werden die Campus-Zugangsdaten entfernt und die Identität freigegeben. Für erneuten Zugriff bitte neu verbinden.';
+      'Dies löscht die Campus-Zugangsdaten und deaktiviert die Anmeldung mit dieser Tongji-Identität. E-Mail und Beiträge bleiben erhalten. Sie können ein Passwort per E-Mail-Wiederherstellung festlegen oder erneut eine Identität verknüpfen.';
 
   @override
   String get campusConfirmBinding => 'Verbindung bestätigen';
@@ -2251,7 +2251,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusConfirmBody =>
-      'Die Hochschulanmeldung ist abgeschlossen. Identität prüfen und bestätigen. Bis dahin bleibt die bisherige Verbindung erhalten.';
+      'Prüfen Sie die Hochschulidentität. Nach der Bestätigung dient sie zur Anmeldung und ersetzt eine zuvor verknüpfte Identität. Die E-Mail-Adresse bleibt unverändert.';
 
   @override
   String get campusPrivacy =>
@@ -2379,4 +2379,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String campusMakeupDate(String original, String actual) {
     return 'Unterricht vom $original findet am $actual statt';
   }
+
+  @override
+  String get loginTongji => 'Mit Tongji-SSO anmelden';
+
+  @override
+  String get loginTongjiHint =>
+      'Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.';
+
+  @override
+  String get loginTongjiPolicies =>
+      'Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:';
 }

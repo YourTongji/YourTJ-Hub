@@ -2147,7 +2147,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusUnbind => '解绑身份';
 
   @override
-  String get campusUnbindBody => '解绑后清除校园访问凭据，并释放身份占用。再次使用时需要重新连接。';
+  String get campusUnbindBody =>
+      '将删除校园凭据并停用该同济身份登录。账号邮箱和论坛内容保留，可通过邮箱找回设置密码，之后也可重新绑定。';
 
   @override
   String get campusConfirmBinding => '确认绑定';
@@ -2156,7 +2157,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusConfirmUpdate => '确认更新授权';
 
   @override
-  String get campusConfirmBody => '学校认证已完成，请核对身份后确认。确认前保留原有绑定。';
+  String get campusConfirmBody => '学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。';
 
   @override
   String get campusPrivacy => '一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。';
@@ -2268,4 +2269,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String campusMakeupDate(String original, String actual) {
     return '$actual 上 $original 的课';
   }
+
+  @override
+  String get loginTongji => '同济统一认证登录';
+
+  @override
+  String get loginTongjiHint => '首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。';
+
+  @override
+  String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';
 }

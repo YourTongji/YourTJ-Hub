@@ -216,7 +216,7 @@
           "accessTokenCookie": []
         }
       ],
-      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.",
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. Unlink deletes credentials and releases the live sign-in binding. A permanent HMAC-only identity reservation, with no user association, prevents repeat automatic registration while allowing explicit rebinding to an existing account.",
       "responses": {
         "200": {
           "description": "Successful private response; Cache-Control: private, no-store.",
@@ -354,7 +354,7 @@
       "tags": [
         "Campus"
       ],
-      "summary": "Finish Tongji authorization and return to identity confirmation",
+      "summary": "Complete Tongji campus binding or forum sign-in",
       "operationId": "campusCallback",
       "security": [
         {
@@ -362,9 +362,12 @@
         },
         {
           "accessTokenCookie": []
+        },
+        {
+          "tongjiLoginCookie": []
         }
       ],
-      "description": "Validates session-bound state, S256, nonce, RS256 ID token and student identifier. Consumes the authorization attempt once. Every handled callback redirects to a clean campus URL with no-referrer and private, no-store, including missing/invalid/revoked sessions, non-writable accounts, rate limits, disabled configuration and upstream failures. Rejected guards never exchange the code.",
+      "description": "Uses the purpose of server-issued state. Binding/replace/reauthorize requires the original writable forum session and explicit campus confirmation. Login state instead requires the same browser's HttpOnly yourtj_tongji_login cookie, expires after ten minutes, and is consumed once before exchange. Both verify PKCE S256, nonce, RS256 issuer/audience and the school identity. Login reuses the mutually unique binding or, only for a never-bound identity, atomically creates an ordinary activated forum account with student-ID@tongji.edu.cn, no password, and encrypted campus credentials. New registrations honor signup/domain/daily-quota policy. Daily quota is serialized with password registration; account closure does not release the creation-day slot. A retained identity fingerprint prevents repeat automatic registration after unlink, replacement or closure; accountExists directs the user to recover/sign into an existing account and bind explicitly. Existing or freshly staged email claims are never auto-linked; frozen, bot and deleted accounts cannot sign in. The original safe local redirect (including the mobile OIDC bridge) is stored server-side; callback redirects are ignored. Every handled response scrubs authorization parameters and uses private, no-store and no-referrer. Rejected guards never exchange the code.",
       "parameters": [
         {
           "in": "query",
@@ -390,7 +393,7 @@
       ],
       "responses": {
         "303": {
-          "description": "Redirect to /campus with success or failure status; no credential in Location.",
+          "description": "Binding returns to /campus?authorization=ready|failed. Sign-in returns to its server-stored local destination and sets a forum session cookie, or /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location.",
           "headers": {
             "Location": {
               "schema": {

@@ -1,7 +1,7 @@
 # 同济官方身份作为独立私密校园连接
 
 ## Status
-Accepted
+Superseded by [0032](0032-tongji-login-and-registration.md)
 Class: architecture
 
 ## Context and Problem Statement

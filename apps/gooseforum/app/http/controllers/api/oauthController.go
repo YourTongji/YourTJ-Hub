@@ -19,6 +19,10 @@ import (
 
 // ProviderLogin 开始OAuth登录/绑定流程（根据登录状态自动判断）
 func ProviderLogin(c *gin.Context) {
+	if c.Param("provider") == "tongji" {
+		TongjiLoginStart(c)
+		return
+	}
 	q := c.Request.URL.Query()
 	q.Set("provider", c.Param("provider"))
 	c.Request.URL.RawQuery = q.Encode()

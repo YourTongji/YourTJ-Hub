@@ -2214,7 +2214,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get campusUnbindBody =>
-      'Unlinking removes campus credentials and releases this identity. Connect again to access school data.';
+      'This removes campus credentials and disables sign-in with this Tongji identity. Your email and forum content remain. Use email password recovery to set a password, or link an identity again.';
 
   @override
   String get campusConfirmBinding => 'Confirm connection';
@@ -2224,7 +2224,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get campusConfirmBody =>
-      'School sign-in is complete. Check the identity and confirm; your existing connection is kept until then.';
+      'Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.';
 
   @override
   String get campusPrivacy =>
@@ -2352,4 +2352,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String campusMakeupDate(String original, String actual) {
     return 'Classes from $original move to $actual';
   }
+
+  @override
+  String get loginTongji => 'Continue with Tongji SSO';
+
+  @override
+  String get loginTongjiHint =>
+      'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.';
+
+  @override
+  String get loginTongjiPolicies =>
+      'By continuing, you agree to the published policies:';
 }

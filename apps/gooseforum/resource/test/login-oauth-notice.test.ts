@@ -93,3 +93,39 @@ describe('LoginPage oauthNotice 注册引导（PR #552 review P2）', () => {
     wrapper.unmount()
   })
 })
+
+
+describe('Tongji sign-in and signup', () => {
+  for (const initialMode of ['login', 'register'] as const) {
+    test(`school entry is present on ${initialMode} and preserves the return destination`, async () => {
+      const wrapper = mount(LoginPage, {
+        props: { layout, props: { ...buildProps(false), initialMode, tongjiReady: true, tongjiUrl: '/api/auth/tongji?redirect=%2Fcampus' } },
+        global: { plugins: [i18n] },
+      })
+      for (const locale of ['zh', 'en', 'ja', 'de'] as const) {
+        i18n.global.locale.value = locale
+        await wrapper.vm.$nextTick()
+        const links = wrapper.findAll('[data-tongji-login]')
+        expect(links).toHaveLength(2)
+        expect(links[0].attributes('href')).toBe(`/api/auth/tongji?redirect=%2Fcampus&locale=${locale}`)
+        expect(links[0].text()).toContain(i18n.global.t('auth.tongjiLogin'))
+        expect(wrapper.text()).toContain(i18n.global.t('auth.tongjiSignupHint'))
+      }
+      wrapper.unmount()
+      i18n.global.locale.value = 'zh'
+    })
+  }
+  test('unconfigured integration stays hidden', () => {
+    const wrapper = mountPage(false)
+    expect(wrapper.find('[data-tongji-login]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+  test('email conflict has a recovery instruction and no raw upstream content', () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(false), tongjiNotice: 'accountExists' } },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.text()).toContain(i18n.global.t('auth.tongjiAccountExists'))
+    wrapper.unmount()
+  })
+})

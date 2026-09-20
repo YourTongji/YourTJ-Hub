@@ -16,6 +16,13 @@ import (
 )
 
 func CreateUser(username, password, email string, needValid bool, locale ...string) (*users.EntityComplete, error) {
+	return CreateUserWithQuota(username, password, email, needValid, -1, locale...)
+}
+
+// CreateUserWithQuota couples the public registration limit with account creation,
+// sharing the database lock used by school registration. Administrative creation
+// continues to use CreateUser without the public signup limit.
+func CreateUserWithQuota(username, password, email string, needValid bool, maxDaily int, locale ...string) (*users.EntityComplete, error) {
 	userEntity := users.MakeUser(username, password, email)
 	userEntity.Locale = normalizeUserLocale(locale...)
 	userEntity.Nickname = GenerateGooseNickname()
@@ -30,6 +37,9 @@ func CreateUser(username, password, email string, needValid bool, locale ...stri
 			if err := users.CheckEmailClaimTx(tx, email, 0); err != nil {
 				return err
 			}
+		}
+		if err := users.CheckSignupQuotaTx(tx, maxDaily); err != nil {
+			return err
 		}
 		if err := tx.Create(userEntity).Error; err != nil {
 			return err

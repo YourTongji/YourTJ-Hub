@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Binding struct {
@@ -36,6 +37,15 @@ func (s Store) Get(id uint64) (Binding, error) {
 // the current identity binding and survives same-identity reauthorization. The old
 // identity is not released until this statement commits.
 func (s Store) Replace(b Binding, previous string) error {
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&IdentityReservation{IdentityKey: b.IdentityKey}).Error; err != nil {
+			return err
+		}
+		return (Store{DB: tx}).replace(b, previous)
+	})
+}
+
+func (s Store) replace(b Binding, previous string) error {
 	if previous == "" {
 		return s.DB.Create(&b).Error
 	}
@@ -84,4 +94,11 @@ func (s Store) Finish(b Binding, sealed string, reauth bool) error {
 		return ErrChanged
 	}
 	return nil
+}
+
+// GetByIdentity locks the binding until its authentication transaction commits.
+func (s Store) GetByIdentity(key string) (Binding, error) {
+	var b Binding
+	err := s.DB.Clauses(clause.Locking{Strength: "UPDATE"}).Where("identity_key = ?", key).First(&b).Error
+	return b, err
 }

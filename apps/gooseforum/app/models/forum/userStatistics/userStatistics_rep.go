@@ -3,6 +3,8 @@ package userStatistics
 import (
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 )
 
@@ -122,3 +124,6 @@ func GetByUserIds(userIds []uint64) (entities []*Entity) {
 //	builder().Find(&entities)
 //	return
 //}
+
+// CreateTx initializes statistics atomically with an account.
+func CreateTx(tx *gorm.DB, id uint64) error { return tx.Create(&Entity{UserId: id}).Error }

@@ -14,7 +14,7 @@ class CampusSnapshotTests(unittest.TestCase):
                 (root / instance / 'config.toml').write_text('[db.default]\nconnection="sqlite"\n')
             source = root / 'main/storage/database/sqlite.db'
             with sqlite3.connect(source) as db:
-                db.executescript('CREATE TABLE campus_identity_bindings(user_id INTEGER, sealed TEXT); INSERT INTO campus_identity_bindings VALUES(1, "fictional-secret"); CREATE TABLE ordinary(value TEXT); INSERT INTO ordinary VALUES("keep");')
+                db.executescript('CREATE TABLE campus_identity_bindings(user_id INTEGER, sealed TEXT); INSERT INTO campus_identity_bindings VALUES(1, "fictional-secret"); CREATE TABLE campus_identity_reservations(identity_key TEXT PRIMARY KEY); INSERT INTO campus_identity_reservations VALUES("fictional-fingerprint"); CREATE TABLE ordinary(value TEXT); INSERT INTO ordinary VALUES("keep");')
             tools = root / 'bin'
             tools.mkdir()
             docker = tools / 'docker'
@@ -25,6 +25,7 @@ class CampusSnapshotTests(unittest.TestCase):
             subprocess.run(['bash',str(script)],env=env,check=True,capture_output=True)
             with sqlite3.connect(root / 'dev/storage/database/sqlite.db') as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM campus_identity_bindings').fetchone()[0],0)
+                self.assertEqual(db.execute('SELECT count(*) FROM campus_identity_reservations').fetchone()[0],0)
                 self.assertEqual(db.execute('SELECT value FROM ordinary').fetchone()[0],'keep')
             with sqlite3.connect(source) as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM campus_identity_bindings').fetchone()[0],1)

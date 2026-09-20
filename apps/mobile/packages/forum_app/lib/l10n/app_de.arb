@@ -739,10 +739,10 @@
   "campusReauthorize": "Hochschulzugriff erneuern",
   "campusReplace": "Verknüpfte Identität ändern",
   "campusUnbind": "Verknüpfung aufheben",
-  "campusUnbindBody": "Beim Trennen werden die Campus-Zugangsdaten entfernt und die Identität freigegeben. Für erneuten Zugriff bitte neu verbinden.",
+  "campusUnbindBody": "Dies löscht die Campus-Zugangsdaten und deaktiviert die Anmeldung mit dieser Tongji-Identität. E-Mail und Beiträge bleiben erhalten. Sie können ein Passwort per E-Mail-Wiederherstellung festlegen oder erneut eine Identität verknüpfen.",
   "campusConfirmBinding": "Verbindung bestätigen",
   "campusConfirmUpdate": "Erneuerten Zugriff bestätigen",
-  "campusConfirmBody": "Die Hochschulanmeldung ist abgeschlossen. Identität prüfen und bestätigen. Bis dahin bleibt die bisherige Verbindung erhalten.",
+  "campusConfirmBody": "Prüfen Sie die Hochschulidentität. Nach der Bestätigung dient sie zur Anmeldung und ersetzt eine zuvor verknüpfte Identität. Die E-Mail-Adresse bleibt unverändert.",
   "campusPrivacy": "Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.",
   "campusDisabled": "Die Campus-Verbindung ist hier nicht aktiviert",
   "campusUnavailable": "Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.",
@@ -788,5 +788,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "loginTongji": "Mit Tongji-SSO anmelden",
+  "loginTongjiHint": "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
+  "loginTongjiPolicies": "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:"
 }

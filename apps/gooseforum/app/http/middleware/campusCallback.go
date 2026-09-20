@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,7 +15,11 @@ func CampusCallbackPrivacy(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
 	c.Header("Referrer-Policy", "no-referrer")
 	if c.FullPath() == "/api/campus/tongji/callback" {
-		c.Set(guardFailureRedirect, "/campus?authorization=failed")
+		destination := "/campus?authorization=failed"
+		if strings.HasPrefix(c.Query("state"), "login.") {
+			destination = "/login?tongjiNotice=failed"
+		}
+		c.Set(guardFailureRedirect, destination)
 	}
 	c.Next()
 }

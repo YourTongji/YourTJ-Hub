@@ -71,7 +71,7 @@
 ### Auth
 
 - Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), optional
-  Google OAuth (goth, config [google]), and the
+  Google OAuth (goth, config [google]), Tongji SSO (campus credentials and callback), and the
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
 - Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
@@ -177,7 +177,7 @@ See the [status specification](../product/server-status.md),
 
 ## Private campus connection
 
-`Current`: `campusservice` owns school OAuth and typed presentation projections; `models/forum/campus` owns the encrypted binding and unique identity reservation. Controllers authenticate the forum session, enforce CSRF/writable-account gates and return no-store responses. Vue `/campus` and the native Flutter campus pages share the same API and retain the single binary deployment. School records are request-scoped; only credentials are encrypted in the primary database. See [campus product semantics](../product/campus.md) and [operations](../operations/campus.md).
+`Current`: `campusservice` owns school OAuth and typed presentation projections; `models/forum/campus` owns the encrypted binding and unique identity reservation. Campus data and binding controllers authenticate the forum session, enforce CSRF/writable-account gates and return no-store responses. The shared school callback dispatches login-purpose state to browser-bound authentication, preserving the original session requirements for binding-purpose state. School sign-in reuses the unique campus relation, with activated-account creation and campus binding committed atomically through the account owner APIs. Vue `/campus` and the native Flutter campus pages share the same API and retain the single binary deployment. School records are request-scoped; only credentials are encrypted in the primary database. See [campus product semantics](../product/campus.md) and [operations](../operations/campus.md).
 
 `Current`: `calendaradjustment` validates administrator-confirmed holiday and teaching-date
 rules, persisted through `pageConfig`'s compare-and-swap API. It drafts public notices through

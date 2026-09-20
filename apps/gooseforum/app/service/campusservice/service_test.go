@@ -58,7 +58,7 @@ func setup(t *testing.T) (*Service, *fakeProvider) {
 	}
 	sql.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = sql.Close() })
-	if e = db.AutoMigrate(&campus.Binding{}); e != nil {
+	if e = db.AutoMigrate(&campus.Binding{}, &campus.IdentityReservation{}); e != nil {
 		t.Fatal(e)
 	}
 	p := &fakeProvider{id: "student-123456"}

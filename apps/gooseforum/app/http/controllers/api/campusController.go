@@ -98,6 +98,10 @@ func CampusCallback(c *gin.Context) {
 	// A disabled integration or upstream failure still leaves a clean browser URL.
 	c.Header("Cache-Control", "private, no-store")
 	c.Header("Referrer-Policy", "no-referrer")
+	if campusservice.IsLoginState(c.Query("state")) {
+		TongjiLoginCallback(c)
+		return
+	}
 	destination := "/campus?authorization=failed"
 	if s, err := campusservice.Default(); err == nil {
 		if err = s.Callback(c.Request.Context(), c.GetUint64("userId"), c.GetString("currentJti"), c.Query("state"), c.Query("code")); err == nil {

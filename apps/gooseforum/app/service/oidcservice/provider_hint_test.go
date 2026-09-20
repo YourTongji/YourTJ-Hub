@@ -13,6 +13,7 @@ func TestProviderHintOnlyRewritesForumLogin(t *testing.T) {
 	for _, tc := range []struct{ hint, location, want string }{
 		{"github", login, "/api/auth/github?redirect=" + url.QueryEscape(callback)},
 		{"google", login, "/api/auth/google?redirect=" + url.QueryEscape(callback)},
+		{"tongji", login, "/api/auth/tongji?redirect=" + url.QueryEscape(callback)},
 		{"https://evil.test", login, login},
 		{"", login, login},
 		{"github", "https://evil.test/login?redirect=x", "https://evil.test/login?redirect=x"},
@@ -38,7 +39,7 @@ func TestProviderHintOnlyRewritesForumLogin(t *testing.T) {
 }
 
 func TestSocialHintAuthorizeFlowKeepsBrowserBindingAndPKCE(t *testing.T) {
-	for _, provider := range []string{"google", "github"} {
+	for _, provider := range []string{"google", "github", "tongji"} {
 		t.Run(provider, func(t *testing.T) {
 			issuer := "https://forum.example.com/api/oauth"
 			setupProviderConfig(t, issuer, defaultClients())

@@ -1069,10 +1069,10 @@
   "campusReauthorize": "Update school authorization",
   "campusReplace": "Change linked identity",
   "campusUnbind": "Unlink identity",
-  "campusUnbindBody": "Unlinking removes campus credentials and releases this identity. Connect again to access school data.",
+  "campusUnbindBody": "This removes campus credentials and disables sign-in with this Tongji identity. Your email and forum content remain. Use email password recovery to set a password, or link an identity again.",
   "campusConfirmBinding": "Confirm connection",
   "campusConfirmUpdate": "Confirm authorization update",
-  "campusConfirmBody": "School sign-in is complete. Check the identity and confirm; your existing connection is kept until then.",
+  "campusConfirmBody": "Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.",
   "campusPrivacy": "One account, one official identity. School data is private and is not saved on your device.",
   "campusDisabled": "Campus connection is not enabled on this site",
   "campusUnavailable": "School data is temporarily unavailable. Try again later.",
@@ -1118,5 +1118,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "loginTongji": "Continue with Tongji SSO",
+  "loginTongjiHint": "First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.",
+  "loginTongjiPolicies": "By continuing, you agree to the published policies:"
 }
