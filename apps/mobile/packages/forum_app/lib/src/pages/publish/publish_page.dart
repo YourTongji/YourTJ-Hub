@@ -160,10 +160,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _saveStatusScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _saveStatusScheduled = false;
+        // 无账号会话（guest）没有本机持久化，_saveLocal 直接成功返回且不会
+        // 更新状态；这里不展示“正在保存…”，避免永久悬挂的保存状态条（#705）。
         if (mounted &&
             _sessionCurrent &&
             !_finished &&
             !_localSaveFailed &&
+            _owner != null &&
             _revision != _savedRevision) {
           setState(() {
             _localStatus = AppLocalizations.of(context).draftLocalSaving;

@@ -64,7 +64,10 @@ class WritingStore {
   String _prefix(String scope) => 'yourtj:writing:v1:$scope:';
 
   // Serialize mutations, including deletion, so a late autosave cannot undo a
-  // successful publish or resurrect cleared history. Failed writes are surfaced.
+  // successful publish or resurrect cleared history. save/remember surface
+  // write failures; the cleanup operations (delete/clear*) are idempotent —
+  // removing an absent key is a no-op success, matching platform behavior
+  // where SharedPreferences.remove reports key existence, not write outcome.
   Future<void> _write(Future<void> Function(SharedPreferences) action) {
     final next = _tail.then(
       (_) async => action(await SharedPreferences.getInstance()),
@@ -76,9 +79,13 @@ class WritingStore {
   Future<void> save(String scope, LocalDraft draft) => _write((prefs) async {
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
     final key = '${_prefix(scope)}draft:${draft.key}';
-    final ok = draft.isEmpty
-        ? await prefs.remove(key)
-        : await prefs.setString(key, jsonEncode(draft.toJson()));
+    if (draft.isEmpty) {
+      // 空草稿是清理操作：remove 对从未写过的 key 返回 false（存在性语义），
+      // 无论 key 是否存在都视为成功（#704）。
+      await prefs.remove(key);
+      return;
+    }
+    final ok = await prefs.setString(key, jsonEncode(draft.toJson()));
     if (!ok) throw StateError('Local draft could not be saved');
   });
   Future<void> delete(String scope, String key) => _write((prefs) async {
