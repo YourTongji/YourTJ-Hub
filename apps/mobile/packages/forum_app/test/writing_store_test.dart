@@ -1,6 +1,32 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+
+// Android 平台的 SharedPreferences.remove 对缺失 key 返回 false（报告的是
+// key 是否存在，而非写入成败）；默认 InMemory mock 恒返回 true 复现不了 #704，
+// 需要存在性精确的 fake store 才能把回归测试写红。
+class _ExistenceAccurateStore extends SharedPreferencesStorePlatform {
+  final Map<String, Object> _data = <String, Object>{};
+
+  @override
+  Future<bool> remove(String key) async => _data.remove(key) != null;
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    _data[key] = value;
+    return true;
+  }
+
+  @override
+  Future<bool> clear() async {
+    _data.clear();
+    return true;
+  }
+
+  @override
+  Future<Map<String, Object>> getAll() async => Map<String, Object>.from(_data);
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -67,5 +93,41 @@ void main() {
     expect(await store.history('site:2'), isEmpty);
     await store.clearHistory('site:1');
     expect(await store.history('site:1'), isEmpty);
+  });
+
+  group('missing-key cleanup is idempotent (#704)', () {
+    setUp(() {
+      // 外层 setUp 先装好 InMemory mock，这里换成存在性精确的 store 并清掉
+      // 已缓存的 SharedPreferences 单例，使 getInstance 重新读 fake 数据。
+      SharedPreferencesStorePlatform.instance = _ExistenceAccurateStore();
+      SharedPreferences.resetStatic();
+    });
+    test('saving an empty draft that was never persisted succeeds', () async {
+      const emptyDraft = LocalDraft(
+        key: 'new-3',
+        title: '',
+        content: '',
+        contentType: 3,
+        topicId: 0,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      );
+      await expectLater(WritingStore().save('site:1', emptyDraft), completes);
+      expect(await WritingStore().drafts('site:1'), isEmpty);
+    });
+    test('deleting a draft that was never persisted succeeds', () async {
+      await expectLater(
+        WritingStore().delete('site:1', 'never-saved'),
+        completes,
+      );
+    });
+    test(
+      'clearing history and account data without records succeeds',
+      () async {
+        await expectLater(WritingStore().clearHistory('site:1'), completes);
+        await expectLater(WritingStore().clearAccount('site:1'), completes);
+      },
+    );
   });
 }

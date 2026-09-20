@@ -160,10 +160,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _saveStatusScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _saveStatusScheduled = false;
+        // 无账号会话（guest）没有本机持久化，_saveLocal 直接成功返回且不会
+        // 更新状态；这里不展示“正在保存…”，避免永久悬挂的保存状态条（#705）。
         if (mounted &&
             _sessionCurrent &&
             !_finished &&
             !_localSaveFailed &&
+            _owner != null &&
             _revision != _savedRevision) {
           setState(() {
             _localStatus = AppLocalizations.of(context).draftLocalSaving;
@@ -185,6 +188,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       return true;
     }
     final owner = _owner;
+    if (owner == null) return true;
     final revision = _revision;
     final l10n = notify ? AppLocalizations.of(context) : null;
     if (notify && mounted) {
@@ -194,7 +198,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
       });
     }
     try {
-      if (owner == null) throw StateError('No draft owner');
       final draft = LocalDraft(
         key: _draftKey,
         title: _title.text,
