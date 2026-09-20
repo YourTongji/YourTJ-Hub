@@ -2,6 +2,7 @@ export default {
   status: {
     community: "コミュニティへ",
     theme: "テーマ切替",
+    language: "言語",
     historyStale: "履歴データが更新されていません",
     availabilityTitle: "サービス稼働状況",
     availabilityDescription: "独立した監視サービスによるアクセス確認結果。",
@@ -89,7 +90,7 @@ export default {
     unavailableNote: "データソースを利用できません。自動で再試行します。",
     unconfiguredNote: "管理者がデータソースを接続すると、実際のデータが表示されます。",
     partialNote: "一部の指標を取得できません。他のデータは表示されています。",
-    footnote: "公開集計 · 個別の訪問記録は表示しません",
+    footnote: "© {year} YourTJ Community {separator} 公開統計",
     chartLabel: "{time}：{views} ページビュー、{visitors} ユニーク訪問者",
     usedOf: "{used} / {total}",
     timeRange: "{start} — {end}",
