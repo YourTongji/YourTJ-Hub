@@ -68,10 +68,26 @@ it('returns a noncacheable 503 on storage failure, with no provider or internal 
   expect(response.status).toBe(503);expect(response.headers.get('Netlify-CDN-Cache-Control')).toBeNull()
   expect(await response.text()).not.toContain('private')
 })
-it('only explicitly published production deploys share the durable store', () => {
-  expect(storeName({context:'production',published:true,id:'one'})).toBe(storeName({context:'production',published:true,id:'two'}))
-  expect(storeName({context:'deploy-preview',published:false,id:'one'})).not.toBe('status-v1')
-  expect(storeName({context:'production',published:false,id:'one'})).not.toBe('status-v1')
+it('reads scheduled production snapshots even when the invocation published flags differ', async () => {
+  const stores = new Map<string, SnapshotStore>()
+  function deployedStore(published: boolean, id = 'production-deploy') {
+    const name = storeName({ context: 'production', published, id })
+    if (!stores.has(name)) stores.set(name, memoryStore().store)
+    return stores.get(name)!
+  }
+  await collectOne(deployedStore(false), cacheKey(config, 'uptime', 'current'), async () => fixture.uptime.data, () => now)
+  for (const id of ['production-deploy', 'next-production-deploy']) {
+    const response = await serveSnapshot(new Request('https://status.example.com/api/status'), deployedStore(true, id), config, now)
+    expect((await response.json()).result.uptime).toMatchObject({ state: 'ok', data: fixture.uptime.data })
+  }
+})
+it.each(['deploy-preview', 'branch-deploy'])('keeps %s snapshots isolated even when published', context => {
+  for (const published of [false, true]) {
+    const first = storeName({ context, published, id: 'one' })
+    expect(first).not.toBe('status-v1')
+    expect(first).not.toBe(storeName({ context, published, id: 'two' }))
+  }
+  expect(storeName({ context: 'dev', published: false, id: '' })).toBe('status-local-v1')
 })
 it('scheduled collection isolates upstream failures and stays idle when disabled', async () => {
   const {store,data}=memoryStore(),fetcher=vi.fn(async()=>{throw new Error('offline')})
