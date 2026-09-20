@@ -158,3 +158,26 @@ func (r Rules) Destination(original time.Time) (time.Time, string, bool) {
 	}
 	return original, "", true
 }
+
+// TeachingDate is the inverse of Destination for a date displayed in a daily
+// schedule. The target replaces its native classes; never apply mappings twice.
+func (r Rules) TeachingDate(actual time.Time) (time.Time, string, string) {
+	key := actual.Format(time.DateOnly)
+	for _, m := range r.Moves {
+		if m.ToDate == key {
+			source, _ := time.ParseInLocation(time.DateOnly, m.FromDate, actual.Location())
+			return source, m.Name, "makeup"
+		}
+	}
+	for _, h := range r.Holidays {
+		if key >= h.StartDate && key <= h.EndDate {
+			return time.Time{}, h.Name, "holiday"
+		}
+	}
+	for _, m := range r.Moves {
+		if m.FromDate == key {
+			return time.Time{}, m.Name, "moved"
+		}
+	}
+	return actual, "", "none"
+}

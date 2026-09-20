@@ -143,7 +143,7 @@ void main() {
         'profile',
         'calendar',
         'messages',
-        'timetable',
+        'today',
       });
       await controller.loadTab('academics');
       expect(repo.requested, containsAll(['grades', 'summary', 'cet']));
@@ -181,6 +181,110 @@ void main() {
     expect(controller.state.error, isA<ApiException>());
     controller.dispose();
   });
+  test('expired school date reloads today and calendar', () async {
+    final base = campusFixture('today');
+    final repo = FakeCampusRepository()
+      ..todayOverride = CampusDataset(
+        key: 'today',
+        status: 'empty',
+        updatedAt: '',
+        metrics: [],
+        columns: [],
+        rows: [],
+        events: [],
+        series: [],
+        teachingDay: CampusTeachingDay(
+          date: '2000-01-01',
+          sourceDate: '',
+          kind: 'holiday',
+          label: '旧假期',
+          sectionCount: 11,
+        ),
+      );
+    final controller = CampusController(repo);
+    await controller.refresh();
+    repo.requested.clear();
+    repo.todayOverride = base;
+    await controller.refreshTeachingDate();
+    expect(repo.requested.toSet(), {'today', 'calendar'});
+    expect(
+      controller.state.data['today']?.teachingDay?.date,
+      campusDateKey(DateTime.now()),
+    );
+    controller.dispose();
+  });
+  test(
+    'midnight on weekly tab reloads its calendar without fetching today',
+    () async {
+      final repo = FakeCampusRepository()
+        ..todayOverride = CampusDataset(
+          key: 'today',
+          status: 'empty',
+          updatedAt: '',
+          metrics: [],
+          columns: [],
+          rows: [],
+          events: [],
+          series: [],
+          teachingDay: CampusTeachingDay(
+            date: '2000-01-01',
+            sourceDate: '',
+            kind: 'holiday',
+            label: '旧假期',
+            sectionCount: 11,
+          ),
+        );
+      final controller = CampusController(repo);
+      await controller.refresh();
+      await controller.loadTab('timetable');
+      repo.requested.clear();
+      await controller.refreshTeachingDate();
+      expect(repo.requested, ['calendar']);
+      expect(controller.state.data.containsKey('today'), isFalse);
+      expect(controller.state.data.containsKey('calendar'), isTrue);
+      controller.dispose();
+    },
+  );
+  testWidgets('holiday is explained and failed rules do not show old classes', (
+    tester,
+  ) async {
+    final repo = FakeCampusRepository()
+      ..todayOverride = CampusDataset(
+        key: 'today',
+        status: 'empty',
+        updatedAt: '',
+        metrics: [],
+        columns: [],
+        rows: [],
+        events: [],
+        series: [],
+        teachingDay: CampusTeachingDay(
+          date: campusDateKey(DateTime.now()),
+          sourceDate: '',
+          kind: 'holiday',
+          label: '国庆节',
+          sectionCount: 11,
+        ),
+      );
+    await tester.pumpWidget(campusTestApp(repo));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('国庆节：今天放假停课。'));
+    expect(find.text('国庆节：今天放假停课。'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CampusPage)),
+    );
+    repo.todayError = const ApiException(
+      fallbackMessage: 'Rules unavailable',
+      messageCode: 'campus.rulesUnavailable',
+    );
+    await container.read(campusControllerProvider.notifier).refresh();
+    await tester.pumpAndSettle();
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    expect(find.text(l.campusRulesUnavailable), findsOneWidget);
+    expect(find.text('国庆节：今天放假停课。'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
   test('school clock and grid preserve distinct records and filter weeks', () {
     expect(campusNow(DateTime.parse('2026-09-19T18:00:00Z')).day, 20);
     final events = campusFixture('timetable').events;
@@ -196,6 +300,11 @@ void main() {
       await tester.pumpWidget(campusTestApp(repo));
       await tester.pumpAndSettle();
       expect(find.textContaining('演示同学'), findsOneWidget);
+      expect(repo.requested, contains('today'));
+      await tester.ensureVisible(find.text('第四周周二的数学'));
+      expect(find.text('第四周周二的数学'), findsOneWidget);
+      expect(find.textContaining('国庆补课'), findsOneWidget);
+      await tester.ensureVisible(find.text('学业记录').first);
       expect(find.text('综合 GPA'), findsNothing);
       expect(repo.requested, isNot(contains('grades')));
       await tester.tap(find.text('学业记录').first);
@@ -335,15 +444,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CampusCourseDetails)),
+      );
+      await container
+          .read(campusControllerProvider.notifier)
+          .loadTab('timetable');
+      await tester.pumpAndSettle();
       expect(find.text('课程 1（演示）'), findsOneWidget);
       repo.current = const CampusStatus(
         enabled: true,
         binding: null,
         candidate: null,
       );
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(CampusCourseDetails)),
-      );
+
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       await tester.pumpAndSettle();
       expect(find.text('课程 1（演示）'), findsNothing);

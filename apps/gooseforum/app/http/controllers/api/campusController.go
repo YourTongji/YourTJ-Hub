@@ -146,7 +146,18 @@ func CampusDataset(c *gin.Context) {
 	if s == nil {
 		return
 	}
-	d, e := s.Dataset(c.Request.Context(), c.GetUint64("userId"), c.Param("dataset"))
+	var d campusservice.Dataset
+	var e error
+	if c.Param("dataset") == "today" {
+		rules, err := calendaradjustment.Read(c.Request.Context())
+		if err != nil {
+			calendarRulesFailure(c, err)
+			return
+		}
+		d, e = s.Today(c.Request.Context(), c.GetUint64("userId"), rules.Rules)
+	} else {
+		d, e = s.Dataset(c.Request.Context(), c.GetUint64("userId"), c.Param("dataset"))
+	}
 	if e != nil {
 		campusFailure(c, e)
 		return

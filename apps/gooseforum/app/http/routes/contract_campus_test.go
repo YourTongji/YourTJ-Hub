@@ -20,7 +20,7 @@ import (
 func TestCampusRoutesRequireSessionAndCSRF(t *testing.T) {
 	db, router := setupHTTPContractTest(t)
 	campusRoutes(router)
-	for _, r := range []struct{ method, path string }{{"GET", "/api/campus/status"}, {"GET", "/api/campus/calendar-export"}, {"GET", "/api/campus/data/grades"}, {"GET", "/api/campus/data/profile"}, {"GET", "/api/campus/messages/123"}, {"POST", "/api/campus/tongji/start"}, {"POST", "/api/campus/tongji/confirm"}, {"POST", "/api/campus/tongji/unbind"}} {
+	for _, r := range []struct{ method, path string }{{"GET", "/api/campus/status"}, {"GET", "/api/campus/calendar-export"}, {"GET", "/api/campus/data/today"}, {"GET", "/api/campus/data/grades"}, {"GET", "/api/campus/data/profile"}, {"GET", "/api/campus/messages/123"}, {"POST", "/api/campus/tongji/start"}, {"POST", "/api/campus/tongji/confirm"}, {"POST", "/api/campus/tongji/unbind"}} {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, httptest.NewRequest(r.method, r.path, strings.NewReader(`{}`)))
 		if w.Code != http.StatusUnauthorized {

@@ -75,6 +75,20 @@ func calendarSectionTimes(events []Event, overrides []pageConfig.ScheduleSection
 	return times
 }
 
+// calendarBounds is shared by daily display and calendar export; neither guesses
+// the teaching week from an incomplete calendar.
+func calendarBounds(calendar Dataset) (time.Time, time.Time, int, error) {
+	zone := time.FixedZone("Asia/Shanghai", 8*3600)
+	begin, err := time.ParseInLocation(time.DateOnly, calendarMetric(calendar, "学期开始"), zone)
+	end, endErr := time.ParseInLocation(time.DateOnly, calendarMetric(calendar, "学期结束"), zone)
+	weeks, weekErr := strconv.Atoi(calendarMetric(calendar, "学期周数"))
+	// Do not guess which teaching week a non-Monday term boundary belongs to.
+	if err != nil || endErr != nil || weekErr != nil || begin.Weekday() != time.Monday || end.Before(begin) || weeks < 1 || weeks > 53 || end.Sub(begin) >= 371*24*time.Hour {
+		return time.Time{}, time.Time{}, 0, ErrCalendarIncomplete
+	}
+	return begin, end, weeks, nil
+}
+
 func buildCalendar(calendar, timetable Dataset, overrides []pageConfig.ScheduleSectionTime, namespace string, now time.Time, adjustments ...calendaradjustment.Rules) (CalendarExport, error) {
 	rules := calendaradjustment.Empty()
 	if len(adjustments) > 0 {
@@ -83,13 +97,9 @@ func buildCalendar(calendar, timetable Dataset, overrides []pageConfig.ScheduleS
 	if err := rules.Validate(); err != nil {
 		return CalendarExport{}, err
 	}
-	zone := time.FixedZone("Asia/Shanghai", 8*3600)
-	begin, err := time.ParseInLocation(time.DateOnly, calendarMetric(calendar, "学期开始"), zone)
-	end, endErr := time.ParseInLocation(time.DateOnly, calendarMetric(calendar, "学期结束"), zone)
-	weeks, weekErr := strconv.Atoi(calendarMetric(calendar, "学期周数"))
-	// Do not guess which teaching week a non-Monday term boundary belongs to.
-	if err != nil || endErr != nil || weekErr != nil || begin.Weekday() != time.Monday || end.Before(begin) || weeks < 1 || weeks > 53 || end.Sub(begin) >= 371*24*time.Hour {
-		return CalendarExport{}, ErrCalendarIncomplete
+	begin, end, weeks, err := calendarBounds(calendar)
+	if err != nil {
+		return CalendarExport{}, err
 	}
 	// A source outside the known term cannot replace a day within it: no source
 	// timetable is available, so refuse instead of silently dropping that day.

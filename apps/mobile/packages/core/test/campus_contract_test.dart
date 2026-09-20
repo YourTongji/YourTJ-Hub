@@ -33,6 +33,12 @@ void main() {
     expect(dataset.key, 'cet');
     expect(dataset.series.single.value, 500);
     expect(dataset.messages, isEmpty);
+    expect(dataset.teachingDay, isNull);
+    final today = CampusDataset.fromJson(result('campus-today-success.json'));
+    expect(today.teachingDay!.kind, 'makeup');
+    expect(today.teachingDay!.sourceDate, '2026-10-06');
+    expect(today.teachingDay!.date, '2026-09-20');
+    expect(today.events.single.weeks, [4]);
     final message = CampusMessageDetail.fromJson(
       result('campus-message-success.json'),
     );

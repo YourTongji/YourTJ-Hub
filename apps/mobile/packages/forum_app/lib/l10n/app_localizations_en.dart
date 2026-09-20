@@ -2342,7 +2342,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get campusCalendarRulesHint =>
-      'Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.';
+      'Today’s classes and exports with adjustments enabled use published rules. The weekly grid keeps the original timetable. Refresh or export to read the latest rules.';
 
   @override
   String get campusNoCalendarRules =>
@@ -2363,4 +2363,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get loginTongjiPolicies =>
       'By continuing, you agree to the published policies:';
+
+  @override
+  String campusTodayMakeup(String name, String date) {
+    return '$name: today follows the timetable for $date.';
+  }
+
+  @override
+  String campusTodayHoliday(String name) {
+    return '$name: no classes today.';
+  }
+
+  @override
+  String campusTodayMoved(String name) {
+    return '$name: today’s classes have moved to another date.';
+  }
+
+  @override
+  String get campusRulesUnavailable =>
+      'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.';
 }
