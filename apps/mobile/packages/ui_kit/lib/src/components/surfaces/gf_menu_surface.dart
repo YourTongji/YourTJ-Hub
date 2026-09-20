@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
 
 /// Dropdown menu surface, mirroring web `.gf-menu-surface` (components.css):
 /// 1px line border, radius box, base-100 background, `gf-shadows.menu`.
@@ -59,12 +60,16 @@ class GfMenuItem extends StatelessWidget {
     super.key,
     required this.label,
     this.icon,
+    this.symbol,
+    this.iconSize = 18,
     this.onTap,
     this.variant = GfMenuItemVariant.normal,
   });
 
   final String label;
   final IconData? icon;
+  final String? symbol;
+  final double iconSize;
   final VoidCallback? onTap;
   final GfMenuItemVariant variant;
 
@@ -78,6 +83,10 @@ class GfMenuItem extends StatelessWidget {
       GfMenuItemVariant.warning => colors.warning,
       GfMenuItemVariant.danger => colors.error,
     };
+
+    final Widget? leadingIcon = symbol != null
+        ? GfSymbol(symbol!, size: iconSize, color: color)
+        : (icon != null ? Icon(icon, size: iconSize, color: color) : null);
 
     return Material(
       color: Colors.transparent,
@@ -96,8 +105,8 @@ class GfMenuItem extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Row(
             children: <Widget>[
-              if (icon != null) ...<Widget>[
-                Icon(icon, size: 18, color: color),
+              if (leadingIcon != null) ...<Widget>[
+                leadingIcon,
                 const SizedBox(width: 10),
               ],
               Text(

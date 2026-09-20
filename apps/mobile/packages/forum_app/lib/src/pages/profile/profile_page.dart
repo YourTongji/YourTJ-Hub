@@ -269,6 +269,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ? <Widget>[
                 PopupMenuButton<String>(
                   tooltip: l10n.profileMore,
+                  useRootNavigator: true,
                   onSelected: _openProfileTool,
                   itemBuilder: (_) => [
                     PopupMenuItem(

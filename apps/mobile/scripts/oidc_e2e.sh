@@ -90,15 +90,21 @@ check_prereqs() {
 build_install() {
   info "=== 构建并安装 forum_app(debug,含 dart-define)==="
   require_cmd flutter
-  (cd "$FORUM_APP" && flutter build apk --debug \
+  (cd "$FORUM_APP" && flutter build apk --debug --split-per-abi \
       --dart-define=YOURTJ_OIDC_ISSUER="$OIDC_ISSUER" \
       --dart-define=YOURTJ_OIDC_CLIENT_ID="$CLIENT_ID" \
       --dart-define=YOURTJ_API_BASE_URL="$API_URL" \
       >/dev/null) || fail "flutter build apk 失败" 2
 
-  local apk
-  apk="$(ls "$FORUM_APP"/build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null \
-    || fail "未找到 APK 产物" 2)"
+  local abi apk
+  abi="$(adb shell getprop ro.product.cpu.abi | tr -d '\r' | tr -d '\n')"
+  case "$abi" in
+    arm64-v8a|armeabi-v7a|x86_64) ;;
+    *) fail "不支持的 Android ABI: ${abi:-未知};请使用 arm64-v8a、armeabi-v7a 或 x86_64 设备" 2;;
+  esac
+  apk="$FORUM_APP/build/app/outputs/flutter-apk/app-${abi}-debug.apk"
+  [ -f "$apk" ] || fail "未找到 ${abi} Debug APK: $apk" 2
+  info "按设备 ABI 安装: $abi"
   adb install -r "$apk" >/dev/null || fail "adb install 失败" 2
   ok "APK 已安装"
 }

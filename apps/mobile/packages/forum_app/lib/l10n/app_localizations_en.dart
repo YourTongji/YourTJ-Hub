@@ -65,6 +65,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonSave => 'Save';
 
   @override
+  String get imageSave => 'Save image';
+
+  @override
+  String get imageSaved => 'Image saved';
+
+  @override
+  String get imageSaveFailed => 'Couldn’t save the image. Try again later.';
+
+  @override
+  String get announcementLabel => 'Announcement';
+
+  @override
+  String get announcementCollapse => 'Collapse announcement';
+
+  @override
+  String get announcementCollapseAction => 'Collapse';
+
+  @override
+  String get announcementExpand => 'Expand announcement';
+
+  @override
+  String announcementItem(int index) {
+    return 'Announcement $index';
+  }
+
+  @override
   String get commonLoading => 'Loading…';
 
   @override

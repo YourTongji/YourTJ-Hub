@@ -13,6 +13,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
 import '../../images/image_upload.dart';
+import '../../images/image_save.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
@@ -1420,6 +1421,10 @@ class _TopicHeader extends StatelessWidget {
             const SizedBox(height: 16),
             GfMediaCarousel(
               images: topic.images!.map(resolveApiAssetUrl).toList(),
+              onSaveImage: (String url) => saveImageFromUrl(context, url),
+              saveImageLabel: l10n.imageSave,
+              onShareImage: (String url) => shareImageFromUrl(context, url),
+              shareImageLabel: l10n.topicShare,
             ),
           ],
           if (!available) ...<Widget>[

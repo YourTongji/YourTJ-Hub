@@ -10,6 +10,7 @@ class GfBottomNavigationItem {
     required this.selectedIcon,
     this.badge = false,
     this.symbol,
+    this.selectedSymbol,
   });
 
   final String label;
@@ -17,6 +18,7 @@ class GfBottomNavigationItem {
   final IconData selectedIcon;
   final bool badge;
   final String? symbol;
+  final String? selectedSymbol;
 }
 
 /// Four accessible navigation destinations. The unified mobile shell uses
@@ -118,7 +120,7 @@ class _Destination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final Color foreground = colors.baseContent;
+    final Color foreground = selected ? colors.primary : colors.iconMuted;
 
     return Expanded(
       child: Semantics(
@@ -139,17 +141,23 @@ class _Destination extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: <Widget>[
                       Center(
-                        child: item.symbol != null
+                        child: (selected && item.selectedSymbol != null)
                             ? GfSymbol(
-                                item.symbol!,
+                                item.selectedSymbol!,
                                 size: 26,
                                 color: foreground,
                               )
-                            : Icon(
-                                selected ? item.selectedIcon : item.icon,
-                                size: 24,
-                                color: foreground,
-                              ),
+                            : (item.symbol != null
+                                  ? GfSymbol(
+                                      item.symbol!,
+                                      size: 26,
+                                      color: foreground,
+                                    )
+                                  : Icon(
+                                      selected ? item.selectedIcon : item.icon,
+                                      size: 24,
+                                      color: foreground,
+                                    )),
                       ),
                       if (item.badge)
                         Positioned(
@@ -173,6 +181,11 @@ class _Destination extends StatelessWidget {
                 ),
                 if (!showLabel)
                   Container(
+                    key: selected
+                        ? const ValueKey<String>(
+                            'gf-bottom-navigation-selected-indicator',
+                          )
+                        : null,
                     width: selected ? 4 : 0,
                     height: 3,
                     decoration: BoxDecoration(

@@ -103,6 +103,63 @@ void main() {
     expect(composeTaps, 1);
   });
 
+  testWidgets('symbol destinations use ReIcon outline/filled variants', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        GfBottomNavigation(
+          currentIndex: 0,
+          onSelected: (_) {},
+          showLabels: false,
+          items: const <GfBottomNavigationItem>[
+            GfBottomNavigationItem(
+              label: '首页',
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home,
+              symbol: 'house',
+              selectedSymbol: 'house-filled',
+            ),
+            GfBottomNavigationItem(
+              label: '校园',
+              icon: Icons.school_outlined,
+              selectedIcon: Icons.school,
+              symbol: 'graduation-cap',
+              selectedSymbol: 'graduation-cap-filled',
+            ),
+            GfBottomNavigationItem(
+              label: '通知',
+              icon: Icons.notifications_none,
+              selectedIcon: Icons.notifications,
+              symbol: 'bell',
+              selectedSymbol: 'bell-filled',
+            ),
+            GfBottomNavigationItem(
+              label: '消息',
+              icon: Icons.mail_outline,
+              selectedIcon: Icons.mail,
+              symbol: 'mail',
+              selectedSymbol: 'mail-filled',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(
+      tester
+          .widgetList<GfSymbol>(find.byType(GfSymbol))
+          .map((symbol) => symbol.name),
+      ['house-filled', 'graduation-cap', 'bell', 'mail'],
+    );
+    expect(
+      find.byKey(
+        const ValueKey<String>('gf-bottom-navigation-selected-indicator'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'GfBottomNavigation rejects invalid destination counts at runtime',
     (tester) async {

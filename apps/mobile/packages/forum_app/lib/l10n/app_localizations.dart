@@ -204,6 +204,54 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// No description provided for @imageSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save image'**
+  String get imageSave;
+
+  /// No description provided for @imageSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Image saved'**
+  String get imageSaved;
+
+  /// No description provided for @imageSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save the image. Try again later.'**
+  String get imageSaveFailed;
+
+  /// No description provided for @announcementLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement'**
+  String get announcementLabel;
+
+  /// No description provided for @announcementCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse announcement'**
+  String get announcementCollapse;
+
+  /// No description provided for @announcementCollapseAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get announcementCollapseAction;
+
+  /// No description provided for @announcementExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand announcement'**
+  String get announcementExpand;
+
+  /// No description provided for @announcementItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement {index}'**
+  String announcementItem(int index);
+
   /// No description provided for @commonLoading.
   ///
   /// In en, this message translates to:

@@ -5,8 +5,19 @@ import 'gf_image_viewer.dart';
 
 /// Uncropped content gallery, shared by the publishing preview and topic body.
 class GfMediaCarousel extends StatefulWidget {
-  const GfMediaCarousel({super.key, required this.images});
+  const GfMediaCarousel({
+    super.key,
+    required this.images,
+    this.onSaveImage,
+    this.saveImageLabel = 'Save image',
+    this.onShareImage,
+    this.shareImageLabel = 'Share image',
+  });
   final List<String> images;
+  final Future<void> Function(String imageUrl)? onSaveImage;
+  final String saveImageLabel;
+  final Future<void> Function(String imageUrl)? onShareImage;
+  final String shareImageLabel;
   @override
   State<GfMediaCarousel> createState() => _GfMediaCarouselState();
 }
@@ -40,14 +51,30 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                     button: true,
                     label: '${index + 1} / ${widget.images.length}',
                     child: GestureDetector(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => GfImageViewer(
-                            images: widget.images,
-                            initialIndex: index,
+                      onTap: () =>
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => GfImageViewer(
+                                images: widget.images,
+                                initialIndex: index,
+                                onSaveImage: widget.onSaveImage,
+                                saveImageLabel: widget.saveImageLabel,
+                                onShareImage: widget.onShareImage,
+                                shareImageLabel: widget.shareImageLabel,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                      onLongPress: widget.onSaveImage == null
+                          ? null
+                          : () async {
+                              final bool save = await showGfImageSaveSheet(
+                                context,
+                                saveImageLabel: widget.saveImageLabel,
+                              );
+                              if (save && context.mounted) {
+                                await widget.onSaveImage!(widget.images[index]);
+                              }
+                            },
                       child: Image.network(
                         widget.images[index],
                         fit: BoxFit.contain,

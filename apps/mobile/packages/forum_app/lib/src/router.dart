@@ -219,6 +219,12 @@ class _GfShellState extends ConsumerState<GfShell> {
                               GfShellDestination.notifications => 'bell',
                               GfShellDestination.messages => 'mail',
                             },
+                            selectedSymbol: switch (destination) {
+                              GfShellDestination.home => 'house-filled',
+                              GfShellDestination.campus => 'graduation-cap-filled',
+                              GfShellDestination.notifications => 'bell-filled',
+                              GfShellDestination.messages => 'mail-filled',
+                            },
                             label: destination.label(l10n),
                             badge:
                                 destination == GfShellDestination.notifications

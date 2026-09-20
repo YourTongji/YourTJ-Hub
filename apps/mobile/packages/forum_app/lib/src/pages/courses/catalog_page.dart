@@ -411,6 +411,7 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
           if (_canManageCourses)
             PopupMenuButton<String>(
               tooltip: l10n.coursesManagement,
+              useRootNavigator: true,
               onSelected: (path) => context.push(path),
               itemBuilder: (_) => [
                 PopupMenuItem(

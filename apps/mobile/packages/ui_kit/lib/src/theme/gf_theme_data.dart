@@ -257,6 +257,16 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
         ),
       ),
     ),
+    // Popup menus are actions anchored to a trigger. Material's current
+    // default is `over`, which hides the trigger and makes a menu feel like a
+    // replacement surface on touch devices. `under` preserves the spatial
+    // relationship while Flutter still flips/clamps at viewport edges.
+    popupMenuTheme: PopupMenuThemeData(
+      position: PopupMenuPosition.under,
+      color: colors.base100,
+      surfaceTintColor: Colors.transparent,
+      textStyle: TextStyle(color: colors.baseContent, fontSize: 14),
+    ),
     // Motion mirrors `resource/src/runtime/motion.ts` (see GfMotion):
     // page transitions use the standard 0.22s ease (web page-enter motion).
     // iOS keeps the system Cupertino transition so the edge-swipe back

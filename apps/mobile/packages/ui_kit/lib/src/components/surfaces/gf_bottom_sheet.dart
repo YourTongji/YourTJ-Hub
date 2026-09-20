@@ -18,6 +18,10 @@ Future<T?> showGfBottomSheet<T>(
   final sheetTheme = theme.bottomSheetTheme;
   return showModalBottomSheet<T>(
     context: context,
+    // The mobile shell paints its bottom navigation as a sibling overlay of
+    // branch Navigators. Present sheets on the app Navigator so the sheet and
+    // its scrim own the complete viewport, including the shell chrome.
+    useRootNavigator: true,
     isDismissible: barrierDismissible,
     enableDrag: enableDrag,
     isScrollControlled: true,

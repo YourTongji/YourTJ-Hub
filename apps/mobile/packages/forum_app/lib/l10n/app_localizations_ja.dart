@@ -62,6 +62,32 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String get imageSave => '画像を保存';
+
+  @override
+  String get imageSaved => '画像を保存しました';
+
+  @override
+  String get imageSaveFailed => '画像を保存できませんでした。後でもう一度お試しください。';
+
+  @override
+  String get announcementLabel => 'お知らせ';
+
+  @override
+  String get announcementCollapse => 'お知らせを折りたたむ';
+
+  @override
+  String get announcementCollapseAction => '折りたたむ';
+
+  @override
+  String get announcementExpand => 'お知らせを展開';
+
+  @override
+  String announcementItem(int index) {
+    return 'お知らせ $index';
+  }
+
+  @override
   String get commonLoading => '読み込み中…';
 
   @override
