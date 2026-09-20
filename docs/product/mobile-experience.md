@@ -242,8 +242,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 ## Campus and sign-in
 
 - `Current`: Campus opens a native private overview with the school teaching week, time-aware
-  greeting, recent notices and today's courses. Weekly timetable, academic records and charts,
-  calendars, notice bodies and identity management use the existing campus API. Today’s timetable uses the server-resolved Shanghai teaching date, including holidays,
+  greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
+  calendars, notice bodies and identity management use the existing campus API. Today’s timetable
+  uses the server-resolved Shanghai teaching date, including holidays,
   makeup source weeks and explanatory notices; it refreshes across school-local midnight.
   The export-only adjustment switch does not disable this display. GPA is loaded only
   on the academic tab. The timetable shares the planner renderer without its editing or storage.
@@ -254,8 +255,13 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: school authorization uses the current native forum session in a restricted WebView.
   The initial Bearer header goes only to the first-party session handoff; school navigation receives
   no native credential. The server callback returns to a native confirmation, including resuming
-  a notice after a permission update. Private records stay in page memory; leaving the campus tab,
-  backgrounding or switching sessions drops the view and cancels requests.
+  a notice after a permission update. Leaving the campus tab drops its private view and cancels
+  requests. Selected overview datasets have a five-minute foreground memory cache, reusable only
+  after fresh binding-status verification; grades and notice bodies remain page-local.
+  Backgrounding, session/site changes and identity invalidation clear the cache. Pull-to-refresh
+  keeps same-identity content visible while loading; failures show errors instead of stale results.
+  School-local date rollover invalidates teaching-day data. Nothing enters persistent/offline storage.
+  See [campus retention rules](campus.md).
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning

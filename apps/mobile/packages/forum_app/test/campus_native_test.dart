@@ -12,6 +12,7 @@ import 'package:forum_app/src/pages/campus/campus_data_views.dart';
 import 'package:forum_app/src/pages/campus/campus_private_surface.dart';
 import 'package:forum_app/src/pages/campus/campus_message_page.dart';
 import 'package:forum_app/src/pages/campus/campus_state.dart';
+import 'package:forum_app/src/pages/campus/campus_memory_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/campus_shortcuts.dart';
@@ -205,7 +206,7 @@ void main() {
     await controller.refresh();
     repo.requested.clear();
     repo.todayOverride = base;
-    await controller.refreshTeachingDate();
+    await controller.refreshVisible();
     expect(repo.requested.toSet(), {'today', 'calendar'});
     expect(
       controller.state.data['today']?.teachingDay?.date,
@@ -214,32 +215,19 @@ void main() {
     controller.dispose();
   });
   test(
-    'midnight on weekly tab reloads its calendar without fetching today',
+    'midnight on weekly tab reloads its daily data without fetching today',
     () async {
-      final repo = FakeCampusRepository()
-        ..todayOverride = CampusDataset(
-          key: 'today',
-          status: 'empty',
-          updatedAt: '',
-          metrics: [],
-          columns: [],
-          rows: [],
-          events: [],
-          series: [],
-          teachingDay: CampusTeachingDay(
-            date: '2000-01-01',
-            sourceDate: '',
-            kind: 'holiday',
-            label: '旧假期',
-            sectionCount: 11,
-          ),
-        );
-      final controller = CampusController(repo);
+      var now = DateTime.utc(2026, 9, 20, 15, 59);
+      final cache = CampusMemoryCache(now: () => now);
+      addTearDown(cache.dispose);
+      final repo = FakeCampusRepository()..now = () => now;
+      final controller = CampusController(repo, cache: cache);
       await controller.refresh();
       await controller.loadTab('timetable');
       repo.requested.clear();
-      await controller.refreshTeachingDate();
-      expect(repo.requested, ['calendar']);
+      now = now.add(const Duration(minutes: 2));
+      await controller.refreshVisible();
+      expect(repo.requested.toSet(), {'calendar', 'timetable'});
       expect(controller.state.data.containsKey('today'), isFalse);
       expect(controller.state.data.containsKey('calendar'), isTrue);
       controller.dispose();
@@ -300,6 +288,19 @@ void main() {
       await tester.pumpWidget(campusTestApp(repo));
       await tester.pumpAndSettle();
       expect(find.textContaining('演示同学'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('今日课表')).dy,
+        lessThan(
+          tester
+              .getTopLeft(
+                find.descendant(
+                  of: find.byType(ListView),
+                  matching: find.text('校园消息'),
+                ),
+              )
+              .dy,
+        ),
+      );
       expect(repo.requested, contains('today'));
       await tester.ensureVisible(find.text('第四周周二的数学'));
       expect(find.text('第四周周二的数学'), findsOneWidget);
@@ -373,6 +374,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('演示同学'), findsNothing);
     expect(repo.cancellations.every((c) => c.isCancelled), isTrue);
+  });
+  testWidgets('quick campus tab return reuses data after status verification', (
+    tester,
+  ) async {
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    final repo = FakeCampusRepository();
+    await tester.pumpWidget(
+      campusTestApp(
+        repo,
+        child: ValueListenableBuilder<bool>(
+          valueListenable: visible,
+          builder: (_, active, _) =>
+              TickerMode(enabled: active, child: const CampusPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final requests = List<String>.of(repo.requested);
+    visible.value = false;
+    await tester.pumpAndSettle();
+    expect(find.textContaining('演示同学'), findsNothing);
+    visible.value = true;
+    await tester.pumpAndSettle();
+    expect(find.textContaining('演示同学'), findsOneWidget);
+    expect(repo.requested, requests);
+    expect(find.text('第四周周二的数学'), findsOneWidget);
+    expect(find.textContaining('国庆补课'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
   });
   testWidgets(
     'notification reads selectable plain text and clears on app background',

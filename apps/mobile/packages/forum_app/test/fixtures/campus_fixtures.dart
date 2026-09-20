@@ -28,7 +28,7 @@ const testStatus = CampusStatus(
   binding: testBinding,
   candidate: null,
 );
-CampusDataset campusFixture(String key) {
+CampusDataset campusFixture(String key, {DateTime? now}) {
   final metrics = <CampusMetric>[];
   final rows = <List<String>>[];
   final columns = <String>[];
@@ -73,7 +73,7 @@ CampusDataset campusFixture(String key) {
   return CampusDataset(
     teachingDay: key == 'today'
         ? CampusTeachingDay(
-            date: DateTime.now()
+            date: (now ?? DateTime.now())
                 .toUtc()
                 .add(const Duration(hours: 8))
                 .toIso8601String()
@@ -159,6 +159,7 @@ class FakeCampusRepository extends CampusRepository {
           baseUrl: 'https://forum.example',
         ),
       );
+  DateTime Function() now = DateTime.now;
   CampusStatus current = testStatus;
   final requested = <String>[];
   final cancellations = <CancelToken>[];
@@ -226,7 +227,7 @@ class FakeCampusRepository extends CampusRepository {
       if (todayError != null) throw todayError!;
       if (todayOverride != null) return todayOverride!;
     }
-    return campusFixture(key);
+    return campusFixture(key, now: now());
   }
 
   @override

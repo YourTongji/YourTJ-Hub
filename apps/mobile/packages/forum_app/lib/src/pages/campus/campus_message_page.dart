@@ -52,7 +52,10 @@ class _MessageBodyState extends ConsumerState<_MessageBody> {
           .message(widget.id, cancelToken: cancel);
       if (mounted && !cancel.isCancelled) setState(() => _detail = detail);
     } catch (e) {
-      if (mounted && !cancel.isCancelled) setState(() => _error = e);
+      if (mounted && !cancel.isCancelled) {
+        ref.read(campusControllerProvider.notifier).invalidateForError(e);
+        setState(() => _error = e);
+      }
     }
   }
 

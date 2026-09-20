@@ -106,3 +106,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0031](0031-campus-official-identity.md) — 私密校园连接、双向唯一身份与服务器凭据生命周期
 
 - [0032](0032-tongji-login-and-registration.md) — 同济统一认证登录，原子创建已激活账号并复用校园绑定。
+
+- [0033](0033-campus-foreground-memory-cache.md) — Flutter 校园页使用经绑定核验的五分钟前台内存缓存。
