@@ -187,3 +187,20 @@ clientSecret = ""
 redirectUri = ""
 encryptionKey = ""
 identityKey = ""
+
+# 链接预览（issue #729）：domains 为校园网域名，后缀匹配（含子域），命中的链接
+# 由服务端本地渲染成卡片，不发起任何抓取（校园服务只在校内可达，且多为 SaaS 壳
+# 页面没有可用的 og 元数据）。留空 = 关闭校园网卡片。
+[link_preview]
+domains = ["tongji.edu.cn"]
+
+# 可选：域名级默认名，用于该域下未单独命名的主机。
+[link_preview.domain_names]
+"tongji.edu.cn" = "同济大学"
+
+# 可选：具体主机的卡片标题，精确匹配，优先级高于域名默认名。
+# 两级都不配时标题留空，由客户端按自己的语言显示兜底文案。
+[link_preview.host_names]
+"1.tongji.edu.cn" = "同济大学教学管理系统"
+"yunpan.tongji.edu.cn" = "同济云盘"
+"www.tongji.edu.cn" = "同济大学"

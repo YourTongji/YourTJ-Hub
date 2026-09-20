@@ -1,0 +1,15 @@
+{
+  "result": [
+    {
+      "requestedUrl": "javascript:alert(1)",
+      "kind": "unknown",
+      "status": "unsupported"
+    },
+    {
+      "requestedUrl": "//example.com",
+      "kind": "unknown",
+      "status": "invalid"
+    }
+  ],
+  "code": 0
+}

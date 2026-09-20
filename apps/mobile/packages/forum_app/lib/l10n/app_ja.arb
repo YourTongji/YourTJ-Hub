@@ -791,5 +791,12 @@
   },
   "loginTongji": "同済大学の統合認証でログイン",
   "loginTongjiHint": "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。",
-  "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます："
+  "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます：",
+  "linkPreviewExternalTitle": "YourTJ を離れます",
+  "linkPreviewExternalBody": "{domain} に移動します。アカウント情報、認証コード、支払い情報を入力する前に URL を確認してください。",
+  "@linkPreviewExternalBody": {"placeholders": {"domain": {"type": "String"}}},
+  "linkPreviewRememberDomain": "このセッション中は、このドメインについて確認しない",
+  "linkPreviewContinue": "続ける",
+  "linkPreviewCampusFallbackTitle": "学内ネットワーク",
+  "linkPreviewCampusFallbackDescription": "学内ネットワークからのみアクセスできます"
 }

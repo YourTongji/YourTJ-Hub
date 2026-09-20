@@ -68,7 +68,8 @@ export function safeUrl(raw: string | null | undefined, policy: SafeUrlPolicy = 
     try {
       const parsed = new URL(decoded.text)
       const isHttpLike = parsed.protocol === 'http:' || parsed.protocol === 'https:'
-      return isHttpLike && parsed.hostname !== '' ? value : ''
+      const hasUserInfo = parsed.username !== '' || parsed.password !== ''
+      return isHttpLike && parsed.hostname !== '' && !hasUserInfo ? value : ''
     } catch {
       return ''
     }

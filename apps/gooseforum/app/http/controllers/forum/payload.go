@@ -174,6 +174,7 @@ type UnreadStatusPayload struct {
 type SitePayload struct {
 	Name          string `json:"name"`
 	Description   string `json:"description"`
+	URL           string `json:"url,omitempty"`
 	Logo          string `json:"logo"`
 	Favicon       string `json:"favicon"`
 	ExternalLinks string `json:"externalLinks,omitempty"`
@@ -731,6 +732,7 @@ func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
 		Site: SitePayload{
 			Name:          siteConfig.SiteName,
 			Description:   siteConfig.SiteDescription,
+			URL:           urlutil.Clean(urlutil.External, siteConfig.SiteUrl),
 			Logo:          urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			Favicon:       urlutil.Clean(urlutil.Image, siteConfig.SiteLogo),
 			ExternalLinks: siteConfig.ExternalLinks,

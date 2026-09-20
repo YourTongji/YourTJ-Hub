@@ -1,9 +1,10 @@
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
+import { LINK_PREVIEW_REQUEST_LIMIT } from './link-preview'
 
 interface ApiResponse<T> {
   code?: number
@@ -45,6 +46,19 @@ function rateLimitMessage(data: ApiResponse<unknown>, fallback: string, retryAft
 
 function responseMessage(data: ApiResponse<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
+}
+
+export async function resolveLinkPreviews(urls: readonly string[], signal?: AbortSignal): Promise<LinkPreview[]> {
+  const response = await fetch('/api/link-previews/resolve', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ urls: urls.slice(0, LINK_PREVIEW_REQUEST_LIMIT) }),
+    signal,
+  })
+  return readApiResponse<LinkPreview[]>(response, t('linkPreview.loadFailed'))
 }
 
 // assertHttpOk 供手写 !response.ok 分支使用：HTTP 层失败但 body 是结构化

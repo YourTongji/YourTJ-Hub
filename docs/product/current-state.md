@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-08
+> Last verified: 2026-09-20
 
 ## What works
 
@@ -28,6 +28,21 @@
   不要求 `index.md`，`index.md` 是该目录下的普通可点击页面，同级节点按 `order` 排序。
 - **Built-in OIDC Provider**: the forum issues standard OIDC tokens (authorization code + PKCE S256,
   RS256 id_token, opaque access tokens) for first-party clients; `sub` is always the numeric users.id.
+- **Link previews and outbound navigation**: `Current` for reading on Web and Flutter. A bare HTTP(S)
+  URL that occupies its own Markdown paragraph can become one of at most five compact cards (the same
+  bound as the resolver's per-request `maxItems`); ordinary
+  Markdown links, inline URLs, code, tables and image targets remain links. Internal Topic/Course/Wiki/User
+  metadata is read locally, while third-party metadata uses the bounded SSRF-safe resolver and the
+  OpenAPI-covered batch contract. Campus-network hosts configured under `[link_preview]` are a third local
+  path: they render from configuration alone and are never fetched, because those services resolve into
+  private address space (which the SSRF guard must keep refusing) and serve client-rendered shells without
+  usable OpenGraph metadata (measured: login-page or empty titles, no `og:*` on any probed host). Display
+  names come from deployment configuration — `domain_names` per domain, then `host_names` per exact host;
+  when neither is set the server omits the text and marks the card `campus`, so Web and Flutter render
+  their own localized fallback copy instead of server-side Chinese. Preview failure keeps the original
+  link. All UGC external links show
+  the hostname and complete URL before leaving, with Public Suffix List session trust; Web editor feedback
+  is implemented outside Vditor's serializable document, with manual IME/selection/undo verification pending.
 - Monorepo structure (apps/packages/services/deploy/docs) + CI (server/web/contract workflows).
 
 ## Current key gaps

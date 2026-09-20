@@ -23,6 +23,7 @@ import { loadMermaid, nextMermaidDiagramId, renderDiagram } from '@/runtime/cont
 import { useSiteTheme } from '@/runtime/site-theme'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { useI18n } from 'vue-i18n'
+import { createLinkPreviewHintController, formatLinkPreviewHintDomains, type LinkPreviewHint } from '@/runtime/link-preview-hint'
 
 /**
  * 官方 Vditor Vue 示例（https://b3log.org/vditor/demo/vue.html）的 Vue 3 移植。
@@ -88,6 +89,7 @@ const { t, te, locale } = useI18n()
 const { isDark } = useSiteTheme()
 const root = ref<HTMLElement | null>(null)
 const editorReady = ref(false)
+const linkPreviewHint = ref<LinkPreviewHint | null>(null)
 /** 资源预载 / 构造失败时为 true；宿主可据此结束 loading，避免遮罩永远转圈 */
 const editorFailed = ref(false)
 let editor: Vditor | null = null
@@ -98,6 +100,40 @@ let fullscreenLabelObserver: MutationObserver | null = null
 let sensitiveModeRefreshHandler: ((event: Event) => void) | null = null
 const SENSITIVE_BLOCK_CLASS = 'gf-sensitive-block'
 const EDITOR_BLOCK_SELECTOR = '[data-block="0"], p, h1, h2, h3, h4, h5, h6, li, blockquote, pre'
+let linkPreviewHintElement: HTMLParagraphElement | null = null
+const linkPreviewHintController = createLinkPreviewHintController({
+  onChange(hint) {
+    linkPreviewHint.value = hint
+    syncLinkPreviewHint()
+  },
+})
+
+function syncLinkPreviewHint() {
+  if (!linkPreviewHintElement) return
+  const hint = linkPreviewHint.value
+  if (!hint) {
+    linkPreviewHintElement.textContent = ''
+    linkPreviewHintElement.hidden = true
+    return
+  }
+  // 单卡沿用原文案；多卡换用带数量的文案，避免英文/德文里「a link card」在
+  // 复数下不成立（项目其余文案用 {count} 插值而不走 vue-i18n 复数，保持一致）。
+  linkPreviewHintElement.textContent = hint.domains.length === 1
+    ? t('linkPreview.editorHint', { domain: hint.domains[0] })
+    : t('linkPreview.editorHintMany', {
+        count: hint.domains.length,
+        domains: formatLinkPreviewHintDomains(hint.domains, t('linkPreview.editorHintSeparator')),
+      })
+  linkPreviewHintElement.hidden = false
+}
+
+function handleCompositionStart() {
+  linkPreviewHintController.compositionStart()
+}
+
+function handleCompositionEnd() {
+  linkPreviewHintController.compositionEnd(editor?.getValue() ?? props.modelValue)
+}
 
 function clearSensitiveHighlights() {
   root.value?.querySelectorAll<HTMLElement>(`.${SENSITIVE_BLOCK_CLASS}`).forEach((element) => {
@@ -1440,6 +1476,14 @@ function initToolbarPanelPositionCorrection(v: Vditor) {
 
 onMounted(async () => {
   if (!root.value) return
+  linkPreviewHintElement = document.createElement('p')
+  linkPreviewHintElement.className = 'gf-link-preview-editor-hint'
+  linkPreviewHintElement.setAttribute('aria-live', 'polite')
+  linkPreviewHintElement.hidden = true
+  root.value.insertAdjacentElement('afterend', linkPreviewHintElement)
+  root.value.addEventListener('compositionstart', handleCompositionStart, true)
+  root.value.addEventListener('compositionend', handleCompositionEnd, true)
+  linkPreviewHintController.schedule(props.modelValue)
   const language = languageAssets[currentLocale()]
 
   // window.hljs 必须在 vditor 执行高亮前就绪
@@ -1554,6 +1598,7 @@ onMounted(async () => {
         clearSensitiveHighlights()
         emit('update:modelValue', value)
         emit('input')
+        linkPreviewHintController.schedule(value)
         // 字数变化改变工具栏末位 counter 宽度，RO 只测 border-box，需显式重测
         scheduleMeasure()
       },
@@ -1567,6 +1612,7 @@ onMounted(async () => {
 })
 
 watch(() => props.modelValue, (value) => {
+  linkPreviewHintController.schedule(value)
   if (!editor || !ready || value === editor.getValue()) return
   editor.setValue(value, true)
 })
@@ -1586,6 +1632,7 @@ watch(isDark, syncEditorTheme)
 // #8：语言切换 → 重载 vditor i18n 脚本并就地刷新全部界面文案。
 // SPA 内 setLocale 只改 vue-i18n ref，绝不 location.reload()（AppShell.setLang）。
 watch(locale, () => {
+  syncLinkPreviewHint()
   if (!editor || !ready || destroyed) {
     // 编辑器初始化期间：标记待补刷，after() 就绪后按当前语言应用
     pendingLocaleRefresh = true
@@ -1600,6 +1647,11 @@ watch(() => props.placeholder, () => { refreshPlaceholder() })
 
 onBeforeUnmount(() => {
   destroyed = true
+  linkPreviewHintController.dispose()
+  root.value?.removeEventListener('compositionstart', handleCompositionStart, true)
+  root.value?.removeEventListener('compositionend', handleCompositionEnd, true)
+  linkPreviewHintElement?.remove()
+  linkPreviewHintElement = null
   detachSensitiveModeRefresh()
   fullscreenLabelObserver?.disconnect()
   fullscreenLabelObserver = null
@@ -1751,6 +1803,20 @@ defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkd
  */
 .vditor-official .vditor-reset ol {
   list-style-type: decimal;
+}
+
+.gf-link-preview-editor-hint {
+  margin: 0;
+  min-height: 1.75rem;
+  padding: 0.35rem 0.6rem 0;
+  color: color-mix(in oklch, var(--gf-color-base-content) 60%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.gf-link-preview-editor-hint[hidden] {
+  display: none;
 }
 
 .vditor-official .vditor-reset ol ol {

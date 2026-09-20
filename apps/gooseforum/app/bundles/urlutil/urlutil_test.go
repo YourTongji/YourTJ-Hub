@@ -190,3 +190,40 @@ func TestProtocolRelativeBackslashRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyLink(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want LinkKind
+	}{
+		{name: "relative", raw: "/p/post/42", want: LinkRelativeInternal},
+		{name: "absolute internal", raw: "https://f.yourtj.de/p/post/42", want: LinkAbsoluteInternal},
+		{name: "external", raw: "https://example.com/article", want: LinkExternalHTTP},
+		{name: "IPv6 literal", raw: "http://[::1]/", want: LinkExternalHTTP},
+		{name: "lookalike suffix", raw: "https://yourtj.de.evil.com", want: LinkExternalHTTP},
+		{name: "lookalike prefix", raw: "https://evil-yourtj.de", want: LinkExternalHTTP},
+		{name: "unsupported", raw: "ftp://example.com/file", want: LinkUnsupportedScheme},
+		{name: "protocol relative", raw: "//example.com/file", want: LinkInvalid},
+		{name: "userinfo", raw: "https://user@example.com/file", want: LinkInvalid},
+		{name: "backslash", raw: `https:\\example.com`, want: LinkInvalid},
+		{name: "control", raw: "https://example.com/\nadmin", want: LinkInvalid},
+		{name: "missing host", raw: "https:///article", want: LinkInvalid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ClassifyLink(tt.raw, "https://f.yourtj.de")
+			if got.Kind != tt.want {
+				t.Fatalf("ClassifyLink(%q).Kind = %q, want %q", tt.raw, got.Kind, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassifyLinkNormalizesIDNAHosts(t *testing.T) {
+	got := ClassifyLink("https://xn--fiq228c.example/path", "https://中文.example")
+	if got.Kind != LinkAbsoluteInternal {
+		t.Fatalf("IDNA equivalent host kind = %q, want %q", got.Kind, LinkAbsoluteInternal)
+	}
+}

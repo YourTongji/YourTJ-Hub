@@ -1998,6 +1998,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/link-previews/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve bounded metadata for internal and external links
+         * @description Resolves at most five URLs in request order. First-party URLs are read
+         *     directly from local models; external HTTP(S) pages use the server's
+         *     SSRF-safe bounded fetcher. The response exposes a fixed metadata
+         *     whitelist and stable per-item statuses, never remote HTML or transport
+         *     errors. Anonymous callers are allowed; an optional forum session is used
+         *     only for first-party visibility checks. The configurable
+         *     `link-preview.resolve` quota defaults to 60 requests per IP and 30 per
+         *     user in 60 seconds. Request bodies are capped at 16 KiB.
+         */
+        post: operations["resolveLinkPreviews"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/stickers": {
         parameters: {
             query?: never;
@@ -11387,6 +11414,32 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        LinkPreviewResolveRequest: {
+            urls: string[];
+        };
+        LinkPreview: {
+            requestedUrl: string;
+            /** @enum {string} */
+            kind: "unknown" | "internal" | "external";
+            /** @enum {string} */
+            status: "ready" | "invalid" | "blocked" | "unavailable" | "timeout" | "unsupported" | "permission_denied";
+            url?: string;
+            displayHost?: string;
+            registrableDomain?: string;
+            siteName?: string;
+            title?: string;
+            description?: string;
+            imageUrl?: string;
+            faviconUrl?: string;
+            /** Format: date-time */
+            fetchedAt?: string;
+            /** @description Set when the card was rendered from the deployment's local campus configuration without any outbound request. `title` and `description` may be absent in that case; clients supply their own localized fallback copy instead of relying on server-side text. */
+            campus?: boolean;
+        };
+        LinkPreviewResolveSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["LinkPreview"][];
+        };
+        LinkPreviewResolveResponse: components["schemas"]["LinkPreviewResolveSuccess"] | components["schemas"]["ApiFailure"];
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -14952,6 +15005,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    resolveLinkPreviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkPreviewResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Ordered preview results, or a stable validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPreviewResolveResponse"];
+                };
+            };
+            /** @description Malformed JSON or a request larger than 16 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Link-preview resolution quota exceeded. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

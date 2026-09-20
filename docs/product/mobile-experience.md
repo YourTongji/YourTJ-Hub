@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-15
+> Last verified: 2026-09-20
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -15,6 +15,12 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 ## Navigation and reading
 
+- `Current`: a bare HTTP(S) URL in its own Markdown paragraph resolves through the server batch API and
+  becomes a compact native preview only when typed metadata is ready; failure keeps the ordinary link,
+  and each document stops after three previews. Cards and ordinary Markdown links share internal routing
+  and external confirmation. The confirmation shows the hostname and selectable full URL, supports
+  system back, and scopes optional session trust to the Public Suffix List registrable domain. The card
+  is covered at 320 logical pixels, dark mode and 2.0 text scale.
 - `Current`: Home announcements render optional titles and HTML bodies, including the legacy
   single-HTML payload. A small bell sits in a separate leading column, with title and body aligned
   to the same inset as Web. They grow with their contents and text size; empty announcements take no

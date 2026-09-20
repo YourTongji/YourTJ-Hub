@@ -182,6 +182,13 @@ func apiRoute(ginApp *gin.Engine) {
 
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
 	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
+	baseApi.POST(
+		"link-previews/resolve",
+		middleware.CSRFProtection,
+		middleware.JWTAuth,
+		middleware.RateLimit(middleware.RateLimitLinkPreview),
+		UpLimitedJsonReq(16<<10, api.ResolveLinkPreviews),
+	)
 	// 站点主题公开下发（mobile Route A）：公开只读，无鉴权；数据源与
 	// /site-theme.css 一致（page_config SiteTheme 发布态），未启用返回空。
 	baseApi.GET("site-theme/tokens", ginUpNP(api.GetPublicSiteThemeTokens))

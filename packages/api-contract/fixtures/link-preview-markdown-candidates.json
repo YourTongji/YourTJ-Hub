@@ -1,0 +1,69 @@
+{
+  "cases": [
+    {
+      "name": "standalone absolute URL",
+      "markdown": "https://example.com/article",
+      "urls": ["https://example.com/article"]
+    },
+    {
+      "name": "standalone URL with surrounding whitespace",
+      "markdown": "  https://example.com/space  ",
+      "urls": ["https://example.com/space"]
+    },
+    {
+      "name": "standalone URL with Unicode path",
+      "markdown": "https://example.com/资料",
+      "urls": ["https://example.com/资料"]
+    },
+    {
+      "name": "ordinary paragraph",
+      "markdown": "Read https://example.com in context.",
+      "urls": []
+    },
+    {
+      "name": "markdown link",
+      "markdown": "[Example](https://example.com)",
+      "urls": []
+    },
+    {
+      "name": "inline code",
+      "markdown": "`https://example.com/code`",
+      "urls": []
+    },
+    {
+      "name": "fenced code",
+      "markdown": "```text\nhttps://example.com/fenced\n```",
+      "urls": []
+    },
+    {
+      "name": "table cell",
+      "markdown": "| Link |\n| --- |\n| https://example.com/table |",
+      "urls": []
+    },
+    {
+      "name": "image source",
+      "markdown": "![](https://example.com/image.png)",
+      "urls": []
+    },
+    {
+      "name": "multiple paragraphs keep document order",
+      "markdown": "https://one.example/a\n\nText\n\nhttps://two.example/b",
+      "urls": ["https://one.example/a", "https://two.example/b"]
+    },
+    {
+      "name": "maximum five candidates",
+      "markdown": "https://one.example\n\nhttps://two.example\n\nhttps://three.example\n\nhttps://four.example\n\nhttps://five.example\n\nhttps://six.example",
+      "urls": ["https://one.example", "https://two.example", "https://three.example", "https://four.example", "https://five.example"]
+    },
+    {
+      "name": "unsupported scheme",
+      "markdown": "javascript:alert(1)",
+      "urls": []
+    },
+    {
+      "name": "protocol relative URL",
+      "markdown": "//example.com/path",
+      "urls": []
+    }
+  ]
+}

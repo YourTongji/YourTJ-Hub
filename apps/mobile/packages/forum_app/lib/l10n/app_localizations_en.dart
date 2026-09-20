@@ -2363,4 +2363,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get loginTongjiPolicies =>
       'By continuing, you agree to the published policies:';
+
+  @override
+  String get linkPreviewExternalTitle => 'Leaving YourTJ';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return 'You are going to $domain. Check the address before entering account, verification, or payment details.';
+  }
+
+  @override
+  String get linkPreviewRememberDomain =>
+      'Do not ask again for this domain during this session';
+
+  @override
+  String get linkPreviewContinue => 'Continue';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => 'Campus network';
+
+  @override
+  String get linkPreviewCampusFallbackDescription =>
+      'Requires campus network access';
 }

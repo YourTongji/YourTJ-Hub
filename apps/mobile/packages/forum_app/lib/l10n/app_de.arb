@@ -791,5 +791,12 @@
   },
   "loginTongji": "Mit Tongji-SSO anmelden",
   "loginTongjiHint": "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
-  "loginTongjiPolicies": "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:"
+  "loginTongjiPolicies": "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:",
+  "linkPreviewExternalTitle": "YourTJ verlassen",
+  "linkPreviewExternalBody": "Du wechselst zu {domain}. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.",
+  "@linkPreviewExternalBody": {"placeholders": {"domain": {"type": "String"}}},
+  "linkPreviewRememberDomain": "Für diese Domain in dieser Sitzung nicht erneut fragen",
+  "linkPreviewContinue": "Weiter",
+  "linkPreviewCampusFallbackTitle": "Campusnetz",
+  "linkPreviewCampusFallbackDescription": "Zugriff nur aus dem Campusnetz"
 }

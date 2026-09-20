@@ -2298,4 +2298,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginTongjiPolicies => '続行すると、公開されている規約に同意したものとみなされます：';
+
+  @override
+  String get linkPreviewExternalTitle => 'YourTJ を離れます';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return '$domain に移動します。アカウント情報、認証コード、支払い情報を入力する前に URL を確認してください。';
+  }
+
+  @override
+  String get linkPreviewRememberDomain => 'このセッション中は、このドメインについて確認しない';
+
+  @override
+  String get linkPreviewContinue => '続ける';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => '学内ネットワーク';
+
+  @override
+  String get linkPreviewCampusFallbackDescription => '学内ネットワークからのみアクセスできます';
 }

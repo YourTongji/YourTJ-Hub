@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-28
+> Last verified: 2026-09-20
 
 ## Contract status
 
@@ -21,7 +21,7 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
   bindings/unbind, and the user content lifecycle (my-content, deleted-content, restore,
   batch-delete, purge, content-event, account-close);
-- forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
+- forum: topic write, post CRUD/window/revisions, topic status/delete, link-preview resolution, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);
 - independent status: `apps/status/api/openapi.yaml` owns the Netlify `/api/status` response;
@@ -225,6 +225,10 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
   this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
   exercise their runtime deserialization where the mobile client consumes a controlled operation.
+- **Link-preview fixtures are cross-client policy inputs**: `link-preview-markdown-candidates.json`
+  is consumed directly by Web and Flutter tests, while the resolver response fixture pins the
+  `/api/link-previews/resolve` envelope. The operation accepts at most five URLs; clients render at most
+  five standalone-paragraph previews and keep the raw Markdown as the only editable source.
 - **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
   dumps every route `RegisterByGin` registers under the default config into
   `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —

@@ -43,6 +43,7 @@ dependencies:
   webview_flutter_android: ^4.14.1
   file_selector: ^1.1.0
   path_provider: ^2.1.6
+  tldts: 0.0.1-beta
 dev_dependencies:
   shared_preferences_platform_interface: ^2.4.2
   path_provider_platform_interface: ^2.1.2
