@@ -561,7 +561,7 @@ export default {
     tongjiLogin: "同济统一认证登录",
     tongjiSignupHint: "首次登录将创建账号并连接校园，自动绑定“学号{'@'}tongji.edu.cn”，无需另行激活。",
     tongjiUnavailable: "同济登录暂不可用，请使用其他方式登录。",
-    tongjiAccountExists: "该学号邮箱已被账号使用或正在换绑。请先登录已有账号，再到校园页绑定同济身份。",
+    tongjiAccountExists: "该同济身份曾绑定过账号，或学号邮箱已被使用或正在换绑。请先登录或找回已有账号，再到校园页重新绑定。",
     tongjiSignupDisabled: "当前不接受通过同济认证注册，请联系管理员或登录已有账号。",
     tongjiAccountUnavailable: "该账号当前无法登录，请联系管理员。",
     tongjiFailed: "同济认证未完成或已过期，请重新尝试。",

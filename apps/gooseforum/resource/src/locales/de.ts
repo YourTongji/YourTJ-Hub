@@ -560,7 +560,7 @@ export default {
     tongjiLogin: "Mit Tongji-SSO anmelden",
     tongjiSignupHint: "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer{'@'}tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
     tongjiUnavailable: "Die Tongji-Anmeldung ist nicht verfügbar. Bitte nutzen Sie eine andere Anmeldemethode.",
-    tongjiAccountExists: "Diese Hochschuladresse ist bereits belegt oder für einen E-Mail-Wechsel reserviert. Melden Sie sich beim bestehenden Konto an und verknüpfen Sie Ihre Tongji-Identität auf der Campus-Seite.",
+    tongjiAccountExists: "Diese Tongji-Identität war bereits verknüpft oder die Hochschuladresse ist belegt bzw. reserviert. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.",
     tongjiSignupDisabled: "Eine Registrierung über Tongji ist derzeit nicht möglich. Wenden Sie sich an die Administration oder melden Sie sich bei einem bestehenden Konto an.",
     tongjiAccountUnavailable: "Dieses Konto kann sich derzeit nicht anmelden. Bitte wenden Sie sich an die Administration.",
     tongjiFailed: "Die Tongji-Authentifizierung wurde nicht abgeschlossen oder ist abgelaufen. Bitte versuchen Sie es erneut.",

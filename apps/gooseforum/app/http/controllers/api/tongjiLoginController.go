@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
@@ -79,7 +80,7 @@ func TongjiLoginCallback(c *gin.Context) {
 	if err != nil {
 		reason := "failed"
 		switch {
-		case errors.Is(err, users.ErrEmailOccupied):
+		case errors.Is(err, users.ErrEmailOccupied), errors.Is(err, campus.ErrIdentityUsed):
 			reason = "accountExists"
 		case errors.Is(err, campusservice.ErrSignupDisabled), errors.Is(err, users.ErrSignupQuota):
 			reason = "signupDisabled"

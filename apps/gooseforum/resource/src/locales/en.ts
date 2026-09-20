@@ -561,7 +561,7 @@ export default {
     tongjiLogin: "Continue with Tongji SSO",
     tongjiSignupHint: "First sign-in creates an account and campus connection, with student-ID{'@'}tongji.edu.cn assigned automatically. No email activation is required.",
     tongjiUnavailable: "Tongji sign-in is unavailable. Please use another sign-in method.",
-    tongjiAccountExists: "This student email is already used or reserved for an email change. Sign in to the existing account, then link your Tongji identity on the Campus page.",
+    tongjiAccountExists: "This Tongji identity was previously linked, or its student email is already used or reserved. Sign in to or recover your existing account, then link the identity on the Campus page.",
     tongjiSignupDisabled: "Tongji registration is currently unavailable. Contact an administrator or sign in to an existing account.",
     tongjiAccountUnavailable: "This account cannot sign in. Please contact an administrator.",
     tongjiFailed: "Tongji authentication was not completed or has expired. Please try again.",

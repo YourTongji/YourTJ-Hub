@@ -110,6 +110,9 @@ func (s *Service) loginAccount(ctx context.Context, credentials Credentials, loc
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		if err := store.ReserveSignup(key); err != nil {
+			return err
+		}
 		if !policy.EnableSignup {
 			return ErrSignupDisabled
 		}

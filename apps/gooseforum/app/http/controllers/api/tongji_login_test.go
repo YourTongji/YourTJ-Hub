@@ -46,10 +46,11 @@ func setupTongjiLogin(t *testing.T) (*gin.Engine, *loginSchoolProvider) {
 	setupOIDCProviderTestDB(t)
 	setupOAuthCallbackTestDB(t)
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&campus.Binding{}, &pointsRecord.Entity{}, &userPoints.Entity{}, &userStatistics.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&campus.Binding{}, &campus.IdentityReservation{}, &pointsRecord.Entity{}, &userPoints.Entity{}, &userStatistics.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	conn.Where("1=1").Delete(&campus.Binding{})
+	conn.Where("1=1").Delete(&campus.IdentityReservation{})
 	conn.Unscoped().Where("email = ?", "2356789@tongji.edu.cn").Delete(&users.EntityComplete{})
 	setSecurityConfigForCallbackTest(t, pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1, EnableEmailVerification: true, AllowedDomains: []string{"tongji.edu.cn"}})
 	p := &loginSchoolProvider{}
@@ -173,5 +174,41 @@ func TestTongjiLoginResumesMobileOIDCAndExchangesForumSession(t *testing.T) {
 	replay, _ := postOidcExchange(t, string(body))
 	if replay.Code == 200 {
 		t.Fatal("OIDC code reused")
+	}
+}
+
+func TestTongjiLoginPreviouslyBoundIdentityUsesRecoveryNotice(t *testing.T) {
+	router, _ := setupTongjiLogin(t)
+	service, err := tongjiLoginService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, browser, err := service.StartLogin("/", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address, _ := url.Parse(start)
+	result, err := service.Login(context.Background(), browser, address.Query().Get("state"), "code", pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := db.Connect()
+	if err := conn.Model(result.User).Update("email", "changed@example.test").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := (campus.Store{DB: conn}).DeleteForUser(result.User.Id); err != nil {
+		t.Fatal(err)
+	}
+	start, browser, err = service.StartLogin("/campus", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address, _ = url.Parse(start)
+	req := httptest.NewRequest(http.MethodGet, "/api/campus/tongji/callback?code=code&state="+url.QueryEscape(address.Query().Get("state")), nil)
+	req.AddCookie(&http.Cookie{Name: tongjiLoginCookie, Value: browser})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/login?tongjiNotice=accountExists&redirect=%2Fcampus" || hasAccessTokenCookie(rec) {
+		t.Fatalf("unexpected recovery response: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 }

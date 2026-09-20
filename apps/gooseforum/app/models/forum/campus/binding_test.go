@@ -29,7 +29,7 @@ func TestReplacementTimestampOnPostgreSQL(t *testing.T) {
 	})
 	tx := db.Begin()
 	defer tx.Rollback()
-	if err := tx.AutoMigrate(&Binding{}); err != nil {
+	if err := tx.AutoMigrate(&Binding{}, &IdentityReservation{}); err != nil {
 		t.Fatal(err)
 	}
 	store := Store{DB: tx}

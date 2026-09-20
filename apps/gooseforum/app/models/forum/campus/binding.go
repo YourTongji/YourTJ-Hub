@@ -37,6 +37,15 @@ func (s Store) Get(id uint64) (Binding, error) {
 // the current identity binding and survives same-identity reauthorization. The old
 // identity is not released until this statement commits.
 func (s Store) Replace(b Binding, previous string) error {
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&IdentityReservation{IdentityKey: b.IdentityKey}).Error; err != nil {
+			return err
+		}
+		return (Store{DB: tx}).replace(b, previous)
+	})
+}
+
+func (s Store) replace(b Binding, previous string) error {
 	if previous == "" {
 		return s.DB.Create(&b).Error
 	}

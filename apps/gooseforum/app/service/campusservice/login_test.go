@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
@@ -155,6 +156,9 @@ func TestSchoolLoginRejectsEmailClaimsAndRollsBackAccount(t *testing.T) {
 			if count != before {
 				t.Fatal("orphan account created")
 			}
+			if err := s.store.DB.Model(&campus.IdentityReservation{}).Count(&count).Error; err != nil || count != 0 {
+				t.Fatalf("failed registration retained identity reservation: count=%d err=%v", count, err)
+			}
 		})
 	}
 }
@@ -229,5 +233,106 @@ func TestSchoolLoginPurposesAndCancelledAuthorization(t *testing.T) {
 	}
 	if _, err := s.Login(context.Background(), browser, state, "code", policy); !errors.Is(err, ErrFlow) {
 		t.Fatal("cancelled authorization replayed")
+	}
+}
+
+func TestSchoolLoginCannotProvisionAgainAfterIdentityReleased(t *testing.T) {
+	for _, release := range []string{"unbind", "replace", "close", "existingAccount"} {
+		t.Run(release, func(t *testing.T) {
+			s, p, policy := loginSetup(t)
+			originalID := p.id
+			var user *users.EntityComplete
+			if release == "existingAccount" {
+				user = &users.EntityComplete{Username: "existing", Email: "existing@example.test"}
+				if err := s.store.DB.Create(user).Error; err != nil {
+					t.Fatal(err)
+				}
+				bind(t, s, user.Id)
+			} else {
+				result, err := signIn(t, s, policy)
+				if err != nil {
+					t.Fatal(err)
+				}
+				user = result.User
+				if err := s.store.DB.Model(user).Update("email", "changed@example.test").Error; err != nil {
+					t.Fatal(err)
+				}
+			}
+			b, err := s.store.Get(user.Id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch release {
+			case "replace":
+				p.id = "2355678"
+				prepare(t, s, user.Id, "replace")
+				if err := s.Confirm(user.Id, "session"); err != nil {
+					t.Fatal(err)
+				}
+			case "close":
+				if err := s.store.DeleteForUser(user.Id); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.store.DB.Delete(user).Error; err != nil {
+					t.Fatal(err)
+				}
+			default:
+				if err := s.Unbind(context.Background(), user.Id, b.Revision); err != nil {
+					t.Fatal(err)
+				}
+			}
+			p.id = originalID
+			// A process restart must not restore first-time registration eligibility.
+			restarted := New(s.config, s.store, p)
+			if result, err := signIn(t, restarted, policy); !errors.Is(err, campus.ErrIdentityUsed) || result.User != nil {
+				t.Fatal("released identity provisioned a second account")
+			}
+			var count int64
+			if err := s.store.DB.Unscoped().Model(&users.EntityComplete{}).Count(&count).Error; err != nil || count != 1 {
+				t.Fatalf("accounts=%d error=%v", count, err)
+			}
+			// Explicit transfer to another existing account remains available.
+			other := &users.EntityComplete{Username: "other", Email: "other@example.test"}
+			if err := s.store.DB.Create(other).Error; err != nil {
+				t.Fatal(err)
+			}
+			bind(t, restarted, other.Id)
+			result, err := signIn(t, restarted, policy)
+			if err != nil || result.Created || result.User.Id != other.Id {
+				t.Fatalf("explicit rebinding failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestSchoolLoginClosedAccountStillConsumesDailyQuota(t *testing.T) {
+	s, p, policy := loginSetup(t)
+	original, err := signIn(t, s, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.store.DB.Delete(original.User).Error; err != nil {
+		t.Fatal(err)
+	}
+	p.id = "2359876"
+	policy.MaxDailySignups = 1
+	if _, err := signIn(t, s, policy); !errors.Is(err, users.ErrSignupQuota) {
+		t.Fatalf("closed account released daily quota: %v", err)
+	}
+}
+
+func TestSchoolIdentityFailedReplacementDoesNotReserveNewIdentity(t *testing.T) {
+	s, _, policy := loginSetup(t)
+	original, err := signIn(t, s, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := fingerprint(s.config.IdentityKey, "2359876")
+	if err := s.store.Replace(campus.Binding{UserID: original.User.Id, IdentityKey: key, Revision: "new", Sealed: "unused"}, "stale"); !errors.Is(err, campus.ErrChanged) {
+		t.Fatalf("stale replacement: %v", err)
+	}
+	var count int64
+	if err := s.store.DB.Model(&campus.IdentityReservation{}).Where("identity_key = ?", key).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("failed replacement retained reservation: %d %v", count, err)
 	}
 }

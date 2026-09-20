@@ -14,7 +14,7 @@ func TestAccountClosureRevokesReadableCredentialsAfterAccountClosure(t *testing.
 		t.Run(scenario, func(t *testing.T) {
 			s, p := setup(t)
 			db := dbconnect.Connect()
-			if err := db.AutoMigrate(&campus.Binding{}); err != nil {
+			if err := db.AutoMigrate(&campus.Binding{}, &campus.IdentityReservation{}); err != nil {
 				t.Fatal(err)
 			}
 			s.store = campus.Store{DB: db}
@@ -66,7 +66,7 @@ func TestAccountClosureRevokesReadableCredentialsAfterAccountClosure(t *testing.
 func TestAccountClosureFailureKeepsCampusCredentials(t *testing.T) {
 	s, p := setup(t)
 	db := dbconnect.Connect()
-	if err := db.AutoMigrate(&campus.Binding{}); err != nil {
+	if err := db.AutoMigrate(&campus.Binding{}, &campus.IdentityReservation{}); err != nil {
 		t.Fatal(err)
 	}
 	s.store = campus.Store{DB: db}

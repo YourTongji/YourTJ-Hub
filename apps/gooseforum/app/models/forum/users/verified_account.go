@@ -24,16 +24,32 @@ func CreateVerifiedAccountTx(tx *gorm.DB, user *EntityComplete, maxDaily int) er
 	if err := CheckEmailClaimTx(tx, user.Email, 0); err != nil {
 		return err
 	}
+	if err := CheckSignupQuotaTx(tx, maxDaily); err != nil {
+		return err
+	}
+	return tx.Create(user).Error
+}
+
+// CheckSignupQuotaTx serializes all self-service registration paths until their
+// account transaction commits. SQLite serializes writers; a stale read cannot
+// commit an over-quota insert. Closed accounts still consume today's allowance.
+func CheckSignupQuotaTx(tx *gorm.DB, maxDaily int) error {
 	if maxDaily >= 0 {
-		now := time.Now()
+		if tx.Name() == "postgres" {
+			// Global, transaction-scoped lock; distinct email claims share it.
+			if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", int64(0x79746a7369676e)).Error; err != nil {
+				return err
+			}
+		}
+		now := tx.NowFunc()
 		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		var count int64
-		if err := tx.Model(&EntityComplete{}).Where("created_at >= ?", start).Count(&count).Error; err != nil {
+		if err := tx.Unscoped().Model(&EntityComplete{}).Where("created_at >= ?", start).Count(&count).Error; err != nil {
 			return err
 		}
 		if count >= int64(maxDaily) {
 			return ErrSignupQuota
 		}
 	}
-	return tx.Create(user).Error
+	return nil
 }

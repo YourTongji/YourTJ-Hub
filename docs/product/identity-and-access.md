@@ -49,14 +49,19 @@ ten minutes; campus binding-purpose state remains tied to the original forum ses
 The original safe local destination is retained server-side, including the mobile OIDC bridge.
 
 An existing campus binding signs into its available human account and renews encrypted campus
-credentials without changing its email, activation, password or roles. Otherwise the server atomically
+credentials without changing its email, activation, password or roles. Only an identity that has never
+been bound can register automatically; otherwise recover/sign into an existing account and bind
+explicitly. For a first-time identity the server atomically
 creates an ordinary activated user with `student-ID@tongji.edu.cn`, random public username/nickname,
 no local password and a unique campus binding. Email activation is unnecessary for this school-verified
-registration; signup/domain/daily-limit policy still applies. A current or freshly staged email claim
+registration; signup/domain/daily-limit policy still applies. Password and school self-registration
+share a transaction-scoped daily-quota lock; closed accounts still count for their creation day. A current or freshly staged email claim
 never auto-links an existing account: recover/sign into that account and bind from Campus instead.
 First-user administrator provisioning is not available through this flow. Unlinking releases the
 school sign-in identity; the existing email and activation remain, and email password recovery can
-establish a password. Closing an account keeps the ordinary retained-email reservation.
+establish a password. Closing an account keeps the ordinary retained-email reservation. A separate, permanent HMAC-only
+identity reservation survives unlink, replacement and closure to prevent repeat signup and initial-point
+claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
 See [the decision](../decisions/0032-tongji-login-and-registration.md).
 
 ### Built-in OIDC Provider (first-party clients)
