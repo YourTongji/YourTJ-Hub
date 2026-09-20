@@ -72,7 +72,7 @@ const displayName = computed(() => data.value.profile?.metrics.find(m => m.label
 let clockTimer: ReturnType<typeof setInterval> | undefined
 let controller = new AbortController()
 let generation = 0
-const pendingKeys = new Set<CampusDatasetKey>()
+const pendingKeys = new Map<CampusDatasetKey, AbortController>()
 const tabs = computed(() => [{ key: 'overview', label: t('campus.overview') }, { key: 'timetable', label: t('campus.timetable') }, { key: 'grades', label: t('campus.grades') }, { key: 'cet', label: t('campus.cet') }, { key: 'messages', label: t('campus.messages') }, { key: 'terms', label: t('campus.terms') }, { key: 'services', label: t('campus.services') }])
 const keys: CampusDatasetKey[] = ['profile', 'calendar', 'today', 'timetable', 'grades', 'summary', 'cet', 'terms', 'messages', 'sports', 'health', 'arrangements']
 const names = computed<Record<CampusDatasetKey, string>>(() => ({ today: t('campus.todayTimetable'), profile: t('campus.dataProfile'), calendar: t('campus.dataCalendar'), timetable: t('campus.dataTimetable'), grades: t('campus.dataGrades'), summary: t('campus.dataSummary'), cet: t('campus.dataCet'), terms: t('campus.dataTerms'), messages: t('campus.dataMessages'), sports: t('campus.dataSports'), health: t('campus.dataHealth'), arrangements: t('campus.dataArrangements') }))
@@ -160,6 +160,7 @@ function resetData() {
   generation++
   closeMessage()
   loading.value = false
+  for (const request of pendingKeys.values()) request.abort()
   pendingKeys.clear()
   controller.abort()
   controller = new AbortController()
@@ -185,21 +186,23 @@ async function loadData(targets = activeKeys(), force = false) {
   if (!requested.length) return
   const epoch = generation
   if (requested.includes('today')) delete data.value.today
-  requested.forEach(key => pendingKeys.add(key))
   loading.value = true
   await Promise.all(requested.map(async key => {
+    const request = new AbortController()
+    pendingKeys.set(key, request)
+    const isCurrent = () => epoch === generation && pendingKeys.get(key) === request && !request.signal.aborted
     try {
-      const value = await campusAPI.dataset(key, controller.signal)
-      if (epoch !== generation) return
+      const value = await campusAPI.dataset(key, request.signal)
+      if (!isCurrent()) return
       data.value[key] = value
       delete failures.value[key]
       if (key === 'calendar' && currentWeek.value !== null) week.value = currentWeek.value
     } catch (e) {
-      if (epoch !== generation || controller.signal.aborted) return
+      if (!isCurrent()) return
       failures.value[key] = e instanceof Error ? e.message : t('campus.loadFailed')
       if (e instanceof CampusError && e.code === 'campus.authorizationRequired' && status.value?.binding) status.value.binding.needsAuthorization = true
     } finally {
-      if (epoch === generation) { pendingKeys.delete(key); loading.value = pendingKeys.size > 0 }
+      if (isCurrent()) { pendingKeys.delete(key); loading.value = pendingKeys.size > 0 }
     }
   }))
 }
@@ -281,8 +284,15 @@ onMounted(async () => {
     const previous = clock.value.date
     now.value = new Date()
     if (previous !== clock.value.date) {
-      delete data.value.today
-      delete data.value.calendar
+      // Replace both reads even when they are still in flight. Each completion
+      // checks its request identity so an old finally cannot clear a new load.
+      for (const key of ['today', 'calendar'] as const) {
+        pendingKeys.get(key)?.abort()
+        pendingKeys.delete(key)
+        delete data.value[key]
+        delete failures.value[key]
+      }
+      loading.value = pendingKeys.size > 0
       if (tab.value === 'overview') void loadData(['calendar', 'today'], true)
       else if (activeKeys().includes('calendar')) void loadData(['calendar'], true)
     }
