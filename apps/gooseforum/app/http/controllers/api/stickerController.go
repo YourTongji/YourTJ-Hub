@@ -40,7 +40,11 @@ func stickerAdminItems(entities []sticker.Entity) []StickerAdminItem {
 
 // StickerList returns every sticker row for the admin console.
 func StickerList(req component.BetterRequest[component.Null]) component.Response {
-	return component.SuccessResponse(stickerAdminItems(sticker.All()))
+	entities, err := sticker.All()
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(stickerAdminItems(entities))
 }
 
 // PublicStickerList returns enabled stickers with public access paths; the

@@ -102,3 +102,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0029](0029-two-phase-email-change.md) — 换绑邮箱两阶段切换：确认后原子切换，旧邮箱在切换前保持占用。
 
 - [0030](0030-global-sticker-library.md) — 管理员维护全局表情包库，正文 token 动态展开并复用附件存储生命周期。
+
+- [0031](0031-campus-official-identity.md) — 私密校园连接、双向唯一身份与服务器凭据生命周期
+
+- [0032](0032-tongji-login-and-registration.md) — 同济统一认证登录，原子创建已激活账号并复用校园绑定。

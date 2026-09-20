@@ -10,6 +10,9 @@ abstract class LoginPageProps with _$LoginPageProps {
     required String redirectUrl,
     required String githubUrl,
     required bool googleReady,
+    @Default(false) bool tongjiReady,
+    @Default('') String tongjiUrl,
+    @Default('') String tongjiNotice,
     @Default(false) bool termsOfServiceEnabled,
     @Default(false) bool privacyPolicyEnabled,
     @Default(<String>[]) List<String> allowedDomains,
@@ -154,4 +157,10 @@ abstract class SuccessMessagePayload with _$SuccessMessagePayload {
 }
 
 /// Query mirror for GET /api/auth/mobile-web-session (fixed server targets).
-enum MobileWebTarget { admin, moderation, courseManagement, courseReviews }
+enum MobileWebTarget {
+  admin,
+  moderation,
+  courseManagement,
+  courseReviews,
+  campus,
+}

@@ -1108,6 +1108,9 @@ function updateComposerOpen(open: boolean) {
 }
 
 function openFloatingPostComposer() {
+  // issue #707：深链/浮层入口与回复按钮同门槛（!isAuthenticated || canPost）；
+  // 访客放行，交给 PostComposer 内置登录门引导。
+  if (props.viewer.isAuthenticated && !props.canPost) return
   if (editingPostId.value) {
     cancelEditPost()
   }
@@ -1187,8 +1190,14 @@ async function revealCreatedPost(postId: number) {
     anchorPostId: postId,
     limit: 20,
   })
-  applyPostWindowPayload(payload, 'replace')
   const createdPost = payload.posts.find((post) => post.id === postId)
+  // Keep already loaded pages when the new reply is adjacent to the current window.
+  // A distant/invalid anchor still replaces the window so navigation remains correct.
+  const loadedLastPostNo = lastPostNo(posts.value)
+  const mergeMode = createdPost?.postNo && loadedLastPostNo > 0 && createdPost.postNo <= loadedLastPostNo + 20
+    ? 'append'
+    : 'replace'
+  applyPostWindowPayload(payload, mergeMode)
   if (createdPost?.postNo) {
     navigationTargetPostNo.value = createdPost.postNo
     activePostNo.value = createdPost.postNo

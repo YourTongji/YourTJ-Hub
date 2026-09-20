@@ -67,6 +67,26 @@ inputs:
     description: Optional production push configuration JPUSH_MASTER_SECRET
     required: false
     default: ""
+  campus-client-id:
+    description: Optional private campus configuration CAMPUS_CLIENT_ID
+    required: false
+    default: ""
+  campus-client-secret:
+    description: Optional private campus configuration CAMPUS_CLIENT_SECRET
+    required: false
+    default: ""
+  campus-redirect-uri:
+    description: Optional private campus configuration CAMPUS_REDIRECT_URI
+    required: false
+    default: ""
+  campus-encryption-key:
+    description: Optional private campus configuration CAMPUS_ENCRYPTION_KEY
+    required: false
+    default: ""
+  campus-identity-key:
+    description: Optional private campus configuration CAMPUS_IDENTITY_KEY
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -75,6 +95,11 @@ runs:
       shell: bash
       env:
         RENDER_ENV: ${{ inputs.env }}
+        CAMPUS_CLIENT_ID: ${{ inputs.campus-client-id }}
+        CAMPUS_CLIENT_SECRET: ${{ inputs.campus-client-secret }}
+        CAMPUS_REDIRECT_URI: ${{ inputs.campus-redirect-uri }}
+        CAMPUS_ENCRYPTION_KEY: ${{ inputs.campus-encryption-key }}
+        CAMPUS_IDENTITY_KEY: ${{ inputs.campus-identity-key }}
         SIGNING_KEY: ${{ inputs.signing-key }}
         PG_DSN: ${{ inputs.pg-dsn }}
         MEILI_MASTER_KEY: ${{ inputs.meili-master-key }}

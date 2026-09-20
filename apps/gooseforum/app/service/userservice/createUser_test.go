@@ -106,3 +106,16 @@ func TestGenerateName(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateUserWithQuotaRejectsWithoutInitializingPoints(t *testing.T) {
+	setupCreateUserTestDB(t)
+	if user, err := CreateUserWithQuota("quota-user", "password", "quota@example.test", true, 0); !errors.Is(err, users.ErrSignupQuota) || user != nil {
+		t.Fatalf("quota denial: user=%v error=%v", user, err)
+	}
+	for _, model := range []any{&userPoints.Entity{}, &pointsRecord.Entity{}, &userStatistics.Entity{}} {
+		var count int64
+		if err := db.Connect().Model(model).Count(&count).Error; err != nil || count != 0 {
+			t.Fatalf("%T rows=%d error=%v", model, count, err)
+		}
+	}
+}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -122,14 +123,16 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 		// 邮箱不是验证通道：保留即时切换 + 重置激活的旧语义。
 		oldEmail := userEntity.Email
 		now := time.Now()
+		if err = users.UpdateEmailVerificationDisabled(userEntity.Id, newEmail, now); err != nil {
+			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+		}
+		// 定向更新绕过了 SaveUser 的缓存刷新：手动失效，避免中间件 2 分钟读到旧邮箱/激活态。
+		userservice.InvalidateUserInfoCache(userEntity.Id)
 		userEntity.Email = newEmail
 		userEntity.ClearPendingEmail()
 		userEntity.IsActivated = users.ActivationPending
 		userEntity.ActivatedAt = nil
 		userEntity.EmailChangedAt = &now
-		if err = userservice.SaveUser(&userEntity); err != nil {
-			return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
-		}
 		if err = emailactivationservice.SendActivationEmail(&userEntity); err != nil {
 			slog.Info("验证邮件发送失败", "error", err)
 		}
@@ -247,8 +250,7 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 	if users.ExistUsername(newUsername) {
 		return component.FailResponseCode(component.MessageAuthUsernameExists, nil)
 	}
-	userEntity.Username = newUsername
-	err = userservice.SaveUser(&userEntity)
+	err = userservice.UpdateUserFields(userEntity.Id, map[string]any{"username": newUsername})
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
@@ -309,8 +311,20 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 		userEntity.Locale = i18n.Normalize(req.Params.Locale)
 	}
 	userEntity.ExternalInformation = req.Params.ExternalInformation
+	externalInformationJSON, err := json.Marshal(userEntity.ExternalInformation)
+	if err != nil {
+		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
+	}
 
-	err = userservice.SaveUser(&userEntity)
+	err = userservice.UpdateUserFields(userEntity.Id, map[string]any{
+		"nickname":             userEntity.Nickname,
+		"bio":                  userEntity.Bio,
+		"signature":            userEntity.Signature,
+		"website":              userEntity.Website,
+		"website_name":         userEntity.WebsiteName,
+		"locale":               userEntity.Locale,
+		"external_information": string(externalInformationJSON),
+	})
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
@@ -330,7 +344,7 @@ func EditUserProfileCover(req component.BetterRequest[EditUserProfileCoverReq]) 
 	}
 
 	userEntity.ProfileCoverUrl = strings.TrimSpace(req.Params.ProfileCoverUrl)
-	err = userservice.SaveUser(&userEntity)
+	err = userservice.UpdateUserFields(userEntity.Id, map[string]any{"profile_cover_url": userEntity.ProfileCoverUrl})
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
@@ -354,7 +368,7 @@ func SetPresetAvatar(req component.BetterRequest[SetPresetAvatarReq]) component.
 	}
 
 	userEntity.AvatarUrl = avatarUrl
-	if err := userservice.SaveUser(&userEntity); err != nil {
+	if err := userservice.UpdateUserFields(userEntity.Id, map[string]any{"avatar_url": avatarUrl}); err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 	return component.SuccessResponse(map[string]string{
@@ -491,7 +505,7 @@ func UploadAvatar(c *gin.Context) {
 	}
 
 	userEntity.AvatarUrl = fileEntities[0].Name
-	if err := userservice.SaveUser(&userEntity); err != nil {
+	if err := userservice.UpdateUserFields(userEntity.Id, map[string]any{"avatar_url": userEntity.AvatarUrl}); err != nil {
 		c.JSON(200, component.FailDataCode(component.MessageUserUpdateFailed, nil))
 		return
 	}

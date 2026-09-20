@@ -39,7 +39,7 @@
     {
       "method": "GET",
       "path": "/api/auth/:provider",
-      "reason": "goth 浏览器 302 重定向流程（HTML/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进"
+      "reason": "浏览器重定向入口：GitHub/Google 使用 goth；tongji 使用校园授权配置和 /api/campus/tongji/callback，在服务端保留登录用途及安全续跳，不返回 JSON。"
     },
     {
       "method": "GET",
@@ -265,6 +265,11 @@
       "method": "POST",
       "path": "/file/img-upload",
       "reason": "multipart 文件上传端点，不纳入 JSON API 契约"
+    },
+    {
+      "method": "GET",
+      "path": "/campus",
+      "reason": "SSR campus shell; private data uses controlled /api/campus operations"
     }
   ],
   "knownUncovered": []

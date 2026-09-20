@@ -13,6 +13,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
 import '../../images/image_upload.dart';
+import '../../images/image_save.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
@@ -210,6 +211,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         _watched = props.topic.isWatched;
         _likeCount = props.topic.likeCount;
       });
+      _recordReturnState();
     } catch (e, st) {
       // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
       if (!mounted ||
@@ -430,6 +432,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     final topic = _page.value?.topic;
     if (topic == null) return;
     final bool target = !_liked;
+    final epoch = ref.read(offlineCacheEpochProvider);
     setState(() {
       _liked = target;
       _likeCount += target ? 1 : -1;
@@ -438,7 +441,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       await ref
           .read(topicRepositoryProvider)
           .likeTopic(topicId: topic.id, action: target ? 1 : 2);
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      _recordReturnState();
     } catch (_) {
       // 回滚。
       setState(() {
@@ -452,15 +456,32 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     final topic = _page.value?.topic;
     if (topic == null) return;
     final bool target = !_bookmarked;
+    final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _bookmarked = target);
     try {
       await ref
           .read(topicRepositoryProvider)
           .bookmarkTopic(topicId: topic.id, action: target ? 1 : 2);
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      _recordReturnState();
     } catch (_) {
       setState(() => _bookmarked = !target);
     }
+  }
+
+  /// 记录返回列表时可原位合并的话题最新状态;只来自服务器响应与成功动作,
+  /// 失败回滚与离线缓存回退不写入。
+  void _recordReturnState() {
+    final TopicDetailPayload? topic = _page.valueOrNull?.topic;
+    if (topic == null) return;
+    ref.read(topicReturnStatesProvider)[topic.id] = (
+      unseen: false,
+      liked: _liked,
+      bookmarked: _bookmarked,
+      likeCount: _likeCount,
+      replyCount: topic.replyCount,
+      viewCount: topic.viewCount,
+    );
   }
 
   Future<void> _toggleWatch() async {
@@ -1400,6 +1421,10 @@ class _TopicHeader extends StatelessWidget {
             const SizedBox(height: 16),
             GfMediaCarousel(
               images: topic.images!.map(resolveApiAssetUrl).toList(),
+              onSaveImage: (String url) => saveImageFromUrl(context, url),
+              saveImageLabel: l10n.imageSave,
+              onShareImage: (String url) => shareImageFromUrl(context, url),
+              shareImageLabel: l10n.topicShare,
             ),
           ],
           if (!available) ...<Widget>[

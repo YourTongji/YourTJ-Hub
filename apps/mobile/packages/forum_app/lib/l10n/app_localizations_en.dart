@@ -9,6 +9,9 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get campusCourseReviews => 'Course reviews';
+
+  @override
   String get myCourseReviewsTitle => 'My course reviews';
 
   @override
@@ -60,6 +63,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonSave => 'Save';
+
+  @override
+  String get imageSave => 'Save image';
+
+  @override
+  String get imageSaved => 'Image saved';
+
+  @override
+  String get imageSaveFailed => 'Couldn’t save the image. Try again later.';
+
+  @override
+  String get announcementLabel => 'Announcement';
+
+  @override
+  String get announcementCollapse => 'Collapse announcement';
+
+  @override
+  String get announcementCollapseAction => 'Collapse';
+
+  @override
+  String get announcementExpand => 'Expand announcement';
+
+  @override
+  String announcementItem(int index) {
+    return 'Announcement $index';
+  }
 
   @override
   String get commonLoading => 'Loading…';
@@ -1196,7 +1225,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navCampus => 'Campus';
 
   @override
-  String get campusTitle => 'Your campus, connected';
+  String get campusTitle => 'My campus';
 
   @override
   String get campusSubtitle =>
@@ -2130,4 +2159,208 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsEmailPending(String email) {
     return 'Awaiting confirmation: $email';
   }
+
+  @override
+  String get campusOfficialTitle => 'My campus · official identity';
+
+  @override
+  String get campusOfficialSubtitle =>
+      'Connect Tongji for your timetable, grades and campus notices';
+
+  @override
+  String get campusToday => 'Today';
+
+  @override
+  String get campusTimetable => 'My timetable';
+
+  @override
+  String get campusAcademics => 'Academic records';
+
+  @override
+  String get campusMessages => 'Campus notices';
+
+  @override
+  String get campusCalendars => 'Calendars';
+
+  @override
+  String get campusConnection => 'Connection';
+
+  @override
+  String get campusExplore => 'Explore campus';
+
+  @override
+  String get campusTodayCourses => 'Today’s classes';
+
+  @override
+  String get campusNoClasses => 'No classes today. Enjoy your day.';
+
+  @override
+  String get campusNoNotices => 'No campus notices yet';
+
+  @override
+  String get campusAllNotices => 'All notices';
+
+  @override
+  String get campusBind => 'Connect Tongji identity';
+
+  @override
+  String get campusReauthorize => 'Update school authorization';
+
+  @override
+  String get campusReplace => 'Change linked identity';
+
+  @override
+  String get campusUnbind => 'Unlink identity';
+
+  @override
+  String get campusUnbindBody =>
+      'This removes campus credentials and disables sign-in with this Tongji identity. Your email and forum content remain. Use email password recovery to set a password, or link an identity again.';
+
+  @override
+  String get campusConfirmBinding => 'Confirm connection';
+
+  @override
+  String get campusConfirmUpdate => 'Confirm authorization update';
+
+  @override
+  String get campusConfirmBody =>
+      'Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.';
+
+  @override
+  String get campusPrivacy =>
+      'One account, one official identity. School data is private and is not saved on your device.';
+
+  @override
+  String get campusDisabled => 'Campus connection is not enabled on this site';
+
+  @override
+  String get campusUnavailable =>
+      'School data is temporarily unavailable. Try again later.';
+
+  @override
+  String get campusNoData => 'No records yet';
+
+  @override
+  String get campusAuthRequired =>
+      'School authorization needs updating. Your identity remains linked.';
+
+  @override
+  String get campusIdentityConflict =>
+      'This identity is already linked, or the connection changed. Refresh and retry.';
+
+  @override
+  String get campusAuthExpired =>
+      'This authorization attempt expired. Please start again.';
+
+  @override
+  String get campusMessageUnavailable =>
+      'This notice is unavailable. Refresh the list.';
+
+  @override
+  String get campusMorning => 'Good morning';
+
+  @override
+  String get campusNoon => 'Good afternoon';
+
+  @override
+  String get campusAfternoon => 'Good afternoon';
+
+  @override
+  String get campusEvening => 'Good evening';
+
+  @override
+  String get campusNight => 'Up late?';
+
+  @override
+  String get campusWish1 =>
+      'May your inspiration be more reliable than campus Wi-Fi.';
+
+  @override
+  String get campusWish2 =>
+      'Good luck is on its way. It might be waiting at a red light.';
+
+  @override
+  String get campusWish3 =>
+      'Why was the maths book sad? It had too many problems.';
+
+  @override
+  String get campusWish4 =>
+      'Take your time. Trees don’t grow tall in a day either.';
+
+  @override
+  String get campusAnotherWish => 'Another thought';
+
+  @override
+  String get campusWeekUnknown => 'Teaching week unavailable';
+
+  @override
+  String get campusCreditProgress => 'Credit progress';
+
+  @override
+  String get campusGradeTrend => 'GPA by semester';
+
+  @override
+  String get campusCet => 'CET results';
+
+  @override
+  String get campusCourses => 'Course results';
+
+  @override
+  String get campusSchoolLogin => 'School sign-in';
+
+  @override
+  String get campusUpstreamGaps =>
+      'Sports, health and course changes are not available. This client has no exam permission.';
+
+  @override
+  String get campusExportCalendar => 'Export course calendar';
+
+  @override
+  String get campusExportingCalendar => 'Exporting…';
+
+  @override
+  String get campusExportCalendarHint =>
+      'Export the whole term as an .ics file to save or share with a calendar app. This snapshot does not sync timetable changes. The file contains courses and locations.';
+
+  @override
+  String get campusCalendarIncomplete =>
+      'Term dates, teaching weeks or class times are incomplete. Refresh and try again.';
+
+  @override
+  String get campusCalendarEmpty =>
+      'There are no scheduled classes to export this term.';
+
+  @override
+  String get campusApplyAdjustments => 'Apply holiday adjustments';
+
+  @override
+  String get campusApplyAdjustmentsHint =>
+      'Use administrator-confirmed holidays and makeup dates; otherwise use the original timetable.';
+
+  @override
+  String get campusCalendarRules => 'View published adjustments';
+
+  @override
+  String get campusCalendarRulesHint =>
+      'Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.';
+
+  @override
+  String get campusNoCalendarRules =>
+      'No adjustments are published. The original timetable will be exported.';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return 'Classes from $original move to $actual';
+  }
+
+  @override
+  String get loginTongji => 'Continue with Tongji SSO';
+
+  @override
+  String get loginTongjiHint =>
+      'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.';
+
+  @override
+  String get loginTongjiPolicies =>
+      'By continuing, you agree to the published policies:';
 }

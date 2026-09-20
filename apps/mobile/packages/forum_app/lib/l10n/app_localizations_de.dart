@@ -9,6 +9,9 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get campusCourseReviews => 'Kursbewertungen';
+
+  @override
   String get myCourseReviewsTitle => 'Meine Kursbewertungen';
 
   @override
@@ -60,6 +63,33 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get commonSave => 'Speichern';
+
+  @override
+  String get imageSave => 'Bild speichern';
+
+  @override
+  String get imageSaved => 'Bild gespeichert';
+
+  @override
+  String get imageSaveFailed =>
+      'Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.';
+
+  @override
+  String get announcementLabel => 'Ankündigung';
+
+  @override
+  String get announcementCollapse => 'Ankündigung einklappen';
+
+  @override
+  String get announcementCollapseAction => 'Einklappen';
+
+  @override
+  String get announcementExpand => 'Ankündigung ausklappen';
+
+  @override
+  String announcementItem(int index) {
+    return 'Ankündigung $index';
+  }
 
   @override
   String get commonLoading => 'Wird geladen…';
@@ -1207,7 +1237,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navCampus => 'Campus';
 
   @override
-  String get campusTitle => 'Dein Campus, vernetzt';
+  String get campusTitle => 'Mein Campus';
 
   @override
   String get campusSubtitle =>
@@ -2156,4 +2186,208 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsEmailPending(String email) {
     return 'Bestätigung ausstehend: $email';
   }
+
+  @override
+  String get campusOfficialTitle => 'Mein Campus · offizielle Identität';
+
+  @override
+  String get campusOfficialSubtitle =>
+      'Tongji verbinden: Stundenplan, Noten und Mitteilungen';
+
+  @override
+  String get campusToday => 'Heute';
+
+  @override
+  String get campusTimetable => 'Mein Stundenplan';
+
+  @override
+  String get campusAcademics => 'Studienleistungen';
+
+  @override
+  String get campusMessages => 'Campus-Mitteilungen';
+
+  @override
+  String get campusCalendars => 'Semesterkalender';
+
+  @override
+  String get campusConnection => 'Verbindung';
+
+  @override
+  String get campusExplore => 'Campus entdecken';
+
+  @override
+  String get campusTodayCourses => 'Heutige Kurse';
+
+  @override
+  String get campusNoClasses => 'Heute keine Kurse. Genieße den Tag.';
+
+  @override
+  String get campusNoNotices => 'Noch keine Mitteilungen';
+
+  @override
+  String get campusAllNotices => 'Alle Mitteilungen';
+
+  @override
+  String get campusBind => 'Tongji-Identität verbinden';
+
+  @override
+  String get campusReauthorize => 'Hochschulzugriff erneuern';
+
+  @override
+  String get campusReplace => 'Verknüpfte Identität ändern';
+
+  @override
+  String get campusUnbind => 'Verknüpfung aufheben';
+
+  @override
+  String get campusUnbindBody =>
+      'Dies löscht die Campus-Zugangsdaten und deaktiviert die Anmeldung mit dieser Tongji-Identität. E-Mail und Beiträge bleiben erhalten. Sie können ein Passwort per E-Mail-Wiederherstellung festlegen oder erneut eine Identität verknüpfen.';
+
+  @override
+  String get campusConfirmBinding => 'Verbindung bestätigen';
+
+  @override
+  String get campusConfirmUpdate => 'Erneuerten Zugriff bestätigen';
+
+  @override
+  String get campusConfirmBody =>
+      'Prüfen Sie die Hochschulidentität. Nach der Bestätigung dient sie zur Anmeldung und ersetzt eine zuvor verknüpfte Identität. Die E-Mail-Adresse bleibt unverändert.';
+
+  @override
+  String get campusPrivacy =>
+      'Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.';
+
+  @override
+  String get campusDisabled => 'Die Campus-Verbindung ist hier nicht aktiviert';
+
+  @override
+  String get campusUnavailable =>
+      'Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.';
+
+  @override
+  String get campusNoData => 'Noch keine Einträge';
+
+  @override
+  String get campusAuthRequired =>
+      'Bitte den Hochschulzugriff erneuern. Die Identität bleibt verknüpft.';
+
+  @override
+  String get campusIdentityConflict =>
+      'Diese Identität ist bereits verknüpft oder die Verbindung wurde geändert. Bitte aktualisieren.';
+
+  @override
+  String get campusAuthExpired =>
+      'Dieser Anmeldeversuch ist abgelaufen. Bitte erneut starten.';
+
+  @override
+  String get campusMessageUnavailable =>
+      'Diese Mitteilung ist nicht verfügbar. Bitte die Liste aktualisieren.';
+
+  @override
+  String get campusMorning => 'Guten Morgen';
+
+  @override
+  String get campusNoon => 'Guten Tag';
+
+  @override
+  String get campusAfternoon => 'Guten Nachmittag';
+
+  @override
+  String get campusEvening => 'Guten Abend';
+
+  @override
+  String get campusNight => 'Noch wach?';
+
+  @override
+  String get campusWish1 =>
+      'Möge deine Inspiration stabiler sein als das Campus-WLAN.';
+
+  @override
+  String get campusWish2 =>
+      'Das Glück ist unterwegs. Vielleicht steht es gerade an einer roten Ampel.';
+
+  @override
+  String get campusWish3 =>
+      'Warum war das Mathebuch traurig? Es hatte zu viele Probleme.';
+
+  @override
+  String get campusWish4 =>
+      'Lass dir Zeit. Auch Bäume wachsen nicht an einem Tag.';
+
+  @override
+  String get campusAnotherWish => 'Ein anderer Gedanke';
+
+  @override
+  String get campusWeekUnknown => 'Semesterwoche nicht verfügbar';
+
+  @override
+  String get campusCreditProgress => 'Studienfortschritt';
+
+  @override
+  String get campusGradeTrend => 'Notendurchschnitt je Semester';
+
+  @override
+  String get campusCet => 'CET-Ergebnisse';
+
+  @override
+  String get campusCourses => 'Kursleistungen';
+
+  @override
+  String get campusSchoolLogin => 'Hochschulanmeldung';
+
+  @override
+  String get campusUpstreamGaps =>
+      'Sport-, Gesundheits- und Kursänderungsdaten sind nicht verfügbar. Diese App hat keinen Zugriff auf Prüfungsdaten.';
+
+  @override
+  String get campusExportCalendar => 'Kurskalender exportieren';
+
+  @override
+  String get campusExportingCalendar => 'Wird exportiert…';
+
+  @override
+  String get campusExportCalendarHint =>
+      'Das ganze Semester als .ics-Datei speichern oder mit einer Kalender-App teilen. Änderungen werden nicht automatisch synchronisiert. Die Datei enthält Kurse und Orte.';
+
+  @override
+  String get campusCalendarIncomplete =>
+      'Semestertermine, Unterrichtswochen oder Kurszeiten sind unvollständig. Bitte aktualisieren und erneut versuchen.';
+
+  @override
+  String get campusCalendarEmpty =>
+      'Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden.';
+
+  @override
+  String get campusApplyAdjustments => 'Terminänderungen anwenden';
+
+  @override
+  String get campusApplyAdjustmentsHint =>
+      'Bestätigte Feiertage und Ersatztermine verwenden; sonst gilt der ursprüngliche Stundenplan.';
+
+  @override
+  String get campusCalendarRules => 'Veröffentlichte Änderungen ansehen';
+
+  @override
+  String get campusCalendarRulesHint =>
+      'Änderungen gelten nur für den Kalenderexport. Der Stundenplan zeigt die ursprünglichen Termine. Exporte nutzen die neuesten Regeln.';
+
+  @override
+  String get campusNoCalendarRules =>
+      'Keine Änderungen hinterlegt. Der ursprüngliche Stundenplan wird exportiert.';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return 'Unterricht vom $original findet am $actual statt';
+  }
+
+  @override
+  String get loginTongji => 'Mit Tongji-SSO anmelden';
+
+  @override
+  String get loginTongjiHint =>
+      'Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.';
+
+  @override
+  String get loginTongjiPolicies =>
+      'Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:';
 }

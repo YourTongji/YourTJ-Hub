@@ -12,23 +12,27 @@ import 'compose_menu.dart';
 class RootSurface extends ConsumerWidget {
   const RootSurface({
     super.key,
-    required this.title,
+    this.title = '',
     this.titleWidget,
+    this.showLogo = false,
     required this.body,
     this.actions = const [],
     this.toolbar,
     this.toolbarHeight = 0,
     this.onAction,
+    this.showComposeAction = true,
     this.actionLabel,
     this.actionSymbol = 'plus',
   });
   final String title;
   final Widget? titleWidget;
+  final bool showLogo;
   final Widget Function(double topInset, double bottomInset) body;
   final List<Widget> actions;
   final Widget? toolbar;
   final double toolbarHeight;
   final VoidCallback? onAction;
+  final bool showComposeAction;
   final String? actionLabel;
   final String actionSymbol;
 
@@ -81,14 +85,17 @@ class RootSurface extends ConsumerWidget {
                                     child: Center(
                                       child:
                                           titleWidget ??
-                                          Text(
-                                            title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: GfTheme.typographyOf(
-                                              context,
-                                            ).title2,
-                                          ),
+                                          (showLogo || title.isEmpty
+                                              ? const GfLogo(size: 32)
+                                              : Text(
+                                                  title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: GfTheme.typographyOf(
+                                                    context,
+                                                  ).title2,
+                                                )),
                                     ),
                                   ),
                                   if (actions.isEmpty)
@@ -109,25 +116,27 @@ class RootSurface extends ConsumerWidget {
                   ),
                 ),
               ),
-              AnimatedPositioned(
-                duration: duration,
-                curve: Curves.easeOut,
-                right: 16,
-                bottom: (hidden ? 16 : 72) + bottom,
-                child: FloatingActionButton(
-                  heroTag: null,
-                  tooltip:
-                      actionLabel ?? AppLocalizations.of(context).navPublish,
-                  onPressed:
-                      onAction ??
-                      () => showComposeMenu(context, bottom: hidden ? 16 : 72),
-                  child: GfSymbol(
-                    actionSymbol,
-                    color: colors.primaryContent,
-                    size: 28,
+              if (showComposeAction)
+                AnimatedPositioned(
+                  duration: duration,
+                  curve: Curves.easeOut,
+                  right: 16,
+                  bottom: (hidden ? 16 : 72) + bottom,
+                  child: FloatingActionButton(
+                    heroTag: null,
+                    tooltip:
+                        actionLabel ?? AppLocalizations.of(context).navPublish,
+                    onPressed:
+                        onAction ??
+                        () =>
+                            showComposeMenu(context, bottom: hidden ? 16 : 72),
+                    child: GfSymbol(
+                      actionSymbol,
+                      color: colors.primaryContent,
+                      size: 28,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

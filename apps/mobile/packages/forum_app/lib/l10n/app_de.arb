@@ -1,4 +1,5 @@
 {
+  "campusCourseReviews": "Kursbewertungen",
   "myCourseReviewsTitle": "Meine Kursbewertungen",
   "myCourseReviewsEmpty": "Noch keine Bewertungen. Entdecke den Kurskatalog.",
   "myCourseReviewHidden": "Diese Bewertung ist ausgeblendet. Du kannst sie hier löschen.",
@@ -16,6 +17,21 @@
   "navProfile": "Mein Profil",
   "commonCancel": "Abbrechen",
   "commonSave": "Speichern",
+  "imageSave": "Bild speichern",
+  "imageSaved": "Bild gespeichert",
+  "imageSaveFailed": "Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.",
+  "announcementLabel": "Ankündigung",
+  "announcementCollapse": "Ankündigung einklappen",
+  "announcementCollapseAction": "Einklappen",
+  "announcementExpand": "Ankündigung ausklappen",
+  "announcementItem": "Ankündigung {index}",
+  "@announcementItem": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "commonLoading": "Wird geladen…",
   "commonLoadMore": "Mehr laden",
   "commonRetry": "Erneut versuchen",
@@ -379,7 +395,7 @@
   "entrySchedule": "Stundenplan",
   "entryWiki": "Wiki",
   "navCampus": "Campus",
-  "campusTitle": "Dein Campus, vernetzt",
+  "campusTitle": "Mein Campus",
   "campusSubtitle": "Finde Kurse, plane deine Woche und teile Campuswissen.",
   "campusCoursesHint": "Kurse und studentische Bewertungen entdecken",
   "campusScheduleHint": "Woche planen, Überschneidungen prüfen und exportieren",
@@ -705,5 +721,75 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "Mein Campus · offizielle Identität",
+  "campusOfficialSubtitle": "Tongji verbinden: Stundenplan, Noten und Mitteilungen",
+  "campusToday": "Heute",
+  "campusTimetable": "Mein Stundenplan",
+  "campusAcademics": "Studienleistungen",
+  "campusMessages": "Campus-Mitteilungen",
+  "campusCalendars": "Semesterkalender",
+  "campusConnection": "Verbindung",
+  "campusExplore": "Campus entdecken",
+  "campusTodayCourses": "Heutige Kurse",
+  "campusNoClasses": "Heute keine Kurse. Genieße den Tag.",
+  "campusNoNotices": "Noch keine Mitteilungen",
+  "campusAllNotices": "Alle Mitteilungen",
+  "campusBind": "Tongji-Identität verbinden",
+  "campusReauthorize": "Hochschulzugriff erneuern",
+  "campusReplace": "Verknüpfte Identität ändern",
+  "campusUnbind": "Verknüpfung aufheben",
+  "campusUnbindBody": "Dies löscht die Campus-Zugangsdaten und deaktiviert die Anmeldung mit dieser Tongji-Identität. E-Mail und Beiträge bleiben erhalten. Sie können ein Passwort per E-Mail-Wiederherstellung festlegen oder erneut eine Identität verknüpfen.",
+  "campusConfirmBinding": "Verbindung bestätigen",
+  "campusConfirmUpdate": "Erneuerten Zugriff bestätigen",
+  "campusConfirmBody": "Prüfen Sie die Hochschulidentität. Nach der Bestätigung dient sie zur Anmeldung und ersetzt eine zuvor verknüpfte Identität. Die E-Mail-Adresse bleibt unverändert.",
+  "campusPrivacy": "Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.",
+  "campusDisabled": "Die Campus-Verbindung ist hier nicht aktiviert",
+  "campusUnavailable": "Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.",
+  "campusNoData": "Noch keine Einträge",
+  "campusAuthRequired": "Bitte den Hochschulzugriff erneuern. Die Identität bleibt verknüpft.",
+  "campusIdentityConflict": "Diese Identität ist bereits verknüpft oder die Verbindung wurde geändert. Bitte aktualisieren.",
+  "campusAuthExpired": "Dieser Anmeldeversuch ist abgelaufen. Bitte erneut starten.",
+  "campusMessageUnavailable": "Diese Mitteilung ist nicht verfügbar. Bitte die Liste aktualisieren.",
+  "campusMorning": "Guten Morgen",
+  "campusNoon": "Guten Tag",
+  "campusAfternoon": "Guten Nachmittag",
+  "campusEvening": "Guten Abend",
+  "campusNight": "Noch wach?",
+  "campusWish1": "Möge deine Inspiration stabiler sein als das Campus-WLAN.",
+  "campusWish2": "Das Glück ist unterwegs. Vielleicht steht es gerade an einer roten Ampel.",
+  "campusWish3": "Warum war das Mathebuch traurig? Es hatte zu viele Probleme.",
+  "campusWish4": "Lass dir Zeit. Auch Bäume wachsen nicht an einem Tag.",
+  "campusAnotherWish": "Ein anderer Gedanke",
+  "campusWeekUnknown": "Semesterwoche nicht verfügbar",
+  "campusCreditProgress": "Studienfortschritt",
+  "campusGradeTrend": "Notendurchschnitt je Semester",
+  "campusCet": "CET-Ergebnisse",
+  "campusCourses": "Kursleistungen",
+  "campusSchoolLogin": "Hochschulanmeldung",
+  "campusUpstreamGaps": "Sport-, Gesundheits- und Kursänderungsdaten sind nicht verfügbar. Diese App hat keinen Zugriff auf Prüfungsdaten.",
+  "campusExportCalendar": "Kurskalender exportieren",
+  "campusExportingCalendar": "Wird exportiert…",
+  "campusExportCalendarHint": "Das ganze Semester als .ics-Datei speichern oder mit einer Kalender-App teilen. Änderungen werden nicht automatisch synchronisiert. Die Datei enthält Kurse und Orte.",
+  "campusCalendarIncomplete": "Semestertermine, Unterrichtswochen oder Kurszeiten sind unvollständig. Bitte aktualisieren und erneut versuchen.",
+  "campusCalendarEmpty": "Für dieses Semester sind keine Kurstermine zum Exportieren vorhanden.",
+  "campusApplyAdjustments": "Terminänderungen anwenden",
+  "campusApplyAdjustmentsHint": "Bestätigte Feiertage und Ersatztermine verwenden; sonst gilt der ursprüngliche Stundenplan.",
+  "campusCalendarRules": "Veröffentlichte Änderungen ansehen",
+  "campusCalendarRulesHint": "Änderungen gelten nur für den Kalenderexport. Der Stundenplan zeigt die ursprünglichen Termine. Exporte nutzen die neuesten Regeln.",
+  "campusNoCalendarRules": "Keine Änderungen hinterlegt. Der ursprüngliche Stundenplan wird exportiert.",
+  "campusMakeupDate": "Unterricht vom {original} findet am {actual} statt",
+  "@campusMakeupDate": {
+    "placeholders": {
+      "original": {
+        "type": "String"
+      },
+      "actual": {
+        "type": "String"
+      }
+    }
+  },
+  "loginTongji": "Mit Tongji-SSO anmelden",
+  "loginTongjiHint": "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
+  "loginTongjiPolicies": "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:"
 }

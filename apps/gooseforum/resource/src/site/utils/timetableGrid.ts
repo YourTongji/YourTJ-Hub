@@ -3,7 +3,7 @@
 // 此前行高分配算法与文本格式化在两个组件内各复制一份且常量已漂移；统一收敛到本模块，
 // 以参数化度量（RowMetrics）保留两端的视觉差异，避免后续布局调整静默分叉。
 import { dayPartBoundaries, type DayPart, type SectionTime } from '@/site/utils/sectionTimes'
-import { detectWeekParity, formatWeeksText } from '@/site/utils/pkArrange'
+import { clusterBySections, consolidateSameClassArrangements, detectWeekParity, formatWeeksText } from '@/site/utils/pkArrange'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string
@@ -185,4 +185,42 @@ export function dayPartLabelForRow(row: number, sectionTimes: SectionTime[], t: 
     }
   }
   return null
+}
+
+/** Presentation-only geometry shared by the planner and private campus timetable. */
+export function buildTimetableGrid(courses: PkCourseOnTable[], maxRows: number, mergeArrangements = true): GridLayout {
+  const spans = Array.from({ length: maxRows }, () => Array(7).fill(1) as number[])
+  const covered = Array.from({ length: maxRows }, () => Array(7).fill(false) as boolean[])
+  const coursesGrid = Array.from({ length: maxRows }, () =>
+    Array.from({ length: 7 }, () => [] as PkCourseOnTable[]),
+  )
+
+  const safeCourses = courses.filter(
+    (course) =>
+      Array.isArray(course?.occupyTime) &&
+      course.occupyTime.length > 0 &&
+      typeof course?.occupyDay === 'number' &&
+      course.occupyDay >= 1 &&
+      course.occupyDay <= 7 &&
+      course.occupyTime.every((slot) => slot >= 1 && slot <= maxRows),
+  )
+
+  const byDay: PkCourseOnTable[][] = Array.from({ length: 7 }, () => [])
+  for (const course of safeCourses) byDay[course.occupyDay - 1].push(course)
+
+  // 节次区间聚类：相交（含部分重叠/包含）的课程同格渲染，
+  // 避免一块的 rowspan 吞掉部分重叠的另一块（容忍式冲突必须可见）。
+  for (let day = 0; day < 7; day++) {
+    for (const cluster of clusterBySections(byDay[day])) {
+      const consolidatedItems = mergeArrangements ? consolidateSameClassArrangements(cluster.items) : cluster.items
+      const row = cluster.start - 1
+      spans[row][day] = cluster.end - row
+      coursesGrid[row][day] = consolidatedItems
+      for (let r = row + 1; r < row + spans[row][day]; r++) {
+        if (r < maxRows) covered[r][day] = true
+      }
+    }
+  }
+
+  return { cellCourses: coursesGrid, cellSpans: spans, occupiedGrid: covered }
 }

@@ -109,6 +109,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/publish", middleware.CheckLogin, forum.Publish)
 	viewRouteApp.GET("/search", forum.Search)
 	viewRouteApp.GET("/map", forum.CampusMap)
+	viewRouteApp.GET("/campus", forum.Campus)
 	viewRouteApp.GET("/wiki", forum.WikiHome)
 	viewRouteApp.GET("/wiki/*path", forum.WikiDetail)
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
@@ -171,6 +172,7 @@ func servePWAStatic(name, contentType string) func(*gin.Context) {
 }
 
 func apiRoute(ginApp *gin.Engine) {
+	campusRoutes(ginApp)
 	baseApi := ginApp.Group("api")
 
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
@@ -185,7 +187,11 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.GET("site-theme/tokens", ginUpNP(api.GetPublicSiteThemeTokens))
 	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
 	baseApi.POST("reset-password", middleware.RateLimit(middleware.RateLimitResetPassword), UpButterReq(api.ResetPassword))
-	baseApi.GET("auth/:provider", api.ProviderLogin)
+	baseApi.GET("auth/:provider", func(c *gin.Context) {
+		if c.Param("provider") == "tongji" {
+			middleware.RateLimit(middleware.RateLimitLogin)(c)
+		}
+	}, api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
 
 	// 内建 OIDC Provider（/api/oauth）。逐个静态挂载已实现端点，避免
@@ -496,6 +502,9 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("campus/calendar-rules", api.CampusCalendarRules).
+		POST("campus/calendar-rules", api.SaveCampusCalendarRules).
+		POST("campus/calendar-rules/parse", api.ParseCampusCalendarRules).
 		GET("schedule-settings", UpButterReq(api.GetScheduleSettings)).
 		POST("save-schedule-settings", UpButterReq(api.SaveScheduleSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).

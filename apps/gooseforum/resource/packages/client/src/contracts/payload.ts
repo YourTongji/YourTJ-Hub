@@ -48,6 +48,9 @@ export interface LoginPageProps {
   redirectUrl: string
   githubUrl: string
   googleUrl: string
+  tongjiReady?: boolean
+  tongjiUrl?: string
+  tongjiNotice?: string
   googleReady: boolean
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean

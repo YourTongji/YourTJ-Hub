@@ -34,6 +34,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
@@ -123,6 +124,9 @@ type LoginPageProps struct {
 	GitHubURL             string   `json:"githubUrl"`
 	GoogleURL             string   `json:"googleUrl"`
 	GoogleReady           bool     `json:"googleReady"`
+	TongjiReady           bool     `json:"tongjiReady"`
+	TongjiURL             string   `json:"tongjiUrl"`
+	TongjiNotice          string   `json:"tongjiNotice"`
 	TermsOfServiceEnabled bool     `json:"termsOfServiceEnabled"`
 	PrivacyPolicyEnabled  bool     `json:"privacyPolicyEnabled"`
 	AllowedDomains        []string `json:"allowedDomains"`
@@ -986,9 +990,18 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	}
 	githubURL := "/api/auth/github"
 	googleURL := "/api/auth/google"
+	tongjiURL := "/api/auth/tongji"
+	_, campusErr := campusservice.Configured()
+	tongjiNotice := c.Query("tongjiNotice")
+	switch tongjiNotice {
+	case "failed", "unavailable", "accountExists", "signupDisabled", "accountUnavailable":
+	default:
+		tongjiNotice = ""
+	}
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
 		googleURL += "?redirect=" + url.QueryEscape(redirectURL)
+		tongjiURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
 	return LoginPageProps{
 		InitialMode:           mode,
@@ -996,6 +1009,9 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		GitHubURL:             githubURL,
 		GoogleURL:             googleURL,
 		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
+		TongjiReady:           campusErr == nil,
+		TongjiURL:             tongjiURL,
+		TongjiNotice:          tongjiNotice,
 		TermsOfServiceEnabled: hotdataserve.GetTermsOfServiceConfigCache().Enabled,
 		PrivacyPolicyEnabled:  hotdataserve.GetPrivacyPolicyConfigCache().Enabled,
 		AllowedDomains:        hotdataserve.GetSecuritySettingsConfigCache().AllowedDomains,
@@ -1327,6 +1343,13 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 	isQuestionTopic := firstPost != nil && firstPost.ContentType == posts.ContentTypeQuestion
 
 	res := make([]PostPayload, 0, len(postEntities))
+	// postMap 以全部非空楼层指针初始化并补充缺失父帖，取其值渲染即为整页
+	// 全量且不重复，避免同一贴纸帖进入队列两次被重复渲染。
+	renderEntities := make([]*posts.Entity, 0, len(postMap))
+	for _, parent := range postMap {
+		renderEntities = append(renderEntities, parent)
+	}
+	postservice.EnsureRenderedHTMLBatch(renderEntities)
 	replyTargets := make([]ReplyTargetPayload, 0, len(seenMissingParentIDs))
 	seenReplyTargets := make(map[uint64]struct{}, len(seenMissingParentIDs))
 	for _, item := range postEntities {
@@ -1339,7 +1362,6 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		} else {
 			author = authorPayload(item.UserId)
 		}
-		postservice.EnsureRenderedHTML(item)
 		replyToName, replyToUserID := "", uint64(0)
 		if item.ReplyToPostId > 0 {
 			if parent, ok := postMap[item.ReplyToPostId]; ok && parent != nil && parent.TopicId == item.TopicId && (parent.ProcessStatus == 0 || canModerate) {
@@ -1453,7 +1475,9 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	target.IsAuthorDeleted = isAuthorDeletedVisibility(parent.VisibilityStatus)
 	target.IsModeratorRemoved = isModeratorRemovedVisibility(parent.VisibilityStatus)
 	if !target.IsAuthorDeleted && !target.IsModeratorRemoved {
-		target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+		// buildPostPayloads 已对 postMap 全量执行 EnsureRenderedHTMLBatch（含读时
+		// 贴纸解析），这里直接复用就地结果，避免每个引用目标再各查一次贴纸表。
+		target.RenderedContent = parent.RenderedHTML
 	}
 	target.Unavailable = false
 	return target

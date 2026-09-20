@@ -2,6 +2,7 @@ export default {
   status: {
     community: "返回社区",
     theme: "切换主题",
+    language: "语言",
     historyStale: "历史数据暂未更新",
     availabilityTitle: "服务可用性",
     availabilityDescription: "独立监控服务提供的可用性与响应时间。",
@@ -89,7 +90,7 @@ export default {
     unavailableNote: "数据源暂不可用，稍后将自动重试。",
     unconfiguredNote: "配置数据源后将在此显示实时数据。",
     partialNote: "部分指标暂不可用，其他数据仍可查看。",
-    footnote: "公开汇总数据，不包含个人访问记录",
+    footnote: "© {year} YourTJ Community {separator} 公开统计数据",
     chartLabel: "{time}：页面浏览 {views}，独立访客 {visitors}",
     usedOf: "{used} / {total}",
     timeRange: "{start} — {end}",

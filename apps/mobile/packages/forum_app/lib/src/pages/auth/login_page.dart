@@ -663,6 +663,48 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ? null
               : _submit,
         ),
+        if (_mode != _AuthMode.forgotPassword &&
+            (_registration?.tongjiReady ?? false)) ...<Widget>[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const GfSymbol('graduation-cap', size: 22),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            label: Text(l10n.loginTongji, textAlign: TextAlign.center),
+            onPressed:
+                _authController.busy || _oidcBusy || _finishingAuthentication
+                ? null
+                : () => _loginOidc('tongji'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.loginTongjiHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (_registration!.termsOfServiceEnabled ||
+              _registration!.privacyPolicyEnabled) ...[
+            const SizedBox(height: 8),
+            Text(
+              l10n.loginTongjiPolicies,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Wrap(
+              children: [
+                if (_registration!.termsOfServiceEnabled)
+                  TextButton(
+                    onPressed: () => context.push('/terms'),
+                    child: Text(l10n.siteInfoTerms),
+                  ),
+                if (_registration!.privacyPolicyEnabled)
+                  TextButton(
+                    onPressed: () => context.push('/privacy'),
+                    child: Text(l10n.siteInfoPrivacy),
+                  ),
+              ],
+            ),
+          ],
+        ],
         if (_mode == _AuthMode.login) ...<Widget>[
           const SizedBox(height: 12),
           for (final provider in ['google', 'github']) ...[

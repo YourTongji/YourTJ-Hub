@@ -18,7 +18,6 @@ import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
-import '../../widgets/brand_mark.dart';
 import '../../widgets/announcement_banner.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
@@ -42,6 +41,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   AsyncValue<HomeProps> _page = const AsyncValue.loading();
   String _sort = '';
+  bool _announcementCollapsed = false;
   int _loadSequence = 0;
   int _interactionRevision = 0;
   final _pendingInteractions = <(int, bool)>{};
@@ -129,6 +129,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
+  void _setAnnouncementCollapsed(bool collapsed) {
+    if (_announcementCollapsed == collapsed) return;
+    setState(() => _announcementCollapsed = collapsed);
+  }
+
   Future<void> _load({bool silent = false}) async {
     if (!mounted) return;
     final sequence = ++_loadSequence;
@@ -169,6 +174,83 @@ class _HomePageState extends ConsumerState<HomePage> {
       } else {
         setState(() => _page = AsyncValue.error(e, st));
       }
+    }
+  }
+
+  /// 从话题详情返回:先消费详情页带回的话题增量(unseen/点赞/收藏/计数,
+  /// 条目落在任何已加载页都生效),再后台请求第一页,按 id 原位更新已加载
+  /// 话题的最新状态。不把第一页 payload 写入 _page——分页游标
+  /// (nextUrl/hasNext)保留,「加载更多」从原进度继续;列表长度不回缩,
+  /// 滚动位置不跳顶(MADR 0012 Preserve scroll position)。下拉刷新仍走
+  /// _load(silent: true) 的整页重置语义,两条静默路径分开接线。
+  Future<void> _refreshAfterReturn() async {
+    if (!mounted) return;
+    final revision = _interactionRevision;
+    final Map<int, TopicReturnState> returned = Map.of(
+      ref.read(topicReturnStatesProvider),
+    );
+    if (returned.isNotEmpty) {
+      ref.read(topicReturnStatesProvider).clear();
+      setState(() {
+        for (var i = 0; i < _topics.length; i++) {
+          final TopicReturnState? state = returned[_topics[i].id];
+          if (state == null) continue;
+          _topics[i] = _mergeInteraction(
+            _topics[i].copyWith(
+              unseen: state.unseen,
+              liked: state.liked,
+              bookmarked: state.bookmarked,
+              likeCount: state.likeCount,
+              replyCount: state.replyCount,
+              viewCount: state.viewCount,
+            ),
+            revision,
+          );
+        }
+      });
+    }
+    if (_topics.isEmpty) return;
+    final sequence = ++_loadSequence;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    // 在途「加载更多」已随序号失效,其 finally 的同序号守卫不会清理加载态,
+    // 这里必须像 _load 一样接管,否则 _loadingMore 卡死、分页失效。
+    _loadingMore = false;
+    _loadMoreError = null;
+    try {
+      final PagePayload payload = await ref
+          .read(pageRepositoryProvider)
+          .home(sort: _sort);
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      final HomeProps? props = parsePageProps<HomeProps>(payload);
+      if (props == null) throw const FormatException('home props');
+      final Map<int, TopicPayload> incoming = {
+        for (final TopicPayload topic in props.topics) topic.id: topic,
+      };
+      setState(() {
+        // 只原位替换已加载条目:不追加新热帖、不移除已消失条目,
+        // 保证列表形状与滚动位置稳定。
+        for (var i = 0; i < _topics.length; i++) {
+          final TopicPayload? fresh = incoming[_topics[i].id];
+          if (fresh != null) _topics[i] = _mergeInteraction(fresh, revision);
+        }
+      });
+    } catch (_) {
+      // 返回刷新失败:保留当前列表与分页进度,并按 Home 失败刷新的
+      // 产品约定轻提示(docs/product/mobile-experience.md)。
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      showGfToast(
+        context,
+        AppLocalizations.of(context).refreshFailedRetained,
+        error: true,
+      );
     }
   }
 
@@ -354,8 +436,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
     return RootSurface(
-      title: 'YourTJ',
-      titleWidget: const YourTjMark(),
+      titleWidget: const GfLogo(size: 32),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -393,14 +474,18 @@ class _HomePageState extends ConsumerState<HomePage> {
               loadMoreError: _loadMoreError,
               controller: controller,
               padding: EdgeInsets.only(top: top, bottom: bottom),
-              header: AnnouncementBanner(announcement: props.announcement),
+              header: AnnouncementBanner(
+                announcement: props.announcement,
+                collapsed: _announcementCollapsed,
+                onCollapsedChanged: _setAnnouncementCollapsed,
+              ),
               loading: _loadingMore,
               topics: _topics,
               feedMode: _feedMode,
               onLikeTopic: _toggleTopicInteraction,
               onBookmarkTopic: (topic, target) =>
                   _toggleTopicInteraction(topic, target, bookmark: true),
-              onReturnFromTopic: () => _load(silent: true),
+              onReturnFromTopic: _refreshAfterReturn,
               hasMore: props.pagination.hasNext,
               onLoadMore: _loadMore,
             ),
@@ -481,6 +566,7 @@ class _HomeToolbar extends ConsumerWidget {
                   const SizedBox(width: 8),
                   PopupMenuButton<GfTopicFeedMode>(
                     tooltip: l10n.topicFeedModeList,
+                    useRootNavigator: true,
                     icon: const GfSymbol('sliders-horizontal', size: 20),
                     onSelected: onFeedModeSelected,
                     itemBuilder: (_) => [

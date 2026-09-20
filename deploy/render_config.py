@@ -42,6 +42,12 @@ INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINT
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
 BASE_OPTIONAL_TOKENS = {
+    "CAMPUS_CLIENT_ID",
+    "CAMPUS_CLIENT_SECRET",
+    "CAMPUS_REDIRECT_URI",
+    "CAMPUS_ENCRYPTION_KEY",
+    "CAMPUS_IDENTITY_KEY",
+
     "AI_API_KEY",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
@@ -203,6 +209,23 @@ def build_values(env, instance, environ, tokens, allow_empty):
     return values, summary
 
 
+def validate_campus(values):
+    """Optional as a group; never emit a partially usable school connection."""
+    fields = ['CAMPUS_CLIENT_ID', 'CAMPUS_REDIRECT_URI', 'CAMPUS_ENCRYPTION_KEY', 'CAMPUS_IDENTITY_KEY']
+    if not any(values.get(k) for k in fields + ['CAMPUS_CLIENT_SECRET']):
+        return
+    if any(not values.get(k) for k in fields):
+        raise SystemExit('render: campus connection requires client, callback and both keys')
+    if any(len(values[k]) < 32 for k in fields[2:]):
+        raise SystemExit('render: campus keys must contain at least 32 characters')
+    callback = urllib.parse.urlsplit(values['CAMPUS_REDIRECT_URI'])
+    site = urllib.parse.urlsplit(values.get('SERVER_URL', ''))
+    if (callback.scheme != 'https' or callback.netloc != site.netloc or
+            callback.username or callback.path != '/api/campus/tongji/callback' or
+            callback.query or callback.fragment):
+        raise SystemExit('render: campus callback must use this instance HTTPS origin and fixed path')
+
+
 def summarize(summary):
     """向 stderr 输出键名/来源/长度，绝不打印 secret 值或其前缀。"""
     for tok, val, src in summary:
@@ -226,6 +249,7 @@ def cmd_render(args):
     values, summary = build_values(args.env, instance, os.environ, tokens, allow)
     # 跨库防护: DSN dbname 必须匹配实例
     validate_pg_dsn(values, instance)
+    validate_campus(values)
     rendered = render(text, values)
     try:
         tomllib.loads(rendered)

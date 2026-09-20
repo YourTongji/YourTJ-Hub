@@ -9,7 +9,6 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
-import 'package:forum_app/src/widgets/brand_mark.dart';
 import 'package:forum_app/src/widgets/root_surface.dart';
 
 import 'fixtures/page_fixtures.dart';
@@ -58,7 +57,7 @@ Future<({GoRouter router, ProviderContainer container})> pumpNavigation(
           drawer: const AccountDrawer(),
           body: RootSurface(
             title: 'YourTJ',
-            titleWidget: const YourTjMark(),
+            titleWidget: const GfLogo(size: 32),
             onAction: onAction,
             body: (top, bottom) => ListView(
               padding: EdgeInsets.only(top: top, bottom: bottom),

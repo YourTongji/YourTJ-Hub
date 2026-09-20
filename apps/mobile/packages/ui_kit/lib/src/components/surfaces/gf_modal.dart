@@ -46,6 +46,9 @@ Future<T?> showGfModal<T>(
 }) {
   return showDialog<T>(
     context: context,
+    // Keep modal layers above the persistent shell chrome for the same reason
+    // as bottom sheets: branch overlays sit below the root shell Scaffold.
+    useRootNavigator: true,
     builder: (context) => Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,

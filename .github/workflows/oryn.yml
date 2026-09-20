@@ -80,7 +80,7 @@ jobs:
         env:
           ORYN_ENABLED: ${{ vars.ORYN_ENABLED }}
           ORYN_EVENT_ENABLED: ${{ vars.ORYN_EVENT_ENABLED }}
-          ORYN_MODEL: ${{ vars.ORYN_MODEL || 'oryn/glm-5.3-flash' }}
+          ORYN_MODEL: ${{ vars.ORYN_MODEL || 'opencode-go/deepseek-v4.1-flash' }}
           ORYN_READ_TOKEN: ${{ steps.target.outputs.token }}
           ORYN_BOT_LOGIN: ${{ steps.target.outputs.app-slug }}[bot]
           INPUT_REPOSITORY: YourTongji/YourTJ-Hub
@@ -121,4 +121,4 @@ jobs:
       publish: ${{ inputs.publish == true || (github.event_name == 'schedule' && vars.ORYN_SCHEDULE_PUBLISH == 'true') || (github.event_name != 'workflow_dispatch' && github.event_name != 'schedule' && vars.ORYN_EVENT_PUBLISH == 'true') }}
     secrets:
       ORYN_APP_PRIVATE_KEY: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
-      ORYN_GLM_API_KEY: ${{ secrets.ORYN_GLM_API_KEY }}
+      ORYN_OPENCODE_GO_API_KEY: ${{ secrets.ORYN_OPENCODE_GO_API_KEY }}

@@ -1,0 +1,8 @@
+{
+  "code": 0,
+  "result": {
+    "filename": "yourtj-courses-2026-09-14.ics",
+    "content": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//YourTJ//Campus Calendar//ZH\r\nBEGIN:VEVENT\r\nUID:example@campus.yourtj\r\nDTSTAMP:20260919T000000Z\r\nDTSTART:20260914T000000Z\r\nDTEND:20260914T013500Z\r\nSUMMARY:示例课程\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    "eventCount": 1
+  }
+}

@@ -1,0 +1,989 @@
+{
+  "status": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusStatus",
+      "operationId": "campusStatus",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusStatusResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-status-success.json"
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "start": {
+    "post": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusStart",
+      "operationId": "campusStart",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "result"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "const": 0
+                  },
+                  "result": {
+                    "type": "object",
+                    "required": [
+                      "url"
+                    ],
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "mode"
+              ],
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "bind",
+                    "replace",
+                    "reauthorize"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "confirm": {
+    "post": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusConfirm",
+      "operationId": "campusConfirm",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiSuccess"
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "unbind": {
+    "post": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusUnbind",
+      "operationId": "campusUnbind",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. Unlink deletes credentials and releases the live sign-in binding. A permanent HMAC-only identity reservation, with no user association, prevents repeat automatic registration while allowing explicit rebinding to an existing account.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiSuccess"
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "revision"
+              ],
+              "properties": {
+                "revision": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "dataset": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusDataset",
+      "operationId": "campusDataset",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. The profile dataset exposes only the authenticated student’s own name for a greeting. Academic datasets can be loaded on demand.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusDatasetResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-dataset-success.json"
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "dataset",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "calendar",
+              "timetable",
+              "grades",
+              "summary",
+              "cet",
+              "terms",
+              "messages",
+              "sports",
+              "health",
+              "arrangements",
+              "profile"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "callback": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "Complete Tongji campus binding or forum sign-in",
+      "operationId": "campusCallback",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        },
+        {
+          "tongjiLoginCookie": []
+        }
+      ],
+      "description": "Uses the purpose of server-issued state. Binding/replace/reauthorize requires the original writable forum session and explicit campus confirmation. Login state instead requires the same browser's HttpOnly yourtj_tongji_login cookie, expires after ten minutes, and is consumed once before exchange. Both verify PKCE S256, nonce, RS256 issuer/audience and the school identity. Login reuses the mutually unique binding or, only for a never-bound identity, atomically creates an ordinary activated forum account with student-ID@tongji.edu.cn, no password, and encrypted campus credentials. New registrations honor signup/domain/daily-quota policy. Daily quota is serialized with password registration; account closure does not release the creation-day slot. A retained identity fingerprint prevents repeat automatic registration after unlink, replacement or closure; accountExists directs the user to recover/sign into an existing account and bind explicitly. Existing or freshly staged email claims are never auto-linked; frozen, bot and deleted accounts cannot sign in. The original safe local redirect (including the mobile OIDC bridge) is stored server-side; callback redirects are ignored. Every handled response scrubs authorization parameters and uses private, no-store and no-referrer. Rejected guards never exchange the code.",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "state",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "in": "query",
+          "name": "code",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "in": "query",
+          "name": "error",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "303": {
+          "description": "Binding returns to /campus?authorization=ready|failed. Sign-in returns to its server-stored local destination and sets a forum session cookie, or /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location.",
+          "headers": {
+            "Location": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "Cache-Control": {
+              "schema": {
+                "type": "string",
+                "enum": [
+                  "private, no-store"
+                ]
+              }
+            },
+            "Referrer-Policy": {
+              "schema": {
+                "type": "string",
+                "enum": [
+                  "no-referrer"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CampusBinding": {
+        "type": "object",
+        "required": [
+          "maskedId",
+          "boundAt",
+          "revision",
+          "needsAuthorization"
+        ],
+        "properties": {
+          "maskedId": {
+            "type": "string"
+          },
+          "boundAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Time the current official identity was bound. Replacing the identity resets this time; renewing authorization for the same identity preserves it."
+          },
+          "revision": {
+            "type": "string"
+          },
+          "needsAuthorization": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusCandidate": {
+        "type": "object",
+        "required": [
+          "maskedId",
+          "mode",
+          "expiresAt"
+        ],
+        "properties": {
+          "maskedId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "bind",
+              "replace",
+              "reauthorize"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusStatus": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "binding",
+          "candidate"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "binding": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CampusBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CampusCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusMetric": {
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "unit"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusPoint": {
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusEvent": {
+        "type": "object",
+        "required": [
+          "name",
+          "teacher",
+          "room",
+          "campus",
+          "credits",
+          "day",
+          "start",
+          "end",
+          "weeks"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "teacher": {
+            "type": "string"
+          },
+          "room": {
+            "type": "string"
+          },
+          "campus": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "string"
+          },
+          "day": {
+            "type": "integer"
+          },
+          "start": {
+            "type": "integer"
+          },
+          "end": {
+            "type": "integer"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusDataset": {
+        "type": "object",
+        "required": [
+          "key",
+          "status",
+          "updatedAt",
+          "metrics",
+          "series",
+          "events",
+          "columns",
+          "rows"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "calendar",
+              "timetable",
+              "grades",
+              "summary",
+              "cet",
+              "terms",
+              "messages",
+              "sports",
+              "health",
+              "arrangements",
+              "profile"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "empty",
+              "unavailable"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampusMetric"
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampusPoint"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampusEvent"
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "messages": {
+            "type": "array",
+            "description": "Only populated for messages; newest publication first. IDs are decimal strings.",
+            "items": {
+              "$ref": "#/components/schemas/CampusMessageSummary"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusStatusResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/CampusStatus"
+              }
+            }
+          }
+        ]
+      },
+      "CampusDatasetResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/CampusDataset"
+              }
+            }
+          }
+        ]
+      },
+      "CampusMessageSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "publisher",
+          "publishedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusMessageLink": {
+        "type": "object",
+        "required": [
+          "label",
+          "url"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusMessageDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "publisher",
+          "publishedAt",
+          "content",
+          "links"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "description": "Plain text; never execute this as HTML."
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampusMessageLink"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CampusMessageDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/CampusMessageDetail"
+              }
+            }
+          }
+        ]
+      },
+      "CampusCalendarExport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "filename",
+          "content",
+          "eventCount"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "pattern": "^yourtj-courses-\\d{4}-\\d{2}-\\d{2}\\.ics$"
+          },
+          "content": {
+            "type": "string",
+            "description": "UTF-8 RFC 5545 calendar with CRLF folding and UTC event times. Private data; persist only through explicit user export.",
+            "minLength": 1
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          }
+        }
+      },
+      "CampusCalendarExportResponse": {
+        "allOf": [
+          {
+            "$ref": "../components/schemas.yaml#/ApiSuccess"
+          },
+          {
+            "type": "object",
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/CampusCalendarExport"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "message": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "Read one campus message",
+      "operationId": "campusMessage",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Private plain-text message body and explicit links. Requires the message to appear in the current user list. No automatic remote media loads. A 409 campus.messageAuthorizationRequired response requests updated school authorization, preserving the current binding.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusMessageDetailResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-message-success.json"
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "messageId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$",
+            "maxLength": 20
+          }
+        }
+      ]
+    }
+  },
+  "calendarExport": {
+    "get": {
+      "tags": [
+        "Campus"
+      ],
+      "summary": "campusCalendarExport",
+      "operationId": "campusCalendarExport",
+      "security": [
+        {
+          "bearerAuth": []
+        },
+        {
+          "accessTokenCookie": []
+        }
+      ],
+      "description": "Explicit export of all scheduled classes in the current term as an iCalendar file in the standard JSON envelope. Both reads share a binding fence. Expands exact teaching weeks using campus section times; incomplete dates/weeks/times and an empty schedule return 409 with campus.calendarIncomplete or campus.calendarEmpty. Snapshot, not a subscription; confirmed holiday rules apply by default, preserving original teaching weeks for makeup dates. No unconfirmed holiday is inferred. Never persisted or publicly addressable.",
+      "responses": {
+        "200": {
+          "description": "Successful private response; Cache-Control: private, no-store.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusCalendarExportResponse"
+              },
+              "examples": {
+                "success": {
+                  "externalValue": "../fixtures/campus-calendar-export-success.json"
+                }
+              }
+            }
+          }
+        },
+        "default": {
+          "description": "Session, CSRF, writable-account, expired authorization, identity conflict or upstream failure.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Missing, invalid or revoked forum session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../components/schemas.yaml#/ApiFailure"
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "in": "query",
+          "name": "applyAdjustments",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          },
+          "description": "Apply the latest administrator-confirmed holiday and teaching-date rules. False exports the unadjusted school timetable."
+        }
+      ]
+    }
+  }
+}

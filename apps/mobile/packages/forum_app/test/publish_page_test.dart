@@ -149,6 +149,7 @@ PagePayload _publishPayload({
   int contentType = 0,
   List<int>? categoryIds,
   String? content,
+  bool viewerAuthenticated = true,
 }) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
@@ -181,11 +182,11 @@ PagePayload _publishPayload({
         'brandImage': '',
       },
       'viewer': <String, dynamic>{
-        'id': 1,
-        'username': 'alice',
+        'id': viewerAuthenticated ? 1 : 0,
+        'username': viewerAuthenticated ? 'alice' : '',
         'email': '',
         'avatarUrl': '',
-        'isAuthenticated': true,
+        'isAuthenticated': viewerAuthenticated,
         'canAccessAdmin': false,
         'isModerator': false,
         'requiresEmailVerification': false,
@@ -228,6 +229,7 @@ void main() {
     bool requireCaptcha = false,
     bool offline = false,
     int userId = 1,
+    bool viewerAuthenticated = true,
     WritingStore? localStore,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
@@ -243,6 +245,7 @@ void main() {
         contentType: contentType,
         categoryIds: categoryIds,
         content: content,
+        viewerAuthenticated: viewerAuthenticated,
       ),
     );
     pageRepository.offline = offline;
@@ -254,6 +257,11 @@ void main() {
     final GoRouter router = GoRouter(
       initialLocation: editing ? '/publish?$editQueryKey=42' : '/publish',
       routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          builder: (BuildContext context, GoRouterState state) =>
+              const Scaffold(body: Center(child: Text('home'))),
+        ),
         GoRoute(
           path: '/publish',
           builder: (BuildContext context, GoRouterState state) => PublishPage(
@@ -277,7 +285,8 @@ void main() {
           tokenStorageProvider.overrideWithValue(storage),
           apiClientProvider.overrideWithValue(client),
           currentUserProvider.overrideWith(
-            (ref) async => CurrentUser(id: userId, username: 'alice'),
+            (ref) async =>
+                userId == 0 ? null : CurrentUser(id: userId, username: 'alice'),
           ),
           if (localStore != null)
             writingStoreProvider.overrideWithValue(localStore),
@@ -1106,5 +1115,40 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('访客会话不显示本机保存状态且可正常离开（#705 回归）', (tester) async {
+    await pumpPublishPage(
+      tester,
+      editing: false,
+      userId: 0,
+      viewerAuthenticated: false,
+    );
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      0,
+      'guest draft',
+      const TextSelection.collapsed(offset: 11),
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    // 无账号会话没有本机持久化：不得出现悬挂的“正在保存…”或任何保存失败状态。
+    expect(find.text('正在保存…'), findsNothing);
+    expect(find.text('本机保存失败，请重试'), findsNothing);
+    expect(find.text('已保存到本机'), findsNothing);
+
+    // “放弃修改”离开：guest 无本地草稿可删，删除路径被跳过，可直接离开。
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('保留这次创作？'), findsOneWidget);
+    await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('publish-editor')), findsNothing);
+    expect(find.text('home'), findsOneWidget);
+
+    // 与本文件其他用例一致的收尾：让残留的自动保存/预览去抖定时器走完。
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
   });
 }

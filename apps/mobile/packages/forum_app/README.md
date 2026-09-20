@@ -1,6 +1,6 @@
 # forum_app
 
-`Current`: 校园和搜索共享课程、排课、Wiki 快捷入口；设置按内嵌卡片分组，资料统计适配大字体。
+`Current`: 校园页原生展示官方身份连接、教学周与问候、今日课程、周课表、学业记录、校历及通知正文；底栏“校园”的首页顶部直接提供课程评价、排课器、Wiki 入口，未登录或未绑定也可使用；组件与“探索校园”和搜索共享，返回后仍处于校园分支。设置按内嵌卡片分组，资料统计适配大字体。
 空通知、草稿和会话提供后续操作；共享按钮、表单、标签栏及空状态由 `ui_kit` 统一适配触控和系统字号。
 
 YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入口应用包,依赖 `core`(契约/API 客户端/markdown 转换)、`auth`(登录与 token 存储)、`ui_kit`(设计 token 与 Gf* 组件)。
@@ -32,6 +32,32 @@ melos run test           # 全包测试
 ```bash
 flutter run --dart-define=YOURTJ_OIDC_ISSUER=http://localhost:5234/api/oauth \
             --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+```
+
+构建 Android Debug 安装包时使用 ABI 分离，避免把 arm32、arm64 和 x86_64 的 native
+库同时打进一个 APK。完整的 OIDC 模拟器流程已由 `apps/mobile/scripts/oidc_e2e.sh run`
+自动按设备 ABI 选择对应产物；手动构建时可使用：
+
+```bash
+flutter build apk --debug --split-per-abi
+# 输出：build/app/outputs/flutter-apk/app-{armeabi-v7a,arm64-v8a,x86_64}-debug.apk
+```
+
+连接 dev 真实后端时必须同时注入 API 与 OIDC 地址，物理手机不要使用默认的
+`10.0.2.2` 模拟器地址：
+
+```bash
+flutter build apk --debug --split-per-abi \
+  --dart-define=YOURTJ_API_BASE_URL=https://dev.yourtj.de \
+  --dart-define=YOURTJ_OIDC_ISSUER=https://dev.yourtj.de/api/oauth \
+  --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+```
+
+也可以直接运行仓库脚本，避免误装未注入地址的旧 `app-debug.apk`：
+
+```bash
+# 在仓库根目录执行
+bash apps/mobile/scripts/build_dev_apk.sh
 ```
 
 CI(`ci-mobile`)对 `apps/mobile/**` 运行同一组 bootstrap / analyze / test。
@@ -84,3 +110,15 @@ YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
 - 后端访问只经 `core` 的 API 客户端/repository;业务状态归本包(Riverpod,`lib/src/providers.dart`)。
 - 不直接依赖 TDesign:`forum_app` 不 import `tdesign_flutter`,组件统一走 `ui_kit` 的 Gf* API。
 - 契约镜像位于 `core/lib/src/gen/*.dart`(见 docs/architecture/contracts-and-data.md)。
+
+## 原生校园验证
+
+`Current`: `test/campus_native_test.dart` 覆盖按需加载、失效响应隔离、确认失败、消息重授权恢复、离页/后台清理，以及深浅主题和窄屏大字体。课表共用 `widgets/schedule_time_grid.dart` 与纯网格算法，官方记录不进入排课器 store。
+
+`integration_test/campus_native_test.dart` 使用明确标识的模拟数据，运行实际原生页面的首页、课表、学业与消息流程，无需学校账号：
+
+```bash
+flutter test integration_test/campus_native_test.dart -d "$YOURTJ_TEST_DEVICE"
+```
+
+`Partial`: 此流程不验证真实学校登录；真机官方认证仍需用户在学校页面完成，不将密码写入测试脚本。

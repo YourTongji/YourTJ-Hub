@@ -1,4 +1,5 @@
 {
+  "campusCourseReviews": "授業評価",
   "myCourseReviewsTitle": "自分の授業評価",
   "myCourseReviewsEmpty": "まだ評価がありません。科目一覧から探してみましょう。",
   "myCourseReviewHidden": "この評価は非表示です。ここで削除できます。",
@@ -16,6 +17,21 @@
   "navProfile": "マイページ",
   "commonCancel": "キャンセル",
   "commonSave": "保存",
+  "imageSave": "画像を保存",
+  "imageSaved": "画像を保存しました",
+  "imageSaveFailed": "画像を保存できませんでした。後でもう一度お試しください。",
+  "announcementLabel": "お知らせ",
+  "announcementCollapse": "お知らせを折りたたむ",
+  "announcementCollapseAction": "折りたたむ",
+  "announcementExpand": "お知らせを展開",
+  "announcementItem": "お知らせ {index}",
+  "@announcementItem": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "commonLoading": "読み込み中…",
   "commonLoadMore": "さらに読み込む",
   "commonRetry": "再試行",
@@ -379,7 +395,7 @@
   "entrySchedule": "時間割",
   "entryWiki": "Wiki",
   "navCampus": "キャンパス",
-  "campusTitle": "キャンパスとつながる",
+  "campusTitle": "マイキャンパス",
   "campusSubtitle": "授業を探し、時間割を組み、キャンパスの知識を共有しましょう。",
   "campusCoursesHint": "授業と学生の評価を見る",
   "campusScheduleHint": "時間割を作成し、重複を確認して書き出す",
@@ -705,5 +721,75 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "マイキャンパス・公式認証",
+  "campusOfficialSubtitle": "同済アカウントを連携して、時間割・成績・大学のお知らせを確認",
+  "campusToday": "今日",
+  "campusTimetable": "時間割",
+  "campusAcademics": "学業記録",
+  "campusMessages": "大学のお知らせ",
+  "campusCalendars": "学年暦",
+  "campusConnection": "連携",
+  "campusExplore": "キャンパスを探索",
+  "campusTodayCourses": "今日の授業",
+  "campusNoClasses": "今日は授業がありません。よい一日を。",
+  "campusNoNotices": "お知らせはありません",
+  "campusAllNotices": "すべてのお知らせ",
+  "campusBind": "同済のアカウントを連携",
+  "campusReauthorize": "大学の認証を更新",
+  "campusReplace": "連携アカウントを変更",
+  "campusUnbind": "連携解除",
+  "campusUnbindBody": "キャンパス認証情報を削除し、この同済大学IDでのログインを無効にします。メールと投稿は残ります。メールでパスワードを再設定するか、再度IDを連携できます。",
+  "campusConfirmBinding": "連携を確定",
+  "campusConfirmUpdate": "認証の更新を確定",
+  "campusConfirmBody": "大学のIDをご確認ください。確認後はログインに使われ、変更時は以前のIDを置き換えます。メールは変わりません。",
+  "campusPrivacy": "一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。",
+  "campusDisabled": "このサイトでは大学連携が有効になっていません",
+  "campusUnavailable": "大学のデータを取得できません。後でもう一度お試しください。",
+  "campusNoData": "記録はありません",
+  "campusAuthRequired": "大学の認証を更新してください。連携は保持されています。",
+  "campusIdentityConflict": "すでに連携されているか、連携状態が変更されました。更新して再試行してください。",
+  "campusAuthExpired": "認証の有効期限が切れました。もう一度開始してください。",
+  "campusMessageUnavailable": "このお知らせは利用できません。一覧を更新してください。",
+  "campusMorning": "おはようございます",
+  "campusNoon": "こんにちは",
+  "campusAfternoon": "こんにちは",
+  "campusEvening": "こんばんは",
+  "campusNight": "夜も更けました",
+  "campusWish1": "ひらめきが学内 Wi-Fi より安定しますように。",
+  "campusWish2": "幸運は向かっています。今は信号待ちかもしれません。",
+  "campusWish3": "数学の本が悲しい理由？問題が多すぎるから。",
+  "campusWish4": "ゆっくりでも大丈夫。木も一日では大きくなりません。",
+  "campusAnotherWish": "別のひとこと",
+  "campusWeekUnknown": "授業週を取得できません",
+  "campusCreditProgress": "単位の進捗",
+  "campusGradeTrend": "学期別 GPA",
+  "campusCet": "CET 成績",
+  "campusCourses": "授業成績",
+  "campusSchoolLogin": "大学の公式ログイン",
+  "campusUpstreamGaps": "体力測定・健康・授業変更のデータは現在利用できません。このアプリは試験情報へのアクセス権限がありません。",
+  "campusExportCalendar": "授業カレンダーを書き出す",
+  "campusExportingCalendar": "書き出し中…",
+  "campusExportCalendarHint": "学期全体を .ics ファイルとして保存し、カレンダーアプリで共有できます。時間割の変更は自動同期されません。授業名と場所が含まれます。",
+  "campusCalendarIncomplete": "学期の日付、授業週または時限の情報が不足しています。更新して再試行してください。",
+  "campusCalendarEmpty": "この学期に書き出せる授業予定はありません。",
+  "campusApplyAdjustments": "振替授業を適用",
+  "campusApplyAdjustmentsHint": "管理者が確認した休講日・振替日を使用します。未設定の場合は元の時間割を使用します。",
+  "campusCalendarRules": "公開中の振替ルールを表示",
+  "campusCalendarRulesHint": "振替はカレンダー出力にのみ適用されます。画面は元の時間割を表示し、出力時に最新ルールを使用します。",
+  "campusNoCalendarRules": "振替ルールは未設定です。元の時間割を出力します。",
+  "campusMakeupDate": "{original} の授業を {actual} に振替",
+  "@campusMakeupDate": {
+    "placeholders": {
+      "original": {
+        "type": "String"
+      },
+      "actual": {
+        "type": "String"
+      }
+    }
+  },
+  "loginTongji": "同済大学の統合認証でログイン",
+  "loginTongjiHint": "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。",
+  "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます："
 }

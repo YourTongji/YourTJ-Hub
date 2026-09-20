@@ -205,6 +205,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
         ],
         PopupMenuButton<String>(
           tooltip: l10n.profileMore,
+          useRootNavigator: true,
           enabled: !_busy,
           onSelected: _action,
           itemBuilder: (_) => [

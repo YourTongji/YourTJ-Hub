@@ -18,8 +18,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: Home announcements render optional titles and HTML bodies, including the legacy
   single-HTML payload. A small bell sits in a separate leading column, with title and body aligned
   to the same inset as Web. They grow with their contents and text size; empty announcements take no
-  space. Multiple announcements rotate with numbered manual controls; assistive navigation and
-  reduced motion disable automatic rotation. Refresh replaces the active announcement safely.
+  space. Multiple announcements rotate automatically and expose capsule indicators plus previous/
+  next controls when expanded. The banner can collapse to a single-line ticker; the collapsed state
+  is shared across the latest, popular and trending tabs. Assistive navigation and reduced motion
+  disable automatic rotation. Refresh replaces the active announcement safely.
 - `Current`: feed body text uses 17 logical pixels; Markdown reading and publishing body text use
   18 pixels with a 1.55 line height and system text scaling. Code uses 16 pixels and tables use
   17 pixels; headings keep a distinct hierarchy and follow the active theme. The first post supports
@@ -45,7 +47,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
-  up to three previews with a total count. Tapping opens the full gallery with zoom.
+  up to three previews with a total count. Tapping the feed card opens the topic; the full gallery
+  with zoom is available from inside the topic view.
+- `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image lightbox. It
+  supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
+  system sharing; feed previews deliberately keep their card navigation and do not open the lightbox.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics, and the like metric shows the topic's total like count. Actions switch
   their selected icon and the like count immediately (likes adjust the shown total by one)
@@ -235,11 +241,21 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 ## Campus and sign-in
 
-- `Current`: Campus previews real reviewed courses and links to the course catalog, scheduler and
-  Wiki. It does not display an official personal calendar or claim an enrollment integration.
-  The three tools share semantic icon tiles with search discovery and stack into rows on narrow
-  screens or with large text. Course previews and the planning action have separate inset surfaces;
-  an empty preview still provides access to the course catalog.
+- `Current`: Campus opens a native private overview with the school teaching week, time-aware
+  greeting, recent notices and today's courses. Weekly timetable, academic records and charts,
+  calendars, notice bodies and identity management use the existing campus API. GPA is loaded only
+  on the academic tab. The timetable shares the planner renderer without its editing or storage.
+  The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
+  have visible shortcuts at the top of its home view, also available to guests, unbound users and
+  when school services fail. Pushed tools return to the Campus destination. Explore campus retains
+  public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+- `Current`: school authorization uses the current native forum session in a restricted WebView.
+  The initial Bearer header goes only to the first-party session handoff; school navigation receives
+  no native credential. The server callback returns to a native confirmation, including resuming
+  a notice after a permission update. Private records stay in page memory; leaving the campus tab,
+  backgrounding or switching sessions drops the view and cancels requests.
+- `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
+  cover navigation policy, session handoff, confirmation, stale responses and native rendering.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning
   grid, with week filters, conflicts, custom blocks and existing plan operations. Web and mobile
   warn about time conflicts before a teaching class is selected, while keeping the add action
@@ -407,3 +423,13 @@ local widget tests do not imply those gates passed.
   the next account requires fresh consent. Optional JPush analytics/location collection is disabled.
 - See [activation and device validation](../operations/mobile-releases.md#native-push-activation-and-verification)
   for credentials, supported OEMs and delivery limitations.
+
+## Tongji sign-in
+
+`Current`: native login and registration show “Tongji SSO” when the public login options declare
+campus configuration ready. The entry explains automatic activated registration and links published
+policies. AppAuth supplies `login_hint=tongji` to the built-in OIDC provider; the backend handles the
+school callback and resumes the existing PKCE/nonce exchange. The App stores only its forum session,
+never a school access/refresh token. Existing bindings sign in to the same forum account; new users
+receive a private student-ID@tongji.edu.cn email without a separate activation step. All four UI
+languages are supported. `Partial`: physical-device school sign-in has not been validated.

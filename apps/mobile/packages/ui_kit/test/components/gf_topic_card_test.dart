@@ -84,6 +84,38 @@ void main() {
   });
 
   testWidgets(
+    'feed image keeps card navigation and does not open the lightbox',
+    (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(
+        gfApp(
+          SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Campus',
+              description: 'A short preview',
+              authorName: 'Student',
+              authorAvatarUrl: '',
+              imageUrls: const ['https://example.test/preview.png'],
+              categories: const [],
+              activityText: 'now',
+              replyCount: 0,
+              viewCount: 1,
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(Image).first);
+      await tester.pumpAndSettle();
+
+      expect(tapped, isTrue);
+      expect(find.byType(GfImageViewer), findsNothing);
+    },
+  );
+
+  testWidgets(
     'compact feed remains readable on narrow screens with large text',
     (tester) async {
       await tester.pumpWidget(

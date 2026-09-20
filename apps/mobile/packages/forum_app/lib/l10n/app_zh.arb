@@ -1,4 +1,5 @@
 {
+  "campusCourseReviews": "课程评价",
   "myCourseReviewsTitle": "我的课评",
   "myCourseReviewsEmpty": "还没有发布课评，去课程目录看看吧。",
   "myCourseReviewHidden": "这条评价已被隐藏，可在此删除。",
@@ -16,6 +17,21 @@
   "navProfile": "我的",
   "commonCancel": "取消",
   "commonSave": "保存",
+  "imageSave": "保存图片",
+  "imageSaved": "图片已保存",
+  "imageSaveFailed": "图片保存失败，请稍后重试",
+  "announcementLabel": "公告",
+  "announcementCollapse": "折叠公告",
+  "announcementCollapseAction": "收起",
+  "announcementExpand": "展开公告",
+  "announcementItem": "第 {index} 条公告",
+  "@announcementItem": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "commonLoading": "加载中…",
   "commonLoadMore": "加载更多",
   "commonRetry": "重试",
@@ -646,7 +662,7 @@
   "entrySchedule": "课表",
   "entryWiki": "Wiki",
   "navCampus": "校园",
-  "campusTitle": "在同济，发现更多",
+  "campusTitle": "我的校园",
   "campusSubtitle": "选好课，排好每一天，分享你的校园经验。",
   "campusCoursesHint": "查课程、看评价，选课更有底气",
   "campusScheduleHint": "多方案排课、冲突提示与课表导出",
@@ -1035,5 +1051,75 @@
         "type": "String"
       }
     }
-  }
+  },
+  "campusOfficialTitle": "我的校园 · 官方身份",
+  "campusOfficialSubtitle": "绑定同济账号，查看课表、成绩与校园消息",
+  "campusToday": "今天",
+  "campusTimetable": "我的课表",
+  "campusAcademics": "学业记录",
+  "campusMessages": "校园消息",
+  "campusCalendars": "校历",
+  "campusConnection": "身份连接",
+  "campusExplore": "探索校园",
+  "campusTodayCourses": "今日课表",
+  "campusNoClasses": "今天没有排课，好好享受这一天。",
+  "campusNoNotices": "暂时没有校园消息",
+  "campusAllNotices": "全部消息",
+  "campusBind": "连接同济身份",
+  "campusReauthorize": "更新学校授权",
+  "campusReplace": "更换绑定身份",
+  "campusUnbind": "解绑身份",
+  "campusUnbindBody": "将删除校园凭据并停用该同济身份登录。账号邮箱和论坛内容保留，可通过邮箱找回设置密码，之后也可重新绑定。",
+  "campusConfirmBinding": "确认绑定",
+  "campusConfirmUpdate": "确认更新授权",
+  "campusConfirmBody": "学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。",
+  "campusPrivacy": "一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。",
+  "campusDisabled": "本站尚未启用校园连接",
+  "campusUnavailable": "学校暂未提供可用数据，请稍后重试。",
+  "campusNoData": "暂无记录",
+  "campusAuthRequired": "学校授权需要更新，身份绑定仍然保留。",
+  "campusIdentityConflict": "该身份已被绑定，或连接已变化。请刷新后重试。",
+  "campusAuthExpired": "本次授权已过期，请重新发起。",
+  "campusMessageUnavailable": "该消息已不可用，请刷新消息列表。",
+  "campusMorning": "早上好",
+  "campusNoon": "中午好",
+  "campusAfternoon": "下午好",
+  "campusEvening": "晚上好",
+  "campusNight": "夜深了",
+  "campusWish1": "愿你今天的灵感，比校园网信号还稳定。",
+  "campusWish2": "今天的好运已在路上，可能正在等红灯。",
+  "campusWish3": "为什么数学书总是不开心？因为它有太多问题。",
+  "campusWish4": "允许自己慢一点，树也不是一天长高的。",
+  "campusAnotherWish": "换一句",
+  "campusWeekUnknown": "教学周暂不可用",
+  "campusCreditProgress": "学分进度",
+  "campusGradeTrend": "学期平均绩点",
+  "campusCet": "四六级成绩",
+  "campusCourses": "课程成绩",
+  "campusSchoolLogin": "学校官方登录",
+  "campusUpstreamGaps": "体测、健康与调课暂未取得可用数据；考试接口未获当前应用授权。",
+  "campusExportCalendar": "导出课程日历",
+  "campusExportingCalendar": "正在导出…",
+  "campusExportCalendarHint": "导出整个学期的 .ics 文件，可保存或分享至其他日历 App；不会自动同步调课。文件包含课程和上课地点。",
+  "campusCalendarIncomplete": "校历日期、课程周次或节次信息不完整，暂时无法准确导出。请刷新后重试。",
+  "campusCalendarEmpty": "本学期没有可导出的课程安排。",
+  "campusApplyAdjustments": "开启调休规则",
+  "campusApplyAdjustmentsHint": "按管理员确认的放假与补课日期导出；未设置时使用原课表。",
+  "campusCalendarRules": "查看已发布的调休规则",
+  "campusCalendarRulesHint": "仅影响开启调休后的日历导出，页面课表仍为学校原始安排。导出使用最新规则。",
+  "campusNoCalendarRules": "管理员尚未设置调休，按学校原课表导出。",
+  "campusMakeupDate": "{actual} 上 {original} 的课",
+  "@campusMakeupDate": {
+    "placeholders": {
+      "original": {
+        "type": "String"
+      },
+      "actual": {
+        "type": "String"
+      }
+    }
+  },
+  "loginTongji": "同济统一认证登录",
+  "loginTongjiHint": "首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。",
+  "loginTongjiPolicies": "继续即表示同意本站公布的条款："
 }

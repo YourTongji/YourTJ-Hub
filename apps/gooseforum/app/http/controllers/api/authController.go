@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -116,7 +117,11 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	userEntity, err := userservice.CreateUser(r.Username, r.Password, r.Email, true, r.Locale)
+	userEntity, err := userservice.CreateUserWithQuota(r.Username, r.Password, r.Email, true, securityConfig.MaxDailySignups, r.Locale)
+	if errors.Is(err, users.ErrSignupQuota) {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterDailyQuota, nil))
+		return
+	}
 	if userEntity == nil || err != nil {
 		slog.Error("注册创建用户失败", "username", r.Username, "email", r.Email, "error", err)
 		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterFailed, nil))

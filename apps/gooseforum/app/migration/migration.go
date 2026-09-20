@@ -3,6 +3,7 @@ package migration
 import (
 	_ "embed"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"log/slog"
 	"regexp"
 	"strconv"
@@ -122,6 +123,9 @@ func migrateSchema() error {
 		return fmt.Errorf("dbconnect migration err: %w", err)
 	}
 	slog.Info("dbconnect migration end")
+	if err = campus.BackfillIdentityReservations(db); err != nil {
+		return fmt.Errorf("dbconnect campus identity reservation backfill failed: %w", err)
+	}
 
 	db4file := db4fileconnect.Connect()
 	if err = db4file.AutoMigrate(
@@ -637,6 +641,8 @@ func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
 		&sticker.Entity{},
+		&campus.Binding{},
+		&campus.IdentityReservation{},
 		&course.Entity{},
 		&course.AliasEntity{},
 		&course.TermEntity{},

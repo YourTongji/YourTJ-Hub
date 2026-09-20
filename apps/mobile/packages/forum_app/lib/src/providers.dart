@@ -48,6 +48,23 @@ final offlineCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
   OfflineCacheEpoch.new,
 );
 
+/// 详情页带回的话题最新状态:打开详情即记录服务器读取真相(未读清除、
+/// 计数、点赞/收藏),动作成功后就地更新。列表页返回刷新时按 id 原位
+/// 合并并清空——不依赖条目落在第几页;watch 离线纪元,换账号自动作废。
+typedef TopicReturnState = ({
+  bool unseen,
+  bool? liked,
+  bool? bookmarked,
+  int likeCount,
+  int replyCount,
+  int viewCount,
+});
+
+final topicReturnStatesProvider = Provider<Map<int, TopicReturnState>>((ref) {
+  ref.watch(offlineCacheEpochProvider);
+  return <int, TopicReturnState>{};
+});
+
 /// Dio 实例(测试可 override 注入 mock adapter)。
 final dioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 
@@ -56,7 +73,13 @@ final dioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 final authDioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 
 Dio _localizedDio(Ref ref) {
-  final dio = Dio();
+  final dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 20),
+    ),
+  );
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
@@ -228,4 +251,8 @@ final contentRepositoryProvider = Provider<ContentRepository>(
 /// 表情包公开库(会话级缓存,一次 app 运行拉取一次,失败下次重试)。
 final stickerLibraryProvider = Provider<StickerLibrary>((ref) {
   return StickerLibrary(StickerRepository(ref.watch(apiClientProvider)));
+});
+
+final campusRepositoryProvider = Provider<CampusRepository>((ref) {
+  return CampusRepository(ref.watch(apiClientProvider));
 });

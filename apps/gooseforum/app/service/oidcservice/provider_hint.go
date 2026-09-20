@@ -13,7 +13,7 @@ import (
 func withProviderHint(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hint := r.URL.Query().Get("login_hint")
-		if hint == "google" || hint == "github" {
+		if hint == "google" || hint == "github" || hint == "tongji" {
 			w = &providerHintWriter{ResponseWriter: w, provider: hint}
 		}
 		next.ServeHTTP(w, r)

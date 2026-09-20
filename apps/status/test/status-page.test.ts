@@ -29,6 +29,11 @@ it('renders live metrics and distinguishes a real zero from missing data', async
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
   expect(wrapper.get('#status-signal').text()).toBe('服务器探针正常')
+  expect(wrapper.get('.status-signal-icon').classes()).toContain('is-ok')
+  expect(wrapper.get('.status-signal-icon svg').classes()).toContain('lucide-circle-check')
+  expect(wrapper.get('.status-footer').text()).toBe('© 2026 YourTJ Community | 公开统计数据')
+  expect(wrapper.findAll('.status-source-chip')).toHaveLength(3)
+  expect(wrapper.get('.status-source-chip').text()).toContain('Komari')
   expect(wrapper.get('.metric-active strong').text()).toBe('0')
   expect(wrapper.text()).toContain('8,060')
   expect(wrapper.findAll('.chart-bucket').length).toBeGreaterThan(20)
@@ -88,6 +93,14 @@ it('shows chart tooltips to keyboard users', async () => {
   expect(wrapper.find('.chart-tooltip').exists()).toBe(false)
 })
 
+it('shows resource chart tooltips to keyboard users', async () => {
+  const wrapper = await open()
+  await wrapper.findAll('.resource-point-hit').at(-1)!.trigger('focus')
+  expect(wrapper.get('.resource-tooltip').text()).toContain('CPU')
+  await wrapper.findAll('.resource-point-hit').at(-1)!.trigger('blur')
+  expect(wrapper.find('.resource-tooltip').exists()).toBe(false)
+})
+
 it('switches resource history independently and hides the previous scope while loading', async () => {
   const wrapper = await open()
   let resolveDay!: (value: StatusSnapshot) => void
@@ -124,14 +137,19 @@ it('uses independent availability checks for the headline and does not fall back
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
   expect(wrapper.get('#status-signal').text()).toBe('所有公开服务正常')
+  expect(wrapper.get('.status-signal-icon svg').classes()).toContain('lucide-circle-check')
   data.uptime.data!.monitors[0]!.current!.status = 'down'
   vi.mocked(getStatus).mockResolvedValue(structuredClone(data))
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
   expect(wrapper.get('#status-signal').text()).toBe('服务异常')
+  expect(wrapper.get('.status-signal-icon').classes()).toContain('is-error')
+  expect(wrapper.get('.status-signal-icon svg').classes()).toContain('lucide-circle-x')
   const unavailable = connected(); unavailable.uptime = { state: 'unavailable', data: null }
   vi.mocked(getStatus).mockResolvedValue(unavailable)
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
   expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
+  expect(wrapper.get('.status-signal-icon').classes()).toContain('is-muted')
+  expect(wrapper.get('.status-signal-icon svg').classes()).toContain('lucide-circle-help')
 })
 
 it.each(['sample', 'fetch'] as const)('rejects a fallback probe with a future %s timestamp', async field => {

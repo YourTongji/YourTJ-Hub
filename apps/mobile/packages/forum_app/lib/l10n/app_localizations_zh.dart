@@ -9,6 +9,9 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get campusCourseReviews => '课程评价';
+
+  @override
   String get myCourseReviewsTitle => '我的课评';
 
   @override
@@ -55,6 +58,32 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonSave => '保存';
+
+  @override
+  String get imageSave => '保存图片';
+
+  @override
+  String get imageSaved => '图片已保存';
+
+  @override
+  String get imageSaveFailed => '图片保存失败，请稍后重试';
+
+  @override
+  String get announcementLabel => '公告';
+
+  @override
+  String get announcementCollapse => '折叠公告';
+
+  @override
+  String get announcementCollapseAction => '收起';
+
+  @override
+  String get announcementExpand => '展开公告';
+
+  @override
+  String announcementItem(int index) {
+    return '第 $index 条公告';
+  }
 
   @override
   String get commonLoading => '加载中…';
@@ -1180,7 +1209,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navCampus => '校园';
 
   @override
-  String get campusTitle => '在同济，发现更多';
+  String get campusTitle => '我的校园';
 
   @override
   String get campusSubtitle => '选好课，排好每一天，分享你的校园经验。';
@@ -2065,4 +2094,188 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsEmailPending(String email) {
     return '待确认：$email';
   }
+
+  @override
+  String get campusOfficialTitle => '我的校园 · 官方身份';
+
+  @override
+  String get campusOfficialSubtitle => '绑定同济账号，查看课表、成绩与校园消息';
+
+  @override
+  String get campusToday => '今天';
+
+  @override
+  String get campusTimetable => '我的课表';
+
+  @override
+  String get campusAcademics => '学业记录';
+
+  @override
+  String get campusMessages => '校园消息';
+
+  @override
+  String get campusCalendars => '校历';
+
+  @override
+  String get campusConnection => '身份连接';
+
+  @override
+  String get campusExplore => '探索校园';
+
+  @override
+  String get campusTodayCourses => '今日课表';
+
+  @override
+  String get campusNoClasses => '今天没有排课，好好享受这一天。';
+
+  @override
+  String get campusNoNotices => '暂时没有校园消息';
+
+  @override
+  String get campusAllNotices => '全部消息';
+
+  @override
+  String get campusBind => '连接同济身份';
+
+  @override
+  String get campusReauthorize => '更新学校授权';
+
+  @override
+  String get campusReplace => '更换绑定身份';
+
+  @override
+  String get campusUnbind => '解绑身份';
+
+  @override
+  String get campusUnbindBody =>
+      '将删除校园凭据并停用该同济身份登录。账号邮箱和论坛内容保留，可通过邮箱找回设置密码，之后也可重新绑定。';
+
+  @override
+  String get campusConfirmBinding => '确认绑定';
+
+  @override
+  String get campusConfirmUpdate => '确认更新授权';
+
+  @override
+  String get campusConfirmBody => '学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。';
+
+  @override
+  String get campusPrivacy => '一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。';
+
+  @override
+  String get campusDisabled => '本站尚未启用校园连接';
+
+  @override
+  String get campusUnavailable => '学校暂未提供可用数据，请稍后重试。';
+
+  @override
+  String get campusNoData => '暂无记录';
+
+  @override
+  String get campusAuthRequired => '学校授权需要更新，身份绑定仍然保留。';
+
+  @override
+  String get campusIdentityConflict => '该身份已被绑定，或连接已变化。请刷新后重试。';
+
+  @override
+  String get campusAuthExpired => '本次授权已过期，请重新发起。';
+
+  @override
+  String get campusMessageUnavailable => '该消息已不可用，请刷新消息列表。';
+
+  @override
+  String get campusMorning => '早上好';
+
+  @override
+  String get campusNoon => '中午好';
+
+  @override
+  String get campusAfternoon => '下午好';
+
+  @override
+  String get campusEvening => '晚上好';
+
+  @override
+  String get campusNight => '夜深了';
+
+  @override
+  String get campusWish1 => '愿你今天的灵感，比校园网信号还稳定。';
+
+  @override
+  String get campusWish2 => '今天的好运已在路上，可能正在等红灯。';
+
+  @override
+  String get campusWish3 => '为什么数学书总是不开心？因为它有太多问题。';
+
+  @override
+  String get campusWish4 => '允许自己慢一点，树也不是一天长高的。';
+
+  @override
+  String get campusAnotherWish => '换一句';
+
+  @override
+  String get campusWeekUnknown => '教学周暂不可用';
+
+  @override
+  String get campusCreditProgress => '学分进度';
+
+  @override
+  String get campusGradeTrend => '学期平均绩点';
+
+  @override
+  String get campusCet => '四六级成绩';
+
+  @override
+  String get campusCourses => '课程成绩';
+
+  @override
+  String get campusSchoolLogin => '学校官方登录';
+
+  @override
+  String get campusUpstreamGaps => '体测、健康与调课暂未取得可用数据；考试接口未获当前应用授权。';
+
+  @override
+  String get campusExportCalendar => '导出课程日历';
+
+  @override
+  String get campusExportingCalendar => '正在导出…';
+
+  @override
+  String get campusExportCalendarHint =>
+      '导出整个学期的 .ics 文件，可保存或分享至其他日历 App；不会自动同步调课。文件包含课程和上课地点。';
+
+  @override
+  String get campusCalendarIncomplete => '校历日期、课程周次或节次信息不完整，暂时无法准确导出。请刷新后重试。';
+
+  @override
+  String get campusCalendarEmpty => '本学期没有可导出的课程安排。';
+
+  @override
+  String get campusApplyAdjustments => '开启调休规则';
+
+  @override
+  String get campusApplyAdjustmentsHint => '按管理员确认的放假与补课日期导出；未设置时使用原课表。';
+
+  @override
+  String get campusCalendarRules => '查看已发布的调休规则';
+
+  @override
+  String get campusCalendarRulesHint => '仅影响开启调休后的日历导出，页面课表仍为学校原始安排。导出使用最新规则。';
+
+  @override
+  String get campusNoCalendarRules => '管理员尚未设置调休，按学校原课表导出。';
+
+  @override
+  String campusMakeupDate(String original, String actual) {
+    return '$actual 上 $original 的课';
+  }
+
+  @override
+  String get loginTongji => '同济统一认证登录';
+
+  @override
+  String get loginTongjiHint => '首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。';
+
+  @override
+  String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';
 }

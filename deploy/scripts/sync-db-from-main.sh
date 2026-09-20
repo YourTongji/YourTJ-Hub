@@ -70,6 +70,15 @@ sync_one() {
   fi
   TMP="/tmp/${label}-snapshot-$$.db"
   sqlite3 "$src" ".backup '$TMP'" || { echo "sync-db: $label snapshot failed" >&2; rm -f "$TMP"; exit 1; }
+  # Campus credentials and identity reservations never cross environments.
+  if [ "$label" = "sqlite" ]; then
+    for table in campus_identity_bindings campus_identity_reservations; do
+      if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='$table';")" = "1" ]; then
+        sqlite3 "$TMP" "DELETE FROM $table;"
+      fi
+    done
+    sqlite3 "$TMP" "VACUUM;"
+  fi
   mkdir -p "$(dirname "$dst")"
   install -m 0644 "$TMP" "$dst"
   rm -f "$TMP"
@@ -99,7 +108,7 @@ SQL
   # 无法逃逸引号执行任意命令; 管道两侧的 $MAIN_PG/$DEV_PG 均由容器内
   # shell 从环境变量读取, 而非拼接进命令字符串。
   docker exec -e MAIN_PG="$MAIN_PG" -e DEV_PG="$DEV_PG" yourtj-postgres sh -c \
-    'pg_dump -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
+    'pg_dump --exclude-table-data=public.campus_identity_bindings --exclude-table-data=public.campus_identity_reservations -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
   echo "sync-db: dev PG db synced from main"
   sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
   chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true

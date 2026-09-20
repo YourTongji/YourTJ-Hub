@@ -22,6 +22,13 @@ void main() {
       expect(policy.isExport(Uri.parse(url)), isFalse, reason: url);
     }
   });
+  test('school login is restricted to exact official HTTPS origins', () {
+    expect(policy.isSchoolOrigin(Uri.parse('https://api.tongji.edu.cn/keycloak')), isTrue);
+    expect(policy.isSchoolOrigin(Uri.parse('https://iam.tongji.edu.cn/')), isTrue);
+    for (final url in ['https://api.tongji.edu.cn.evil.test/', 'http://iam.tongji.edu.cn/', 'https://user@iam.tongji.edu.cn/', 'https://iam.tongji.edu.cn:444/']) {
+      expect(policy.isSchoolOrigin(Uri.parse(url)), isFalse);
+    }
+  });
   test('cleartext handoff is restricted to local development hosts', () {
     expect(policy.isSecureOrigin, isTrue);
     expect(

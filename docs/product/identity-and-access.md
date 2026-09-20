@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-09-08
+> Last verified: 2026-09-20
 
 ## Identity model
 
@@ -32,13 +32,37 @@
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
   requests only `openid`, `email`, and `profile` scopes; its email is treated as trusted for account
-  binding only when the Google userinfo response contains `verified_email=true`. OAuth callbacks
+  binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks
   never create accounts (issue #531): an identity without an existing provider binding or a
   bindable same-email account is redirected to the register page with an explanatory notice
   (`/login?register=true&oauthNotice=1`), and account creation happens only through password
   registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
   require a process restart; saving a new site callback URL in the admin console refreshes the
   providers immediately.
+
+### Tongji unified sign-in
+
+`Current`: Web and Flutter login/registration expose Tongji SSO when campus configuration is valid.
+The existing school callback verifies signature, issuer/audience, nonce, PKCE and student identity.
+Login-purpose state is bound to a separate HttpOnly browser cookie, consumed once and expires after
+ten minutes; campus binding-purpose state remains tied to the original forum session and confirmation.
+The original safe local destination is retained server-side, including the mobile OIDC bridge.
+
+An existing campus binding signs into its available human account and renews encrypted campus
+credentials without changing its email, activation, password or roles. Only an identity that has never
+been bound can register automatically; otherwise recover/sign into an existing account and bind
+explicitly. For a first-time identity the server atomically
+creates an ordinary activated user with `student-ID@tongji.edu.cn`, random public username/nickname,
+no local password and a unique campus binding. Email activation is unnecessary for this school-verified
+registration; signup/domain/daily-limit policy still applies. Password and school self-registration
+share a transaction-scoped daily-quota lock; closed accounts still count for their creation day. A current or freshly staged email claim
+never auto-links an existing account: recover/sign into that account and bind from Campus instead.
+First-user administrator provisioning is not available through this flow. Unlinking releases the
+school sign-in identity; the existing email and activation remain, and email password recovery can
+establish a password. Closing an account keeps the ordinary retained-email reservation. A separate, permanent HMAC-only
+identity reservation survives unlink, replacement and closure to prevent repeat signup and initial-point
+claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
+See [the decision](../decisions/0032-tongji-login-and-registration.md).
 
 ### Built-in OIDC Provider (first-party clients)
 
@@ -52,18 +76,20 @@
 
 ### Mobile (Flutter)
 
-`Current`: the native login form exposes password, Google and GitHub sign-in. Password login retains
+`Current`: the native login form exposes password, Google, GitHub and Tongji sign-in; Tongji is also available on registration. Password login retains
 captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
-`login_hint=google|github` to the existing authorization endpoint. After the OIDC provider validates
+`login_hint=google|github|tongji` to the existing authorization endpoint. After the OIDC provider validates
 and persists the request, the server may redirect its own login bridge to the selected existing
 OAuth route. Unknown hints and already-authenticated redirects retain the standard flow; browser
 binding, exact redirect matching, nonce and PKCE requirements are unchanged.
-The social OAuth hop retains only the fixed `/api/oauth/authorize/callback?id=…` destination
+The GitHub/Google OAuth hop retains only the fixed `/api/oauth/authorize/callback?id=…` destination
 in a signed HttpOnly, SameSite=Lax cookie (10-minute lifetime), bound to a fresh OAuth state
 and the selected provider. The callback clears that continuation, validates it and completes
 upstream authentication before resuming OIDC. Callback-supplied redirects are ignored. Ordinary
 Web login returns home; account binding returns to settings. A continuation started as login
-cannot become an account-binding operation if another forum session appears in the browser.
+cannot become an account-binding operation if another forum session appears in the browser. Tongji
+retains the continuation in its server-side login transaction and resumes the same OIDC bridge; school
+credentials are never returned to Dart.
 
 1. AppAuth + PKCE opens the forum built-in OIDC authorization page and receives the callback
    authorization code; the app retains the matching PKCE verifier and nonce in memory;
@@ -86,7 +112,7 @@ included in the URL, page body or JavaScript. See [mobile experience](mobile-exp
 - **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
   AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
   single-use; verification attempts are rate-limited per user (10 failures / 15 min).
-- **GitHub OAuth and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
+- **GitHub/Google/Tongji and built-in OIDC logins** do not run forum TOTP; MFA for those paths is a
   `Decision needed` (the built-in provider reuses the authenticated forum session, so a future phase
   may enforce forum TOTP there as well).
 
@@ -100,7 +126,7 @@ and account recovery; it is not included in the public user card or profile.
 ## Account lifecycle
 
 - Registration: forum self-service password registration (with email verification when enabled) is
-  the only account-creation path — social OAuth never provisions accounts (issue #531). The built-in
+  one account-creation path. Tongji SSO also creates school-verified activated accounts; GitHub/Google OAuth never provisions accounts (issue #531). The built-in
   OIDC provider also never creates accounts — it authenticates existing users.
 - Email verification (`enableEmailVerification`): password registration stores the account as
   `pending` but still issues a session. While the setting is on, authenticated **write**
@@ -126,7 +152,7 @@ and account recovery; it is not included in the public user card or profile.
   Nicknames edited through the profile share the same lists and equality rule. Reserved entries
   only block new/renamed accounts and never freeze existing ones; banned entries additionally
   freeze matching existing accounts (idempotent) when first added by an admin. Agent creation
-  rejects reserved/banned usernames outright; OAuth never provisions accounts (issue #531),
+  rejects reserved/banned usernames outright; GitHub/Google OAuth never provisions accounts (issue #531),
   so the former GitHub username backoff has no remaining caller. Course reviews
   and profile free text (bio/signature/website/websiteName) are scanned against `sensitiveWords`
   (normalized substring scan, block action with a dedicated `course.review.sensitiveBlocked`
@@ -322,3 +348,7 @@ support.
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,
   recovery codes hashed, codes shown exactly once during setup).
+
+## Official campus connection
+
+`Current`: [My campus](campus.md) supports a private, bidirectionally unique Tongji identity binding with explicit confirmation, unbind and atomic replacement. This is separate from forum OAuth login. School access/refresh tokens are server-side encrypted credentials; expired refresh authorization reserves the identity and prompts reauthorization. Forum account closure clears campus credentials before invalidating the account.

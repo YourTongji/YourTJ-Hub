@@ -4,11 +4,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -266,7 +269,7 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 		if references != 1 {
 			t.Fatalf("active references = %d", references)
 		}
-		created := sticker.GetByName("contract_new")
+		created, _ := sticker.GetByName("contract_new")
 		if created.Id == 0 || created.SortOrder != 7 || !created.IsEnabled {
 			t.Fatalf("created sticker = %#v, want contract_new enabled sortOrder 7", created)
 		}
@@ -281,7 +284,7 @@ func TestAdminStickerSaveHTTPContract(t *testing.T) {
 		serveAdminStickersOK(t, conn, router, http.MethodPost, path,
 			`{"id":9101,"name":"smile","sortOrder":9,"isEnabled":false}`,
 			"admin-sticker-action-success.json")
-		updated := sticker.GetById(contractStickerID)
+		updated, _ := sticker.GetById(contractStickerID)
 		if updated.SortOrder != 9 || updated.IsEnabled {
 			t.Fatalf("updated sticker = %#v, want sortOrder 9 disabled", updated)
 		}
@@ -319,7 +322,7 @@ func TestAdminStickerDeleteHTTPContract(t *testing.T) {
 		conn, router := setupAdminStickersContractTest(t)
 		seedContractSticker(t, conn, contractStickerID, "smile", "stickers/9f1c2d3e-0000-4000-8000-000000000001.png", 1, true)
 		serveAdminStickersOK(t, conn, router, http.MethodPost, path, `{"id":9101}`, "admin-sticker-action-success.json")
-		if got := sticker.GetById(contractStickerID); got.Id != 0 {
+		if got, _ := sticker.GetById(contractStickerID); got.Id != 0 {
 			t.Fatalf("sticker %d still readable after delete", contractStickerID)
 		}
 	})
@@ -343,7 +346,7 @@ func TestAdminStickerImportHTTPContract(t *testing.T) {
 			"broken.png": []byte("PNG forgery bytes"),
 		})
 		serveAdminStickersImportOK(t, conn, router, archive, "admin-sticker-import-success.json")
-		created := sticker.GetByName("smile")
+		created, _ := sticker.GetByName("smile")
 		if created.Id == 0 || !created.IsEnabled || created.FileName == "" {
 			t.Fatalf("imported sticker = %#v, want enabled row named smile", created)
 		}
@@ -418,7 +421,8 @@ func TestStickerReviewUsageFailureRollsBackImport(t *testing.T) {
 	if files != 0 {
 		t.Fatalf("rollback leaked %d uploaded files", files)
 	}
-	if bytes.Contains(result.Body.Bytes(), []byte(`"imported":1`)) || sticker.GetByName("review").Id != 0 {
+	review, _ := sticker.GetByName("review")
+	if bytes.Contains(result.Body.Bytes(), []byte(`"imported":1`)) || review.Id != 0 {
 		t.Fatalf("usage failure reported success: %s", result.Body.String())
 	}
 }
@@ -459,7 +463,7 @@ func TestStickerReviewConcurrentImportNames(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"race", "race-2"} {
-		row := sticker.GetByName(name)
+		row, _ := sticker.GetByName(name)
 		if row.Id == 0 {
 			t.Fatalf("missing %s", name)
 		}
@@ -502,7 +506,7 @@ func TestStickerReviewImageOwnershipAndDisabledCreate(t *testing.T) {
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rejected), contractFixture(t, "admin-img-upload-file-missing.json"))
 	saved := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/sticker-save", body, contractSessionToken(t, manager))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, saved), contractFixture(t, "admin-sticker-action-success.json"))
-	row := sticker.GetByName("owned")
+	row, _ := sticker.GetByName("owned")
 	if row.Id == 0 || row.IsEnabled || row.FileName != file.Name {
 		t.Fatalf("disabled row = %+v", row)
 	}
@@ -520,5 +524,99 @@ func TestStickerReviewPublicRateLimit(t *testing.T) {
 	}
 	if !bytes.Contains(result.Body.Bytes(), []byte(`"action":"sticker.list"`)) {
 		t.Fatal(result.Body.String())
+	}
+}
+
+// countStickerQueries 注册查询回调统计 stickers 表 SELECT 次数并返回读数函数，
+// cleanup 时移除回调。供批量渲染回归测试断言整页只解析一次（issue #706）。
+func countStickerQueries(t *testing.T, conn *gorm.DB) func() int {
+	t.Helper()
+	var count int
+	const callbackName = "routes_test_count_sticker_queries"
+	if err := conn.Callback().Query().After("gorm:query").Register(callbackName, func(op *gorm.DB) {
+		sql := op.Statement.SQL.String()
+		if strings.Contains(sql, "FROM `stickers`") || strings.Contains(sql, `FROM "stickers"`) {
+			count++
+		}
+	}); err != nil {
+		t.Fatalf("register sticker query counter: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove(callbackName) })
+	return func() int { return count }
+}
+
+// TestAdminStickerListDBFailureHTTPContract 回归 issue #703：仓储查询失败时
+// 管理台列表必须返回 common.operation.failed，而不是 HTTP 200 空列表。
+func TestAdminStickerListDBFailureHTTPContract(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	if err := conn.Migrator().DropTable(&sticker.Entity{}); err != nil {
+		t.Fatalf("drop stickers table: %v", err)
+	}
+	recorder := serveAdminStickersRaw(t, conn, router, http.MethodGet, "/api/admin/stickers", "")
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-sticker-list-failed.json"))
+}
+
+// TestTopicWindowStickerBatchHTTPContract 回归 issue #706 及其收尾：楼层窗口
+// 载荷对整页（帖子 + 回复引用目标）只做一次贴纸解析，且读时渲染覆盖落库 HTML、
+// 引用目标复用批量就地结果。
+func TestTopicWindowStickerBatchHTTPContract(t *testing.T) {
+	conn, router := setupForumInteractionContractTest(t)
+	if err := conn.AutoMigrate(&sticker.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	conn.Where("1 = 1").Delete(&sticker.Entity{})
+	row := sticker.Entity{Name: "window_ok", FileName: "stickers/window_ok.png", IsEnabled: true}
+	if err := sticker.Save(&row); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Where("1 = 1").Delete(&sticker.Entity{}) })
+	// 用户名与 ID 段独立于 TestPostWindowHTTPContract（9301/9101/9201），避免共享库冲突。
+	createContractAvatarUser(t, conn, 9702, "contract-window-batch-author", "/static/pic/3.webp")
+	createContractPublishedTopic(t, conn, 9703, 9704, 9702)
+	createContractReplyPost(t, conn, 9705, 9703, 9702)
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", uint64(9704)).Update("content", "seed [:sticker:window_ok:]").Error; err != nil {
+		t.Fatalf("seed sticker token content: %v", err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", uint64(9705)).Update("reply_to_post_id", uint64(9704)).Error; err != nil {
+		t.Fatalf("seed reply target: %v", err)
+	}
+
+	stickerSelects := countStickerQueries(t, conn)
+	recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/posts/window?topicId=9703", "", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := stickerSelects(); got != 1 {
+		t.Fatalf("sticker resolves for one window payload = %d, want 1", got)
+	}
+
+	var payload struct {
+		Result struct {
+			Posts []struct {
+				ID              uint64 `json:"id"`
+				RenderedContent string `json:"renderedContent"`
+			} `json:"posts"`
+			ReplyTargets []struct {
+				ID              uint64 `json:"id"`
+				RenderedContent string `json:"renderedContent"`
+			} `json:"replyTargets"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode window payload: %v", err)
+	}
+	if len(payload.Result.Posts) != 2 {
+		t.Fatalf("posts = %d, want 2", len(payload.Result.Posts))
+	}
+	for _, post := range payload.Result.Posts {
+		if post.ID == 9704 && !strings.Contains(post.RenderedContent, "window_ok.png") {
+			t.Fatalf("sticker post rendered = %q, want read-time expanded sticker", post.RenderedContent)
+		}
+	}
+	if len(payload.Result.ReplyTargets) != 1 || payload.Result.ReplyTargets[0].ID != 9704 {
+		t.Fatalf("reply targets = %+v, want single target 9704", payload.Result.ReplyTargets)
+	}
+	if !strings.Contains(payload.Result.ReplyTargets[0].RenderedContent, "window_ok.png") {
+		t.Fatalf("reply target rendered = %q, want batch-expanded sticker", payload.Result.ReplyTargets[0].RenderedContent)
 	}
 }

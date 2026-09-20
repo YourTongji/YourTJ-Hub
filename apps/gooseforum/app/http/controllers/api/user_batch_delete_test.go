@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 		&contentDeleteEvent.Entity{},
 		&pushSubscription.Entity{},
 		&pk.ScheduleSnapshotEntity{},
+		&campus.Binding{},
 	); err != nil {
 		t.Fatalf("migrate batch delete tables: %v", err)
 	}
@@ -185,6 +187,16 @@ func TestAccountCloseAnonymizeKeepsContent(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 	userID := user.Id
+	if err := conn.Create(&campus.Binding{UserID: userID, IdentityKey: "fictional-school-identity", Revision: "demo", Sealed: "encrypted-fixture"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		var count int64
+		if err := conn.Model(&campus.Binding{}).Where("user_id = ?", userID).Count(&count).Error; err != nil || count != 0 {
+			t.Errorf("campus credential retained after account closure: %v", err)
+		}
+	})
+
 	ids := seedBatchTopics(t, conn, userID, 9_900_000_500, 2)
 	if err := pk.UpsertScheduleSnapshot(&pk.ScheduleSnapshotEntity{UserId: userID, Plans: pk.PlanList{{Id: "p", Name: "private"}}, ActivePlanId: "p"}); err != nil {
 		t.Fatal(err)

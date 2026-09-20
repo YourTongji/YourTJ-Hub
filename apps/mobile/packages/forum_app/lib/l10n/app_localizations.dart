@@ -102,6 +102,12 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @campusCourseReviews.
+  ///
+  /// In en, this message translates to:
+  /// **'Course reviews'**
+  String get campusCourseReviews;
+
   /// No description provided for @myCourseReviewsTitle.
   ///
   /// In en, this message translates to:
@@ -197,6 +203,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save'**
   String get commonSave;
+
+  /// No description provided for @imageSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save image'**
+  String get imageSave;
+
+  /// No description provided for @imageSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Image saved'**
+  String get imageSaved;
+
+  /// No description provided for @imageSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save the image. Try again later.'**
+  String get imageSaveFailed;
+
+  /// No description provided for @announcementLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement'**
+  String get announcementLabel;
+
+  /// No description provided for @announcementCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse announcement'**
+  String get announcementCollapse;
+
+  /// No description provided for @announcementCollapseAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get announcementCollapseAction;
+
+  /// No description provided for @announcementExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand announcement'**
+  String get announcementExpand;
+
+  /// No description provided for @announcementItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement {index}'**
+  String announcementItem(int index);
 
   /// No description provided for @commonLoading.
   ///
@@ -2277,7 +2331,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusTitle.
   ///
   /// In en, this message translates to:
-  /// **'Your campus, connected'**
+  /// **'My campus'**
   String get campusTitle;
 
   /// No description provided for @campusSubtitle.
@@ -3983,6 +4037,366 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Awaiting confirmation: {email}'**
   String settingsEmailPending(String email);
+
+  /// No description provided for @campusOfficialTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My campus · official identity'**
+  String get campusOfficialTitle;
+
+  /// No description provided for @campusOfficialSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Tongji for your timetable, grades and campus notices'**
+  String get campusOfficialSubtitle;
+
+  /// No description provided for @campusToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get campusToday;
+
+  /// No description provided for @campusTimetable.
+  ///
+  /// In en, this message translates to:
+  /// **'My timetable'**
+  String get campusTimetable;
+
+  /// No description provided for @campusAcademics.
+  ///
+  /// In en, this message translates to:
+  /// **'Academic records'**
+  String get campusAcademics;
+
+  /// No description provided for @campusMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus notices'**
+  String get campusMessages;
+
+  /// No description provided for @campusCalendars.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendars'**
+  String get campusCalendars;
+
+  /// No description provided for @campusConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get campusConnection;
+
+  /// No description provided for @campusExplore.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore campus'**
+  String get campusExplore;
+
+  /// No description provided for @campusTodayCourses.
+  ///
+  /// In en, this message translates to:
+  /// **'Today’s classes'**
+  String get campusTodayCourses;
+
+  /// No description provided for @campusNoClasses.
+  ///
+  /// In en, this message translates to:
+  /// **'No classes today. Enjoy your day.'**
+  String get campusNoClasses;
+
+  /// No description provided for @campusNoNotices.
+  ///
+  /// In en, this message translates to:
+  /// **'No campus notices yet'**
+  String get campusNoNotices;
+
+  /// No description provided for @campusAllNotices.
+  ///
+  /// In en, this message translates to:
+  /// **'All notices'**
+  String get campusAllNotices;
+
+  /// No description provided for @campusBind.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Tongji identity'**
+  String get campusBind;
+
+  /// No description provided for @campusReauthorize.
+  ///
+  /// In en, this message translates to:
+  /// **'Update school authorization'**
+  String get campusReauthorize;
+
+  /// No description provided for @campusReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Change linked identity'**
+  String get campusReplace;
+
+  /// No description provided for @campusUnbind.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlink identity'**
+  String get campusUnbind;
+
+  /// No description provided for @campusUnbindBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes campus credentials and disables sign-in with this Tongji identity. Your email and forum content remain. Use email password recovery to set a password, or link an identity again.'**
+  String get campusUnbindBody;
+
+  /// No description provided for @campusConfirmBinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm connection'**
+  String get campusConfirmBinding;
+
+  /// No description provided for @campusConfirmUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm authorization update'**
+  String get campusConfirmUpdate;
+
+  /// No description provided for @campusConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.'**
+  String get campusConfirmBody;
+
+  /// No description provided for @campusPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'One account, one official identity. School data is private and is not saved on your device.'**
+  String get campusPrivacy;
+
+  /// No description provided for @campusDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus connection is not enabled on this site'**
+  String get campusDisabled;
+
+  /// No description provided for @campusUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'School data is temporarily unavailable. Try again later.'**
+  String get campusUnavailable;
+
+  /// No description provided for @campusNoData.
+  ///
+  /// In en, this message translates to:
+  /// **'No records yet'**
+  String get campusNoData;
+
+  /// No description provided for @campusAuthRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'School authorization needs updating. Your identity remains linked.'**
+  String get campusAuthRequired;
+
+  /// No description provided for @campusIdentityConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This identity is already linked, or the connection changed. Refresh and retry.'**
+  String get campusIdentityConflict;
+
+  /// No description provided for @campusAuthExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This authorization attempt expired. Please start again.'**
+  String get campusAuthExpired;
+
+  /// No description provided for @campusMessageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This notice is unavailable. Refresh the list.'**
+  String get campusMessageUnavailable;
+
+  /// No description provided for @campusMorning.
+  ///
+  /// In en, this message translates to:
+  /// **'Good morning'**
+  String get campusMorning;
+
+  /// No description provided for @campusNoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Good afternoon'**
+  String get campusNoon;
+
+  /// No description provided for @campusAfternoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Good afternoon'**
+  String get campusAfternoon;
+
+  /// No description provided for @campusEvening.
+  ///
+  /// In en, this message translates to:
+  /// **'Good evening'**
+  String get campusEvening;
+
+  /// No description provided for @campusNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Up late?'**
+  String get campusNight;
+
+  /// No description provided for @campusWish1.
+  ///
+  /// In en, this message translates to:
+  /// **'May your inspiration be more reliable than campus Wi-Fi.'**
+  String get campusWish1;
+
+  /// No description provided for @campusWish2.
+  ///
+  /// In en, this message translates to:
+  /// **'Good luck is on its way. It might be waiting at a red light.'**
+  String get campusWish2;
+
+  /// No description provided for @campusWish3.
+  ///
+  /// In en, this message translates to:
+  /// **'Why was the maths book sad? It had too many problems.'**
+  String get campusWish3;
+
+  /// No description provided for @campusWish4.
+  ///
+  /// In en, this message translates to:
+  /// **'Take your time. Trees don’t grow tall in a day either.'**
+  String get campusWish4;
+
+  /// No description provided for @campusAnotherWish.
+  ///
+  /// In en, this message translates to:
+  /// **'Another thought'**
+  String get campusAnotherWish;
+
+  /// No description provided for @campusWeekUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Teaching week unavailable'**
+  String get campusWeekUnknown;
+
+  /// No description provided for @campusCreditProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Credit progress'**
+  String get campusCreditProgress;
+
+  /// No description provided for @campusGradeTrend.
+  ///
+  /// In en, this message translates to:
+  /// **'GPA by semester'**
+  String get campusGradeTrend;
+
+  /// No description provided for @campusCet.
+  ///
+  /// In en, this message translates to:
+  /// **'CET results'**
+  String get campusCet;
+
+  /// No description provided for @campusCourses.
+  ///
+  /// In en, this message translates to:
+  /// **'Course results'**
+  String get campusCourses;
+
+  /// No description provided for @campusSchoolLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'School sign-in'**
+  String get campusSchoolLogin;
+
+  /// No description provided for @campusUpstreamGaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Sports, health and course changes are not available. This client has no exam permission.'**
+  String get campusUpstreamGaps;
+
+  /// No description provided for @campusExportCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Export course calendar'**
+  String get campusExportCalendar;
+
+  /// No description provided for @campusExportingCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting…'**
+  String get campusExportingCalendar;
+
+  /// No description provided for @campusExportCalendarHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Export the whole term as an .ics file to save or share with a calendar app. This snapshot does not sync timetable changes. The file contains courses and locations.'**
+  String get campusExportCalendarHint;
+
+  /// No description provided for @campusCalendarIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Term dates, teaching weeks or class times are incomplete. Refresh and try again.'**
+  String get campusCalendarIncomplete;
+
+  /// No description provided for @campusCalendarEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no scheduled classes to export this term.'**
+  String get campusCalendarEmpty;
+
+  /// No description provided for @campusApplyAdjustments.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply holiday adjustments'**
+  String get campusApplyAdjustments;
+
+  /// No description provided for @campusApplyAdjustmentsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use administrator-confirmed holidays and makeup dates; otherwise use the original timetable.'**
+  String get campusApplyAdjustmentsHint;
+
+  /// No description provided for @campusCalendarRules.
+  ///
+  /// In en, this message translates to:
+  /// **'View published adjustments'**
+  String get campusCalendarRules;
+
+  /// No description provided for @campusCalendarRulesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only calendar exports are adjusted. The timetable still shows the original school schedule. Exports use the latest rules.'**
+  String get campusCalendarRulesHint;
+
+  /// No description provided for @campusNoCalendarRules.
+  ///
+  /// In en, this message translates to:
+  /// **'No adjustments are published. The original timetable will be exported.'**
+  String get campusNoCalendarRules;
+
+  /// No description provided for @campusMakeupDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Classes from {original} move to {actual}'**
+  String campusMakeupDate(String original, String actual);
+
+  /// No description provided for @loginTongji.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Tongji SSO'**
+  String get loginTongji;
+
+  /// No description provided for @loginTongjiHint.
+  ///
+  /// In en, this message translates to:
+  /// **'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.'**
+  String get loginTongjiHint;
+
+  /// No description provided for @loginTongjiPolicies.
+  ///
+  /// In en, this message translates to:
+  /// **'By continuing, you agree to the published policies:'**
+  String get loginTongjiPolicies;
 }
 
 class _AppLocalizationsDelegate

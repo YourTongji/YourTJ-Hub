@@ -3,7 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/gf_theme.dart';
 
-/// Original Lucide vectors shared with the Web and editable Figma library.
+/// ReIcon vectors shared with the Web and editable Figma library.
 /// Provider marks retain their official colours.
 class GfSymbol extends StatelessWidget {
   const GfSymbol(this.name, {super.key, this.size = 24, this.color});

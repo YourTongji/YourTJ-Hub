@@ -95,6 +95,8 @@ path filters directly, so an unrelated PR does not start a Flutter runner.
   locally when unset). **Any model/migration change must pass these PG tests** — models must not
   hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
   and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
+  The same PostgreSQL job covers campus binding timestamps, identity registration uniqueness, and
+  concurrent daily signup limits (`campus` models and `campusservice`, `PostgreSQL$` tests).
 - ci-frontend.yml: changed frontend paths run pnpm typecheck + site unit tests + Chromium layout tests + build
   (apps/gooseforum/resource/** and shared markdown compatibility fixtures). Browser regressions live in
   `resource/test/*.browser.mjs`, render the production Vue components and CSS through Vite, and stub API
