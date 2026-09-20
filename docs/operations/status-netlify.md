@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-15
+> Last verified: 2026-09-20
 
 ## 应用边界
 
@@ -39,6 +39,12 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 沿用仓库的发布约定：功能 PR 合入 `dev`，通过既有发布流程进入 `main` 后，由 Netlify
 独立构建状态站。PR 使用 Deploy Preview。首次导入时，生产分支必须已经包含
 `apps/status`；未发布的功能可通过预览验收，避免将缺少应用目录的分支作为首次生产构建输入。
+
+**Current**：配置通过 `scripts/ignore-build.mjs` 显式决定是否构建。Production 每次触发
+都构建，不因目录内容相同而跳过；Deploy Preview 与 branch deploy 仅在两个不同且可读取的
+提交之间确认 `apps/status` 无变化时跳过。没有缓存、缓存与当前提交相同、Git 比较失败或
+上下文未知时继续构建。脚本不依赖已安装的 npm 包，并记录上下文、比较提交及决定原因。
+这会增加生产构建次数，但预览构建成功不能替代正式发布。
 
 ## 2. 配置 Functions 环境变量
 
@@ -91,6 +97,11 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 
 ## 5. 故障与发布验收
 
+- GitHub Release 成功后，单独确认 Netlify 的 Production 部署为 **Published**，且提交
+  与本次 `main` 发布一致；Deploy Preview 的 Completed 不代表正式域名已更新。
+- 若构建在 `checking build content for changes` 阶段取消，确认加载的是
+  `apps/status/netlify.toml`，日志执行了 `node ./scripts/ignore-build.mjs`，并显示生产构建
+  继续的原因。配置修复进入 `main` 后，可从 Deploys → Trigger deploy 重新触发生产部署。
 - 确认两个函数按计划继续产生新快照，而非仅 Run now 成功。
 - 模拟论坛连接不可用时，状态站静态页面及 API 仍正常提供服务。
 - 单个来源超时，其余面板仍可读取。刷新旧快照不能把原始采样时间更新为当前时间。
@@ -110,6 +121,7 @@ Netlify 的 compute、带宽、请求和正式部署使用套餐额度。按当�
 ## 官方参考
 
 - [Monorepo 构建目录](https://docs.netlify.com/build/configure-builds/monorepos/)
+- [构建跳过规则](https://docs.netlify.com/build/configure-builds/ignore-builds/)
 - [Functions 环境变量](https://docs.netlify.com/build/functions/environment-variables/)
 - [定时函数限制与手动执行](https://docs.netlify.com/build/functions/scheduled-functions/)
 - [Blobs 持久化与一致性](https://docs.netlify.com/build/data-and-storage/netlify-blobs/)

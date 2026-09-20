@@ -2,6 +2,7 @@
   base = "apps/status"
   command = "pnpm build"
   publish = "dist"
+  ignore = "node ./scripts/ignore-build.mjs"
 
 [build.environment]
   NODE_VERSION = "24"
