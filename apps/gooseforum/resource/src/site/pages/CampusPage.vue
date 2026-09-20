@@ -74,8 +74,8 @@ let controller = new AbortController()
 let generation = 0
 const pendingKeys = new Set<CampusDatasetKey>()
 const tabs = computed(() => [{ key: 'overview', label: t('campus.overview') }, { key: 'timetable', label: t('campus.timetable') }, { key: 'grades', label: t('campus.grades') }, { key: 'cet', label: t('campus.cet') }, { key: 'messages', label: t('campus.messages') }, { key: 'terms', label: t('campus.terms') }, { key: 'services', label: t('campus.services') }])
-const keys: CampusDatasetKey[] = ['profile', 'calendar', 'timetable', 'grades', 'summary', 'cet', 'terms', 'messages', 'sports', 'health', 'arrangements']
-const names = computed<Record<CampusDatasetKey, string>>(() => ({ profile: t('campus.dataProfile'), calendar: t('campus.dataCalendar'), timetable: t('campus.dataTimetable'), grades: t('campus.dataGrades'), summary: t('campus.dataSummary'), cet: t('campus.dataCet'), terms: t('campus.dataTerms'), messages: t('campus.dataMessages'), sports: t('campus.dataSports'), health: t('campus.dataHealth'), arrangements: t('campus.dataArrangements') }))
+const keys: CampusDatasetKey[] = ['profile', 'calendar', 'today', 'timetable', 'grades', 'summary', 'cet', 'terms', 'messages', 'sports', 'health', 'arrangements']
+const names = computed<Record<CampusDatasetKey, string>>(() => ({ today: t('campus.todayTimetable'), profile: t('campus.dataProfile'), calendar: t('campus.dataCalendar'), timetable: t('campus.dataTimetable'), grades: t('campus.dataGrades'), summary: t('campus.dataSummary'), cet: t('campus.dataCet'), terms: t('campus.dataTerms'), messages: t('campus.dataMessages'), sports: t('campus.dataSports'), health: t('campus.dataHealth'), arrangements: t('campus.dataArrangements') }))
 const current = computed(() => data.value[tab.value as CampusDatasetKey])
 const rows = computed(() => (current.value?.rows || []).filter(r => !filter.value || r.some(c => c.toLowerCase().includes(filter.value.toLowerCase()))))
 const summary = computed(() => data.value.summary?.metrics || [])
@@ -88,8 +88,15 @@ const currentWeek = computed(() => {
 const courses = computed(() => data.value.timetable?.events || [])
 const weekCourses = computed(() => courses.value.filter(c => !c.weeks.length || c.weeks.includes(week.value)))
 const today = computed(() => clock.value.day)
-const todayCourses = computed(() => currentWeek.value === null ? [] : courses.value.filter(c => c.day === today.value && (!c.weeks.length || c.weeks.includes(currentWeek.value!))).sort((a,b) => a.start - b.start))
-const todayTitle = computed(() => failures.value.timetable || data.value.timetable?.status === 'unavailable' ? t('campus.timetableUnavailable') : !data.value.timetable ? t('campus.todayLoading') : currentWeek.value === null ? t('campus.weekUnknown') : t('campus.noTodayCourses'))
+const teachingDay = computed(() => data.value.today?.teachingDay)
+const todayIsCurrent = computed(() => teachingDay.value?.date === clock.value.isoDate)
+const todayCourses = computed(() => todayIsCurrent.value ? data.value.today?.events || [] : [])
+const todayTitle = computed(() => failures.value.today || data.value.today?.status === 'unavailable' ? t('campus.timetableUnavailable') : !todayIsCurrent.value ? t('campus.todayLoading') : t('campus.noTodayCourses'))
+const todayAdjustment = computed(() => {
+  const day = teachingDay.value
+  if (!todayIsCurrent.value || !day || day.kind === 'none') return ''
+  return t(`campus.today${day.kind === 'makeup' ? 'Makeup' : day.kind === 'holiday' ? 'Holiday' : 'Moved'}`, { name: day.label, date: day.sourceDate })
+})
 const totalCredits = computed(() => Number(summary.value.find(m => m.label === '要求学分')?.value) || 0)
 const completedCredits = computed(() => Number(summary.value.find(m => m.label === '已修学分')?.value) || 0)
 const creditProgress = computed(() => totalCredits.value ? Math.max(0, Math.min(100, completedCredits.value / totalCredits.value * 100)) : 0)
@@ -166,7 +173,7 @@ async function loadStatus() {
   status.value = next
 }
 function activeKeys(): CampusDatasetKey[] {
-  if (tab.value === 'overview') return ['profile', 'calendar', 'messages', 'timetable']
+  if (tab.value === 'overview') return ['profile', 'calendar', 'messages', 'today']
   if (tab.value === 'grades') return ['summary', 'grades']
   if (tab.value === 'timetable') return ['calendar', 'timetable']
   if (tab.value === 'services') return keys
@@ -174,9 +181,10 @@ function activeKeys(): CampusDatasetKey[] {
 }
 async function loadData(targets = activeKeys(), force = false) {
   if (!status.value?.binding || status.value.binding.needsAuthorization) return
-  const requested = targets.filter(key => !pendingKeys.has(key) && (force || !data.value[key]))
+  const requested = targets.filter(key => !pendingKeys.has(key) && (force || !data.value[key] || (key === 'today' && !todayIsCurrent.value)))
   if (!requested.length) return
   const epoch = generation
+  if (requested.includes('today')) delete data.value.today
   requested.forEach(key => pendingKeys.add(key))
   loading.value = true
   await Promise.all(requested.map(async key => {
@@ -272,7 +280,12 @@ onMounted(async () => {
   clockTimer = setInterval(() => {
     const previous = clock.value.date
     now.value = new Date()
-    if (previous !== clock.value.date && tab.value === 'overview') void loadData(['calendar', 'timetable'], true)
+    if (previous !== clock.value.date) {
+      delete data.value.today
+      delete data.value.calendar
+      if (tab.value === 'overview') void loadData(['calendar', 'today'], true)
+      else if (activeKeys().includes('calendar')) void loadData(['calendar'], true)
+    }
   }, 60_000)
   const returning = takeCampusMessageReturn()
   const authorization = new URLSearchParams(location.search).get('authorization')
@@ -431,7 +444,8 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
             <SectionHeader :title="t('campus.todayTimetable')" :icon="CalendarDays">
               <template #actions><button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('timetable')">{{ t('campus.viewWeek') }} <ArrowUpRight class="h-3.5 w-3.5" /></button></template>
             </SectionHeader>
-            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.timetable || failures.calendar || t('campus.todayHint')" />
+            <p v-if="todayAdjustment" class="border-b border-line px-4 py-3 text-sm text-base-content/65" role="status">{{ todayAdjustment }}</p>
+            <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.today || t('campus.todayHint')" />
             <div v-else class="space-y-2 p-4">
               <article v-for="(course,index) in todayCourses" :key="index" class="flex items-start gap-3 rounded-xl border p-3" :style="courseStyle(course.name)">
                 <span class="w-16 shrink-0 rounded-field bg-base-100/60 py-2 text-center text-xs font-semibold tabular-nums text-[var(--card-title)]">{{ t('campus.periods', { start: course.start, end: course.end }) }}</span>

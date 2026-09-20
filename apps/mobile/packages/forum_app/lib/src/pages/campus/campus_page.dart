@@ -110,7 +110,12 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.campus, _scroll);
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        unawaited(
+          ref.read(campusControllerProvider.notifier).refreshTeachingDate(),
+        );
+      }
     });
     unawaited(_loadTimes());
   }
@@ -190,7 +195,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     if (data.status != 'ready' && data.status != 'empty') {
       return Text(l.campusUnavailable);
     }
-    if (data.status == 'empty') return Text(l.campusNoData);
+    if (data.status == 'empty' && key != 'today') return Text(l.campusNoData);
     return ready(data);
   }
 
@@ -282,21 +287,31 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         ),
         _section(
           l.campusTodayCourses,
-          _dataset(state, 'timetable', (data) {
-            if (week == null) return Text(l.campusWeekUnknown);
-            final today =
-                campusCoursesForWeek(
-                    data.events,
-                    week,
-                  ).where((e) => e.day == clock.weekday).toList()
-                  ..sort((a, b) => a.start.compareTo(b.start));
-            if (today.isEmpty) return Text(l.campusNoClasses);
+          _dataset(state, 'today', (data) {
+            final day = data.teachingDay;
+            if (day == null || day.date != campusDateKey(now)) {
+              return const CircularProgressIndicator();
+            }
+            final today = data.events;
+            final notice = switch (day.kind) {
+              'makeup' => l.campusTodayMakeup(day.label, day.sourceDate),
+              'holiday' => l.campusTodayHoliday(day.label),
+              'moved' => l.campusTodayMoved(day.label),
+              _ => '',
+            };
             final times = sectionTimesFor(
-              data.events.any((e) => e.end == 12) ? 12 : 11,
+              day.sectionCount,
               _times.isEmpty ? null : _times,
             );
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (notice.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(notice),
+                  ),
+                if (today.isEmpty) Text(l.campusNoClasses),
                 for (final e in today)
                   GfCard(
                     padding: const EdgeInsets.symmetric(vertical: 16),

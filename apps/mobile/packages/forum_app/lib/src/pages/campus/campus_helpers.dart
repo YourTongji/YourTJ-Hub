@@ -3,6 +3,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../schedule/schedule_grid.dart';
 
 DateTime campusNow(DateTime date) => date.toUtc().add(const Duration(hours: 8));
+String campusDateKey(DateTime date) =>
+    campusNow(date).toIso8601String().substring(0, 10);
 String campusGreeting(AppLocalizations l, DateTime date) {
   final h = campusNow(date).hour;
   return h < 5
@@ -73,6 +75,8 @@ String campusError(AppLocalizations l, Object? e) {
       'campus.connectionChanged' => l.campusIdentityConflict,
       'campus.messageUnavailable' => l.campusMessageUnavailable,
       'campus.calendarIncomplete' => l.campusCalendarIncomplete,
+      'campus.rulesUnavailable' ||
+      'campus.rulesInvalid' => l.campusRulesUnavailable,
       'campus.calendarEmpty' => l.campusCalendarEmpty,
       'campus.disabled' => l.campusDisabled,
       _ => l.campusUnavailable,

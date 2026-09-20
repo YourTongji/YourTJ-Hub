@@ -71,13 +71,40 @@ CampusDataset campusFixture(String key) {
     rows.add(['2026 秋 · 演示数据', '2026-09-14', '2027-01-17', '18']);
   }
   return CampusDataset(
+    teachingDay: key == 'today'
+        ? CampusTeachingDay(
+            date: DateTime.now()
+                .toUtc()
+                .add(const Duration(hours: 8))
+                .toIso8601String()
+                .substring(0, 10),
+            sourceDate: '2026-10-06',
+            kind: 'makeup',
+            label: '国庆补课',
+            sectionCount: 11,
+          )
+        : null,
     key: key,
     status: 'ready',
     updatedAt: '',
     metrics: metrics,
     columns: columns,
     rows: rows,
-    events: key == 'timetable'
+    events: key == 'today'
+        ? [
+            const CampusEvent(
+              name: '第四周周二的数学',
+              teacher: '',
+              room: 'A101',
+              campus: '',
+              day: 2,
+              start: 1,
+              end: 2,
+              weeks: [4],
+              credits: '',
+            ),
+          ]
+        : key == 'timetable'
         ? [
             for (var day = 1; day <= 7; day++)
               CampusEvent(
@@ -158,6 +185,8 @@ class FakeCampusRepository extends CampusRepository {
   }
 
   bool? lastApplyAdjustments;
+  CampusDataset? todayOverride;
+  Object? todayError;
   Object? exportError;
   Object? messageError;
   Object? confirmError;
@@ -192,6 +221,10 @@ class FakeCampusRepository extends CampusRepository {
     if (cancelToken != null) cancellations.add(cancelToken);
     if (key == 'profile' && pendingProfile != null) {
       return pendingProfile!.future;
+    }
+    if (key == 'today') {
+      if (todayError != null) throw todayError!;
+      if (todayOverride != null) return todayOverride!;
     }
     return campusFixture(key);
   }

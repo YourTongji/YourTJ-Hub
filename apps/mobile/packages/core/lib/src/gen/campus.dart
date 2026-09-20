@@ -117,6 +117,31 @@ class CampusEvent {
   );
 }
 
+/// Server-resolved daily schedule. Events keep source weekdays/weeks and must
+/// not be filtered again against the current date. Other datasets omit this.
+class CampusTeachingDay {
+  const CampusTeachingDay({
+    required this.date,
+    required this.sourceDate,
+    required this.kind,
+    required this.label,
+    required this.sectionCount,
+  });
+  final String date;
+  final String sourceDate;
+  final String kind;
+  final String label;
+  final int sectionCount;
+  factory CampusTeachingDay.fromJson(Map<String, dynamic> json) =>
+      CampusTeachingDay(
+        date: json['date'] as String,
+        sourceDate: json['sourceDate'] as String,
+        kind: json['kind'] as String,
+        label: json['label'] as String,
+        sectionCount: json['sectionCount'] as int,
+      );
+}
+
 class CampusDataset {
   const CampusDataset({
     required this.key,
@@ -128,6 +153,7 @@ class CampusDataset {
     required this.events,
     required this.series,
     this.messages = const [],
+    this.teachingDay,
   });
   final String key;
   final String status;
@@ -138,7 +164,13 @@ class CampusDataset {
   final List<CampusEvent> events;
   final List<CampusPoint> series;
   final List<CampusMessageSummary> messages;
+  final CampusTeachingDay? teachingDay;
   factory CampusDataset.fromJson(Map<String, dynamic> json) => CampusDataset(
+    teachingDay: json['teachingDay'] == null
+        ? null
+        : CampusTeachingDay.fromJson(
+            json['teachingDay'] as Map<String, dynamic>,
+          ),
     key: json['key'] as String,
     status: json['status'] as String,
     updatedAt: json['updatedAt'] as String,

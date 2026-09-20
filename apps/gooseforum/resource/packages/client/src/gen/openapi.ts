@@ -217,7 +217,7 @@ export interface paths {
         };
         /**
          * campusDataset
-         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. The profile dataset exposes only the authenticated student’s own name for a greeting. Academic datasets can be loaded on demand.
+         * @description Private Tongji connection. One forum account and one official identity are mutually unique. Tokens are never returned. Authorization confirmation is session-bound and one-use. Refresh expiry reserves the binding. The profile dataset exposes only the authenticated student’s own name for a greeting. Academic datasets can be loaded on demand. The today dataset uses the current Asia/Shanghai date and published holiday/makeup rules, sharing original teaching-date semantics with calendar export. Makeup uses the source date week and weekday, replaces target-day classes and removes source-day classes. It always applies adjustments independently of the export switch. Failed rules or incomplete source dates produce an error, never an unadjusted or empty fallback. teachingDay describes the date and adjustment; events retain original day/weeks and must not be filtered again by clients.
          */
         get: operations["campusDataset"];
         put?: never;
@@ -6571,9 +6571,20 @@ export interface components {
         CampusCalendarExportResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CampusCalendarExport"];
         };
+        /** @description Present for today. Source date is empty on holidays or when classes moved away. sectionCount uses the full original timetable for consistent historical period times. */
+        CampusTeachingDay: {
+            /** Format: date */
+            date: string;
+            sourceDate: string;
+            /** @enum {string} */
+            kind: "none" | "holiday" | "makeup" | "moved";
+            label: string;
+            /** @enum {integer} */
+            sectionCount: 11 | 12;
+        };
         CampusDataset: {
             /** @enum {string} */
-            key: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile";
+            key: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile" | "today";
             /** @enum {string} */
             status: "ready" | "empty" | "unavailable";
             /** Format: date-time */
@@ -6585,6 +6596,7 @@ export interface components {
             rows: string[][];
             /** @description Only populated for messages; newest publication first. IDs are decimal strings. */
             messages?: components["schemas"]["CampusMessageSummary"][];
+            teachingDay?: components["schemas"]["CampusTeachingDay"];
         };
         CampusStatusResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CampusStatus"];
@@ -12124,7 +12136,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                dataset: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile";
+                dataset: "calendar" | "timetable" | "grades" | "summary" | "cet" | "terms" | "messages" | "sports" | "health" | "arrangements" | "profile" | "today";
             };
             cookie?: never;
         };

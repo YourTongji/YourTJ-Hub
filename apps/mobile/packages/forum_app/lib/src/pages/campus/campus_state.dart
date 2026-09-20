@@ -3,9 +3,10 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers.dart';
+import 'campus_helpers.dart';
 
 const campusTabKeys = <String, List<String>>{
-  'today': ['profile', 'calendar', 'messages', 'timetable'],
+  'today': ['profile', 'calendar', 'messages', 'today'],
   'timetable': ['calendar', 'timetable'],
   'academics': ['summary', 'grades', 'cet'],
   'messages': ['messages'],
@@ -99,7 +100,30 @@ class CampusController extends StateNotifier<CampusViewState> {
   Future<void> loadTab(String value) async {
     tab = value;
     if (state.status?.binding == null || state.needsAuthorization) return;
+    if (value == 'today') await refreshTeachingDate();
     await Future.wait((campusTabKeys[value] ?? []).map(load));
+  }
+
+  Future<void> refreshTeachingDate() async {
+    final day = state.data['today']?.teachingDay;
+    if (day == null || day.date == campusDateKey(DateTime.now())) return;
+    state = CampusViewState(
+      status: state.status,
+      loading: state.loading,
+      busy: state.busy,
+      error: state.error,
+      data: {...state.data}
+        ..remove('today')
+        ..remove('calendar'),
+      errors: {...state.errors}
+        ..remove('today')
+        ..remove('calendar'),
+    );
+    await Future.wait(
+      (campusTabKeys[tab] ?? [])
+          .where((key) => key == 'today' || key == 'calendar')
+          .map(load),
+    );
   }
 
   Future<void> load(String key) async {

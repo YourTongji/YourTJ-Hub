@@ -776,7 +776,7 @@
   "campusApplyAdjustments": "振替授業を適用",
   "campusApplyAdjustmentsHint": "管理者が確認した休講日・振替日を使用します。未設定の場合は元の時間割を使用します。",
   "campusCalendarRules": "公開中の振替ルールを表示",
-  "campusCalendarRulesHint": "振替はカレンダー出力にのみ適用されます。画面は元の時間割を表示し、出力時に最新ルールを使用します。",
+  "campusCalendarRulesHint": "今日の授業と規則を有効にしたカレンダー出力に公開規則を適用します。週間表は元の時間割を表示します。更新または出力時に最新規則を読み込みます。",
   "campusNoCalendarRules": "振替ルールは未設定です。元の時間割を出力します。",
   "campusMakeupDate": "{original} の授業を {actual} に振替",
   "@campusMakeupDate": {
@@ -791,5 +791,33 @@
   },
   "loginTongji": "同済大学の統合認証でログイン",
   "loginTongjiHint": "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。",
-  "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます："
+  "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます：",
+  "campusTodayMakeup": "{name}：今日は {date} の時間割で授業を行います。",
+  "@campusTodayMakeup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTodayHoliday": "{name}：今日は休講です。",
+  "@campusTodayHoliday": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "campusTodayMoved": "{name}：今日の授業は別の日に移動しました。",
+  "@campusTodayMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "campusRulesUnavailable": "休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。"
 }
