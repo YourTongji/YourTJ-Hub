@@ -357,8 +357,8 @@ func EnsureTopicIndexConfigured() {
 	ensureStartupIndex(TopicIndex)
 }
 
-// EnsureCourseIndexConfigured upgrades legacy course pagination/settings even
-// when optional maintenance is disabled. Documents and ranking rules are intact.
+// EnsureCourseIndexConfigured repairs settings only on the authoritative index
+// owner. Shared read-only instances must not rewrite production settings.
 func EnsureCourseIndexConfigured() {
 	ensureStartupIndex(CourseIndex)
 }
@@ -374,12 +374,29 @@ func ensureStartupIndex(name string) {
 }
 
 func ensureManagedIndexConfigured(ctx context.Context, index meilisearch.IndexManager, name string, backoff time.Duration) error {
+	if name == CourseIndex && !maintenanceEnabled() {
+		return nil
+	}
+	// This is on the startup health gate. Bound the whole repair, including all
+	// retries/backoffs, well below the deployment's 180-second health window.
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		if err = applyManagedSettings(ctx, index, name); err == nil {
+		// A settings PATCH can implicitly create an empty Meili index. A missing
+		// projection must stay unavailable until an explicit complete rebuild.
+		if name == CourseIndex {
+			_, err = index.FetchInfoWithContext(ctx)
+		} else {
+			err = nil
+		}
+		if err == nil {
+			err = applyManagedSettings(ctx, index, name)
+		}
+		if err == nil {
 			slog.Info("search: managed index settings ensured", "index", name)
 			return nil
 		}

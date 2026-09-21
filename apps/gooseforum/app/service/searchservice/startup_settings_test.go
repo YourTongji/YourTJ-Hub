@@ -3,20 +3,26 @@ package searchservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/meilisearch/meilisearch-go"
 )
 
 func TestStartupCourseSettingsRepairLegacyPagination(t *testing.T) {
+	enableStartupMaintenance(t)
 	cap := int64(1000)
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.URL.Path == "/indexes/courses":
+			_, _ = fmt.Fprint(w, `{"uid":"courses","primaryKey":"id"}`)
 		case r.Method == http.MethodPatch && r.URL.Path == "/indexes/courses/settings":
 			attempts++
 			if attempts == 1 {
@@ -62,10 +68,15 @@ func TestStartupCourseSettingsRepairLegacyPagination(t *testing.T) {
 }
 
 func TestStartupSettingsFailureIsBoundedAndCancellable(t *testing.T) {
+	enableStartupMaintenance(t)
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/indexes/courses" {
+			_, _ = fmt.Fprint(w, `{"uid":"courses","primaryKey":"id"}`)
+			return
+		}
 		if r.Method == http.MethodPatch {
 			w.WriteHeader(http.StatusAccepted)
 			_, _ = fmt.Fprint(w, `{"taskUid":1}`)
@@ -78,7 +89,7 @@ func TestStartupSettingsFailureIsBoundedAndCancellable(t *testing.T) {
 	if err := ensureManagedIndexConfigured(context.Background(), index, CourseIndex, 0); err == nil {
 		t.Fatal("failed settings task accepted")
 	}
-	if calls != 6 {
+	if calls != 9 {
 		t.Fatalf("unbounded retries: %d", calls)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -86,7 +97,75 @@ func TestStartupSettingsFailureIsBoundedAndCancellable(t *testing.T) {
 	if err := ensureManagedIndexConfigured(ctx, index, CourseIndex, 0); err == nil {
 		t.Fatal("cancel ignored")
 	}
-	if calls != 6 {
+	if calls != 9 {
 		t.Fatal("canceled startup made requests")
+	}
+}
+
+func TestStartupCourseSettingsRespectOwnerAndMissingIndex(t *testing.T) {
+	old := preferences.GetBool("meilisearch.maintenance_enabled", false)
+	t.Cleanup(func() { preferences.Set("meilisearch.maintenance_enabled", old) })
+	for _, owner := range []bool{false, true} {
+		preferences.Set("meilisearch.maintenance_enabled", owner)
+		patches, reads := 0, 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == http.MethodPatch {
+				patches++
+				w.WriteHeader(http.StatusAccepted)
+				_, _ = fmt.Fprint(w, `{"taskUid":1}`)
+				return
+			}
+			if r.URL.Path == "/tasks/1" {
+				_, _ = fmt.Fprint(w, `{"uid":1,"status":"succeeded"}`)
+				return
+			}
+			reads++
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = fmt.Fprint(w, `{"code":"index_not_found","message":"missing","type":"invalid_request"}`)
+		}))
+		err := ensureManagedIndexConfigured(context.Background(), meilisearch.New(server.URL).Index(CourseIndex), CourseIndex, 0)
+		server.Close()
+		if patches != 0 {
+			t.Fatalf("owner=%t created missing index through %d settings writes", owner, patches)
+		}
+		if !owner && (reads != 0 || err != nil) {
+			t.Fatal("non-owner contacted shared index")
+		}
+		if owner && err == nil {
+			t.Fatal("missing projection marked ready")
+		}
+	}
+}
+
+func enableStartupMaintenance(t *testing.T) {
+	t.Helper()
+	old := preferences.GetBool("meilisearch.maintenance_enabled", false)
+	preferences.Set("meilisearch.maintenance_enabled", true)
+	t.Cleanup(func() { preferences.Set("meilisearch.maintenance_enabled", old) })
+}
+func TestStartupQueuedSettingsRespectWholeOperationDeadline(t *testing.T) {
+	enableStartupMaintenance(t)
+	patches := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/indexes/courses":
+			_, _ = fmt.Fprint(w, `{"uid":"courses","primaryKey":"id"}`)
+		case "/indexes/courses/settings":
+			patches++
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = fmt.Fprint(w, `{"taskUid":1}`)
+		default:
+			_, _ = fmt.Fprint(w, `{"uid":1,"status":"enqueued"}`)
+		}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	err := ensureManagedIndexConfigured(ctx, meilisearch.New(server.URL).Index(CourseIndex), CourseIndex, time.Second)
+	if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) > time.Second || patches != 1 {
+		t.Fatalf("queued repair escaped budget: %v, patches=%d", err, patches)
 	}
 }

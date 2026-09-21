@@ -940,10 +940,12 @@ is limited to two concurrent requests per process and four seconds, with databas
 cancellation propagated through list hydration. Public filter dictionaries are
 cached for five minutes.
 
-Startup automatically applies the managed course settings, including the exhaustive
-pagination limit, with bounded retries and task-completion checks. This runs even
-when optional index maintenance is disabled. Failed configuration remains observable
-and catalog searches retain the retriable 503 boundary; no SQL fallback is introduced.
+On the authoritative instance (`maintenance_enabled = true`), startup applies managed
+settings to an existing course index, including the exhaustive pagination limit. The
+whole operation has a 20-second deadline including retries and task-completion checks.
+Read-only shared instances do not change the index. A missing index is never created
+by this settings-only repair: rebuild the projection explicitly. Failed configuration
+remains observable and searches retain the retriable 503 boundary; no SQL fallback is introduced.
 
 To refresh projection fields in an older index, run:
 
