@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,6 +92,21 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   final _replyCaptchaCode = TextEditingController();
   bool _replyCaptchaLoading = false;
   bool _uploadingReplyImage = false;
+  String? _replyTargetDisplayName(BuildContext context) {
+    if (_replyTargetName == null) return null;
+    for (final post in _posts) {
+      if (post.id == _replyToPostId && !post.isAnonymous) {
+        return privateDisplayName(
+          context,
+          post.author.id,
+          post.author.username,
+          post.author.nickname,
+        );
+      }
+    }
+    return _replyTargetName;
+  }
+
   int _replyToPostId = 0;
   String? _replyImageUrl;
   String? _replyTargetName;
@@ -1133,12 +1149,16 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                             collapseLabel: l10n.commonCancel,
                                             controller: _replyController,
                                             focusNode: _replyFocus,
-                                            targetName: _replyTargetName,
+                                            targetName: _replyTargetDisplayName(
+                                              context,
+                                            ),
                                             targetLabel:
                                                 _replyTargetName == null
                                                 ? null
                                                 : l10n.topicReplyTarget(
-                                                    _replyTargetName!,
+                                                    _replyTargetDisplayName(
+                                                      context,
+                                                    )!,
                                                   ),
                                             onCloseTarget: () {
                                               _clearReplyTarget();
@@ -1333,7 +1353,12 @@ class _TopicHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final String authorName = topic.author.nickname ?? topic.author.username;
+    final String authorName = privateDisplayName(
+      context,
+      topic.author.id,
+      topic.author.username,
+      topic.author.nickname,
+    );
     final available = !topic.authorDeleted && !topic.moderatorRemoved;
 
     return Padding(
@@ -1631,7 +1656,14 @@ class _PostCard extends StatelessWidget {
                       ? () => context.push('/u/${post.author.id}')
                       : null,
                   child: Text(
-                    post.author.nickname ?? post.author.username,
+                    post.isAnonymous
+                        ? (post.author.nickname ?? post.author.username)
+                        : privateDisplayName(
+                            context,
+                            post.author.id,
+                            post.author.username,
+                            post.author.nickname,
+                          ),
                     style: GfTheme.typographyOf(context).bodyStrong,
                   ),
                 ),
@@ -1649,7 +1681,11 @@ class _PostCard extends StatelessWidget {
             const SizedBox(height: 6),
             if (showReplyQuote)
               _ReplyQuote(
-                username: post.replyToUsername!,
+                username: privateDisplayName(
+                  context,
+                  post.replyToUserId ?? 0,
+                  post.replyToUsername!,
+                ),
                 avatarUrl: quoteTarget?.author.avatarUrl ?? '',
                 postNo: quoteTarget?.postNo,
                 contentPreview: _plainTextFromHtml(

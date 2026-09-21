@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：322
-- /api JSON 路由：257，已入契约：258（100%），已知未覆盖：0
+- 快照路由总数：324
+- /api JSON 路由：259，已入契约：260（100%），已知未覆盖：0
 - 非 API 排除路由：64
 
-## 已覆盖（258）
+## 已覆盖（260）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -85,6 +85,7 @@
 | GET | `/api/pk/section-times` | `pkGetSectionTimes` |
 | GET | `/api/site-theme/tokens` | `getPublicSiteThemeTokens` |
 | GET | `/api/user-card` | `getUserCard` |
+| GET | `/api/user-notes` | `listPrivateNotes` |
 | GET | `/api/user/sessions` | `listSessions` |
 | GET | `/api/user/totp/status` | `getTotpStatus` |
 | GET | `/api/v1/agent/me` | `agentMe` |
@@ -255,6 +256,7 @@
 | POST | `/api/set-user-name` | `setUserName` |
 | POST | `/api/set-user-profile-cover` | `setUserProfileCover` |
 | POST | `/api/upload-avatar` | `uploadAvatar` |
+| POST | `/api/user-note` | `setPrivateNote` |
 | POST | `/api/user/sessions/revoke` | `revokeSession` |
 | POST | `/api/user/sessions/revoke-all` | `revokeAllSessions` |
 | POST | `/api/user/totp/disable` | `disableTotp` |

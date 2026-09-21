@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.ja.generated'
 
 export default {
+  privateNote: {
+    edit: "メモを編集",
+    label: "非公開メモ",
+    hint: "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。",
+  },
   campus: {
     todayMakeup: "{name}：今日は {date} の時間割で授業を行います。",
     todayHoliday: "{name}：今日は休講です。",

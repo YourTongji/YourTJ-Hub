@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePrivateNotesSession } from '@/runtime/private-notes'
 import { RouterView } from 'vue-router'
 import AdminLayout from '@/admin/layouts/AdminLayout.vue'
 import type { AdminPayload, ManageHomeProps } from '@/admin/types'
@@ -6,6 +7,7 @@ import type { AdminPayload, ManageHomeProps } from '@/admin/types'
 const props = defineProps<{
   payload: AdminPayload
 }>()
+usePrivateNotesSession(() => props.payload.layout.viewer)
 </script>
 
 <template>

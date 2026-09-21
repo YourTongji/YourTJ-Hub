@@ -4457,6 +4457,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.'**
   String get campusRulesUnavailable;
+
+  /// No description provided for @privateNoteEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit note'**
+  String get privateNoteEdit;
+
+  /// No description provided for @privateNoteLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Private note'**
+  String get privateNoteLabel;
+
+  /// No description provided for @privateNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this. Up to 64 characters; save empty to clear.'**
+  String get privateNoteHint;
 }
 
 class _AppLocalizationsDelegate

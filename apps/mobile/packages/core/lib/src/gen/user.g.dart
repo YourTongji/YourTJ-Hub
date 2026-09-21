@@ -361,3 +361,32 @@ Map<String, dynamic> _$$SettingsPagePropsImplToJson(
   'stats': instance.stats,
   'tabs': instance.tabs,
 };
+
+_$PrivateNotePayloadImpl _$$PrivateNotePayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$PrivateNotePayloadImpl(
+  targetUserId: (json['targetUserId'] as num).toInt(),
+  username: json['username'] as String,
+  note: json['note'] as String,
+);
+
+Map<String, dynamic> _$$PrivateNotePayloadImplToJson(
+  _$PrivateNotePayloadImpl instance,
+) => <String, dynamic>{
+  'targetUserId': instance.targetUserId,
+  'username': instance.username,
+  'note': instance.note,
+};
+
+_$PrivateNotesPayloadImpl _$$PrivateNotesPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$PrivateNotesPayloadImpl(
+  ownerId: (json['ownerId'] as num).toInt(),
+  notes: (json['notes'] as List<dynamic>)
+      .map((e) => PrivateNotePayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
+
+Map<String, dynamic> _$$PrivateNotesPayloadImplToJson(
+  _$PrivateNotesPayloadImpl instance,
+) => <String, dynamic>{'ownerId': instance.ownerId, 'notes': instance.notes};

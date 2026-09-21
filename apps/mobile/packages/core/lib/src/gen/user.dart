@@ -208,3 +208,24 @@ abstract class SettingsPageProps with _$SettingsPageProps {
   factory SettingsPageProps.fromJson(Map<String, dynamic> json) =>
       _$SettingsPagePropsFromJson(json);
 }
+
+@freezed
+abstract class PrivateNotePayload with _$PrivateNotePayload {
+  const factory PrivateNotePayload({
+    required int targetUserId,
+    required String username,
+    required String note,
+  }) = _PrivateNotePayload;
+  factory PrivateNotePayload.fromJson(Map<String, dynamic> json) =>
+      _$PrivateNotePayloadFromJson(json);
+}
+
+@freezed
+abstract class PrivateNotesPayload with _$PrivateNotesPayload {
+  const factory PrivateNotesPayload({
+    required int ownerId,
+    required List<PrivateNotePayload> notes,
+  }) = _PrivateNotesPayload;
+  factory PrivateNotesPayload.fromJson(Map<String, dynamic> json) =>
+      _$PrivateNotesPayloadFromJson(json);
+}

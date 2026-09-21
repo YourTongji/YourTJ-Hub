@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { ref, watch } from 'vue'
 import { Ban, CircleAlert, Flag, History, Loader2, RotateCcw, Scale, X, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -353,7 +354,7 @@ async function submitEvidenceView() {
                 >
                   <UserAvatar :src="item.reporter.avatarUrl" alt="" class="h-4 w-4 rounded-full object-cover ring-1 ring-line" />
                   <span class="shrink-0">{{ t('moderation.reports.reporterLabel') }}</span>
-                  <span class="max-w-28 truncate font-medium text-base-content/65">{{ item.reporter.username }}</span>
+                  <span class="max-w-28 truncate font-medium text-base-content/65">{{ userDisplayName(item.reporter.id, item.reporter.username) }}</span>
                 </a>
                 <a
                   v-if="reportStatus === 'closed' && item.handler.id"
@@ -363,7 +364,7 @@ async function submitEvidenceView() {
                 >
                   <UserAvatar :src="item.handler.avatarUrl" alt="" class="h-4 w-4 rounded-full object-cover ring-1 ring-line" />
                   <span class="shrink-0">{{ t('moderation.reports.handlerLabel') }}</span>
-                  <span class="max-w-28 truncate font-medium text-base-content/65">{{ item.handler.username }}</span>
+                  <span class="max-w-28 truncate font-medium text-base-content/65">{{ userDisplayName(item.handler.id, item.handler.username) }}</span>
                 </a>
               </div>
               <time class="mt-1 block text-xs text-base-content/55 lg:hidden">{{ formatDateTime(reportStatus === 'closed' && item.handledAt ? item.handledAt : item.createdAt) }}</time>
@@ -386,7 +387,7 @@ async function submitEvidenceView() {
               >
                 <UserAvatar :src="item.reporter.avatarUrl" alt="" class="h-5 w-5 rounded-full object-cover ring-1 ring-line" />
                 <span class="shrink-0">{{ t('moderation.reports.reporterLabel') }}</span>
-                <span class="min-w-0 truncate font-medium text-base-content/65">{{ item.reporter.username }}</span>
+                <span class="min-w-0 truncate font-medium text-base-content/65">{{ userDisplayName(item.reporter.id, item.reporter.username) }}</span>
               </a>
               <a
                 v-if="reportStatus === 'closed' && item.handler.id"
@@ -396,7 +397,7 @@ async function submitEvidenceView() {
               >
                 <UserAvatar :src="item.handler.avatarUrl" alt="" class="h-5 w-5 rounded-full object-cover ring-1 ring-line" />
                 <span class="shrink-0">{{ t('moderation.reports.handlerLabel') }}</span>
-                <span class="min-w-0 truncate font-medium text-base-content/65">{{ item.handler.username }}</span>
+                <span class="min-w-0 truncate font-medium text-base-content/65">{{ userDisplayName(item.handler.id, item.handler.username) }}</span>
               </a>
             </div>
             <div class="col-start-2 mt-1 flex flex-wrap items-center justify-start gap-2 lg:col-start-auto lg:mt-0 lg:block lg:text-right">
@@ -555,7 +556,7 @@ async function submitEvidenceView() {
             </div>
             <div class="min-w-0">
               <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5">
-                <span class="max-w-[42%] shrink-0 truncate font-semibold text-base-content">{{ item.actor.username }}</span>
+                <span class="max-w-[42%] shrink-0 truncate font-semibold text-base-content">{{ userDisplayName(item.actor.id, item.actor.username) }}</span>
                 <span class="shrink-0 text-base-content/55">{{ logActionLabel(item) }}</span>
                 <a
                   v-if="item.subject.url"

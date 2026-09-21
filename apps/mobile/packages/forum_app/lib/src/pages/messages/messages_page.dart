@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import 'dart:async';
@@ -607,7 +608,12 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    widget.conv.peerUsername,
+                    privateDisplayName(
+                      context,
+                      widget.conv.peerId,
+                      '',
+                      widget.conv.peerUsername,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -640,7 +646,12 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                   ? _ChatEmptyState(
                       title: l10n.messagesStartChat,
                       description: l10n.messagesFirstMessageTo(
-                        widget.conv.peerUsername,
+                        privateDisplayName(
+                          context,
+                          widget.conv.peerId,
+                          '',
+                          widget.conv.peerUsername,
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -823,7 +834,12 @@ class _ConversationList extends StatelessWidget {
         final ChatItemPayload conversation = filtered[index];
         return GfConversationRow(
           avatarUrl: resolveApiAssetUrl(conversation.peerAvatar),
-          name: conversation.peerUsername,
+          name: privateDisplayName(
+            context,
+            conversation.peerId,
+            '',
+            conversation.peerUsername,
+          ),
           lastMessage: conversation.lastMsg.isEmpty
               ? l10n.messagesNoMessagesYet
               : stickerPreviewLabel(conversation.lastMsg),
@@ -1020,7 +1036,12 @@ class _NewChatUserRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final String name = user.nickname.isEmpty ? user.username : user.nickname;
+    final String name = privateDisplayName(
+      context,
+      user.id,
+      user.username,
+      user.nickname,
+    );
     return Material(
       color: Colors.transparent,
       child: InkWell(

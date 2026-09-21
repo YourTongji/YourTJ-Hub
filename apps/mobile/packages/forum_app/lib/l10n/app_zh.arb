@@ -1124,7 +1124,13 @@
   "loginTongjiPolicies": "继续即表示同意本站公布的条款：",
   "linkPreviewExternalTitle": "即将离开 YourTJ",
   "linkPreviewExternalBody": "你将前往 {domain}。请确认网址，并谨慎输入账号、验证码或支付信息。",
-  "@linkPreviewExternalBody": {"placeholders": {"domain": {"type": "String"}}},
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
   "linkPreviewRememberDomain": "本次浏览期间不再询问此域名",
   "linkPreviewContinue": "继续访问",
   "linkPreviewCampusFallbackTitle": "校园网",
@@ -1156,5 +1162,8 @@
       }
     }
   },
-  "campusRulesUnavailable": "暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。"
+  "campusRulesUnavailable": "暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。",
+  "privateNoteEdit": "编辑备注",
+  "privateNoteLabel": "私有备注",
+  "privateNoteHint": "仅自己可见，最多 64 个字符；留空保存即可清除。"
 }

@@ -1,4 +1,6 @@
-<script setup lang="ts">import { adminText } from '@/admin/runtime/i18n-text'
+<script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
+import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, UserPlus, X } from '@lucide/vue'
@@ -396,7 +398,7 @@ onMounted(() => {
                 >
                   <img v-if="moderator.avatarUrl" :src="moderator.avatarUrl" class="size-4 rounded-full object-cover" alt="" />
                   <span v-else class="grid size-4 place-items-center rounded-full bg-muted text-[9px] font-semibold">{{ moderatorInitial(moderator.username) }}</span>
-                  <span class="truncate">{{ moderator.username || `#${moderator.userId}` }}</span>
+                  <span class="truncate">{{ userDisplayName(moderator.userId, moderator.username || `#${moderator.userId}`) }}</span>
                   <button
                     class="-mr-1 grid size-5 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                     type="button"
@@ -427,7 +429,7 @@ onMounted(() => {
                     >
                       <img v-if="user.avatarUrl" :src="user.avatarUrl" class="size-7 rounded-full object-cover ring-1 ring-border" alt="" />
                       <span v-else class="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ moderatorInitial(user.username) }}</span>
-                      <span class="min-w-0 flex-1 truncate">{{ user.username }}</span>
+                      <span class="min-w-0 flex-1 truncate">{{ userDisplayName(user.userId, user.username) }}</span>
                       <span v-if="isAlreadyGlobalModerator(user.userId)" class="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{{ adminText('k00ew') }}</span>
                       <span class="shrink-0 font-mono text-xs text-muted-foreground">#{{ user.userId }}</span>
                     </button>
@@ -489,7 +491,7 @@ onMounted(() => {
                           v-for="moderator in visibleModerators(item)"
                           :key="moderator.id"
                           class="grid size-5 place-items-center rounded-full border bg-muted text-[10px] font-semibold text-muted-foreground"
-                          :title="moderator.username || `#${moderator.userId}`"
+                          :title="userDisplayName(moderator.userId, moderator.username || `#${moderator.userId}`)"
                         >
                           {{ moderatorInitial(moderator.username) }}
                         </span>
@@ -611,7 +613,7 @@ onMounted(() => {
                   >
                     <img v-if="user.avatarUrl" :src="user.avatarUrl" class="size-7 rounded-full object-cover ring-1 ring-border" alt="" />
                     <span v-else class="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ moderatorInitial(user.username) }}</span>
-                    <span class="min-w-0 flex-1 truncate">{{ user.username }}</span>
+                    <span class="min-w-0 flex-1 truncate">{{ userDisplayName(user.userId, user.username) }}</span>
                     <span v-if="isAlreadyModerator(user.userId)" class="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{{ adminText('k00ew') }}</span>
                     <span class="shrink-0 font-mono text-xs text-muted-foreground">#{{ user.userId }}</span>
                   </button>
@@ -640,7 +642,7 @@ onMounted(() => {
                     <img v-if="moderator.avatarUrl" :src="moderator.avatarUrl" class="size-8 rounded-full object-cover ring-1 ring-border" alt="" />
                     <span v-else class="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ moderatorInitial(moderator.username) }}</span>
                     <div class="min-w-0">
-                      <div class="truncate text-sm font-medium">{{ moderator.username || `#${moderator.userId}` }}</div>
+                      <div class="truncate text-sm font-medium">{{ userDisplayName(moderator.userId, moderator.username || `#${moderator.userId}`) }}</div>
                       <div class="text-xs text-muted-foreground">ID {{ moderator.userId }}</div>
                     </div>
                   </div>

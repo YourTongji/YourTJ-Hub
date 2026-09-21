@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PrivateNoteEditor from '@/site/components/PrivateNoteEditor.vue'
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import {
   Award,
@@ -55,7 +57,7 @@ const loadError = ref('')
 const loadMoreSentinel = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | undefined
 
-const displayName = computed(() => page.props.user.nickname || page.props.user.username)
+const displayName = computed(() => userDisplayName(page.props.user.userId, page.props.user.username, page.props.user.nickname))
 // 简介行只承载 bio：签名永远以独立签名块呈现，不做 fallback 展示
 const bioText = computed(() => page.props.user.bio || t('user.emptyBio'))
 const hasBio = computed(() => Boolean(page.props.user.bio?.trim()))
@@ -338,7 +340,7 @@ function safeProfileUrl(value?: string) {
               <a :href="connection.url" class="flex min-w-0 flex-1 gap-3">
                 <UserAvatar :src="connection.avatarUrl" :alt="connection.username" class="h-12 w-12 shrink-0 rounded-full object-cover" />
                 <span class="min-w-0 break-words">
-                  <span class="block break-words text-sm font-semibold text-base-content">{{ connection.nickname || connection.username }}</span>
+                  <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(connection.id, connection.username, connection.nickname) }}</span>
                   <span class="mt-0.5 block break-words text-xs text-base-content/55">@{{ connection.username }}</span>
                   <span class="mt-1 block whitespace-pre-wrap break-words text-sm leading-5 text-base-content/65">{{ connection.bio || t('user.noBio') }}</span>
                 </span>
@@ -420,6 +422,7 @@ function safeProfileUrl(value?: string) {
               <div class="min-w-0 sm:flex-1 sm:pt-3">
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
                   <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
+                  <PrivateNoteEditor v-if="!page.props.user.isAccountClosed" :user-id="page.props.user.userId" :username="page.props.user.username" />
                   <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
                   <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
                     <Radio class="h-3 w-3" /> {{ t('user.online') }}
@@ -792,7 +795,7 @@ function safeProfileUrl(value?: string) {
             >
               <UserAvatar :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 shrink-0 rounded-full object-cover" />
               <span class="min-w-0 break-words">
-                <span class="block break-words text-sm font-semibold text-base-content">{{ item.nickname || item.username }}</span>
+                <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(item.id, item.username, item.nickname) }}</span>
                 <span class="block break-words text-xs text-base-content/55">@{{ item.username }}</span>
                 <span class="mt-1 block whitespace-pre-wrap break-words text-xs text-base-content/55">{{ item.bio || t('user.noBio') }}</span>
               </span>

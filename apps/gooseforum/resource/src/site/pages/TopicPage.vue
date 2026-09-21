@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BookOpen, Clock, Eye, FileText, Heart, HelpCircle, MessageSquare, Sparkles } from '@lucide/vue'
 import { formatDateTime, formatNumber } from '@/runtime/format'
@@ -67,8 +68,8 @@ const topicImages = computed(() => {
 })
 
 // 优先展示用户昵称，未设置昵称时回退到账号名
-function authorDisplayName(author: { username: string; nickname?: string }) {
-  return author.nickname || author.username
+function authorDisplayName(author: { id?: number; username: string; nickname?: string }) {
+  return userDisplayName(author.id, author.username, author.nickname)
 }
 
 function observeTitle() {

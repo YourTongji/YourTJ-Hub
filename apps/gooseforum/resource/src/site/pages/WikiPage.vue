@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Clock, Eye, MessageSquare } from '@lucide/vue'
@@ -239,7 +240,7 @@ function sameUrl(left: string, right: string) {
                         :alt="contributor.username"
                         class="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-line"
                       />
-                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
+                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ userDisplayName(contributor.userId, contributor.username) }}</span>
                       <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
                     </a>
                     <a
@@ -263,7 +264,7 @@ function sameUrl(left: string, right: string) {
                       >
                         {{ contributor.username.slice(0, 1).toUpperCase() }}
                       </span>
-                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
+                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ userDisplayName(contributor.userId, contributor.username) }}</span>
                       <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
                     </a>
                     <div
@@ -273,7 +274,7 @@ function sameUrl(left: string, right: string) {
                       <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-base-200 text-[11px] font-bold text-base-content/55">
                         {{ contributor.username.slice(0, 1).toUpperCase() }}
                       </span>
-                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
+                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ userDisplayName(contributor.userId, contributor.username) }}</span>
                       <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
                     </div>
                   </li>

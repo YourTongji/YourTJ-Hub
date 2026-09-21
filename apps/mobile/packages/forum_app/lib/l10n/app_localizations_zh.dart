@@ -2317,4 +2317,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusRulesUnavailable => '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。';
+
+  @override
+  String get privateNoteEdit => '编辑备注';
+
+  @override
+  String get privateNoteLabel => '私有备注';
+
+  @override
+  String get privateNoteHint => '仅自己可见，最多 64 个字符；留空保存即可清除。';
 }

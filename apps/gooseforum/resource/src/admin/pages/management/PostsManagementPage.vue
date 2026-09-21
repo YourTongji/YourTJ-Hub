@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, ref } from 'vue'
@@ -374,7 +375,7 @@ onMounted(() => {
                   <span v-else class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ avatarText(post) }}</span>
                   <div class="min-w-0">
                     <a :href="`/u/${post.userId}`" target="_blank" rel="noreferrer" class="block truncate text-[13px] font-semibold hover:text-primary hover:underline">
-                      {{ post.username }}
+                      {{ userDisplayName(post.userId, post.username) }}
                     </a>
                     <div class="truncate text-xs text-muted-foreground">{{ postDate(post.createdAt) }} {{ postTime(post.createdAt) }} · {{ post.processStatus === 1 ? adminText('k005x') : adminText('k005y') }}</div>
                   </div>
@@ -453,7 +454,7 @@ onMounted(() => {
                       <img v-if="post.userAvatarUrl" :src="post.userAvatarUrl" class="size-7 shrink-0 rounded-full object-cover ring-1 ring-border" alt="" />
                       <span v-else class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ avatarText(post) }}</span>
                       <a :href="`/u/${post.userId}`" target="_blank" rel="noreferrer" class="min-w-0 truncate text-[13px] font-semibold hover:text-primary hover:underline">
-                        {{ post.username }}
+                        {{ userDisplayName(post.userId, post.username) }}
                       </a>
                     </div>
                   </TableCell>

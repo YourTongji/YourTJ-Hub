@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -239,6 +240,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               final (title, subtitle) = notificationText(
                                 n,
                                 l10n,
+                                displayName: (id, name) =>
+                                    privateDisplayName(context, id, name),
                               );
                               return GfNotificationRow(
                                 icon: icon,

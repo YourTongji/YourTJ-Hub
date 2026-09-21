@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send, Smile, X } from '@lucide/vue'
 import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError, type ChatMessagePayload } from '@/runtime/api'
@@ -297,7 +298,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               </span>
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-2">
-                  <span class="truncate text-sm font-semibold text-base-content">{{ conversation.peerUsername }}</span>
+                  <span class="truncate text-sm font-semibold text-base-content">{{ userDisplayName(conversation.peerId, '', conversation.peerUsername) }}</span>
                   <time class="shrink-0 text-[11px] text-base-content/55">{{ conversation.lastMsgTime ? formatChatTime(conversation.lastMsgTime) : '' }}</time>
                 </div>
                 <div class="mt-1 flex items-center gap-2">
@@ -328,7 +329,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
                 </button>
                 <UserAvatar :src="active.peerAvatar" :alt="active.peerUsername" class="h-9 w-9 rounded-full object-cover ring-1 ring-line" />
                 <div class="min-w-0">
-                  <a :href="active.peerUrl" class="truncate text-sm font-bold text-base-content hover:text-primary">{{ active.peerUsername }}</a>
+                  <a :href="active.peerUrl" class="truncate text-sm font-bold text-base-content hover:text-primary">{{ userDisplayName(active.peerId, '', active.peerUsername) }}</a>
                   <p class="text-xs text-base-content/55">{{ t('messages.conversation') }}</p>
                 </div>
               </div>
@@ -379,7 +380,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               <div v-else class="flex h-full flex-col items-center justify-center text-center">
                 <MessageSquare class="h-10 w-10 text-base-content/35" />
                 <h2 class="mt-3 text-base font-semibold text-base-content">{{ t('messages.startChat') }}</h2>
-                <p class="mt-1 text-sm text-base-content/55">{{ t('messages.firstMessageTo', { user: active.peerUsername }) }}</p>
+                <p class="mt-1 text-sm text-base-content/55">{{ t('messages.firstMessageTo', { user: userDisplayName(active.peerId, '', active.peerUsername) }) }}</p>
               </div>
             </div>
 
@@ -472,7 +473,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
             >
               <UserAvatar :src="user.avatarUrl" :alt="user.username" class="h-10 w-10 rounded-full object-cover ring-1 ring-line" />
               <div class="min-w-0">
-                <div class="truncate text-sm font-semibold text-base-content">{{ user.nickname || user.username }}</div>
+                <div class="truncate text-sm font-semibold text-base-content">{{ userDisplayName(user.id, user.username, user.nickname) }}</div>
                 <div class="truncate text-xs text-base-content/55">@{{ user.username }}</div>
               </div>
             </button>

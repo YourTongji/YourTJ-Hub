@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, ref } from 'vue'
@@ -195,7 +196,7 @@ onMounted(loadQueue)
               <TableCell class="max-w-0 py-2">
                 <p class="line-clamp-2 text-xs leading-4 text-muted-foreground">{{ item.excerpt || '-' }}</p>
               </TableCell>
-              <TableCell class="py-2 text-sm">{{ item.username || `#${item.userId}` }}</TableCell>
+              <TableCell class="py-2 text-sm">{{ userDisplayName(item.userId, item.username || `#${item.userId}`) }}</TableCell>
               <TableCell class="py-2 text-xs text-muted-foreground">{{ formatTime(item.createdAt) }}</TableCell>
               <TableCell class="py-2 pr-3">
                 <div class="flex justify-end gap-1.5">
@@ -231,7 +232,7 @@ onMounted(loadQueue)
               </div>
             </div>
             <div class="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-              <span>{{ item.username || `#${item.userId}` }} · {{ formatTime(item.createdAt) }}</span>
+              <span>{{ userDisplayName(item.userId, item.username || `#${item.userId}`) }} · {{ formatTime(item.createdAt) }}</span>
               <div class="flex shrink-0 items-center gap-1.5">
                 <Button type="button" size="sm" variant="outline" class="h-7 text-xs" @click="actionRow = { item, approve: true }">
                   <Check class="size-3.5" />

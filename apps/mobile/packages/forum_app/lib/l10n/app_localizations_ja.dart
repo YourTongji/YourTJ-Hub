@@ -2337,4 +2337,13 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
+
+  @override
+  String get privateNoteEdit => 'メモを編集';
+
+  @override
+  String get privateNoteLabel => '非公開メモ';
+
+  @override
+  String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
 }

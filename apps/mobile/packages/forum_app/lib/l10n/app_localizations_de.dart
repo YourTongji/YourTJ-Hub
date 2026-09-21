@@ -2431,4 +2431,14 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       'Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.';
+
+  @override
+  String get privateNoteEdit => 'Notiz bearbeiten';
+
+  @override
+  String get privateNoteLabel => 'Private Notiz';
+
+  @override
+  String get privateNoteHint =>
+      'Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.';
 }

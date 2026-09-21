@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  privateNote: {
+    edit: "Edit note",
+    label: "Private note",
+    hint: "Only you can see this. Up to 64 characters; save empty to clear.",
+  },
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",
     todayHoliday: "{name}: no classes today.",

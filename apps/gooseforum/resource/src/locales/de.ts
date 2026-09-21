@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  privateNote: {
+    edit: "Notiz bearbeiten",
+    label: "Private Notiz",
+    hint: "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.",
+  },
   campus: {
     todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",
     todayHoliday: "{name}: Heute finden keine Lehrveranstaltungen statt.",

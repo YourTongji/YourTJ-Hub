@@ -325,6 +325,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/user-notes"
+  },
+  {
+    "method": "GET",
     "path": "/api/user/sessions"
   },
   {
@@ -1210,6 +1214,10 @@
   {
     "method": "POST",
     "path": "/api/upload-avatar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user-note"
   },
   {
     "method": "POST",

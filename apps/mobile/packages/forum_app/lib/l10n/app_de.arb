@@ -794,37 +794,46 @@
   "loginTongjiPolicies": "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:",
   "linkPreviewExternalTitle": "YourTJ verlassen",
   "linkPreviewExternalBody": "Du wechselst zu {domain}. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.",
-  "@linkPreviewExternalBody": {"placeholders": {"domain": {"type": "String"}}},
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
   "linkPreviewRememberDomain": "Für diese Domain in dieser Sitzung nicht erneut fragen",
   "linkPreviewContinue": "Weiter",
   "linkPreviewCampusFallbackTitle": "Campusnetz",
   "linkPreviewCampusFallbackDescription": "Zugriff nur aus dem Campusnetz",
-"campusTodayMakeup": "{name}: Heute gilt der Stundenplan vom {date}.",
-"@campusTodayMakeup": {
-  "placeholders": {
-    "name": {
-      "type": "String"
-    },
-    "date": {
-      "type": "String"
+  "campusTodayMakeup": "{name}: Heute gilt der Stundenplan vom {date}.",
+  "@campusTodayMakeup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusTodayHoliday": "{name}: Heute finden keine Lehrveranstaltungen statt.",
-"@campusTodayHoliday": {
-  "placeholders": {
-    "name": {
-      "type": "String"
+  },
+  "campusTodayHoliday": "{name}: Heute finden keine Lehrveranstaltungen statt.",
+  "@campusTodayHoliday": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusTodayMoved": "{name}: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.",
-"@campusTodayMoved": {
-  "placeholders": {
-    "name": {
-      "type": "String"
+  },
+  "campusTodayMoved": "{name}: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.",
+  "@campusTodayMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren."
+  },
+  "campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.",
+  "privateNoteEdit": "Notiz bearbeiten",
+  "privateNoteLabel": "Private Notiz",
+  "privateNoteHint": "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen."
 }

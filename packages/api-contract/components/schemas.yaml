@@ -10091,3 +10091,59 @@ SearchMaintenanceSubmissionResponse:
       - 0
     result:
       $ref: '#/SearchMaintenanceSubmission'
+
+PrivateNote:
+  type: object
+  required: [targetUserId, username, note]
+  properties:
+    targetUserId:
+      type: integer
+      minimum: 1
+    username:
+      type: string
+      description: Current canonical username, never a private nickname.
+    note:
+      type: string
+      maxLength: 64
+  additionalProperties: false
+PrivateNotesPayload:
+  type: object
+  required: [ownerId, notes]
+  properties:
+    ownerId:
+      type: integer
+      minimum: 1
+      description: Authenticated owner; clients discard data from a different session.
+    notes:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: '#/PrivateNote'
+  additionalProperties: false
+PrivateNotesSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/PrivateNotesPayload'
+PrivateNoteRequest:
+  type: object
+  required: [targetUserId, note]
+  properties:
+    targetUserId:
+      type: integer
+      minimum: 1
+    note:
+      type: string
+      maxLength: 64
+      description: Trimmed plain text; empty clears. Control and formatting characters are rejected.
+  additionalProperties: false
+PrivateNoteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          type: boolean
+          const: true

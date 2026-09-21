@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  privateNote: {
+    edit: "编辑备注",
+    label: "私有备注",
+    hint: "仅自己可见，最多 64 个字符；留空保存即可清除。",
+  },
   campus: {
     todayMakeup: "{name}：今天按 {date} 的课表上课。",
     todayHoliday: "{name}：今天放假停课。",
