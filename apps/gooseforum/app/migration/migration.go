@@ -675,6 +675,8 @@ func SchemaModels() []any {
 		&pk.FetchLogEntity{},
 		&pk.SettingEntity{},
 		&pk.ScheduleSnapshotEntity{},
+		&pk.PlanSyncOwner{},
+		&pk.PlanItem{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},

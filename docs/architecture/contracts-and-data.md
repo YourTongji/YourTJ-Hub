@@ -32,9 +32,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   data import/export;
 - Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
   scheduler (`/api/pk/*`: public read-only dictionaries/catalog/details plus the login-gated
-  `/api/pk/plans` schedule-plan cloud sync GET/PUT/DELETE — whole-snapshot replace with a
-  server-authoritative `updatedAt` clock, shallow 1..10-plans/1MB validation, deleted on
-  account close; issue #537);
+  `/api/pk/plan-items` schedule-plan cloud sync GET/PUT/DELETE — independent integer revisions,
+  conditional single-plan writes/deletes, at most ten plans and 1 MB per plan; content is erased on
+  account close. Legacy `/api/pk/plans` becomes unavailable after migration);
 - Wiki 域（`paths/wiki.yaml` + `paths/wiki-sync.yaml`，GitHub 唯一真实源模型）：公开读
   `GET /api/wiki/{tree,namespaces,home}`；管理端 `/api/admin/wiki/*`（PageManager：只读树 +
   `sync/status` / `sync` / `sync/runs` / `sync/webhook-secret` 读写 + asset CDN 设置）与公开
@@ -412,7 +412,37 @@ and per-topic documents preserve the stored Markdown source.
   above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).
 
-PK plan uploads support an observed `baseUpdatedAt` revision: an empty string creates only if no snapshot exists, and a stale revision returns HTTP 409 without changing data. Sync clients must send this condition and fetch again before resolving a conflict. The server remains the sole clock source; omission retains unconditional replacement for existing API consumers.
+PK plan synchronization is `Current` and follows [issue #714](https://github.com/YourTongji/YourTJ-Hub/issues/714):
+`pk_plan_item` is keyed by numeric user ID and plan ID, with payload JSON, independent integer revision
+and diagnostic `updated_at`. A scheduler-owned owner row serializes quota checks, lazy migration and
+legacy writes. First access copies all legacy plans, including recovery copies, then marks migration
+complete atomically; old snapshot reads/writes/deletes return 410 thereafter. Deleting every plan does
+not clear this marker. Account erasure deletes all payloads and retains only a closed-owner marker so
+already-authorized in-flight requests cannot recreate data.
+
+A zero `baseRevision` creates only an absent ID. Positive revisions update or delete only the matching
+plan; a stale write returns 409 with the current item, a missing positive-revision write returns 410,
+and a missing delete succeeds idempotently. Quota failures return 409 with null data. IDs use random
+128-bit values and are never intentionally reused. No per-plan tombstones, history, merge workers or
+persistent connections are needed. Server writes do not merge client content. Each account has at most ten plans, each bounded by
+the existing 1 MiB JSON validation limit; all operations share the dedicated `pk.plans` rate quota.
+
+Clients persist each account's plans, last acknowledged base per plan and independent recovery drafts.
+Three-way merge treats a course and its selected teaching classes as one unit to avoid selecting two
+incompatible classes; custom events merge by stable event ID and field. Same-field divergence or
+unbased ID collisions require explicit choices. Optional null wire fields do not create false edits.
+Deleted dirty content is archived only after the recovery copy persists, and restoration uses a new
+ID. Overflow locals remain in device recovery drafts outside the ten cloud slots. These private
+local drafts persist until restored or the browser/App storage is cleared; they are never uploaded
+as archives. UI preferences
+(`activePlanId`, `majorSelected`, `weekView`) never enter a content revision. Shared merge fixtures,
+HTTP contracts and SQLite/PostgreSQL concurrency tests pin these rules.
+
+Edits schedule a three-second debounce. Entry, focus after thirty seconds and network restoration
+trigger reconciliation; only dirty data retries with bounded backoff. Flutter uses
+[connectivity_plus 7.3.1](https://pub.dev/packages/connectivity_plus/versions/7.3.1) for foreground network
+change events while retaining transport-error handling and resume reconciliation. Network type alone
+does not establish reachability. Clean state never runs a fixed synchronization timer.
 
 PK source records are isolated by audience. Undergraduate external numeric IDs retain their
 value; graduate IDs use bit 52, and ingestion rejects external IDs outside `1..2^52-1` so both

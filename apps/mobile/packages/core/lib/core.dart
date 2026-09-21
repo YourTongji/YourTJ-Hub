@@ -71,3 +71,5 @@ export 'src/gen/own_course_reviews.dart';
 export 'src/gen/campus.dart';
 
 export 'src/api/repositories/campus_repository.dart';
+
+export 'src/schedule/pk_plan_merge.dart';

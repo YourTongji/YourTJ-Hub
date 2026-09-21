@@ -284,6 +284,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 契约：cookie 可认证的写组必须挂 CSRF；对 Bearer 客户端与 GET 自豁免，
 	// 移动端不受影响）。
 	pkLoginApi := pkApi.Group("", middleware.CSRFProtection, middleware.JWTAuthCheck)
+	pkLoginApi.GET("plan-items", middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.GetPlanItems))
+	pkLoginApi.PUT("plan-items", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthJsonReq(pkcontroller.PutPlanItem))
+	pkLoginApi.DELETE("plan-items", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthJsonReq(pkcontroller.DeletePlanItem))
 	pkLoginApi.GET("plans", middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.GetPlans))
 	pkLoginApi.PUT("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthJsonReq(pkcontroller.PutPlans))
 	pkLoginApi.DELETE("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.DeletePlans))

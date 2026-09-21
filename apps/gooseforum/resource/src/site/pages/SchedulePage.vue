@@ -14,6 +14,7 @@ import {
 } from 'reka-ui'
 import { CloudUpload, Download, Loader2, RefreshCw, Star, X } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
+import ScheduleSyncPanel from '@/site/components/schedule/ScheduleSyncPanel.vue'
 import ScheduleConfigSection from '@/site/components/schedule/ScheduleConfigSection.vue'
 import ScheduleStatsCard from '@/site/components/schedule/ScheduleStatsCard.vue'
 import ScheduleRoughList from '@/site/components/schedule/ScheduleRoughList.vue'
@@ -90,21 +91,21 @@ function flash(message: string, type: 'success' | 'error' | 'warning' | 'info' =
   queueFlashMessage(message, type)
 }
 
-/** 自动恢复提示（#573）：云端分歧时本地方案已保留为恢复方案 → 非阻塞 toast。 */
+/** 方案从列表移入独立恢复草稿后显示非阻塞提示。 */
 watch(scheduleSync.notice, (message) => {
   if (!message) return
-  flash(t('schedule.syncAutoRestored', { name: message }), 'info')
+  flash(t('planSync.archived'), 'info')
   scheduleSync.clearNotice()
 })
 
 watch(scheduleSync.mergeBlocked, (blocked) => {
-  if (blocked) flash(t('schedule.syncMergeLimit'), 'error')
+  if (blocked) flash(t('planSync.capacity'), 'error')
 })
 
 /** 手动保存（「保存课表」按钮）：立即上传本地方案到云端。 */
 async function saveTimetableNow() {
   const adoptPreviousOwner = scheduleSync.needsOwnerConfirmation()
-  if (adoptPreviousOwner && !window.confirm(t('schedule.syncAdoptPreviousOwner'))) return
+  if (adoptPreviousOwner && !window.confirm(t('planSync.adoptHint'))) return
   const ok = await scheduleSync.saveNow(adoptPreviousOwner)
   flash(ok ? t('schedule.syncSaved') : t('schedule.syncSaveFailed'), ok ? 'success' : 'error')
 }
@@ -151,8 +152,7 @@ function allPlansCourseCodes(): { majorCodes: string[]; otherCodes: string[] } {
 
 async function syncLatest() {
   if (syncing.value) return // 防重入
-  // 同步最新（#573）：点击后重跑云端方案对账（GET + 云端为主合并/上传），
-  // 并刷新课程元数据；两者并行互不阻塞，完成后按对账结果补提示（#571）。
+  // 同步最新：逐方案三方对账与课程元数据刷新并行；重叠字段由冲突面板处理。
   const reconcilePromise = scheduleSync.syncOnPageEnter()
   const calendarId = store.state.majorSelected.calendarId
   const { majorCodes, otherCodes } = allPlansCourseCodes()
@@ -310,9 +310,14 @@ onMounted(() => {
   // viewer 可为 undefined（e2e fixture / 轻量宿主传空 layout），视为未登录。
   if (pageProps.layout.viewer?.isAuthenticated) {
     startScheduleSync(pageProps.layout.viewer.id)
-    // loadSolidify 完成后进页对账：云端空自动上传 / 本地空或干净本地采用云端 / 分歧自动恢复合并。
+    // 本地加载后逐方案对账；不相交修改自动合并，重叠字段留待用户选择。
     void scheduleSync.syncOnPageEnter()
   }
+})
+
+watch(() => [pageProps.layout.viewer?.id, pageProps.layout.viewer?.isAuthenticated] as const, ([id, signedIn]) => {
+  stopScheduleSync()
+  if (signedIn && id) { startScheduleSync(id); void scheduleSync.syncOnPageEnter() }
 })
 
 onBeforeUnmount(() => {
@@ -326,6 +331,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="pb-12">
+    <ScheduleSyncPanel />
     <PageHeader :title="t('schedule.title')" :description="t('schedule.subtitle')">
       <template #actions>
         <div class="flex flex-wrap items-center gap-2">

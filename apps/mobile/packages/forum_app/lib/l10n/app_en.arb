@@ -1156,5 +1156,27 @@
     }
   }
 },
-"campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable."
+"campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.",
+  "planSyncTitle": "Resolve plan conflicts",
+  "planSyncBody": "Another device changed these items too. Choose each value to keep; other changes merge automatically.",
+  "planSyncLocal": "Keep local",
+  "planSyncRemote": "Use cloud",
+  "planSyncDeleted": "Deleted",
+  "planSyncPlan": "Plan",
+  "planSyncName": "Name",
+  "planSyncCreatedAt": "Created",
+  "planSyncCourse": "Course",
+  "planSyncEvent": "Custom event",
+  "planSyncLabel": "Event name",
+  "planSyncDay": "Day",
+  "planSyncSections": "Periods",
+  "planSyncWeeks": "Weeks",
+  "planSyncApply": "Merge and save",
+  "planSyncDrafts": "Recovery drafts",
+  "planSyncDraftHint": "These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.",
+  "planSyncRestore": "Restore as new plan",
+  "planSyncAdopt": "Sync this device’s local plans to this account",
+  "planSyncAdoptHint": "These local plans do not yet belong to this account. Confirm before uploading.",
+  "planSyncCapacity": "The cloud holds at most ten plans. Free a slot and retry.",
+  "planSyncArchived": "Local changes were saved as a recovery draft."
 }

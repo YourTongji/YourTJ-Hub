@@ -1,6 +1,30 @@
 import adminRaw from './admin-raw.ja.generated'
 
 export default {
+  planSync: {
+    title: "プランの競合を解決",
+    body: "別の端末でもこれらの項目が変更されました。残す値を選択してください。他の変更は自動的に統合されます。",
+    local: "ローカルを保持",
+    remote: "クラウドを使用",
+    deleted: "削除済み",
+    plan: "プラン",
+    name: "名前",
+    createdAt: "作成日時",
+    course: "科目",
+    event: "予定",
+    label: "予定名",
+    day: "曜日",
+    sections: "時限",
+    weeks: "週",
+    apply: "統合して保存",
+    drafts: "復元用の下書き",
+    draftHint: "下書きはこの端末のみに保存され、クラウドのプラン数に含まれません。復元すると新しいプランを作成します。",
+    restore: "新しいプランとして復元",
+    adopt: "この端末のプランを現在のアカウントに同期",
+    adoptHint: "ローカルプランはまだこのアカウントに属していません。確認後にアップロードします。",
+    capacity: "クラウドには最大10件のプランを保存できます。空きを作って再試行してください。",
+    archived: "ローカルの変更を復元用の下書きに保存しました。",
+  },
   campus: {
     todayMakeup: "{name}：今日は {date} の時間割で授業を行います。",
     todayHoliday: "{name}：今日は休講です。",

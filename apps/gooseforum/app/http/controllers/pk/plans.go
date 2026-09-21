@@ -16,6 +16,9 @@ func GetPlans(req Request[Null]) Response {
 		return BadRequest("缺少登录态")
 	}
 	entity, err := pk.GetScheduleSnapshotByUser(req.UserId)
+	if errors.Is(err, pk.ErrSnapshotRetired) || errors.Is(err, pk.ErrPlanOwnerClosed) {
+		return Response{Code: 410, Msg: "请更新客户端以使用逐方案同步", Data: nil}
+	}
 	if errors.Is(err, pk.ErrScheduleSnapshotNotFound) {
 		return Ok(nil)
 	}
@@ -83,6 +86,9 @@ func PutPlans(req Request[PutPlansReq]) Response {
 		}
 		err = pk.CompareAndSwapScheduleSnapshot(entity, base)
 	}
+	if errors.Is(err, pk.ErrSnapshotRetired) || errors.Is(err, pk.ErrPlanOwnerClosed) {
+		return Response{Code: 410, Msg: "请更新客户端以使用逐方案同步", Data: nil}
+	}
 	if errors.Is(err, pk.ErrScheduleSnapshotConflict) {
 		return Response{Code: 409, Msg: "云端方案已更新，请重新同步", Data: map[string]any{}}
 	}
@@ -99,7 +105,10 @@ func DeletePlans(req Request[Null]) Response {
 	if req.UserId == 0 {
 		return BadRequest("缺少登录态")
 	}
-	if err := pk.DeleteScheduleSnapshotByUser(req.UserId); err != nil {
+	if err := pk.DeleteLegacyScheduleSnapshot(req.UserId); err != nil {
+		if errors.Is(err, pk.ErrSnapshotRetired) || errors.Is(err, pk.ErrPlanOwnerClosed) {
+			return Response{Code: 410, Msg: "请更新客户端以使用逐方案同步", Data: nil}
+		}
 		return Internal("删除排课方案失败")
 	}
 	return Ok(map[string]bool{"deleted": true})

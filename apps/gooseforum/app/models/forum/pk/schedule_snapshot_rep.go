@@ -10,17 +10,25 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func scheduleSnapshotBuilder() *gorm.DB {
-	return db.Connect().Table(scheduleSnapshotTableName)
-}
-
 // ErrScheduleSnapshotNotFound 云端无该用户的快照（GET 语义上等同 data:null）。
 var ErrScheduleSnapshotNotFound = gorm.ErrRecordNotFound
 
 // GetScheduleSnapshotByUser 返回用户当前云端快照；无行时返回 ErrScheduleSnapshotNotFound。
 func GetScheduleSnapshotByUser(userId uint64) (ScheduleSnapshotEntity, error) {
 	var entity ScheduleSnapshotEntity
-	err := scheduleSnapshotBuilder().Where(queryopt.Eq("user_id", userId)).First(&entity).Error
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		owner, err := lockPlanOwner(tx, userId)
+		if errors.Is(err, ErrPlanOwnerClosed) {
+			return ErrScheduleSnapshotNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if owner.Migrated {
+			return ErrSnapshotRetired
+		}
+		return tx.Where(queryopt.Eq("user_id", userId)).First(&entity).Error
+	})
 	return entity, err
 }
 
@@ -30,8 +38,7 @@ func GetScheduleSnapshotByUser(userId uint64) (ScheduleSnapshotEntity, error) {
 //
 // 不用 OnConflict.DoUpdates：map 赋值绕过 gorm 字段 serializer（JSON 列会被写成
 // 非法驱动值），且冲突路径不会刷新 updated_at。改为事务内读改写；首写并发竞争
-// 由 user_id 唯一索引兜底（后到者报唯一冲突，客户端保持 dirty 下次重试即走更新
-// 路径，见 issue #537 Blueprint「单笔 pending PUT」语义）。
+// 由同一用户的 PlanSyncOwner 行锁串行化，与惰性迁移共用互斥边界。
 func UpsertScheduleSnapshot(entity *ScheduleSnapshotEntity) error {
 	// 截断到微秒：PG timestamp 列只保留微秒精度，若以 time.Now() 的纳秒值
 	// 写响应、落库后被截断，PUT 返回的 updatedAt 与后续 GET 回读必然不同，
@@ -39,8 +46,15 @@ func UpsertScheduleSnapshot(entity *ScheduleSnapshotEntity) error {
 	// 截断后写入值与回读值逐位一致，SQLite/PG 两侧行为相同。
 	now := time.Now().Truncate(time.Microsecond)
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		owner, err := lockPlanOwner(tx, entity.UserId)
+		if err != nil {
+			return err
+		}
+		if owner.Migrated {
+			return ErrSnapshotRetired
+		}
 		var existing ScheduleSnapshotEntity
-		err := tx.Table(scheduleSnapshotTableName).
+		err = tx.Table(scheduleSnapshotTableName).
 			Where(queryopt.Eq("user_id", entity.UserId)).
 			First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -70,11 +84,29 @@ func UpsertScheduleSnapshot(entity *ScheduleSnapshotEntity) error {
 	})
 }
 
-// DeleteScheduleSnapshotByUser 删除用户云端快照（账号注销 anonymize/delete 两 mode
-// 共用，与 pushDevice.DeleteByUser 同语义；DELETE /api/pk/plans 也复用本函数）。
-// 幂等：无匹配行时静默成功。
+// DeleteScheduleSnapshotByUser serves account erasure in both closure modes.
+// It deletes legacy and per-plan payloads and permanently closes this owner.
+// Ordinary legacy DELETE uses DeleteLegacyScheduleSnapshot instead.
 func DeleteScheduleSnapshotByUser(userId uint64) error {
-	return scheduleSnapshotBuilder().Where(queryopt.Eq("user_id", userId)).Delete(&ScheduleSnapshotEntity{}).Error
+	return deleteScheduleData(db.Connect(), userId)
+}
+
+func deleteScheduleData(conn *gorm.DB, userId uint64) error {
+	return conn.Transaction(func(tx *gorm.DB) error {
+		if _, err := lockPlanOwner(tx, userId); err != nil {
+			if errors.Is(err, ErrPlanOwnerClosed) {
+				return nil
+			}
+			return err
+		}
+		if err := tx.Where("user_id = ?", userId).Delete(&PlanItem{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&PlanSyncOwner{}).Where("user_id = ?", userId).Updates(map[string]any{"closed": true, "migrated": true}).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", userId).Delete(&ScheduleSnapshotEntity{}).Error
+	})
 }
 
 // ErrScheduleSnapshotConflict means another writer changed the observed snapshot.
@@ -83,7 +115,16 @@ var ErrScheduleSnapshotConflict = errors.New("schedule snapshot changed")
 // CompareAndSwapScheduleSnapshot checks the observed revision in the write itself.
 // An empty base creates only if absent; existing snapshots require their exact clock.
 func CompareAndSwapScheduleSnapshot(entity *ScheduleSnapshotEntity, base string) error {
-	return compareAndSwapScheduleSnapshot(db.Connect(), entity, base)
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		owner, err := lockPlanOwner(tx, entity.UserId)
+		if err != nil {
+			return err
+		}
+		if owner.Migrated {
+			return ErrSnapshotRetired
+		}
+		return compareAndSwapScheduleSnapshot(tx, entity, base)
+	})
 }
 
 func compareAndSwapScheduleSnapshot(conn *gorm.DB, entity *ScheduleSnapshotEntity, base string) error {
@@ -117,4 +158,18 @@ func compareAndSwapScheduleSnapshot(conn *gorm.DB, entity *ScheduleSnapshotEntit
 		return ErrScheduleSnapshotConflict
 	}
 	return nil
+}
+
+// DeleteLegacyScheduleSnapshot refuses to delete the migrated account's plans.
+func DeleteLegacyScheduleSnapshot(userID uint64) error {
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		owner, err := lockPlanOwner(tx, userID)
+		if err != nil {
+			return err
+		}
+		if owner.Migrated {
+			return ErrSnapshotRetired
+		}
+		return tx.Where("user_id = ?", userID).Delete(&ScheduleSnapshotEntity{}).Error
+	})
 }

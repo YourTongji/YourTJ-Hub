@@ -826,5 +826,27 @@
     }
   }
 },
-"campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren."
+"campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.",
+  "planSyncTitle": "Plankonflikte lösen",
+  "planSyncBody": "Ein anderes Gerät hat diese Einträge ebenfalls geändert. Wähle die Werte, die bleiben sollen. Andere Änderungen werden automatisch zusammengeführt.",
+  "planSyncLocal": "Lokal behalten",
+  "planSyncRemote": "Cloud verwenden",
+  "planSyncDeleted": "Gelöscht",
+  "planSyncPlan": "Plan",
+  "planSyncName": "Name",
+  "planSyncCreatedAt": "Erstellt",
+  "planSyncCourse": "Kurs",
+  "planSyncEvent": "Eigener Termin",
+  "planSyncLabel": "Terminname",
+  "planSyncDay": "Tag",
+  "planSyncSections": "Stunden",
+  "planSyncWeeks": "Wochen",
+  "planSyncApply": "Zusammenführen und speichern",
+  "planSyncDrafts": "Wiederherstellungsentwürfe",
+  "planSyncDraftHint": "Diese Entwürfe bleiben auf diesem Gerät und belegen keinen Cloud-Platz. Beim Wiederherstellen entsteht ein neuer Plan.",
+  "planSyncRestore": "Als neuen Plan wiederherstellen",
+  "planSyncAdopt": "Lokale Pläne dieses Geräts mit diesem Konto synchronisieren",
+  "planSyncAdoptHint": "Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.",
+  "planSyncCapacity": "Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.",
+  "planSyncArchived": "Lokale Änderungen wurden als Entwurf gesichert."
 }

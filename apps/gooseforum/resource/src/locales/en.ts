@@ -1,6 +1,30 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  planSync: {
+    title: "Resolve plan conflicts",
+    body: "Another device changed these items too. Choose each value to keep; other changes merge automatically.",
+    local: "Keep local",
+    remote: "Use cloud",
+    deleted: "Deleted",
+    plan: "Plan",
+    name: "Name",
+    createdAt: "Created",
+    course: "Course",
+    event: "Custom event",
+    label: "Event name",
+    day: "Day",
+    sections: "Periods",
+    weeks: "Weeks",
+    apply: "Merge and save",
+    drafts: "Recovery drafts",
+    draftHint: "These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.",
+    restore: "Restore as new plan",
+    adopt: "Sync this device’s local plans to this account",
+    adoptHint: "These local plans do not yet belong to this account. Confirm before uploading.",
+    capacity: "The cloud holds at most ten plans. Free a slot and retry.",
+    archived: "Local changes were saved as a recovery draft.",
+  },
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",
     todayHoliday: "{name}: no classes today.",

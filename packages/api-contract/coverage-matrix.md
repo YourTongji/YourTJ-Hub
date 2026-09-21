@@ -4,17 +4,18 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：322
-- /api JSON 路由：257，已入契约：258（100%），已知未覆盖：0
+- 快照路由总数：325
+- /api JSON 路由：260，已入契约：261（100%），已知未覆盖：0
 - 非 API 排除路由：64
 
-## 已覆盖（258）
+## 已覆盖（261）
 
 | Method | Path | operationId |
 | --- | --- | --- |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
 | DELETE | `/api/forum/course-reviews/:reviewId/dislike` | `unmarkReviewDislike` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
+| DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
@@ -81,6 +82,7 @@
 | GET | `/api/pk/course-review-brief` | `pkGetCourseReviewBrief` |
 | GET | `/api/pk/faculties` | `pkListFaculties` |
 | GET | `/api/pk/latest-update` | `pkGetLatestUpdate` |
+| GET | `/api/pk/plan-items` | `pkListPlanItems` |
 | GET | `/api/pk/plans` | `pkGetPlans` |
 | GET | `/api/pk/section-times` | `pkGetSectionTimes` |
 | GET | `/api/site-theme/tokens` | `getPublicSiteThemeTokens` |
@@ -269,6 +271,7 @@
 | POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
+| PUT | `/api/pk/plan-items` | `pkPutPlanItem` |
 | PUT | `/api/pk/plans` | `pkPutPlans` |
 
 ## 已知未覆盖（0）
