@@ -30,6 +30,17 @@ func UpJsonReq[T any](action func(ctx component.BetterRequest[T]) component.Resp
 	}
 }
 
+// UpLimitedJsonReq applies a hard body limit before the standard strict JSON
+// binding path. It is intended for public endpoints whose work is more
+// expensive than decoding the request itself.
+func UpLimitedJsonReq[T any](maxBytes int64, action func(ctx component.BetterRequest[T]) component.Response) func(c *gin.Context) {
+	handler := UpJsonReq(action)
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		handler(c)
+	}
+}
+
 // UpQueryReq binds query parameters.
 func UpQueryReq[T any](action func(ctx component.BetterRequest[T]) component.Response) func(c *gin.Context) {
 	return func(c *gin.Context) {

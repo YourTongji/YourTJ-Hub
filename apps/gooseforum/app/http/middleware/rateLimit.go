@@ -44,6 +44,7 @@ const (
 	RateLimitLLMSTopic       = "llms.topic"
 	RateLimitMCPAuth         = "mcp.auth"
 	RateLimitCourseCatalog   = "course.catalog"
+	RateLimitLinkPreview     = "link-preview.resolve"
 	RateLimitCampusRead      = "campus.read"
 	RateLimitCampusAuthorize = "campus.authorize"
 	RateLimitStickerList     = "sticker.list"

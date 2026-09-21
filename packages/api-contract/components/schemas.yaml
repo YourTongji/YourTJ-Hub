@@ -32,6 +32,76 @@ ApiFailure:
       additionalProperties: true
   additionalProperties: false
 
+LinkPreviewResolveRequest:
+  type: object
+  required: [urls]
+  properties:
+    urls:
+      type: array
+      minItems: 1
+      maxItems: 5
+      items:
+        type: string
+        minLength: 1
+        maxLength: 2048
+  additionalProperties: false
+
+LinkPreview:
+  type: object
+  required: [requestedUrl, kind, status]
+  properties:
+    requestedUrl:
+      type: string
+    kind:
+      type: string
+      enum: [unknown, internal, external]
+    status:
+      type: string
+      enum: [ready, invalid, blocked, unavailable, timeout, unsupported, permission_denied]
+    url:
+      type: string
+    displayHost:
+      type: string
+    registrableDomain:
+      type: string
+    siteName:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    imageUrl:
+      type: string
+    faviconUrl:
+      type: string
+    fetchedAt:
+      type: string
+      format: date-time
+    campus:
+      type: boolean
+      description: >-
+        Set when the card was rendered from the deployment's local campus
+        configuration without any outbound request. `title` and `description`
+        may be absent in that case; clients supply their own localized fallback
+        copy instead of relying on server-side text.
+  additionalProperties: false
+
+LinkPreviewResolveSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/LinkPreview'
+
+LinkPreviewResolveResponse:
+  oneOf:
+    - $ref: '#/LinkPreviewResolveSuccess'
+    - $ref: '#/ApiFailure'
+
 RateLimitedFailure:
   allOf:
     - $ref: '#/ApiFailure'

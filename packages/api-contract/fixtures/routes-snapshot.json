@@ -1125,6 +1125,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/link-previews/resolve"
+  },
+  {
+    "method": "POST",
     "path": "/api/login"
   },
   {

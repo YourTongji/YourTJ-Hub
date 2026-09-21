@@ -228,6 +228,7 @@ export interface UnreadStatusPayload {
 export interface SitePayload {
   name: string
   description: string
+  url?: string
   logo: string
   favicon: string
   externalLinks?: string

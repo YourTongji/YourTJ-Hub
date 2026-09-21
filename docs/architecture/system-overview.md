@@ -91,6 +91,20 @@
   When Meilisearch is unavailable the search page shows a full unavailable state; per-index failures
   degrade partially via `failedScopes`.
 
+### Link previews and outbound navigation
+
+- Web and Flutter detect only bare HTTP(S) URLs that occupy a complete Markdown paragraph. They consume
+  the same fixture and never persist preview metadata or generated card markup into Markdown.
+- `POST /api/link-previews/resolve` classifies configured first-party origins before network access.
+  Topic, Course, Wiki and User previews read local public projections; third-party pages pass through a
+  bounded HTML fetcher that validates every DNS result and redirect, dials only the checked IP, and caps
+  time, redirects, decompressed bytes and concurrency. Cached and singleflight results expose only a
+  fixed metadata whitelist.
+- Preview cards are progressive enhancement: a timeout, policy rejection or unsupported page leaves the
+  original link intact. All UGC external links use one per-client guard that displays the canonical
+  hostname and complete URL. Session trust is keyed by Public Suffix List eTLD+1 and never applies to a
+  suspicious or blocked risk state.
+
 ### Async boundaries and consistency
 
 - A request-scoped database, HTTP, or LLM operation receives the incoming request context and must

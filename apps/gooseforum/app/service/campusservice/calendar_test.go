@@ -28,7 +28,10 @@ func TestCalendarExactWeeksTimesAndStableUID(t *testing.T) {
 			t.Errorf("missing %s", expected)
 		}
 	}
-	if strings.Contains(first.Content, "20260921") || strings.Contains(first.Content, "opaque-owner") {
+	// 偶数周（第 2 周）不得产生课程段。断言只锚定 DTSTART/DTEND 行：裸日期串
+	// 会误伤 DTSTAMP——那是导出时刻的时间戳，2026-09-21 当天运行时必然包含
+	// "20260921"，与课程排期无关。
+	if strings.Contains(first.Content, "DTSTART:20260921") || strings.Contains(first.Content, "DTEND:20260921") || strings.Contains(first.Content, "opaque-owner") {
 		t.Fatal("invented an even week or leaked owner identifier")
 	}
 	// Ordering and timestamp changes cannot create different event IDs.

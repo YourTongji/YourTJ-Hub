@@ -15,11 +15,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicaccessservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicviewservice"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
@@ -253,46 +252,7 @@ func canViewTopic(entity *topics.Entity, userID uint64) bool {
 // (ProcessStatus != 0) topics are rejected with the same shape callers see on
 // the read path, see issue #112 (CWE-862).
 func CanViewTopicSimple(entity *topics.Entity, userID uint64) bool {
-	if entity.VisibilityStatus != topics.VisibilityActive {
-		return canViewDeletedTopic(entity, userID)
-	}
-	if entity.Status != 1 {
-		return userID != 0 && userID == entity.UserId
-	}
-	if entity.ProcessStatus != 0 && !currentUserCanViewProcessedTopic(userID) && !moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds) {
-		return false
-	}
-	return true
-}
-
-func canViewDeletedTopic(entity *topics.Entity, userID uint64) bool {
-	if entity.RetentionStatus == topics.RetentionPurged {
-		return false
-	}
-	// 隐私擦除的内容对普通用户一律 404，但保留版主在作用域内的只读通道，
-	// 供举报取证/审计查阅；版主仍不能恢复或对外暴露该内容。
-	if entity.VisibilityStatus == topics.VisibilityAccountAnonymized {
-		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)
-	}
-	if entity.VisibilityStatus == topics.VisibilityModeratorRemoved {
-		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)
-	}
-	if userID > 0 && userID == entity.UserId {
-		return true
-	}
-	if moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds) {
-		return true
-	}
-	// 话题作者删除首帖后，仍有正常回复时保留讨论上下文；没有回复的内容只在作者的最近删除中可见。
-	return len(posts.GetByTopicPostNoAfter(entity.Id, 1, 1)) > 0
-}
-
-func currentUserCanViewProcessedTopic(userID uint64) bool {
-	if userID == 0 {
-		return false
-	}
-	roleID, ok := userservice.GetUserRoleId(userID)
-	return ok && permission.CheckRole(roleID, permission.TopicsManager)
+	return topicaccessservice.CanView(entity, userID)
 }
 
 func shouldCountTopicView(entity *topics.Entity) bool {

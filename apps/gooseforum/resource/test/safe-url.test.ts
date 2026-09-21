@@ -55,7 +55,7 @@ describe('safeUrl external policy', () => {
   })
 
   test('rejects relative paths, mailto and dangerous schemes', () => {
-    for (const raw of ['/sponsors', 'sponsors', '//example.com', 'mailto:a@example.com', 'javascript:alert(1)', 'ftp://example.com']) {
+    for (const raw of ['/sponsors', 'sponsors', '//example.com', 'https://user@example.com', 'mailto:a@example.com', 'javascript:alert(1)', 'ftp://example.com']) {
       expect(safeUrl(raw, 'external'), raw).toBe('')
     }
   })

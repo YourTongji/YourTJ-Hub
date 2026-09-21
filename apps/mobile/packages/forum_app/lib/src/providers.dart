@@ -220,6 +220,10 @@ final fileRepositoryProvider = Provider<FileRepository>((ref) {
   return FileRepository(ref.watch(apiClientProvider));
 });
 
+final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
+  return LinkPreviewRepository(ref.watch(apiClientProvider));
+});
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(ref.watch(apiClientProvider));
 });

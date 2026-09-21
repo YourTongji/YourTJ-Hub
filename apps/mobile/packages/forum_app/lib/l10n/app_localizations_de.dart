@@ -2392,6 +2392,28 @@ class AppLocalizationsDe extends AppLocalizations {
       'Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:';
 
   @override
+  String get linkPreviewExternalTitle => 'YourTJ verlassen';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return 'Du wechselst zu $domain. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.';
+  }
+
+  @override
+  String get linkPreviewRememberDomain =>
+      'Für diese Domain in dieser Sitzung nicht erneut fragen';
+
+  @override
+  String get linkPreviewContinue => 'Weiter';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => 'Campusnetz';
+
+  @override
+  String get linkPreviewCampusFallbackDescription =>
+      'Zugriff nur aus dem Campusnetz';
+
+  @override
   String campusTodayMakeup(String name, String date) {
     return '$name: Heute gilt der Stundenplan vom $date.';
   }

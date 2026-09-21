@@ -4398,6 +4398,42 @@ abstract class AppLocalizations {
   /// **'By continuing, you agree to the published policies:'**
   String get loginTongjiPolicies;
 
+  /// No description provided for @linkPreviewExternalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leaving YourTJ'**
+  String get linkPreviewExternalTitle;
+
+  /// No description provided for @linkPreviewExternalBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You are going to {domain}. Check the address before entering account, verification, or payment details.'**
+  String linkPreviewExternalBody(String domain);
+
+  /// No description provided for @linkPreviewRememberDomain.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not ask again for this domain during this session'**
+  String get linkPreviewRememberDomain;
+
+  /// No description provided for @linkPreviewContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get linkPreviewContinue;
+
+  /// No description provided for @linkPreviewCampusFallbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus network'**
+  String get linkPreviewCampusFallbackTitle;
+
+  /// No description provided for @linkPreviewCampusFallbackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires campus network access'**
+  String get linkPreviewCampusFallbackDescription;
+
   /// No description provided for @campusTodayMakeup.
   ///
   /// In en, this message translates to:

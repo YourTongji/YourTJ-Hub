@@ -2281,6 +2281,26 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';
 
   @override
+  String get linkPreviewExternalTitle => '即将离开 YourTJ';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return '你将前往 $domain。请确认网址，并谨慎输入账号、验证码或支付信息。';
+  }
+
+  @override
+  String get linkPreviewRememberDomain => '本次浏览期间不再询问此域名';
+
+  @override
+  String get linkPreviewContinue => '继续访问';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => '校园网';
+
+  @override
+  String get linkPreviewCampusFallbackDescription => '需校园网络访问';
+
+  @override
   String campusTodayMakeup(String name, String date) {
     return '$name：今天按 $date 的课表上课。';
   }
