@@ -64,6 +64,12 @@ identity reservation survives unlink, replacement and closure to prevent repeat 
 claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
 See [the decision](../decisions/0032-tongji-login-and-registration.md).
 
+`Current`: a newly created Tongji account visits a skippable setup view in Settings before
+continuing to its original local destination. The same browser step preserves the native App's
+OIDC continuation. Users can save a public username and request a captcha-protected password
+setup link at their linked email address. Existing accounts bypass the guide. Password setup
+uses ordinary email recovery; school login does not gain a new password-write permission.
+
 ### Built-in OIDC Provider (first-party clients)
 
 - Discovery: `/.well-known/openid-configuration` under the issuer path `/api/oauth`; endpoints:

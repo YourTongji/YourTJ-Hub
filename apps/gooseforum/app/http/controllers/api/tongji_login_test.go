@@ -96,7 +96,7 @@ func TestTongjiLoginCallbackRequiresBrowserAndIgnoresCallbackRedirect(t *testing
 	req.AddCookie(cookie)
 	success := httptest.NewRecorder()
 	router.ServeHTTP(success, req)
-	if success.Code != 303 || success.Header().Get("Location") != "/campus" || !hasAccessTokenCookie(success) {
+	if success.Code != 303 || success.Header().Get("Location") != "/settings?onboarding=tongji&returnTo=%2Fcampus" || !hasAccessTokenCookie(success) {
 		t.Fatal("login did not complete")
 	}
 	if strings.Contains(success.Body.String(), "school-code") || strings.Contains(success.Body.String(), "not-exposed") {
@@ -140,8 +140,9 @@ func TestTongjiLoginResumesMobileOIDCAndExchangesForumSession(t *testing.T) {
 	rec = get(login.String())
 	school, _ := url.Parse(rec.Header().Get("Location"))
 	rec = get("/api/campus/tongji/callback?code=school-code&state=" + url.QueryEscape(school.Query().Get("state")))
-	if rec.Code != 303 || rec.Header().Get("Location") != continuation {
-		t.Fatal("OIDC continuation lost")
+	onboarding, parseErr := url.Parse(rec.Header().Get("Location"))
+	if parseErr != nil || rec.Code != 303 || onboarding.Path != "/settings" || onboarding.Query().Get("onboarding") != "tongji" || onboarding.Query().Get("returnTo") != continuation {
+		t.Fatal("first login guide lost the OIDC continuation")
 	}
 	binding := cookies["yourtj_oidc_binding"]
 	delete(cookies, "yourtj_oidc_binding")
@@ -210,5 +211,30 @@ func TestTongjiLoginPreviouslyBoundIdentityUsesRecoveryNotice(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/login?tongjiNotice=accountExists&redirect=%2Fcampus" || hasAccessTokenCookie(rec) {
 		t.Fatalf("unexpected recovery response: %d %s", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+func TestTongjiLoginExistingAccountSkipsOnboarding(t *testing.T) {
+	router, _ := setupTongjiLogin(t)
+	for attempt := range 2 {
+		start := httptest.NewRecorder()
+		router.ServeHTTP(start, httptest.NewRequest(http.MethodGet, "/api/auth/tongji?redirect=%2Fcampus", nil))
+		location, err := url.Parse(start.Header().Get("Location"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/api/campus/tongji/callback?code=school-code&state="+url.QueryEscape(location.Query().Get("state")), nil)
+		for _, cookie := range start.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		result := httptest.NewRecorder()
+		router.ServeHTTP(result, req)
+		want := "/settings?onboarding=tongji&returnTo=%2Fcampus"
+		if attempt == 1 {
+			want = "/campus"
+		}
+		if result.Code != http.StatusSeeOther || result.Header().Get("Location") != want || !hasAccessTokenCookie(result) {
+			t.Fatalf("attempt %d: code %d location %s", attempt, result.Code, result.Header().Get("Location"))
+		}
 	}
 }

@@ -102,5 +102,11 @@ func TongjiLoginCallback(c *gin.Context) {
 		return
 	}
 	jwtopt.TokenSetting(c, token)
-	c.Redirect(http.StatusSeeOther, result.Redirect)
+	destination := result.Redirect
+	if result.Created {
+		// Preserve the server-validated continuation, including native OIDC, while
+		// the new account chooses a public username and optional email password setup.
+		destination = "/settings?onboarding=tongji&returnTo=" + url.QueryEscape(destination)
+	}
+	c.Redirect(http.StatusSeeOther, destination)
 }

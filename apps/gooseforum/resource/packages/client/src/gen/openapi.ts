@@ -12050,7 +12050,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Binding returns to /campus?authorization=ready|failed. Sign-in returns to its server-stored local destination and sets a forum session cookie, or /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location. */
+            /** @description Binding returns to /campus?authorization=ready|failed. Sign-in sets a forum session cookie. New accounts first visit /settings?onboarding=tongji with their server-stored local destination in returnTo; existing accounts return directly to that destination. Failure returns to /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location. */
             303: {
                 headers: {
                     Location?: string;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TongjiOnboarding from '@/site/components/TongjiOnboarding.vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
   AlertTriangle,
@@ -118,6 +119,8 @@ const { t, locale } = useI18n()
 const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'content', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
+const onboardingQuery = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
+const showOnboarding = onboardingQuery.get('onboarding') === 'tongji'
 const activeTab = ref<TabKey>('profile')
 const status = ref('')
 const error = ref('')
@@ -1377,7 +1380,8 @@ async function toggleBinding(provider: string) {
 </script>
 
 <template>
-    <main class="min-w-0 pb-8">
+    <TongjiOnboarding v-if="showOnboarding" :username="props.user.username" :email="props.user.email" :return-to="onboardingQuery.get('returnTo') || '/'" />
+    <main v-else class="min-w-0 pb-8">
       <section class="gf-card overflow-visible">
         <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
         <!-- overflow-visible 保持悬浮 tooltip 不被卡片裁剪；封面图由自身圆角裁剪，封面编辑浮层不裁剪 -->
