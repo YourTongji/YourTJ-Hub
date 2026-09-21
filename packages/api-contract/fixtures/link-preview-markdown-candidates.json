@@ -56,6 +56,21 @@
       "urls": ["https://one.example", "https://two.example", "https://three.example", "https://four.example", "https://five.example"]
     },
     {
+      "name": "indented code block",
+      "markdown": "    https://example.com/indented",
+      "urls": []
+    },
+    {
+      "name": "blockquote line",
+      "markdown": "> https://example.com/quoted",
+      "urls": []
+    },
+    {
+      "name": "list item line",
+      "markdown": "- https://example.com/listed",
+      "urls": []
+    },
+    {
       "name": "unsupported scheme",
       "markdown": "javascript:alert(1)",
       "urls": []

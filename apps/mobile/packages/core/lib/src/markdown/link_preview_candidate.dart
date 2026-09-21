@@ -42,6 +42,11 @@ List<LinkPreviewMarkdownBlock> splitLinkPreviewMarkdown(String markdown) {
   }
 
   for (int index = 0; index < lines.length; index++) {
+    // CommonMark：行首缩进 ≥4 空格（制表符按 4 计）是缩进代码块，其中的裸 URL
+    // 不是候选——Web 端 markdown-it 会把它渲染成 pre/code 同样不出卡，两侧必须
+    // 同语义（共享 fixture 的 indented code block 用例）。缩进行也不得切换围栏
+    // 状态：缩进的 ``` 只是代码内容，不是围栏标记。
+    if (fence == null && _indentOf(lines[index]) >= 4) continue;
     final String trimmedLeft = lines[index].trimLeft();
     final String? marker = _fenceMarker(trimmedLeft);
     if (marker != null) {
@@ -88,6 +93,21 @@ String? _fenceMarker(String line) {
     count++;
   }
   return count >= 3 ? character : null;
+}
+
+int _indentOf(String line) {
+  int indent = 0;
+  for (int index = 0; index < line.length; index++) {
+    final int codeUnit = line.codeUnitAt(index);
+    if (codeUnit == 0x20) {
+      indent++;
+    } else if (codeUnit == 0x09) {
+      indent += 4;
+    } else {
+      break;
+    }
+  }
+  return indent;
 }
 
 String? _standaloneHttpUrl(String raw) {
