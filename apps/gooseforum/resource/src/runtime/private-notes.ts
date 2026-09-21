@@ -4,7 +4,7 @@ import type { ViewerPayload, PrivateNote } from '@gooseforum/client'
 
 // Memory only: never enter public user cards, page payloads, drafts or offline caches.
 export function createPrivateNoteStore(load = () => getPrivateNotes(), save = (id: number, note: string) => setPrivateNote(id, note)) {
-  const state = reactive({ ownerId: 0, notes: new Map<number, PrivateNote>() })
+  const state = reactive({ ownerId: 0, loaded: false, loading: false, failed: false, notes: new Map<number, PrivateNote>() })
   let generation = 0
   let request = 0
   function setOwner(ownerId: number) {
@@ -12,20 +12,25 @@ export function createPrivateNoteStore(load = () => getPrivateNotes(), save = (i
     generation++
     state.ownerId = ownerId
     state.notes.clear()
+    state.loaded = false; state.loading = false; state.failed = false
   }
   async function refresh() {
     if (!state.ownerId) return
     const epoch = generation, seq = ++request, owner = state.ownerId
+    state.loading = true; state.failed = false
     try {
       const result = await load()
       if (epoch !== generation || seq !== request) return
       if (result.ownerId !== owner) { setOwner(0); return }
       state.notes = new Map(result.notes.map(note => [note.targetUserId, note]))
-    } catch { /* Notes never block reading. Explicit saves still report failures. */ }
+      state.loaded = true
+    } catch { if (epoch === generation && seq === request) state.failed = true }
+    finally { if (epoch === generation && seq === request) state.loading = false }
   }
   async function update(targetUserId: number, username: string, note: string) {
     const owner = state.ownerId, epoch = generation
     if (!owner) throw new Error('Authentication required')
+    if (!state.loaded || state.loading || state.failed) throw new Error('Load notes before editing')
     await save(targetUserId, note)
     if (epoch !== generation || state.ownerId !== owner) return
     ++request // A read started before this write cannot overwrite the new value.

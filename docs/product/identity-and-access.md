@@ -385,3 +385,5 @@ an authenticated, `private, no-store` API, keep them in memory for the current s
 refresh on re-entry/focus/resume. Session changes clear the display state and reject old read/write
 responses; the feature does not add notes to search indexes, notifications sent to others, public
 user caches or offline storage.
+
+Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.

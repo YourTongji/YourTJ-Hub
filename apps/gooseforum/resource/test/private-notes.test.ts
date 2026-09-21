@@ -29,9 +29,11 @@ describe('private user display notes', () => {
   })
   it('protects a saved value from an earlier read and allows clearing', async () => {
     const pending = deferred(); const save = vi.fn(async () => true)
-    const store = createPrivateNoteStore(() => pending.promise, save); store.setOwner(1)
-    const read = store.refresh(); await store.update(2, 'alice', '新备注')
+    const load = vi.fn().mockResolvedValueOnce(snapshot()).mockImplementationOnce(() => pending.promise)
+    const store = createPrivateNoteStore(load, save); store.setOwner(1); await store.refresh()
+    const read = store.refresh(); await expect(store.update(2, 'alice', '新备注')).rejects.toThrow('Load notes before editing')
     pending.resolve(snapshot()); await read
+    await store.update(2, 'alice', '新备注')
     expect(store.name(2, 'alice')).toBe('新备注(alice)')
     await store.update(2, 'alice', '  '); expect(store.name(2, 'alice')).toBe('alice')
   })

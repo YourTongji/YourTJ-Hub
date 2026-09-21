@@ -43,6 +43,46 @@ Widget app(Widget child) => MaterialApp(
   home: Scaffold(body: child),
 );
 void main() {
+  testWidgets('pending or failed notes cannot open an empty editor', (
+    tester,
+  ) async {
+    final pending = Completer<Map<int, PrivateNotePayload>>();
+    var attempt = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentUserProvider.overrideWith(
+            (ref) async => const CurrentUser(id: 1, username: 'owner'),
+          ),
+          privateNotesProvider((1, 0)).overrideWith((ref) {
+            attempt++;
+            return attempt == 1 ? pending.future : Future.value({2: note});
+          }),
+        ],
+        child: app(
+          const PrivateNotesHost(
+            child: PrivateNoteButton(userId: 2, username: 'alice'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Edit note'))
+          .onPressed,
+      isNull,
+    );
+    pending.completeError(Exception('offline'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit note'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lab partner'), findsOneWidget);
+  });
+
   testWidgets('private names react without changing canonical identity', (
     tester,
   ) async {

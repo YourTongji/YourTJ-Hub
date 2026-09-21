@@ -11,7 +11,9 @@ final privateNotesProvider = FutureProvider.autoDispose
     .family<Map<int, PrivateNotePayload>, (int, int)>((ref, key) async {
       if (key.$1 <= 0) return {};
       final result = await ref.read(userRepositoryProvider).getPrivateNotes();
-      if (result.ownerId != key.$1) return {};
+      if (result.ownerId != key.$1) {
+        throw StateError('Private notes owner changed');
+      }
       return {for (final note in result.notes) note.targetUserId: note};
     });
 
@@ -20,15 +22,22 @@ class PrivateNotesScope extends InheritedWidget {
     super.key,
     required this.ownerId,
     required this.notes,
+    this.ready = true,
+    this.failed = false,
     required super.child,
   });
+  final bool ready;
+  final bool failed;
   final int ownerId;
   final Map<int, PrivateNotePayload> notes;
   static PrivateNotesScope? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PrivateNotesScope>();
   @override
   bool updateShouldNotify(PrivateNotesScope oldWidget) =>
-      ownerId != oldWidget.ownerId || notes != oldWidget.notes;
+      ownerId != oldWidget.ownerId ||
+      notes != oldWidget.notes ||
+      ready != oldWidget.ready ||
+      failed != oldWidget.failed;
 }
 
 String privateDisplayName(
@@ -75,10 +84,14 @@ class _PrivateNotesHostState extends ConsumerState<PrivateNotesHost>
   Widget build(BuildContext context) {
     final epoch = ref.watch(offlineCacheEpochProvider);
     final owner = ref.watch(currentUserProvider).valueOrNull?.id ?? 0;
-    final notes =
-        ref.watch(privateNotesProvider((owner, epoch))).valueOrNull ??
-        const <int, PrivateNotePayload>{};
-    return PrivateNotesScope(ownerId: owner, notes: notes, child: widget.child);
+    final result = ref.watch(privateNotesProvider((owner, epoch)));
+    return PrivateNotesScope(
+      ownerId: owner,
+      notes: result.valueOrNull ?? const {},
+      ready: result.hasValue && !result.isLoading && !result.hasError,
+      failed: result.hasError,
+      child: widget.child,
+    );
   }
 }
 
@@ -96,14 +109,22 @@ class PrivateNoteButton extends ConsumerWidget {
     if (scope == null || scope.ownerId <= 0 || scope.ownerId == userId) {
       return const SizedBox.shrink();
     }
+    if (scope.failed) {
+      return TextButton(
+        onPressed: () => ref.invalidate(privateNotesProvider),
+        child: Text(AppLocalizations.of(context).commonRetry),
+      );
+    }
     return TextButton(
-      onPressed: () => showDialog<void>(
-        context: context,
-        builder: (_) => _PrivateNoteDialog(
-          userId: userId,
-          initial: scope.notes[userId]?.note ?? '',
-        ),
-      ),
+      onPressed: !scope.ready
+          ? null
+          : () => showDialog<void>(
+              context: context,
+              builder: (_) => _PrivateNoteDialog(
+                userId: userId,
+                initial: scope.notes[userId]?.note ?? '',
+              ),
+            ),
       child: Text(AppLocalizations.of(context).privateNoteEdit),
     );
   }
