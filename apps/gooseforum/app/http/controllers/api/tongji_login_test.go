@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -60,6 +61,8 @@ func setupTongjiLogin(t *testing.T) (*gin.Engine, *loginSchoolProvider) {
 	t.Cleanup(func() { tongjiLoginService = old })
 	router := gin.New()
 	router.GET("/api/auth/:provider", ProviderLogin)
+	router.GET("/api/auth/tongji/registration", TongjiRegistrationStatus)
+	router.POST("/api/auth/tongji/registration", TongjiRegister)
 	router.GET("/api/campus/tongji/callback", func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("Referrer-Policy", "no-referrer")
@@ -96,12 +99,13 @@ func TestTongjiLoginCallbackRequiresBrowserAndIgnoresCallbackRedirect(t *testing
 	req.AddCookie(cookie)
 	success := httptest.NewRecorder()
 	router.ServeHTTP(success, req)
-	if success.Code != 303 || success.Header().Get("Location") != "/settings?onboarding=tongji&returnTo=%2Fcampus" || !hasAccessTokenCookie(success) {
+	if success.Code != 303 || success.Header().Get("Location") != "/register/tongji" || hasAccessTokenCookie(success) {
 		t.Fatal("login did not complete")
 	}
 	if strings.Contains(success.Body.String(), "school-code") || strings.Contains(success.Body.String(), "not-exposed") {
 		t.Fatal("credentials in output")
 	}
+	finishTestTongjiRegistration(t, router, success.Result().Cookies())
 	replay := httptest.NewRecorder()
 	router.ServeHTTP(replay, req)
 	if p.exchanges != 1 || hasAccessTokenCookie(replay) {
@@ -140,9 +144,20 @@ func TestTongjiLoginResumesMobileOIDCAndExchangesForumSession(t *testing.T) {
 	rec = get(login.String())
 	school, _ := url.Parse(rec.Header().Get("Location"))
 	rec = get("/api/campus/tongji/callback?code=school-code&state=" + url.QueryEscape(school.Query().Get("state")))
-	onboarding, parseErr := url.Parse(rec.Header().Get("Location"))
-	if parseErr != nil || rec.Code != 303 || onboarding.Path != "/settings" || onboarding.Query().Get("onboarding") != "tongji" || onboarding.Query().Get("returnTo") != continuation {
-		t.Fatal("first login guide lost the OIDC continuation")
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/register/tongji" || hasAccessTokenCookie(rec) {
+		t.Fatal("registration bypassed")
+	}
+	registration := finishTestTongjiRegistration(t, router, rec.Result().Cookies())
+	for _, c := range registration.Result().Cookies() {
+		cookies[c.Name] = c
+	}
+	var registrationResponse struct {
+		Result struct {
+			Redirect string `json:"redirect"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(registration.Body.Bytes(), &registrationResponse); err != nil || registrationResponse.Result.Redirect != continuation {
+		t.Fatal("registration lost OIDC continuation")
 	}
 	binding := cookies["yourtj_oidc_binding"]
 	delete(cookies, "yourtj_oidc_binding")
@@ -193,6 +208,14 @@ func TestTongjiLoginPreviouslyBoundIdentityUsesRecoveryNotice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	status, statusErr := service.RegistrationStatus(result.Registration)
+	if statusErr != nil {
+		t.Fatal(statusErr)
+	}
+	result, err = service.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, campusservice.Registration{Username: "retained_user", PasswordHash: "test-hash"}, pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
 	conn := db.Connect()
 	if err := conn.Model(result.User).Update("email", "changed@example.test").Error; err != nil {
 		t.Fatal(err)
@@ -229,12 +252,107 @@ func TestTongjiLoginExistingAccountSkipsOnboarding(t *testing.T) {
 		}
 		result := httptest.NewRecorder()
 		router.ServeHTTP(result, req)
-		want := "/settings?onboarding=tongji&returnTo=%2Fcampus"
+		want := "/register/tongji"
 		if attempt == 1 {
 			want = "/campus"
 		}
-		if result.Code != http.StatusSeeOther || result.Header().Get("Location") != want || !hasAccessTokenCookie(result) {
+		if result.Code != http.StatusSeeOther || result.Header().Get("Location") != want || hasAccessTokenCookie(result) != (attempt == 1) {
 			t.Fatalf("attempt %d: code %d location %s", attempt, result.Code, result.Header().Get("Location"))
 		}
+		if attempt == 0 {
+			finishTestTongjiRegistration(t, router, result.Result().Cookies())
+		}
+	}
+}
+
+func finishTestTongjiRegistration(t *testing.T, router *gin.Engine, cookies []*http.Cookie) *httptest.ResponseRecorder {
+	t.Helper()
+	statusReq := httptest.NewRequest(http.MethodGet, "/api/auth/tongji/registration", nil)
+	for _, cookie := range cookies {
+		statusReq.AddCookie(cookie)
+	}
+	statusRec := httptest.NewRecorder()
+	router.ServeHTTP(statusRec, statusReq)
+	var status struct {
+		Result campusservice.RegistrationStatus `json:"result"`
+	}
+	if err := json.Unmarshal(statusRec.Body.Bytes(), &status); err != nil || status.Result.CSRFToken == "" {
+		t.Fatalf("missing registration proof: %s", statusRec.Body.String())
+	}
+	data, err := json.Marshal(map[string]string{"username": "chosen_student", "password": "Password123", "csrfToken": status.Result.CSRFToken})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/tongji/registration", strings.NewReader(string(data)))
+	req.Header.Set("Content-Type", "application/json")
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !hasAccessTokenCookie(rec) {
+		t.Fatalf("registration failed: %d %s", rec.Code, rec.Body.String())
+	}
+	return rec
+}
+
+func TestTongjiRegistrationValidatesProofAndCredentials(t *testing.T) {
+	router, _ := setupTongjiLogin(t)
+	service, err := tongjiLoginService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, browser, err := service.StartLogin("/campus", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address, _ := url.Parse(start)
+	result, err := service.Login(context.Background(), browser, address.Query().Get("state"), "code", pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := service.RegistrationStatus(result.Registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		cookie, csrf, username, password string
+		code                             int
+	}{
+		{"", status.CSRFToken, "chosen_student", "Password123", http.StatusGone},
+		{"foreign", status.CSRFToken, "chosen_student", "Password123", http.StatusGone},
+		{result.Registration, "", "chosen_student", "Password123", http.StatusForbidden},
+		{result.Registration, "wrong", "chosen_student", "Password123", http.StatusForbidden},
+		{result.Registration, status.CSRFToken, "bad", "Password123", http.StatusBadRequest},
+		{result.Registration, status.CSRFToken, "chosen_student", "123", http.StatusBadRequest},
+		{result.Registration, status.CSRFToken, "chosen_student", "abcdefgh", http.StatusBadRequest},
+	} {
+		body, err := json.Marshal(map[string]string{"username": tc.username, "password": tc.password, "csrfToken": tc.csrf})
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/tongji/registration", strings.NewReader(string(body)))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: tongjiRegistrationCookieName, Value: tc.cookie})
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != tc.code || hasAccessTokenCookie(rec) {
+			t.Fatalf("guard: %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	cookies := []*http.Cookie{{Name: tongjiRegistrationCookieName, Value: result.Registration}}
+	rec := finishTestTongjiRegistration(t, router, cookies)
+	if rec.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatal("registration is cacheable")
+	}
+	var user users.EntityComplete
+	if err := db.Connect().Where("username = ?", "chosen_student").First(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.Password == "Password123" || user.Password == "" || user.IsActivated != users.ActivationSuccess {
+		t.Fatal("password/activation not set")
+	}
+	if err := algorithm.VerifyEncryptPassword(user.Password, "Password123"); err != nil {
+		t.Fatal(err)
 	}
 }

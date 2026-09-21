@@ -119,6 +119,7 @@ type ErrorPageProps struct {
 }
 
 type LoginPageProps struct {
+	TongjiRegistration    bool     `json:"tongjiRegistration,omitempty"`
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
 	GitHubURL             string   `json:"githubUrl"`

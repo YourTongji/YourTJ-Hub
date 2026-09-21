@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  tongjiRegistration: {
+    "title": "Tongji-Registrierung abschließen",
+    "intro": "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
+    "expired": "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
+    "restart": "Erneut anmelden",
+    "verifiedEmail": "Bestätigte E-Mail"
+},
   campus: {
     todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",
     todayHoliday: "{name}: Heute finden keine Lehrveranstaltungen statt.",
@@ -576,24 +583,10 @@ export default {
     },
     contentGone: 'Der Inhalt wurde endgültig gelöscht',
   },
-  onboarding: {
-    title: "Willkommen bei YourTJ",
-    intro: "Dein Tongji-Konto ist bereit. Wähle jetzt einen Benutzernamen oder ändere ihn später in den Einstellungen.",
-    username: "Öffentlicher Benutzername",
-    saveUsername: "Benutzernamen speichern",
-    usernameSaved: "Benutzername gespeichert",
-    passwordTitle: "Passwort festlegen (optional)",
-    passwordHint: "Du meldest dich mit Tongji an. Bestätige deine verknüpfte E-Mail-Adresse, um ein lokales Passwort festzulegen. Wir senden dir dafür einen Link.",
-    sendEmail: "E-Mail zum Festlegen senden",
-    continue: "Weiter",
-    skip: "Später einrichten",
-    email: "E-Mail",
-    captcha: "Bestätigungscode",
-  },
   auth: {
     tongjiPolicies: "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:",
     tongjiLogin: "Mit Tongji-SSO anmelden",
-    tongjiSignupHint: "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer{'@'}tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
+    tongjiSignupHint: "Nach der ersten Hochschulprüfung Benutzername und Passwort wählen. Matrikelnummer{'@'}tongji.edu.cn und Campus-Verbindung werden ohne erneute E-Mail-Prüfung bestätigt.",
     tongjiUnavailable: "Die Tongji-Anmeldung ist nicht verfügbar. Bitte nutzen Sie eine andere Anmeldemethode.",
     tongjiAccountExists: "Diese Tongji-Identität war bereits verknüpft oder die Hochschuladresse ist belegt bzw. reserviert. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.",
     tongjiSignupDisabled: "Eine Registrierung über Tongji ist derzeit nicht möglich. Wenden Sie sich an die Administration oder melden Sie sich bei einem bestehenden Konto an.",

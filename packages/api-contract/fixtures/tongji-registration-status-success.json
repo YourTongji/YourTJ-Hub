@@ -1,0 +1,8 @@
+{
+  "code": 0,
+  "result": {
+    "csrfToken": "opaque-csrf-proof",
+    "email": "2356789@tongji.edu.cn",
+    "expiresAt": "2026-09-21T18:00:00Z"
+  }
+}

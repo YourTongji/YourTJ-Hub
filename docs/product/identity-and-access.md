@@ -51,9 +51,10 @@ The original safe local destination is retained server-side, including the mobil
 An existing campus binding signs into its available human account and renews encrypted campus
 credentials without changing its email, activation, password or roles. Only an identity that has never
 been bound can register automatically; otherwise recover/sign into an existing account and bind
-explicitly. For a first-time identity the server atomically
-creates an ordinary activated user with `student-ID@tongji.edu.cn`, random public username/nickname,
-no local password and a unique campus binding. Email activation is unnecessary for this school-verified
+explicitly. For a first-time identity the server redirects to `/register/tongji` to choose a
+username and password. Only final submission creates an ordinary activated user with
+`student-ID@tongji.edu.cn`, the chosen password hash and a unique campus binding.
+The callback creates no account or forum session. Email activation is unnecessary for this school-verified
 registration; signup/domain/daily-limit policy still applies. Password and school self-registration
 share a transaction-scoped daily-quota lock; closed accounts still count for their creation day. A current or freshly staged email claim
 never auto-links an existing account: recover/sign into that account and bind from Campus instead.
@@ -62,13 +63,10 @@ school sign-in identity; the existing email and activation remain, and email pas
 establish a password. Closing an account keeps the ordinary retained-email reservation. A separate, permanent HMAC-only
 identity reservation survives unlink, replacement and closure to prevent repeat signup and initial-point
 claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
-See [the decision](../decisions/0032-tongji-login-and-registration.md).
-
-`Current`: a newly created Tongji account visits a skippable setup view in Settings before
-continuing to its original local destination. The same browser step preserves the native App's
-OIDC continuation. Users can save a public username and request a captcha-protected password
-setup link at their linked email address. Existing accounts bypass the guide. Password setup
-uses ordinary email recovery; school login does not gain a new password-write permission.
+Registration completion uses a ten-minute HttpOnly browser proof and independent CSRF token,
+with no school credentials in the browser. Validation failures allow retry; success consumes the
+proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
+fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
 ### Built-in OIDC Provider (first-party clients)
 

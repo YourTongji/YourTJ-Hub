@@ -33,7 +33,11 @@ func signIn(t *testing.T, s *Service, policy pageConfig.SecurityAndRegistration)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s.Login(context.Background(), browser, state, "code", policy)
+	result, err := s.Login(context.Background(), browser, state, "code", policy)
+	if err == nil && result.Registration != "" {
+		return completeTestRegistration(s, result.Registration, policy)
+	}
+	return result, err
 }
 
 func TestSchoolLoginProvisionsActivatedPrivateAccountAndReusesBinding(t *testing.T) {
@@ -43,7 +47,7 @@ func TestSchoolLoginProvisionsActivatedPrivateAccountAndReusesBinding(t *testing
 		t.Fatal(err)
 	}
 	user := result.User
-	if !result.Created || user.Id == 0 || user.Email != p.id+"@tongji.edu.cn" || user.IsActivated != users.ActivationSuccess || user.ActivatedAt == nil || user.Password != "" || user.RoleId != 0 || user.Locale != "de" {
+	if !result.Created || user.Id == 0 || user.Email != p.id+"@tongji.edu.cn" || user.IsActivated != users.ActivationSuccess || user.ActivatedAt == nil || user.Password == "" || user.RoleId != 0 || user.Locale != "de" {
 		t.Fatal("incomplete or privileged signup")
 	}
 	if strings.Contains(user.Username, p.id) || strings.Contains(user.Nickname, p.id) {
@@ -205,7 +209,12 @@ func TestSchoolLoginConcurrentCallbacksNeverDuplicateAccount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wg.Go(func() { _, _ = s.Login(context.Background(), browser, state, "code", policy) })
+		wg.Go(func() {
+			result, err := s.Login(context.Background(), browser, state, "code", policy)
+			if err == nil && result.Registration != "" {
+				_, _ = completeTestRegistration(s, result.Registration, policy)
+			}
+		})
 	}
 	wg.Wait()
 	var count int64
@@ -334,5 +343,92 @@ func TestSchoolIdentityFailedReplacementDoesNotReserveNewIdentity(t *testing.T) 
 	var count int64
 	if err := s.store.DB.Model(&campus.IdentityReservation{}).Where("identity_key = ?", key).Count(&count).Error; err != nil || count != 0 {
 		t.Fatalf("failed replacement retained reservation: %d %v", count, err)
+	}
+}
+
+func completeTestRegistration(s *Service, ticket string, policy pageConfig.SecurityAndRegistration) (LoginResult, error) {
+	status, err := s.RegistrationStatus(ticket)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return s.CompleteRegistration(context.Background(), ticket, status.CSRFToken, Registration{Username: "campus_user", PasswordHash: "test-hash"}, policy)
+}
+
+func TestSchoolRegistrationProofLifecycle(t *testing.T) {
+	s, _, policy := loginSetup(t)
+	state, browser, err := s.StartLogin("/campus", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.Login(context.Background(), browser, state, "code", policy)
+	if err != nil || result.User != nil || result.Created || result.Registration == "" {
+		t.Fatalf("callback created account: %+v %v", result, err)
+	}
+	for _, model := range []any{&users.EntityComplete{}, &campus.Binding{}, &campus.IdentityReservation{}} {
+		var count int64
+		if err := s.store.DB.Model(model).Count(&count).Error; err != nil || count != 0 {
+			t.Fatalf("premature %T rows %d %v", model, count, err)
+		}
+	}
+	ticket := result.Registration
+	if _, err := s.RegistrationStatus("foreign"); !errors.Is(err, ErrFlow) {
+		t.Fatal("foreign proof accepted")
+	}
+	status, err := s.RegistrationStatus(ticket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := Registration{Username: "chosen_user", PasswordHash: "hashed-password"}
+	if _, err := s.CompleteRegistration(context.Background(), ticket, "wrong", fields, policy); !errors.Is(err, ErrFlow) {
+		t.Fatal("CSRF accepted")
+	}
+	// Policy is checked at final submit. A failed attempt remains retryable.
+	disabled := policy
+	disabled.EnableSignup = false
+	if _, err := s.CompleteRegistration(context.Background(), ticket, status.CSRFToken, fields, disabled); !errors.Is(err, ErrSignupDisabled) {
+		t.Fatalf("policy bypass %v", err)
+	}
+	completed, err := s.CompleteRegistration(context.Background(), ticket, status.CSRFToken, fields, policy)
+	if err != nil || !completed.Created || completed.User.Username != fields.Username || completed.User.Password != fields.PasswordHash {
+		t.Fatalf("completion %+v %v", completed, err)
+	}
+	if _, err := s.CompleteRegistration(context.Background(), ticket, status.CSRFToken, fields, policy); !errors.Is(err, ErrFlow) {
+		t.Fatal("registration replayed")
+	}
+	if _, err := s.RegistrationStatus(ticket); !errors.Is(err, ErrFlow) {
+		t.Fatal("consumed registration readable")
+	}
+}
+
+func TestSchoolRegistrationExpiredAndDuplicateUsernameRetry(t *testing.T) {
+	s, _, policy := loginSetup(t)
+	existing := users.EntityComplete{Username: "chosen_user", Email: "existing@example.test"}
+	if err := s.store.DB.Create(&existing).Error; err != nil {
+		t.Fatal(err)
+	}
+	state, browser, _ := s.StartLogin("/campus", "en")
+	result, err := s.Login(context.Background(), browser, state, "code", policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := s.RegistrationStatus(result.Registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := Registration{Username: "chosen_user", PasswordHash: "hashed-password"}
+	if _, err := s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, policy); err == nil {
+		t.Fatal("duplicate username accepted")
+	}
+	fields.Username = "available_user"
+	s.registrations[result.Registration].expires = time.Now().Add(-time.Second)
+	if _, err := s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, policy); !errors.Is(err, ErrFlow) {
+		t.Fatal("expired registration accepted")
+	}
+	if _, err := s.RegistrationStatus(result.Registration); !errors.Is(err, ErrFlow) {
+		t.Fatal("expired registration readable")
+	}
+	s.registrations[result.Registration].expires = time.Now().Add(time.Minute)
+	if _, err := s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, policy); err != nil {
+		t.Fatal(err)
 	}
 }

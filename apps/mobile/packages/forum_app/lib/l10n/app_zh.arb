@@ -1120,7 +1120,7 @@
     }
   },
   "loginTongji": "同济统一认证登录",
-  "loginTongjiHint": "首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。",
+  "loginTongjiHint": "首次认证后填写用户名和密码完成注册，自动绑定“学号@tongji.edu.cn”并连接校园，无需再次验证邮箱。",
   "loginTongjiPolicies": "继续即表示同意本站公布的条款：",
   "linkPreviewExternalTitle": "即将离开 YourTJ",
   "linkPreviewExternalBody": "你将前往 {domain}。请确认网址，并谨慎输入账号、验证码或支付信息。",

@@ -2275,7 +2275,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginTongji => '同济统一认证登录';
 
   @override
-  String get loginTongjiHint => '首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。';
+  String get loginTongjiHint =>
+      '首次认证后填写用户名和密码完成注册，自动绑定“学号@tongji.edu.cn”并连接校园，无需再次验证邮箱。';
 
   @override
   String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';

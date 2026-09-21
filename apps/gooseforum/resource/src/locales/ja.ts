@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.ja.generated'
 
 export default {
+  tongjiRegistration: {
+    "title": "同済アカウント登録の完了",
+    "intro": "同済の本人確認が完了しました。ユーザー名とパスワードを設定して登録してください。メールの再確認は不要です。",
+    "expired": "認証の有効期限が切れました。同済で再ログインしてください。",
+    "restart": "再ログイン",
+    "verifiedEmail": "確認済みのメール"
+},
   campus: {
     todayMakeup: "{name}：今日は {date} の時間割で授業を行います。",
     todayHoliday: "{name}：今日は休講です。",
@@ -576,24 +583,10 @@ export default {
     },
     contentGone: 'コンテンツは完全に削除されました',
   },
-  onboarding: {
-    title: "YourTJ へようこそ",
-    intro: "同済アカウントを作成しました。ユーザー名は今でも、後で設定からでも変更できます。",
-    username: "公開ユーザー名",
-    saveUsername: "ユーザー名を保存",
-    usernameSaved: "ユーザー名を保存しました",
-    passwordTitle: "パスワードを設定（任意）",
-    passwordHint: "同済認証でログインしています。ローカルパスワードを設定するには、連携メールアドレスの確認が必要です。設定リンクを送信します。",
-    sendEmail: "パスワード設定メールを送信",
-    continue: "続ける",
-    skip: "後で設定",
-    email: "メール",
-    captcha: "認証コード",
-  },
   auth: {
     tongjiPolicies: "続行すると、公開されている規約に同意したものとみなされます：",
     tongjiLogin: "同済大学の統合認証でログイン",
-    tongjiSignupHint: "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号{'@'}tongji.edu.cnを自動設定します。メール認証は不要です。",
+    tongjiSignupHint: "初回認証後、ユーザー名とパスワードを設定して登録します。学籍番号{'@'}tongji.edu.cnとキャンパス接続が自動設定され、メールの再確認は不要です。",
     tongjiUnavailable: "同済大学のログインを利用できません。別の方法でログインしてください。",
     tongjiAccountExists: "この同済大学IDは連携済みの履歴があるか、学籍番号のメールが使用中または予約済みです。既存のアカウントにログインまたは復旧し、キャンパスページで再連携してください。",
     tongjiSignupDisabled: "現在、同済大学認証による新規登録はできません。管理者に連絡するか既存のアカウントでログインしてください。",

@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  tongjiRegistration: {
+    "title": "完成同济账号注册",
+    "intro": "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
+    "expired": "验证已过期，请重新通过同济登录。",
+    "restart": "重新登录",
+    "verifiedEmail": "已验证的邮箱"
+},
   campus: {
     todayMakeup: "{name}：今天按 {date} 的课表上课。",
     todayHoliday: "{name}：今天放假停课。",
@@ -577,24 +584,10 @@ export default {
     },
     contentGone: '内容已永久删除',
   },
-  onboarding: {
-    title: "欢迎来到 YourTJ",
-    intro: "同济账号已创建。你可以现在选择用户名，也可以稍后在设置中修改。",
-    username: "公开用户名",
-    saveUsername: "保存用户名",
-    usernameSaved: "用户名已保存",
-    passwordTitle: "设置密码（可选）",
-    passwordHint: "当前账号通过同济登录。设置本地密码需要验证已绑定邮箱，我们会向该邮箱发送设置链接。",
-    sendEmail: "发送密码设置邮件",
-    continue: "完成并继续",
-    skip: "稍后再设置",
-    email: "邮箱",
-    captcha: "验证码",
-  },
   auth: {
     tongjiPolicies: "继续即表示同意本站公布的条款：",
     tongjiLogin: "同济统一认证登录",
-    tongjiSignupHint: "首次登录将创建账号并连接校园，自动绑定“学号{'@'}tongji.edu.cn”，无需另行激活。",
+    tongjiSignupHint: "首次认证后填写用户名和密码完成注册，自动绑定“学号{'@'}tongji.edu.cn”并连接校园，无需再次验证邮箱。",
     tongjiUnavailable: "同济登录暂不可用，请使用其他方式登录。",
     tongjiAccountExists: "该同济身份曾绑定过账号，或学号邮箱已被使用或正在换绑。请先登录或找回已有账号，再到校园页重新绑定。",
     tongjiSignupDisabled: "当前不接受通过同济认证注册，请联系管理员或登录已有账号。",

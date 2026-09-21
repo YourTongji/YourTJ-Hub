@@ -1,7 +1,7 @@
 # 同济统一认证登录与自动激活注册
 
 ## Status
-Accepted
+Superseded by [0034](0034-tongji-registration-completion.md)
 Class: architecture
 
 ## Context and Problem Statement

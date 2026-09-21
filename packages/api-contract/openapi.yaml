@@ -85,6 +85,8 @@ paths:
     $ref: ./paths/auth-account-recovery.yaml#/forgotPassword
   /api/reset-password:
     $ref: ./paths/auth-account-recovery.yaml#/resetPassword
+  /api/auth/tongji/registration:
+    $ref: ./paths/campus.yaml#/registration
   /api/auth/totp/verify:
     $ref: ./paths/auth-security.yaml#/verifyTotp
   /api/user/totp/status:
@@ -633,6 +635,11 @@ paths:
       $ref: ./paths/direct-image-upload.yaml#/abortDirectImageUpload/post
 components:
   securitySchemes:
+    tongjiRegistrationCookie:
+      type: apiKey
+      in: cookie
+      name: yourtj_tongji_registration
+      description: Short-lived HttpOnly proof of a completed school authentication, only for registration completion.
     bearerAuth:
       type: http
       scheme: bearer
