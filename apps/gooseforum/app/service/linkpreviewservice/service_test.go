@@ -9,7 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"gorm.io/gorm"
 )
 
 type fakeFetcher struct {
@@ -371,5 +379,174 @@ func TestResolvePrefersConfiguredOriginOverCampus(t *testing.T) {
 	}
 	if fetcher.calls.Load() != 0 {
 		t.Fatalf("fetch calls = %d, want 0", fetcher.calls.Load())
+	}
+}
+
+// --- 站内链接（resolveInternal）：resolve API 的隐私声明是「私密、隐藏、无权限
+// 资源不会通过 preview API 泄露标题、摘要或作者」，这里把声明钉到测试上。
+// go test 下 dbconnect.Connect() 自动落到内存 sqlite（与 contentdeleteservice
+// 等服务层测试同一基建），种子数据使用专属 ID 段避免用例间串扰。 ---
+
+func setupInternalPreviewDB(t *testing.T) {
+	t.Helper()
+	if err := dbconnect.Connect().AutoMigrate(
+		&users.EntityComplete{},
+		&topics.Entity{},
+		&posts.Entity{},
+		&wikiPages.Entity{},
+		&rolePermissionRs.Entity{},
+	); err != nil {
+		t.Fatalf("migrate link preview tables: %v", err)
+	}
+}
+
+func seedPreviewTopic(t *testing.T, topic topics.Entity) {
+	t.Helper()
+	if err := dbconnect.Connect().Create(&topic).Error; err != nil {
+		t.Fatalf("seed topic %d: %v", topic.Id, err)
+	}
+}
+
+func TestResolveInternalTopicVisibility(t *testing.T) {
+	setupInternalPreviewDB(t)
+	resolver := New(&fakeFetcher{}, nil)
+	published := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
+	deletedAt := gorm.DeletedAt{Time: published, Valid: true}
+
+	// 公开话题：匿名可出卡，字段来自一方数据；相对首图按目标页原样保留。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7301, UserId: 7310, Title: "Public topic", Excerpt: "Public excerpt",
+		FirstImageURL: "/file/img/cover.webp", Status: 1,
+		ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive,
+		RetentionStatus: topics.RetentionNormal, CreatedAt: published, UpdatedAt: published,
+	})
+	public := resolver.Resolve(t.Context(), 0, "/topics/7301")
+	if public.Status != StatusReady || public.Title != "Public topic" || public.Description != "Public excerpt" {
+		t.Fatalf("public topic preview = %#v", public)
+	}
+	if public.ImageURL != "/file/img/cover.webp" {
+		t.Fatalf("public topic image = %q", public.ImageURL)
+	}
+
+	// 作者草稿：作者本人之外一律拒绝，包括匿名。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7302, UserId: 7311, Title: "Draft topic", Status: 0,
+		ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive,
+		RetentionStatus: topics.RetentionNormal, CreatedAt: published, UpdatedAt: published,
+	})
+	if got := resolver.Resolve(t.Context(), 0, "/topics/7302"); got.Status != StatusPermissionDenied || got.Title != "" {
+		t.Fatalf("draft leaked to anonymous: %#v", got)
+	}
+	if got := resolver.Resolve(t.Context(), 7311, "/topics/7302"); got.Status != StatusReady || got.Title != "Draft topic" {
+		t.Fatalf("draft owner preview = %#v", got)
+	}
+
+	// 作者删除且无回复：内容只在作者侧可见。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7303, UserId: 7312, Title: "Deleted topic", Status: 1,
+		ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityUserDeleted,
+		RetentionStatus: topics.RetentionNormal, DeletedAt: deletedAt, CreatedAt: published, UpdatedAt: published,
+	})
+	if got := resolver.Resolve(t.Context(), 0, "/topics/7303"); got.Status != StatusPermissionDenied || got.Title != "" {
+		t.Fatalf("user-deleted topic leaked to anonymous: %#v", got)
+	}
+	if got := resolver.Resolve(t.Context(), 7312, "/topics/7303"); got.Status != StatusReady {
+		t.Fatalf("user-deleted topic owner preview = %#v", got)
+	}
+
+	// 作者删除但仍有正常回复：讨论上下文保持可读（与详情页行为一致）。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7304, UserId: 7313, Title: "Deleted with replies", Status: 1,
+		ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityUserDeleted,
+		RetentionStatus: topics.RetentionNormal, DeletedAt: deletedAt, CreatedAt: published, UpdatedAt: published,
+	})
+	if err := dbconnect.Connect().Create(&posts.Entity{Id: 73404, TopicId: 7304, PostNo: 2}).Error; err != nil {
+		t.Fatalf("seed reply: %v", err)
+	}
+	if got := resolver.Resolve(t.Context(), 0, "/topics/7304"); got.Status != StatusReady {
+		t.Fatalf("deleted topic with replies should stay readable: %#v", got)
+	}
+
+	// 待审/封禁话题：版主与 TopicsManager 通道之外一律拒绝，匿名不得拿到标题。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7305, UserId: 7310, Title: "Blocked topic", Status: 1,
+		ProcessStatus: topics.ProcessStatusBlocked, VisibilityStatus: topics.VisibilityActive,
+		RetentionStatus: topics.RetentionNormal, CreatedAt: published, UpdatedAt: published,
+	})
+	if got := resolver.Resolve(t.Context(), 0, "/topics/7305"); got.Status != StatusPermissionDenied || got.Title != "" {
+		t.Fatalf("processed topic leaked to anonymous: %#v", got)
+	}
+
+	// 不存在的话题与不可见同形，不泄露存在性。
+	if got := resolver.Resolve(t.Context(), 0, "/topics/73999"); got.Status != StatusPermissionDenied {
+		t.Fatalf("missing topic status = %q", got.Status)
+	}
+}
+
+func TestResolveInternalProcessedTopicVisibleToTopicsManager(t *testing.T) {
+	setupInternalPreviewDB(t)
+	published := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7603, UserId: 7310, Title: "Blocked topic", Status: 1,
+		ProcessStatus: topics.ProcessStatusBlocked, VisibilityStatus: topics.VisibilityActive,
+		RetentionStatus: topics.RetentionNormal, CreatedAt: published, UpdatedAt: published,
+	})
+	// TopicsManager 通道：用户角色 + 角色权限关系都落库后，管理者可以预览待审
+	// 话题（与详情路径同权）。角色/用户 ID 取专属值，避开包级缓存的跨用例污染。
+	if err := dbconnect.Connect().Create(&users.EntityComplete{Id: 7601, Username: "preview-topics-manager", RoleId: 7602}).Error; err != nil {
+		t.Fatalf("seed manager: %v", err)
+	}
+	if err := dbconnect.Connect().Create(&rolePermissionRs.Entity{Id: 76021, RoleId: 7602, PermissionId: uint64(permission.TopicsManager), Effective: 1}).Error; err != nil {
+		t.Fatalf("seed role permission: %v", err)
+	}
+	resolver := New(&fakeFetcher{}, nil)
+	if got := resolver.Resolve(t.Context(), 7601, "/topics/7603"); got.Status != StatusReady || got.Title != "Blocked topic" {
+		t.Fatalf("topics manager preview = %#v", got)
+	}
+}
+
+func TestResolveInternalWikiAndUserProfile(t *testing.T) {
+	setupInternalPreviewDB(t)
+	resolver := New(&fakeFetcher{}, nil)
+	published := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
+	deletedAt := gorm.DeletedAt{Time: published, Valid: true}
+
+	// 公开 wiki 页出卡：标题/描述来自页面快照，Markdown 记号被剥成纯文本。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7401, UserId: 7310, Title: "Wiki topic", Status: 1,
+		ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityActive,
+		RetentionStatus: topics.RetentionNormal, CreatedAt: published, UpdatedAt: published,
+	})
+	if err := dbconnect.Connect().Create(&wikiPages.Entity{Id: 7411, TopicId: 7401, Path: "start", Title: "Wiki Start", Content: "# Heading\nBody text"}).Error; err != nil {
+		t.Fatalf("seed wiki page: %v", err)
+	}
+	wiki := resolver.Resolve(t.Context(), 0, "/wiki/start")
+	if wiki.Status != StatusReady || wiki.Title != "Wiki Start" || wiki.Description != "Heading Body text" {
+		t.Fatalf("wiki preview = %#v", wiki)
+	}
+
+	// 其话题不可见的 wiki 页同样不可见，不泄露页面标题。
+	seedPreviewTopic(t, topics.Entity{
+		Id: 7402, UserId: 7310, Title: "Secret wiki topic", Status: 1,
+		ProcessStatus: topics.ProcessStatusNormal, VisibilityStatus: topics.VisibilityUserDeleted,
+		RetentionStatus: topics.RetentionNormal, DeletedAt: deletedAt, CreatedAt: published, UpdatedAt: published,
+	})
+	if err := dbconnect.Connect().Create(&wikiPages.Entity{Id: 7412, TopicId: 7402, Path: "secret", Title: "Secret page"}).Error; err != nil {
+		t.Fatalf("seed secret wiki page: %v", err)
+	}
+	if got := resolver.Resolve(t.Context(), 0, "/wiki/secret"); got.Status != StatusPermissionDenied || got.Title != "" {
+		t.Fatalf("hidden wiki page leaked: %#v", got)
+	}
+
+	// 用户主页出卡：昵称/简介来自公开资料；不存在的用户与不可见资源同形。
+	if err := dbconnect.Connect().Create(&users.EntityComplete{Id: 7501, Username: "alice", Nickname: "Alice", Bio: "Hello bio"}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	profile := resolver.Resolve(t.Context(), 0, "/u/7501")
+	if profile.Status != StatusReady || profile.Title != "Alice" || profile.Description != "Hello bio" {
+		t.Fatalf("user profile preview = %#v", profile)
+	}
+	if got := resolver.Resolve(t.Context(), 0, "/u/7599"); got.Status != StatusPermissionDenied {
+		t.Fatalf("missing user status = %q", got.Status)
 	}
 }
