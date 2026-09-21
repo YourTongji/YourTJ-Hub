@@ -667,8 +667,8 @@ export interface UserConnectionPayload {
   avatarUrl: string
   bio: string
   url: string
-  isFollowing?: boolean
-  isSelf?: boolean
+  isFollowing: boolean
+  isSelf: boolean
 }
 
 export interface CategoryPageProps {
