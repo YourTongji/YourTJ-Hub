@@ -11,9 +11,10 @@ before(async () => {
 after(async () => { await browser?.close(); await server?.close() })
 async function setup(width = 320) {
   const page = await browser.newPage({ viewport: { width, height: 900 } })
+  page.setDefaultTimeout(15000)
   await page.route('**/api/link-previews/resolve', async route => {
     const { urls } = route.request().postDataJSON()
-    await route.fulfill({ json: { code: 0, result: urls.map(url => ({ requestedUrl: url, kind: 'external', status: 'ready', url, displayHost: new URL(url).hostname, title: 'Preview' })) } })
+    await route.fulfill({ json: { code: 0, result: urls.map(url => ({ requestedUrl: url, kind: 'external', status: url.includes('blocked.example') ? 'blocked' : 'ready', url, displayHost: new URL(url).hostname, title: 'Preview' })) } })
   })
   await page.context().route('https://outside.example/**', route => route.fulfill({ body: 'External destination' }))
   await page.goto(`${origin}/assets/test/fixtures/browser/link-interactions.html`)
@@ -41,6 +42,7 @@ test('guard preserves keyboard, focus, modifier and middle-click intent at 320px
     await anchor.click({ button: 'middle' }); await dialog.waitFor()
     assert.equal(await page.evaluate(() => window.linkFixture.pending().newTab), true)
     await page.keyboard.press('Escape')
+    await page.waitForFunction(() => document.querySelector('#blocked')?.parentElement?.dataset.gfLinkPreview === 'failed')
     await page.locator('#blocked').click(); await dialog.waitFor()
     assert.equal(await page.evaluate(() => window.linkFixture.pending().risk), 'blocked')
     assert.equal(await dialog.locator('button.gf-button-primary').count(), 0)
@@ -62,11 +64,35 @@ test('real Vditor hint stays outside source and preserves selection during IME a
     const editable = page.locator('.vditor-wysiwyg [contenteditable="true"]')
     await page.locator('.gf-link-preview-editor-hint:not([hidden])').waitFor()
     assert.equal(await editable.locator('.gf-link-preview-editor-hint').count(), 0)
-    await editable.click(); await page.keyboard.press('End')
+    await editable.focus()
+    await page.evaluate(() => {
+      const paragraph = document.querySelector('.vditor-wysiwyg [contenteditable="true"] p[data-block="0"]')
+      const selected = window.getSelection()
+      selected.selectAllChildren(paragraph)
+      selected.collapseToEnd()
+    })
+    const selection = () => page.evaluate(() => {
+      const root = document.querySelector('.vditor-wysiwyg [contenteditable="true"]')
+      const selected = window.getSelection()
+      const offset = (node, position) => {
+        const range = document.createRange()
+        range.selectNodeContents(root)
+        range.setEnd(node, position)
+        return range.toString().length
+      }
+      return { anchor: offset(selected.anchorNode, selected.anchorOffset),
+        focus: offset(selected.focusNode, selected.focusOffset), text: selected.toString() }
+    })
     const focusBefore = await page.evaluate(() => document.activeElement?.className)
+    const rangeBefore = await selection()
     await editable.dispatchEvent('compositionstart')
+    assert.deepEqual(await selection(), rangeBefore, 'composition start preserves the caret')
     await page.keyboard.insertText(' 中文')
+    const rangeAfterInput = await selection()
+    assert.equal(rangeAfterInput.anchor, rangeBefore.anchor + 3, 'inserted text advances the caret')
     await editable.dispatchEvent('compositionend')
+    await page.waitForTimeout(550)
+    assert.deepEqual(await selection(), rangeAfterInput, 'hint updates preserve the browser selection')
     await page.waitForFunction(() => document.querySelector('.gf-link-preview-editor-hint').hidden)
     assert.equal(await page.evaluate(() => document.activeElement?.className), focusBefore)
     const value = await page.evaluate(() => window.linkFixture.getValue())

@@ -1610,7 +1610,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
 
-                <div class="gf-prose gf-prose-post mt-6 rounded-[24px] border border-sky-100 bg-white px-4 py-4 text-[14px] leading-7 text-slate-700 sm:px-6 sm:py-5 sm:text-[15px] sm:leading-8" v-html="sharePreview.markdownHtml" />
+                <div class="gf-prose gf-prose-post mt-6 rounded-[24px] border border-sky-100 bg-white px-4 py-4 text-[14px] leading-7 text-slate-700 sm:px-6 sm:py-5 sm:text-[15px] sm:leading-8" v-content-enhancements v-html="sharePreview.markdownHtml" />
 
                 <div class="mt-6 flex items-center justify-between text-xs font-semibold text-slate-400">
                   <span>{{ t('courseDetailPage.shareWatermark') }}</span>
@@ -1630,6 +1630,7 @@ onBeforeUnmount(() => {
       <div
         v-if="sharePreview"
         class="pointer-events-none fixed -left-[10000px] top-0 opacity-0"
+        inert
         aria-hidden="true"
       >
         <div

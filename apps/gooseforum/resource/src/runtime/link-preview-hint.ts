@@ -37,6 +37,7 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
   let request: AbortController | undefined
   let sequence = 0
   let composing = false
+  let candidateKey: string | null = null
 
   const cancelPending = () => {
     if (timer !== undefined) clearTimeout(timer)
@@ -47,12 +48,16 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
 
   const schedule = (markdown: string) => {
     markdown = markdown ?? ''
+    if (composing) return
+    const urls = scanMarkdownLinkCandidates(markdown)
+    const key = JSON.stringify(urls)
+    // Typing elsewhere must not hide a valid hint or indefinitely delay its request.
+    if (candidateKey === key) return
+    candidateKey = key
     sequence += 1
     const currentSequence = sequence
     cancelPending()
     options.onChange(null)
-    if (composing) return
-    const urls = scanMarkdownLinkCandidates(markdown)
     if (urls.length === 0) {
       options.onChange(null)
       return
@@ -72,7 +77,10 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
           .map(preview => preview.displayHost || new URL(preview.url!).hostname)
         options.onChange(domains.length > 0 ? { domains } : null)
       } catch {
-        if (currentSequence === sequence && !activeRequest.signal.aborted) options.onChange(null)
+        if (currentSequence === sequence && !activeRequest.signal.aborted) {
+          candidateKey = null
+          options.onChange(null)
+        }
       }
     }, delay)
   }
@@ -81,6 +89,7 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
     schedule,
     compositionStart() {
       composing = true
+      candidateKey = null
       sequence += 1
       cancelPending()
       options.onChange(null)
@@ -90,6 +99,7 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
       schedule(markdown)
     },
     dispose() {
+      candidateKey = null
       sequence += 1
       cancelPending()
       options.onChange(null)

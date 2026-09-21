@@ -42,10 +42,14 @@
   their own localized fallback copy instead of server-side Chinese. Preview failure keeps the original
   link. Topic, reply, Wiki and course-review bodies (including course preview and schedule panels)
   apply the same outbound guard. External links show the hostname and complete URL before leaving, with
-  Public Suffix List session trust; suspicious and blocked links never inherit trust. Web keyboard focus
+  Public Suffix List session trust. On Web, a URL label naming a different registrable domain is suspicious;
+  a standalone link denied by the preview resolver is blocked once resolved. These identified risks
+  never inherit session trust, including in the visible course-review share dialog. Web keyboard focus
   stays inside the confirmation dialog and returns to the original link on cancellation. Real-browser
   regression tests cover keyboard and modified clicks, IME composition, selection and undo in Vditor.
-  Editor hints stay outside the serializable document and clear immediately when a candidate changes.
+  Editor hints stay outside the serializable document, survive unrelated typing and clear immediately
+  when candidates change. URLs followed by ordinary prose or IME text are not standalone candidates
+  on either client.
 - Monorepo structure (apps/packages/services/deploy/docs) + CI (server/web/contract workflows).
 
 ## Current key gaps
