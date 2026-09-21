@@ -64,6 +64,7 @@ export 'src/components/gf_media_carousel.dart';
 export 'src/components/gf_symbol.dart';
 
 export 'src/components/atoms/gf_badge_icon.dart';
+export 'src/components/atoms/gf_captcha_image.dart';
 
 export 'src/components/gf_icon_tile.dart';
 export 'src/components/gf_social_icon.dart';

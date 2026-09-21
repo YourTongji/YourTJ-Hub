@@ -91,14 +91,30 @@ cannot become an account-binding operation if another forum session appears in t
 retains the continuation in its server-side login transaction and resumes the same OIDC bridge; school
 credentials are never returned to Dart.
 
-1. AppAuth + PKCE opens the forum built-in OIDC authorization page and receives the callback
-   authorization code; the app retains the matching PKCE verifier and nonce in memory;
-2. the app posts `{code, codeVerifier, nonce, redirectUri}` to `POST /api/auth/oidc/exchange`;
-3. the forum backend requires an exact redirect-URI match against the registered mobile client,
+On Android, Google, GitHub and Tongji use one RFC 8252 external-system-browser path. The app builds
+the authorization request itself with PKCE S256, independent `state` and `nonce`, and the provider
+hint, then launches the exact HTTPS authorization URI with `url_launcher` in
+`LaunchMode.externalApplication`. A small MainActivity MethodChannel/EventChannel bridge receives
+only the exact `yourtj://callback` URI; Dart revalidates the redirect endpoint and state before
+exchanging. No Android OAuth provider uses an embedded WebView.
+
+On non-Android platforms, the existing AppAuth + PKCE path opens the forum built-in OIDC
+authorization page and receives the callback authorization code; the app retains the matching PKCE
+verifier and nonce in memory. Both paths then:
+
+1. post `{code, codeVerifier, nonce, redirectUri}` to `POST /api/auth/oidc/exchange`;
+2. the forum backend requires an exact redirect-URI match against the registered mobile client,
    redeems the code atomically (single-use, PKCE verified), checks the bound nonce and numeric `sub`,
    then issues a forum JWT session;
-4. the returned forum JWT is stored in Keychain/Keystore (`flutter_secure_storage`); OIDC tokens are
+3. the returned forum JWT is stored in Keychain/Keystore (`flutter_secure_storage`); OIDC tokens are
    verified server-side and are never persisted by the app.
+
+`Partial`: a real-device #744 follow-up shows Android Google, GitHub and Tongji all hard-crash before
+the browser appears. This identifies the common flutter_appauth/AppAuth/CustomTabs launch layer as
+the repair surface; the exact root stack remains unproven without logcat. Android therefore bypasses
+AppAuth and its AppAuth-Android 0.11.1 callback receiver for all three providers. The dependency and
+AppAuth login path remain for non-Android builds. Physical-device validation of the new external
+browser/callback APK is still required.
 
 The App's embedded management browser uses `GET /api/auth/mobile-web-session` with an explicit
 Bearer session. `target=admin|moderation|courseManagement|courseReviews` selects a fixed workspace and checks its

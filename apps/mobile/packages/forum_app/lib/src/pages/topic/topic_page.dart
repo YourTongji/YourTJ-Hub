@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1172,13 +1171,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                                             _replyCaptchaLoading
                                                             ? null
                                                             : _loadReplyCaptcha,
-                                                        child: Image.memory(
-                                                          base64Decode(
-                                                            _replyCaptcha!
-                                                                .captchaImg
-                                                                .split(',')
-                                                                .last,
-                                                          ),
+                                                        child: GfCaptchaImage(
+                                                          imageData:
+                                                              _replyCaptcha!
+                                                                  .captchaImg,
                                                           width: 80,
                                                           height: 42,
                                                           fit: BoxFit.contain,
