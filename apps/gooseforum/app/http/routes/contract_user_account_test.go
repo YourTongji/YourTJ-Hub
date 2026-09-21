@@ -25,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -42,6 +43,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
 		&userOAuth.Entity{},
+		&userFollow.Entity{},
 		&badges.Entity{},
 		&taskQueue.Entity{},
 		&eventNotification.Entity{},
@@ -54,9 +56,10 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		t.Fatalf("migrate filedata contract table: %v", err)
 	}
 
-	// baseApi 组：公开只读，无 middleware。
+	// baseApi 组：公开只读；user-card 允许匿名访问，但带可选 JWTAuth
+	// 以便登录用户获得 viewer-specific 关注态。
 	router.GET("/api/get-captcha", UpQueryReq(api.GetCaptcha))
-	router.GET("/api/user-card", UpQueryReq(api.GetUserCard))
+	router.GET("/api/user-card", middleware.JWTAuth, UpQueryReq(api.GetUserCard))
 	// /api/login 已由基座 setupHTTPContractTest 注册（与 route4api.go 一致），
 	// set-password 成功标准（issue #530）的「新密码可登录」子用例直接复用。
 	// loginApi 组：JWTAuthCheck 挂在组上。
@@ -207,6 +210,30 @@ func TestUserCardHTTPContract(t *testing.T) {
 			t.Fatalf("unknown user status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-save-user-badges-user-not-found.json"))
+	})
+
+	t.Run("authenticated viewer receives follow state", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		target := createHTTPContractUser(t, conn, contractTestID())
+		viewer := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Create(&userFollow.Entity{UserId: viewer.Id, FollowUserId: target.Id, Status: 1}).Error; err != nil {
+			t.Fatalf("create follow relation: %v", err)
+		}
+
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(target.Id), "", contractSessionToken(t, viewer))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("authenticated user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		response := decodeContractEnvelope(t, recorder)
+		var result struct {
+			IsFollowing bool `json:"isFollowing"`
+		}
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			t.Fatalf("decode authenticated user card: %v", err)
+		}
+		if !result.IsFollowing {
+			t.Fatal("authenticated user card isFollowing = false, want true")
+		}
 	})
 
 	t.Run("non-numeric userId returns strict 400", func(t *testing.T) {

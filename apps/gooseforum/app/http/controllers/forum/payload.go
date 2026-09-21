@@ -468,12 +468,14 @@ type UserBookmarkPayload struct {
 }
 
 type UserConnectionPayload struct {
-	ID        uint64 `json:"id"`
-	Username  string `json:"username"`
-	Nickname  string `json:"nickname"`
-	AvatarURL string `json:"avatarUrl"`
-	Bio       string `json:"bio"`
-	URL       string `json:"url"`
+	ID          uint64 `json:"id"`
+	Username    string `json:"username"`
+	Nickname    string `json:"nickname"`
+	AvatarURL   string `json:"avatarUrl"`
+	Bio         string `json:"bio"`
+	URL         string `json:"url"`
+	IsFollowing bool   `json:"isFollowing"`
+	IsSelf      bool   `json:"isSelf"`
 }
 
 type CategoryPageProps struct {
@@ -1881,9 +1883,9 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			likes = buildUserLikes(refs)
 			pagination = buildUserActivityLikePagination(user.Id, nextCursor)
 		case userProfileActivityFollowing:
-			following = buildUserConnections(userFollow.GetFollowingList(user.Id, 1, userProfileConnectionLimit))
+			following = buildUserConnectionsForViewer(userFollow.GetFollowingList(user.Id, 1, userProfileConnectionLimit), currentUserID)
 		case userProfileActivityFollowers:
-			followers = buildUserConnections(userFollow.GetFollowerList(user.Id, 1, userProfileConnectionLimit))
+			followers = buildUserConnectionsForViewer(userFollow.GetFollowerList(user.Id, 1, userProfileConnectionLimit), currentUserID)
 		default:
 			cursor := positiveUint(c.Query("cursor"))
 			timeline, _ := userActivities.GetUserTimeline(user.Id, cursor, userProfileTimelinePageSize+1)
@@ -1894,6 +1896,26 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			activities = buildUserActivities(timeline)
 			pagination = buildUserActivityTimelinePagination(user.Id, timeline, hasNext)
 		}
+	case userProfileSectionFollowing, userProfileSectionFollowers:
+		page := positivePage(c.Query("page"))
+		pageSize := userProfileConnectionLimit
+		var connections []*users.EntityComplete
+		if section == userProfileSectionFollowing {
+			connections = userFollow.GetFollowingList(user.Id, page, pageSize+1)
+		} else {
+			connections = userFollow.GetFollowerList(user.Id, page, pageSize+1)
+		}
+		hasNext := len(connections) > pageSize
+		if hasNext {
+			connections = connections[:pageSize]
+		}
+		connectionPayloads := buildUserConnectionsForViewer(connections, currentUserID)
+		if section == userProfileSectionFollowing {
+			following = connectionPayloads
+		} else {
+			followers = connectionPayloads
+		}
+		pagination = buildUserConnectionPagination(user.Id, section, page, hasNext)
 	case userProfileSectionBadges:
 		badges = userBadges
 	default:
@@ -1934,6 +1956,14 @@ func positiveUint(raw string) uint64 {
 	return value
 }
 
+func positivePage(raw string) int {
+	page, err := strconv.Atoi(raw)
+	if err != nil || page < 1 {
+		return 1
+	}
+	return page
+}
+
 func buildUserActivityTopicPagination(userID uint64, topics []*topics.Entity, hasNext bool) PaginationPayload {
 	nextCursor := uint64(0)
 	if hasNext && len(topics) > 0 {
@@ -1966,6 +1996,23 @@ func buildUserActivityTimelinePagination(userID uint64, activities []*userActivi
 		NextPage: 0,
 		HasNext:  nextCursor > 0,
 		NextURL:  buildUserActivityTimelineCursorURL(userID, nextCursor),
+	}
+}
+
+func buildUserConnectionPagination(userID uint64, section string, page int, hasNext bool) PaginationPayload {
+	nextPage := 0
+	if hasNext {
+		nextPage = page + 1
+	}
+	nextURL := ""
+	if nextPage > 0 {
+		nextURL = fmt.Sprintf("/u/%d/%s?page=%d", userID, section, nextPage)
+	}
+	return PaginationPayload{
+		Page:     page,
+		NextPage: nextPage,
+		HasNext:  nextPage > 0,
+		NextURL:  nextURL,
 	}
 }
 
@@ -2035,8 +2082,6 @@ func buildUserProfileActivityTabs(userID uint64, section string, active string) 
 		{Key: userProfileActivityTimeline, URL: baseURL, Active: active == userProfileActivityTimeline},
 		{Key: userProfileActivityTopics, URL: baseURL + "/" + userProfileActivityTopics, Active: active == userProfileActivityTopics},
 		{Key: userProfileActivityLikes, URL: baseURL + "/" + userProfileActivityLikes, Active: active == userProfileActivityLikes},
-		{Key: userProfileActivityFollowing, URL: baseURL + "/" + userProfileActivityFollowing, Active: active == userProfileActivityFollowing},
-		{Key: userProfileActivityFollowers, URL: baseURL + "/" + userProfileActivityFollowers, Active: active == userProfileActivityFollowers},
 	}
 }
 
@@ -2360,18 +2405,24 @@ func userActivityLabel(action int) string {
 }
 
 func buildUserConnections(list []*users.EntityComplete) []UserConnectionPayload {
+	return buildUserConnectionsForViewer(list, 0)
+}
+
+func buildUserConnectionsForViewer(list []*users.EntityComplete, currentUserID uint64) []UserConnectionPayload {
 	res := make([]UserConnectionPayload, 0, len(list))
 	for _, user := range list {
 		if user == nil || user.Id == 0 {
 			continue
 		}
 		res = append(res, UserConnectionPayload{
-			ID:        user.Id,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			AvatarURL: user.GetWebAvatarUrl(),
-			Bio:       user.Bio,
-			URL:       "/u/" + strconv.FormatUint(user.Id, 10),
+			ID:          user.Id,
+			Username:    user.Username,
+			Nickname:    user.Nickname,
+			AvatarURL:   user.GetWebAvatarUrl(),
+			Bio:         user.Bio,
+			URL:         "/u/" + strconv.FormatUint(user.Id, 10),
+			IsFollowing: userFollow.IsFollowing(currentUserID, user.Id),
+			IsSelf:      currentUserID > 0 && currentUserID == user.Id,
 		})
 	}
 	return res

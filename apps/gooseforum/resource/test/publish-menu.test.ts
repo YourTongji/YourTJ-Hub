@@ -16,7 +16,6 @@ import PublishMenu from '../src/site/components/PublishMenu.vue'
 import { i18n } from '../src/runtime/i18n'
 import { useQuickPublish } from '../src/site/composables/useQuickPublish'
 import * as quickPublishComposable from '../src/site/composables/useQuickPublish'
-import { useShellState, resetShellState } from '../src/runtime/shell-state'
 
 function makeLayout(isAuthenticated = true): LayoutPayload {
   return {
@@ -161,25 +160,13 @@ describe('PublishMenu 组件', () => {
     wrapper.unmount()
   })
 
-  test('通过 shellState.isTopicPage 标记帖子详情页状态以控制移动端 FAB 显示', () => {
-    const shellState = useShellState()
-    expect(shellState.isTopicPage).toBe(false)
-
-    shellState.isTopicPage = true
-    expect(shellState.isTopicPage).toBe(true)
-
-    resetShellState()
-    expect(shellState.isTopicPage).toBe(false)
-  })
-
-  test('在排课器 (/schedule) 与课程页面 (/courses) 下移动端 FAB 自动隐去', async () => {
+  test('仅在首页（含 sort 查询）显示移动端 FAB', async () => {
+    const pageStub = { template: '<div>Page</div>' }
     const router = createRouter({
       history: createWebHistory(),
       routes: [
-        { path: '/', component: { template: '<div>Home</div>' } },
-        { path: '/schedule', component: { template: '<div>Schedule</div>' } },
-        { path: '/courses', component: { template: '<div>Courses</div>' } },
-        { path: '/courses/:id', component: { template: '<div>CourseDetail</div>' } },
+        { path: '/', component: pageStub },
+        { path: '/:pathMatch(.*)*', component: pageStub },
       ],
     })
 
@@ -193,33 +180,39 @@ describe('PublishMenu 组件', () => {
     })
     await flushPromises()
 
-    // 1. 在普通页面（/），移动端 FAB 显示
-    const fabHome = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
-    expect(fabHome).toBeDefined()
+    const findFab = () => wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
 
-    // 2. 导航到 /schedule，FAB 自动隐藏
-    await router.push('/schedule')
-    await flushPromises()
-    const fabSchedule = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
-    expect(fabSchedule).toBeUndefined()
+    expect(findFab()).toBeDefined()
 
-    // 3. 导航到 /courses，FAB 自动隐藏
-    await router.push('/courses')
+    await router.push('/?sort=hot')
     await flushPromises()
-    const fabCourses = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
-    expect(fabCourses).toBeUndefined()
+    expect(findFab()).toBeDefined()
 
-    // 4. 导航到 /courses/123，FAB 自动隐藏
-    await router.push('/courses/123')
+    await router.push('/?sort=popular')
     await flushPromises()
-    const fabCourseDetail = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
-    expect(fabCourseDetail).toBeUndefined()
+    expect(findFab()).toBeDefined()
 
-    // 5. 导航回首页，FAB 恢复
-    await router.push('/')
-    await flushPromises()
-    const fabHomeAgain = wrapper.findAllComponents(PublishMenu).find((c) => c.props('variant') === 'fab')
-    expect(fabHomeAgain).toBeDefined()
+    for (const path of [
+      '/publish',
+      '/p/post/123',
+      '/topics/123',
+      '/c/general/1',
+      '/search',
+      '/notifications',
+      '/u/123',
+      '/settings',
+      '/courses',
+      '/courses/123',
+      '/schedule',
+      '/wiki',
+      '/wiki/guide/intro',
+      '/campus',
+      '/map',
+    ]) {
+      await router.push(path)
+      await flushPromises()
+      expect(findFab()).toBeUndefined()
+    }
 
     wrapper.unmount()
   })
