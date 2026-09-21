@@ -2,11 +2,11 @@ import adminRaw from './admin-raw.de.generated'
 
 export default {
   tongjiRegistration: {
-    "title": "Tongji-Registrierung abschließen",
-    "intro": "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
-    "expired": "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
-    "restart": "Erneut anmelden",
-    "verifiedEmail": "Bestätigte E-Mail"
+    title: "Tongji-Registrierung abschließen",
+    intro: "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
+    expired: "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
+    restart: "Erneut anmelden",
+    verifiedEmail: "Bestätigte E-Mail"
 },
   campus: {
     todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",

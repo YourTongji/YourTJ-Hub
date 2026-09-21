@@ -2,11 +2,11 @@ import adminRaw from './admin-raw.en.generated'
 
 export default {
   tongjiRegistration: {
-    "title": "Complete Tongji registration",
-    "intro": "Your Tongji identity is verified. Choose a username and password to create your forum account. No further email verification is needed.",
-    "expired": "Verification expired. Please sign in with Tongji again.",
-    "restart": "Sign in again",
-    "verifiedEmail": "Verified email"
+    title: "Complete Tongji registration",
+    intro: "Your Tongji identity is verified. Choose a username and password to create your forum account. No further email verification is needed.",
+    expired: "Verification expired. Please sign in with Tongji again.",
+    restart: "Sign in again",
+    verifiedEmail: "Verified email"
 },
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",

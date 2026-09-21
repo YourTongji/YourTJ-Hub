@@ -2,11 +2,11 @@ import adminRaw from './admin-raw.generated'
 
 export default {
   tongjiRegistration: {
-    "title": "完成同济账号注册",
-    "intro": "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
-    "expired": "验证已过期，请重新通过同济登录。",
-    "restart": "重新登录",
-    "verifiedEmail": "已验证的邮箱"
+    title: "完成同济账号注册",
+    intro: "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
+    expired: "验证已过期，请重新通过同济登录。",
+    restart: "重新登录",
+    verifiedEmail: "已验证的邮箱"
 },
   campus: {
     todayMakeup: "{name}：今天按 {date} 的课表上课。",

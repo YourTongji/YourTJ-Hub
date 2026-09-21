@@ -2,11 +2,11 @@ import adminRaw from './admin-raw.ja.generated'
 
 export default {
   tongjiRegistration: {
-    "title": "同済アカウント登録の完了",
-    "intro": "同済の本人確認が完了しました。ユーザー名とパスワードを設定して登録してください。メールの再確認は不要です。",
-    "expired": "認証の有効期限が切れました。同済で再ログインしてください。",
-    "restart": "再ログイン",
-    "verifiedEmail": "確認済みのメール"
+    title: "同済アカウント登録の完了",
+    intro: "同済の本人確認が完了しました。ユーザー名とパスワードを設定して登録してください。メールの再確認は不要です。",
+    expired: "認証の有効期限が切れました。同済で再ログインしてください。",
+    restart: "再ログイン",
+    verifiedEmail: "確認済みのメール"
 },
   campus: {
     todayMakeup: "{name}：今日は {date} の時間割で授業を行います。",
