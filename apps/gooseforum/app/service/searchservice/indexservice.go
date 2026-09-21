@@ -354,27 +354,47 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 // 配置失败不能直接放弃，否则 filterable 属性要等手动 rebuild 才补齐；
 // 最终失败仅警告，不阻断启动。
 func EnsureTopicIndexConfigured() {
+	ensureStartupIndex(TopicIndex)
+}
+
+// EnsureCourseIndexConfigured upgrades legacy course pagination/settings even
+// when optional maintenance is disabled. Documents and ranking rules are intact.
+func EnsureCourseIndexConfigured() {
+	ensureStartupIndex(CourseIndex)
+}
+
+func ensureStartupIndex(name string) {
 	client := meiliconnect.GetClient()
 	if client == nil {
 		return
 	}
-	index := client.Index(TopicIndex)
-	const (
-		maxAttempts  = 3
-		retryBackoff = 5 * time.Second
-	)
+	if err := ensureManagedIndexConfigured(context.Background(), client.Index(name), name, 5*time.Second); err != nil {
+		slog.Warn("search: startup index configuration unavailable", "index", name, "error", err)
+	}
+}
+
+func ensureManagedIndexConfigured(ctx context.Context, index meilisearch.IndexManager, name string, backoff time.Duration) error {
 	var err error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if err = configureIndex(index); err == nil {
-			slog.Info("search: topic index filterable attributes ensured")
-			return
+	for attempt := 1; attempt <= 3; attempt++ {
+		if err = ctx.Err(); err != nil {
+			return err
 		}
-		slog.Warn("search: ensure topic index filterable attributes failed",
-			"attempt", attempt, "maxAttempts", maxAttempts, "error", err)
-		if attempt < maxAttempts {
-			time.Sleep(retryBackoff)
+		if err = applyManagedSettings(ctx, index, name); err == nil {
+			slog.Info("search: managed index settings ensured", "index", name)
+			return nil
+		}
+		slog.Warn("search: ensure managed settings failed", "index", name, "attempt", attempt, "error", err)
+		if attempt < 3 {
+			timer := time.NewTimer(backoff)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
 		}
 	}
+	return err
 }
 
 // configureIndex applies searchable, filterable, sortable and displayed fields.

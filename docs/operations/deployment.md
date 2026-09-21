@@ -940,8 +940,12 @@ is limited to two concurrent requests per process and four seconds, with databas
 cancellation propagated through list hydration. Public filter dictionaries are
 cached for five minutes.
 
-Before serving catalog searches with an older index, refresh its settings and
-projection fields with the new binary:
+Startup automatically applies the managed course settings, including the exhaustive
+pagination limit, with bounded retries and task-completion checks. This runs even
+when optional index maintenance is disabled. Failed configuration remains observable
+and catalog searches retain the retriable 503 boundary; no SQL fallback is introduced.
+
+To refresh projection fields in an older index, run:
 
 ```bash
 ./bin/yourtj-hub rebuild-course-search --in-place
