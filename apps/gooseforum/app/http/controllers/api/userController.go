@@ -24,6 +24,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
@@ -59,6 +60,8 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 				UserId:          userId,
 				AvatarUrl:       urlconfig.GetDefaultAvatar(),
 				IsAccountClosed: true,
+				Badges:          []badgeservice.UserBadge{},
+				DisplayBadges:   []badgeservice.UserBadge{},
 			})
 		}
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
@@ -845,4 +848,17 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 	userservice.InvalidateUserInfoCache(userEntity.Id)
 
 	return component.SuccessResponseCode("密码重置成功", component.MessageAuthResetSuccess, nil)
+}
+
+// SetDisplayBadges changes the public card selection, independently of the worn
+// avatar badge. Missing/null selection is invalid; [] deliberately hides all.
+type DisplayBadgesReq struct {
+	BadgeCodes *[]string `json:"badgeCodes"`
+}
+
+func SetDisplayBadges(req component.BetterRequest[DisplayBadgesReq]) component.Response {
+	if req.Params.BadgeCodes == nil || !userservice.SetDisplayBadges(req.UserId, *req.Params.BadgeCodes) {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }

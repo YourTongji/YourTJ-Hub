@@ -579,6 +579,7 @@ export interface UserCardPayload {
   isOnline: boolean
   isFollowing: boolean
   isSelf: boolean
+  displayBadges?: UserBadgePayload[]
   badges: UserBadgePayload[]
   wornBadge?: UserBadgePayload | null
   lastActiveTime: string
@@ -909,6 +910,7 @@ export interface SettingsUserPayload {
   createdAt: string
   externalInformation: Record<string, { link?: string }>
   wornBadgeCode: string
+  displayBadges?: UserBadgePayload[]
   badges: UserBadgePayload[]
   wearableBadges: UserBadgePayload[]
   wornBadge?: UserBadgePayload | null

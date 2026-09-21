@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  badgeDisplay: {
+    title: "Profilabzeichen",
+    hint: "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
+    up: "Nach oben",
+    down: "Nach unten",
+    save: "Profilabzeichen speichern"
+},
   campus: {
     todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",
     todayHoliday: "{name}: Heute finden keine Lehrveranstaltungen statt.",

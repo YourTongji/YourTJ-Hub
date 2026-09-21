@@ -1467,6 +1467,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/display-badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Select and order public profile badges
+         * @description Sets zero to five distinct active badges owned by the caller, in display order.
+         *     An empty array explicitly hides all profile-card badges. The avatar's worn
+         *     badge and the complete earned badge collection remain independent. Omitted,
+         *     null, unknown, duplicate or unowned selections fail with common.request.invalidParams.
+         */
+        post: operations["displayBadges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/wear-badge": {
         parameters: {
             query?: never;
@@ -7307,6 +7330,8 @@ export interface components {
             isSelf: boolean;
             /** @description Always an array (empty when the user holds no badges), never null. */
             badges: components["schemas"]["UserBadge"][];
+            /** @description Selected active badges in user-defined order; [] hides all. Missing on older servers; clients fall back to the first five earned badges. */
+            displayBadges?: components["schemas"]["UserBadge"][];
             wornBadge?: components["schemas"]["UserBadge"];
             /** Format: date-time */
             lastActiveTime: string;
@@ -11427,6 +11452,9 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        DisplayBadgesRequest: {
+            badgeCodes: string[];
+        };
         LinkPreviewResolveRequest: {
             urls: string[];
         };
@@ -14192,6 +14220,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PresetAvatarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    displayBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisplayBadgesRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Malformed JSON or a request body exceeding 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

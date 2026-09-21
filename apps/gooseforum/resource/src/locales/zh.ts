@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  badgeDisplay: {
+    title: "资料卡展示徽章",
+    hint: "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
+    up: "上移",
+    down: "下移",
+    save: "保存展示徽章"
+},
   campus: {
     todayMakeup: "{name}：今天按 {date} 的课表上课。",
     todayHoliday: "{name}：今天放假停课。",

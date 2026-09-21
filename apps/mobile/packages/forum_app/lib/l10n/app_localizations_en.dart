@@ -2404,4 +2404,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.';
+
+  @override
+  String get badgeDisplayTitle => 'Profile badges';
+
+  @override
+  String get badgeDisplayHint =>
+      'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.';
+
+  @override
+  String get badgeDisplayUp => 'Move up';
+
+  @override
+  String get badgeDisplayDown => 'Move down';
 }

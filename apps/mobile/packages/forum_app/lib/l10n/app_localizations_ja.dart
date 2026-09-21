@@ -2337,4 +2337,17 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
+
+  @override
+  String get badgeDisplayTitle => 'プロフィールのバッジ';
+
+  @override
+  String get badgeDisplayHint =>
+      '最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。';
+
+  @override
+  String get badgeDisplayUp => '上へ';
+
+  @override
+  String get badgeDisplayDown => '下へ';
 }

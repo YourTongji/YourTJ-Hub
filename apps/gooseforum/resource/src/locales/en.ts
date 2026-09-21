@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  badgeDisplay: {
+    title: "Profile badges",
+    hint: "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+    up: "Move up",
+    down: "Move down",
+    save: "Save profile badges"
+},
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",
     todayHoliday: "{name}: no classes today.",
