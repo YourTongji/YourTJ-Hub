@@ -9984,7 +9984,7 @@ export interface components {
             wornBadge?: Record<string, never> | null;
         };
         PostPayload: {
-            /** @description Server-resolved mention occurrences in visible raw content; UTF-16 offsets, end exclusive. Empty for hidden/deleted bodies. Older servers may omit this field. */
+            /** @description Server-resolved mention occurrences in the raw content returned to this viewer; UTF-16 offsets, end exclusive. Empty when the body is redacted or deleted. Moderators receiving an unredacted hidden body also receive its mention mappings. Older servers may omit this field. */
             mentions?: components["schemas"]["PostMention"][];
             /** Format: uint64 */
             id: number;
