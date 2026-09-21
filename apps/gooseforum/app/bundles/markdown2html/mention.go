@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	headingid "github.com/jkboxomine/goldmark-headingid"
 	"github.com/yuin/goldmark/ast"
@@ -162,4 +163,48 @@ func PostMarkdownToHTMLWithMentions(markdown string, targets map[string]uint64) 
 		slog.Error("render mention markdown failed", "err", err)
 	}
 	return normalizePostHTML(restoreMathSegments(buf.String(), placeholders))
+}
+
+// MentionToken identifies accepted source text using UTF-16 offsets, matching
+// Dart/JavaScript string indexing. Offsets always refer to unchanged raw Markdown.
+type MentionToken struct {
+	Username string `json:"username"`
+	Start    int    `json:"start"`
+	End      int    `json:"end"`
+}
+
+func ExtractMentionTokens(markdown string) []MentionToken {
+	if !strings.Contains(markdown, "@") {
+		return nil
+	}
+	protected, placeholders := protectMathSegments(markdown)
+	segments := extractMathSegments(markdown)
+	segmentIndex, delta := 0, 0
+	sourceOffset := func(offset int) int {
+		for segmentIndex < len(segments) {
+			segment := segments[segmentIndex]
+			tokenEnd := segment.start - delta + len(placeholders[segmentIndex].token)
+			if offset < tokenEnd {
+				break
+			}
+			delta += segment.end - segment.start - len(placeholders[segmentIndex].token)
+			segmentIndex++
+		}
+		return offset + delta
+	}
+	var result []MentionToken
+	byteCursor, units := 0, 0
+	for _, item := range mentionRanges([]byte(protected)) {
+		start, end := sourceOffset(item.start), sourceOffset(item.end)
+		if start < byteCursor {
+			continue
+		}
+		for _, r := range markdown[byteCursor:start] {
+			units += utf16.RuneLen(r)
+		}
+		result = append(result, MentionToken{Username: item.username, Start: units, End: units + end - start})
+		units += end - start // Mentions contain ASCII only.
+		byteCursor = end
+	}
+	return result
 }

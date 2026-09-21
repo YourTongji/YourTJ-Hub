@@ -425,13 +425,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         _streamError == null &&
                         props.pagination.hasNext)
                       SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: GfButton(
-                            label: l10n.commonLoadMore,
-                            loading: _loadingMore,
-                            onPressed: () => _loadMore(props),
-                          ),
+                        child: GfListFooter(
+                          progressKey: (_stream, props.pagination.nextUrl),
+                          hasMore: props.pagination.hasNext,
+                          loading: _loadingMore,
+                          onLoadMore: () => _loadMore(props),
                         ),
                       ),
 

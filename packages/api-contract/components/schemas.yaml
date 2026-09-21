@@ -775,6 +775,11 @@ PostPayload:
   type: object
   required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked, isAnswer]
   properties:
+    mentions:
+      type: array
+      description: Server-resolved mention occurrences in visible raw content; UTF-16 offsets, end exclusive. Empty for hidden/deleted bodies. Older servers may omit this field.
+      items:
+        $ref: '#/PostMention'
     id:
       type: integer
       format: uint64
@@ -10091,3 +10096,20 @@ SearchMaintenanceSubmissionResponse:
       - 0
     result:
       $ref: '#/SearchMaintenanceSubmission'
+
+PostMention:
+  type: object
+  required: [username, userId, start, end]
+  properties:
+    username:
+      type: string
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    start:
+      type: integer
+      minimum: 0
+    end:
+      type: integer
+      minimum: 1

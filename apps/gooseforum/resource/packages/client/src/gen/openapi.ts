@@ -9984,6 +9984,8 @@ export interface components {
             wornBadge?: Record<string, never> | null;
         };
         PostPayload: {
+            /** @description Server-resolved mention occurrences in visible raw content; UTF-16 offsets, end exclusive. Empty for hidden/deleted bodies. Older servers may omit this field. */
+            mentions?: components["schemas"]["PostMention"][];
             /** Format: uint64 */
             id: number;
             /** Format: uint64 */
@@ -11426,6 +11428,13 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        PostMention: {
+            username: string;
+            /** Format: uint64 */
+            userId: number;
+            start: number;
+            end: number;
+        };
         LinkPreviewResolveRequest: {
             urls: string[];
         };

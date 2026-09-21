@@ -297,13 +297,14 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                   ),
                 ),
             if (!_loading && _cursor.isNotEmpty)
-              Center(
-                child: _loadingMore
-                    ? const GfLoadingIndicator()
-                    : TextButton(
-                        onPressed: () => _load(more: true),
-                        child: Text(l10n.commonLoadMore),
-                      ),
+              GfListFooter(
+                progressKey: _cursor,
+                loading: _loadingMore,
+                hasMore: _cursor.isNotEmpty,
+                error: _error == null
+                    ? null
+                    : resolveErrorMessage(l10n, _error!),
+                onLoadMore: () => _load(more: true),
               ),
           ],
         ),
