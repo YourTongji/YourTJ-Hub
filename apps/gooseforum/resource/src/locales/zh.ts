@@ -1724,6 +1724,10 @@ export default {
     emptyTopics: '还没有发布内容。',
     emptyActivity: '暂无动态。',
     emptyData: '暂无数据。',
+    connectionsLabel: '关注关系',
+    connectionsBack: '返回 {name} 的个人主页',
+    followingCount: '关注 {count}',
+    followersCount: '粉丝 {count}',
     tabs: {
       summary: '总结',
       topics: '内容',

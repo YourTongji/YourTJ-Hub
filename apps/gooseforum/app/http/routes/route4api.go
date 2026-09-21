@@ -181,7 +181,7 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("logout", middleware.CSRFProtection, api.Logout)
 
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
-	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
+	baseApi.GET("user-card", middleware.JWTAuth, UpQueryReq(api.GetUserCard))
 	baseApi.POST(
 		"link-previews/resolve",
 		middleware.CSRFProtection,

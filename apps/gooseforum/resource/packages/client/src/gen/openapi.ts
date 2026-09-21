@@ -1277,13 +1277,14 @@ export interface paths {
         };
         /**
          * Read the compact public profile card of a user
-         * @description Public read endpoint with no rate limit. Note the route group mounts no JWT
-         *     middleware, so the viewer-specific flags isSelf and isFollowing are always
-         *     false. Query binding is strict: a missing or non-numeric userId fails with
-         *     HTTP 400 and `common.request.parseFailed`. An unknown user id fails with
-         *     `user.notFound` (HTTP 200); a closed (soft-deleted) account instead returns a
-         *     successful minimal tombstone card (userId/avatarUrl/isAccountClosed set, the
-         *     remaining fields zero-valued).
+         * @description Public read endpoint with no rate limit and optional authentication. Anonymous
+         *     requests return false for the viewer-specific flags isSelf and isFollowing;
+         *     authenticated requests resolve them for the current viewer. Query binding is
+         *     strict: a missing or non-numeric userId fails with HTTP 400 and
+         *     `common.request.parseFailed`. An unknown user id fails with `user.notFound`
+         *     (HTTP 200); a closed (soft-deleted) account instead returns a successful
+         *     minimal tombstone card (userId/avatarUrl/isAccountClosed set, the remaining
+         *     fields zero-valued).
          */
         get: operations["getUserCard"];
         put?: never;
