@@ -474,13 +474,22 @@ function collectPostElements() {
   postElements = Array.from(document.querySelectorAll<HTMLElement>('[data-post-no]'))
 }
 
+// issue #745：钉扎目标可能超出文档可达范围（末楼下方内容不足，或顶部已到边），
+// 修正量必须钳制在可滚动余量内；否则每帧 scrollBy 被浏览器静默钳制、delta 恒不小于
+// 1px，settle 循环无法达成稳定帧，只能靠 2600ms 超时退出并持续对抗用户滚动。
+function pinDeltaFor(element: HTMLElement) {
+  const wanted = element.getBoundingClientRect().top - postNavigationTargetTop
+  const roomDown = Math.max(0, document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+  return Math.min(Math.max(wanted, -window.scrollY), roomDown)
+}
+
 function keepNavigationTargetPinned() {
   if (!navigationTargetPostId.value) return false
 
   const element = document.getElementById(`post-${navigationTargetPostId.value}`)
   if (!element) return false
 
-  const delta = element.getBoundingClientRect().top - postNavigationTargetTop
+  const delta = pinDeltaFor(element)
   if (Math.abs(delta) < 1) return false
 
   window.scrollBy({ top: delta, behavior: 'auto' })
@@ -1147,9 +1156,9 @@ function isElementMostlyVisible(element: HTMLElement) {
 }
 
 function scrollPostIntoComfortView(element: HTMLElement, behavior: ScrollBehavior = 'smooth') {
-  const targetTop = element.getBoundingClientRect().top + window.scrollY - postNavigationTargetTop
+  // 与 pinDeltaFor 共用同一个“可达目标”定义：平滑滚动终点不得超过文档可达范围。
   window.scrollTo({
-    top: Math.max(0, targetTop),
+    top: Math.max(0, window.scrollY + pinDeltaFor(element)),
     behavior,
   })
 }
