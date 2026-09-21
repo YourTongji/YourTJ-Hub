@@ -1157,6 +1157,7 @@ onBeforeUnmount(() => {
             v-if="review.contentHtml"
             v-code-highlight
             v-math-render
+            v-content-enhancements
             class="gf-prose gf-prose-post mt-3 text-[14px] leading-6"
             v-html="review.contentHtml"
           />

@@ -79,6 +79,36 @@ TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
 
 void main() {
   testWidgets(
+    'wide preview covers contain the image while phone thumbnails crop',
+    (tester) async {
+      for (final width in [320.0, 700.0]) {
+        await tester.binding.setSurfaceSize(Size(width, 640));
+        await tester.pumpWidget(
+          ProviderScope(
+            child: _wrap(
+              const GfLinkPreviewCard(
+                preview: LinkPreviewPayload(
+                  requestedUrl: 'https://example.com',
+                  kind: 'external',
+                  status: 'ready',
+                  url: 'https://example.com',
+                  displayHost: 'example.com',
+                  title: 'A wide image stays complete',
+                  imageUrl: 'https://image.test/cover.png',
+                ),
+              ),
+            ),
+          ),
+        );
+        final cover = tester.widget<Image>(find.byType(Image).first);
+        expect(cover.fit, width >= 640 ? BoxFit.contain : BoxFit.cover);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
+
+  testWidgets(
     'standalone URL resolves once and renders a responsive preview card',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 640));
@@ -124,46 +154,47 @@ void main() {
     },
   );
 
-  testWidgets('campus cards localize fallback copy when the server sends no name', (
-    tester,
-  ) async {
-    // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
-    // 都为空，兜底文案必须由客户端 l10n 出（服务端不留任何中文）。修复前这里
-    // 会走到 `preview.title!`，直接抛 null。
-    const String url = 'https://agent.tongji.edu.cn/chat';
-    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
-      LinkPreviewPayload(
-        requestedUrl: url,
-        kind: 'external',
-        status: 'ready',
-        url: url,
-        displayHost: 'agent.tongji.edu.cn',
-        siteName: 'agent.tongji.edu.cn',
-        campus: true,
-      ),
-    ]);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: <Override>[
-          linkPreviewRepositoryProvider.overrideWithValue(repository),
-        ],
-        child: MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: GfMarkdownView(data: url)),
+  testWidgets(
+    'campus cards localize fallback copy when the server sends no name',
+    (tester) async {
+      // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
+      // 都为空，兜底文案必须由客户端 l10n 出（服务端不留任何中文）。修复前这里
+      // 会走到 `preview.title!`，直接抛 null。
+      const String url = 'https://agent.tongji.edu.cn/chat';
+      final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+        LinkPreviewPayload(
+          requestedUrl: url,
+          kind: 'external',
+          status: 'ready',
+          url: url,
+          displayHost: 'agent.tongji.edu.cn',
+          siteName: 'agent.tongji.edu.cn',
+          campus: true,
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      ]);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            linkPreviewRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: GfMarkdownView(data: url)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(repository.requestedUrls, <String>[url]);
-    expect(find.text('校园网'), findsOneWidget);
-    expect(find.text('需校园网络访问'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 600));
-  });
+      expect(repository.requestedUrls, <String>[url]);
+      expect(find.text('校园网'), findsOneWidget);
+      expect(find.text('需校园网络访问'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
 
   testWidgets('configured campus names win over the localized fallback', (
     tester,

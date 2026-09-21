@@ -40,9 +40,12 @@
   names come from deployment configuration — `domain_names` per domain, then `host_names` per exact host;
   when neither is set the server omits the text and marks the card `campus`, so Web and Flutter render
   their own localized fallback copy instead of server-side Chinese. Preview failure keeps the original
-  link. All UGC external links show
-  the hostname and complete URL before leaving, with Public Suffix List session trust; Web editor feedback
-  is implemented outside Vditor's serializable document, with manual IME/selection/undo verification pending.
+  link. Topic, reply, Wiki and course-review bodies (including course preview and schedule panels)
+  apply the same outbound guard. External links show the hostname and complete URL before leaving, with
+  Public Suffix List session trust; suspicious and blocked links never inherit trust. Web keyboard focus
+  stays inside the confirmation dialog and returns to the original link on cancellation. Real-browser
+  regression tests cover keyboard and modified clicks, IME composition, selection and undo in Vditor.
+  Editor hints stay outside the serializable document and clear immediately when a candidate changes.
 - Monorepo structure (apps/packages/services/deploy/docs) + CI (server/web/contract workflows).
 
 ## Current key gaps

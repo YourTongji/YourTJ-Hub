@@ -330,6 +330,30 @@ describe('editor link-preview hint coordinator', () => {
     controller.dispose()
   })
 
+  test('clears a published hint immediately when its URL changes', async () => {
+    vi.useFakeTimers()
+    const changes: Array<string[] | null> = []
+    const controller = createLinkPreviewHintController({ resolve: async urls => [readyPreview(urls[0])], onChange: hint => changes.push(hint?.domains ?? null) })
+    controller.schedule('https://old.example')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(changes.at(-1)).toEqual(['old.example'])
+    controller.schedule('https://new.example')
+    expect(changes.at(-1)).toBeNull()
+    controller.dispose()
+  })
+
+  test('empty composition result does not resurrect the previous URL', async () => {
+    vi.useFakeTimers()
+    const resolve = vi.fn(async urls => [readyPreview(urls[0])])
+    const controller = createLinkPreviewHintController({ resolve, onChange: vi.fn() })
+    controller.schedule('https://old.example')
+    controller.compositionStart()
+    controller.compositionEnd('')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(resolve).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
   test('joins hint domains with the separator the locale provides', () => {
     expect(formatLinkPreviewHintDomains(['a.example', 'b.example'], '、')).toBe('a.example、b.example')
     expect(formatLinkPreviewHintDomains(['a.example', 'b.example'], ', ')).toBe('a.example, b.example')

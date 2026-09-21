@@ -17,7 +17,8 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: a bare HTTP(S) URL in its own Markdown paragraph resolves through the server batch API and
   becomes a compact native preview only when typed metadata is ready; failure keeps the ordinary link,
-  and each document stops after three previews. Cards and ordinary Markdown links share internal routing
+  and each document stops after five previews. Below 640px, cover images use a 56px cropped thumbnail;
+  wider cards preserve the complete cover within a 168px rail, matching Web. Cards and ordinary Markdown links share internal routing
   and external confirmation. The confirmation shows the hostname and selectable full URL, supports
   system back, and scopes optional session trust to the Public Suffix List registrable domain. The card
   is covered at 320 logical pixels, dark mode and 2.0 text scale.

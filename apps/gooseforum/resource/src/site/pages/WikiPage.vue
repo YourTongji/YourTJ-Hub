@@ -202,6 +202,7 @@ function sameUrl(left: string, right: string) {
                 v-code-copy
                 v-code-highlight
                 v-math-render
+                v-content-enhancements
                 class="gf-prose gf-prose-post"
                 v-html="page.props.page.content"
               />

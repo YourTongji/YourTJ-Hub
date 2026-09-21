@@ -37,7 +37,6 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
   let request: AbortController | undefined
   let sequence = 0
   let composing = false
-  let latestMarkdown = ''
 
   const cancelPending = () => {
     if (timer !== undefined) clearTimeout(timer)
@@ -48,10 +47,10 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
 
   const schedule = (markdown: string) => {
     markdown = markdown ?? ''
-    latestMarkdown = markdown
     sequence += 1
     const currentSequence = sequence
     cancelPending()
+    options.onChange(null)
     if (composing) return
     const urls = scanMarkdownLinkCandidates(markdown)
     if (urls.length === 0) {
@@ -84,10 +83,11 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
       composing = true
       sequence += 1
       cancelPending()
+      options.onChange(null)
     },
     compositionEnd(markdown: string) {
       composing = false
-      schedule(markdown || latestMarkdown)
+      schedule(markdown)
     },
     dispose() {
       sequence += 1

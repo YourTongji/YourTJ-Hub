@@ -610,6 +610,7 @@ function courseStars(ratingAvg: number | undefined) {
               v-if="review.contentHtml"
               v-code-highlight
               v-math-render
+              v-content-enhancements
               class="gf-prose gf-prose-post gf-prose-preview mt-2 text-base-content/80"
               v-html="review.contentHtml"
             />
