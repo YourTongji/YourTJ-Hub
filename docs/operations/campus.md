@@ -40,11 +40,22 @@ Campus reads use the independent `campus.read` action (120 requests per user per
 
 Use only a user-authorized school login in the official browser page. Test status, authorization/confirmation, refresh, stale confirmations, bidirectional uniqueness, and unlink. The interface distinguishes absent records, upstream failures and expired authorization; a failing school feature must not be represented as a zero score.
 
+The original Android crash report has no device or logcat evidence, so its exact root cause remains
+unproven. Real-device follow-up evidence now covers Google, GitHub and Tongji: all three crash before
+the browser appears. The common Android flutter_appauth/AppAuth/CustomTabs launch layer is therefore
+the repair target, while AppAuth-Android 0.11.1's known native lifecycle crash surfaces are only
+structural evidence, not proof of this exact stack. The Android OIDC path now uses an external system
+browser, manual PKCE/state/nonce and a MainActivity MethodChannel/EventChannel callback bridge;
+OAuth login does not use WebView. The debug merged manifest is machine-checked for exactly one
+`yourtj://callback` handler owned by MainActivity, no AppAuth receiver claim, and
+`flutter_deeplinking_enabled=false`. The existing `https` browser query remains supplied by the
+merged dependency manifests.
+
 Automated tests cover signature/issuer/audience/nonce checks, callback replay and forum-session binding, database uniqueness, atomic replacement, concurrent refresh, late response rejection, encryption isolation, CSRF/session boundaries, account closure, SQLite and PostgreSQL migration. The [product specification](../product/campus.md) lists the verified data features and remaining App/provider gaps.
 
 ## Native App
 
-`Current`: native campus uses the same configuration and APIs. School credentials never reach Dart. The authenticated WebView is used only for the native-session handoff and official school authorization; the server callback returns to the native confirmation. No additional client secret, callback scheme or mobile database is required. `Partial`: physical-device school sign-in remains an explicit validation gap; use a user-authorized official login to validate it.
+`Current`: native campus uses the same configuration and APIs. School credentials never reach Dart. The authenticated WebView remains limited to the separate campus session handoff/workspace flow; it is not an OAuth provider login surface. Google, GitHub and Tongji Android OAuth use the external-browser/manual-PKCE callback path above. No additional client secret, callback scheme or mobile database is required. `Partial`: physical-device school sign-in remains an explicit validation gap; the new APK must be tested with a user-authorized official login.
 
 ## Teaching-date rules
 

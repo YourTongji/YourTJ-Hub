@@ -54,6 +54,9 @@ class AuthController extends ChangeNotifier {
   /// 当前验证码挑战(需要时加载)。
   CaptchaPayload? _captcha;
 
+  /// 当前验证码请求;焦点回弹或多个兜底路径同时触发时共享同一请求。
+  Future<void>? _captchaLoadFuture;
+
   /// 当前登录用户名(跨 TOTP 阶段保留)。
   String _pendingUsername = '';
 
@@ -66,14 +69,40 @@ class AuthController extends ChangeNotifier {
   bool get busy => _busy;
   bool get isAuthenticated => _phase == LoginPhase.authenticated;
 
-  /// 加载验证码图片(needsCaptcha 阶段)。
-  Future<void> loadCaptcha() async {
+  /// 加载验证码图片。
+  ///
+  /// 预取失败时保留当前登录 phase,避免网络抖动把尚未提交的登录变成
+  /// [LoginPhase.failed];后端要求验证码后的显式加载仍保留原有语义。
+  Future<void> loadCaptcha({
+    bool preservePhaseOnError = false,
+    bool silentOnError = false,
+  }) {
+    final Future<void>? inFlight = _captchaLoadFuture;
+    if (inFlight != null) return inFlight;
+
+    final Future<void> future = _loadCaptcha(
+      preservePhaseOnError: preservePhaseOnError,
+      silentOnError: silentOnError,
+    );
+    _captchaLoadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_captchaLoadFuture, future)) {
+        _captchaLoadFuture = null;
+      }
+    });
+  }
+
+  Future<void> _loadCaptcha({
+    required bool preservePhaseOnError,
+    required bool silentOnError,
+  }) async {
     try {
       _captcha = await _auth.getCaptcha();
       notifyListeners();
     } catch (_) {
+      if (silentOnError) return;
       _error = 'Failed to load captcha';
-      _phase = LoginPhase.failed;
+      if (!preservePhaseOnError) _phase = LoginPhase.failed;
       notifyListeners();
     }
   }

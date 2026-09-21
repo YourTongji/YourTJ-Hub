@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -1182,10 +1181,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         children: [
                           InkWell(
                             onTap: _captchaLoading ? null : _loadCaptcha,
-                            child: Image.memory(
-                              base64Decode(
-                                _captcha!.captchaImg.split(',').last,
-                              ),
+                            child: GfCaptchaImage(
+                              imageData: _captcha!.captchaImg,
                               width: 128,
                               height: 48,
                               gaplessPlayback: true,

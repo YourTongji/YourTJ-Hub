@@ -317,6 +317,59 @@ void main() {
       expect(controller.captcha, isNotNull);
     });
 
+    test('auth.captcha.invalid 仍进入 needsCaptcha', () async {
+      final controller = _buildController(
+        storage: MemoryTokenStorage(),
+        loginMessageCode: 'auth.captcha.invalid',
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+
+      expect(controller.phase, LoginPhase.needsCaptcha);
+      expect(controller.error, 'Invalid or expired captcha');
+    });
+
+    test('验证码并发加载只发起一次请求', () async {
+      final auth = FakeAuthRepository()..captchaGate = Completer<void>();
+      final controller = _buildController(
+        storage: MemoryTokenStorage(),
+        authRepository: auth,
+      );
+
+      final first = controller.loadCaptcha();
+      final second = controller.loadCaptcha();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(auth.captchaCalls, 1);
+      auth.captchaGate!.complete();
+      await Future.wait(<Future<void>>[first, second]);
+      expect(controller.captcha, isNotNull);
+    });
+
+    test('预取验证码网络失败不污染登录 phase且保持静默可重试', () async {
+      final auth = FakeAuthRepository(captchaError: StateError('offline'));
+      final controller = _buildController(
+        storage: MemoryTokenStorage(),
+        authRepository: auth,
+      );
+
+      await controller.loadCaptcha(
+        preservePhaseOnError: true,
+        silentOnError: true,
+      );
+
+      expect(controller.phase, LoginPhase.idle);
+      expect(controller.error, isEmpty);
+
+      auth.captchaError = null;
+      await controller.loadCaptcha(
+        preservePhaseOnError: true,
+        silentOnError: true,
+      );
+      expect(auth.captchaCalls, 2);
+      expect(controller.captcha, isNotNull);
+    });
+
     test('注册遇到 common.captchaRequired 进入 needsCaptcha', () async {
       final controller = _buildController(
         storage: MemoryTokenStorage(),
@@ -403,6 +456,7 @@ AuthController _buildController({
   bool forgotCaptchaRequired = false,
   Object? totpVerifyError,
   bool totpVerifySucceeds = true,
+  FakeAuthRepository? authRepository,
 }) {
   final storageAdapter = storage;
   final client = GfApiClient(
@@ -410,16 +464,18 @@ AuthController _buildController({
     tokenStorage: storageAdapter,
     baseUrl: 'http://fake.local',
   );
-  final auth = FakeAuthRepository(
-    twoFactorRequired: twoFactorRequired,
-    authFail: authFail,
-    captchaRequired: captchaRequired,
-    loginMessageCode: loginMessageCode,
-    registerCaptchaRequired: registerCaptchaRequired,
-    forgotCaptchaRequired: forgotCaptchaRequired,
-    totpVerifyError: totpVerifyError,
-    totpVerifySucceeds: totpVerifySucceeds,
-  );
+  final auth =
+      authRepository ??
+      FakeAuthRepository(
+        twoFactorRequired: twoFactorRequired,
+        authFail: authFail,
+        captchaRequired: captchaRequired,
+        loginMessageCode: loginMessageCode,
+        registerCaptchaRequired: registerCaptchaRequired,
+        forgotCaptchaRequired: forgotCaptchaRequired,
+        totpVerifyError: totpVerifyError,
+        totpVerifySucceeds: totpVerifySucceeds,
+      );
   return AuthController(
     authRepository: auth,
     apiClient: client,
@@ -444,6 +500,7 @@ class FakeAuthRepository implements AuthRepository {
     this.forgotCaptchaRequired = false,
     this.totpVerifyError,
     this.totpVerifySucceeds = true,
+    this.captchaError,
   });
 
   final bool twoFactorRequired;
@@ -460,8 +517,16 @@ class FakeAuthRepository implements AuthRepository {
   /// totpVerify 是否成功返回;false 时返回 false(不抛错)。
   final bool totpVerifySucceeds;
 
+  int captchaCalls = 0;
+  Completer<void>? captchaGate;
+  Object? captchaError;
+
   @override
   Future<CaptchaPayload> getCaptcha() async {
+    captchaCalls++;
+    final gate = captchaGate;
+    if (gate != null) await gate.future;
+    if (captchaError != null) throw captchaError!;
     return CaptchaPayload(
       captchaId: 'cid',
       captchaImg: 'data:image/png;base64,x',

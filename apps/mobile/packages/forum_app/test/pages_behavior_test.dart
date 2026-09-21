@@ -2822,6 +2822,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(posts.attempts, 1);
         expect(find.byKey(const Key('reply-captcha')), findsOneWidget);
+        expect(find.byType(GfCaptchaImage), findsOneWidget);
         expect(
           tester
               .widget<GfPostComposer>(find.byType(GfPostComposer))

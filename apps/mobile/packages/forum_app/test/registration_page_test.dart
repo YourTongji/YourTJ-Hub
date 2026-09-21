@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:auth/auth.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:image/image.dart' as img;
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
 import 'pages_behavior_test.dart' show NoopCache;
@@ -81,6 +83,35 @@ class _Auth extends AuthController {
         tokenStorage: storage,
       );
   final emails = <String>[];
+  int captchaLoads = 0;
+  bool? lastPreservePhaseOnError;
+  bool? lastSilentOnError;
+  Completer<void>? captchaGate;
+  Object? captchaError;
+  CaptchaPayload? captchaPayload;
+
+  @override
+  CaptchaPayload? get captcha => captchaPayload;
+
+  @override
+  Future<void> loadCaptcha({
+    bool preservePhaseOnError = false,
+    bool silentOnError = false,
+  }) async {
+    captchaLoads++;
+    lastPreservePhaseOnError = preservePhaseOnError;
+    lastSilentOnError = silentOnError;
+    final Completer<void>? gate = captchaGate;
+    if (gate != null) await gate.future;
+    if (captchaError != null) throw captchaError!;
+    captchaPayload = CaptchaPayload(
+      captchaId: 'test-captcha',
+      captchaImg:
+          'data:image/png;base64,${base64Encode(img.encodePng(img.Image(width: 2, height: 2)))}',
+    );
+    notifyListeners();
+  }
+
   @override
   Future<void> register({
     required String username,
@@ -94,7 +125,7 @@ class _Auth extends AuthController {
 }
 
 void main() {
-  Future<({_Auth auth, _Options options})> pump(
+  Future<({_Auth auth, _Options options, ProviderContainer container})> pump(
     WidgetTester tester, {
     List<String> domains = const [],
     bool policies = false,
@@ -145,7 +176,7 @@ void main() {
     await tester.pumpAndSettle();
     if (register) await tester.tap(find.text('Sign up').first);
     await tester.pumpAndSettle();
-    return (auth: auth, options: options);
+    return (auth: auth, options: options, container: container);
   }
 
   Finder input(String label) => find.byWidgetPredicate(
@@ -186,6 +217,150 @@ void main() {
   ) async {
     await pump(tester, register: false);
     expect(find.text('Continue with Tongji SSO'), findsNothing);
+  });
+
+  testWidgets('login captcha starts folded before password interaction', (
+    tester,
+  ) async {
+    await pump(tester, register: false);
+
+    expect(find.byKey(const Key('login-captcha')), findsNothing);
+  });
+
+  testWidgets('password blur reveals captcha and refocus keeps it visible', (
+    tester,
+  ) async {
+    final h = await pump(tester, register: false);
+    final password = input('Password');
+    final username = input('Username or email');
+
+    await tester.tap(password);
+    await tester.pump();
+    expect(find.byKey(const Key('login-captcha')), findsNothing);
+    expect(h.auth.captchaLoads, 1);
+
+    await tester.tap(username);
+    await tester.pump();
+    // Reveal is committed from a post-frame callback so the focus handoff
+    // itself is not rebuilt mid-transfer; the next frame contains the image.
+    await tester.pump();
+    expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+    expect(input('Captcha'), findsOneWidget);
+    expect(h.auth.captchaLoads, 1);
+    expect(h.auth.lastPreservePhaseOnError, isTrue);
+
+    final captcha = input('Captcha');
+    await tester.tap(captcha);
+    await tester.pump();
+    expect(tester.widget<TextField>(captcha).focusNode?.hasFocus, isTrue);
+
+    await tester.tap(password);
+    await tester.pump();
+    await tester.tap(username);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+    expect(h.auth.captchaLoads, 1);
+  });
+
+  testWidgets('focus bounce during captcha request stays latched and deduped', (
+    tester,
+  ) async {
+    final h = await pump(tester, register: false);
+    h.auth.captchaGate = Completer<void>();
+
+    await tester.tap(input('Password'));
+    await tester.pump();
+    expect(h.auth.captchaLoads, 1);
+    expect(find.byKey(const Key('login-captcha')), findsNothing);
+
+    await tester.tap(input('Username or email'));
+    await tester.pump();
+    await tester.tap(input('Password'));
+    await tester.pump();
+    await tester.tap(input('Username or email'));
+    await tester.pump();
+
+    expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+    expect(h.auth.captchaLoads, 1);
+
+    h.auth.captchaGate!.complete();
+    await tester.pumpAndSettle();
+    expect(input('Captcha'), findsOneWidget);
+  });
+
+  testWidgets(
+    'blank-space pointer intent reveals captcha without focus battle',
+    (tester) async {
+      final h = await pump(tester, register: false);
+
+      await tester.tap(input('Password'));
+      await tester.pump();
+      expect(find.byKey(const Key('login-captcha')), findsNothing);
+
+      await tester.tapAt(const Offset(385, 1080));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+      expect(h.auth.captchaLoads, 1);
+    },
+  );
+
+  testWidgets(
+    'captcha prefetch failure stays silent and retries when visible',
+    (tester) async {
+      final h = await pump(tester, register: false);
+      h.auth.captchaError = StateError('offline');
+
+      await tester.tap(input('Password'));
+      await tester.pump();
+      expect(h.auth.captchaLoads, 1);
+      expect(find.text('Failed to load captcha'), findsNothing);
+      expect(find.byKey(const Key('login-captcha')), findsNothing);
+
+      h.auth.captchaError = null;
+      await tester.tap(input('Username or email'));
+      await tester.pumpAndSettle();
+
+      expect(h.auth.captchaLoads, 2);
+      expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+      expect(input('Captcha'), findsOneWidget);
+    },
+  );
+
+  testWidgets('captcha dark filter changes with theme without refetching', (
+    tester,
+  ) async {
+    final h = await pump(tester, register: false);
+    final username = input('Username or email');
+    await tester.tap(input('Password'));
+    await tester.tap(username);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ColorFiltered), findsNothing);
+    expect(h.auth.captchaLoads, 1);
+    final String? captchaId = h.auth.captcha?.captchaId;
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: h.container,
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.dark),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: LoginPage(
+            authController: h.auth,
+            authTokenStorage: MemoryTokenStorage(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final filter = tester.widget<ColorFiltered>(find.byType(ColorFiltered));
+    expect(filter.colorFilter.toString(), contains('255.0'));
+    expect(h.auth.captchaLoads, 1);
+    expect(h.auth.captcha?.captchaId, captchaId);
   });
 
   testWidgets(

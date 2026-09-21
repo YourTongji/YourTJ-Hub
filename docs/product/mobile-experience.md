@@ -297,9 +297,25 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   stale results and opens paragraph anchors. Search unavailability has retry feedback. Reading
   keeps directory, Wiki search and GitHub edit actions in a bottom dock; GitHub remains the content
   source of truth.
-- `Current`: sign-in offers account/password, Google and GitHub. Password captcha and TOTP remain
-  supported. Google availability follows the published Web configuration. Social buttons use the
-  existing OIDC code/PKCE exchange with an allowlisted provider hint, not a new credential flow.
+- `Current`: sign-in offers account/password, Google, GitHub and Tongji when the published options
+  allow it. Password captcha and TOTP remain
+  supported. The login captcha stays folded until the password field is first interacted with;
+  the first password focus/input warms the challenge, and a blank outside tap or genuine secure-IME
+  dismissal reveals it without taking focus from another explicit control. That reveal is latched through transient Android
+  focus rebounds, and a prefetch failure stays silent until the visible retry path is used. On
+  Android, auth-field pointer-down creates a short-lived target token; if the secure keyboard
+  reclaims the password focus during that token's settling window, the app makes at most two
+  bounded attempts to return focus to the explicitly tapped field and then stops. A focused field
+  also has a finite view-insets-based IME show watchdog. Dismissing an already-visible secure
+  keyboard releases password focus and is honored as user intent; a transient hidden IME during an
+  explicit password-to-username/captcha handoff remains recoverable. Blank-space and button taps
+  create no focus target and do not start a focus battle. Captcha pixels are left unchanged in light mode
+  and use the Web-equivalent dark-mode transform. Google availability follows the published Web
+  configuration. On Android, Google/GitHub/Tongji all use one RFC 8252 external-system-browser
+  flow with manual PKCE/state/nonce and the native MainActivity callback bridge; the Android path
+  intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
+  Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
+  physical-device APK test; the exact native crash stack remains unproven without logcat.
 
 ## Registration
 
@@ -436,8 +452,10 @@ local widget tests do not imply those gates passed.
 
 `Current`: native login and registration show “Tongji SSO” when the public login options declare
 campus configuration ready. The entry explains automatic activated registration and links published
-policies. AppAuth supplies `login_hint=tongji` to the built-in OIDC provider; the backend handles the
-school callback and resumes the existing PKCE/nonce exchange. The App stores only its forum session,
-never a school access/refresh token. Existing bindings sign in to the same forum account; new users
-receive a private student-ID@tongji.edu.cn email without a separate activation step. All four UI
-languages are supported. `Partial`: physical-device school sign-in has not been validated.
+policies. The backend handles the school callback and resumes the same manual PKCE/nonce exchange
+used by the Android external-browser path; the App stores only its forum session, never a school
+access/refresh token. Existing bindings sign in to the same forum account; new users receive a
+private student-ID@tongji.edu.cn email without a separate activation step. All four UI languages are
+supported. Tongji shares the exact MainActivity-owned `yourtj://callback` bridge with Google and
+GitHub; AppAuth's Android receiver does not claim it, and no WebView is used for this OAuth login.
+`Partial`: physical-device school sign-in has not been validated with the new APK.
