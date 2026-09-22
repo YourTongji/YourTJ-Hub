@@ -16,7 +16,7 @@ import (
 
 func TestStartupCourseSettingsRepairLegacyPagination(t *testing.T) {
 	enableStartupMaintenance(t)
-	cap := int64(1000)
+	paginationCap := int64(1000)
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -39,13 +39,13 @@ func TestStartupCourseSettingsRepairLegacyPagination(t *testing.T) {
 				t.Error("pagination not managed")
 				return
 			}
-			cap = settings.Pagination.MaxTotalHits
+			paginationCap = settings.Pagination.MaxTotalHits
 			w.WriteHeader(http.StatusAccepted)
 			_, _ = fmt.Fprint(w, `{"taskUid":7}`)
 		case r.URL.Path == "/tasks/7":
 			_, _ = fmt.Fprint(w, `{"uid":7,"status":"succeeded"}`)
 		case r.URL.Path == "/indexes/courses/settings/pagination":
-			_, _ = fmt.Fprintf(w, `{"maxTotalHits":%d}`, cap)
+			_, _ = fmt.Fprintf(w, `{"maxTotalHits":%d}`, paginationCap)
 		case r.URL.Path == "/indexes/courses/search":
 			_, _ = fmt.Fprint(w, `{"hits":[{"id":42}],"totalHits":1}`)
 		default:
@@ -58,8 +58,8 @@ func TestStartupCourseSettingsRepairLegacyPagination(t *testing.T) {
 	if err := ensureManagedIndexConfigured(context.Background(), index, CourseIndex, 0); err != nil {
 		t.Fatal(err)
 	}
-	if attempts != 2 || cap != maxCourseCandidates+1 {
-		t.Fatalf("attempts=%d cap=%d", attempts, cap)
+	if attempts != 2 || paginationCap != maxCourseCandidates+1 {
+		t.Fatalf("attempts=%d paginationCap=%d", attempts, paginationCap)
 	}
 	ids, err := searchCourseCandidates(context.Background(), index, "math")
 	if err != nil || len(ids) != 1 || ids[0] != 42 {
@@ -138,12 +138,46 @@ func TestStartupCourseSettingsRespectOwnerAndMissingIndex(t *testing.T) {
 	}
 }
 
+// The topic repair must reach the settings PATCH without the course-style
+// existence probe: any probe here would 404-fail a repair that is expected to
+// succeed once the engine answers.
+func TestStartupTopicSettingsSkipExistenceProbe(t *testing.T) {
+	fetches, patches := 0, 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPatch && r.URL.Path == "/indexes/topics/settings" {
+			patches++
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = fmt.Fprint(w, `{"taskUid":3}`)
+			return
+		}
+		if r.URL.Path == "/tasks/3" {
+			_, _ = fmt.Fprint(w, `{"uid":3,"status":"succeeded"}`)
+			return
+		}
+		fetches++
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = fmt.Fprint(w, `{"code":"index_not_found","message":"missing","type":"invalid_request"}`)
+	}))
+	defer server.Close()
+	if err := ensureManagedIndexConfigured(context.Background(), meilisearch.New(server.URL).Index(TopicIndex), TopicIndex, 0); err != nil {
+		t.Fatal(err)
+	}
+	if fetches != 0 {
+		t.Fatalf("topic repair probed index existence %d times", fetches)
+	}
+	if patches != 1 {
+		t.Fatalf("patches=%d, want exactly 1", patches)
+	}
+}
+
 func enableStartupMaintenance(t *testing.T) {
 	t.Helper()
 	old := preferences.GetBool("meilisearch.maintenance_enabled", false)
 	preferences.Set("meilisearch.maintenance_enabled", true)
 	t.Cleanup(func() { preferences.Set("meilisearch.maintenance_enabled", old) })
 }
+
 func TestStartupQueuedSettingsRespectWholeOperationDeadline(t *testing.T) {
 	enableStartupMaintenance(t)
 	patches := 0

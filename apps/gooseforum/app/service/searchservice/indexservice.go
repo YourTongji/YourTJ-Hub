@@ -21,6 +21,10 @@ import (
 
 const searchTaskWaitTimeout = 30 * time.Second
 
+// maxStartupAttempts bounds the ensureManagedIndexConfigured retry loop; the
+// whole startup repair additionally runs under a hard deadline.
+const maxStartupAttempts = 3
+
 // enqueueSearchTask writes an idempotent search projection task inside the
 // caller's business transaction. The task row is the local outbox boundary;
 // Meilisearch is only contacted after the transaction commits by a worker.
@@ -382,7 +386,7 @@ func ensureManagedIndexConfigured(ctx context.Context, index meilisearch.IndexMa
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	var err error
-	for attempt := 1; attempt <= 3; attempt++ {
+	for attempt := 1; attempt <= maxStartupAttempts; attempt++ {
 		if err = ctx.Err(); err != nil {
 			return err
 		}
@@ -401,7 +405,7 @@ func ensureManagedIndexConfigured(ctx context.Context, index meilisearch.IndexMa
 			return nil
 		}
 		slog.Warn("search: ensure managed settings failed", "index", name, "attempt", attempt, "error", err)
-		if attempt < 3 {
+		if attempt < maxStartupAttempts {
 			timer := time.NewTimer(backoff)
 			select {
 			case <-ctx.Done():
