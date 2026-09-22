@@ -21,6 +21,10 @@ import (
 
 const searchTaskWaitTimeout = 30 * time.Second
 
+// maxStartupAttempts bounds the ensureManagedIndexConfigured retry loop; the
+// whole startup repair additionally runs under a hard deadline.
+const maxStartupAttempts = 3
+
 // enqueueSearchTask writes an idempotent search projection task inside the
 // caller's business transaction. The task row is the local outbox boundary;
 // Meilisearch is only contacted after the transaction commits by a worker.
@@ -354,27 +358,64 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 // 配置失败不能直接放弃，否则 filterable 属性要等手动 rebuild 才补齐；
 // 最终失败仅警告，不阻断启动。
 func EnsureTopicIndexConfigured() {
+	ensureStartupIndex(TopicIndex)
+}
+
+// EnsureCourseIndexConfigured repairs settings only on the authoritative index
+// owner. Shared read-only instances must not rewrite production settings.
+func EnsureCourseIndexConfigured() {
+	ensureStartupIndex(CourseIndex)
+}
+
+func ensureStartupIndex(name string) {
 	client := meiliconnect.GetClient()
 	if client == nil {
 		return
 	}
-	index := client.Index(TopicIndex)
-	const (
-		maxAttempts  = 3
-		retryBackoff = 5 * time.Second
-	)
+	if err := ensureManagedIndexConfigured(context.Background(), client.Index(name), name, 5*time.Second); err != nil {
+		slog.Warn("search: startup index configuration unavailable", "index", name, "error", err)
+	}
+}
+
+func ensureManagedIndexConfigured(ctx context.Context, index meilisearch.IndexManager, name string, backoff time.Duration) error {
+	if name == CourseIndex && !maintenanceEnabled() {
+		return nil
+	}
+	// This is on the startup health gate. Bound the whole repair, including all
+	// retries/backoffs, well below the deployment's 180-second health window.
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	var err error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if err = configureIndex(index); err == nil {
-			slog.Info("search: topic index filterable attributes ensured")
-			return
+	for attempt := 1; attempt <= maxStartupAttempts; attempt++ {
+		if err = ctx.Err(); err != nil {
+			return err
 		}
-		slog.Warn("search: ensure topic index filterable attributes failed",
-			"attempt", attempt, "maxAttempts", maxAttempts, "error", err)
-		if attempt < maxAttempts {
-			time.Sleep(retryBackoff)
+		// A settings PATCH can implicitly create an empty Meili index. A missing
+		// projection must stay unavailable until an explicit complete rebuild.
+		if name == CourseIndex {
+			_, err = index.FetchInfoWithContext(ctx)
+		} else {
+			err = nil
+		}
+		if err == nil {
+			err = applyManagedSettings(ctx, index, name)
+		}
+		if err == nil {
+			slog.Info("search: managed index settings ensured", "index", name)
+			return nil
+		}
+		slog.Warn("search: ensure managed settings failed", "index", name, "attempt", attempt, "error", err)
+		if attempt < maxStartupAttempts {
+			timer := time.NewTimer(backoff)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
 		}
 	}
+	return err
 }
 
 // configureIndex applies searchable, filterable, sortable and displayed fields.
