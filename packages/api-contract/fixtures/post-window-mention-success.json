@@ -5,8 +5,8 @@
         "id": 9201,
         "topicId": 9101,
         "postNo": 1,
-        "content": "Topic first post content",
-        "renderedContent": "<p>Topic first post content</p>\n",
+        "content": "😀 @contract-window-author",
+        "renderedContent": "<p>😀 <a href=\"/u/9301\">@contract-window-author</a></p>\n",
         "processStatus": 0,
         "isHidden": false,
         "isAuthorDeleted": false,
@@ -26,7 +26,14 @@
         "isLiked": false,
         "isBookmarked": false,
         "isAnswer": false,
-        "mentions": []
+        "mentions": [
+          {
+            "username": "contract-window-author",
+            "userId": 9301,
+            "start": 3,
+            "end": 26
+          }
+        ]
       }
     ],
     "replyTargets": [],

@@ -499,6 +499,14 @@ func TestPostWindowHTTPContract(t *testing.T) {
 			t.Fatalf("post window status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-window-success.json"))
+		if err := conn.Model(&posts.Entity{}).Where("id = ?", 9201).UpdateColumns(map[string]any{
+			"content": "😀 @contract-window-author", "rendered_version": 0,
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+		recorder = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/posts/window?topicId=9101", "", "")
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-window-mention-success.json"))
+
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
