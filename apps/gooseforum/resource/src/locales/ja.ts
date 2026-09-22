@@ -1728,6 +1728,10 @@ export default {
     emptyTopics: 'まだトピックを投稿していません。',
     emptyActivity: 'アクティビティはありません。',
     emptyData: 'データはありません。',
+    connectionsLabel: 'フォロー関係',
+    connectionsBack: '{name} のプロフィールに戻る',
+    followingCount: 'フォロー中 {count}',
+    followersCount: 'フォロワー {count}',
     tabs: {
       summary: '概要',
       topics: 'トピック',

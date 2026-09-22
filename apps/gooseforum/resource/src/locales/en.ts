@@ -1729,6 +1729,10 @@ export default {
     emptyTopics: 'No topics posted yet.',
     emptyActivity: 'No activity yet.',
     emptyData: 'No data.',
+    connectionsLabel: 'Follow relationships',
+    connectionsBack: 'Back to {name}\'s profile',
+    followingCount: 'Following {count}',
+    followersCount: 'Followers {count}',
     tabs: {
       summary: 'Summary',
       topics: 'Topics',

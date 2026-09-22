@@ -16,6 +16,8 @@ func TestResolveUserProfileSection(t *testing.T) {
 		{name: "default summary", raw: "", want: userProfileSectionSummary},
 		{name: "activity", raw: "activity", want: userProfileSectionActivity},
 		{name: "badges", raw: "badges", want: userProfileSectionBadges},
+		{name: "following", raw: "following", want: userProfileSectionFollowing},
+		{name: "followers", raw: "followers", want: userProfileSectionFollowers},
 		{name: "unknown falls back", raw: "topics", want: userProfileSectionSummary},
 	}
 
@@ -93,5 +95,26 @@ func TestBuildUserActivityTimelineCursorURL(t *testing.T) {
 func TestBuildUserActivityLikeCursorURL(t *testing.T) {
 	if got := buildUserActivityLikeCursorURL(123, "456"); got != "/u/123/activity/likes?cursor=456" {
 		t.Fatalf("buildUserActivityLikeCursorURL() = %q", got)
+	}
+}
+
+func TestBuildUserConnectionPagination(t *testing.T) {
+	got := buildUserConnectionPagination(123, userProfileSectionFollowing, 2, true)
+	if got.Page != 2 || got.NextPage != 3 || !got.HasNext || got.NextURL != "/u/123/following?page=3" {
+		t.Fatalf("buildUserConnectionPagination() = %+v", got)
+	}
+
+	got = buildUserConnectionPagination(123, userProfileSectionFollowers, 3, false)
+	if got.Page != 3 || got.NextPage != 0 || got.HasNext || got.NextURL != "" {
+		t.Fatalf("buildUserConnectionPagination() without next = %+v", got)
+	}
+}
+
+func TestBuildUserProfileActivityTabsExcludeConnections(t *testing.T) {
+	tabs := buildUserProfileActivityTabs(123, userProfileSectionActivity, userProfileActivityTimeline)
+	for _, tab := range tabs {
+		if isUserConnectionSection(tab.Key) {
+			t.Fatalf("activity tab %q should use a standalone section", tab.Key)
+		}
 	}
 }

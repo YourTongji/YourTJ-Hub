@@ -1,9 +1,9 @@
 package forum
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
 
@@ -12,6 +12,8 @@ const (
 	userProfileSectionActivity  = "activity"
 	userProfileSectionBadges    = "badges"
 	userProfileSectionBookmarks = "bookmarks"
+	userProfileSectionFollowing = "following"
+	userProfileSectionFollowers = "followers"
 
 	userProfileActivityTimeline  = "timeline"
 	userProfileActivityTopics    = "topics"
@@ -32,12 +34,21 @@ func UserProfile(c *gin.Context) {
 	// 收藏列表仅对本人可见：他人（含匿名）访问 /u/:id/bookmarks 一律 404，
 	// 避免泄露他人收藏内容与收藏时间。
 	section := resolveUserProfileSection(c.Param("section"))
+	activitySection := resolveUserProfileActivitySection(c.Param("subsection"))
+	if section == userProfileSectionActivity && isUserConnectionSection(activitySection) {
+		// Keep old activity URLs working while exposing the same canonical props as
+		// /u/:id/following and /u/:id/followers.
+		section = activitySection
+	}
+	if isUserConnectionSection(section) {
+		activitySection = section
+	}
 	if section == userProfileSectionBookmarks && component.LoginUserId(c) != user.Id {
 		RenderNotFoundPage(c, component.MessagePageNotFound)
 		return
 	}
 
-	props := buildUserProfileProps(c, user, section, resolveUserProfileActivitySection(c.Param("subsection")))
+	props := buildUserProfileProps(c, user, section, activitySection)
 	payload := PagePayload{
 		Component: PageComponentUser,
 		Props:     props,
@@ -51,11 +62,15 @@ func UserProfile(c *gin.Context) {
 
 func resolveUserProfileSection(raw string) string {
 	switch raw {
-	case userProfileSectionActivity, userProfileSectionBadges, userProfileSectionBookmarks:
+	case userProfileSectionActivity, userProfileSectionBadges, userProfileSectionBookmarks, userProfileSectionFollowing, userProfileSectionFollowers:
 		return raw
 	default:
 		return userProfileSectionSummary
 	}
+}
+
+func isUserConnectionSection(section string) bool {
+	return section == userProfileSectionFollowing || section == userProfileSectionFollowers
 }
 
 func resolveUserProfileActivitySection(raw string) string {

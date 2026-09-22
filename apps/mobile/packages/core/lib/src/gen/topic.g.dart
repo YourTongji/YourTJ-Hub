@@ -238,6 +238,11 @@ Map<String, dynamic> _$$TopicDetailPayloadImplToJson(
 
 _$PostPayloadImpl _$$PostPayloadImplFromJson(Map<String, dynamic> json) =>
     _$PostPayloadImpl(
+      mentions:
+          (json['mentions'] as List<dynamic>?)
+              ?.map((e) => PostMention.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const <PostMention>[],
       id: (json['id'] as num).toInt(),
       topicId: (json['topicId'] as num).toInt(),
       postNo: (json['postNo'] as num).toInt(),
@@ -270,6 +275,7 @@ _$PostPayloadImpl _$$PostPayloadImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$PostPayloadImplToJson(_$PostPayloadImpl instance) =>
     <String, dynamic>{
+      'mentions': instance.mentions,
       'id': instance.id,
       'topicId': instance.topicId,
       'postNo': instance.postNo,
@@ -389,3 +395,19 @@ Map<String, dynamic> _$$TopicDetailPermissionsImplToJson(
   'canPost': instance.canPost,
   'canModerateTopic': instance.canModerateTopic,
 };
+
+_$PostMentionImpl _$$PostMentionImplFromJson(Map<String, dynamic> json) =>
+    _$PostMentionImpl(
+      username: json['username'] as String,
+      userId: (json['userId'] as num).toInt(),
+      start: (json['start'] as num).toInt(),
+      end: (json['end'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$$PostMentionImplToJson(_$PostMentionImpl instance) =>
+    <String, dynamic>{
+      'username': instance.username,
+      'userId': instance.userId,
+      'start': instance.start,
+      'end': instance.end,
+    };

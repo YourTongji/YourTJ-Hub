@@ -367,7 +367,16 @@ export interface TopicDetailPayload {
   contentType: 0 | 1 | 2 | 3
 }
 
+export interface PostMention {
+  username: string
+  userId: number
+  /** UTF-16 offsets into the unchanged raw content; end is exclusive. */
+  start: number
+  end: number
+}
+
 export interface PostPayload {
+  mentions?: PostMention[]
   id: number
   topicId: number
   postNo: number
@@ -589,7 +598,7 @@ export interface UserCardPayload {
 
 export interface UserProfileProps {
   user: UserCardPayload
-  section: 'summary' | 'activity' | 'badges' | 'bookmarks'
+  section: 'summary' | 'activity' | 'badges' | 'bookmarks' | 'following' | 'followers'
   activityTab: 'timeline' | 'topics' | 'likes' | 'bookmarks' | 'following' | 'followers'
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
   activityTabs: Array<{ key: string; label?: string; url: string; active: boolean }>
@@ -668,6 +677,8 @@ export interface UserConnectionPayload {
   avatarUrl: string
   bio: string
   url: string
+  isFollowing: boolean
+  isSelf: boolean
 }
 
 export interface CategoryPageProps {

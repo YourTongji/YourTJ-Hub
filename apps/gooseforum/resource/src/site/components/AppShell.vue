@@ -49,25 +49,8 @@ import WikiSearchPanel from './WikiSearchPanel.vue'
 import PublishMenu from './PublishMenu.vue'
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
 
-import { useShellState } from '@/runtime/shell-state'
-
 const route = useRoute()
 const router = useRouter()
-const shellState = useShellState()
-const isPublishPage = computed(() => route?.path === '/publish' || route?.name === 'publish')
-const isTopicPage = computed(() => {
-  if (shellState.isTopicPage) return true
-  const path = route?.path || ''
-  return path.startsWith('/p/post') || path.startsWith('/topics') || path.startsWith('/p/topic')
-})
-const isSchedulePage = computed(() => {
-  const path = route?.path || ''
-  return path === '/schedule' || path.startsWith('/schedule/') || route?.name === 'schedule'
-})
-const isCoursePage = computed(() => {
-  const path = route?.path || ''
-  return path === '/courses' || path.startsWith('/courses/') || path.includes('/courses') || route?.name === 'courses' || route?.name === 'course'
-})
 
 const props = defineProps<{
   layout: LayoutPayload
@@ -996,7 +979,7 @@ async function loadUserCard() {
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。
-         若已在 /publish、帖子详情页、/schedule 排课器或 /courses 课程页面，则主动隐去，避免遮挡课表与关键交互操作。 -->
-    <PublishMenu v-if="layout.viewer.isAuthenticated && !isPublishPage && !isTopicPage && !isSchedulePage && !isCoursePage" variant="fab" />
+         仅在首页显示，避免遮挡其他页面内容与交互。 -->
+    <PublishMenu v-if="layout.viewer.isAuthenticated && route.path === '/'" variant="fab" />
   </div>
 </template>

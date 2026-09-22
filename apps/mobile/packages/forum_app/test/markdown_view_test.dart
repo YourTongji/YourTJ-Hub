@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,6 +79,57 @@ TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
 }
 
 void main() {
+  testWidgets('server mention mapping opens native user page', (tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => const Scaffold(
+            body: GfMarkdownView(
+              data: '😀 @alice_smith `@alice_smith`',
+              mentions: [
+                PostMention(
+                  username: 'alice_smith',
+                  userId: 42,
+                  start: 3,
+                  end: 15,
+                ),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/u/:id',
+          builder: (_, state) =>
+              Scaffold(body: Text('profile ${state.pathParameters['id']}')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: gfThemeData(Brightness.light),
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final links = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((text) => _linkRecognizer(text.text))
+        .whereType<TapGestureRecognizer>()
+        .toList();
+    expect(links, hasLength(1));
+    links.single.onTap!();
+    await tester.pumpAndSettle();
+    expect(find.text('profile 42'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets(
     'standalone URL resolves once and renders a responsive preview card',
     (tester) async {
@@ -124,46 +176,47 @@ void main() {
     },
   );
 
-  testWidgets('campus cards localize fallback copy when the server sends no name', (
-    tester,
-  ) async {
-    // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
-    // 都为空，兜底文案必须由客户端 l10n 出（服务端不留任何中文）。修复前这里
-    // 会走到 `preview.title!`，直接抛 null。
-    const String url = 'https://agent.tongji.edu.cn/chat';
-    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
-      LinkPreviewPayload(
-        requestedUrl: url,
-        kind: 'external',
-        status: 'ready',
-        url: url,
-        displayHost: 'agent.tongji.edu.cn',
-        siteName: 'agent.tongji.edu.cn',
-        campus: true,
-      ),
-    ]);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: <Override>[
-          linkPreviewRepositoryProvider.overrideWithValue(repository),
-        ],
-        child: MaterialApp(
-          locale: const Locale('zh'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(body: GfMarkdownView(data: url)),
+  testWidgets(
+    'campus cards localize fallback copy when the server sends no name',
+    (tester) async {
+      // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
+      // 都为空，兜底文案必须由客户端 l10n 出（服务端不留任何中文）。修复前这里
+      // 会走到 `preview.title!`，直接抛 null。
+      const String url = 'https://agent.tongji.edu.cn/chat';
+      final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+        LinkPreviewPayload(
+          requestedUrl: url,
+          kind: 'external',
+          status: 'ready',
+          url: url,
+          displayHost: 'agent.tongji.edu.cn',
+          siteName: 'agent.tongji.edu.cn',
+          campus: true,
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      ]);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            linkPreviewRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: GfMarkdownView(data: url)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(repository.requestedUrls, <String>[url]);
-    expect(find.text('校园网'), findsOneWidget);
-    expect(find.text('需校园网络访问'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 600));
-  });
+      expect(repository.requestedUrls, <String>[url]);
+      expect(find.text('校园网'), findsOneWidget);
+      expect(find.text('需校园网络访问'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
 
   testWidgets('configured campus names win over the localized fallback', (
     tester,

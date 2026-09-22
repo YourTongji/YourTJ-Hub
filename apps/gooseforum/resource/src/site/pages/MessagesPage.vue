@@ -78,7 +78,7 @@ onMounted(() => {
     }
     const username = params.get('username') || t('notifications.actorFallback')
     const avatar = params.get('avatar') || '/static/pic/default-avatar.webp'
-    void startChat({ id: targetUserId, username, nickname: username, avatarUrl: avatar, bio: '', url: `/u/${targetUserId}` })
+    void startChat({ id: targetUserId, username, nickname: username, avatarUrl: avatar, url: `/u/${targetUserId}` })
     return
   }
 
@@ -225,7 +225,7 @@ function appendEmoji(emoji: string) {
   void nextTick(() => messageInput.value?.focus())
 }
 
-async function startChat(user: UserConnectionPayload) {
+async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | 'nickname' | 'avatarUrl' | 'url'>) {
   const existing = conversations.value.find((item) => item.peerId === user.id)
   if (existing) {
     await selectConversation(existing)

@@ -1728,6 +1728,10 @@ export default {
     emptyTopics: 'Keine veröffentlichten Themen.',
     emptyActivity: 'Keine Aktivität.',
     emptyData: 'Keine Daten.',
+    connectionsLabel: 'Follow-Beziehungen',
+    connectionsBack: 'Zurück zu {name}s Profil',
+    followingCount: 'Folgt {count}',
+    followersCount: 'Follower {count}',
     tabs: {
       summary: 'Übersicht',
       topics: 'Themen',

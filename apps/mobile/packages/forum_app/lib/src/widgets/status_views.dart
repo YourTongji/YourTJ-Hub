@@ -37,13 +37,15 @@ class GfErrorRetry extends StatelessWidget {
 }
 
 /// 列表底部加载指示器。
-class GfListFooter extends StatelessWidget {
+class GfListFooter extends StatefulWidget {
   const GfListFooter({
     super.key,
     required this.loading,
     required this.hasMore,
     required this.onLoadMore,
     this.error,
+    this.progressKey,
+    this.autoLoad = true,
   });
 
   final bool loading;
@@ -51,16 +53,82 @@ class GfListFooter extends StatelessWidget {
   final VoidCallback onLoadMore;
   final String? error;
 
+  /// Next cursor or loaded count. A failed/no-progress response is not retried
+  /// automatically; the visible button remains available for an explicit retry.
+  final Object? progressKey;
+  final bool autoLoad;
+
+  @override
+  State<GfListFooter> createState() => _GfListFooterState();
+}
+
+class _GfListFooterState extends State<GfListFooter> {
+  ScrollPosition? _position;
+  bool _requested = false;
+  bool _scheduled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = Scrollable.maybeOf(context)?.position;
+    if (!identical(next, _position)) {
+      _position?.removeListener(_schedule);
+      _position = next;
+      _position?.addListener(_schedule);
+    }
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(covariant GfListFooter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progressKey != widget.progressKey) _requested = false;
+    _schedule();
+  }
+
+  void _schedule() {
+    if (_scheduled || !mounted) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted ||
+          _requested ||
+          !widget.autoLoad ||
+          widget.loading ||
+          !widget.hasMore ||
+          widget.error != null ||
+          _position == null ||
+          !TickerMode.valuesOf(context).enabled) {
+        return;
+      }
+      final box = context.findRenderObject();
+      if (box is! RenderBox || !box.hasSize || !box.attached) return;
+      final top = box.localToGlobal(Offset.zero).dy;
+      if (top + box.size.height < 0 ||
+          top > MediaQuery.sizeOf(context).height + 240) {
+        return;
+      }
+      _requested = true;
+      widget.onLoadMore();
+    });
+  }
+
+  @override
+  void dispose() {
+    _position?.removeListener(_schedule);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    if (loading) {
+    if (widget.loading) {
       return const Padding(
         padding: EdgeInsets.all(16),
         child: Center(child: GfLoadingIndicator(small: true)),
       );
     }
-    if (!hasMore) {
+    if (!widget.hasMore) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Center(
@@ -77,18 +145,18 @@ class GfListFooter extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          if (error != null)
+          if (widget.error != null)
             Text(
-              error!,
+              widget.error!,
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.error),
             ),
           GfButton(
-            label: error == null
+            label: widget.error == null
                 ? AppLocalizations.of(context).commonLoadMore
                 : AppLocalizations.of(context).commonRetry,
             variant: GfButtonVariant.ghost,
-            onPressed: onLoadMore,
+            onPressed: widget.onLoadMore,
           ),
         ],
       ),
