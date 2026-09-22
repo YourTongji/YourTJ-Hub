@@ -270,6 +270,11 @@
       "method": "GET",
       "path": "/campus",
       "reason": "SSR campus shell; private data uses controlled /api/campus operations"
+    },
+    {
+      "method": "GET",
+      "path": "/register/tongji",
+      "reason": "SSR 同济注册完成页（GoHTML 三模渲染），非 JSON API；状态及提交受 /api/auth/tongji/registration 契约控制。"
     }
   ],
   "knownUncovered": []

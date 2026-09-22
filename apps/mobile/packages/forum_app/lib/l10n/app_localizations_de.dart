@@ -2385,7 +2385,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      'Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.';
+      'Nach der ersten Hochschulprüfung Benutzername und Passwort wählen. Matrikelnummer@tongji.edu.cn und Campus-Verbindung werden ohne erneute E-Mail-Prüfung bestätigt.';
 
   @override
   String get loginTongjiPolicies =>

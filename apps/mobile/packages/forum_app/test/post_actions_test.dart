@@ -301,8 +301,7 @@ void main() {
     await tester.tap(find.byType(ExpansionTile).first);
     await tester.pumpAndSettle();
     expect(find.text('This version is unavailable'), findsOneWidget);
-    await tester.tap(find.text('Load more'));
-    await tester.pumpAndSettle();
+    // Short histories fill the viewport automatically using the older cursor.
     expect(repository.cursors, [0, 2]);
     expect(find.byType(ExpansionTile), findsNWidgets(2));
     expect(find.text('Load more'), findsNothing);

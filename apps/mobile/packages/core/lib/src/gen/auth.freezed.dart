@@ -21,6 +21,7 @@ LoginPageProps _$LoginPagePropsFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$LoginPageProps {
+  bool get tongjiRegistration => throw _privateConstructorUsedError;
   String get initialMode => throw _privateConstructorUsedError;
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
@@ -53,6 +54,7 @@ abstract class $LoginPagePropsCopyWith<$Res> {
   ) = _$LoginPagePropsCopyWithImpl<$Res, LoginPageProps>;
   @useResult
   $Res call({
+    bool tongjiRegistration,
     String initialMode,
     String redirectUrl,
     String githubUrl,
@@ -82,6 +84,7 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? tongjiRegistration = null,
     Object? initialMode = null,
     Object? redirectUrl = null,
     Object? githubUrl = null,
@@ -96,6 +99,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
   }) {
     return _then(
       _value.copyWith(
+            tongjiRegistration: null == tongjiRegistration
+                ? _value.tongjiRegistration
+                : tongjiRegistration // ignore: cast_nullable_to_non_nullable
+                      as bool,
             initialMode: null == initialMode
                 ? _value.initialMode
                 : initialMode // ignore: cast_nullable_to_non_nullable
@@ -156,6 +163,7 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    bool tongjiRegistration,
     String initialMode,
     String redirectUrl,
     String githubUrl,
@@ -184,6 +192,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? tongjiRegistration = null,
     Object? initialMode = null,
     Object? redirectUrl = null,
     Object? githubUrl = null,
@@ -198,6 +207,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$LoginPagePropsImpl(
+        tongjiRegistration: null == tongjiRegistration
+            ? _value.tongjiRegistration
+            : tongjiRegistration // ignore: cast_nullable_to_non_nullable
+                  as bool,
         initialMode: null == initialMode
             ? _value.initialMode
             : initialMode // ignore: cast_nullable_to_non_nullable
@@ -251,6 +264,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$LoginPagePropsImpl implements _LoginPageProps {
   const _$LoginPagePropsImpl({
+    this.tongjiRegistration = false,
     required this.initialMode,
     required this.redirectUrl,
     required this.githubUrl,
@@ -267,6 +281,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   factory _$LoginPagePropsImpl.fromJson(Map<String, dynamic> json) =>
       _$$LoginPagePropsImplFromJson(json);
 
+  @override
+  @JsonKey()
+  final bool tongjiRegistration;
   @override
   final String initialMode;
   @override
@@ -306,7 +323,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   String toString() {
-    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
+    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -314,6 +331,8 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoginPagePropsImpl &&
+            (identical(other.tongjiRegistration, tongjiRegistration) ||
+                other.tongjiRegistration == tongjiRegistration) &&
             (identical(other.initialMode, initialMode) ||
                 other.initialMode == initialMode) &&
             (identical(other.redirectUrl, redirectUrl) ||
@@ -344,6 +363,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    tongjiRegistration,
     initialMode,
     redirectUrl,
     githubUrl,
@@ -376,6 +396,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
 abstract class _LoginPageProps implements LoginPageProps {
   const factory _LoginPageProps({
+    final bool tongjiRegistration,
     required final String initialMode,
     required final String redirectUrl,
     required final String githubUrl,
@@ -392,6 +413,8 @@ abstract class _LoginPageProps implements LoginPageProps {
   factory _LoginPageProps.fromJson(Map<String, dynamic> json) =
       _$LoginPagePropsImpl.fromJson;
 
+  @override
+  bool get tongjiRegistration;
   @override
   String get initialMode;
   @override
@@ -2690,5 +2713,600 @@ abstract class _SuccessMessagePayload implements SuccessMessagePayload {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$SuccessMessagePayloadImplCopyWith<_$SuccessMessagePayloadImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+TongjiRegistrationStatusPayload _$TongjiRegistrationStatusPayloadFromJson(
+  Map<String, dynamic> json,
+) {
+  return _TongjiRegistrationStatusPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$TongjiRegistrationStatusPayload {
+  String get csrfToken => throw _privateConstructorUsedError;
+  String get email => throw _privateConstructorUsedError;
+  String get expiresAt => throw _privateConstructorUsedError;
+
+  /// Serializes this TongjiRegistrationStatusPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of TongjiRegistrationStatusPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $TongjiRegistrationStatusPayloadCopyWith<TongjiRegistrationStatusPayload>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $TongjiRegistrationStatusPayloadCopyWith<$Res> {
+  factory $TongjiRegistrationStatusPayloadCopyWith(
+    TongjiRegistrationStatusPayload value,
+    $Res Function(TongjiRegistrationStatusPayload) then,
+  ) =
+      _$TongjiRegistrationStatusPayloadCopyWithImpl<
+        $Res,
+        TongjiRegistrationStatusPayload
+      >;
+  @useResult
+  $Res call({String csrfToken, String email, String expiresAt});
+}
+
+/// @nodoc
+class _$TongjiRegistrationStatusPayloadCopyWithImpl<
+  $Res,
+  $Val extends TongjiRegistrationStatusPayload
+>
+    implements $TongjiRegistrationStatusPayloadCopyWith<$Res> {
+  _$TongjiRegistrationStatusPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of TongjiRegistrationStatusPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? csrfToken = null,
+    Object? email = null,
+    Object? expiresAt = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            csrfToken: null == csrfToken
+                ? _value.csrfToken
+                : csrfToken // ignore: cast_nullable_to_non_nullable
+                      as String,
+            email: null == email
+                ? _value.email
+                : email // ignore: cast_nullable_to_non_nullable
+                      as String,
+            expiresAt: null == expiresAt
+                ? _value.expiresAt
+                : expiresAt // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$TongjiRegistrationStatusPayloadImplCopyWith<$Res>
+    implements $TongjiRegistrationStatusPayloadCopyWith<$Res> {
+  factory _$$TongjiRegistrationStatusPayloadImplCopyWith(
+    _$TongjiRegistrationStatusPayloadImpl value,
+    $Res Function(_$TongjiRegistrationStatusPayloadImpl) then,
+  ) = __$$TongjiRegistrationStatusPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String csrfToken, String email, String expiresAt});
+}
+
+/// @nodoc
+class __$$TongjiRegistrationStatusPayloadImplCopyWithImpl<$Res>
+    extends
+        _$TongjiRegistrationStatusPayloadCopyWithImpl<
+          $Res,
+          _$TongjiRegistrationStatusPayloadImpl
+        >
+    implements _$$TongjiRegistrationStatusPayloadImplCopyWith<$Res> {
+  __$$TongjiRegistrationStatusPayloadImplCopyWithImpl(
+    _$TongjiRegistrationStatusPayloadImpl _value,
+    $Res Function(_$TongjiRegistrationStatusPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of TongjiRegistrationStatusPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? csrfToken = null,
+    Object? email = null,
+    Object? expiresAt = null,
+  }) {
+    return _then(
+      _$TongjiRegistrationStatusPayloadImpl(
+        csrfToken: null == csrfToken
+            ? _value.csrfToken
+            : csrfToken // ignore: cast_nullable_to_non_nullable
+                  as String,
+        email: null == email
+            ? _value.email
+            : email // ignore: cast_nullable_to_non_nullable
+                  as String,
+        expiresAt: null == expiresAt
+            ? _value.expiresAt
+            : expiresAt // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$TongjiRegistrationStatusPayloadImpl
+    implements _TongjiRegistrationStatusPayload {
+  const _$TongjiRegistrationStatusPayloadImpl({
+    required this.csrfToken,
+    required this.email,
+    required this.expiresAt,
+  });
+
+  factory _$TongjiRegistrationStatusPayloadImpl.fromJson(
+    Map<String, dynamic> json,
+  ) => _$$TongjiRegistrationStatusPayloadImplFromJson(json);
+
+  @override
+  final String csrfToken;
+  @override
+  final String email;
+  @override
+  final String expiresAt;
+
+  @override
+  String toString() {
+    return 'TongjiRegistrationStatusPayload(csrfToken: $csrfToken, email: $email, expiresAt: $expiresAt)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$TongjiRegistrationStatusPayloadImpl &&
+            (identical(other.csrfToken, csrfToken) ||
+                other.csrfToken == csrfToken) &&
+            (identical(other.email, email) || other.email == email) &&
+            (identical(other.expiresAt, expiresAt) ||
+                other.expiresAt == expiresAt));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, csrfToken, email, expiresAt);
+
+  /// Create a copy of TongjiRegistrationStatusPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$TongjiRegistrationStatusPayloadImplCopyWith<
+    _$TongjiRegistrationStatusPayloadImpl
+  >
+  get copyWith =>
+      __$$TongjiRegistrationStatusPayloadImplCopyWithImpl<
+        _$TongjiRegistrationStatusPayloadImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$TongjiRegistrationStatusPayloadImplToJson(this);
+  }
+}
+
+abstract class _TongjiRegistrationStatusPayload
+    implements TongjiRegistrationStatusPayload {
+  const factory _TongjiRegistrationStatusPayload({
+    required final String csrfToken,
+    required final String email,
+    required final String expiresAt,
+  }) = _$TongjiRegistrationStatusPayloadImpl;
+
+  factory _TongjiRegistrationStatusPayload.fromJson(Map<String, dynamic> json) =
+      _$TongjiRegistrationStatusPayloadImpl.fromJson;
+
+  @override
+  String get csrfToken;
+  @override
+  String get email;
+  @override
+  String get expiresAt;
+
+  /// Create a copy of TongjiRegistrationStatusPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$TongjiRegistrationStatusPayloadImplCopyWith<
+    _$TongjiRegistrationStatusPayloadImpl
+  >
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+TongjiRegistrationRequest _$TongjiRegistrationRequestFromJson(
+  Map<String, dynamic> json,
+) {
+  return _TongjiRegistrationRequest.fromJson(json);
+}
+
+/// @nodoc
+mixin _$TongjiRegistrationRequest {
+  String get username => throw _privateConstructorUsedError;
+  String get password => throw _privateConstructorUsedError;
+  String get csrfToken => throw _privateConstructorUsedError;
+
+  /// Serializes this TongjiRegistrationRequest to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of TongjiRegistrationRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $TongjiRegistrationRequestCopyWith<TongjiRegistrationRequest> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $TongjiRegistrationRequestCopyWith<$Res> {
+  factory $TongjiRegistrationRequestCopyWith(
+    TongjiRegistrationRequest value,
+    $Res Function(TongjiRegistrationRequest) then,
+  ) = _$TongjiRegistrationRequestCopyWithImpl<$Res, TongjiRegistrationRequest>;
+  @useResult
+  $Res call({String username, String password, String csrfToken});
+}
+
+/// @nodoc
+class _$TongjiRegistrationRequestCopyWithImpl<
+  $Res,
+  $Val extends TongjiRegistrationRequest
+>
+    implements $TongjiRegistrationRequestCopyWith<$Res> {
+  _$TongjiRegistrationRequestCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of TongjiRegistrationRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? username = null,
+    Object? password = null,
+    Object? csrfToken = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            username: null == username
+                ? _value.username
+                : username // ignore: cast_nullable_to_non_nullable
+                      as String,
+            password: null == password
+                ? _value.password
+                : password // ignore: cast_nullable_to_non_nullable
+                      as String,
+            csrfToken: null == csrfToken
+                ? _value.csrfToken
+                : csrfToken // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$TongjiRegistrationRequestImplCopyWith<$Res>
+    implements $TongjiRegistrationRequestCopyWith<$Res> {
+  factory _$$TongjiRegistrationRequestImplCopyWith(
+    _$TongjiRegistrationRequestImpl value,
+    $Res Function(_$TongjiRegistrationRequestImpl) then,
+  ) = __$$TongjiRegistrationRequestImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String username, String password, String csrfToken});
+}
+
+/// @nodoc
+class __$$TongjiRegistrationRequestImplCopyWithImpl<$Res>
+    extends
+        _$TongjiRegistrationRequestCopyWithImpl<
+          $Res,
+          _$TongjiRegistrationRequestImpl
+        >
+    implements _$$TongjiRegistrationRequestImplCopyWith<$Res> {
+  __$$TongjiRegistrationRequestImplCopyWithImpl(
+    _$TongjiRegistrationRequestImpl _value,
+    $Res Function(_$TongjiRegistrationRequestImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of TongjiRegistrationRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? username = null,
+    Object? password = null,
+    Object? csrfToken = null,
+  }) {
+    return _then(
+      _$TongjiRegistrationRequestImpl(
+        username: null == username
+            ? _value.username
+            : username // ignore: cast_nullable_to_non_nullable
+                  as String,
+        password: null == password
+            ? _value.password
+            : password // ignore: cast_nullable_to_non_nullable
+                  as String,
+        csrfToken: null == csrfToken
+            ? _value.csrfToken
+            : csrfToken // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$TongjiRegistrationRequestImpl implements _TongjiRegistrationRequest {
+  const _$TongjiRegistrationRequestImpl({
+    required this.username,
+    required this.password,
+    required this.csrfToken,
+  });
+
+  factory _$TongjiRegistrationRequestImpl.fromJson(Map<String, dynamic> json) =>
+      _$$TongjiRegistrationRequestImplFromJson(json);
+
+  @override
+  final String username;
+  @override
+  final String password;
+  @override
+  final String csrfToken;
+
+  @override
+  String toString() {
+    return 'TongjiRegistrationRequest(username: $username, password: $password, csrfToken: $csrfToken)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$TongjiRegistrationRequestImpl &&
+            (identical(other.username, username) ||
+                other.username == username) &&
+            (identical(other.password, password) ||
+                other.password == password) &&
+            (identical(other.csrfToken, csrfToken) ||
+                other.csrfToken == csrfToken));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, username, password, csrfToken);
+
+  /// Create a copy of TongjiRegistrationRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$TongjiRegistrationRequestImplCopyWith<_$TongjiRegistrationRequestImpl>
+  get copyWith =>
+      __$$TongjiRegistrationRequestImplCopyWithImpl<
+        _$TongjiRegistrationRequestImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$TongjiRegistrationRequestImplToJson(this);
+  }
+}
+
+abstract class _TongjiRegistrationRequest implements TongjiRegistrationRequest {
+  const factory _TongjiRegistrationRequest({
+    required final String username,
+    required final String password,
+    required final String csrfToken,
+  }) = _$TongjiRegistrationRequestImpl;
+
+  factory _TongjiRegistrationRequest.fromJson(Map<String, dynamic> json) =
+      _$TongjiRegistrationRequestImpl.fromJson;
+
+  @override
+  String get username;
+  @override
+  String get password;
+  @override
+  String get csrfToken;
+
+  /// Create a copy of TongjiRegistrationRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$TongjiRegistrationRequestImplCopyWith<_$TongjiRegistrationRequestImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+TongjiRegistrationResult _$TongjiRegistrationResultFromJson(
+  Map<String, dynamic> json,
+) {
+  return _TongjiRegistrationResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$TongjiRegistrationResult {
+  String get redirect => throw _privateConstructorUsedError;
+
+  /// Serializes this TongjiRegistrationResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of TongjiRegistrationResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $TongjiRegistrationResultCopyWith<TongjiRegistrationResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $TongjiRegistrationResultCopyWith<$Res> {
+  factory $TongjiRegistrationResultCopyWith(
+    TongjiRegistrationResult value,
+    $Res Function(TongjiRegistrationResult) then,
+  ) = _$TongjiRegistrationResultCopyWithImpl<$Res, TongjiRegistrationResult>;
+  @useResult
+  $Res call({String redirect});
+}
+
+/// @nodoc
+class _$TongjiRegistrationResultCopyWithImpl<
+  $Res,
+  $Val extends TongjiRegistrationResult
+>
+    implements $TongjiRegistrationResultCopyWith<$Res> {
+  _$TongjiRegistrationResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of TongjiRegistrationResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? redirect = null}) {
+    return _then(
+      _value.copyWith(
+            redirect: null == redirect
+                ? _value.redirect
+                : redirect // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$TongjiRegistrationResultImplCopyWith<$Res>
+    implements $TongjiRegistrationResultCopyWith<$Res> {
+  factory _$$TongjiRegistrationResultImplCopyWith(
+    _$TongjiRegistrationResultImpl value,
+    $Res Function(_$TongjiRegistrationResultImpl) then,
+  ) = __$$TongjiRegistrationResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String redirect});
+}
+
+/// @nodoc
+class __$$TongjiRegistrationResultImplCopyWithImpl<$Res>
+    extends
+        _$TongjiRegistrationResultCopyWithImpl<
+          $Res,
+          _$TongjiRegistrationResultImpl
+        >
+    implements _$$TongjiRegistrationResultImplCopyWith<$Res> {
+  __$$TongjiRegistrationResultImplCopyWithImpl(
+    _$TongjiRegistrationResultImpl _value,
+    $Res Function(_$TongjiRegistrationResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of TongjiRegistrationResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? redirect = null}) {
+    return _then(
+      _$TongjiRegistrationResultImpl(
+        redirect: null == redirect
+            ? _value.redirect
+            : redirect // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$TongjiRegistrationResultImpl implements _TongjiRegistrationResult {
+  const _$TongjiRegistrationResultImpl({required this.redirect});
+
+  factory _$TongjiRegistrationResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$TongjiRegistrationResultImplFromJson(json);
+
+  @override
+  final String redirect;
+
+  @override
+  String toString() {
+    return 'TongjiRegistrationResult(redirect: $redirect)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$TongjiRegistrationResultImpl &&
+            (identical(other.redirect, redirect) ||
+                other.redirect == redirect));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, redirect);
+
+  /// Create a copy of TongjiRegistrationResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$TongjiRegistrationResultImplCopyWith<_$TongjiRegistrationResultImpl>
+  get copyWith =>
+      __$$TongjiRegistrationResultImplCopyWithImpl<
+        _$TongjiRegistrationResultImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$TongjiRegistrationResultImplToJson(this);
+  }
+}
+
+abstract class _TongjiRegistrationResult implements TongjiRegistrationResult {
+  const factory _TongjiRegistrationResult({required final String redirect}) =
+      _$TongjiRegistrationResultImpl;
+
+  factory _TongjiRegistrationResult.fromJson(Map<String, dynamic> json) =
+      _$TongjiRegistrationResultImpl.fromJson;
+
+  @override
+  String get redirect;
+
+  /// Create a copy of TongjiRegistrationResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$TongjiRegistrationResultImplCopyWith<_$TongjiRegistrationResultImpl>
   get copyWith => throw _privateConstructorUsedError;
 }

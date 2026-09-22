@@ -108,3 +108,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0032](0032-tongji-login-and-registration.md) — 同济统一认证登录，原子创建已激活账号并复用校园绑定。
 
 - [0033](0033-campus-foreground-memory-cache.md) — Flutter 校园页使用经绑定核验的五分钟前台内存缓存。
+
+- [0034](0034-tongji-registration-completion.md) — 同济认证后选择用户名和密码，再原子完成注册。

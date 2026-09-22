@@ -1,0 +1,48 @@
+{
+  "result": {
+    "posts": [
+      {
+        "id": 9201,
+        "topicId": 9101,
+        "postNo": 1,
+        "content": "😀 @contract-window-author",
+        "renderedContent": "<p>😀 <a href=\"/u/9301\">@contract-window-author</a></p>\n",
+        "processStatus": 0,
+        "isHidden": false,
+        "isAuthorDeleted": false,
+        "isModeratorRemoved": false,
+        "canModerate": false,
+        "author": {
+          "id": 9301,
+          "username": "contract-window-author",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "isAnonymous": false,
+        "createdAt": "2026-08-01T12:00:00Z",
+        "isOwnPost": false,
+        "updatedAt": "2026-08-01T12:00:00Z",
+        "revisionCount": 0,
+        "likeCount": 0,
+        "isLiked": false,
+        "isBookmarked": false,
+        "isAnswer": false,
+        "mentions": [
+          {
+            "username": "contract-window-author",
+            "userId": 9301,
+            "start": 3,
+            "end": 26
+          }
+        ]
+      }
+    ],
+    "replyTargets": [],
+    "beforePostNo": 1,
+    "afterPostNo": 1,
+    "hasBefore": false,
+    "hasAfter": false,
+    "total": 1,
+    "maxPostNo": 1
+  },
+  "code": 0
+}

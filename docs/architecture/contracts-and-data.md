@@ -448,3 +448,11 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Native post mentions
+
+**Current**: `PostPayload.mentions` maps visible raw Markdown occurrences to current numeric
+user IDs. Each entry includes the username and an exclusive UTF-16 source range. The service
+resolves a payload's names in one batch after body redaction; clients validate the exact source
+slice and render ordinary internal links without persisting the expansion. Older responses
+without mappings remain readable as plain text.

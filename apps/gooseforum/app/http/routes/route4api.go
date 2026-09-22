@@ -120,6 +120,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
+	viewRouteApp.GET("/register/tongji", forum.TongjiRegistration)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
 	viewRouteApp.GET("/terms", forum.Terms)
 	viewRouteApp.GET("/privacy", forum.Privacy)
@@ -177,6 +178,8 @@ func apiRoute(ginApp *gin.Engine) {
 
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
+	baseApi.GET("auth/tongji/registration", api.TongjiRegistrationStatus)
+	baseApi.POST("auth/tongji/registration", middleware.RateLimit(middleware.RateLimitRegister), api.TongjiRegister)
 	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
 	baseApi.POST("logout", middleware.CSRFProtection, api.Logout)
 

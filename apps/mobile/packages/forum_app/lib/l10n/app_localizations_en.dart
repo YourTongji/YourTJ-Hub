@@ -2358,7 +2358,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.';
+      'After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.';
 
   @override
   String get loginTongjiPolicies =>

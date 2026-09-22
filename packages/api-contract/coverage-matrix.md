@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：323
-- /api JSON 路由：258，已入契约：259（100%），已知未覆盖：0
-- 非 API 排除路由：64
+- 快照路由总数：326
+- /api JSON 路由：260，已入契约：261（100%），已知未覆盖：0
+- 非 API 排除路由：65
 
-## 已覆盖（259）
+## 已覆盖（261）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -51,6 +51,7 @@
 | GET | `/api/admin/wiki/sync/webhook-secret` | `getWikiWebhookSecret` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
 | GET | `/api/auth/mobile-web-session` | `mobileWebSession` |
+| GET | `/api/auth/tongji/registration` | `tongjiRegistrationStatus` |
 | GET | `/api/campus/calendar-export` | `campusCalendarExport` |
 | GET | `/api/campus/calendar-rules` | `campusCalendarRules` |
 | GET | `/api/campus/data/:dataset` | `campusDataset` |
@@ -172,6 +173,7 @@
 | POST | `/api/admin/wiki/sync/webhook-secret` | `saveWikiWebhookSecret` |
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
 | POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
+| POST | `/api/auth/tongji/registration` | `tongjiRegister` |
 | POST | `/api/auth/totp/verify` | `verifyTotpLogin` |
 | POST | `/api/campus/tongji/confirm` | `campusConfirm` |
 | POST | `/api/campus/tongji/start` | `campusStart` |
@@ -277,7 +279,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，64）
+## 排除（非 JSON API，65）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -315,6 +317,7 @@
 | GET | `/p/posts/:document` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/privacy` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/publish` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/register/tongji` | SSR 同济注册完成页（GoHTML 三模渲染），非 JSON API；状态及提交受 /api/auth/tongji/registration 契约控制。 |
 | GET | `/reload` | 开发期模板热重载端点，非 JSON API |
 | GET | `/reset-password` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/robots.txt` | SEO/机器可读文本输出，非 JSON API |

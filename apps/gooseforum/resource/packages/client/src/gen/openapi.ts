@@ -137,7 +137,7 @@ export interface paths {
         };
         /**
          * Complete Tongji campus binding or forum sign-in
-         * @description Uses the purpose of server-issued state. Binding/replace/reauthorize requires the original writable forum session and explicit campus confirmation. Login state instead requires the same browser's HttpOnly yourtj_tongji_login cookie, expires after ten minutes, and is consumed once before exchange. Both verify PKCE S256, nonce, RS256 issuer/audience and the school identity. Login reuses the mutually unique binding or, only for a never-bound identity, atomically creates an ordinary activated forum account with student-ID@tongji.edu.cn, no password, and encrypted campus credentials. New registrations honor signup/domain/daily-quota policy. Daily quota is serialized with password registration; account closure does not release the creation-day slot. A retained identity fingerprint prevents repeat automatic registration after unlink, replacement or closure; accountExists directs the user to recover/sign into an existing account and bind explicitly. Existing or freshly staged email claims are never auto-linked; frozen, bot and deleted accounts cannot sign in. The original safe local redirect (including the mobile OIDC bridge) is stored server-side; callback redirects are ignored. Every handled response scrubs authorization parameters and uses private, no-store and no-referrer. Rejected guards never exchange the code.
+         * @description Uses the purpose of server-issued state. Binding/replace/reauthorize requires the original writable forum session and explicit campus confirmation. Login state instead requires the same browser's HttpOnly yourtj_tongji_login cookie, expires after ten minutes, and is consumed once before exchange. Both verify PKCE S256, nonce, RS256 issuer/audience and the school identity. Login reuses the mutually unique binding or, only for a never-bound identity, prepares a short-lived registration proof. The user then chooses username/password at /register/tongji; final submission atomically creates an activated ordinary account with student-ID@tongji.edu.cn, the chosen password hash, and encrypted campus credentials. No further email verification is required. No account or forum session is created before submission. New registrations honor signup/domain/daily-quota policy. Daily quota is serialized with password registration; account closure does not release the creation-day slot. A retained identity fingerprint prevents repeat automatic registration after unlink, replacement or closure; accountExists directs the user to recover/sign into an existing account and bind explicitly. Existing or freshly staged email claims are never auto-linked; frozen, bot and deleted accounts cannot sign in. The original safe local redirect (including the mobile OIDC bridge) is stored server-side; callback redirects are ignored. Every handled response scrubs authorization parameters and uses private, no-store and no-referrer. Rejected guards never exchange the code.
          */
         get: operations["campusCallback"];
         put?: never;
@@ -417,6 +417,30 @@ export interface paths {
          *     10 requests per hour per IP.
          */
         post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/tongji/registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read pending school registration
+         * @description Requires the browser registration cookie from a verified school callback. Ten-minute original authorization deadline, no renewal. The GET exposes an independent CSRF token for the same-origin form. POST requires that token and chosen username/password; no email challenge. Existing accounts never enter this flow. No school tokens reach the browser.
+         */
+        get: operations["tongjiRegistrationStatus"];
+        put?: never;
+        /**
+         * Complete school-verified registration
+         * @description Requires the browser registration cookie from a verified school callback. Ten-minute original authorization deadline, no renewal. The GET exposes an independent CSRF token for the same-origin form. POST requires that token and chosen username/password; no email challenge. Existing accounts never enter this flow. No school tokens reach the browser.
+         */
+        post: operations["tongjiRegister"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10010,6 +10034,8 @@ export interface components {
             wornBadge?: Record<string, never> | null;
         };
         PostPayload: {
+            /** @description Server-resolved mention occurrences in the raw content returned to this viewer; UTF-16 offsets, end exclusive. Empty when the body is redacted or deleted. Moderators receiving an unredacted hidden body also receive its mention mappings. Older servers may omit this field. */
+            mentions?: components["schemas"]["PostMention"][];
             /** Format: uint64 */
             id: number;
             /** Format: uint64 */
@@ -11452,6 +11478,38 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        TongjiRegistrationStatus: {
+            csrfToken: string;
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        TongjiRegistrationStatusResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TongjiRegistrationStatus"];
+        };
+        TongjiRegistrationRequest: {
+            username: string;
+            /**
+             * Format: password
+             * @description Must contain an ASCII letter and digit; Unicode character count matches password registration.
+             */
+            password: string;
+            csrfToken: string;
+        };
+        TongjiRegistrationResult: {
+            /** @description Original server-stored safe local continuation, including native OIDC. */
+            redirect: string;
+        };
+        TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TongjiRegistrationResult"];
+        };
+        PostMention: {
+            username: string;
+            /** Format: uint64 */
+            userId: number;
+            start: number;
+            end: number;
+        };
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
@@ -12079,7 +12137,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Binding returns to /campus?authorization=ready|failed. Sign-in returns to its server-stored local destination and sets a forum session cookie, or /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location. */
+            /** @description Binding returns to /campus?authorization=ready|failed. Sign-in returns existing accounts to the server-stored local destination with a forum session. New identities receive a registration-only HttpOnly cookie and visit /register/tongji without a forum session. Failures return to /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location. */
             303: {
                 headers: {
                     Location?: string;
@@ -12444,6 +12502,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    tongjiRegistrationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private, no-store response. Completion also issues a forum session and consumes the registration proof. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TongjiRegistrationStatusResponse"];
+                };
+            };
+            /** @description Missing, expired or consumed registration cookie. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Campus provider unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    tongjiRegister: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TongjiRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Private, no-store response. Completion also issues a forum session and consumes the registration proof. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TongjiRegistrationResultResponse"];
+                };
+            };
+            /** @description Invalid JSON, username or password. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or mismatched registration CSRF proof. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description No partial account is created. A collision of the verified school identity or its student email with an existing account returns auth.tongji.accountExists with recovery guidance (the requester is already school-verified, so naming the conflict is not an enumeration oracle). Other collisions, registration policy and daily-quota rejections share the generic auth.register.failed body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, expired or consumed registration cookie. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Registration rate limit. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Password hashing or session creation failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Campus provider unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
