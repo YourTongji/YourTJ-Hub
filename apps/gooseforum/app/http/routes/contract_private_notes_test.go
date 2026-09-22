@@ -32,6 +32,11 @@ func TestPrivateNotesHTTPContract(t *testing.T) {
 			t.Fatal("private response can be cached")
 		}
 	}
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/user-notes", "", "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated read: %d %s", rec.Code, rec.Body)
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "auth-required.json"))
 	public := serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/user-card?userId=%d", target.Id), "", token)
 	if strings.Contains(public.Body.String(), "实验搭档") {
 		t.Fatal("private note leaked into public card")

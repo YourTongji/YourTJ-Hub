@@ -944,3 +944,18 @@ privateNote:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: User-note write rate limit (action `user.note`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/user-note-rate-limited.json

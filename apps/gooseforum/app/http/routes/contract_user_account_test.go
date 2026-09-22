@@ -72,7 +72,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginAPI.POST("/set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginAPI.GET("/user-notes", UpQueryReq(api.GetPrivateNotes))
-	loginAPI.POST("/user-note", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetPrivateNote))
+	loginAPI.POST("/user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginAPI.POST("/wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginAPI.POST("/upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginAPI.POST("/change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))

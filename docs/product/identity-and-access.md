@@ -383,8 +383,10 @@ lists. Usernames used as identifiers, editor mention text, existing Markdown, ex
 payloads remain canonical. Clearing the note restores the existing nickname/username fallback.
 
 Notes are trimmed plain text, up to 64 Unicode characters, without control/formatting characters;
-each account can keep up to 1000 notes. Notes follow numeric user IDs, so renaming an account does
-not detach the note. Closing either account erases the relationship. Clients retrieve notes through
+each account can keep up to 1000 notes. Writes are throttled like other write endpoints: exceeding
+the `user.note` quota returns HTTP 429 with `Retry-After`. Notes follow numeric user IDs, so
+renaming an account does not detach the note. Closing either account erases the relationship.
+Clients retrieve notes through
 an authenticated, `private, no-store` API, keep them in memory for the current session only, and
 refresh on re-entry/focus/resume. Session changes clear the display state and reject old read/write
 responses; the feature does not add notes to search indexes, notifications sent to others, public

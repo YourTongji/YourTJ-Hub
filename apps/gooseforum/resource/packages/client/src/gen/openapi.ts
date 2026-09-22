@@ -14269,6 +14269,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description User-note write rate limit (action `user.note`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
             /** @description Storage unavailable; no successful response is returned. */
             503: {
                 headers: {
