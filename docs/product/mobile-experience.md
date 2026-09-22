@@ -15,6 +15,15 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 ## Navigation and reading
 
+- `Current`: paginated feeds, search, notifications, profiles, content management, own course
+  reviews and post history automatically fetch near the list end. Requests are serialized;
+  errors and responses without cursor/item progress retain an explicit retry control instead
+  of starting a retry loop. Short pages continue filling the viewport while data advances.
+- `Current`: topic bodies and replies link only server-resolved mention occurrences to native
+  user profiles. The payload carries numeric identities and UTF-16 source ranges; unknown users,
+  escaped text, code, existing links and math remain unchanged. Hidden/deleted bodies expose no
+  mention metadata, and persisted Markdown stays unchanged.
+
 - `Current`: a bare HTTP(S) URL in its own Markdown paragraph resolves through the server batch API and
   becomes a compact native preview only when typed metadata is ready; failure keeps the ordinary link,
   and each document stops after three previews. Cards and ordinary Markdown links share internal routing

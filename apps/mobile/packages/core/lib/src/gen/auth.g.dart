@@ -8,6 +8,7 @@ part of 'auth.dart';
 
 _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
     _$LoginPagePropsImpl(
+      tongjiRegistration: json['tongjiRegistration'] as bool? ?? false,
       initialMode: json['initialMode'] as String,
       redirectUrl: json['redirectUrl'] as String,
       githubUrl: json['githubUrl'] as String,
@@ -28,6 +29,7 @@ _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$LoginPagePropsImplToJson(
   _$LoginPagePropsImpl instance,
 ) => <String, dynamic>{
+  'tongjiRegistration': instance.tongjiRegistration,
   'initialMode': instance.initialMode,
   'redirectUrl': instance.redirectUrl,
   'githubUrl': instance.githubUrl,
@@ -197,3 +199,43 @@ _$SuccessMessagePayloadImpl _$$SuccessMessagePayloadImplFromJson(
 Map<String, dynamic> _$$SuccessMessagePayloadImplToJson(
   _$SuccessMessagePayloadImpl instance,
 ) => <String, dynamic>{'message': instance.message};
+
+_$TongjiRegistrationStatusPayloadImpl
+_$$TongjiRegistrationStatusPayloadImplFromJson(Map<String, dynamic> json) =>
+    _$TongjiRegistrationStatusPayloadImpl(
+      csrfToken: json['csrfToken'] as String,
+      email: json['email'] as String,
+      expiresAt: json['expiresAt'] as String,
+    );
+
+Map<String, dynamic> _$$TongjiRegistrationStatusPayloadImplToJson(
+  _$TongjiRegistrationStatusPayloadImpl instance,
+) => <String, dynamic>{
+  'csrfToken': instance.csrfToken,
+  'email': instance.email,
+  'expiresAt': instance.expiresAt,
+};
+
+_$TongjiRegistrationRequestImpl _$$TongjiRegistrationRequestImplFromJson(
+  Map<String, dynamic> json,
+) => _$TongjiRegistrationRequestImpl(
+  username: json['username'] as String,
+  password: json['password'] as String,
+  csrfToken: json['csrfToken'] as String,
+);
+
+Map<String, dynamic> _$$TongjiRegistrationRequestImplToJson(
+  _$TongjiRegistrationRequestImpl instance,
+) => <String, dynamic>{
+  'username': instance.username,
+  'password': instance.password,
+  'csrfToken': instance.csrfToken,
+};
+
+_$TongjiRegistrationResultImpl _$$TongjiRegistrationResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$TongjiRegistrationResultImpl(redirect: json['redirect'] as String);
+
+Map<String, dynamic> _$$TongjiRegistrationResultImplToJson(
+  _$TongjiRegistrationResultImpl instance,
+) => <String, dynamic>{'redirect': instance.redirect};

@@ -6,6 +6,7 @@ part 'auth.g.dart';
 @freezed
 abstract class LoginPageProps with _$LoginPageProps {
   const factory LoginPageProps({
+    @Default(false) bool tongjiRegistration,
     required String initialMode,
     required String redirectUrl,
     required String githubUrl,
@@ -163,4 +164,35 @@ enum MobileWebTarget {
   courseManagement,
   courseReviews,
   campus,
+}
+
+@freezed
+abstract class TongjiRegistrationStatusPayload
+    with _$TongjiRegistrationStatusPayload {
+  const factory TongjiRegistrationStatusPayload({
+    required String csrfToken,
+    required String email,
+    required String expiresAt,
+  }) = _TongjiRegistrationStatusPayload;
+  factory TongjiRegistrationStatusPayload.fromJson(Map<String, dynamic> json) =>
+      _$TongjiRegistrationStatusPayloadFromJson(json);
+}
+
+@freezed
+abstract class TongjiRegistrationRequest with _$TongjiRegistrationRequest {
+  const factory TongjiRegistrationRequest({
+    required String username,
+    required String password,
+    required String csrfToken,
+  }) = _TongjiRegistrationRequest;
+  factory TongjiRegistrationRequest.fromJson(Map<String, dynamic> json) =>
+      _$TongjiRegistrationRequestFromJson(json);
+}
+
+@freezed
+abstract class TongjiRegistrationResult with _$TongjiRegistrationResult {
+  const factory TongjiRegistrationResult({required String redirect}) =
+      _TongjiRegistrationResult;
+  factory TongjiRegistrationResult.fromJson(Map<String, dynamic> json) =>
+      _$TongjiRegistrationResultFromJson(json);
 }

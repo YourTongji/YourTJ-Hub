@@ -1067,6 +1067,12 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               ),
                             SliverToBoxAdapter(
                               child: GfListFooter(
+                                progressKey: (_sort, _posts.length),
+                                // Sparse author-only scans retain their five-window budget.
+                                autoLoad:
+                                    !_opScanning &&
+                                    (_sort != CommentSort.onlyOp ||
+                                        _hasOpReply()),
                                 loading: _loadingMore,
                                 hasMore: _sort == CommentSort.desc
                                     ? _hasEarlierPosts
@@ -1453,7 +1459,11 @@ class _TopicHeader extends StatelessWidget {
             Text(l10n.topicRemoved),
           ] else if (mainPost != null) ...<Widget>[
             const SizedBox(height: 16),
-            GfMarkdownView(data: mainPost!.content, selectable: true),
+            GfMarkdownView(
+              data: mainPost!.content,
+              mentions: mainPost!.mentions,
+              selectable: true,
+            ),
           ] else if (topic.description.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
             Text(topic.description, style: readingBodyStyle(context)),
@@ -1706,7 +1716,7 @@ class _PostCard extends StatelessWidget {
           if (post.isAuthorDeleted || post.isModeratorRemoved)
             Text(l10n.topicRemoved)
           else
-            GfMarkdownView(data: post.content),
+            GfMarkdownView(data: post.content, mentions: post.mentions),
           const SizedBox(height: 4),
           LayoutBuilder(
             builder: (context, constraints) {

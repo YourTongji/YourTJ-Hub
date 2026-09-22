@@ -600,6 +600,7 @@ class _SearchResults extends StatelessWidget {
                         _TopicRows(topics: props.topics),
                         if (props.totalPages > 1)
                           GfListFooter(
+                            progressKey: props.topics.length,
                             loading: loadingMore,
                             error: loadMoreError,
                             hasMore: hasMore,

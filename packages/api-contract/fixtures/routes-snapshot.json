@@ -189,6 +189,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/auth/tongji/registration"
+  },
+  {
+    "method": "GET",
     "path": "/api/campus/calendar-export"
   },
   {
@@ -470,6 +474,10 @@
   {
     "method": "GET",
     "path": "/publish"
+  },
+  {
+    "method": "GET",
+    "path": "/register/tongji"
   },
   {
     "method": "GET",
@@ -882,6 +890,10 @@
   {
     "method": "POST",
     "path": "/api/auth/oidc/exchange"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/tongji/registration"
   },
   {
     "method": "POST",

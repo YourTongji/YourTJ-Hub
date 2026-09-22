@@ -210,6 +210,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             itemBuilder: (context, i) {
                               if (i == _items.length) {
                                 return GfListFooter(
+                                  progressKey: _items.length,
                                   loading: _loadingMore,
                                   hasMore: resp.hasNext,
                                   onLoadMore: _loadMore,

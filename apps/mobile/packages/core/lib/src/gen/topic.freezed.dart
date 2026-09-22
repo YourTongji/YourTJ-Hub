@@ -2743,6 +2743,7 @@ PostPayload _$PostPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$PostPayload {
+  List<PostMention> get mentions => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   int get topicId => throw _privateConstructorUsedError;
   int get postNo => throw _privateConstructorUsedError;
@@ -2786,6 +2787,7 @@ abstract class $PostPayloadCopyWith<$Res> {
   ) = _$PostPayloadCopyWithImpl<$Res, PostPayload>;
   @useResult
   $Res call({
+    List<PostMention> mentions,
     int id,
     int topicId,
     int postNo,
@@ -2831,6 +2833,7 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? mentions = null,
     Object? id = null,
     Object? topicId = null,
     Object? postNo = null,
@@ -2858,6 +2861,10 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
   }) {
     return _then(
       _value.copyWith(
+            mentions: null == mentions
+                ? _value.mentions
+                : mentions // ignore: cast_nullable_to_non_nullable
+                      as List<PostMention>,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -2994,6 +3001,7 @@ abstract class _$$PostPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    List<PostMention> mentions,
     int id,
     int topicId,
     int postNo,
@@ -3040,6 +3048,7 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? mentions = null,
     Object? id = null,
     Object? topicId = null,
     Object? postNo = null,
@@ -3067,6 +3076,10 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$PostPayloadImpl(
+        mentions: null == mentions
+            ? _value._mentions
+            : mentions // ignore: cast_nullable_to_non_nullable
+                  as List<PostMention>,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -3172,6 +3185,7 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$PostPayloadImpl implements _PostPayload {
   const _$PostPayloadImpl({
+    final List<PostMention> mentions = const <PostMention>[],
     required this.id,
     required this.topicId,
     required this.postNo,
@@ -3196,10 +3210,19 @@ class _$PostPayloadImpl implements _PostPayload {
     required this.likeCount,
     required this.isLiked,
     required this.isBookmarked,
-  });
+  }) : _mentions = mentions;
 
   factory _$PostPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$PostPayloadImplFromJson(json);
+
+  final List<PostMention> _mentions;
+  @override
+  @JsonKey()
+  List<PostMention> get mentions {
+    if (_mentions is EqualUnmodifiableListView) return _mentions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_mentions);
+  }
 
   @override
   final int id;
@@ -3255,7 +3278,7 @@ class _$PostPayloadImpl implements _PostPayload {
 
   @override
   String toString() {
-    return 'PostPayload(id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, isAuthorDeleted: $isAuthorDeleted, isModeratorRemoved: $isModeratorRemoved, canModerate: $canModerate, author: $author, isAnonymous: $isAnonymous, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked)';
+    return 'PostPayload(mentions: $mentions, id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, isAuthorDeleted: $isAuthorDeleted, isModeratorRemoved: $isModeratorRemoved, canModerate: $canModerate, author: $author, isAnonymous: $isAnonymous, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked)';
   }
 
   @override
@@ -3263,6 +3286,7 @@ class _$PostPayloadImpl implements _PostPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$PostPayloadImpl &&
+            const DeepCollectionEquality().equals(other._mentions, _mentions) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.topicId, topicId) || other.topicId == topicId) &&
             (identical(other.postNo, postNo) || other.postNo == postNo) &&
@@ -3311,6 +3335,7 @@ class _$PostPayloadImpl implements _PostPayload {
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
+    const DeepCollectionEquality().hash(_mentions),
     id,
     topicId,
     postNo,
@@ -3353,6 +3378,7 @@ class _$PostPayloadImpl implements _PostPayload {
 
 abstract class _PostPayload implements PostPayload {
   const factory _PostPayload({
+    final List<PostMention> mentions,
     required final int id,
     required final int topicId,
     required final int postNo,
@@ -3382,6 +3408,8 @@ abstract class _PostPayload implements PostPayload {
   factory _PostPayload.fromJson(Map<String, dynamic> json) =
       _$PostPayloadImpl.fromJson;
 
+  @override
+  List<PostMention> get mentions;
   @override
   int get id;
   @override
@@ -4582,4 +4610,218 @@ abstract class _TopicDetailPermissions implements TopicDetailPermissions {
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$TopicDetailPermissionsImplCopyWith<_$TopicDetailPermissionsImpl>
   get copyWith => throw _privateConstructorUsedError;
+}
+
+PostMention _$PostMentionFromJson(Map<String, dynamic> json) {
+  return _PostMention.fromJson(json);
+}
+
+/// @nodoc
+mixin _$PostMention {
+  String get username => throw _privateConstructorUsedError;
+  int get userId => throw _privateConstructorUsedError;
+  int get start => throw _privateConstructorUsedError;
+  int get end => throw _privateConstructorUsedError;
+
+  /// Serializes this PostMention to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of PostMention
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $PostMentionCopyWith<PostMention> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $PostMentionCopyWith<$Res> {
+  factory $PostMentionCopyWith(
+    PostMention value,
+    $Res Function(PostMention) then,
+  ) = _$PostMentionCopyWithImpl<$Res, PostMention>;
+  @useResult
+  $Res call({String username, int userId, int start, int end});
+}
+
+/// @nodoc
+class _$PostMentionCopyWithImpl<$Res, $Val extends PostMention>
+    implements $PostMentionCopyWith<$Res> {
+  _$PostMentionCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of PostMention
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? username = null,
+    Object? userId = null,
+    Object? start = null,
+    Object? end = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            username: null == username
+                ? _value.username
+                : username // ignore: cast_nullable_to_non_nullable
+                      as String,
+            userId: null == userId
+                ? _value.userId
+                : userId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            start: null == start
+                ? _value.start
+                : start // ignore: cast_nullable_to_non_nullable
+                      as int,
+            end: null == end
+                ? _value.end
+                : end // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$PostMentionImplCopyWith<$Res>
+    implements $PostMentionCopyWith<$Res> {
+  factory _$$PostMentionImplCopyWith(
+    _$PostMentionImpl value,
+    $Res Function(_$PostMentionImpl) then,
+  ) = __$$PostMentionImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String username, int userId, int start, int end});
+}
+
+/// @nodoc
+class __$$PostMentionImplCopyWithImpl<$Res>
+    extends _$PostMentionCopyWithImpl<$Res, _$PostMentionImpl>
+    implements _$$PostMentionImplCopyWith<$Res> {
+  __$$PostMentionImplCopyWithImpl(
+    _$PostMentionImpl _value,
+    $Res Function(_$PostMentionImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of PostMention
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? username = null,
+    Object? userId = null,
+    Object? start = null,
+    Object? end = null,
+  }) {
+    return _then(
+      _$PostMentionImpl(
+        username: null == username
+            ? _value.username
+            : username // ignore: cast_nullable_to_non_nullable
+                  as String,
+        userId: null == userId
+            ? _value.userId
+            : userId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        start: null == start
+            ? _value.start
+            : start // ignore: cast_nullable_to_non_nullable
+                  as int,
+        end: null == end
+            ? _value.end
+            : end // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$PostMentionImpl implements _PostMention {
+  const _$PostMentionImpl({
+    required this.username,
+    required this.userId,
+    required this.start,
+    required this.end,
+  });
+
+  factory _$PostMentionImpl.fromJson(Map<String, dynamic> json) =>
+      _$$PostMentionImplFromJson(json);
+
+  @override
+  final String username;
+  @override
+  final int userId;
+  @override
+  final int start;
+  @override
+  final int end;
+
+  @override
+  String toString() {
+    return 'PostMention(username: $username, userId: $userId, start: $start, end: $end)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$PostMentionImpl &&
+            (identical(other.username, username) ||
+                other.username == username) &&
+            (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.start, start) || other.start == start) &&
+            (identical(other.end, end) || other.end == end));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, username, userId, start, end);
+
+  /// Create a copy of PostMention
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$PostMentionImplCopyWith<_$PostMentionImpl> get copyWith =>
+      __$$PostMentionImplCopyWithImpl<_$PostMentionImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$PostMentionImplToJson(this);
+  }
+}
+
+abstract class _PostMention implements PostMention {
+  const factory _PostMention({
+    required final String username,
+    required final int userId,
+    required final int start,
+    required final int end,
+  }) = _$PostMentionImpl;
+
+  factory _PostMention.fromJson(Map<String, dynamic> json) =
+      _$PostMentionImpl.fromJson;
+
+  @override
+  String get username;
+  @override
+  int get userId;
+  @override
+  int get start;
+  @override
+  int get end;
+
+  /// Create a copy of PostMention
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$PostMentionImplCopyWith<_$PostMentionImpl> get copyWith =>
+      throw _privateConstructorUsedError;
 }

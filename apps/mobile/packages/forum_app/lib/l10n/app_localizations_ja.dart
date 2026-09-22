@@ -2294,7 +2294,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      '初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。';
+      '初回認証後、ユーザー名とパスワードを設定して登録します。学籍番号@tongji.edu.cnとキャンパス接続が自動設定され、メールの再確認は不要です。';
 
   @override
   String get loginTongjiPolicies => '続行すると、公開されている規約に同意したものとみなされます：';

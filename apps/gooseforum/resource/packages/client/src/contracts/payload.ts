@@ -44,6 +44,7 @@ export interface ErrorPageProps {
 }
 
 export interface LoginPageProps {
+  tongjiRegistration?: boolean
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string
@@ -366,7 +367,16 @@ export interface TopicDetailPayload {
   contentType: 0 | 1 | 2 | 3
 }
 
+export interface PostMention {
+  username: string
+  userId: number
+  /** UTF-16 offsets into the unchanged raw content; end is exclusive. */
+  start: number
+  end: number
+}
+
 export interface PostPayload {
+  mentions?: PostMention[]
   id: number
   topicId: number
   postNo: number

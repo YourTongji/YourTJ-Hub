@@ -775,6 +775,11 @@ PostPayload:
   type: object
   required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked, isAnswer]
   properties:
+    mentions:
+      type: array
+      description: Server-resolved mention occurrences in the raw content returned to this viewer; UTF-16 offsets, end exclusive. Empty when the body is redacted or deleted. Moderators receiving an unredacted hidden body also receive its mention mappings. Older servers may omit this field.
+      items:
+        $ref: '#/PostMention'
     id:
       type: integer
       format: uint64
@@ -2495,6 +2500,7 @@ InteractionSuccess:
         result:
           type: boolean
           const: true
+
           description: Set-semantics and idempotent; repeating the same state transition also returns true.
 
 InteractionResponse:
@@ -4734,6 +4740,7 @@ OAuthBinding:
         bound:
           type: boolean
           const: true
+
         provider:
           type: string
         createdAt:
@@ -5058,6 +5065,7 @@ PushSubscribeSuccess:
           type: boolean
           const: true
 
+
 PushSubscribeResponse:
   oneOf:
     - $ref: '#/PushSubscribeSuccess'
@@ -5082,6 +5090,7 @@ PushUnsubscribeSuccess:
         result:
           type: boolean
           const: true
+
 
 PushUnsubscribeResponse:
   oneOf:
@@ -5116,6 +5125,7 @@ PushDeviceRegisterSuccess:
           type: boolean
           const: true
 
+
 PushDeviceRegisterResponse:
   oneOf:
     - $ref: '#/PushDeviceRegisterSuccess'
@@ -5141,6 +5151,7 @@ PushDeviceUnregisterSuccess:
         result:
           type: boolean
           const: true
+
 
 PushDeviceUnregisterResponse:
   oneOf:
@@ -5356,6 +5367,7 @@ ModerationActionSuccess:
         result:
           type: boolean
           const: true
+
           description: Idempotent — repeating an already-applied status also returns true.
 
 ModerationActionResponse:
@@ -6734,6 +6746,7 @@ AdminBoolSuccess:
         result:
           type: boolean
           const: true
+
 
 AdminBoolResponse:
   oneOf:
@@ -9305,6 +9318,7 @@ ContentActionSuccess:
           type: boolean
           const: true
 
+
 ContentActionResponse:
   oneOf:
     - $ref: '#/ContentActionSuccess'
@@ -9605,6 +9619,7 @@ DirectImageUploadAbortSuccess:
         result:
           type: boolean
           const: true
+
           description: True when the pending upload was aborted.
 
 DirectImageUploadAbortResponse:
@@ -10147,3 +10162,20 @@ PrivateNoteSuccess:
         result:
           type: boolean
           const: true
+
+PostMention:
+  type: object
+  required: [username, userId, start, end]
+  properties:
+    username:
+      type: string
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    start:
+      type: integer
+      minimum: 0
+    end:
+      type: integer
+      minimum: 1

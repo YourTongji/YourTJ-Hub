@@ -67,7 +67,12 @@ func TestSchoolLoginConcurrentRegistrationOnPostgreSQL(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wg.Go(func() { _, _ = s.Login(context.Background(), browser, state, "code", policy) })
+		wg.Go(func() {
+			result, err := s.Login(context.Background(), browser, state, "code", policy)
+			if err == nil && result.Registration != "" {
+				_, _ = completeTestRegistration(s, result.Registration, policy)
+			}
+		})
 	}
 	wg.Wait()
 	for _, model := range []any{&users.EntityComplete{}, &campus.Binding{}, &campus.IdentityReservation{}, &userPoints.Entity{}, &pointsRecord.Entity{}, &userStatistics.Entity{}} {
@@ -100,7 +105,7 @@ func TestSchoolLoginDailyQuotaOnPostgreSQL(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			go func() {
-				_, _, err := s.loginAccount(ctx, Credentials{Subject: "second", StudentID: "2352222"}, "en", pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: 1})
+				_, _, err := s.loginAccount(ctx, Credentials{Subject: "second", StudentID: "2352222"}, "en", pageConfig.SecurityAndRegistration{EnableSignup: true, MaxDailySignups: 1}, &Registration{Username: "quota_user", PasswordHash: "test-hash"})
 				result <- err
 			}()
 			var err error

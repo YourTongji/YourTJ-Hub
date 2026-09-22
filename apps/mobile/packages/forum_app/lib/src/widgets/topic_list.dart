@@ -84,6 +84,7 @@ class GfTopicList extends StatelessWidget {
         }
         if (index == topics.length) {
           return GfListFooter(
+            progressKey: topics.length,
             loading: loading,
             error: loadMoreError,
             hasMore: hasMore,

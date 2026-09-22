@@ -498,13 +498,16 @@ class FailingRefreshPageRepository extends CountingPageRepository {
 class FailingSearchRepository extends PagingTopicRepository {
   FailingSearchRepository(super.client);
   bool fail = false;
+  bool failMore = false;
   @override
   Future<SearchPageProps> search({
     required String query,
     String scope = '',
     int page = 1,
   }) {
-    if (fail) throw const NetworkException(fallbackMessage: 'offline');
+    if (fail || (failMore && page > 1)) {
+      throw const NetworkException(fallbackMessage: 'offline');
+    }
     return super.search(query: query, scope: scope, page: page);
   }
 }
@@ -1036,7 +1039,7 @@ class ControlledSearchRepository extends PagingTopicRepository {
     String scope = '',
     int page = 1,
   }) async {
-    await pending;
+    if (page > 1) await pending;
     return super.search(query: query, scope: scope, page: page);
   }
 }
@@ -1727,7 +1730,7 @@ void main() {
         tokenStorage: MemTokenStorage(),
         baseUrl: 'http://fake.local',
       );
-      final repo = FailingSearchRepository(client);
+      final repo = FailingSearchRepository(client)..failMore = true;
       final container = await makeContainer(
         pageRepo: CountingPageRepository(client),
         topicRepo: repo,
@@ -1737,11 +1740,10 @@ void main() {
       await tester.enterText(find.byType(TextField), '测试');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
-      repo.fail = true;
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
+      // Short first page automatically attempts pagination and exposes failure.
       expect(find.text('重试'), findsOneWidget);
       repo.fail = false;
+      repo.failMore = false;
       await tester.fling(
         find.byType(ListView).first,
         const Offset(0, 400),
@@ -1753,6 +1755,7 @@ void main() {
       expect(find.text('重试'), findsNothing);
       await tester.tap(find.text('加载更多'));
       await tester.pumpAndSettle();
+
       expect(repo.searchPages, [1, 1, 2]);
       expect(find.text('结果-第二页'), findsOneWidget);
     },
@@ -2238,7 +2241,8 @@ void main() {
       tokenStorage: MemTokenStorage(),
       baseUrl: 'http://fake.local',
     );
-    final repo = ControlledSearchRepository(client);
+    final pending = Completer<void>();
+    final repo = ControlledSearchRepository(client)..pending = pending.future;
     final container = await makeContainer(
       pageRepo: CountingPageRepository(client),
       topicRepo: repo,
@@ -2247,12 +2251,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '同济');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
-    expect(find.text('结果-第一页'), findsOneWidget);
-    final pending = Completer<void>();
-    repo.pending = pending.future;
-    await tester.tap(find.text('加载更多'));
     await tester.pump();
+    await tester.pump();
+    expect(find.text('结果-第一页'), findsOneWidget);
     await tester.tap(find.byTooltip('清空搜索'));
     await tester.pump();
     expect(find.text('结果-第一页'), findsNothing);
@@ -2262,7 +2263,7 @@ void main() {
     await tester.enterText(find.byType(TextField), '新查询');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
-    expect(repo.searchPages.last, 1);
+    expect(repo.searchPages.where((page) => page == 1), hasLength(2));
   });
 
   testWidgets('badges tab has badge-specific empty state', (tester) async {
@@ -2459,7 +2460,7 @@ void main() {
         tokenStorage: MemTokenStorage(),
         baseUrl: 'http://fake.local',
       );
-      final repo = FailingSearchRepository(client);
+      final repo = FailingSearchRepository(client)..failMore = true;
       final container = await makeContainer(
         pageRepo: CountingPageRepository(client),
         topicRepo: repo,
@@ -2469,11 +2470,10 @@ void main() {
       await tester.enterText(find.byType(TextField), '测试');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
-      repo.fail = true;
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
+      // Short first page automatically attempts pagination and exposes failure.
       expect(find.text('结果-第一页'), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
+      repo.fail = true;
       await tester.fling(
         find.byType(ListView).first,
         const Offset(0, 400),
@@ -2482,6 +2482,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('结果-第一页'), findsOneWidget);
       repo.fail = false;
+      repo.failMore = false;
       await tester.tap(find.text('重试'));
       await tester.pumpAndSettle();
       expect(find.text('结果-第二页'), findsOneWidget);
@@ -2920,7 +2921,7 @@ void main() {
     testWidgets(
       'author scan is bounded and never claims empty while windows remain',
       (tester) async {
-        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
         final client = GfApiClient(
@@ -2938,9 +2939,10 @@ void main() {
         );
         await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
         await tester.pumpAndSettle();
+        final beforeScan = topics.calls;
         await tester.tap(find.text('只看楼主'));
         await tester.pumpAndSettle();
-        expect(topics.calls, lessThanOrEqualTo(5));
+        expect(topics.calls - beforeScan, lessThanOrEqualTo(5));
         expect(find.text('楼主还没有回复'), findsNothing);
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 600));
@@ -3156,11 +3158,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('结果-第一页'), findsOneWidget);
-      expect(topicRepo.searchPages, [1]);
-
-      // 点击"加载更多"触发 page+1。
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
+      // The short first page fills the viewport without a manual click.
 
       expect(topicRepo.searchPages, [1, 2], reason: '加载更多应调用 search(page+1)');
       expect(find.text('结果-第一页'), findsOneWidget);
@@ -3531,17 +3529,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('二楼内容'), findsOneWidget);
-      await tester.ensureVisible(find.text('加载更多'));
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
 
-      expect(topicRepo.cursors, <int?>[2]);
+      expect(topicRepo.cursors, <int?>[2, 4]);
       expect(find.text('三楼内容'), findsOneWidget);
       expect(find.text('四楼内容'), findsOneWidget);
-
-      await tester.ensureVisible(find.text('加载更多'));
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
 
       expect(topicRepo.cursors, <int?>[2, 4]);
       expect(find.text('四楼内容'), findsOneWidget);
@@ -3573,10 +3564,6 @@ void main() {
     await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('加载更多'));
-    await tester.tap(find.text('加载更多'));
-    await tester.pumpAndSettle();
-
     expect(topicRepo.cursors, <int?>[2]);
     expect(find.text('加载更多'), findsNothing);
 
@@ -3602,10 +3589,6 @@ void main() {
       topicRepo: topicRepo,
     );
     await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
-    await tester.pumpAndSettle();
-
-    await tester.ensureVisible(find.text('加载更多'));
-    await tester.tap(find.text('加载更多'));
     await tester.pumpAndSettle();
 
     expect(topicRepo.cursors, <int?>[2]);

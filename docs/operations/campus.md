@@ -82,8 +82,11 @@ imported calendar files cannot be retracted or updated by the server.
 `Current`: Web `/api/auth/tongji` and the App's `login_hint=tongji` use the configured campus
 provider. School registration requires a never-bound identity, signup to be enabled, the daily quota to be available and
 `tongji.edu.cn` to be allowed (or no domain restriction). Existing bindings can still sign in when
-new registration is closed. Signup creates no usable password and grants no administrator role;
-users may establish a password through the normal email recovery flow. Current and pending email
+new registration is closed. New identities complete `/register/tongji` with a chosen username and
+password before any account/session is created; school verification replaces email activation.
+Pending registration is bounded in process memory, expires at the original ten-minute deadline,
+and requires an HttpOnly cookie plus an independent CSRF proof. A restart requires fresh school
+authentication. Completion uses the registration rate limit and grants no administrator role. Current and pending email
 collisions require account recovery/login followed by explicit campus binding, not automatic merging.
 
 `Current`: live and dev campus bindings remain separate. A production account copied to dev keeps its
