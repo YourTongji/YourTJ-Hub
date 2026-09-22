@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -278,7 +279,7 @@ onMounted(() => {
                 <div class="min-w-0 flex-1">
                   <div class="flex min-w-0 items-center justify-between gap-2">
                     <div class="flex min-w-0 items-center gap-1.5">
-                      <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="truncate font-semibold hover:text-primary hover:underline">{{ user.username }}</a>
+                      <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="truncate font-semibold hover:text-primary hover:underline">{{ userDisplayName(user.userId, user.username) }}</a>
                       <span v-if="user.actorType === 1" class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
                         <Bot class="size-3" />{{ adminText('k00l6') }}
                       </span>
@@ -341,7 +342,7 @@ onMounted(() => {
                     </a>
                     <div class="min-w-0">
                       <div class="flex min-w-0 items-center gap-1.5">
-                        <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="block truncate font-semibold leading-5 hover:text-primary hover:underline">{{ user.username }}</a>
+                        <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="block truncate font-semibold leading-5 hover:text-primary hover:underline">{{ userDisplayName(user.userId, user.username) }}</a>
                         <span v-if="user.actorType === 1" class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
                           <Bot class="size-3" />{{ adminText('k00l6') }}
                         </span>
@@ -396,7 +397,7 @@ onMounted(() => {
                     <Bot class="size-3" />{{ adminText('k00l6') }}
                   </span>
                 </div>
-                <p class="truncate text-xs text-muted-foreground">{{ editingUser.username }} · {{ editingUser.email || adminText('k006p') }}</p>
+                <p class="truncate text-xs text-muted-foreground">{{ userDisplayName(editingUser.userId, editingUser.username) }} · {{ editingUser.email || adminText('k006p') }}</p>
               </div>
             </div>
           </div>

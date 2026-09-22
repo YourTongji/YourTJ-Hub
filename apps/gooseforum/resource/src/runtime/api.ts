@@ -358,6 +358,7 @@ export async function closeAccount(mode: 'anonymize' | 'delete', password: strin
 
 /** 退出登录并吊销当前会话。 */
 export async function logout(): Promise<boolean> {
+  window.dispatchEvent(new Event('goose:session-cleared'))
   const response = await fetch('/api/logout', { method: 'POST' })
   return readApiResponse<boolean>(response, t('api.operationFailed'))
 }
@@ -2029,6 +2030,15 @@ export async function getCourseSummary(courseId: number, refresh = false, check 
   return result
 }
 
+export async function getPrivateNotes(): Promise<import('@gooseforum/client').PrivateNotesPayload> {
+  return readApiResponse(await fetch('/api/user-notes', { cache: 'no-store' }), t('api.operationFailed'))
+}
+export async function setPrivateNote(targetUserId: number, note: string): Promise<boolean> {
+  return readApiResponse(await fetch('/api/user-note', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetUserId, note }),
+  }), t('api.operationFailed'))
+}
 export interface TongjiRegistrationStatus { csrfToken: string; email: string; expiresAt: string }
 export async function getTongjiRegistration(): Promise<TongjiRegistrationStatus> {
   return readApiResponse<TongjiRegistrationStatus>(await fetch('/api/auth/tongji/registration', { cache: 'no-store' }), t('tongjiRegistration.expired'))

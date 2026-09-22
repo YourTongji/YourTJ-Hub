@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,7 +95,7 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                     ExpansionTile(
                       key: ValueKey(version.version),
                       title: Text(
-                        'v${version.version} · ${version.editor.nickname ?? version.editor.username}',
+                        'v${version.version} · ${privateDisplayName(context, version.editor.id, version.editor.username, version.editor.nickname)}',
                       ),
                       subtitle: Text(version.createdAt),
                       childrenPadding: const EdgeInsets.all(12),

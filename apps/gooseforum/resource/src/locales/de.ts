@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  privateNote: {
+    edit: "Notiz bearbeiten",
+    label: "Private Notiz",
+    hint: "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.",
+  },
   badgeDisplay: {
     title: "Profilabzeichen",
     hint: "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",

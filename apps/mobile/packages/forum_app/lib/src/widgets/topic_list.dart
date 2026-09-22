@@ -1,3 +1,4 @@
+import '../private_notes.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -175,7 +176,12 @@ Widget _topicCard(
     key: ValueKey<int>(topic.id),
     title: topic.title,
     description: topic.description,
-    authorName: nickname.isNotEmpty ? nickname : topic.author.username,
+    authorName: privateDisplayName(
+      context,
+      topic.author.id,
+      topic.author.username,
+      nickname,
+    ),
     authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
     categories: <GfTopicCategory>[
       for (final CategoryBriefPayload category in topic.categories)

@@ -2406,6 +2406,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.';
 
   @override
+  String get privateNoteEdit => 'Edit note';
+
+  @override
+  String get privateNoteLabel => 'Private note';
+
+  @override
+  String get privateNoteHint =>
+      'Only you can see this. Up to 64 characters; save empty to clear.';
   String get badgeDisplayTitle => 'Profile badges';
 
   @override

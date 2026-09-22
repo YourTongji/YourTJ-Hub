@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
 import { uploadImage } from '@/runtime/api'
@@ -315,7 +316,7 @@ function submit() {
             <template v-if="authenticated">
             <div v-if="target && !editing" class="mb-2 flex min-w-0 items-center justify-between gap-3 rounded-md border border-primary/20 bg-info/10 px-3 py-2">
               <div class="min-w-0 text-sm font-medium text-base-content/75">
-                {{ t('topic.replyTo', { user: `@${target.author.username}` }) }}
+                {{ t('topic.replyTo', { user: userDisplayName(target.author.id, target.author.username, target.author.nickname) }) }}
               </div>
               <button type="button" class="gf-icon-button h-7 w-7 shrink-0 hover:bg-base-100" :aria-label="t('common.cancel')" @click="emit('clearTarget')">
                 <X class="h-3.5 w-3.5" />

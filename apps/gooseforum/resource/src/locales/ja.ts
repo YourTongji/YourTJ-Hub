@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.ja.generated'
 
 export default {
+  privateNote: {
+    edit: "メモを編集",
+    label: "非公開メモ",
+    hint: "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。",
+  },
   badgeDisplay: {
     title: "プロフィールのバッジ",
     hint: "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",

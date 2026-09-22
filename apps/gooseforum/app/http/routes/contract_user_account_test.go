@@ -43,6 +43,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
+		&users.PrivateNoteEntity{},
 		&userOAuth.Entity{},
 		&userFollow.Entity{},
 		&badges.Entity{},
@@ -71,6 +72,8 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginAPI.POST("/set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginAPI.POST("/set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
+	loginAPI.GET("/user-notes", UpQueryReq(api.GetPrivateNotes))
+	loginAPI.POST("/user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginAPI.POST("/display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
 	loginAPI.POST("/wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginAPI.POST("/upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)

@@ -2500,6 +2500,7 @@ InteractionSuccess:
         result:
           type: boolean
           const: true
+
           description: Set-semantics and idempotent; repeating the same state transition also returns true.
 
 InteractionResponse:
@@ -4759,6 +4760,7 @@ OAuthBinding:
         bound:
           type: boolean
           const: true
+
         provider:
           type: string
         createdAt:
@@ -5083,6 +5085,7 @@ PushSubscribeSuccess:
           type: boolean
           const: true
 
+
 PushSubscribeResponse:
   oneOf:
     - $ref: '#/PushSubscribeSuccess'
@@ -5107,6 +5110,7 @@ PushUnsubscribeSuccess:
         result:
           type: boolean
           const: true
+
 
 PushUnsubscribeResponse:
   oneOf:
@@ -5141,6 +5145,7 @@ PushDeviceRegisterSuccess:
           type: boolean
           const: true
 
+
 PushDeviceRegisterResponse:
   oneOf:
     - $ref: '#/PushDeviceRegisterSuccess'
@@ -5166,6 +5171,7 @@ PushDeviceUnregisterSuccess:
         result:
           type: boolean
           const: true
+
 
 PushDeviceUnregisterResponse:
   oneOf:
@@ -5381,6 +5387,7 @@ ModerationActionSuccess:
         result:
           type: boolean
           const: true
+
           description: Idempotent — repeating an already-applied status also returns true.
 
 ModerationActionResponse:
@@ -6759,6 +6766,7 @@ AdminBoolSuccess:
         result:
           type: boolean
           const: true
+
 
 AdminBoolResponse:
   oneOf:
@@ -9330,6 +9338,7 @@ ContentActionSuccess:
           type: boolean
           const: true
 
+
 ContentActionResponse:
   oneOf:
     - $ref: '#/ContentActionSuccess'
@@ -9630,6 +9639,7 @@ DirectImageUploadAbortSuccess:
         result:
           type: boolean
           const: true
+
           description: True when the pending upload was aborted.
 
 DirectImageUploadAbortResponse:
@@ -10116,6 +10126,62 @@ SearchMaintenanceSubmissionResponse:
       - 0
     result:
       $ref: '#/SearchMaintenanceSubmission'
+
+PrivateNote:
+  type: object
+  required: [targetUserId, username, note]
+  properties:
+    targetUserId:
+      type: integer
+      minimum: 1
+    username:
+      type: string
+      description: Current canonical username, never a private nickname.
+    note:
+      type: string
+      maxLength: 64
+  additionalProperties: false
+PrivateNotesPayload:
+  type: object
+  required: [ownerId, notes]
+  properties:
+    ownerId:
+      type: integer
+      minimum: 1
+      description: Authenticated owner; clients discard data from a different session.
+    notes:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: '#/PrivateNote'
+  additionalProperties: false
+PrivateNotesSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/PrivateNotesPayload'
+PrivateNoteRequest:
+  type: object
+  required: [targetUserId, note]
+  properties:
+    targetUserId:
+      type: integer
+      minimum: 1
+    note:
+      type: string
+      maxLength: 64
+      description: Trimmed plain text; empty clears. Control and formatting characters are rejected.
+  additionalProperties: false
+PrivateNoteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          type: boolean
+          const: true
 
 PostMention:
   type: object

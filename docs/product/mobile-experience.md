@@ -477,3 +477,12 @@ private student-ID@tongji.edu.cn email without a separate activation step. All f
 supported. Tongji shares the exact MainActivity-owned `yourtj://callback` bridge with Google and
 GitHub; AppAuth's Android receiver does not claim it, and no WebView is used for this OAuth login.
 `Partial`: physical-device school sign-in has not been validated with the new APK.
+
+## Private user notes
+
+`Current`: User profiles provide a private-note editor with retry and clear behavior. Names in topic
+lists, replies, profile connections, search, conversations, notifications, mention candidates and
+revision history use `note(username)` for the current viewer. Notes are fetched through the shared
+core contract and remain only in a session-scoped memory provider; changing account invalidates
+pending responses and never reuses notes from the offline forum cache. Limits and account-erasure
+semantics are defined in [Identity and access](identity-and-access.md#private-user-notes).

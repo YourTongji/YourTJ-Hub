@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -695,9 +696,12 @@ class _UserRows extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          users[index].nickname.isEmpty
-                              ? users[index].username
-                              : users[index].nickname,
+                          privateDisplayName(
+                            context,
+                            users[index].id,
+                            users[index].username,
+                            users[index].nickname,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

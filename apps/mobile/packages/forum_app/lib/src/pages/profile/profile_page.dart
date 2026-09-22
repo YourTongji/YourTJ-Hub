@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -486,6 +487,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ),
       );
     } else {
+      actions.add(
+        PrivateNoteButton(userId: user.userId, username: user.username),
+      );
       if (props.canFollow) {
         actions.add(
           GfButton(
@@ -530,7 +534,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
               label: user.wornBadge!.name,
             ),
-      name: user.nickname.isEmpty ? user.username : user.nickname,
+      name: privateDisplayName(
+        context,
+        user.userId,
+        user.username,
+        user.nickname,
+      ),
       username: user.username,
       bio: user.bio,
       signature: user.signature,
@@ -880,7 +889,12 @@ class _ProfileBody extends StatelessWidget {
         final UserConnectionPayload user = users[index];
         return GfSettingRow(
           leading: GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 36),
-          title: user.nickname.isEmpty ? user.username : user.nickname,
+          title: privateDisplayName(
+            context,
+            user.id,
+            user.username,
+            user.nickname,
+          ),
           description: user.bio.isEmpty ? '@${user.username}' : user.bio,
           onTap: () => context.push('/u/${user.id}'),
         );

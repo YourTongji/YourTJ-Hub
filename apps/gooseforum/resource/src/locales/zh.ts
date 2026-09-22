@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  privateNote: {
+    edit: "编辑备注",
+    label: "私有备注",
+    hint: "仅自己可见，最多 64 个字符；留空保存即可清除。",
+  },
   badgeDisplay: {
     title: "资料卡展示徽章",
     hint: "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",

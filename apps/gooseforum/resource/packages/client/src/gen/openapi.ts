@@ -1292,6 +1292,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s private user notes
+         * @description Owner identity comes only from the authenticated session. Notes never appear
+         *     in public profiles, search, notifications or the target account. Maximum 1000
+         *     notes per owner; an empty note clears the entry. Either account closing erases
+         *     the relationship. Responses use Cache-Control private, no-store.
+         */
+        get: operations["listPrivateNotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set or clear a private note for another user
+         * @description Owner identity comes only from the authenticated session. Notes never appear
+         *     in public profiles, search, notifications or the target account. Maximum 1000
+         *     notes per owner; an empty note clears the entry. Either account closing erases
+         *     the relationship. Responses use Cache-Control private, no-store.
+         */
+        post: operations["setPrivateNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user-card": {
         parameters: {
             query?: never;
@@ -11510,6 +11556,29 @@ export interface components {
             start: number;
             end: number;
         };
+        PrivateNote: {
+            targetUserId: number;
+            /** @description Current canonical username, never a private nickname. */
+            username: string;
+            note: string;
+        };
+        PrivateNotesPayload: {
+            /** @description Authenticated owner; clients discard data from a different session. */
+            ownerId: number;
+            notes: components["schemas"]["PrivateNote"][];
+        };
+        PrivateNotesSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PrivateNotesPayload"];
+        };
+        PrivateNoteRequest: {
+            targetUserId: number;
+            /** @description Trimmed plain text; empty clears. Control and formatting characters are rejected. */
+            note: string;
+        };
+        PrivateNoteSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result?: true;
+        };
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
@@ -14128,6 +14197,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaptchaSuccess"];
+                };
+            };
+        };
+    };
+    listPrivateNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private notes for this session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateNotesSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setPrivateNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivateNoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Note saved or cleared. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateNoteSuccess"];
+                };
+            };
+            /** @description Malformed JSON, body exceeds 4096 bytes, invalid note or unavailable target. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable or cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The owner already has 1000 notes; existing notes can still be edited or cleared. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description User-note write rate limit (action `user.note`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

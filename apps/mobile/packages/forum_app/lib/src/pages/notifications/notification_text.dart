@@ -5,8 +5,9 @@ import '../../../l10n/app_localizations.dart';
 /// never user-facing fallback copy; older literal titles remain supported.
 (String, String) notificationText(
   NotificationPayload item,
-  AppLocalizations l10n,
-) {
+  AppLocalizations l10n, {
+  String Function(int id, String username)? displayName,
+}) {
   String literal(String? value) => (value ?? '').trim();
   // Only title fields can contain unresolved protocol keys. Content, actor
   // names, previews and badges are user data, even when they use this prefix.
@@ -15,7 +16,7 @@ import '../../../l10n/app_localizations.dart';
     return text.startsWith('notifications.') ? '' : text;
   }
 
-  final actor =
+  final rawActor =
       [
             item.actor.username,
             item.payload.actorName,
@@ -26,6 +27,7 @@ import '../../../l10n/app_localizations.dart';
             (s) => s.isNotEmpty,
             orElse: () => l10n.notificationSomeone,
           );
+  final actor = displayName?.call(item.actor.id, rawActor) ?? rawActor;
   final key = item.payload.templateKey ?? '';
   final event = switch (key) {
     'notifications.templates.comment' => 'comment',

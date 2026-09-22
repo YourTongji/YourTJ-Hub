@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { ChevronDown, ChevronUp } from '@lucide/vue'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -68,7 +69,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
         :alt="t('topic.authorAnonymous')"
         class="h-6 w-6 rounded-full object-cover ring-1 ring-line"
       />
-      <span v-if="target?.author.username && !target.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">@{{ target.author.username }}</span>
+      <span v-if="target?.author.username && !target.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">{{ userDisplayName(target.author.id, target.author.username, target.author.nickname) }}</span>
       <span v-else-if="target?.isAnonymous" class="min-w-0 truncate font-medium text-base-content/75">{{ t('topic.authorAnonymous') }}</span>
       <span v-if="target?.postNo" class="shrink-0 text-xs text-base-content/45">#{{ target.postNo }}</span>
     </div>

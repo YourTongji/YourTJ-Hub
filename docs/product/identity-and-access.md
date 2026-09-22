@@ -373,6 +373,27 @@ support.
 
 `Current`: [My campus](campus.md) supports a private, bidirectionally unique Tongji identity binding with explicit confirmation, unbind and atomic replacement. This is separate from forum OAuth login. School access/refresh tokens are server-side encrypted credentials; expired refresh authorization reserves the identity and prompts reauthorization. Forum account closure clears campus credentials before invalidating the account.
 
+## Private user notes
+
+`Current`: A signed-in user can edit a private note from another user's Web profile/card or App
+profile. The note is visible only to its author and displays as `note(username)` across user-name
+surfaces, including topic/reply authors, reply references, profiles, connections, search results,
+conversations, notification actors, mention candidates, revision editors, and Web moderation/admin
+lists. Usernames used as identifiers, editor mention text, existing Markdown, exports and public
+payloads remain canonical. Clearing the note restores the existing nickname/username fallback.
+
+Notes are trimmed plain text, up to 64 Unicode characters, without control/formatting characters;
+each account can keep up to 1000 notes. Writes are throttled like other write endpoints: exceeding
+the `user.note` quota returns HTTP 429 with `Retry-After`. Notes follow numeric user IDs, so
+renaming an account does not detach the note. Closing either account erases the relationship.
+Clients retrieve notes through
+an authenticated, `private, no-store` API, keep them in memory for the current session only, and
+refresh on re-entry/focus/resume. Session changes clear the display state and reject old read/write
+responses; the feature does not add notes to search indexes, notifications sent to others, public
+user caches or offline storage.
+
+Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
+
 ## Profile badge display
 
 `Current` — Users independently choose one avatar badge and zero to five public

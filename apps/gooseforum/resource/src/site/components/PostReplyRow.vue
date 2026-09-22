@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed } from 'vue'
 import { Ban, Bookmark, ChevronDown, ChevronUp, CornerDownLeft, Flag, Heart, PencilLine, RotateCcw, Share2, Trash2 } from '@lucide/vue'
 import type { PostPayload } from '@gooseforum/client'
@@ -68,8 +69,8 @@ const canReply = computed(() => (!props.authenticated || props.canPost) && !prop
 const canLike = computed(() => props.authenticated && !props.post.isHidden && !isRemoved.value)
 const canReport = computed(() => !props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 
-function authorDisplayName(author: { username: string; nickname?: string }) {
-  return author.nickname || author.username
+function authorDisplayName(author: { id?: number; username: string; nickname?: string }) {
+  return userDisplayName(author.id, author.username, author.nickname)
 }
 
 // 匿名楼层占位头像：复用课程评价的 boring-avatars beam 占位（seed 用楼层 id，跨语言稳定）

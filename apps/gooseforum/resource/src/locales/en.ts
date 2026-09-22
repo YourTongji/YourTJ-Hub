@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  privateNote: {
+    edit: "Edit note",
+    label: "Private note",
+    hint: "Only you can see this. Up to 64 characters; save empty to clear.",
+  },
   badgeDisplay: {
     title: "Profile badges",
     hint: "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
