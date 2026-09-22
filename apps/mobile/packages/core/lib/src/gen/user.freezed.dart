@@ -46,6 +46,8 @@ mixin _$UserCardPayload {
   bool get isSelf =>
       throw _privateConstructorUsedError; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+  List<UserBadgePayload>? get displayBadges =>
+      throw _privateConstructorUsedError;
   @JsonKey(defaultValue: [])
   List<UserBadgePayload> get badges => throw _privateConstructorUsedError;
   UserBadgePayload? get wornBadge => throw _privateConstructorUsedError;
@@ -92,6 +94,7 @@ abstract class $UserCardPayloadCopyWith<$Res> {
     bool isOnline,
     bool isFollowing,
     bool isSelf,
+    List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
     String lastActiveTime,
@@ -138,6 +141,7 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
     Object? isOnline = null,
     Object? isFollowing = null,
     Object? isSelf = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wornBadge = freezed,
     Object? lastActiveTime = null,
@@ -233,6 +237,10 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
                 ? _value.isSelf
                 : isSelf // ignore: cast_nullable_to_non_nullable
                       as bool,
+            displayBadges: freezed == displayBadges
+                ? _value.displayBadges
+                : displayBadges // ignore: cast_nullable_to_non_nullable
+                      as List<UserBadgePayload>?,
             badges: null == badges
                 ? _value.badges
                 : badges // ignore: cast_nullable_to_non_nullable
@@ -301,6 +309,7 @@ abstract class _$$UserCardPayloadImplCopyWith<$Res>
     bool isOnline,
     bool isFollowing,
     bool isSelf,
+    List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
     String lastActiveTime,
@@ -347,6 +356,7 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
     Object? isOnline = null,
     Object? isFollowing = null,
     Object? isSelf = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wornBadge = freezed,
     Object? lastActiveTime = null,
@@ -442,6 +452,10 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
             ? _value.isSelf
             : isSelf // ignore: cast_nullable_to_non_nullable
                   as bool,
+        displayBadges: freezed == displayBadges
+            ? _value._displayBadges
+            : displayBadges // ignore: cast_nullable_to_non_nullable
+                  as List<UserBadgePayload>?,
         badges: null == badges
             ? _value._badges
             : badges // ignore: cast_nullable_to_non_nullable
@@ -489,11 +503,13 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     required this.isOnline,
     required this.isFollowing,
     required this.isSelf,
+    final List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required final List<UserBadgePayload> badges,
     this.wornBadge,
     required this.lastActiveTime,
     required this.createdAt,
   }) : _externalInformation = externalInformation,
+       _displayBadges = displayBadges,
        _badges = badges;
 
   factory _$UserCardPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -552,9 +568,19 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
   final bool isSelf;
   // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
-  final List<UserBadgePayload> _badges;
+  final List<UserBadgePayload>? _displayBadges;
   // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+  @override
+  List<UserBadgePayload>? get displayBadges {
+    final value = _displayBadges;
+    if (value == null) return null;
+    if (_displayBadges is EqualUnmodifiableListView) return _displayBadges;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<UserBadgePayload> _badges;
   @override
   @JsonKey(defaultValue: [])
   List<UserBadgePayload> get badges {
@@ -572,7 +598,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
 
   @override
   String toString() {
-    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
+    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
   }
 
   @override
@@ -621,6 +647,10 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
             (identical(other.isFollowing, isFollowing) ||
                 other.isFollowing == isFollowing) &&
             (identical(other.isSelf, isSelf) || other.isSelf == isSelf) &&
+            const DeepCollectionEquality().equals(
+              other._displayBadges,
+              _displayBadges,
+            ) &&
             const DeepCollectionEquality().equals(other._badges, _badges) &&
             (identical(other.wornBadge, wornBadge) ||
                 other.wornBadge == wornBadge) &&
@@ -656,6 +686,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     isOnline,
     isFollowing,
     isSelf,
+    const DeepCollectionEquality().hash(_displayBadges),
     const DeepCollectionEquality().hash(_badges),
     wornBadge,
     lastActiveTime,
@@ -703,6 +734,7 @@ abstract class _UserCardPayload implements UserCardPayload {
     required final bool isOnline,
     required final bool isFollowing,
     required final bool isSelf,
+    final List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required final List<UserBadgePayload> badges,
     final UserBadgePayload? wornBadge,
     required final String lastActiveTime,
@@ -757,6 +789,8 @@ abstract class _UserCardPayload implements UserCardPayload {
   @override
   bool get isSelf; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+  @override
+  List<UserBadgePayload>? get displayBadges;
   @override
   @JsonKey(defaultValue: [])
   List<UserBadgePayload> get badges;
@@ -2784,6 +2818,8 @@ mixin _$SettingsUserPayload {
   Map<String, ExternalLinkPayload> get externalInformation =>
       throw _privateConstructorUsedError;
   String get wornBadgeCode => throw _privateConstructorUsedError;
+  List<UserBadgePayload>? get displayBadges =>
+      throw _privateConstructorUsedError;
   List<UserBadgePayload> get badges => throw _privateConstructorUsedError;
   List<UserBadgePayload> get wearableBadges =>
       throw _privateConstructorUsedError;
@@ -2823,6 +2859,7 @@ abstract class $SettingsUserPayloadCopyWith<$Res> {
     String createdAt,
     Map<String, ExternalLinkPayload> externalInformation,
     String wornBadgeCode,
+    List<UserBadgePayload>? displayBadges,
     List<UserBadgePayload> badges,
     List<UserBadgePayload> wearableBadges,
     UserBadgePayload? wornBadge,
@@ -2862,6 +2899,7 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
     Object? createdAt = null,
     Object? externalInformation = null,
     Object? wornBadgeCode = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wearableBadges = null,
     Object? wornBadge = freezed,
@@ -2932,6 +2970,10 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
                 ? _value.wornBadgeCode
                 : wornBadgeCode // ignore: cast_nullable_to_non_nullable
                       as String,
+            displayBadges: freezed == displayBadges
+                ? _value.displayBadges
+                : displayBadges // ignore: cast_nullable_to_non_nullable
+                      as List<UserBadgePayload>?,
             badges: null == badges
                 ? _value.badges
                 : badges // ignore: cast_nullable_to_non_nullable
@@ -2990,6 +3032,7 @@ abstract class _$$SettingsUserPayloadImplCopyWith<$Res>
     String createdAt,
     Map<String, ExternalLinkPayload> externalInformation,
     String wornBadgeCode,
+    List<UserBadgePayload>? displayBadges,
     List<UserBadgePayload> badges,
     List<UserBadgePayload> wearableBadges,
     UserBadgePayload? wornBadge,
@@ -3029,6 +3072,7 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
     Object? createdAt = null,
     Object? externalInformation = null,
     Object? wornBadgeCode = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wearableBadges = null,
     Object? wornBadge = freezed,
@@ -3099,6 +3143,10 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
             ? _value.wornBadgeCode
             : wornBadgeCode // ignore: cast_nullable_to_non_nullable
                   as String,
+        displayBadges: freezed == displayBadges
+            ? _value._displayBadges
+            : displayBadges // ignore: cast_nullable_to_non_nullable
+                  as List<UserBadgePayload>?,
         badges: null == badges
             ? _value._badges
             : badges // ignore: cast_nullable_to_non_nullable
@@ -3136,10 +3184,12 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     required this.createdAt,
     required final Map<String, ExternalLinkPayload> externalInformation,
     required this.wornBadgeCode,
+    final List<UserBadgePayload>? displayBadges,
     required final List<UserBadgePayload> badges,
     required final List<UserBadgePayload> wearableBadges,
     this.wornBadge,
   }) : _externalInformation = externalInformation,
+       _displayBadges = displayBadges,
        _badges = badges,
        _wearableBadges = wearableBadges;
 
@@ -3189,6 +3239,16 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @override
   final String wornBadgeCode;
+  final List<UserBadgePayload>? _displayBadges;
+  @override
+  List<UserBadgePayload>? get displayBadges {
+    final value = _displayBadges;
+    if (value == null) return null;
+    if (_displayBadges is EqualUnmodifiableListView) return _displayBadges;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   final List<UserBadgePayload> _badges;
   @override
   List<UserBadgePayload> get badges {
@@ -3210,7 +3270,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @override
   String toString() {
-    return 'SettingsUserPayload(id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
+    return 'SettingsUserPayload(id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, displayBadges: $displayBadges, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
   }
 
   @override
@@ -3247,6 +3307,10 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
             ) &&
             (identical(other.wornBadgeCode, wornBadgeCode) ||
                 other.wornBadgeCode == wornBadgeCode) &&
+            const DeepCollectionEquality().equals(
+              other._displayBadges,
+              _displayBadges,
+            ) &&
             const DeepCollectionEquality().equals(other._badges, _badges) &&
             const DeepCollectionEquality().equals(
               other._wearableBadges,
@@ -3276,6 +3340,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     createdAt,
     const DeepCollectionEquality().hash(_externalInformation),
     wornBadgeCode,
+    const DeepCollectionEquality().hash(_displayBadges),
     const DeepCollectionEquality().hash(_badges),
     const DeepCollectionEquality().hash(_wearableBadges),
     wornBadge,
@@ -3316,6 +3381,7 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
     required final String createdAt,
     required final Map<String, ExternalLinkPayload> externalInformation,
     required final String wornBadgeCode,
+    final List<UserBadgePayload>? displayBadges,
     required final List<UserBadgePayload> badges,
     required final List<UserBadgePayload> wearableBadges,
     final UserBadgePayload? wornBadge,
@@ -3359,6 +3425,8 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
   Map<String, ExternalLinkPayload> get externalInformation;
   @override
   String get wornBadgeCode;
+  @override
+  List<UserBadgePayload>? get displayBadges;
   @override
   List<UserBadgePayload> get badges;
   @override

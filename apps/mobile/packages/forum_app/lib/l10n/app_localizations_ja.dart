@@ -2346,4 +2346,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
+  String get badgeDisplayTitle => 'プロフィールのバッジ';
+
+  @override
+  String get badgeDisplayHint =>
+      '最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。';
+
+  @override
+  String get badgeDisplayUp => '上へ';
+
+  @override
+  String get badgeDisplayDown => '下へ';
 }

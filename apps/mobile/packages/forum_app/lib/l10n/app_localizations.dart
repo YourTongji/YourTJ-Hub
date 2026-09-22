@@ -4475,6 +4475,29 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only you can see this. Up to 64 characters; save empty to clear.'**
   String get privateNoteHint;
+  /// No description provided for @badgeDisplayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile badges'**
+  String get badgeDisplayTitle;
+
+  /// No description provided for @badgeDisplayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.'**
+  String get badgeDisplayHint;
+
+  /// No description provided for @badgeDisplayUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get badgeDisplayUp;
+
+  /// No description provided for @badgeDisplayDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get badgeDisplayDown;
 }
 
 class _AppLocalizationsDelegate

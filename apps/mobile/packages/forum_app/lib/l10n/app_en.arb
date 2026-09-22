@@ -1165,5 +1165,9 @@
   "campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.",
   "privateNoteEdit": "Edit note",
   "privateNoteLabel": "Private note",
-  "privateNoteHint": "Only you can see this. Up to 64 characters; save empty to clear."
+  "privateNoteHint": "Only you can see this. Up to 64 characters; save empty to clear.",
+  "badgeDisplayTitle": "Profile badges",
+  "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+  "badgeDisplayUp": "Move up",
+  "badgeDisplayDown": "Move down"
 }

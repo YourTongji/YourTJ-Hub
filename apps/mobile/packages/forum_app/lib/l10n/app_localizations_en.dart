@@ -2414,4 +2414,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get privateNoteHint =>
       'Only you can see this. Up to 64 characters; save empty to clear.';
+  String get badgeDisplayTitle => 'Profile badges';
+
+  @override
+  String get badgeDisplayHint =>
+      'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.';
+
+  @override
+  String get badgeDisplayUp => 'Move up';
+
+  @override
+  String get badgeDisplayDown => 'Move down';
 }

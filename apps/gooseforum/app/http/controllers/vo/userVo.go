@@ -41,6 +41,7 @@ type UserDetailedVo struct {
 	ExternalInformation users.ExternalInformation `json:"externalInformation"`
 	Prestige            int64                     `json:"prestige"`
 	WornBadgeCode       string                    `json:"wornBadgeCode"`
+	DisplayBadges       []badgeservice.UserBadge  `json:"displayBadges"`
 	Badges              []badgeservice.UserBadge  `json:"badges"`
 	WearableBadges      []badgeservice.UserBadge  `json:"wearableBadges"`
 	WornBadge           *badgeservice.UserBadge   `json:"wornBadge,omitempty"`

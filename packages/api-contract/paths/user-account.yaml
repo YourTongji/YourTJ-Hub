@@ -959,3 +959,65 @@ privateNote:
             examples:
               rateLimited:
                 externalValue: ../fixtures/user-note-rate-limited.json
+
+displayBadges:
+  post:
+    tags: [User]
+    summary: Select and order public profile badges
+    operationId: displayBadges
+    description: |
+      Sets zero to five distinct active badges owned by the caller, in display order.
+      An empty array explicitly hides all profile-card badges. The avatar's worn
+      badge and the complete earned badge collection remain independent. Omitted,
+      null, unknown, duplicate or unowned selections fail with common.request.invalidParams.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DisplayBadgesRequest
+    responses:
+      '200':
+        description: Badge updated, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or a request body exceeding 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

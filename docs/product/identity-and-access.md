@@ -393,3 +393,12 @@ responses; the feature does not add notes to search indexes, notifications sent 
 user caches or offline storage.
 
 Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
+
+## Profile badge display
+
+`Current` — Users independently choose one avatar badge and zero to five public
+profile-card badges in an explicit order. Unconfigured profiles retain their first
+five earned badges; saving an empty selection hides the card badges. Only active,
+owned badges can be selected, and revoked or disabled badges disappear from the
+selection. The complete earned-badge collection remains available separately.
+Avatar badge chips use each badge's preset background in light and dark themes.

@@ -74,7 +74,7 @@ const externalLinks = computed(() => {
   }
   return links
 })
-const visibleBadges = computed(() => (card.value?.badges || []).slice(0, 5))
+const visibleBadges = computed(() => (card.value?.displayBadges ?? card.value?.badges ?? []).slice(0, 5))
 const isAccountClosed = computed(() => Boolean(card.value?.isAccountClosed))
 
 function normalizeWebsiteURL(value: string) {

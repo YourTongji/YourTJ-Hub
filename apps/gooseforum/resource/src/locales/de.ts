@@ -6,13 +6,20 @@ export default {
     label: "Private Notiz",
     hint: "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.",
   },
+  badgeDisplay: {
+    title: "Profilabzeichen",
+    hint: "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
+    up: "Nach oben",
+    down: "Nach unten",
+    save: "Profilabzeichen speichern"
+  },
   tongjiRegistration: {
     title: "Tongji-Registrierung abschließen",
     intro: "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
     expired: "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
     restart: "Erneut anmelden",
     verifiedEmail: "Bestätigte E-Mail"
-},
+  },
   campus: {
     todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",
     todayHoliday: "{name}: Heute finden keine Lehrveranstaltungen statt.",

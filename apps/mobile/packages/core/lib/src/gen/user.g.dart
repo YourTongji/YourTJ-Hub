@@ -37,6 +37,9 @@ _$UserCardPayloadImpl _$$UserCardPayloadImplFromJson(
   isOnline: json['isOnline'] as bool,
   isFollowing: json['isFollowing'] as bool,
   isSelf: json['isSelf'] as bool,
+  displayBadges: (json['displayBadges'] as List<dynamic>?)
+      ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
   badges:
       (json['badges'] as List<dynamic>?)
           ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
@@ -74,6 +77,7 @@ Map<String, dynamic> _$$UserCardPayloadImplToJson(
   'isOnline': instance.isOnline,
   'isFollowing': instance.isFollowing,
   'isSelf': instance.isSelf,
+  'displayBadges': instance.displayBadges,
   'badges': instance.badges,
   'wornBadge': instance.wornBadge,
   'lastActiveTime': instance.lastActiveTime,
@@ -279,6 +283,9 @@ _$SettingsUserPayloadImpl _$$SettingsUserPayloadImplFromJson(
         ),
       ),
   wornBadgeCode: json['wornBadgeCode'] as String,
+  displayBadges: (json['displayBadges'] as List<dynamic>?)
+      ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
   badges: (json['badges'] as List<dynamic>)
       .map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -309,6 +316,7 @@ Map<String, dynamic> _$$SettingsUserPayloadImplToJson(
   'createdAt': instance.createdAt,
   'externalInformation': instance.externalInformation,
   'wornBadgeCode': instance.wornBadgeCode,
+  'displayBadges': instance.displayBadges,
   'badges': instance.badges,
   'wearableBadges': instance.wearableBadges,
   'wornBadge': instance.wornBadge,

@@ -2441,4 +2441,15 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get privateNoteHint =>
       'Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.';
+  String get badgeDisplayTitle => 'Profilabzeichen';
+
+  @override
+  String get badgeDisplayHint =>
+      'Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
+
+  @override
+  String get badgeDisplayUp => 'Nach oben';
+
+  @override
+  String get badgeDisplayDown => 'Nach unten';
 }

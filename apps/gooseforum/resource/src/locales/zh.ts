@@ -6,13 +6,20 @@ export default {
     label: "私有备注",
     hint: "仅自己可见，最多 64 个字符；留空保存即可清除。",
   },
+  badgeDisplay: {
+    title: "资料卡展示徽章",
+    hint: "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
+    up: "上移",
+    down: "下移",
+    save: "保存展示徽章"
+  },
   tongjiRegistration: {
     title: "完成同济账号注册",
     intro: "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
     expired: "验证已过期，请重新通过同济登录。",
     restart: "重新登录",
     verifiedEmail: "已验证的邮箱"
-},
+  },
   campus: {
     todayMakeup: "{name}：今天按 {date} 的课表上课。",
     todayHoliday: "{name}：今天放假停课。",

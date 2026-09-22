@@ -963,6 +963,15 @@ export async function savePresetAvatar(avatarUrl: string): Promise<string> {
   return result.avatarUrl
 }
 
+export async function displayBadges(badgeCodes: string[]): Promise<boolean> {
+  const response = await fetch('/api/display-badges', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ badgeCodes }),
+  })
+  await readApiResponse<unknown>(response, t('api.badgeWearFailed'))
+  return true
+}
+
 export async function wearBadge(badgeCode: string): Promise<boolean> {
   const response = await fetch('/api/wear-badge', {
     method: 'POST',

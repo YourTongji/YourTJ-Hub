@@ -835,5 +835,9 @@
   "campusRulesUnavailable": "休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。",
   "privateNoteEdit": "メモを編集",
   "privateNoteLabel": "非公開メモ",
-  "privateNoteHint": "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。"
+  "privateNoteHint": "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。",
+  "badgeDisplayTitle": "プロフィールのバッジ",
+  "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
+  "badgeDisplayUp": "上へ",
+  "badgeDisplayDown": "下へ"
 }

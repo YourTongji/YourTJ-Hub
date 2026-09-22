@@ -31,6 +31,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -73,6 +74,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginAPI.GET("/user-notes", UpQueryReq(api.GetPrivateNotes))
 	loginAPI.POST("/user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
+	loginAPI.POST("/display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
 	loginAPI.POST("/wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginAPI.POST("/upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginAPI.POST("/change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))
@@ -835,4 +837,53 @@ func TestUnbindOAuthHTTPContract(t *testing.T) {
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "oauth-unbind-failed.json"))
 	})
+}
+
+func TestDisplayBadgesHTTPContract(t *testing.T) {
+	conn, router := setupAccountContractTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	other := createHTTPContractUser(t, conn, contractTestID())
+	if err := conn.Create(&userBadges.Entity{UserId: user.Id, BadgeCode: badgeservice.CodeContributor, Source: "manual", GrantedAt: time.Now()}).Error; err != nil {
+		t.Fatal(err)
+	}
+	token := contractSessionToken(t, user)
+	body := fmt.Sprintf(`{"badgeCodes":[%q]}`, badgeservice.CodeContributor)
+	card, ok := userservice.GetUserCard(user.Id)
+	if !ok || len(card.DisplayBadges) != 1 {
+		t.Fatal("legacy selection should display the owned badge")
+	}
+	malformed := serveJSON(router, "/api/display-badges", `{"badgeCodes":[]`, token)
+	if malformed.Code != http.StatusBadRequest {
+		t.Fatalf("malformed JSON status = %d, want 400", malformed.Code)
+	}
+	for _, invalid := range []string{`{}`, `{"badgeCodes":null}`, `{"badgeCodes":["unknown"]}`, fmt.Sprintf(`{"badgeCodes":[%q,%q]}`, badgeservice.CodeContributor, badgeservice.CodeContributor)} {
+		rec := serveJSON(router, "/api/display-badges", invalid, token)
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
+	}
+	rec := serveJSON(router, "/api/display-badges", body, contractSessionToken(t, other))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "invalid-params.json"))
+	rec = serveJSON(router, "/api/display-badges", body, token)
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "set-user-email-success.json"))
+	stored, err := users.Get(user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DisplayBadgeCodes != fmt.Sprintf(`[%q]`, badgeservice.CodeContributor) {
+		t.Fatalf("selection not saved: %s", stored.DisplayBadgeCodes)
+	}
+	rec = serveJSON(router, "/api/display-badges", `{"badgeCodes":[]}`, token)
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "set-user-email-success.json"))
+	stored, err = users.Get(user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.DisplayBadgeCodes != "[]" {
+		t.Fatal("empty selection lost")
+	}
+	card, ok = userservice.GetUserCard(user.Id)
+	if !ok || len(card.DisplayBadges) != 0 || len(card.Badges) != 1 {
+		t.Fatal("public cache did not refresh selection independently of earned badges")
+	}
+	assertInteractionUnauthenticated(t, router, "/api/display-badges", body, "auth-required.json")
+	assertInteractionForbidden(t, conn, router, "/api/display-badges", body, "account-frozen.json")
 }

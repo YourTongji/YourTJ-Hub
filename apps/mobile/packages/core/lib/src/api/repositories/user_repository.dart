@@ -88,6 +88,14 @@ class UserRepository {
     return true;
   }
 
+  Future<bool> displayBadges(List<String> badgeCodes) async {
+    await _client.post<Object?>(
+      '/api/display-badges',
+      body: {'badgeCodes': badgeCodes},
+    );
+    return true;
+  }
+
   Future<bool> wearBadge(String badgeCode) async {
     await _client.post<Object?>(
       '/api/wear-badge',

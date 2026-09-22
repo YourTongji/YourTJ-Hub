@@ -378,6 +378,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   underline. Avatar overlap participates in layout so it leaves no translated blank space. The role
   label stays beside the name; earned badges appear as bordered title/description cards with colored
   hexagons and their server-provided SVGs. The selected badge remains attached to the avatar.
+  Settings allow selecting and ordering zero to five owned, enabled badges for the profile header.
+  An explicit empty selection hides that row; existing accounts default to their first five badges.
+  This selection does not change the avatar badge or the complete earned badge collection.
   Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.

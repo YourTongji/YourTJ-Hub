@@ -1165,5 +1165,9 @@
   "campusRulesUnavailable": "暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。",
   "privateNoteEdit": "编辑备注",
   "privateNoteLabel": "私有备注",
-  "privateNoteHint": "仅自己可见，最多 64 个字符；留空保存即可清除。"
+  "privateNoteHint": "仅自己可见，最多 64 个字符；留空保存即可清除。",
+  "badgeDisplayTitle": "资料卡展示徽章",
+  "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
+  "badgeDisplayUp": "上移",
+  "badgeDisplayDown": "下移"
 }
