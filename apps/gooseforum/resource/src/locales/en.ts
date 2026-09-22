@@ -1,6 +1,13 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  tongjiRegistration: {
+    title: "Complete Tongji registration",
+    intro: "Your Tongji identity is verified. Choose a username and password to create your forum account. No further email verification is needed.",
+    expired: "Verification expired. Please sign in with Tongji again.",
+    restart: "Sign in again",
+    verifiedEmail: "Verified email"
+},
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",
     todayHoliday: "{name}: no classes today.",
@@ -580,7 +587,7 @@ export default {
   auth: {
     tongjiPolicies: "By continuing, you agree to the published policies:",
     tongjiLogin: "Continue with Tongji SSO",
-    tongjiSignupHint: "First sign-in creates an account and campus connection, with student-ID{'@'}tongji.edu.cn assigned automatically. No email activation is required.",
+    tongjiSignupHint: "After your first school verification, choose a username and password to register. Your student-ID{'@'}tongji.edu.cn and campus connection are verified without another email challenge.",
     tongjiUnavailable: "Tongji sign-in is unavailable. Please use another sign-in method.",
     tongjiAccountExists: "This Tongji identity was previously linked, or its student email is already used or reserved. Sign in to or recover your existing account, then link the identity on the Campus page.",
     tongjiSignupDisabled: "Tongji registration is currently unavailable. Contact an administrator or sign in to an existing account.",
@@ -2814,6 +2821,7 @@ export default {
     'post.alreadyDeleted': 'This reply has already been deleted. No need to delete it again.',
     'post.firstPostUndeletable': 'The topic first post cannot be deleted. Delete the topic instead.',
     'auth.csrf.rejected': 'The request origin could not be verified. Refresh the page and try again.',
+    'auth.tongji.accountExists': 'This Tongji identity or its student email already belongs to an account. Sign in to or recover the existing account, then link the identity on the Campus page.',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

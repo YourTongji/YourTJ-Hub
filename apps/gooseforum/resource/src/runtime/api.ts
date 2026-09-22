@@ -2019,3 +2019,13 @@ export async function getCourseSummary(courseId: number, refresh = false, check 
   if (!result) return { status: 'error' }
   return result
 }
+
+export interface TongjiRegistrationStatus { csrfToken: string; email: string; expiresAt: string }
+export async function getTongjiRegistration(): Promise<TongjiRegistrationStatus> {
+  return readApiResponse<TongjiRegistrationStatus>(await fetch('/api/auth/tongji/registration', { cache: 'no-store' }), t('tongjiRegistration.expired'))
+}
+export async function completeTongjiRegistration(username: string, password: string, csrfToken: string): Promise<{ redirect: string }> {
+  return readApiResponse<{ redirect: string }>(await fetch('/api/auth/tongji/registration', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, csrfToken }),
+  }), t('auth.validation.registerFailed'))
+}

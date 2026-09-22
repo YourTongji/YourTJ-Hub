@@ -44,6 +44,7 @@ export interface ErrorPageProps {
 }
 
 export interface LoginPageProps {
+  tongjiRegistration?: boolean
   initialMode: 'login' | 'register' | 'forgot'
   redirectUrl: string
   githubUrl: string

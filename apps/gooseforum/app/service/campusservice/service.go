@@ -37,17 +37,18 @@ type pending struct {
 var lifecycleLocks [64]sync.Mutex
 
 type Service struct {
-	config   Config
-	store    campus.Store
-	provider Provider
-	mu       sync.Mutex
-	pending  map[uint64]*pending
-	logins   map[string]*loginAttempt
-	allowed  func(uint64) bool
+	config        Config
+	store         campus.Store
+	provider      Provider
+	mu            sync.Mutex
+	pending       map[uint64]*pending
+	logins        map[string]*loginAttempt
+	registrations map[string]*pendingRegistration
+	allowed       func(uint64) bool
 }
 
 func New(c Config, s campus.Store, p Provider) *Service {
-	return &Service{config: c, store: s, provider: p, pending: make(map[uint64]*pending), logins: make(map[string]*loginAttempt)}
+	return &Service{config: c, store: s, provider: p, pending: make(map[uint64]*pending), logins: make(map[string]*loginAttempt), registrations: make(map[string]*pendingRegistration)}
 }
 func (s *Service) dropPending(id uint64) { s.mu.Lock(); delete(s.pending, id); s.mu.Unlock() }
 func (s *Service) Status(id uint64, session string) (Status, error) {

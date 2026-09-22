@@ -4389,7 +4389,7 @@ abstract class AppLocalizations {
   /// No description provided for @loginTongjiHint.
   ///
   /// In en, this message translates to:
-  /// **'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.'**
+  /// **'After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.'**
   String get loginTongjiHint;
 
   /// No description provided for @loginTongjiPolicies.

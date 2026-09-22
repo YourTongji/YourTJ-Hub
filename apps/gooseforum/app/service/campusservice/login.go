@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
+var errRegistrationRequired = errors.New("campus_registration_required")
 var ErrSignupDisabled = errors.New("campus_signup_disabled")
 var ErrAccountUnavailable = errors.New("campus_account_unavailable")
 
@@ -27,9 +28,10 @@ type loginAttempt struct {
 }
 
 type LoginResult struct {
-	User     *users.EntityComplete
-	Redirect string
-	Created  bool
+	User         *users.EntityComplete
+	Redirect     string
+	Registration string
+	Created      bool
 }
 
 func IsLoginState(state string) bool { return strings.HasPrefix(state, "login.") }
@@ -77,7 +79,10 @@ func (s *Service) Login(ctx context.Context, browser, state, code string, policy
 	if !attempt.Expires.After(time.Now()) {
 		return result, ErrFlow
 	}
-	result.User, result.Created, err = s.loginAccount(ctx, credentials, attempt.Locale, policy)
+	result.User, result.Created, err = s.loginAccount(ctx, credentials, attempt.Locale, policy, nil)
+	if errors.Is(err, errRegistrationRequired) {
+		result.Registration, err = s.prepareRegistration(credentials, attempt)
+	}
 	return result, err
 }
 
@@ -85,7 +90,7 @@ func (s *Service) Login(ctx context.Context, browser, state, code string, policy
 // may become an email address; arbitrary upstream strings never become addresses.
 var studentNumber = regexp.MustCompile(`^[0-9]{5,20}$`)
 
-func (s *Service) loginAccount(ctx context.Context, credentials Credentials, locale string, policy pageConfig.SecurityAndRegistration) (*users.EntityComplete, bool, error) {
+func (s *Service) loginAccount(ctx context.Context, credentials Credentials, locale string, policy pageConfig.SecurityAndRegistration, registration *Registration) (*users.EntityComplete, bool, error) {
 	if credentials.Subject == "" || !studentNumber.MatchString(credentials.StudentID) {
 		return nil, false, ErrAuthorization
 	}
@@ -96,6 +101,9 @@ func (s *Service) loginAccount(ctx context.Context, credentials Credentials, loc
 		store := campus.Store{DB: tx}
 		binding, err := store.GetByIdentity(key)
 		if err == nil {
+			if registration != nil {
+				return campus.ErrIdentityUsed
+			}
 			current, err := users.GetForAuthenticationTx(tx, binding.UserID)
 			if err != nil || current.IsBot() || current.IsFrozen == users.StatusFrozen {
 				return ErrAccountUnavailable
@@ -125,14 +133,22 @@ func (s *Service) loginAccount(ctx context.Context, credentials Credentials, loc
 		if !domainAllowed {
 			return ErrSignupDisabled
 		}
-		// Opaque public defaults never contain school identifiers or real names.
-		username := "tj_" + strings.ToLower(random()[:16])
-		username = strings.ReplaceAll(username, "-", "_")
+		if err := users.CheckEmailClaimTx(tx, credentials.StudentID+"@tongji.edu.cn", 0); err != nil {
+			return err
+		}
+		if registration == nil {
+			return errRegistrationRequired
+		}
+		username := registration.Username
 		if _, err := moderationservice.CheckUsernameAllowedWithConfig(username, policy); err != nil {
 			return ErrSignupDisabled
 		}
 		user, err = userservice.CreateVerifiedAccountTx(tx, username, credentials.StudentID+"@tongji.edu.cn", locale, policy.MaxDailySignups)
 		if err != nil {
+			return err
+		}
+		// Account, password, identity binding and initial rewards commit together.
+		if err := users.UpdatePasswordHashTx(tx, user, registration.PasswordHash); err != nil {
 			return err
 		}
 		sealed, err := s.config.seal(user.Id, credentials)
