@@ -12546,7 +12546,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Username/email/identity collision or registration policy/quota rejection; no partial account is created. */
+            /** @description No partial account is created. A collision of the verified school identity or its student email with an existing account returns auth.tongji.accountExists with recovery guidance (the requester is already school-verified, so naming the conflict is not an enumeration oracle). Other collisions, registration policy and daily-quota rejections share the generic auth.register.failed body. */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -432,3 +432,40 @@ func TestSchoolRegistrationExpiredAndDuplicateUsernameRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSchoolRegistrationConcurrentCompletionSingleWinner(t *testing.T) {
+	s, _, policy := loginSetup(t)
+	state, browser, err := s.StartLogin("/campus", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.Login(context.Background(), browser, state, "code", policy)
+	if err != nil || result.Registration == "" {
+		t.Fatalf("no registration proof: %+v %v", result, err)
+	}
+	status, err := s.RegistrationStatus(result.Registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := Registration{Username: "race_user", PasswordHash: "test-hash"}
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Go(func() {
+			_, errs[i] = s.CompleteRegistration(context.Background(), result.Registration, status.CSRFToken, fields, policy)
+		})
+	}
+	wg.Wait()
+	wins, flow := 0, 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			wins++
+		case errors.Is(err, ErrFlow):
+			flow++
+		}
+	}
+	if wins != 1 || flow != 1 {
+		t.Fatalf("concurrent completion must have exactly one winner: %d wins, %d flow errors, %v", wins, flow, errs)
+	}
+}

@@ -141,6 +141,26 @@ type tongjiRegistrationRequest struct {
 	CSRFToken string `json:"csrfToken"`
 }
 
+// tongjiRegistrationFailure maps completion errors onto the contract's statuses
+// and codes. The proof pre-check already returned 410/403 for an invalid proof,
+// so ErrFlow here means it expired or was consumed between the pre-check and
+// the final submit; identity/email collisions return dedicated guidance because
+// the requester's school identity is already verified, so naming the conflict
+// creates no enumeration oracle.
+func tongjiRegistrationFailure(err error) (int, component.MessageCode) {
+	switch {
+	case errors.Is(err, campusservice.ErrFlow):
+		return http.StatusGone, component.MessageAuthRequired
+	case errors.Is(err, campus.ErrIdentityUsed), errors.Is(err, users.ErrEmailOccupied):
+		return http.StatusConflict, component.MessageAuthTongjiAccountExists
+	case errors.Is(err, campusservice.ErrSignupDisabled):
+		return http.StatusConflict, component.MessageAuthSignupDisabled
+	case errors.Is(err, users.ErrSignupQuota):
+		return http.StatusConflict, component.MessageAuthRegisterDailyQuota
+	}
+	return http.StatusConflict, component.MessageAuthRegisterFailed
+}
+
 func TongjiRegister(c *gin.Context) {
 	registrationHeaders(c)
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
@@ -184,14 +204,8 @@ func TongjiRegister(c *gin.Context) {
 	}
 	result, err := s.CompleteRegistration(c.Request.Context(), ticket, input.CSRFToken, campusservice.Registration{Username: input.Username, PasswordHash: hash}, hotdataserve.GetSecuritySettingsConfigCache())
 	if err != nil {
-		message := component.MessageAuthRegisterFailed
-		if errors.Is(err, campusservice.ErrSignupDisabled) {
-			message = component.MessageAuthSignupDisabled
-		}
-		if errors.Is(err, users.ErrSignupQuota) {
-			message = component.MessageAuthRegisterDailyQuota
-		}
-		c.JSON(http.StatusConflict, component.FailDataCode(message, nil))
+		status, code := tongjiRegistrationFailure(err)
+		c.JSON(status, component.FailDataCode(code, nil))
 		return
 	}
 	tongjiRegistrationCookie(c, "", -1)

@@ -2816,6 +2816,7 @@ export default {
     'post.alreadyDeleted': 'この返信はすでに削除されています。再操作は不要です。',
     'post.firstPostUndeletable': 'トピックの最初の投稿は削除できません。トピック自体を削除してください。',
     'auth.csrf.rejected': 'リクエスト元を検証できませんでした。ページを再読み込みして、もう一度お試しください。',
+    'auth.tongji.accountExists': 'この同済大学IDまたは学籍番号メールは既にアカウントに紐づいています。既存のアカウントにログインまたは復旧し、キャンパスページで再連携してください。',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

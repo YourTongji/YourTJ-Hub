@@ -2817,6 +2817,7 @@ export default {
     'post.alreadyDeleted': 'This reply has already been deleted. No need to delete it again.',
     'post.firstPostUndeletable': 'The topic first post cannot be deleted. Delete the topic instead.',
     'auth.csrf.rejected': 'The request origin could not be verified. Refresh the page and try again.',
+    'auth.tongji.accountExists': 'This Tongji identity or its student email already belongs to an account. Sign in to or recover the existing account, then link the identity on the Campus page.',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

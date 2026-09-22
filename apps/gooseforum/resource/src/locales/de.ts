@@ -2815,6 +2815,7 @@ export default {
     'post.notFound': 'Die Antwort existiert nicht oder wurde gelöscht.',
     'post.alreadyDeleted': 'Diese Antwort wurde bereits gelöscht. Kein erneutes Löschen nötig.',
     'post.firstPostUndeletable': 'Der erste Beitrag eines Themas kann nicht gelöscht werden. Lösche stattdessen das Thema.',
+    'auth.tongji.accountExists': 'Diese Tongji-Identität oder ihre Studierenden-E-Mail gehört bereits zu einem Konto. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.',
     'admin.moderator.userRequired': 'Gib einen Moderator-Benutzer ein.',
     'admin.moderator.userNotFound': 'Moderator-Benutzer nicht gefunden.',
     'admin.moderator.notFound': 'Moderator-Datensatz nicht gefunden.',

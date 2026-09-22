@@ -2819,6 +2819,7 @@ export default {
     'post.alreadyDeleted': '该回复已删除，无需重复操作。',
     'post.firstPostUndeletable': '话题首楼不可删除，请改为删除整个话题。',
     'auth.csrf.rejected': '请求来源校验未通过（已拒绝跨站请求），请刷新页面后重试。',
+    'auth.tongji.accountExists': '该同济身份或其学号邮箱已归属已有账号。请登录或找回已有账号，再到校园页重新绑定。',
     'admin.moderator.userRequired': '请输入版主用户。',
     'admin.moderator.userNotFound': '版主用户不存在。',
     'admin.moderator.notFound': '版主记录不存在。',

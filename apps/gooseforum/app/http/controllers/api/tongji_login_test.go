@@ -2,9 +2,13 @@ package api
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +17,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
@@ -355,4 +360,139 @@ func TestTongjiRegistrationValidatesProofAndCredentials(t *testing.T) {
 	if err := algorithm.VerifyEncryptPassword(user.Password, "Password123"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// tongjiIdentityKey mirrors campusservice.fingerprint for the test setup's
+// IdentityKey and the mock provider's student ID.
+func tongjiIdentityKey(t *testing.T) string {
+	t.Helper()
+	mac := hmac.New(sha256.New, []byte(strings.Repeat("i", 32)))
+	if _, err := mac.Write([]byte(campusservice.Issuer + "\x00" + "2356789")); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func startTongjiRegistrationProof(t *testing.T, router *gin.Engine) []*http.Cookie {
+	t.Helper()
+	start := httptest.NewRecorder()
+	router.ServeHTTP(start, httptest.NewRequest(http.MethodGet, "/api/auth/tongji?redirect=%2Fcampus", nil))
+	location, err := url.Parse(start.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/campus/tongji/callback?code=school-code&state="+url.QueryEscape(location.Query().Get("state")), nil)
+	for _, cookie := range start.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+	callback := httptest.NewRecorder()
+	router.ServeHTTP(callback, req)
+	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/register/tongji" {
+		t.Fatalf("no registration proof: %d %s", callback.Code, callback.Header().Get("Location"))
+	}
+	return callback.Result().Cookies()
+}
+
+func postTongjiRegistration(t *testing.T, router *gin.Engine, cookies []*http.Cookie, username, password, csrf string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"username": username, "password": password, "csrfToken": csrf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/tongji/registration", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+func tongjiRegistrationCSRF(t *testing.T, router *gin.Engine, cookies []*http.Cookie) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/tongji/registration", nil)
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	var status struct {
+		Result campusservice.RegistrationStatus `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil || status.Result.CSRFToken == "" {
+		t.Fatalf("registration status unavailable: %d %s", rec.Code, rec.Body.String())
+	}
+	return status.Result.CSRFToken
+}
+
+func TestTongjiRegistrationFailureMapping(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   component.MessageCode
+	}{
+		{"proof consumed or expired", campusservice.ErrFlow, http.StatusGone, component.MessageAuthRequired},
+		{"wrapped proof expiry", fmt.Errorf("tx: %w", campusservice.ErrFlow), http.StatusGone, component.MessageAuthRequired},
+		{"identity used", campus.ErrIdentityUsed, http.StatusConflict, component.MessageAuthTongjiAccountExists},
+		{"email occupied", users.ErrEmailOccupied, http.StatusConflict, component.MessageAuthTongjiAccountExists},
+		{"signup disabled", campusservice.ErrSignupDisabled, http.StatusConflict, component.MessageAuthSignupDisabled},
+		{"daily quota", users.ErrSignupQuota, http.StatusConflict, component.MessageAuthRegisterDailyQuota},
+		{"unexpected failure", errors.New("db down"), http.StatusConflict, component.MessageAuthRegisterFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status, code := tongjiRegistrationFailure(tc.err)
+			if status != tc.status || code != tc.code {
+				t.Fatalf("map %v: got (%d, %s), want (%d, %s)", tc.err, status, code, tc.status, tc.code)
+			}
+		})
+	}
+}
+
+func TestTongjiRegisterAccountCollisionGuidesRecovery(t *testing.T) {
+	t.Run("identityBoundBetweenCallbackAndSubmit", func(t *testing.T) {
+		router, _ := setupTongjiLogin(t)
+		conn := db.Connect()
+		proof := startTongjiRegistrationProof(t, router)
+		owner := users.EntityComplete{Username: "owner_identity", Email: "owner@example.test"}
+		if err := conn.Create(&owner).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := conn.Create(&campus.Binding{UserID: owner.Id, IdentityKey: tongjiIdentityKey(t), Revision: "rev", Sealed: "sealed"}).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			conn.Where("identity_key = ?", tongjiIdentityKey(t)).Delete(&campus.Binding{})
+			conn.Unscoped().Where("username = ?", "owner_identity").Delete(&users.EntityComplete{})
+		})
+		rec := postTongjiRegistration(t, router, proof, "chosen_student", "Password123", tongjiRegistrationCSRF(t, router, proof))
+		if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "auth.tongji.accountExists") {
+			t.Fatalf("expected account-exists guidance: %d %s", rec.Code, rec.Body.String())
+		}
+		var count int64
+		if err := conn.Model(&users.EntityComplete{}).Where("username = ?", "chosen_student").Count(&count).Error; err != nil || count != 0 {
+			t.Fatalf("partial account created: %d %v", count, err)
+		}
+	})
+	t.Run("studentEmailClaimedBetweenCallbackAndSubmit", func(t *testing.T) {
+		router, _ := setupTongjiLogin(t)
+		conn := db.Connect()
+		proof := startTongjiRegistrationProof(t, router)
+		owner := users.EntityComplete{Username: "owner_email", Email: "2356789@tongji.edu.cn"}
+		if err := conn.Create(&owner).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			conn.Unscoped().Where("username = ?", "owner_email").Delete(&users.EntityComplete{})
+		})
+		rec := postTongjiRegistration(t, router, proof, "chosen_student", "Password123", tongjiRegistrationCSRF(t, router, proof))
+		if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "auth.tongji.accountExists") {
+			t.Fatalf("expected account-exists guidance: %d %s", rec.Code, rec.Body.String())
+		}
+		var count int64
+		if err := conn.Model(&users.EntityComplete{}).Where("username = ?", "chosen_student").Count(&count).Error; err != nil || count != 0 {
+			t.Fatalf("partial account created: %d %v", count, err)
+		}
+	})
 }
