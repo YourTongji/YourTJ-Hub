@@ -2318,4 +2318,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusRulesUnavailable => '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。';
+
+  @override
+  String get badgeDisplayTitle => '资料卡展示徽章';
+
+  @override
+  String get badgeDisplayHint => '最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。';
+
+  @override
+  String get badgeDisplayUp => '上移';
+
+  @override
+  String get badgeDisplayDown => '下移';
 }

@@ -4438,6 +4438,12 @@ UserCard:
       items:
         $ref: '#/UserBadge'
       description: Always an array (empty when the user holds no badges), never null.
+    displayBadges:
+      type: array
+      maxItems: 5
+      items:
+        $ref: '#/UserBadge'
+      description: Selected active badges in user-defined order; [] hides all. Missing on older servers; clients fall back to the first five earned badges.
     wornBadge:
       $ref: '#/UserBadge'
     lastActiveTime:
@@ -4618,6 +4624,20 @@ PresetAvatarResponse:
   oneOf:
     - $ref: '#/PresetAvatarSuccess'
     - $ref: '#/ApiFailure'
+
+DisplayBadgesRequest:
+  type: object
+  required: [badgeCodes]
+  properties:
+    badgeCodes:
+      type: array
+      maxItems: 5
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+  additionalProperties: false
 
 WearBadgeRequest:
   type: object

@@ -2431,4 +2431,17 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       'Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.';
+
+  @override
+  String get badgeDisplayTitle => 'Profilabzeichen';
+
+  @override
+  String get badgeDisplayHint =>
+      'Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
+
+  @override
+  String get badgeDisplayUp => 'Nach oben';
+
+  @override
+  String get badgeDisplayDown => 'Nach unten';
 }

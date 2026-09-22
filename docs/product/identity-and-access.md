@@ -372,3 +372,12 @@ support.
 ## Official campus connection
 
 `Current`: [My campus](campus.md) supports a private, bidirectionally unique Tongji identity binding with explicit confirmation, unbind and atomic replacement. This is separate from forum OAuth login. School access/refresh tokens are server-side encrypted credentials; expired refresh authorization reserves the identity and prompts reauthorization. Forum account closure clears campus credentials before invalidating the account.
+
+## Profile badge display
+
+`Current` — Users independently choose one avatar badge and zero to five public
+profile-card badges in an explicit order. Unconfigured profiles retain their first
+five earned badges; saving an empty selection hides the card badges. Only active,
+owned badges can be selected, and revoked or disabled badges disappear from the
+selection. The complete earned-badge collection remains available separately.
+Avatar badge chips use each badge's preset background in light and dark themes.

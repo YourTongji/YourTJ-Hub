@@ -4457,6 +4457,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.'**
   String get campusRulesUnavailable;
+
+  /// No description provided for @badgeDisplayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile badges'**
+  String get badgeDisplayTitle;
+
+  /// No description provided for @badgeDisplayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.'**
+  String get badgeDisplayHint;
+
+  /// No description provided for @badgeDisplayUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get badgeDisplayUp;
+
+  /// No description provided for @badgeDisplayDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get badgeDisplayDown;
 }
 
 class _AppLocalizationsDelegate

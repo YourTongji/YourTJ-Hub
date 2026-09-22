@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：325
-- /api JSON 路由：259，已入契约：260（100%），已知未覆盖：0
+- 快照路由总数：326
+- /api JSON 路由：260，已入契约：261（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（260）
+## 已覆盖（261）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -179,6 +179,7 @@
 | POST | `/api/campus/tongji/start` | `campusStart` |
 | POST | `/api/campus/tongji/unbind` | `campusUnbind` |
 | POST | `/api/change-password` | `changePassword` |
+| POST | `/api/display-badges` | `displayBadges` |
 | POST | `/api/forgot-password` | `forgotPassword` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |
 | POST | `/api/forum/chat/messages` | `getChatMessages` |

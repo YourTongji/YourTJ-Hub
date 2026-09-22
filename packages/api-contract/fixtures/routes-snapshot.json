@@ -913,6 +913,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/display-badges"
+  },
+  {
+    "method": "POST",
     "path": "/api/forgot-password"
   },
   {

@@ -1,13 +1,20 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  badgeDisplay: {
+    title: "Profile badges",
+    hint: "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+    up: "Move up",
+    down: "Move down",
+    save: "Save profile badges"
+  },
   tongjiRegistration: {
     title: "Complete Tongji registration",
     intro: "Your Tongji identity is verified. Choose a username and password to create your forum account. No further email verification is needed.",
     expired: "Verification expired. Please sign in with Tongji again.",
     restart: "Sign in again",
     verifiedEmail: "Verified email"
-},
+  },
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",
     todayHoliday: "{name}: no classes today.",

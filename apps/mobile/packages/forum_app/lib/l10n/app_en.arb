@@ -1156,5 +1156,9 @@
     }
   }
 },
-"campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable."
+"campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.",
+  "badgeDisplayTitle": "Profile badges",
+  "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+  "badgeDisplayUp": "Move up",
+  "badgeDisplayDown": "Move down"
 }

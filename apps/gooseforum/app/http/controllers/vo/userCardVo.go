@@ -32,6 +32,7 @@ type UserCard struct {
 	IsFollowing    bool                      `json:"isFollowing"`
 	ExternalInfo   users.ExternalInformation `json:"externalInformation"`
 	IsSelf         bool                      `json:"isSelf"`
+	DisplayBadges  []badgeservice.UserBadge  `json:"displayBadges"`
 	Badges         []badgeservice.UserBadge  `json:"badges"`
 	WornBadge      *badgeservice.UserBadge   `json:"wornBadge,omitempty"`
 	LastActiveTime time.Time                 `json:"lastActiveTime"`

@@ -468,6 +468,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
 
+    for (final badge in (user.displayBadges ?? user.badges.take(5))) {
+      badges['earned:${badge.code}'] = GfUserBadge(
+        label: badge.name,
+        color: _userBadgeColor(badge),
+      );
+    }
     final List<Widget> actions = <Widget>[];
     if (user.isSelf || props.isOwnProfile) {
       actions.add(

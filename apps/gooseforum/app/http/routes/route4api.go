@@ -242,6 +242,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
+	loginApi.POST("display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginApi.POST("change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))

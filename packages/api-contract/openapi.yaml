@@ -165,6 +165,8 @@ paths:
     $ref: ./paths/user-account.yaml#/setUserName
   /api/set-preset-avatar:
     $ref: ./paths/user-account.yaml#/setPresetAvatar
+  /api/display-badges:
+    $ref: ./paths/user-account.yaml#/displayBadges
   /api/wear-badge:
     $ref: ./paths/user-account.yaml#/wearBadge
   /api/upload-avatar:

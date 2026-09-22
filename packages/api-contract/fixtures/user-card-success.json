@@ -30,6 +30,7 @@
     },
     "isSelf": false,
     "badges": [],
+    "displayBadges": [],
     "lastActiveTime": "2026-08-15T12:34:56Z",
     "createdAt": "2025-09-01T08:00:00Z",
     "isAccountClosed": false
