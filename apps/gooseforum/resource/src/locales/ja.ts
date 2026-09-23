@@ -351,6 +351,27 @@ export default {
     wiki_pages: "Wiki 段落"
 },
   campusMap: {
+    menu: { label: "地図メニュー", places: "場所", courses: "自分の時間割" },
+    mine: {
+      source: "同済大学の公式時間割",
+      title: "自分の授業場所",
+      openMap: "自分の時間割を地図で見る",
+      loading: "連携状態を確認して時間割を読み込み中…",
+      loginRequired: "時間割を見るにはログインしてください。",
+      bindRequired: "時間割を見るには同済大学の公式IDを連携してください。",
+      reauthorizeRequired: "時間割を読むには大学の認証を更新してください。",
+      openCampus: "マイキャンパスを開く",
+      unavailable: "現在、時間割を取得できません。",
+      limits: "表示するのは本人の時間割のみです。教室の現在の使用状況、入室可否、空き状況は示しません。",
+      scheduleRange: "時間割の範囲を選択",
+      week: "授業週",
+      invalidWeek: "1 から {count} までの授業週を選択してください。",
+      unknownWeeks: "週番号がない授業はこの絞り込みでは表示されません。",
+      search: "授業名または教室番号を検索",
+      noCourses: "選択した週に授業はありません。",
+      noMatches: "一致する授業または教室番号はありません。",
+      locationUnverified: "建物の場所を確認できないため、地図上にピンを表示しません。",
+    },
     sports: {
       "basketball": "バスケットボール",
       "badminton": "バドミントン",

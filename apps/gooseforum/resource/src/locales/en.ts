@@ -352,6 +352,27 @@ export default {
     wiki_pages: "Wiki paragraphs"
 },
   campusMap: {
+    menu: { label: "Map menu", places: "Places", courses: "My timetable" },
+    mine: {
+      source: "Your official Tongji timetable",
+      title: "My class locations",
+      openMap: "View my timetable on the map",
+      loading: "Checking your link and loading your timetable…",
+      loginRequired: "Sign in to view your timetable.",
+      bindRequired: "Link a verified Tongji identity to view your timetable.",
+      reauthorizeRequired: "Update your school authorization to read your timetable.",
+      openCampus: "Open My Campus",
+      unavailable: "Your timetable is temporarily unavailable.",
+      limits: "This shows your timetable only. It does not report room occupancy, access, or availability.",
+      scheduleRange: "Choose timetable range",
+      week: "Teaching week",
+      invalidWeek: "Choose a teaching week from 1 to {count}.",
+      unknownWeeks: "Courses without week numbers are hidden from this filter.",
+      search: "Search courses or room numbers",
+      noCourses: "There are no classes in this teaching week.",
+      noMatches: "No matching course or room number.",
+      locationUnverified: "Building location could not be verified; no map pin is shown.",
+    },
     sports: {
       "basketball": "Basketball",
       "badminton": "Badminton",

@@ -351,6 +351,27 @@ export default {
     wiki_pages: "Wiki-Absätze"
 },
   campusMap: {
+    menu: { label: "Kartenmenü", places: "Orte", courses: "Mein Stundenplan" },
+    mine: {
+      source: "Dein offizieller Tongji-Stundenplan",
+      title: "Meine Kursorte",
+      openMap: "Meinen Stundenplan auf der Karte ansehen",
+      loading: "Verknüpfung wird geprüft und Stundenplan wird geladen…",
+      loginRequired: "Melde dich an, um deinen Stundenplan zu sehen.",
+      bindRequired: "Verknüpfe eine bestätigte Tongji-Identität, um deinen Stundenplan zu sehen.",
+      reauthorizeRequired: "Aktualisiere die Schulautorisierung, um den Stundenplan zu lesen.",
+      openCampus: "Mein Campus öffnen",
+      unavailable: "Dein Stundenplan ist vorübergehend nicht verfügbar.",
+      limits: "Hier wird nur dein Stundenplan angezeigt. Raumbelegung, Zugang und Verfügbarkeit werden nicht angegeben.",
+      scheduleRange: "Stundenplanbereich auswählen",
+      week: "Unterrichtswoche",
+      invalidWeek: "Wähle eine Unterrichtswoche von 1 bis {count}.",
+      unknownWeeks: "Kurse ohne Wochenangabe werden in diesem Filter ausgeblendet.",
+      search: "Kurse oder Raumnummern suchen",
+      noCourses: "In dieser Unterrichtswoche gibt es keine Kurse.",
+      noMatches: "Kein passender Kurs oder Raum gefunden.",
+      locationUnverified: "Der Gebäudestandort konnte nicht bestätigt werden; es wird keine Markierung angezeigt.",
+    },
     sports: {
       "basketball": "Basketball",
       "badminton": "Badminton",

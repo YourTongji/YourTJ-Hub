@@ -352,6 +352,27 @@ export default {
     wiki_pages: "Wiki 段落"
 },
   campusMap: {
+    menu: { label: "地图菜单", places: "地点", courses: "本人课表" },
+    mine: {
+      source: "本人同济官方课表",
+      title: "我的课程地点",
+      openMap: "在地图查看本人课程",
+      loading: "正在核验绑定并读取课表…",
+      loginRequired: "登录后才能查看本人课程。",
+      bindRequired: "请先绑定同济官方身份，再查看本人课表。",
+      reauthorizeRequired: "学校授权需要更新后才能读取课表。",
+      openCampus: "前往我的校园",
+      unavailable: "暂时无法查询本人课表。",
+      limits: "这里只显示本人课表，不表示教室当前是否有人、开放或可预约。",
+      scheduleRange: "选择课表范围",
+      week: "教学周",
+      invalidWeek: "请选择 1 至 {count} 周内的教学周。",
+      unknownWeeks: "缺少周次信息的课程不会出现在此筛选结果中。",
+      search: "搜索课程或教室号",
+      noCourses: "所选教学周暂无课程。",
+      noMatches: "没有匹配的课程或教室号。",
+      locationUnverified: "无法核对建筑位置，地图未标点。",
+    },
     sports: {
       "basketball": "篮球",
       "badminton": "羽毛球",

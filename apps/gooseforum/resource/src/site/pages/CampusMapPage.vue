@@ -8,6 +8,8 @@ import {
   ref,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { LayoutPayload } from '@gooseforum/client'
+import CampusMapMinePanel from '@/site/components/CampusMapMinePanel.vue'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -57,7 +59,12 @@ import { categoryColors } from '@/site/campus-map/style'
 const CampusCanvas = defineAsyncComponent(
   () => import('@/site/campus-map/CampusCanvas.vue'),
 )
+const demoMinePanel = import.meta.env.DEV && new URLSearchParams(window.location.search).get('demo') === '1'
+  ? defineAsyncComponent(() => import('@/site/components/CampusMapMineDemoPanel.vue'))
+  : null
 const { t, te } = useI18n()
+const page = defineProps<{ layout?: LayoutPayload }>()
+const showTimetable = new URLSearchParams(window.location.search).get('mine') === '1'
 function sportLabel(activity: string): string {
   const key = `campusMap.sports.${activity}`
   return te(key) ? t(key) : activity
@@ -72,13 +79,16 @@ const locationStatus = ref<
 >('idle')
 const locationNotice = ref(true)
 let locationSequence = 0
+let mineSelectionVersion = 0
 let focusAfterLoad = false
+let mapLoad: { campusId: string; promise: Promise<void> } | null = null
 const campusName = computed(() => t(`campusMap.campuses.${campus.value.id}`))
 const data = ref<CampusData | null>(null)
 const query = ref('')
 const category = ref<Category>('all')
 const sport = ref('')
 const selected = ref<CampusPlace | null>(null)
+const selectedFromTimetable = ref(false)
 const showAll = ref(false)
 const infoDialog = ref<HTMLDialogElement>()
 const shareFallback = ref(false)
@@ -158,7 +168,9 @@ function browsePlaces() {
   showAll.value = true
   mobileResults.value = true
 }
-function select(id: string) {
+function select(id: string, fromTimetable = false) {
+  mineSelectionVersion++
+  selectedFromTimetable.value = fromTimetable
   const feature = data.value?.features.find((f) => String(f.id) === id)
   if (!feature?.properties.campus) {
     closePlace()
@@ -173,8 +185,23 @@ function select(id: string) {
   url.hash = `place=${encodeURIComponent(id)}`
   window.history.replaceState(window.history.state, '', url)
 }
+async function selectMinePlace(target: { campusId: 'siping' | 'jiading'; featureId: string } | null | undefined) {
+  const version = ++mineSelectionVersion
+  if (!target) {
+    closePlace()
+    return
+  }
+  if (campus.value.id !== target.campusId) await switchCampus(target.campusId, false, false)
+  else if (!data.value) {
+    const pending = mapLoad?.campusId === target.campusId ? mapLoad.promise : null
+    await (pending ?? load())
+  }
+  if (version !== mineSelectionVersion || campus.value.id !== target.campusId) return
+  select(target.featureId, true)
+}
 function closePlace() {
   selected.value = null
+  selectedFromTimetable.value = false
   const url = new URL(window.location.href)
   url.hash = ''
   window.history.replaceState(window.history.state, '', url)
@@ -188,7 +215,13 @@ function restoreSelection() {
 function togglePanel() {
   panelOpen.value = !panelOpen.value
 }
-function switchCampus(id: string, fromLocation = false) {
+function menuHref(showMine: boolean) {
+  const params = new URLSearchParams({ campus: campus.value.id })
+  if (showMine) params.set('mine', '1')
+  return `/map?${params}`
+}
+function switchCampus(id: string, fromLocation = false, invalidateMineSelection = true): Promise<void> {
+  if (invalidateMineSelection) mineSelectionVersion++
   if (!fromLocation) {
     locationNotice.value = false
     locationSequence++
@@ -207,7 +240,7 @@ function switchCampus(id: string, fromLocation = false) {
   const url = new URL(window.location.href)
   url.searchParams.set('campus', campus.value.id)
   window.history.replaceState(window.history.state, '', url)
-  void load()
+  return load()
 }
 function changeCampus(event: Event) {
   switchCampus((event.target as HTMLSelectElement).value)
@@ -256,32 +289,42 @@ async function locate() {
         : 'unavailable'
   }
 }
-async function load() {
+function load(): Promise<void> {
   controller?.abort()
   controller = new AbortController()
   failure.value = null
   const current = controller
-  try {
-    const response = await fetch(campus.value.url, { signal: current.signal })
-    if (!response.ok) throw new Error('Map data unavailable')
-    const nextData = (await response.json()) as CampusData
-    if (current.signal.aborted) return
-    data.value = nextData
-    restoreSelection()
-  } catch {
-    if (!current.signal.aborted) failure.value = 'data'
-  }
+  const pending = (async () => {
+    try {
+      const response = await fetch(campus.value.url, { signal: current.signal })
+      if (!response.ok) throw new Error('Map data unavailable')
+      const nextData = (await response.json()) as CampusData
+      if (current.signal.aborted) return
+      data.value = nextData
+      restoreSelection()
+    } catch {
+      if (!current.signal.aborted) failure.value = 'data'
+    }
+  })()
+  mapLoad = { campusId: campus.value.id, promise: pending }
+  void pending.then(() => {
+    if (mapLoad?.promise === pending) mapLoad = null
+  })
+  return pending
 }
 async function share() {
+  const url = new URL(window.location.href)
+  if (showTimetable) url.searchParams.delete('mine')
+  const publicUrl = url.toString()
   try {
-    await navigator.clipboard.writeText(window.location.href)
+    await navigator.clipboard.writeText(publicUrl)
     copied.value = true
     clearTimeout(copyTimer)
     copyTimer = setTimeout(() => {
       copied.value = false
     }, 2200)
   } catch {
-    shareUrl.value = window.location.href
+    shareUrl.value = publicUrl
     shareFallback.value = true
     await nextTick()
     shareInput.value?.select()
@@ -340,7 +383,7 @@ onBeforeUnmount(() => {
   <div
     class="campus-atlas"
     :class="{
-      'campus-atlas--selected': selected && panelOpen,
+      'campus-atlas--selected': selected && panelOpen && !selectedFromTimetable,
       'campus-atlas--collapsed': !panelOpen,
     }"
   >
@@ -423,6 +466,25 @@ onBeforeUnmount(() => {
         :class="{ 'atlas-explorer--results': mobileResults }"
         :aria-label="t('campusMap.explore')"
       >
+        <nav class="atlas-menu-switch" :aria-label="t('campusMap.menu.label')">
+          <a :href="menuHref(false)" :aria-current="!showTimetable ? 'page' : undefined">
+            <MapPin :size="15" />{{ t('campusMap.menu.places') }}
+          </a>
+          <a :href="menuHref(true)" :aria-current="showTimetable ? 'page' : undefined">
+            <BookOpen :size="15" />{{ t('campusMap.menu.courses') }}
+          </a>
+        </nav>
+        <component
+          :is="demoMinePanel"
+          v-if="showTimetable && demoMinePanel"
+          @select="selectMinePlace"
+        />
+        <CampusMapMinePanel
+          v-else-if="showTimetable"
+          :authenticated="page.layout?.viewer.isAuthenticated ?? false"
+          @select="selectMinePlace"
+        />
+        <template v-else>
         <div class="atlas-intro">
           <div class="atlas-eyebrow"><span /> TONGJI CAMPUS ATLAS</div>
           <h1>
@@ -551,6 +613,7 @@ onBeforeUnmount(() => {
         <div class="atlas-explorer__foot">
           <Trees :size="14" /><span>{{ t('campusMap.exploreNote') }}</span>
         </div>
+        </template>
       </aside>
 
       <div v-if="!mapReady || failure" class="atlas-map-status" role="status">
@@ -644,7 +707,7 @@ onBeforeUnmount(() => {
 
       <Transition name="atlas-detail"
         ><section
-          v-if="selected && panelOpen"
+          v-if="selected && panelOpen && !selectedFromTimetable"
           class="atlas-detail"
           :aria-label="t('campusMap.details')"
         >
@@ -903,6 +966,58 @@ onBeforeUnmount(() => {
     0 10px 40px #5260440c,
     0 1px 3px #52604406;
   backdrop-filter: blur(14px);
+}
+.atlas-menu-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  flex: none;
+  margin: 14px 16px 0;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f1f2e9;
+}
+.atlas-menu-switch a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  border-radius: 7px;
+  color: #68735f;
+  font-size: 12px;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+.atlas-menu-switch a:hover {
+  color: #344c30;
+}
+.atlas-menu-switch a:active {
+  transform: scale(0.97);
+}
+.atlas-menu-switch a[aria-current='page'] {
+  background: #fffef8;
+  color: #344c30;
+  box-shadow: 0 1px 4px #52604418;
+  animation: atlas-menu-select 180ms ease-out;
+}
+@keyframes atlas-menu-select {
+  from {
+    opacity: 0.65;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.atlas-menu-switch a:focus-visible {
+  outline: 2px solid #829b6e;
+  outline-offset: 1px;
 }
 .atlas-intro {
   padding: 25px 23px 20px;
@@ -1759,16 +1874,12 @@ onBeforeUnmount(() => {
   }
 }
 @media (min-width: 701px) {
-  .campus-atlas--selected .atlas-explorer {
-    visibility: hidden;
-    pointer-events: none;
-  }
   .atlas-detail {
-    left: 26px;
+    left: auto;
     top: 26px;
-    right: auto;
+    right: 85px;
     bottom: auto;
-    width: 304px;
+    width: min(304px, calc(100% - 420px));
     max-height: calc(100% - 110px);
     overflow: auto;
   }
