@@ -228,6 +228,19 @@ Rules:
 - Hover and active states should be subtle.
 - Empty states explain the reason and offer a useful action when possible.
 
+## User Connection Pages
+
+The following and follower views use canonical profile sections at `/u/:id/following` and
+`/u/:id/followers`. Legacy activity URLs remain compatible but resolve to the standalone view.
+
+Rules:
+
+- Keep the global navigation unchanged and provide a username banner linking back to the profile.
+- Keep following and followers as separate entries outside the activity sub-navigation.
+- Connection rows use the shared avatar and follow controls, with wrapping names, usernames, and bios.
+- Follow actions must not appear for the current user; mobile controls may use the full row width.
+- Use the shared pagination footer for incremental loading and preserve light/dark tokens.
+
 ## Topic Detail
 
 Topic detail structure:

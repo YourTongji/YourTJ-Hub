@@ -719,6 +719,7 @@ void main() {
         (w) => w is TextField && w.decoration?.labelText == '验证码',
       );
       expect(captcha, findsOneWidget);
+      expect(find.byType(GfCaptchaImage), findsOneWidget);
       expect(find.text('原始标题'), findsOneWidget);
       await tester.enterText(captcha, 'ABCD');
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));

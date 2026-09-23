@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pointycastle/digests/sha256.dart';
 
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
@@ -342,5 +345,182 @@ void main() {
     expect(controller.error, contains('OIDC login failed'));
     expect(auth.exchangeCalls, 0);
     expect(await storage.read(), isNull);
+  });
+
+  group('manual Android authorization', () {
+    test(
+      'all providers build RFC 8252 authorization requests without AppAuth',
+      () {
+        for (final provider in ['google', 'github', 'tongji']) {
+          final appAuth = FakeAppAuth();
+          final controller = buildController(
+            storage: MemoryTokenStorage(),
+            appAuth: appAuth,
+            auth: FakeAuthRepository(),
+          );
+
+          final session = controller.beginManualAuthorization(
+            provider: provider,
+          );
+          final query = session.authorizationUri.queryParameters;
+          expect(session.provider, provider);
+          expect(
+            session.codeVerifier,
+            matches(RegExp(r'^[A-Za-z0-9._~-]{43,128}$')),
+          );
+          final challenge = base64Url
+              .encode(
+                SHA256Digest().process(ascii.encode(session.codeVerifier)),
+              )
+              .replaceAll('=', '');
+          expect(query['client_id'], clientId);
+          expect(query['redirect_uri'], redirectUri);
+          expect(query['response_type'], 'code');
+          expect(query['scope'], 'openid profile email');
+          expect(query['state'], session.state);
+          expect(query['nonce'], session.nonce);
+          expect(query['code_challenge'], challenge);
+          expect(query['code_challenge_method'], 'S256');
+          expect(query['login_hint'], provider);
+          expect(appAuth.authorizeCalls, 0);
+        }
+      },
+    );
+
+    test('state and nonce are independently generated for each session', () {
+      final controller = buildController(
+        storage: MemoryTokenStorage(),
+        appAuth: FakeAppAuth(),
+        auth: FakeAuthRepository(),
+      );
+
+      final first = controller.beginManualAuthorization(provider: 'google');
+      final second = controller.beginManualAuthorization(provider: 'google');
+
+      expect(first.state, isNot(second.state));
+      expect(first.nonce, isNot(second.nonce));
+      expect(first.state, isNot(first.nonce));
+    });
+
+    test(
+      'matching callback exchanges exact session values and stores the forum JWT',
+      () async {
+        final storage = MemoryTokenStorage();
+        final auth = FakeAuthRepository(exchangeToken: 'manual-forum-jwt');
+        final controller = buildController(
+          storage: storage,
+          appAuth: FakeAppAuth(),
+          auth: auth,
+        );
+        final session = controller.beginManualAuthorization(provider: 'github');
+
+        final ok = await controller.completeManualAuthorization(
+          session,
+          Uri.parse(
+            'yourtj://callback?code=manual-code&state=${session.state}',
+          ),
+        );
+
+        expect(ok, isTrue);
+        expect(auth.lastCode, 'manual-code');
+        expect(auth.lastVerifier, session.codeVerifier);
+        expect(auth.lastNonce, session.nonce);
+        expect(auth.lastRedirectUri, session.redirectUri);
+        expect(await storage.read(), 'manual-forum-jwt');
+        expect(controller.isAuthenticated, isTrue);
+      },
+    );
+
+    for (final invalidCallback in <String>[
+      'yourtj://callback?code=code&state=wrong',
+      'other://callback?code=code&state=state',
+      'yourtj://other?code=code&state=state',
+      'yourtj://callback/path?code=code&state=state',
+      'yourtj://user@callback?code=code&state=state',
+      'yourtj://callback?code=code&state=state#fragment',
+    ]) {
+      test(
+        'rejects callback lookalike without exchanging: $invalidCallback',
+        () async {
+          final auth = FakeAuthRepository();
+          final controller = buildController(
+            storage: MemoryTokenStorage(),
+            appAuth: FakeAppAuth(),
+            auth: auth,
+          );
+          final session = controller.beginManualAuthorization(
+            provider: 'tongji',
+          );
+          final callback = invalidCallback.replaceFirst(
+            'state=state',
+            'state=${session.state}',
+          );
+
+          expect(
+            await controller.completeManualAuthorization(
+              session,
+              Uri.parse(callback),
+            ),
+            isFalse,
+          );
+          expect(auth.exchangeCalls, 0);
+        },
+      );
+    }
+
+    test('callback error and missing code do not exchange', () async {
+      final auth = FakeAuthRepository();
+      final controller = buildController(
+        storage: MemoryTokenStorage(),
+        appAuth: FakeAppAuth(),
+        auth: auth,
+      );
+      final denied = controller.beginManualAuthorization(provider: 'google');
+
+      expect(
+        await controller.completeManualAuthorization(
+          denied,
+          Uri.parse(
+            'yourtj://callback?error=access_denied&state=${denied.state}',
+          ),
+        ),
+        isFalse,
+      );
+      expect(controller.error, 'OIDC authorization cancelled');
+      expect(auth.exchangeCalls, 0);
+
+      final missingCode = controller.beginManualAuthorization(
+        provider: 'google',
+      );
+      expect(
+        await controller.completeManualAuthorization(
+          missingCode,
+          Uri.parse('yourtj://callback?state=${missingCode.state}'),
+        ),
+        isFalse,
+      );
+      expect(controller.error, 'OIDC authorization code missing');
+      expect(auth.exchangeCalls, 0);
+    });
+
+    test('empty exchanged token is a normal failure', () async {
+      final auth = FakeAuthRepository(exchangeToken: '');
+      final controller = buildController(
+        storage: MemoryTokenStorage(),
+        appAuth: FakeAppAuth(),
+        auth: auth,
+      );
+      final session = controller.beginManualAuthorization(provider: 'google');
+
+      expect(
+        await controller.completeManualAuthorization(
+          session,
+          Uri.parse('yourtj://callback?code=code&state=${session.state}'),
+        ),
+        isFalse,
+      );
+      expect(controller.error, 'OIDC exchange failed');
+      expect(controller.isAuthenticated, isFalse);
+    });
   });
 }

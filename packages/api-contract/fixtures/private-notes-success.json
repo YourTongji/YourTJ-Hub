@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "result": {
+    "ownerId": 1,
+    "notes": [
+      {
+        "targetUserId": 2,
+        "username": "alice",
+        "note": "实验搭档"
+      }
+    ]
+  }
+}

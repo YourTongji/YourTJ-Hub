@@ -59,6 +59,7 @@ const (
 	MessageAuthRegisterFailed            MessageCode = "auth.register.failed"            // 注册失败。
 	MessageAuthRegisterRetryLogin        MessageCode = "auth.register.retryLogin"        // 注册成功但自动登录失败，建议手动登录。
 	MessageAuthRegisterEmailVerify       MessageCode = "auth.register.emailVerify"       // 注册成功，需要邮箱验证。
+	MessageAuthTongjiAccountExists       MessageCode = "auth.tongji.accountExists"       // 同济身份或其学号邮箱已归属已有账号，需登录/找回后在校园页绑定。
 	MessageAuthLoginSuccess              MessageCode = "auth.login.success"              // 登录成功。
 	MessageAuthLoginInvalidRequest       MessageCode = "auth.login.invalidRequest"       // 登录请求无效，通常需要刷新页面重试。
 	MessageAuthPasswordInvalidFormat     MessageCode = "auth.password.invalidFormat"     // 登录密码格式不正确。

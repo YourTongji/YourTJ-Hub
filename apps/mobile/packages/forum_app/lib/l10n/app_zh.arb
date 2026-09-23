@@ -1120,8 +1120,21 @@
     }
   },
   "loginTongji": "同济统一认证登录",
-  "loginTongjiHint": "首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。",
+  "loginTongjiHint": "首次认证后填写用户名和密码完成注册，自动绑定“学号@tongji.edu.cn”并连接校园，无需再次验证邮箱。",
   "loginTongjiPolicies": "继续即表示同意本站公布的条款：",
+  "linkPreviewExternalTitle": "即将离开 YourTJ",
+  "linkPreviewExternalBody": "你将前往 {domain}。请确认网址，并谨慎输入账号、验证码或支付信息。",
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
+  "linkPreviewRememberDomain": "本次浏览期间不再询问此域名",
+  "linkPreviewContinue": "继续访问",
+  "linkPreviewCampusFallbackTitle": "校园网",
+  "linkPreviewCampusFallbackDescription": "需校园网络访问",
   "campusTodayMakeup": "{name}：今天按 {date} 的课表上课。",
   "@campusTodayMakeup": {
     "placeholders": {
@@ -1149,5 +1162,12 @@
       }
     }
   },
-  "campusRulesUnavailable": "暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。"
+  "campusRulesUnavailable": "暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。",
+  "privateNoteEdit": "编辑备注",
+  "privateNoteLabel": "私有备注",
+  "privateNoteHint": "仅自己可见，最多 64 个字符；留空保存即可清除。",
+  "badgeDisplayTitle": "资料卡展示徽章",
+  "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
+  "badgeDisplayUp": "上移",
+  "badgeDisplayDown": "下移"
 }

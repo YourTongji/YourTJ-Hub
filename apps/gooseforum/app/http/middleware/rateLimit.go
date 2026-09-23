@@ -44,6 +44,7 @@ const (
 	RateLimitLLMSTopic       = "llms.topic"
 	RateLimitMCPAuth         = "mcp.auth"
 	RateLimitCourseCatalog   = "course.catalog"
+	RateLimitLinkPreview     = "link-preview.resolve"
 	RateLimitCampusRead      = "campus.read"
 	RateLimitCampusAuthorize = "campus.authorize"
 	RateLimitStickerList     = "sticker.list"
@@ -76,6 +77,10 @@ const (
 	// /api/pk/plans 共用独立配额——写操作不与目录读（course.catalog）抢配额，
 	// 60s 窗口 per-IP 60 / per-User 30（方案编辑低频，防脚本高频刷写）。
 	RateLimitPkPlans = "pk.plans"
+	// RateLimitUserNote 私有用户备注写入（POST /api/user-note，PR #755 评审）：
+	// 每次写入开事务并对双方用户行加锁，独立配额防脚本高频写（备注编辑低频，
+	// 60s 窗口 per-IP 30 / per-User 10）。
+	RateLimitUserNote = "user.note"
 )
 
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。

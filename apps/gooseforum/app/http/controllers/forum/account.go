@@ -109,6 +109,16 @@ func Login(c *gin.Context) {
 	renderAppShell(c, payload)
 }
 
+// TongjiRegistration renders a dedicated completion page. The authenticated
+// school proof stays in the API-only HttpOnly cookie, never in page props.
+func TongjiRegistration(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Referrer-Policy", "no-referrer")
+	props := buildLoginPageProps(c)
+	props.TongjiRegistration = true
+	renderAppShell(c, PagePayload{Component: PageComponentLogin, Props: props, Meta: buildSimpleMeta(c, "meta.loginRegister"), Layout: campusLayout(buildLayout(c, "")), URL: buildPageURL(c), Version: payloadVersion})
+}
+
 func ResetPassword(c *gin.Context) {
 	payload := PagePayload{
 		Component: PageComponentResetPassword,

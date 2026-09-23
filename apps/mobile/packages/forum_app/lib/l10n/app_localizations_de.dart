@@ -2385,11 +2385,33 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      'Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.';
+      'Nach der ersten Hochschulprüfung Benutzername und Passwort wählen. Matrikelnummer@tongji.edu.cn und Campus-Verbindung werden ohne erneute E-Mail-Prüfung bestätigt.';
 
   @override
   String get loginTongjiPolicies =>
       'Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:';
+
+  @override
+  String get linkPreviewExternalTitle => 'YourTJ verlassen';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return 'Du wechselst zu $domain. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.';
+  }
+
+  @override
+  String get linkPreviewRememberDomain =>
+      'Für diese Domain in dieser Sitzung nicht erneut fragen';
+
+  @override
+  String get linkPreviewContinue => 'Weiter';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => 'Campusnetz';
+
+  @override
+  String get linkPreviewCampusFallbackDescription =>
+      'Zugriff nur aus dem Campusnetz';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -2409,4 +2431,25 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       'Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.';
+
+  @override
+  String get privateNoteEdit => 'Notiz bearbeiten';
+
+  @override
+  String get privateNoteLabel => 'Private Notiz';
+
+  @override
+  String get privateNoteHint =>
+      'Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.';
+  String get badgeDisplayTitle => 'Profilabzeichen';
+
+  @override
+  String get badgeDisplayHint =>
+      'Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
+
+  @override
+  String get badgeDisplayUp => 'Nach oben';
+
+  @override
+  String get badgeDisplayDown => 'Nach unten';
 }

@@ -24,7 +24,7 @@ info:
     (export tasks, download, import), the Agent (bot persona) public API,
     the user content lifecycle (own/deleted content lists, restore,
     batch-delete, purge, delete telemetry, account close),
-    aggregate search, and public site statistics.
+    aggregate search, public site statistics, and bounded link-preview resolution.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -85,6 +85,8 @@ paths:
     $ref: ./paths/auth-account-recovery.yaml#/forgotPassword
   /api/reset-password:
     $ref: ./paths/auth-account-recovery.yaml#/resetPassword
+  /api/auth/tongji/registration:
+    $ref: ./paths/campus.yaml#/registration
   /api/auth/totp/verify:
     $ref: ./paths/auth-security.yaml#/verifyTotp
   /api/user/totp/status:
@@ -149,6 +151,10 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
     $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user-notes:
+    $ref: './paths/user-account.yaml#/privateNotes'
+  /api/user-note:
+    $ref: './paths/user-account.yaml#/privateNote'
   /api/user-card:
     $ref: ./paths/user-account.yaml#/getUserCard
   /api/set-user-info:
@@ -163,6 +169,8 @@ paths:
     $ref: ./paths/user-account.yaml#/setUserName
   /api/set-preset-avatar:
     $ref: ./paths/user-account.yaml#/setPresetAvatar
+  /api/display-badges:
+    $ref: ./paths/user-account.yaml#/displayBadges
   /api/wear-badge:
     $ref: ./paths/user-account.yaml#/wearBadge
   /api/upload-avatar:
@@ -203,6 +211,8 @@ paths:
     $ref: ./paths/forum-read.yaml#/getSiteStatistics
   /api/forum/search:
     $ref: ./paths/forum-read.yaml#/searchForum
+  /api/link-previews/resolve:
+    $ref: ./paths/link-previews.yaml#/resolveLinkPreviews
   /api/forum/stickers:
     $ref: ./paths/forum-read.yaml#/forumStickerList
   /api/site-theme/tokens:
@@ -631,6 +641,11 @@ paths:
       $ref: ./paths/direct-image-upload.yaml#/abortDirectImageUpload/post
 components:
   securitySchemes:
+    tongjiRegistrationCookie:
+      type: apiKey
+      in: cookie
+      name: yourtj_tongji_registration
+      description: Short-lived HttpOnly proof of a completed school authentication, only for registration completion.
     bearerAuth:
       type: http
       scheme: bearer

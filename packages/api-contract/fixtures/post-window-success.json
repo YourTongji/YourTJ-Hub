@@ -25,7 +25,8 @@
         "likeCount": 0,
         "isLiked": false,
         "isBookmarked": false,
-        "isAnswer": false
+        "isAnswer": false,
+        "mentions": []
       }
     ],
     "replyTargets": [],

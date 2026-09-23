@@ -27,14 +27,18 @@ getUserCard:
     summary: Read the compact public profile card of a user
     operationId: getUserCard
     description: |
-      Public read endpoint with no rate limit. Note the route group mounts no JWT
-      middleware, so the viewer-specific flags isSelf and isFollowing are always
-      false. Query binding is strict: a missing or non-numeric userId fails with
-      HTTP 400 and `common.request.parseFailed`. An unknown user id fails with
-      `user.notFound` (HTTP 200); a closed (soft-deleted) account instead returns a
-      successful minimal tombstone card (userId/avatarUrl/isAccountClosed set, the
-      remaining fields zero-valued).
-    security: []
+      Public read endpoint with no rate limit and optional authentication. Anonymous
+      requests return false for the viewer-specific flags isSelf and isFollowing;
+      authenticated requests resolve them for the current viewer. Query binding is
+      strict: a missing or non-numeric userId fails with HTTP 400 and
+      `common.request.parseFailed`. An unknown user id fails with `user.notFound`
+      (HTTP 200); a closed (soft-deleted) account instead returns a successful
+      minimal tombstone card (userId/avatarUrl/isAccountClosed set, the remaining
+      fields zero-valued).
+    security:
+      - {}
+      - bearerAuth: []
+      - accessTokenCookie: []
     parameters:
       - name: userId
         in: query
@@ -818,6 +822,181 @@ unbindOAuth:
                 externalValue: ../fixtures/oauth-unbind-success.json
               unbindFailed:
                 externalValue: ../fixtures/oauth-unbind-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Authenticated account is frozen or its account information cannot be resolved.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+privateNotes:
+  get:
+    tags: [User]
+    summary: List the caller’s private user notes
+    operationId: listPrivateNotes
+    description: |
+      Owner identity comes only from the authenticated session. Notes never appear
+      in public profiles, search, notifications or the target account. Maximum 1000
+      notes per owner; an empty note clears the entry. Either account closing erases
+      the relationship. Responses use Cache-Control private, no-store.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Private notes for this session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PrivateNotesSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/private-notes-success.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Storage unavailable; no successful response is returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+privateNote:
+  post:
+    tags: [User]
+    summary: Set or clear a private note for another user
+    operationId: setPrivateNote
+    description: |
+      Owner identity comes only from the authenticated session. Notes never appear
+      in public profiles, search, notifications or the target account. Maximum 1000
+      notes per owner; an empty note clears the entry. Either account closing erases
+      the relationship. Responses use Cache-Control private, no-store.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PrivateNoteRequest
+    responses:
+      '200':
+        description: Note saved or cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PrivateNoteSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/private-note-success.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Storage unavailable; no successful response is returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '400':
+        description: Malformed JSON, body exceeds 4096 bytes, invalid note or unavailable target.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account not writable or cookie request rejected with auth.csrf.rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '409':
+        description: The owner already has 1000 notes; existing notes can still be edited or cleared.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: User-note write rate limit (action `user.note`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/user-note-rate-limited.json
+
+displayBadges:
+  post:
+    tags: [User]
+    summary: Select and order public profile badges
+    operationId: displayBadges
+    description: |
+      Sets zero to five distinct active badges owned by the caller, in display order.
+      An empty array explicitly hides all profile-card badges. The avatar's worn
+      badge and the complete earned badge collection remain independent. Omitted,
+      null, unknown, duplicate or unowned selections fail with common.request.invalidParams.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DisplayBadgesRequest
+    responses:
+      '200':
+        description: Badge updated, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or a request body exceeding 4096 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

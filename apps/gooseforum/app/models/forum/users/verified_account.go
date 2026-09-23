@@ -53,3 +53,10 @@ func CheckSignupQuotaTx(tx *gorm.DB, maxDaily int) error {
 	}
 	return nil
 }
+
+// UpdatePasswordHashTx is used only while creating an externally verified
+// account. It must share the transaction that inserts the user and identity.
+func UpdatePasswordHashTx(tx *gorm.DB, user *EntityComplete, hash string) error {
+	user.Password = hash
+	return tx.Model(user).Update("password", hash).Error
+}

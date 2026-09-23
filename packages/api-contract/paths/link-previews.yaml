@@ -1,0 +1,54 @@
+resolveLinkPreviews:
+  post:
+    tags: [Forum]
+    summary: Resolve bounded metadata for internal and external links
+    operationId: resolveLinkPreviews
+    description: |
+      Resolves at most five URLs in request order. First-party URLs are read
+      directly from local models; external HTTP(S) pages use the server's
+      SSRF-safe bounded fetcher. The response exposes a fixed metadata
+      whitelist and stable per-item statuses, never remote HTML or transport
+      errors. Anonymous callers are allowed; an optional forum session is used
+      only for first-party visibility checks. The configurable
+      `link-preview.resolve` quota defaults to 60 requests per IP and 30 per
+      user in 60 seconds. Request bodies are capped at 16 KiB.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/LinkPreviewResolveRequest
+    responses:
+      '200':
+        description: Ordered preview results, or a stable validation failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/LinkPreviewResolveResponse
+            examples:
+              classifiedWithoutFetch:
+                externalValue: ../fixtures/link-previews-resolve-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or a request larger than 16 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/parse-failed.json
+      '429':
+        description: Link-preview resolution quota exceeded.
+        headers:
+          Retry-After:
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+

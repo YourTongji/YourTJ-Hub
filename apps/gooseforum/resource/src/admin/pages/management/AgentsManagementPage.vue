@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -219,7 +220,7 @@ onMounted(() => {
                   <Badge variant="secondary">{{ adminText('k00l6') }}</Badge>
                 </div>
               </td>
-              <td class="px-4 py-3 font-medium">{{ agent.username }}</td>
+              <td class="px-4 py-3 font-medium">{{ userDisplayName(agent.agentId, agent.username) }}</td>
               <td class="px-4 py-3 text-muted-foreground">{{ agent.nickname || '—' }}</td>
               <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{{ agent.tokenPrefix }}…</td>
               <td class="px-4 py-3">

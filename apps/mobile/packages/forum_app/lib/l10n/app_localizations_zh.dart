@@ -2275,10 +2275,31 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginTongji => '同济统一认证登录';
 
   @override
-  String get loginTongjiHint => '首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。';
+  String get loginTongjiHint =>
+      '首次认证后填写用户名和密码完成注册，自动绑定“学号@tongji.edu.cn”并连接校园，无需再次验证邮箱。';
 
   @override
   String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';
+
+  @override
+  String get linkPreviewExternalTitle => '即将离开 YourTJ';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return '你将前往 $domain。请确认网址，并谨慎输入账号、验证码或支付信息。';
+  }
+
+  @override
+  String get linkPreviewRememberDomain => '本次浏览期间不再询问此域名';
+
+  @override
+  String get linkPreviewContinue => '继续访问';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => '校园网';
+
+  @override
+  String get linkPreviewCampusFallbackDescription => '需校园网络访问';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -2297,4 +2318,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusRulesUnavailable => '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。';
+
+  @override
+  String get privateNoteEdit => '编辑备注';
+
+  @override
+  String get privateNoteLabel => '私有备注';
+
+  @override
+  String get privateNoteHint => '仅自己可见，最多 64 个字符；留空保存即可清除。';
+  String get badgeDisplayTitle => '资料卡展示徽章';
+
+  @override
+  String get badgeDisplayHint => '最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。';
+
+  @override
+  String get badgeDisplayUp => '上移';
+
+  @override
+  String get badgeDisplayDown => '下移';
 }

@@ -40,11 +40,22 @@ Campus reads use the independent `campus.read` action (120 requests per user per
 
 Use only a user-authorized school login in the official browser page. Test status, authorization/confirmation, refresh, stale confirmations, bidirectional uniqueness, and unlink. The interface distinguishes absent records, upstream failures and expired authorization; a failing school feature must not be represented as a zero score.
 
+The original Android crash report has no device or logcat evidence, so its exact root cause remains
+unproven. Real-device follow-up evidence now covers Google, GitHub and Tongji: all three crash before
+the browser appears. The common Android flutter_appauth/AppAuth/CustomTabs launch layer is therefore
+the repair target, while AppAuth-Android 0.11.1's known native lifecycle crash surfaces are only
+structural evidence, not proof of this exact stack. The Android OIDC path now uses an external system
+browser, manual PKCE/state/nonce and a MainActivity MethodChannel/EventChannel callback bridge;
+OAuth login does not use WebView. The debug merged manifest is machine-checked for exactly one
+`yourtj://callback` handler owned by MainActivity, no AppAuth receiver claim, and
+`flutter_deeplinking_enabled=false`. The existing `https` browser query remains supplied by the
+merged dependency manifests.
+
 Automated tests cover signature/issuer/audience/nonce checks, callback replay and forum-session binding, database uniqueness, atomic replacement, concurrent refresh, late response rejection, encryption isolation, CSRF/session boundaries, account closure, SQLite and PostgreSQL migration. The [product specification](../product/campus.md) lists the verified data features and remaining App/provider gaps.
 
 ## Native App
 
-`Current`: native campus uses the same configuration and APIs. School credentials never reach Dart. The authenticated WebView is used only for the native-session handoff and official school authorization; the server callback returns to the native confirmation. No additional client secret, callback scheme or mobile database is required. `Partial`: physical-device school sign-in remains an explicit validation gap; use a user-authorized official login to validate it.
+`Current`: native campus uses the same configuration and APIs. School credentials never reach Dart. The authenticated WebView remains limited to the separate campus session handoff/workspace flow; it is not an OAuth provider login surface. Google, GitHub and Tongji Android OAuth use the external-browser/manual-PKCE callback path above. No additional client secret, callback scheme or mobile database is required. `Partial`: physical-device school sign-in remains an explicit validation gap; the new APK must be tested with a user-authorized official login.
 
 ## Teaching-date rules
 
@@ -71,8 +82,11 @@ imported calendar files cannot be retracted or updated by the server.
 `Current`: Web `/api/auth/tongji` and the App's `login_hint=tongji` use the configured campus
 provider. School registration requires a never-bound identity, signup to be enabled, the daily quota to be available and
 `tongji.edu.cn` to be allowed (or no domain restriction). Existing bindings can still sign in when
-new registration is closed. Signup creates no usable password and grants no administrator role;
-users may establish a password through the normal email recovery flow. Current and pending email
+new registration is closed. New identities complete `/register/tongji` with a chosen username and
+password before any account/session is created; school verification replaces email activation.
+Pending registration is bounded in process memory, expires at the original ten-minute deadline,
+and requires an HttpOnly cookie plus an independent CSRF proof. A restart requires fresh school
+authentication. Completion uses the registration rate limit and grants no administrator role. Current and pending email
 collisions require account recovery/login followed by explicit campus binding, not automatic merging.
 
 `Current`: live and dev campus bindings remain separate. A production account copied to dev keeps its

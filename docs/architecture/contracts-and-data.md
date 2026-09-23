@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-28
+> Last verified: 2026-09-20
 
 ## Contract status
 
@@ -21,7 +21,7 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
   bindings/unbind, and the user content lifecycle (my-content, deleted-content, restore,
   batch-delete, purge, content-event, account-close);
-- forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
+- forum: topic write, post CRUD/window/revisions, topic status/delete, link-preview resolution, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);
 - independent status: `apps/status/api/openapi.yaml` owns the Netlify `/api/status` response;
@@ -225,6 +225,10 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
   this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
   exercise their runtime deserialization where the mobile client consumes a controlled operation.
+- **Link-preview fixtures are cross-client policy inputs**: `link-preview-markdown-candidates.json`
+  is consumed directly by Web and Flutter tests, while the resolver response fixture pins the
+  `/api/link-previews/resolve` envelope. The operation accepts at most five URLs; clients render at most
+  five standalone-paragraph previews and keep the raw Markdown as the only editable source.
 - **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
   dumps every route `RegisterByGin` registers under the default config into
   `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —
@@ -444,3 +448,22 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Private user-name overlays
+
+`Current`: `user_private_notes` uses `(owner_id, target_user_id)` as its composite primary key.
+Both identities are numeric forum IDs. Writes serialize on the two live user rows in ID order,
+including the owner's 1000-note quota. Account closure deletes notes owned by or targeting the
+account in the same transaction as marking the user closed. Private reads obtain current canonical
+usernames from the users domain and exclude closed targets. Public user models/caches do not carry
+viewer notes; Web and native renderers apply a private in-memory overlay without changing saved
+content or identity values. The authenticated `/api/user-notes` and `/api/user-note` operations are
+covered by OpenAPI, generated TS, Dart mirrors and route/fixture tests.
+
+## Native post mentions
+
+**Current**: `PostPayload.mentions` maps visible raw Markdown occurrences to current numeric
+user IDs. Each entry includes the username and an exclusive UTF-16 source range. The service
+resolves a payload's names in one batch after body redaction; clients validate the exact source
+slice and render ordinary internal links without persisting the expansion. Older responses
+without mappings remain readable as plain text.

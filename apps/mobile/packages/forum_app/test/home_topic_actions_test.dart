@@ -222,7 +222,9 @@ void main() {
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const HomePage(),
+          // Isolate return/refresh transitions with explicit pagination;
+          // foreground autoload is covered in list_footer/topic_list tests.
+          home: TickerMode(enabled: pages is! _PagedPages, child: const HomePage()),
         ),
       ),
     );

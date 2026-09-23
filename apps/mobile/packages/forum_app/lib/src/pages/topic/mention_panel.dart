@@ -7,6 +7,8 @@
 /// [onSelect] 由宿主写入编辑器，面板不自持业务状态。
 library;
 
+import '../../private_notes.dart';
+
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -213,8 +215,8 @@ class _MentionCandidateRow extends StatelessWidget {
     final colors = GfTheme.colorsOf(context);
     // Semantics 至少包含昵称、@username 与上下文身份。
     final semanticsLabel = tagLabel.isEmpty
-        ? '${user.displayName}，@${user.username}'
-        : '${user.displayName}，@${user.username}，$tagLabel';
+        ? '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}'
+        : '${privateDisplayName(context, user.id, user.username, user.nickname)}，@${user.username}，$tagLabel';
     return Semantics(
       selected: active,
       label: semanticsLabel,
@@ -235,7 +237,12 @@ class _MentionCandidateRow extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    user.displayName,
+                    privateDisplayName(
+                      context,
+                      user.id,
+                      user.username,
+                      user.nickname,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GfTheme.typographyOf(context).body.copyWith(

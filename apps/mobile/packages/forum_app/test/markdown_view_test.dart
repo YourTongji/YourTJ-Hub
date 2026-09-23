@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,7 @@ import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 
@@ -39,12 +42,359 @@ class _FakeStickerRepository extends StickerRepository {
   ];
 }
 
+class _FakeLinkPreviewRepository extends LinkPreviewRepository {
+  _FakeLinkPreviewRepository(this.previews)
+    : super(
+        GfApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://test')),
+          tokenStorage: _MemoryTokenStorage(),
+        ),
+      );
+
+  final List<LinkPreviewPayload> previews;
+  List<String>? requestedUrls;
+
+  @override
+  Future<List<LinkPreviewPayload>> resolve(List<String> urls) async {
+    requestedUrls = List<String>.of(urls);
+    return previews;
+  }
+}
+
 Widget _wrap(Widget child) => MaterialApp(
   theme: gfThemeData(Brightness.light),
   home: Scaffold(body: Column(children: [child])),
 );
 
+TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
+  if (span is TextSpan && span.recognizer is TapGestureRecognizer) {
+    return span.recognizer! as TapGestureRecognizer;
+  }
+  if (span is! TextSpan) return null;
+  for (final InlineSpan child in span.children ?? const <InlineSpan>[]) {
+    final TapGestureRecognizer? recognizer = _linkRecognizer(child);
+    if (recognizer != null) return recognizer;
+  }
+  return null;
+}
+
 void main() {
+  testWidgets('server mention mapping opens native user page', (tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => const Scaffold(
+            body: GfMarkdownView(
+              data: '😀 @alice_smith `@alice_smith`',
+              mentions: [
+                PostMention(
+                  username: 'alice_smith',
+                  userId: 42,
+                  start: 3,
+                  end: 15,
+                ),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/u/:id',
+          builder: (_, state) =>
+              Scaffold(body: Text('profile ${state.pathParameters['id']}')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: gfThemeData(Brightness.light),
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final links = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((text) => _linkRecognizer(text.text))
+        .whereType<TapGestureRecognizer>()
+        .toList();
+    expect(links, hasLength(1));
+    links.single.onTap!();
+    await tester.pumpAndSettle();
+    expect(find.text('profile 42'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets(
+    'standalone URL resolves once and renders a responsive preview card',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      const String url = 'https://example.com/article';
+      final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+        LinkPreviewPayload(
+          requestedUrl: url,
+          kind: 'external',
+          status: 'ready',
+          url: url,
+          displayHost: 'example.com',
+          siteName: 'Example',
+          title: 'Example title that remains readable on a narrow screen',
+          description: 'A short description.',
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            linkPreviewRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.dark),
+            home: MediaQuery(
+              data: const MediaQueryData(
+                size: Size(320, 640),
+                textScaler: TextScaler.linear(2),
+              ),
+              child: const Scaffold(body: GfMarkdownView(data: url)),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.requestedUrls, <String>[url]);
+      expect(find.textContaining('Example title'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
+
+  testWidgets(
+    'campus cards localize fallback copy when the server sends no name',
+    (tester) async {
+      // 校园网卡片由服务端按部署配置本地渲染：配置没给名字时 title / description
+      // 都为空，兜底文案必须由客户端 l10n 出（服务端不留任何中文）。修复前这里
+      // 会走到 `preview.title!`，直接抛 null。
+      const String url = 'https://agent.tongji.edu.cn/chat';
+      final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+        LinkPreviewPayload(
+          requestedUrl: url,
+          kind: 'external',
+          status: 'ready',
+          url: url,
+          displayHost: 'agent.tongji.edu.cn',
+          siteName: 'agent.tongji.edu.cn',
+          campus: true,
+        ),
+      ]);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            linkPreviewRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: GfMarkdownView(data: url)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.requestedUrls, <String>[url]);
+      expect(find.text('校园网'), findsOneWidget);
+      expect(find.text('需校园网络访问'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
+
+  testWidgets('configured campus names win over the localized fallback', (
+    tester,
+  ) async {
+    const String url = 'https://1.tongji.edu.cn/';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: '1.tongji.edu.cn',
+        siteName: '1.tongji.edu.cn',
+        title: '同济大学教学管理系统',
+        campus: true,
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: GfMarkdownView(data: url)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 服务端给了名字就用名字，客户端不得覆盖；描述仍补本地化提示。
+    expect(find.text('同济大学教学管理系统'), findsOneWidget);
+    expect(find.text('校园网'), findsNothing);
+    expect(find.text('需校园网络访问'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('failed preview keeps the original link readable', (
+    tester,
+  ) async {
+    const String url = 'https://example.com/unavailable';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'unavailable',
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: _wrap(const GfMarkdownView(data: url)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining(url), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('offscreen previews wait until they approach the viewport', (
+    tester,
+  ) async {
+    const String url = 'https://example.com/deferred';
+    final repository = _FakeLinkPreviewRepository(const <LinkPreviewPayload>[
+      LinkPreviewPayload(
+        requestedUrl: url,
+        kind: 'external',
+        status: 'ready',
+        url: url,
+        displayHost: 'example.com',
+        title: 'Deferred preview',
+      ),
+    ]);
+    final ScrollController controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          linkPreviewRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              controller: controller,
+              child: const Column(
+                children: <Widget>[
+                  SizedBox(height: 1200),
+                  GfMarkdownView(data: url),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.requestedUrls, isNull);
+
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(repository.requestedUrls, <String>[url]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('ordinary external Markdown links use the confirmation dialog', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() async {
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+      await tester.binding.setSurfaceSize(null);
+    });
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfMarkdownView(data: '[Docs](https://example.com)'),
+          ),
+        ),
+      ),
+    );
+    final RichText link = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RichText && widget.text.toPlainText().contains('Docs'),
+      ),
+    );
+    _linkRecognizer(link.text)?.onTap?.call();
+    await tester.pumpAndSettle();
+    expect(find.text('Leaving YourTJ'), findsOneWidget);
+    expect(find.text('https://example.com'), findsOneWidget);
+    await tester.ensureVisible(find.text('Cancel'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('userinfo links are rejected without opening the guard', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          locale: Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfMarkdownView(data: '[Docs](https://user@example.com)'),
+          ),
+        ),
+      ),
+    );
+    final RichText link = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RichText && widget.text.toPlainText().contains('Docs'),
+      ),
+    );
+    _linkRecognizer(link.text)?.onTap?.call();
+    await tester.pumpAndSettle();
+    expect(find.text('Leaving YourTJ'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('reading paragraphs and inline code use a legible type scale', (
     tester,
   ) async {

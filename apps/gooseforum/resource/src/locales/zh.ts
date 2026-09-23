@@ -1,6 +1,25 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  privateNote: {
+    edit: "编辑备注",
+    label: "私有备注",
+    hint: "仅自己可见，最多 64 个字符；留空保存即可清除。",
+  },
+  badgeDisplay: {
+    title: "资料卡展示徽章",
+    hint: "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
+    up: "上移",
+    down: "下移",
+    save: "保存展示徽章"
+  },
+  tongjiRegistration: {
+    title: "完成同济账号注册",
+    intro: "同济身份已验证。请设置用户名和密码，完成论坛注册，无需再次验证邮箱。",
+    expired: "验证已过期，请重新通过同济登录。",
+    restart: "重新登录",
+    verifiedEmail: "已验证的邮箱"
+  },
   campus: {
     todayMakeup: "{name}：今天按 {date} 的课表上课。",
     todayHoliday: "{name}：今天放假停课。",
@@ -451,6 +470,24 @@ export default {
       uploadImageTip: '上传图片',
     },
   },
+  linkPreview: {
+    loadFailed: '暂时无法读取链接信息',
+    editorHint: '将显示为链接卡片：{domain}',
+    editorHintMany: '将显示为 {count} 张链接卡片：{domains}',
+    editorHintSeparator: '、',
+    campusFallbackTitle: '校园网',
+    campusFallbackDescription: '需校园网络访问',
+    guard: {
+      title: '即将离开 YourTJ',
+      normal_external: '你将前往第三方网站。请确认网址，并谨慎输入账号、验证码或支付信息。',
+      suspicious: '此链接需要再次确认。请核对网址后再继续。',
+      blocked: '此链接已被拦截，无法继续访问。',
+      remember: '本次浏览期间不再询问此域名',
+      continue: '继续访问',
+      copy: '复制链接',
+      copied: '已复制',
+    },
+  },
   stickers: {
     sources: '表情包来源与许可',
     pickerTitle: '表情包',
@@ -562,7 +599,7 @@ export default {
   auth: {
     tongjiPolicies: "继续即表示同意本站公布的条款：",
     tongjiLogin: "同济统一认证登录",
-    tongjiSignupHint: "首次登录将创建账号并连接校园，自动绑定“学号{'@'}tongji.edu.cn”，无需另行激活。",
+    tongjiSignupHint: "首次认证后填写用户名和密码完成注册，自动绑定“学号{'@'}tongji.edu.cn”并连接校园，无需再次验证邮箱。",
     tongjiUnavailable: "同济登录暂不可用，请使用其他方式登录。",
     tongjiAccountExists: "该同济身份曾绑定过账号，或学号邮箱已被使用或正在换绑。请先登录或找回已有账号，再到校园页重新绑定。",
     tongjiSignupDisabled: "当前不接受通过同济认证注册，请联系管理员或登录已有账号。",
@@ -1706,6 +1743,10 @@ export default {
     emptyTopics: '还没有发布内容。',
     emptyActivity: '暂无动态。',
     emptyData: '暂无数据。',
+    connectionsLabel: '关注关系',
+    connectionsBack: '返回 {name} 的个人主页',
+    followingCount: '关注 {count}',
+    followersCount: '粉丝 {count}',
     tabs: {
       summary: '总结',
       topics: '内容',
@@ -2794,6 +2835,7 @@ export default {
     'post.alreadyDeleted': '该回复已删除，无需重复操作。',
     'post.firstPostUndeletable': '话题首楼不可删除，请改为删除整个话题。',
     'auth.csrf.rejected': '请求来源校验未通过（已拒绝跨站请求），请刷新页面后重试。',
+    'auth.tongji.accountExists': '该同济身份或其学号邮箱已归属已有账号。请登录或找回已有账号，再到校园页重新绑定。',
     'admin.moderator.userRequired': '请输入版主用户。',
     'admin.moderator.userNotFound': '版主用户不存在。',
     'admin.moderator.notFound': '版主记录不存在。',

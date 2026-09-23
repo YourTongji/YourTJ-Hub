@@ -143,10 +143,14 @@ func UpdateEmailVerificationDisabled(userID uint64, email string, changedAt time
 // CloseAccount 注销账号（PRD R10）：软删用户并清空对外展示字段。
 // 历史内容仍保留 userId 指向，渲染层因用户不可见而回退为「已注销用户」。
 func CloseAccount(userID uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq(pid, userID)).Updates(map[string]any{
-		"deleted_at":      time.Now(),
-		"worn_badge_code": "",
-	}).Error
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Model(&EntityComplete{}).Where("id = ?", userID).Updates(map[string]any{
+			"deleted_at": time.Now(), "worn_badge_code": "",
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&PrivateNoteEntity{}).Error
+	})
 }
 
 // IsAccountClosed 判断账号是否已注销（软删）。

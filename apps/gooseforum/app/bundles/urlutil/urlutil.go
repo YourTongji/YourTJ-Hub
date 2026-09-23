@@ -19,8 +19,11 @@ package urlutil
 
 import (
 	"html"
+	"net/netip"
 	"net/url"
 	"strings"
+
+	"golang.org/x/net/idna"
 )
 
 // Kind is the security policy of an admin-configurable URL field.
@@ -41,6 +44,77 @@ const (
 )
 
 const maxURLLength = 2048
+
+// LinkKind is the navigation class of a user-provided link.
+type LinkKind string
+
+const (
+	LinkRelativeInternal  LinkKind = "relative_internal"
+	LinkAbsoluteInternal  LinkKind = "absolute_internal"
+	LinkExternalHTTP      LinkKind = "external_http"
+	LinkUnsupportedScheme LinkKind = "unsupported_scheme"
+	LinkInvalid           LinkKind = "invalid"
+)
+
+// ClassifiedLink contains the parsed URL when a link is valid enough to use.
+type ClassifiedLink struct {
+	Kind LinkKind
+	URL  *url.URL
+}
+
+// ClassifyLink classifies a user-provided link against explicit internal
+// origins. Host matching is exact after IDNA normalization; lookalike suffixes
+// are never considered internal.
+func ClassifyLink(raw string, internalOrigins ...string) ClassifiedLink {
+	value := strings.TrimSpace(raw)
+	if value == "" || len(value) > maxURLLength {
+		return ClassifiedLink{Kind: LinkInvalid}
+	}
+	decoded := html.UnescapeString(value)
+	if len(decoded) > maxURLLength || containsControl(decoded) || strings.Contains(decoded, "\\") || strings.HasPrefix(decoded, "//") {
+		return ClassifiedLink{Kind: LinkInvalid}
+	}
+	parsed, err := url.Parse(decoded)
+	if err != nil || parsed.User != nil {
+		return ClassifiedLink{Kind: LinkInvalid}
+	}
+	if parsed.Scheme == "" {
+		return ClassifiedLink{Kind: LinkRelativeInternal, URL: parsed}
+	}
+	if !strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https") {
+		return ClassifiedLink{Kind: LinkUnsupportedScheme}
+	}
+	if parsed.Hostname() == "" {
+		return ClassifiedLink{Kind: LinkInvalid}
+	}
+
+	host, err := normalizedHostname(parsed.Hostname())
+	if err != nil {
+		return ClassifiedLink{Kind: LinkInvalid}
+	}
+	for _, origin := range internalOrigins {
+		internal, err := url.Parse(strings.TrimSpace(origin))
+		if err != nil || internal.Hostname() == "" {
+			continue
+		}
+		internalHost, err := normalizedHostname(internal.Hostname())
+		if err == nil && host == internalHost {
+			return ClassifiedLink{Kind: LinkAbsoluteInternal, URL: parsed}
+		}
+	}
+	return ClassifiedLink{Kind: LinkExternalHTTP, URL: parsed}
+}
+
+func normalizedHostname(host string) (string, error) {
+	if address, err := netip.ParseAddr(strings.TrimSuffix(host, ".")); err == nil {
+		return address.Unmap().String(), nil
+	}
+	ascii, err := idna.Lookup.ToASCII(strings.TrimSuffix(strings.ToLower(host), "."))
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(ascii), nil
+}
 
 // Canonicalize trims and validates raw against kind. It returns the value a
 // caller should persist and whether that value satisfies the policy.

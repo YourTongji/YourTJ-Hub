@@ -120,6 +120,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
+	viewRouteApp.GET("/register/tongji", forum.TongjiRegistration)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
 	viewRouteApp.GET("/terms", forum.Terms)
 	viewRouteApp.GET("/privacy", forum.Privacy)
@@ -177,11 +178,20 @@ func apiRoute(ginApp *gin.Engine) {
 
 	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
+	baseApi.GET("auth/tongji/registration", api.TongjiRegistrationStatus)
+	baseApi.POST("auth/tongji/registration", middleware.RateLimit(middleware.RateLimitRegister), api.TongjiRegister)
 	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
 	baseApi.POST("logout", middleware.CSRFProtection, api.Logout)
 
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
-	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
+	baseApi.GET("user-card", middleware.JWTAuth, UpQueryReq(api.GetUserCard))
+	baseApi.POST(
+		"link-previews/resolve",
+		middleware.CSRFProtection,
+		middleware.JWTAuth,
+		middleware.RateLimit(middleware.RateLimitLinkPreview),
+		UpLimitedJsonReq(16<<10, api.ResolveLinkPreviews),
+	)
 	// 站点主题公开下发（mobile Route A）：公开只读，无鉴权；数据源与
 	// /site-theme.css 一致（page_config SiteTheme 发布态），未启用返回空。
 	baseApi.GET("site-theme/tokens", ginUpNP(api.GetPublicSiteThemeTokens))
@@ -232,6 +242,9 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
+	loginApi.GET("user-notes", UpQueryReq(api.GetPrivateNotes))
+	loginApi.POST("user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
+	loginApi.POST("display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginApi.POST("change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))

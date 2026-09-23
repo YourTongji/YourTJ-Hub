@@ -1,6 +1,25 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  privateNote: {
+    edit: "Notiz bearbeiten",
+    label: "Private Notiz",
+    hint: "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.",
+  },
+  badgeDisplay: {
+    title: "Profilabzeichen",
+    hint: "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
+    up: "Nach oben",
+    down: "Nach unten",
+    save: "Profilabzeichen speichern"
+  },
+  tongjiRegistration: {
+    title: "Tongji-Registrierung abschließen",
+    intro: "Deine Tongji-Identität ist bestätigt. Wähle einen Benutzernamen und ein Passwort. Eine weitere E-Mail-Bestätigung ist nicht erforderlich.",
+    expired: "Die Bestätigung ist abgelaufen. Bitte erneut mit Tongji anmelden.",
+    restart: "Erneut anmelden",
+    verifiedEmail: "Bestätigte E-Mail"
+  },
   campus: {
     todayMakeup: "{name}: Heute gilt der Stundenplan vom {date}.",
     todayHoliday: "{name}: Heute finden keine Lehrveranstaltungen statt.",
@@ -450,6 +469,24 @@ export default {
       uploadImageTip: 'Bild hochladen',
     },
   },
+  linkPreview: {
+    loadFailed: 'Linkdetails sind vorübergehend nicht verfügbar',
+    editorHint: 'Wird als Linkkarte angezeigt: {domain}',
+    editorHintMany: '{count} Linkkarten werden angezeigt: {domains}',
+    editorHintSeparator: ', ',
+    campusFallbackTitle: 'Campusnetz',
+    campusFallbackDescription: 'Zugriff nur aus dem Campusnetz',
+    guard: {
+      title: 'YourTJ verlassen',
+      normal_external: 'Du wechselst zu einer externen Website. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.',
+      suspicious: 'Prüfe diese Adresse sorgfältig, bevor du fortfährst.',
+      blocked: 'Dieser Link wurde blockiert und kann nicht geöffnet werden.',
+      remember: 'Für diese Domain in dieser Sitzung nicht erneut fragen',
+      continue: 'Weiter',
+      copy: 'Link kopieren',
+      copied: 'Kopiert',
+    },
+  },
   stickers: {
     sources: 'Sticker-Quellen und Lizenzen',
     pickerTitle: 'Sticker',
@@ -561,7 +598,7 @@ export default {
   auth: {
     tongjiPolicies: "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:",
     tongjiLogin: "Mit Tongji-SSO anmelden",
-    tongjiSignupHint: "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer{'@'}tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
+    tongjiSignupHint: "Nach der ersten Hochschulprüfung Benutzername und Passwort wählen. Matrikelnummer{'@'}tongji.edu.cn und Campus-Verbindung werden ohne erneute E-Mail-Prüfung bestätigt.",
     tongjiUnavailable: "Die Tongji-Anmeldung ist nicht verfügbar. Bitte nutzen Sie eine andere Anmeldemethode.",
     tongjiAccountExists: "Diese Tongji-Identität war bereits verknüpft oder die Hochschuladresse ist belegt bzw. reserviert. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.",
     tongjiSignupDisabled: "Eine Registrierung über Tongji ist derzeit nicht möglich. Wenden Sie sich an die Administration oder melden Sie sich bei einem bestehenden Konto an.",
@@ -1703,6 +1740,10 @@ export default {
     emptyTopics: 'Keine veröffentlichten Themen.',
     emptyActivity: 'Keine Aktivität.',
     emptyData: 'Keine Daten.',
+    connectionsLabel: 'Follow-Beziehungen',
+    connectionsBack: 'Zurück zu {name}s Profil',
+    followingCount: 'Folgt {count}',
+    followersCount: 'Follower {count}',
     tabs: {
       summary: 'Übersicht',
       topics: 'Themen',
@@ -2790,6 +2831,7 @@ export default {
     'post.notFound': 'Die Antwort existiert nicht oder wurde gelöscht.',
     'post.alreadyDeleted': 'Diese Antwort wurde bereits gelöscht. Kein erneutes Löschen nötig.',
     'post.firstPostUndeletable': 'Der erste Beitrag eines Themas kann nicht gelöscht werden. Lösche stattdessen das Thema.',
+    'auth.tongji.accountExists': 'Diese Tongji-Identität oder ihre Studierenden-E-Mail gehört bereits zu einem Konto. Melden Sie sich beim bestehenden Konto an oder stellen Sie es wieder her und verknüpfen Sie die Identität auf der Campus-Seite.',
     'admin.moderator.userRequired': 'Gib einen Moderator-Benutzer ein.',
     'admin.moderator.userNotFound': 'Moderator-Benutzer nicht gefunden.',
     'admin.moderator.notFound': 'Moderator-Datensatz nicht gefunden.',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Award, Bell, Check, CheckCheck, Info, MessageCircle, UserPlus } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -248,7 +249,7 @@ function notificationTone(item: NotificationPayload) {
 
 function actorName(item: NotificationPayload) {
   if (item.eventType === 'badge') return notificationTemplateText(item) || item.title || t('notifications.actorFallback')
-  return item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback')
+  return userDisplayName(item.actor.id, item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback'))
 }
 
 function actorURL(item: NotificationPayload) {

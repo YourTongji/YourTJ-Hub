@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import PrivateNoteEditor from '@/site/components/PrivateNoteEditor.vue'
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import {
   Award,
+  ArrowLeft,
   Bird,
   Bookmark,
   CalendarDays,
@@ -29,7 +32,7 @@ import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL } from '@/site/utils/badge-style'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
-import type { LayoutPayload, PagePayload, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
+import type { LayoutPayload, PagePayload, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserConnectionPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const page = defineProps<{
@@ -40,19 +43,21 @@ const page = defineProps<{
 const { t } = useI18n()
 const isFollowing = ref(page.props.user.isFollowing)
 const followLoading = ref(false)
+const connectionLoading = ref<number | null>(null)
 const followError = ref('')
 const coverUrl = ref(page.props.user.profileCoverUrl || '')
 const activityTopics = ref<TopicPayload[]>([])
 const activities = ref<UserActivityPayload[]>([])
 const likes = ref<UserLikePayload[]>([])
 const bookmarks = ref<UserBookmarkPayload[]>([])
+const connections = ref<UserConnectionPayload[]>([])
 const pagination = ref(page.props.pagination)
 const loadingMore = ref(false)
 const loadError = ref('')
 const loadMoreSentinel = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | undefined
 
-const displayName = computed(() => page.props.user.nickname || page.props.user.username)
+const displayName = computed(() => userDisplayName(page.props.user.userId, page.props.user.username, page.props.user.nickname))
 // 简介行只承载 bio：签名永远以独立签名块呈现，不做 fallback 展示
 const bioText = computed(() => page.props.user.bio || t('user.emptyBio'))
 const hasBio = computed(() => Boolean(page.props.user.bio?.trim()))
@@ -60,9 +65,14 @@ const hasSignature = computed(() => Boolean(page.props.user.signature?.trim()))
 const showStandaloneSignature = computed(() => hasSignature.value)
 const bioIsEmpty = computed(() => !hasBio.value)
 const visibleTopics = computed(() => page.props.topics)
-const visibleBadges = computed(() => page.props.badges.slice(0, 8))
-const activeConnections = computed(() => page.props.activityTab === 'following' ? page.props.following : page.props.followers)
-const isWaterfallTab = computed(() => page.props.section === 'bookmarks' || (page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks')))
+const visibleBadges = computed(() => page.props.user.displayBadges ?? page.props.badges.slice(0, 5))
+const isStandaloneConnections = computed(() => page.props.section === 'following' || page.props.section === 'followers')
+const activeConnections = computed(() => isStandaloneConnections.value ? connections.value : page.props.activityTab === 'following' ? page.props.following : page.props.followers)
+const isWaterfallTab = computed(() => isStandaloneConnections.value || page.props.section === 'bookmarks' || (page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks')))
+const connectionTabItems = computed(() => [
+  { key: 'following', label: t('user.tabs.following'), url: `/u/${page.props.user.userId}/following` },
+  { key: 'followers', label: t('user.tabs.followers'), url: `/u/${page.props.user.userId}/followers` },
+])
 const hasActivityTopics = computed(() => activityTopics.value.length > 0)
 const hasActivities = computed(() => activities.value.length > 0)
 const hasLikes = computed(() => likes.value.length > 0)
@@ -92,8 +102,6 @@ const profileStats = computed(() => [
   { label: t('user.stats.replies'), value: page.props.user.replyCount },
   { label: t('user.stats.likesReceived'), value: page.props.user.likeReceivedCount },
   { label: t('user.stats.likesGiven'), value: page.props.user.likeGivenCount },
-  { label: t('user.stats.followers'), value: page.props.user.followerCount },
-  { label: t('user.stats.following'), value: page.props.user.followingCount },
   { label: t('user.stats.bookmarks'), value: page.props.user.collectionCount },
 ])
 const websiteUrl = computed(() => safeProfileUrl(page.props.user.website))
@@ -121,6 +129,9 @@ watch(
     activities.value = [...page.props.activities]
     likes.value = [...page.props.likes]
     bookmarks.value = [...(page.props.bookmarks || [])]
+    connections.value = isStandaloneConnections.value
+      ? [...(page.props.section === 'following' ? page.props.following : page.props.followers)]
+      : []
     pagination.value = page.props.pagination
     loadError.value = ''
     void nextTick(observeSentinel)
@@ -187,7 +198,9 @@ async function loadMore() {
   loadError.value = ''
   try {
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<UserProfileProps>
-    if (page.props.activityTab === 'topics') {
+    if (isStandaloneConnections.value) {
+      connections.value = mergeConnections(connections.value, page.props.section === 'following' ? payload.props.following : payload.props.followers)
+    } else if (page.props.activityTab === 'topics') {
       activityTopics.value = mergeTopics(activityTopics.value, payload.props.topics)
     } else if (page.props.activityTab === 'likes') {
       likes.value = mergeLikes(likes.value, payload.props.likes)
@@ -222,6 +235,27 @@ function mergeLikes(current: UserLikePayload[], incoming: UserLikePayload[]) {
 function mergeBookmarks(current: UserBookmarkPayload[], incoming: UserBookmarkPayload[]) {
   const seen = new Set(current.map((bookmark) => bookmark.id))
   return [...current, ...incoming.filter((bookmark) => !seen.has(bookmark.id))]
+}
+
+function mergeConnections(current: UserConnectionPayload[], incoming: UserConnectionPayload[]) {
+  const seen = new Set(current.map((connection) => connection.id))
+  return [...current, ...incoming.filter((connection) => !seen.has(connection.id))]
+}
+
+async function toggleConnectionFollow(connection: UserConnectionPayload) {
+  if (!page.layout.viewer.isAuthenticated || connection.isSelf || connection.id === page.props.user.userId || connectionLoading.value === connection.id) return
+
+  connectionLoading.value = connection.id
+  followError.value = ''
+  try {
+    await followUser(connection.id, Boolean(connection.isFollowing))
+    connection.isFollowing = !connection.isFollowing
+    broadcastFollowChange(connection.id, connection.isFollowing)
+  } catch (error) {
+    followError.value = error instanceof Error ? error.message : t('api.followFailed')
+  } finally {
+    connectionLoading.value = null
+  }
 }
 
 function observeSentinel() {
@@ -272,7 +306,72 @@ function safeProfileUrl(value?: string) {
 
 <template>
     <article class="pb-12">
-      <section class="gf-card overflow-hidden">
+      <section v-if="isStandaloneConnections" class="gf-card">
+        <div class="border-b border-line bg-base-200/40 px-4 py-4 sm:px-5">
+          <a
+            :href="`/u/${page.props.user.userId}`"
+            :aria-label="t('user.connectionsBack', { name: displayName })"
+            class="flex min-w-0 items-center gap-3 rounded-md border border-line bg-base-100 px-3 py-3 text-base font-semibold text-base-content hover:border-primary/30 hover:bg-info/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
+            <ArrowLeft class="h-4 w-4 shrink-0 text-base-content/55" aria-hidden="true" />
+            <span class="min-w-0 break-words">{{ displayName }}</span>
+          </a>
+        </div>
+        <nav class="grid grid-cols-2 border-b border-line" :aria-label="t('user.connectionsLabel')">
+          <a
+            v-for="tab in connectionTabItems"
+            :key="tab.key"
+            :href="tab.url"
+            class="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold"
+            :class="tab.key === page.props.section ? 'text-primary shadow-[inset_0_-2px_0_var(--gf-color-primary)]' : 'text-base-content/55 hover:text-base-content'"
+          >
+            <UserPlus class="h-4 w-4 shrink-0" />
+            <span class="break-words text-center">{{ tab.label }}</span>
+          </a>
+        </nav>
+        <p v-if="followError" class="px-4 pt-3 text-sm text-error sm:px-5">{{ followError }}</p>
+        <div class="p-4">
+          <div class="divide-y divide-line">
+            <div
+              v-for="connection in activeConnections"
+              :key="connection.id"
+              class="flex min-w-0 flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
+            >
+              <a :href="connection.url" class="flex min-w-0 flex-1 gap-3">
+                <UserAvatar :src="connection.avatarUrl" :alt="connection.username" class="h-12 w-12 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 break-words">
+                  <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(connection.id, connection.username, connection.nickname) }}</span>
+                  <span class="mt-0.5 block break-words text-xs text-base-content/55">@{{ connection.username }}</span>
+                  <span class="mt-1 block whitespace-pre-wrap break-words text-sm leading-5 text-base-content/65">{{ connection.bio || t('user.noBio') }}</span>
+                </span>
+              </a>
+              <button
+                v-if="page.layout.viewer.isAuthenticated && !connection.isSelf && connection.id !== page.props.user.userId"
+                type="button"
+                class="gf-button gf-button-sm w-full max-w-full whitespace-normal break-words sm:w-auto sm:shrink-0"
+                :class="connection.isFollowing ? 'bg-base-300 text-base-content hover:bg-base-300' : 'bg-primary text-primary-content hover:bg-primary'"
+                :disabled="connectionLoading === connection.id"
+                @click="toggleConnectionFollow(connection)"
+              >
+                <UserPlus class="h-4 w-4" />
+                {{ connectionLoading === connection.id ? t('common.loading') : connection.isFollowing ? t('user.following') : t('user.follow') }}
+              </button>
+            </div>
+          </div>
+          <EmptyState v-if="!activeConnections.length" :icon="UserPlus" :title="t('user.emptyData')" />
+        </div>
+        <div v-if="pagination.hasNext || activeConnections.length" ref="loadMoreSentinel">
+          <TopicListFooter
+            :pagination="pagination"
+            :loading-more="loadingMore"
+            :has-topics="activeConnections.length > 0"
+            :load-error="loadError"
+            @load-more="loadMore"
+          />
+        </div>
+      </section>
+
+      <section v-else class="gf-card overflow-hidden">
         <!-- 封面仅展示；设置封面只在「编辑资料」页（Settings）出现 -->
         <div class="relative">
           <div class="h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60" :style="profileCoverStyle" />
@@ -323,6 +422,7 @@ function safeProfileUrl(value?: string) {
               <div class="min-w-0 sm:flex-1 sm:pt-3">
                 <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
                   <h1 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h1>
+                  <PrivateNoteEditor v-if="!page.props.user.isAccountClosed" :user-id="page.props.user.userId" :username="page.props.user.username" />
                   <span v-if="page.props.user.isAdmin" class="gf-badge gf-badge-warning rounded text-[11px]">Admin</span>
                   <span v-if="page.props.user.isOnline" class="gf-badge gf-badge-success rounded text-[11px]">
                     <Radio class="h-3 w-3" /> {{ t('user.online') }}
@@ -389,7 +489,23 @@ function safeProfileUrl(value?: string) {
           <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-base-content/55">
               <span class="inline-flex items-center gap-1.5"><CalendarDays class="h-3.5 w-3.5" /> {{ t('user.joinedAt', { date: formatDate(page.props.user.createdAt) }) }}</span>
-              <span v-if="page.props.user.lastActiveTime">{{ t('user.lastActive', { time: timeAgo(page.props.user.lastActiveTime) }) }}</span>
+              <span v-if="page.props.user.lastActiveTime" class="inline-flex min-w-0 flex-wrap break-words leading-5">{{ t('user.lastActive', { time: timeAgo(page.props.user.lastActiveTime) }) }}</span>
+              <div class="flex basis-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:basis-auto sm:flex-nowrap">
+                <a
+                  :href="`/u/${page.props.user.userId}/following`"
+                  class="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-base-content/65 outline-none transition-colors hover:bg-base-200/70 hover:text-primary hover:underline hover:underline-offset-2 focus-visible:bg-base-200/70 focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <span>{{ t('user.tabs.following') }}</span>
+                  <span class="text-sm font-semibold tabular-nums text-base-content">{{ formatNumber(page.props.user.followingCount) }}</span>
+                </a>
+                <a
+                  :href="`/u/${page.props.user.userId}/followers`"
+                  class="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-base-content/65 outline-none transition-colors hover:bg-base-200/70 hover:text-primary hover:underline hover:underline-offset-2 focus-visible:bg-base-200/70 focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <span>{{ t('user.tabs.followers') }}</span>
+                  <span class="text-sm font-semibold tabular-nums text-base-content">{{ formatNumber(page.props.user.followerCount) }}</span>
+                </a>
+              </div>
             </div>
 
             <div v-if="websiteUrl || socialProfileLinks.length" class="flex flex-wrap items-center gap-0.5 sm:justify-end">
@@ -446,7 +562,7 @@ function safeProfileUrl(value?: string) {
         </div>
 
         <div v-if="page.props.section === 'summary'" class="p-4">
-          <section class="grid grid-cols-4 gap-y-4 border-b border-line pb-4 lg:grid-cols-8">
+          <section class="grid grid-cols-3 gap-y-4 border-b border-line pb-4 sm:grid-cols-6">
             <div v-for="item in profileStats" :key="item.label" class="min-w-0 text-center">
               <div class="text-base font-bold tabular-nums lg:text-lg" :class="item.featured ? 'text-primary' : 'text-base-content'">{{ formatNumber(item.value) }}</div>
               <div class="mt-0.5 truncate text-[11px] font-medium lg:text-xs" :class="item.featured ? 'text-primary/80' : 'text-base-content/55'">{{ item.label }}</div>
@@ -534,7 +650,7 @@ function safeProfileUrl(value?: string) {
         </div>
 
         <div v-else-if="page.props.section === 'activity'">
-          <div class="grid grid-cols-5 border-b border-line">
+          <div class="grid grid-cols-3 border-b border-line">
             <a
               v-for="tab in activityTabItems"
               :key="tab.key"
@@ -677,11 +793,11 @@ function safeProfileUrl(value?: string) {
               :href="item.url"
               class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
             >
-              <UserAvatar :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 rounded-full object-cover" />
-              <span class="min-w-0">
-                <span class="block truncate text-sm font-semibold text-base-content">{{ item.nickname || item.username }}</span>
-                <span class="block truncate text-xs text-base-content/55">@{{ item.username }}</span>
-                <span class="mt-1 block truncate text-xs text-base-content/55">{{ item.bio || t('user.noBio') }}</span>
+              <UserAvatar :src="item.avatarUrl" :alt="item.username" class="h-10 w-10 shrink-0 rounded-full object-cover" />
+              <span class="min-w-0 break-words">
+                <span class="block break-words text-sm font-semibold text-base-content">{{ userDisplayName(item.id, item.username, item.nickname) }}</span>
+                <span class="block break-words text-xs text-base-content/55">@{{ item.username }}</span>
+                <span class="mt-1 block whitespace-pre-wrap break-words text-xs text-base-content/55">{{ item.bio || t('user.noBio') }}</span>
               </span>
             </a>
           </div>

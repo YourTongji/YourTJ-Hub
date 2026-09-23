@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,7 +95,7 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                     ExpansionTile(
                       key: ValueKey(version.version),
                       title: Text(
-                        'v${version.version} · ${version.editor.nickname ?? version.editor.username}',
+                        'v${version.version} · ${privateDisplayName(context, version.editor.id, version.editor.username, version.editor.nickname)}',
                       ),
                       subtitle: Text(version.createdAt),
                       childrenPadding: const EdgeInsets.all(12),
@@ -116,10 +117,13 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                     ),
                   if (!_loading && _error == null && _versions.isEmpty)
                     GfEmpty(message: l10n.topicHistoryEmpty),
-                  if (!_loading && _error == null && _hasMore)
-                    TextButton(
-                      onPressed: _load,
-                      child: Text(l10n.commonLoadMore),
+                  if (_hasMore)
+                    GfListFooter(
+                      progressKey: _versions.length,
+                      loading: _loading,
+                      error: _error,
+                      hasMore: _hasMore,
+                      onLoadMore: _load,
                     ),
                 ],
               ),

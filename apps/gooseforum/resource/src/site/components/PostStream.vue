@@ -23,6 +23,7 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
@@ -474,13 +475,22 @@ function collectPostElements() {
   postElements = Array.from(document.querySelectorAll<HTMLElement>('[data-post-no]'))
 }
 
+// issue #745：钉扎目标可能超出文档可达范围（末楼下方内容不足，或顶部已到边），
+// 修正量必须钳制在可滚动余量内；否则每帧 scrollBy 被浏览器静默钳制、delta 恒不小于
+// 1px，settle 循环无法达成稳定帧，只能靠 2600ms 超时退出并持续对抗用户滚动。
+function pinDeltaFor(element: HTMLElement) {
+  const wanted = element.getBoundingClientRect().top - postNavigationTargetTop
+  const roomDown = Math.max(0, document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+  return Math.min(Math.max(wanted, -window.scrollY), roomDown)
+}
+
 function keepNavigationTargetPinned() {
   if (!navigationTargetPostId.value) return false
 
   const element = document.getElementById(`post-${navigationTargetPostId.value}`)
   if (!element) return false
 
-  const delta = element.getBoundingClientRect().top - postNavigationTargetTop
+  const delta = pinDeltaFor(element)
   if (Math.abs(delta) < 1) return false
 
   window.scrollBy({ top: delta, behavior: 'auto' })
@@ -894,7 +904,7 @@ function treeRootReplyHint(post: PostPayload): { username?: string; postNo?: num
   // 首楼不在当前窗口时用 replyTargets.postNo 判定目标是否首楼（深链打开后段楼层）。
   if (!firstId && (!target || target.postNo === 1)) return null
   if (!target || target.unavailable || !target.author.username) return { unavailable: true }
-  return { username: target.author.username, postNo: target.postNo, isAnonymous: Boolean(target.isAnonymous) }
+  return { username: authorDisplayName(target.author), postNo: target.postNo, isAnonymous: Boolean(target.isAnonymous) }
 }
 
 // 引用条规则：回复话题首楼（或无目标）视为话题级回复，不重复引用首楼正文；
@@ -1147,9 +1157,9 @@ function isElementMostlyVisible(element: HTMLElement) {
 }
 
 function scrollPostIntoComfortView(element: HTMLElement, behavior: ScrollBehavior = 'smooth') {
-  const targetTop = element.getBoundingClientRect().top + window.scrollY - postNavigationTargetTop
+  // 与 pinDeltaFor 共用同一个“可达目标”定义：平滑滚动终点不得超过文档可达范围。
   window.scrollTo({
-    top: Math.max(0, targetTop),
+    top: Math.max(0, window.scrollY + pinDeltaFor(element)),
     behavior,
   })
 }
@@ -1405,8 +1415,8 @@ function isTopicRemoved() {
 }
 
 // 优先展示用户昵称，未设置昵称时回退到账号名；匿名楼层展示匿名占位
-function authorDisplayName(author: { username: string; nickname?: string }) {
-  return author.nickname || author.username
+function authorDisplayName(author: { id?: number; username: string; nickname?: string }) {
+  return userDisplayName(author.id, author.username, author.nickname)
 }
 
 function isAnonymousPost(post: PostPayload) {
@@ -2775,7 +2785,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 />
                 <div class="min-w-0 truncate text-xs font-semibold text-base-content/55">
                   <template v-if="isAnonymousPost(pendingDeletePost)">{{ t('topic.authorAnonymous') }}</template>
-                  <template v-else>@{{ pendingDeletePost.author.username }}</template>
+                  <template v-else>{{ authorDisplayName(pendingDeletePost.author) }}</template>
                   <span class="ml-1.5 font-medium tabular-nums text-base-content/40">#{{ formatNumber(pendingDeletePost.postNo) }}</span>
                 </div>
               </div>

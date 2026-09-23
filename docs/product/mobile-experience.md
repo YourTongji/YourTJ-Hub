@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-15
+> Last verified: 2026-09-20
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -15,6 +15,21 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 ## Navigation and reading
 
+- `Current`: paginated feeds, search, notifications, profiles, content management, own course
+  reviews and post history automatically fetch near the list end. Requests are serialized;
+  errors and responses without cursor/item progress retain an explicit retry control instead
+  of starting a retry loop. Short pages continue filling the viewport while data advances.
+- `Current`: topic bodies and replies link only server-resolved mention occurrences to native
+  user profiles. The payload carries numeric identities and UTF-16 source ranges; unknown users,
+  escaped text, code, existing links and math remain unchanged. Hidden/deleted bodies expose no
+  mention metadata, and persisted Markdown stays unchanged.
+
+- `Current`: a bare HTTP(S) URL in its own Markdown paragraph resolves through the server batch API and
+  becomes a compact native preview only when typed metadata is ready; failure keeps the ordinary link,
+  and each document stops after three previews. Cards and ordinary Markdown links share internal routing
+  and external confirmation. The confirmation shows the hostname and selectable full URL, supports
+  system back, and scopes optional session trust to the Public Suffix List registrable domain. The card
+  is covered at 320 logical pixels, dark mode and 2.0 text scale.
 - `Current`: Home announcements render optional titles and HTML bodies, including the legacy
   single-HTML payload. A small bell sits in a separate leading column, with title and body aligned
   to the same inset as Web. They grow with their contents and text size; empty announcements take no
@@ -297,9 +312,25 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   stale results and opens paragraph anchors. Search unavailability has retry feedback. Reading
   keeps directory, Wiki search and GitHub edit actions in a bottom dock; GitHub remains the content
   source of truth.
-- `Current`: sign-in offers account/password, Google and GitHub. Password captcha and TOTP remain
-  supported. Google availability follows the published Web configuration. Social buttons use the
-  existing OIDC code/PKCE exchange with an allowlisted provider hint, not a new credential flow.
+- `Current`: sign-in offers account/password, Google, GitHub and Tongji when the published options
+  allow it. Password captcha and TOTP remain
+  supported. The login captcha stays folded until the password field is first interacted with;
+  the first password focus/input warms the challenge, and a blank outside tap or genuine secure-IME
+  dismissal reveals it without taking focus from another explicit control. That reveal is latched through transient Android
+  focus rebounds, and a prefetch failure stays silent until the visible retry path is used. On
+  Android, auth-field pointer-down creates a short-lived target token; if the secure keyboard
+  reclaims the password focus during that token's settling window, the app makes at most two
+  bounded attempts to return focus to the explicitly tapped field and then stops. A focused field
+  also has a finite view-insets-based IME show watchdog. Dismissing an already-visible secure
+  keyboard releases password focus and is honored as user intent; a transient hidden IME during an
+  explicit password-to-username/captcha handoff remains recoverable. Blank-space and button taps
+  create no focus target and do not start a focus battle. Captcha pixels are left unchanged in light mode
+  and use the Web-equivalent dark-mode transform. Google availability follows the published Web
+  configuration. On Android, Google/GitHub/Tongji all use one RFC 8252 external-system-browser
+  flow with manual PKCE/state/nonce and the native MainActivity callback bridge; the Android path
+  intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
+  Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
+  physical-device APK test; the exact native crash stack remains unproven without logcat.
 
 ## Registration
 
@@ -347,6 +378,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   underline. Avatar overlap participates in layout so it leaves no translated blank space. The role
   label stays beside the name; earned badges appear as bordered title/description cards with colored
   hexagons and their server-provided SVGs. The selected badge remains attached to the avatar.
+  Settings allow selecting and ordering zero to five owned, enabled badges for the profile header.
+  An explicit empty selection hides that row; existing accounts default to their first five badges.
+  This selection does not change the avatar badge or the complete earned badge collection.
   Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
@@ -436,8 +470,19 @@ local widget tests do not imply those gates passed.
 
 `Current`: native login and registration show “Tongji SSO” when the public login options declare
 campus configuration ready. The entry explains automatic activated registration and links published
-policies. AppAuth supplies `login_hint=tongji` to the built-in OIDC provider; the backend handles the
-school callback and resumes the existing PKCE/nonce exchange. The App stores only its forum session,
-never a school access/refresh token. Existing bindings sign in to the same forum account; new users
-receive a private student-ID@tongji.edu.cn email without a separate activation step. All four UI
-languages are supported. `Partial`: physical-device school sign-in has not been validated.
+policies. The backend handles the school callback and resumes the same manual PKCE/nonce exchange
+used by the Android external-browser path; the App stores only its forum session, never a school
+access/refresh token. Existing bindings sign in to the same forum account; new users receive a
+private student-ID@tongji.edu.cn email without a separate activation step. All four UI languages are
+supported. Tongji shares the exact MainActivity-owned `yourtj://callback` bridge with Google and
+GitHub; AppAuth's Android receiver does not claim it, and no WebView is used for this OAuth login.
+`Partial`: physical-device school sign-in has not been validated with the new APK.
+
+## Private user notes
+
+`Current`: User profiles provide a private-note editor with retry and clear behavior. Names in topic
+lists, replies, profile connections, search, conversations, notifications, mention candidates and
+revision history use `note(username)` for the current viewer. Notes are fetched through the shared
+core contract and remain only in a session-scoped memory provider; changing account invalidates
+pending responses and never reuses notes from the offline forum cache. Limits and account-erasure
+semantics are defined in [Identity and access](identity-and-access.md#private-user-notes).

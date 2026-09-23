@@ -790,8 +790,21 @@
     }
   },
   "loginTongji": "同済大学の統合認証でログイン",
-  "loginTongjiHint": "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。",
+  "loginTongjiHint": "初回認証後、ユーザー名とパスワードを設定して登録します。学籍番号@tongji.edu.cnとキャンパス接続が自動設定され、メールの再確認は不要です。",
   "loginTongjiPolicies": "続行すると、公開されている規約に同意したものとみなされます：",
+  "linkPreviewExternalTitle": "YourTJ を離れます",
+  "linkPreviewExternalBody": "{domain} に移動します。アカウント情報、認証コード、支払い情報を入力する前に URL を確認してください。",
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
+  "linkPreviewRememberDomain": "このセッション中は、このドメインについて確認しない",
+  "linkPreviewContinue": "続ける",
+  "linkPreviewCampusFallbackTitle": "学内ネットワーク",
+  "linkPreviewCampusFallbackDescription": "学内ネットワークからのみアクセスできます",
   "campusTodayMakeup": "{name}：今日は {date} の時間割で授業を行います。",
   "@campusTodayMakeup": {
     "placeholders": {
@@ -819,5 +832,12 @@
       }
     }
   },
-  "campusRulesUnavailable": "休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。"
+  "campusRulesUnavailable": "休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。",
+  "privateNoteEdit": "メモを編集",
+  "privateNoteLabel": "非公開メモ",
+  "privateNoteHint": "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。",
+  "badgeDisplayTitle": "プロフィールのバッジ",
+  "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
+  "badgeDisplayUp": "上へ",
+  "badgeDisplayDown": "下へ"
 }

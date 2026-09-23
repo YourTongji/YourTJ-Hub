@@ -1,6 +1,25 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  privateNote: {
+    edit: "Edit note",
+    label: "Private note",
+    hint: "Only you can see this. Up to 64 characters; save empty to clear.",
+  },
+  badgeDisplay: {
+    title: "Profile badges",
+    hint: "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+    up: "Move up",
+    down: "Move down",
+    save: "Save profile badges"
+  },
+  tongjiRegistration: {
+    title: "Complete Tongji registration",
+    intro: "Your Tongji identity is verified. Choose a username and password to create your forum account. No further email verification is needed.",
+    expired: "Verification expired. Please sign in with Tongji again.",
+    restart: "Sign in again",
+    verifiedEmail: "Verified email"
+  },
   campus: {
     todayMakeup: "{name}: today follows the timetable for {date}.",
     todayHoliday: "{name}: no classes today.",
@@ -451,6 +470,24 @@ export default {
       uploadImageTip: 'Upload image',
     },
   },
+  linkPreview: {
+    loadFailed: 'Link details are temporarily unavailable',
+    editorHint: 'Will appear as a link card: {domain}',
+    editorHintMany: '{count} link cards will appear: {domains}',
+    editorHintSeparator: ', ',
+    campusFallbackTitle: 'Campus network',
+    campusFallbackDescription: 'Requires campus network access',
+    guard: {
+      title: 'Leaving YourTJ',
+      normal_external: 'You are going to a third-party website. Check the address before entering account, verification, or payment details.',
+      suspicious: 'Check this address carefully before you continue.',
+      blocked: 'This link has been blocked and cannot be opened.',
+      remember: 'Do not ask again for this domain during this session',
+      continue: 'Continue',
+      copy: 'Copy link',
+      copied: 'Copied',
+    },
+  },
   stickers: {
     sources: 'Sticker sources and licenses',
     pickerTitle: 'Stickers',
@@ -562,7 +599,7 @@ export default {
   auth: {
     tongjiPolicies: "By continuing, you agree to the published policies:",
     tongjiLogin: "Continue with Tongji SSO",
-    tongjiSignupHint: "First sign-in creates an account and campus connection, with student-ID{'@'}tongji.edu.cn assigned automatically. No email activation is required.",
+    tongjiSignupHint: "After your first school verification, choose a username and password to register. Your student-ID{'@'}tongji.edu.cn and campus connection are verified without another email challenge.",
     tongjiUnavailable: "Tongji sign-in is unavailable. Please use another sign-in method.",
     tongjiAccountExists: "This Tongji identity was previously linked, or its student email is already used or reserved. Sign in to or recover your existing account, then link the identity on the Campus page.",
     tongjiSignupDisabled: "Tongji registration is currently unavailable. Contact an administrator or sign in to an existing account.",
@@ -1704,6 +1741,10 @@ export default {
     emptyTopics: 'No topics posted yet.',
     emptyActivity: 'No activity yet.',
     emptyData: 'No data.',
+    connectionsLabel: 'Follow relationships',
+    connectionsBack: 'Back to {name}\'s profile',
+    followingCount: 'Following {count}',
+    followersCount: 'Followers {count}',
     tabs: {
       summary: 'Summary',
       topics: 'Topics',
@@ -2792,6 +2833,7 @@ export default {
     'post.alreadyDeleted': 'This reply has already been deleted. No need to delete it again.',
     'post.firstPostUndeletable': 'The topic first post cannot be deleted. Delete the topic instead.',
     'auth.csrf.rejected': 'The request origin could not be verified. Refresh the page and try again.',
+    'auth.tongji.accountExists': 'This Tongji identity or its student email already belongs to an account. Sign in to or recover the existing account, then link the identity on the Campus page.',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

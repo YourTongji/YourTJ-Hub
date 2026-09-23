@@ -1,3 +1,4 @@
+import '../../private_notes.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -425,13 +426,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         _streamError == null &&
                         props.pagination.hasNext)
                       SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: GfButton(
-                            label: l10n.commonLoadMore,
-                            loading: _loadingMore,
-                            onPressed: () => _loadMore(props),
-                          ),
+                        child: GfListFooter(
+                          progressKey: (_stream, props.pagination.nextUrl),
+                          hasMore: props.pagination.hasNext,
+                          loading: _loadingMore,
+                          onLoadMore: () => _loadMore(props),
                         ),
                       ),
 
@@ -470,6 +469,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
 
+    for (final badge in (user.displayBadges ?? user.badges.take(5))) {
+      badges['earned:${badge.code}'] = GfUserBadge(
+        label: badge.name,
+        color: _userBadgeColor(badge),
+      );
+    }
     final List<Widget> actions = <Widget>[];
     if (user.isSelf || props.isOwnProfile) {
       actions.add(
@@ -482,6 +487,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ),
       );
     } else {
+      actions.add(
+        PrivateNoteButton(userId: user.userId, username: user.username),
+      );
       if (props.canFollow) {
         actions.add(
           GfButton(
@@ -526,7 +534,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
               label: user.wornBadge!.name,
             ),
-      name: user.nickname.isEmpty ? user.username : user.nickname,
+      name: privateDisplayName(
+        context,
+        user.userId,
+        user.username,
+        user.nickname,
+      ),
       username: user.username,
       bio: user.bio,
       signature: user.signature,
@@ -876,7 +889,12 @@ class _ProfileBody extends StatelessWidget {
         final UserConnectionPayload user = users[index];
         return GfSettingRow(
           leading: GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 36),
-          title: user.nickname.isEmpty ? user.username : user.nickname,
+          title: privateDisplayName(
+            context,
+            user.id,
+            user.username,
+            user.nickname,
+          ),
           description: user.bio.isEmpty ? '@${user.username}' : user.bio,
           onTap: () => context.push('/u/${user.id}'),
         );

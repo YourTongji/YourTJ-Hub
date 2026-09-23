@@ -118,8 +118,7 @@ void main() {
       final repo = _Repository();
       await _pump(tester, repo);
       expect(find.text('第一条匿名评价'), findsOneWidget);
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
+      // Short first page loads the next cursor automatically.
       expect(repo.cursors, ['', '2']);
       expect(find.text('更早的评价'), findsOneWidget);
       await tester.tap(find.text('查看详情').first);
@@ -135,7 +134,7 @@ void main() {
   ) async {
     final repo = _Repository();
     await _pump(tester, repo);
-    await tester.tap(find.text('编辑'));
+    await tester.tap(find.text('编辑').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, '修改后的评价');
     await tester.tap(find.text('保存'));
@@ -148,7 +147,7 @@ void main() {
     (tester) async {
       final repo = _Repository();
       await _pump(tester, repo);
-      await tester.tap(find.text('删除'));
+      await tester.tap(find.text('删除').first);
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(
@@ -162,7 +161,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.deletes, isEmpty);
       repo.failDelete = true;
-      await tester.tap(find.text('删除'));
+      await tester.tap(find.text('删除').first);
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
@@ -175,7 +174,7 @@ void main() {
       expect(find.text('第一条匿名评价'), findsOneWidget);
       await tester.pump(const Duration(seconds: 8));
       repo.failDelete = false;
-      await tester.tap(find.text('删除'));
+      await tester.tap(find.text('删除').first);
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
@@ -192,9 +191,9 @@ void main() {
     'hidden reviews remain deletable without an edit or public link',
     (tester) async {
       await _pump(tester, _Repository()..showHidden = true);
-      expect(find.text('编辑'), findsNothing);
-      expect(find.text('查看详情'), findsNothing);
-      expect(find.text('删除'), findsOneWidget);
+      expect(find.text('编辑'), findsOneWidget); // Only the visible older review.
+      expect(find.text('查看详情'), findsOneWidget);
+      expect(find.text('删除'), findsNWidgets(2));
       expect(find.textContaining('已被隐藏'), findsOneWidget);
     },
   );

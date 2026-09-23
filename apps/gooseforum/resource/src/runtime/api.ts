@@ -1,9 +1,10 @@
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
+import { LINK_PREVIEW_REQUEST_LIMIT } from './link-preview'
 
 interface ApiResponse<T> {
   code?: number
@@ -45,6 +46,19 @@ function rateLimitMessage(data: ApiResponse<unknown>, fallback: string, retryAft
 
 function responseMessage(data: ApiResponse<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
+}
+
+export async function resolveLinkPreviews(urls: readonly string[], signal?: AbortSignal): Promise<LinkPreview[]> {
+  const response = await fetch('/api/link-previews/resolve', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ urls: urls.slice(0, LINK_PREVIEW_REQUEST_LIMIT) }),
+    signal,
+  })
+  return readApiResponse<LinkPreview[]>(response, t('linkPreview.loadFailed'))
 }
 
 // assertHttpOk 供手写 !response.ok 分支使用：HTTP 层失败但 body 是结构化
@@ -344,6 +358,7 @@ export async function closeAccount(mode: 'anonymize' | 'delete', password: strin
 
 /** 退出登录并吊销当前会话。 */
 export async function logout(): Promise<boolean> {
+  window.dispatchEvent(new Event('goose:session-cleared'))
   const response = await fetch('/api/logout', { method: 'POST' })
   return readApiResponse<boolean>(response, t('api.operationFailed'))
 }
@@ -946,6 +961,15 @@ export async function savePresetAvatar(avatarUrl: string): Promise<string> {
   const result = await readApiResponse<{ avatarUrl?: string }>(response, t('api.avatarPresetFailed'))
   if (!result.avatarUrl) throw new Error(t('api.avatarPresetEmpty'))
   return result.avatarUrl
+}
+
+export async function displayBadges(badgeCodes: string[]): Promise<boolean> {
+  const response = await fetch('/api/display-badges', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ badgeCodes }),
+  })
+  await readApiResponse<unknown>(response, t('api.badgeWearFailed'))
+  return true
 }
 
 export async function wearBadge(badgeCode: string): Promise<boolean> {
@@ -2004,4 +2028,23 @@ export async function getCourseSummary(courseId: number, refresh = false, check 
   const result = (data.result ?? data.data) as CourseSummaryResult | undefined
   if (!result) return { status: 'error' }
   return result
+}
+
+export async function getPrivateNotes(): Promise<import('@gooseforum/client').PrivateNotesPayload> {
+  return readApiResponse(await fetch('/api/user-notes', { cache: 'no-store' }), t('api.operationFailed'))
+}
+export async function setPrivateNote(targetUserId: number, note: string): Promise<boolean> {
+  return readApiResponse(await fetch('/api/user-note', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetUserId, note }),
+  }), t('api.operationFailed'))
+}
+export interface TongjiRegistrationStatus { csrfToken: string; email: string; expiresAt: string }
+export async function getTongjiRegistration(): Promise<TongjiRegistrationStatus> {
+  return readApiResponse<TongjiRegistrationStatus>(await fetch('/api/auth/tongji/registration', { cache: 'no-store' }), t('tongjiRegistration.expired'))
+}
+export async function completeTongjiRegistration(username: string, password: string, csrfToken: string): Promise<{ redirect: string }> {
+  return readApiResponse<{ redirect: string }>(await fetch('/api/auth/tongji/registration', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, csrfToken }),
+  }), t('auth.validation.registerFailed'))
 }

@@ -137,7 +137,7 @@ export interface paths {
         };
         /**
          * Complete Tongji campus binding or forum sign-in
-         * @description Uses the purpose of server-issued state. Binding/replace/reauthorize requires the original writable forum session and explicit campus confirmation. Login state instead requires the same browser's HttpOnly yourtj_tongji_login cookie, expires after ten minutes, and is consumed once before exchange. Both verify PKCE S256, nonce, RS256 issuer/audience and the school identity. Login reuses the mutually unique binding or, only for a never-bound identity, atomically creates an ordinary activated forum account with student-ID@tongji.edu.cn, no password, and encrypted campus credentials. New registrations honor signup/domain/daily-quota policy. Daily quota is serialized with password registration; account closure does not release the creation-day slot. A retained identity fingerprint prevents repeat automatic registration after unlink, replacement or closure; accountExists directs the user to recover/sign into an existing account and bind explicitly. Existing or freshly staged email claims are never auto-linked; frozen, bot and deleted accounts cannot sign in. The original safe local redirect (including the mobile OIDC bridge) is stored server-side; callback redirects are ignored. Every handled response scrubs authorization parameters and uses private, no-store and no-referrer. Rejected guards never exchange the code.
+         * @description Uses the purpose of server-issued state. Binding/replace/reauthorize requires the original writable forum session and explicit campus confirmation. Login state instead requires the same browser's HttpOnly yourtj_tongji_login cookie, expires after ten minutes, and is consumed once before exchange. Both verify PKCE S256, nonce, RS256 issuer/audience and the school identity. Login reuses the mutually unique binding or, only for a never-bound identity, prepares a short-lived registration proof. The user then chooses username/password at /register/tongji; final submission atomically creates an activated ordinary account with student-ID@tongji.edu.cn, the chosen password hash, and encrypted campus credentials. No further email verification is required. No account or forum session is created before submission. New registrations honor signup/domain/daily-quota policy. Daily quota is serialized with password registration; account closure does not release the creation-day slot. A retained identity fingerprint prevents repeat automatic registration after unlink, replacement or closure; accountExists directs the user to recover/sign into an existing account and bind explicitly. Existing or freshly staged email claims are never auto-linked; frozen, bot and deleted accounts cannot sign in. The original safe local redirect (including the mobile OIDC bridge) is stored server-side; callback redirects are ignored. Every handled response scrubs authorization parameters and uses private, no-store and no-referrer. Rejected guards never exchange the code.
          */
         get: operations["campusCallback"];
         put?: never;
@@ -417,6 +417,30 @@ export interface paths {
          *     10 requests per hour per IP.
          */
         post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/tongji/registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read pending school registration
+         * @description Requires the browser registration cookie from a verified school callback. Ten-minute original authorization deadline, no renewal. The GET exposes an independent CSRF token for the same-origin form. POST requires that token and chosen username/password; no email challenge. Existing accounts never enter this flow. No school tokens reach the browser.
+         */
+        get: operations["tongjiRegistrationStatus"];
+        put?: never;
+        /**
+         * Complete school-verified registration
+         * @description Requires the browser registration cookie from a verified school callback. Ten-minute original authorization deadline, no renewal. The GET exposes an independent CSRF token for the same-origin form. POST requires that token and chosen username/password; no email challenge. Existing accounts never enter this flow. No school tokens reach the browser.
+         */
+        post: operations["tongjiRegister"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1268,6 +1292,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s private user notes
+         * @description Owner identity comes only from the authenticated session. Notes never appear
+         *     in public profiles, search, notifications or the target account. Maximum 1000
+         *     notes per owner; an empty note clears the entry. Either account closing erases
+         *     the relationship. Responses use Cache-Control private, no-store.
+         */
+        get: operations["listPrivateNotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set or clear a private note for another user
+         * @description Owner identity comes only from the authenticated session. Notes never appear
+         *     in public profiles, search, notifications or the target account. Maximum 1000
+         *     notes per owner; an empty note clears the entry. Either account closing erases
+         *     the relationship. Responses use Cache-Control private, no-store.
+         */
+        post: operations["setPrivateNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user-card": {
         parameters: {
             query?: never;
@@ -1277,13 +1347,14 @@ export interface paths {
         };
         /**
          * Read the compact public profile card of a user
-         * @description Public read endpoint with no rate limit. Note the route group mounts no JWT
-         *     middleware, so the viewer-specific flags isSelf and isFollowing are always
-         *     false. Query binding is strict: a missing or non-numeric userId fails with
-         *     HTTP 400 and `common.request.parseFailed`. An unknown user id fails with
-         *     `user.notFound` (HTTP 200); a closed (soft-deleted) account instead returns a
-         *     successful minimal tombstone card (userId/avatarUrl/isAccountClosed set, the
-         *     remaining fields zero-valued).
+         * @description Public read endpoint with no rate limit and optional authentication. Anonymous
+         *     requests return false for the viewer-specific flags isSelf and isFollowing;
+         *     authenticated requests resolve them for the current viewer. Query binding is
+         *     strict: a missing or non-numeric userId fails with HTTP 400 and
+         *     `common.request.parseFailed`. An unknown user id fails with `user.notFound`
+         *     (HTTP 200); a closed (soft-deleted) account instead returns a successful
+         *     minimal tombstone card (userId/avatarUrl/isAccountClosed set, the remaining
+         *     fields zero-valued).
          */
         get: operations["getUserCard"];
         put?: never;
@@ -1460,6 +1531,29 @@ export interface paths {
          *     business failures: `user.fetchFailed`, `user.updateFailed`.
          */
         post: operations["setPresetAvatar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/display-badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Select and order public profile badges
+         * @description Sets zero to five distinct active badges owned by the caller, in display order.
+         *     An empty array explicitly hides all profile-card badges. The avatar's worn
+         *     badge and the complete earned badge collection remain independent. Omitted,
+         *     null, unknown, duplicate or unowned selections fail with common.request.invalidParams.
+         */
+        post: operations["displayBadges"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1992,6 +2086,33 @@ export interface paths {
         get: operations["searchForum"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/link-previews/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve bounded metadata for internal and external links
+         * @description Resolves at most five URLs in request order. First-party URLs are read
+         *     directly from local models; external HTTP(S) pages use the server's
+         *     SSRF-safe bounded fetcher. The response exposes a fixed metadata
+         *     whitelist and stable per-item statuses, never remote HTML or transport
+         *     errors. Anonymous callers are allowed; an optional forum session is used
+         *     only for first-party visibility checks. The configurable
+         *     `link-preview.resolve` quota defaults to 60 requests per IP and 30 per
+         *     user in 60 seconds. Request bodies are capped at 16 KiB.
+         */
+        post: operations["resolveLinkPreviews"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7279,6 +7400,8 @@ export interface components {
             isSelf: boolean;
             /** @description Always an array (empty when the user holds no badges), never null. */
             badges: components["schemas"]["UserBadge"][];
+            /** @description Selected active badges in user-defined order; [] hides all. Missing on older servers; clients fall back to the first five earned badges. */
+            displayBadges?: components["schemas"]["UserBadge"][];
             wornBadge?: components["schemas"]["UserBadge"];
             /** Format: date-time */
             lastActiveTime: string;
@@ -9957,6 +10080,8 @@ export interface components {
             wornBadge?: Record<string, never> | null;
         };
         PostPayload: {
+            /** @description Server-resolved mention occurrences in the raw content returned to this viewer; UTF-16 offsets, end exclusive. Empty when the body is redacted or deleted. Moderators receiving an unredacted hidden body also receive its mention mappings. Older servers may omit this field. */
+            mentions?: components["schemas"]["PostMention"][];
             /** Format: uint64 */
             id: number;
             /** Format: uint64 */
@@ -11399,6 +11524,90 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        TongjiRegistrationStatus: {
+            csrfToken: string;
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        TongjiRegistrationStatusResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TongjiRegistrationStatus"];
+        };
+        TongjiRegistrationRequest: {
+            username: string;
+            /**
+             * Format: password
+             * @description Must contain an ASCII letter and digit; Unicode character count matches password registration.
+             */
+            password: string;
+            csrfToken: string;
+        };
+        TongjiRegistrationResult: {
+            /** @description Original server-stored safe local continuation, including native OIDC. */
+            redirect: string;
+        };
+        TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TongjiRegistrationResult"];
+        };
+        PostMention: {
+            username: string;
+            /** Format: uint64 */
+            userId: number;
+            start: number;
+            end: number;
+        };
+        PrivateNote: {
+            targetUserId: number;
+            /** @description Current canonical username, never a private nickname. */
+            username: string;
+            note: string;
+        };
+        PrivateNotesPayload: {
+            /** @description Authenticated owner; clients discard data from a different session. */
+            ownerId: number;
+            notes: components["schemas"]["PrivateNote"][];
+        };
+        PrivateNotesSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["PrivateNotesPayload"];
+        };
+        PrivateNoteRequest: {
+            targetUserId: number;
+            /** @description Trimmed plain text; empty clears. Control and formatting characters are rejected. */
+            note: string;
+        };
+        PrivateNoteSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result?: true;
+        };
+        DisplayBadgesRequest: {
+            badgeCodes: string[];
+        };
+        LinkPreviewResolveRequest: {
+            urls: string[];
+        };
+        LinkPreview: {
+            requestedUrl: string;
+            /** @enum {string} */
+            kind: "unknown" | "internal" | "external";
+            /** @enum {string} */
+            status: "ready" | "invalid" | "blocked" | "unavailable" | "timeout" | "unsupported" | "permission_denied";
+            url?: string;
+            displayHost?: string;
+            registrableDomain?: string;
+            siteName?: string;
+            title?: string;
+            description?: string;
+            imageUrl?: string;
+            faviconUrl?: string;
+            /** Format: date-time */
+            fetchedAt?: string;
+            /** @description Set when the card was rendered from the deployment's local campus configuration without any outbound request. `title` and `description` may be absent in that case; clients supply their own localized fallback copy instead of relying on server-side text. */
+            campus?: boolean;
+        };
+        LinkPreviewResolveSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["LinkPreview"][];
+        };
+        LinkPreviewResolveResponse: components["schemas"]["LinkPreviewResolveSuccess"] | components["schemas"]["ApiFailure"];
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -11997,7 +12206,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Binding returns to /campus?authorization=ready|failed. Sign-in returns to its server-stored local destination and sets a forum session cookie, or /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location. */
+            /** @description Binding returns to /campus?authorization=ready|failed. Sign-in returns existing accounts to the server-stored local destination with a forum session. New identities receive a registration-only HttpOnly cookie and visit /register/tongji without a forum session. Failures return to /login?tongjiNotice=failed|unavailable|accountExists|signupDisabled|accountUnavailable. No school credential appears in Location. */
             303: {
                 headers: {
                     Location?: string;
@@ -12362,6 +12571,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    tongjiRegistrationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private, no-store response. Completion also issues a forum session and consumes the registration proof. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TongjiRegistrationStatusResponse"];
+                };
+            };
+            /** @description Missing, expired or consumed registration cookie. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Campus provider unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    tongjiRegister: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TongjiRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Private, no-store response. Completion also issues a forum session and consumes the registration proof. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TongjiRegistrationResultResponse"];
+                };
+            };
+            /** @description Invalid JSON, username or password. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or mismatched registration CSRF proof. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description No partial account is created. A collision of the verified school identity or its student email with an existing account returns auth.tongji.accountExists with recovery guidance (the requester is already school-verified, so naming the conflict is not an enumeration oracle). Other collisions, registration policy and daily-quota rejections share the generic auth.register.failed body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, expired or consumed registration cookie. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Registration rate limit. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Password hashing or session creation failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Campus provider unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -13867,6 +14201,123 @@ export interface operations {
             };
         };
     };
+    listPrivateNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private notes for this session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateNotesSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setPrivateNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivateNoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Note saved or cleared. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateNoteSuccess"];
+                };
+            };
+            /** @description Malformed JSON, body exceeds 4096 bytes, invalid note or unavailable target. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable or cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The owner already has 1000 notes; existing notes can still be edited or cleared. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description User-note write rate limit (action `user.note`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     getUserCard: {
         parameters: {
             query: {
@@ -14138,6 +14589,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PresetAvatarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    displayBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisplayBadgesRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Malformed JSON or a request body exceeding 4096 bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -14964,6 +15466,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    resolveLinkPreviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkPreviewResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Ordered preview results, or a stable validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPreviewResolveResponse"];
+                };
+            };
+            /** @description Malformed JSON or a request larger than 16 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Link-preview resolution quota exceeded. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

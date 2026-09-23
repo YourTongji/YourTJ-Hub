@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PrivateNoteEditor from '@/site/components/PrivateNoteEditor.vue'
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -37,7 +39,7 @@ const CACHE_REVALIDATE_TTL_MS = 60_000
 let requestToken = 0
 let preferredSide: 'top' | 'bottom' | null = null
 
-const displayName = computed(() => card.value?.nickname || fallbackUser.value?.username || card.value?.username || '')
+const displayName = computed(() => userDisplayName(card.value?.userId || fallbackUser.value?.id, card.value?.username || fallbackUser.value?.username || '', card.value?.nickname))
 const username = computed(() => card.value?.username || fallbackUser.value?.username || '')
 const avatarUrl = computed(() => card.value?.avatarUrl || fallbackUser.value?.avatarUrl || '')
 const wornBadge = computed(() => card.value?.wornBadge || fallbackUser.value?.wornBadge || null)
@@ -72,7 +74,7 @@ const externalLinks = computed(() => {
   }
   return links
 })
-const visibleBadges = computed(() => (card.value?.badges || []).slice(0, 5))
+const visibleBadges = computed(() => (card.value?.displayBadges ?? card.value?.badges ?? []).slice(0, 5))
 const isAccountClosed = computed(() => Boolean(card.value?.isAccountClosed))
 
 function normalizeWebsiteURL(value: string) {
@@ -293,6 +295,7 @@ onBeforeUnmount(() => {
           <div class="flex min-w-0 items-center gap-2">
             <a v-if="!isAccountClosed" :href="profileUrl" class="truncate text-base font-bold text-base-content hover:text-primary">{{ displayName }}</a>
             <span v-else class="truncate text-base font-bold text-base-content/70">{{ displayName }}</span>
+            <PrivateNoteEditor v-if="card && !isAccountClosed" :user-id="card.userId" :username="card.username" />
             <span v-if="card?.isAdmin" class="gf-badge gf-badge-warning shrink-0 rounded text-[11px]">Admin</span>
             <span v-if="isAccountClosed" class="gf-badge gf-badge-muted shrink-0 rounded text-[11px]">{{ t('userCard.accountClosedBadge') }}</span>
           </div>

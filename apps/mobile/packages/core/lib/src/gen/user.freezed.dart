@@ -46,6 +46,8 @@ mixin _$UserCardPayload {
   bool get isSelf =>
       throw _privateConstructorUsedError; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+  List<UserBadgePayload>? get displayBadges =>
+      throw _privateConstructorUsedError;
   @JsonKey(defaultValue: [])
   List<UserBadgePayload> get badges => throw _privateConstructorUsedError;
   UserBadgePayload? get wornBadge => throw _privateConstructorUsedError;
@@ -92,6 +94,7 @@ abstract class $UserCardPayloadCopyWith<$Res> {
     bool isOnline,
     bool isFollowing,
     bool isSelf,
+    List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
     String lastActiveTime,
@@ -138,6 +141,7 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
     Object? isOnline = null,
     Object? isFollowing = null,
     Object? isSelf = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wornBadge = freezed,
     Object? lastActiveTime = null,
@@ -233,6 +237,10 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
                 ? _value.isSelf
                 : isSelf // ignore: cast_nullable_to_non_nullable
                       as bool,
+            displayBadges: freezed == displayBadges
+                ? _value.displayBadges
+                : displayBadges // ignore: cast_nullable_to_non_nullable
+                      as List<UserBadgePayload>?,
             badges: null == badges
                 ? _value.badges
                 : badges // ignore: cast_nullable_to_non_nullable
@@ -301,6 +309,7 @@ abstract class _$$UserCardPayloadImplCopyWith<$Res>
     bool isOnline,
     bool isFollowing,
     bool isSelf,
+    List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
     String lastActiveTime,
@@ -347,6 +356,7 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
     Object? isOnline = null,
     Object? isFollowing = null,
     Object? isSelf = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wornBadge = freezed,
     Object? lastActiveTime = null,
@@ -442,6 +452,10 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
             ? _value.isSelf
             : isSelf // ignore: cast_nullable_to_non_nullable
                   as bool,
+        displayBadges: freezed == displayBadges
+            ? _value._displayBadges
+            : displayBadges // ignore: cast_nullable_to_non_nullable
+                  as List<UserBadgePayload>?,
         badges: null == badges
             ? _value._badges
             : badges // ignore: cast_nullable_to_non_nullable
@@ -489,11 +503,13 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     required this.isOnline,
     required this.isFollowing,
     required this.isSelf,
+    final List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required final List<UserBadgePayload> badges,
     this.wornBadge,
     required this.lastActiveTime,
     required this.createdAt,
   }) : _externalInformation = externalInformation,
+       _displayBadges = displayBadges,
        _badges = badges;
 
   factory _$UserCardPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -552,9 +568,19 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
   final bool isSelf;
   // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
-  final List<UserBadgePayload> _badges;
+  final List<UserBadgePayload>? _displayBadges;
   // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+  @override
+  List<UserBadgePayload>? get displayBadges {
+    final value = _displayBadges;
+    if (value == null) return null;
+    if (_displayBadges is EqualUnmodifiableListView) return _displayBadges;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<UserBadgePayload> _badges;
   @override
   @JsonKey(defaultValue: [])
   List<UserBadgePayload> get badges {
@@ -572,7 +598,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
 
   @override
   String toString() {
-    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
+    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
   }
 
   @override
@@ -621,6 +647,10 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
             (identical(other.isFollowing, isFollowing) ||
                 other.isFollowing == isFollowing) &&
             (identical(other.isSelf, isSelf) || other.isSelf == isSelf) &&
+            const DeepCollectionEquality().equals(
+              other._displayBadges,
+              _displayBadges,
+            ) &&
             const DeepCollectionEquality().equals(other._badges, _badges) &&
             (identical(other.wornBadge, wornBadge) ||
                 other.wornBadge == wornBadge) &&
@@ -656,6 +686,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     isOnline,
     isFollowing,
     isSelf,
+    const DeepCollectionEquality().hash(_displayBadges),
     const DeepCollectionEquality().hash(_badges),
     wornBadge,
     lastActiveTime,
@@ -703,6 +734,7 @@ abstract class _UserCardPayload implements UserCardPayload {
     required final bool isOnline,
     required final bool isFollowing,
     required final bool isSelf,
+    final List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required final List<UserBadgePayload> badges,
     final UserBadgePayload? wornBadge,
     required final String lastActiveTime,
@@ -757,6 +789,8 @@ abstract class _UserCardPayload implements UserCardPayload {
   @override
   bool get isSelf; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+  @override
+  List<UserBadgePayload>? get displayBadges;
   @override
   @JsonKey(defaultValue: [])
   List<UserBadgePayload> get badges;
@@ -2784,6 +2818,8 @@ mixin _$SettingsUserPayload {
   Map<String, ExternalLinkPayload> get externalInformation =>
       throw _privateConstructorUsedError;
   String get wornBadgeCode => throw _privateConstructorUsedError;
+  List<UserBadgePayload>? get displayBadges =>
+      throw _privateConstructorUsedError;
   List<UserBadgePayload> get badges => throw _privateConstructorUsedError;
   List<UserBadgePayload> get wearableBadges =>
       throw _privateConstructorUsedError;
@@ -2823,6 +2859,7 @@ abstract class $SettingsUserPayloadCopyWith<$Res> {
     String createdAt,
     Map<String, ExternalLinkPayload> externalInformation,
     String wornBadgeCode,
+    List<UserBadgePayload>? displayBadges,
     List<UserBadgePayload> badges,
     List<UserBadgePayload> wearableBadges,
     UserBadgePayload? wornBadge,
@@ -2862,6 +2899,7 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
     Object? createdAt = null,
     Object? externalInformation = null,
     Object? wornBadgeCode = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wearableBadges = null,
     Object? wornBadge = freezed,
@@ -2932,6 +2970,10 @@ class _$SettingsUserPayloadCopyWithImpl<$Res, $Val extends SettingsUserPayload>
                 ? _value.wornBadgeCode
                 : wornBadgeCode // ignore: cast_nullable_to_non_nullable
                       as String,
+            displayBadges: freezed == displayBadges
+                ? _value.displayBadges
+                : displayBadges // ignore: cast_nullable_to_non_nullable
+                      as List<UserBadgePayload>?,
             badges: null == badges
                 ? _value.badges
                 : badges // ignore: cast_nullable_to_non_nullable
@@ -2990,6 +3032,7 @@ abstract class _$$SettingsUserPayloadImplCopyWith<$Res>
     String createdAt,
     Map<String, ExternalLinkPayload> externalInformation,
     String wornBadgeCode,
+    List<UserBadgePayload>? displayBadges,
     List<UserBadgePayload> badges,
     List<UserBadgePayload> wearableBadges,
     UserBadgePayload? wornBadge,
@@ -3029,6 +3072,7 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
     Object? createdAt = null,
     Object? externalInformation = null,
     Object? wornBadgeCode = null,
+    Object? displayBadges = freezed,
     Object? badges = null,
     Object? wearableBadges = null,
     Object? wornBadge = freezed,
@@ -3099,6 +3143,10 @@ class __$$SettingsUserPayloadImplCopyWithImpl<$Res>
             ? _value.wornBadgeCode
             : wornBadgeCode // ignore: cast_nullable_to_non_nullable
                   as String,
+        displayBadges: freezed == displayBadges
+            ? _value._displayBadges
+            : displayBadges // ignore: cast_nullable_to_non_nullable
+                  as List<UserBadgePayload>?,
         badges: null == badges
             ? _value._badges
             : badges // ignore: cast_nullable_to_non_nullable
@@ -3136,10 +3184,12 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     required this.createdAt,
     required final Map<String, ExternalLinkPayload> externalInformation,
     required this.wornBadgeCode,
+    final List<UserBadgePayload>? displayBadges,
     required final List<UserBadgePayload> badges,
     required final List<UserBadgePayload> wearableBadges,
     this.wornBadge,
   }) : _externalInformation = externalInformation,
+       _displayBadges = displayBadges,
        _badges = badges,
        _wearableBadges = wearableBadges;
 
@@ -3189,6 +3239,16 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @override
   final String wornBadgeCode;
+  final List<UserBadgePayload>? _displayBadges;
+  @override
+  List<UserBadgePayload>? get displayBadges {
+    final value = _displayBadges;
+    if (value == null) return null;
+    if (_displayBadges is EqualUnmodifiableListView) return _displayBadges;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   final List<UserBadgePayload> _badges;
   @override
   List<UserBadgePayload> get badges {
@@ -3210,7 +3270,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
 
   @override
   String toString() {
-    return 'SettingsUserPayload(id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
+    return 'SettingsUserPayload(id: $id, username: $username, email: $email, pendingEmail: $pendingEmail, nickname: $nickname, locale: $locale, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, createdAt: $createdAt, externalInformation: $externalInformation, wornBadgeCode: $wornBadgeCode, displayBadges: $displayBadges, badges: $badges, wearableBadges: $wearableBadges, wornBadge: $wornBadge)';
   }
 
   @override
@@ -3247,6 +3307,10 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
             ) &&
             (identical(other.wornBadgeCode, wornBadgeCode) ||
                 other.wornBadgeCode == wornBadgeCode) &&
+            const DeepCollectionEquality().equals(
+              other._displayBadges,
+              _displayBadges,
+            ) &&
             const DeepCollectionEquality().equals(other._badges, _badges) &&
             const DeepCollectionEquality().equals(
               other._wearableBadges,
@@ -3276,6 +3340,7 @@ class _$SettingsUserPayloadImpl implements _SettingsUserPayload {
     createdAt,
     const DeepCollectionEquality().hash(_externalInformation),
     wornBadgeCode,
+    const DeepCollectionEquality().hash(_displayBadges),
     const DeepCollectionEquality().hash(_badges),
     const DeepCollectionEquality().hash(_wearableBadges),
     wornBadge,
@@ -3316,6 +3381,7 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
     required final String createdAt,
     required final Map<String, ExternalLinkPayload> externalInformation,
     required final String wornBadgeCode,
+    final List<UserBadgePayload>? displayBadges,
     required final List<UserBadgePayload> badges,
     required final List<UserBadgePayload> wearableBadges,
     final UserBadgePayload? wornBadge,
@@ -3359,6 +3425,8 @@ abstract class _SettingsUserPayload implements SettingsUserPayload {
   Map<String, ExternalLinkPayload> get externalInformation;
   @override
   String get wornBadgeCode;
+  @override
+  List<UserBadgePayload>? get displayBadges;
   @override
   List<UserBadgePayload> get badges;
   @override
@@ -3995,5 +4063,388 @@ abstract class _SettingsPageProps implements SettingsPageProps {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$SettingsPagePropsImplCopyWith<_$SettingsPagePropsImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+PrivateNotePayload _$PrivateNotePayloadFromJson(Map<String, dynamic> json) {
+  return _PrivateNotePayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$PrivateNotePayload {
+  int get targetUserId => throw _privateConstructorUsedError;
+  String get username => throw _privateConstructorUsedError;
+  String get note => throw _privateConstructorUsedError;
+
+  /// Serializes this PrivateNotePayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of PrivateNotePayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $PrivateNotePayloadCopyWith<PrivateNotePayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $PrivateNotePayloadCopyWith<$Res> {
+  factory $PrivateNotePayloadCopyWith(
+    PrivateNotePayload value,
+    $Res Function(PrivateNotePayload) then,
+  ) = _$PrivateNotePayloadCopyWithImpl<$Res, PrivateNotePayload>;
+  @useResult
+  $Res call({int targetUserId, String username, String note});
+}
+
+/// @nodoc
+class _$PrivateNotePayloadCopyWithImpl<$Res, $Val extends PrivateNotePayload>
+    implements $PrivateNotePayloadCopyWith<$Res> {
+  _$PrivateNotePayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of PrivateNotePayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? targetUserId = null,
+    Object? username = null,
+    Object? note = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            targetUserId: null == targetUserId
+                ? _value.targetUserId
+                : targetUserId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            username: null == username
+                ? _value.username
+                : username // ignore: cast_nullable_to_non_nullable
+                      as String,
+            note: null == note
+                ? _value.note
+                : note // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$PrivateNotePayloadImplCopyWith<$Res>
+    implements $PrivateNotePayloadCopyWith<$Res> {
+  factory _$$PrivateNotePayloadImplCopyWith(
+    _$PrivateNotePayloadImpl value,
+    $Res Function(_$PrivateNotePayloadImpl) then,
+  ) = __$$PrivateNotePayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({int targetUserId, String username, String note});
+}
+
+/// @nodoc
+class __$$PrivateNotePayloadImplCopyWithImpl<$Res>
+    extends _$PrivateNotePayloadCopyWithImpl<$Res, _$PrivateNotePayloadImpl>
+    implements _$$PrivateNotePayloadImplCopyWith<$Res> {
+  __$$PrivateNotePayloadImplCopyWithImpl(
+    _$PrivateNotePayloadImpl _value,
+    $Res Function(_$PrivateNotePayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of PrivateNotePayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? targetUserId = null,
+    Object? username = null,
+    Object? note = null,
+  }) {
+    return _then(
+      _$PrivateNotePayloadImpl(
+        targetUserId: null == targetUserId
+            ? _value.targetUserId
+            : targetUserId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        username: null == username
+            ? _value.username
+            : username // ignore: cast_nullable_to_non_nullable
+                  as String,
+        note: null == note
+            ? _value.note
+            : note // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$PrivateNotePayloadImpl implements _PrivateNotePayload {
+  const _$PrivateNotePayloadImpl({
+    required this.targetUserId,
+    required this.username,
+    required this.note,
+  });
+
+  factory _$PrivateNotePayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$PrivateNotePayloadImplFromJson(json);
+
+  @override
+  final int targetUserId;
+  @override
+  final String username;
+  @override
+  final String note;
+
+  @override
+  String toString() {
+    return 'PrivateNotePayload(targetUserId: $targetUserId, username: $username, note: $note)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$PrivateNotePayloadImpl &&
+            (identical(other.targetUserId, targetUserId) ||
+                other.targetUserId == targetUserId) &&
+            (identical(other.username, username) ||
+                other.username == username) &&
+            (identical(other.note, note) || other.note == note));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, targetUserId, username, note);
+
+  /// Create a copy of PrivateNotePayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$PrivateNotePayloadImplCopyWith<_$PrivateNotePayloadImpl> get copyWith =>
+      __$$PrivateNotePayloadImplCopyWithImpl<_$PrivateNotePayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$PrivateNotePayloadImplToJson(this);
+  }
+}
+
+abstract class _PrivateNotePayload implements PrivateNotePayload {
+  const factory _PrivateNotePayload({
+    required final int targetUserId,
+    required final String username,
+    required final String note,
+  }) = _$PrivateNotePayloadImpl;
+
+  factory _PrivateNotePayload.fromJson(Map<String, dynamic> json) =
+      _$PrivateNotePayloadImpl.fromJson;
+
+  @override
+  int get targetUserId;
+  @override
+  String get username;
+  @override
+  String get note;
+
+  /// Create a copy of PrivateNotePayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$PrivateNotePayloadImplCopyWith<_$PrivateNotePayloadImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+PrivateNotesPayload _$PrivateNotesPayloadFromJson(Map<String, dynamic> json) {
+  return _PrivateNotesPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$PrivateNotesPayload {
+  int get ownerId => throw _privateConstructorUsedError;
+  List<PrivateNotePayload> get notes => throw _privateConstructorUsedError;
+
+  /// Serializes this PrivateNotesPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of PrivateNotesPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $PrivateNotesPayloadCopyWith<PrivateNotesPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $PrivateNotesPayloadCopyWith<$Res> {
+  factory $PrivateNotesPayloadCopyWith(
+    PrivateNotesPayload value,
+    $Res Function(PrivateNotesPayload) then,
+  ) = _$PrivateNotesPayloadCopyWithImpl<$Res, PrivateNotesPayload>;
+  @useResult
+  $Res call({int ownerId, List<PrivateNotePayload> notes});
+}
+
+/// @nodoc
+class _$PrivateNotesPayloadCopyWithImpl<$Res, $Val extends PrivateNotesPayload>
+    implements $PrivateNotesPayloadCopyWith<$Res> {
+  _$PrivateNotesPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of PrivateNotesPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? ownerId = null, Object? notes = null}) {
+    return _then(
+      _value.copyWith(
+            ownerId: null == ownerId
+                ? _value.ownerId
+                : ownerId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            notes: null == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as List<PrivateNotePayload>,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$PrivateNotesPayloadImplCopyWith<$Res>
+    implements $PrivateNotesPayloadCopyWith<$Res> {
+  factory _$$PrivateNotesPayloadImplCopyWith(
+    _$PrivateNotesPayloadImpl value,
+    $Res Function(_$PrivateNotesPayloadImpl) then,
+  ) = __$$PrivateNotesPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({int ownerId, List<PrivateNotePayload> notes});
+}
+
+/// @nodoc
+class __$$PrivateNotesPayloadImplCopyWithImpl<$Res>
+    extends _$PrivateNotesPayloadCopyWithImpl<$Res, _$PrivateNotesPayloadImpl>
+    implements _$$PrivateNotesPayloadImplCopyWith<$Res> {
+  __$$PrivateNotesPayloadImplCopyWithImpl(
+    _$PrivateNotesPayloadImpl _value,
+    $Res Function(_$PrivateNotesPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of PrivateNotesPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? ownerId = null, Object? notes = null}) {
+    return _then(
+      _$PrivateNotesPayloadImpl(
+        ownerId: null == ownerId
+            ? _value.ownerId
+            : ownerId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        notes: null == notes
+            ? _value._notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as List<PrivateNotePayload>,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$PrivateNotesPayloadImpl implements _PrivateNotesPayload {
+  const _$PrivateNotesPayloadImpl({
+    required this.ownerId,
+    required final List<PrivateNotePayload> notes,
+  }) : _notes = notes;
+
+  factory _$PrivateNotesPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$PrivateNotesPayloadImplFromJson(json);
+
+  @override
+  final int ownerId;
+  final List<PrivateNotePayload> _notes;
+  @override
+  List<PrivateNotePayload> get notes {
+    if (_notes is EqualUnmodifiableListView) return _notes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_notes);
+  }
+
+  @override
+  String toString() {
+    return 'PrivateNotesPayload(ownerId: $ownerId, notes: $notes)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$PrivateNotesPayloadImpl &&
+            (identical(other.ownerId, ownerId) || other.ownerId == ownerId) &&
+            const DeepCollectionEquality().equals(other._notes, _notes));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    ownerId,
+    const DeepCollectionEquality().hash(_notes),
+  );
+
+  /// Create a copy of PrivateNotesPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$PrivateNotesPayloadImplCopyWith<_$PrivateNotesPayloadImpl> get copyWith =>
+      __$$PrivateNotesPayloadImplCopyWithImpl<_$PrivateNotesPayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$PrivateNotesPayloadImplToJson(this);
+  }
+}
+
+abstract class _PrivateNotesPayload implements PrivateNotesPayload {
+  const factory _PrivateNotesPayload({
+    required final int ownerId,
+    required final List<PrivateNotePayload> notes,
+  }) = _$PrivateNotesPayloadImpl;
+
+  factory _PrivateNotesPayload.fromJson(Map<String, dynamic> json) =
+      _$PrivateNotesPayloadImpl.fromJson;
+
+  @override
+  int get ownerId;
+  @override
+  List<PrivateNotePayload> get notes;
+
+  /// Create a copy of PrivateNotesPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$PrivateNotesPayloadImplCopyWith<_$PrivateNotesPayloadImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

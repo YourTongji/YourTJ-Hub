@@ -1120,8 +1120,21 @@
     }
   },
   "loginTongji": "Continue with Tongji SSO",
-  "loginTongjiHint": "First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.",
+  "loginTongjiHint": "After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.",
   "loginTongjiPolicies": "By continuing, you agree to the published policies:",
+  "linkPreviewExternalTitle": "Leaving YourTJ",
+  "linkPreviewExternalBody": "You are going to {domain}. Check the address before entering account, verification, or payment details.",
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
+  "linkPreviewRememberDomain": "Do not ask again for this domain during this session",
+  "linkPreviewContinue": "Continue",
+  "linkPreviewCampusFallbackTitle": "Campus network",
+  "linkPreviewCampusFallbackDescription": "Requires campus network access",
   "campusTodayMakeup": "{name}: today follows the timetable for {date}.",
   "@campusTodayMakeup": {
     "placeholders": {
@@ -1149,5 +1162,12 @@
       }
     }
   },
-  "campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable."
+  "campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.",
+  "privateNoteEdit": "Edit note",
+  "privateNoteLabel": "Private note",
+  "privateNoteHint": "Only you can see this. Up to 64 characters; save empty to clear.",
+  "badgeDisplayTitle": "Profile badges",
+  "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+  "badgeDisplayUp": "Move up",
+  "badgeDisplayDown": "Move down"
 }

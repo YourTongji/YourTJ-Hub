@@ -2294,10 +2294,30 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      '初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。';
+      '初回認証後、ユーザー名とパスワードを設定して登録します。学籍番号@tongji.edu.cnとキャンパス接続が自動設定され、メールの再確認は不要です。';
 
   @override
   String get loginTongjiPolicies => '続行すると、公開されている規約に同意したものとみなされます：';
+
+  @override
+  String get linkPreviewExternalTitle => 'YourTJ を離れます';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return '$domain に移動します。アカウント情報、認証コード、支払い情報を入力する前に URL を確認してください。';
+  }
+
+  @override
+  String get linkPreviewRememberDomain => 'このセッション中は、このドメインについて確認しない';
+
+  @override
+  String get linkPreviewContinue => '続ける';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => '学内ネットワーク';
+
+  @override
+  String get linkPreviewCampusFallbackDescription => '学内ネットワークからのみアクセスできます';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -2317,4 +2337,24 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
+
+  @override
+  String get privateNoteEdit => 'メモを編集';
+
+  @override
+  String get privateNoteLabel => '非公開メモ';
+
+  @override
+  String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
+  String get badgeDisplayTitle => 'プロフィールのバッジ';
+
+  @override
+  String get badgeDisplayHint =>
+      '最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。';
+
+  @override
+  String get badgeDisplayUp => '上へ';
+
+  @override
+  String get badgeDisplayDown => '下へ';
 }

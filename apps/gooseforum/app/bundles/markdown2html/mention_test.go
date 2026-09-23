@@ -3,6 +3,7 @@ package markdown2html
 import (
 	"strings"
 	"testing"
+	"unicode/utf16"
 )
 
 func TestExtractUsernames(t *testing.T) {
@@ -226,5 +227,22 @@ func TestMentionReviewBoundaries(t *testing.T) {
 	html = PostMarkdownToHTMLWithMentions(`@alice and \@alice`, targets)
 	if n := strings.Count(html, `href="/u/42"`); n != 1 {
 		t.Errorf("escaped mention linked: %s", html)
+	}
+}
+
+func TestMentionTokensRetainOriginalOffsetsAcrossMathAndUnicode(t *testing.T) {
+	source := "😀 $@ignored$ @alice_smith\n\n$$x\\n@y$$\n\n@bob-name `@code` \\@escaped [@linked](/) mail@example.com"
+	tokens := ExtractMentionTokens(source)
+	if len(tokens) != 2 {
+		t.Fatalf("tokens: %+v", tokens)
+	}
+	units := utf16.Encode([]rune(source))
+	for _, token := range tokens {
+		if got := string(utf16.Decode(units[token.Start:token.End])); got != "@"+token.Username {
+			t.Fatalf("bad source span: %+v = %q", token, got)
+		}
+	}
+	if tokens[0].Username != "alice_smith" || tokens[1].Username != "bob-name" {
+		t.Fatal(tokens)
 	}
 }

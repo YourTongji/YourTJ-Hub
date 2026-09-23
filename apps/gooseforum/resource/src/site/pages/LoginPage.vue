@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TongjiRegistration from '@/site/components/TongjiRegistration.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { LoaderCircle, Languages, Mail, Moon, ShieldCheck, Sun, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -109,6 +110,7 @@ const brandImage = computed(() => {
 })
 
 onMounted(() => {
+  if (page.props.tongjiRegistration) return
   refreshCaptcha()
 })
 
@@ -266,7 +268,8 @@ function onToggleTheme() {
 </script>
 
 <template>
-  <main class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
+  <TongjiRegistration v-if="props.tongjiRegistration" :terms="props.termsOfServiceEnabled" :privacy="props.privacyPolicyEnabled" />
+  <main v-else class="login-main relative min-h-screen overflow-hidden bg-base-100 text-base-content sm:bg-base-200 sm:px-6 sm:py-8 lg:px-8">
     <!-- 波点静态背景：纯 CSS 点阵，无动画，零 GPU 开销 -->
     <div class="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <div class="gf-dot-grid absolute inset-0" />

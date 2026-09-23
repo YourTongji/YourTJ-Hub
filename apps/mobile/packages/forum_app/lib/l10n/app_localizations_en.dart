@@ -2358,11 +2358,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.';
+      'After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.';
 
   @override
   String get loginTongjiPolicies =>
       'By continuing, you agree to the published policies:';
+
+  @override
+  String get linkPreviewExternalTitle => 'Leaving YourTJ';
+
+  @override
+  String linkPreviewExternalBody(String domain) {
+    return 'You are going to $domain. Check the address before entering account, verification, or payment details.';
+  }
+
+  @override
+  String get linkPreviewRememberDomain =>
+      'Do not ask again for this domain during this session';
+
+  @override
+  String get linkPreviewContinue => 'Continue';
+
+  @override
+  String get linkPreviewCampusFallbackTitle => 'Campus network';
+
+  @override
+  String get linkPreviewCampusFallbackDescription =>
+      'Requires campus network access';
 
   @override
   String campusTodayMakeup(String name, String date) {
@@ -2382,4 +2404,25 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get campusRulesUnavailable =>
       'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.';
+
+  @override
+  String get privateNoteEdit => 'Edit note';
+
+  @override
+  String get privateNoteLabel => 'Private note';
+
+  @override
+  String get privateNoteHint =>
+      'Only you can see this. Up to 64 characters; save empty to clear.';
+  String get badgeDisplayTitle => 'Profile badges';
+
+  @override
+  String get badgeDisplayHint =>
+      'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.';
+
+  @override
+  String get badgeDisplayUp => 'Move up';
+
+  @override
+  String get badgeDisplayDown => 'Move down';
 }

@@ -189,6 +189,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/auth/tongji/registration"
+  },
+  {
+    "method": "GET",
     "path": "/api/campus/calendar-export"
   },
   {
@@ -322,6 +326,10 @@
   {
     "method": "GET",
     "path": "/api/user-card"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user-notes"
   },
   {
     "method": "GET",
@@ -466,6 +474,10 @@
   {
     "method": "GET",
     "path": "/publish"
+  },
+  {
+    "method": "GET",
+    "path": "/register/tongji"
   },
   {
     "method": "GET",
@@ -881,6 +893,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/auth/tongji/registration"
+  },
+  {
+    "method": "POST",
     "path": "/api/auth/totp/verify"
   },
   {
@@ -898,6 +914,10 @@
   {
     "method": "POST",
     "path": "/api/change-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/display-badges"
   },
   {
     "method": "POST",
@@ -1125,6 +1145,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/link-previews/resolve"
+  },
+  {
+    "method": "POST",
     "path": "/api/login"
   },
   {
@@ -1206,6 +1230,10 @@
   {
     "method": "POST",
     "path": "/api/upload-avatar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user-note"
   },
   {
     "method": "POST",
