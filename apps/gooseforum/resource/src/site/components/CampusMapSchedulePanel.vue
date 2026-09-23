@@ -58,7 +58,7 @@ const periods = computed(() => {
   ]
 })
 const queryDate = ref(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()))
-const selectedCalendar = computed(() => calendars.value.find((calendar) => calendar.calendarId === calendarId.value))
+const selectedCalendar = computed(() => (calendars.value ?? []).find((calendar) => calendar.calendarId === calendarId.value))
 const dateSelection = computed(() => {
   const startDate = selectedCalendar.value?.startDate
   if (!dateMode.value || !startDate) return undefined
@@ -82,7 +82,7 @@ const displayedScheduleDate = computed(() => {
 async function loadCalendars() {
   state.value = 'loading-calendar'
   try {
-    calendars.value = await getPkCalendars()
+    calendars.value = (await getPkCalendars()) ?? []
     calendarId.value = calendars.value[0]?.calendarId
     state.value = calendars.value.length ? 'ready' : 'error'
     void getPkLatestUpdate().then((value) => { latestSyncDate.value = value.latestSyncAt }).catch(() => {})

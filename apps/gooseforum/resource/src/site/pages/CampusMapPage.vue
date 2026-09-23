@@ -99,6 +99,7 @@ const selectedFromTimetable = ref(false)
 const showAll = ref(false)
 const infoDialog = ref<HTMLDialogElement>()
 const buildingScheduleDialog = ref<HTMLDialogElement>()
+const buildingScheduleOpen = ref(false)
 const shareFallback = ref(false)
 const shareInput = ref<HTMLInputElement>()
 const shareUrl = ref('')
@@ -220,6 +221,10 @@ function selectBuildingScheduleTarget(target: CampusMapTarget | null) {
   if (!target) return
   buildingScheduleDialog.value?.close()
   select(target.featureId)
+}
+function openBuildingSchedule() {
+  buildingScheduleOpen.value = true
+  nextTick(() => buildingScheduleDialog.value?.showModal())
 }
 function matchMapLocation(campusName: string, room: string): CampusMapTarget | undefined {
   return officialLocationTarget(campusName, room, data.value)
@@ -781,7 +786,7 @@ onBeforeUnmount(() => {
                   : t('campusMap.placeNote')
               }}
             </p>
-            <button v-if="selected.indoor && selected.category === 'academic'" type="button" class="atlas-schedule-open" @click="buildingScheduleDialog?.showModal()">
+            <button v-if="selected.indoor && selected.category === 'academic'" type="button" class="atlas-schedule-open" @click="openBuildingSchedule">
               <CalendarDays :size="16" />{{ t('campusMap.schedule.openBuilding') }}
             </button>
             <button type="button" class="atlas-share" @click="share">
@@ -799,13 +804,13 @@ onBeforeUnmount(() => {
           </div></section
       ></Transition>
 
-      <dialog ref="buildingScheduleDialog" class="atlas-building-schedule" :aria-label="t('campusMap.schedule.title')">
+      <dialog ref="buildingScheduleDialog" class="atlas-building-schedule" :aria-label="t('campusMap.schedule.title')" @close="buildingScheduleOpen = false">
         <div class="atlas-building-schedule__header">
           <h2>{{ t('campusMap.schedule.title') }}</h2>
           <button type="button" :aria-label="t('campusMap.close')" @click="buildingScheduleDialog?.close()"><X :size="18" /></button>
         </div>
         <CampusMapSchedulePanel
-          v-if="selected"
+          v-if="buildingScheduleOpen && selected"
           :building="{ campusId: campus.id, featureId: selected.id, name: nameFor(selected) }"
           :match-location="matchMapLocation"
           :resolve-location="resolveMineLocation"
