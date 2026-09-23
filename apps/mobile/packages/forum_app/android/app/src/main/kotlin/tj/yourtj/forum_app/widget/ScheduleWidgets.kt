@@ -640,7 +640,7 @@ private fun TimelineCourseCard(context: Context, course: ScheduleCourse) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(bottom = 6.dp)
+            .padding(bottom = 8.dp)
             .background(courseTint(context, course.colorSlot))
             .cornerRadius(16.dp)
             .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -687,19 +687,20 @@ private fun TimelineCourseCard(context: Context, course: ScheduleCourse) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (room.isNotBlank()) {
-                        Text(
-                            if (Locale.getDefault().language == "zh") "地点" else "Room",
-                            style = TextStyle(color = muted, fontSize = 9.sp, fontWeight = FontWeight.Medium),
+                        Image(
+                            provider = ImageProvider(R.drawable.course_timeline_location),
+                            contentDescription = null,
+                            modifier = GlanceModifier.size(12.dp),
                         )
                         Text(
                             room,
-                            modifier = GlanceModifier.defaultWeight().padding(start = 3.dp),
+                            modifier = GlanceModifier.padding(start = 3.dp),
                             maxLines = 1,
                             style = TextStyle(color = muted, fontSize = 10.sp),
                         )
                     }
                     if (teacher.isNotBlank()) {
-                        Spacer(GlanceModifier.width(4.dp))
+                        if (room.isNotBlank()) Spacer(GlanceModifier.width(4.dp))
                         Image(
                             provider = ImageProvider(R.drawable.course_timeline_teacher),
                             contentDescription = null,
@@ -707,7 +708,7 @@ private fun TimelineCourseCard(context: Context, course: ScheduleCourse) {
                         )
                         Text(
                             teacher,
-                            modifier = GlanceModifier.defaultWeight().padding(start = 3.dp),
+                            modifier = GlanceModifier.padding(start = 3.dp),
                             maxLines = 1,
                             style = TextStyle(color = muted, fontSize = 10.sp),
                         )

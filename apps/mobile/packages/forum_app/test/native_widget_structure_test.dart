@@ -350,6 +350,13 @@ void main() {
       source.indexOf('class CourseTimelineWidget :'),
       source.indexOf('@Composable\nprivate fun TimelineHeader'),
     );
+    final timelineCard = source.substring(
+      source.indexOf('@Composable\nprivate fun TimelineCourseCard'),
+      source.indexOf('class ToggleCourseTimelineDayAction'),
+    );
+    final locationIcon = read(
+      'android/app/src/main/res/drawable/course_timeline_location.xml',
+    );
 
     expect(manifest, contains('CourseTimelineWidgetReceiver'));
     expect(provider, contains('android:targetCellWidth="4"'));
@@ -375,6 +382,13 @@ void main() {
     expect(timeline, contains('startSection'));
     expect(timeline, contains('endSection'));
     expect(timeline, contains('teacherDisplayName(course.teacher)'));
+    expect(timelineCard, contains('padding(bottom = 8.dp)'));
+    expect(
+      timelineCard,
+      contains('ImageProvider(R.drawable.course_timeline_location)'),
+    );
+    expect(timelineCard, isNot(contains('"地点"')));
+    expect(locationIcon, contains('Icons.place_outlined'));
     expect(
       source,
       contains('actionRunCallback<ToggleCourseTimelineDayAction>()'),
