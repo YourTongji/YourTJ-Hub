@@ -175,6 +175,15 @@ void main() {
     expect(source, contains('Divider()'));
     expect(source, isNot(contains('.teal')));
     expect(source, isNot(contains('.indigo')));
+    for (final unsupportedApi in [
+      'date: .now',
+      'entry(at: .now)',
+      '.foregroundStyle(',
+      '.tint(',
+      'in: ContainerRelativeShape()',
+    ]) {
+      expect(source, isNot(contains(unsupportedApi)));
+    }
     expect(source, contains('.frame(width: 4, height: 48)'));
     expect(
       '.frame(maxWidth: .infinity'.allMatches(source).length,

@@ -266,11 +266,11 @@ private struct ScheduleProvider: TimelineProvider {
     }
 
     func placeholder(in context: Context) -> ScheduleEntry {
-        ScheduleEntry(date: .now, projection: nil, emptyState: "needsRefresh")
+        ScheduleEntry(date: Date(), projection: nil, emptyState: "needsRefresh")
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScheduleEntry) -> Void) {
-        completion(entry(at: .now))
+        completion(entry(at: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> Void) {
@@ -475,12 +475,12 @@ private struct NextClassView: View {
         VStack(alignment: .leading, spacing: 4) {
             if state.1 != nil {
                 HStack(spacing: 4) {
-                    Text(title(state.0)).font(.caption.weight(.semibold)).foregroundStyle(.tint)
+                    Text(title(state.0)).font(.caption.weight(.semibold)).foregroundColor(.accentColor)
                     Spacer(minLength: 4)
                     WidgetBrandMark()
                 }
                 if let context {
-                    Text(context).font(.caption2).foregroundStyle(.secondary)
+                    Text(context).font(.caption2).foregroundColor(.secondary)
                 }
             }
             HStack(spacing: 4) {
@@ -491,20 +491,20 @@ private struct NextClassView: View {
                 }
             }
             if let place, !place.isEmpty {
-                Text(place).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                Text(place).font(.caption2).foregroundColor(.secondary).lineLimit(2)
             }
             if state.1 != nil {
                 HStack(spacing: 6) {
-                    if let time { Text(time).font(.caption2.monospacedDigit()).foregroundStyle(.secondary) }
+                    if let time { Text(time).font(.caption2.monospacedDigit()).foregroundColor(.secondary) }
                     Spacer(minLength: 4)
-                    if let distance { Text(distance).font(.caption2.weight(.medium)).foregroundStyle(.tint) }
+                    if let distance { Text(distance).font(.caption2.weight(.medium)).foregroundColor(.accentColor) }
                 }
             }
             if let support = support(state.0, hasProjection: entry.projection != nil) {
-                Text(support).font(.caption2).foregroundStyle(.secondary)
+                Text(support).font(.caption2).foregroundColor(.secondary)
             }
             if let updated {
-                Text(updated).font(.caption2).foregroundStyle(.secondary)
+                Text(updated).font(.caption2).foregroundColor(.secondary)
             }
             if let course = state.1 {
                 Capsule().fill(courseColors[course.colorSlot - 1]).frame(height: 4).widgetAccent()
@@ -539,7 +539,7 @@ private struct TodayScheduleView: View {
                 Spacer(minLength: 0)
                 if let generatedAt = projection?.generatedAt {
                     Text("更新于 \(Projection.clock.string(from: generatedAt))")
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundColor(.secondary)
                 }
             } else {
                 MediumDayColumn(day: today, state: state, hasProjection: projection != nil)
@@ -639,7 +639,7 @@ private struct DayHeader: View {
         HStack(spacing: 4) {
             Text(day.map(dayHeaderText) ?? "")
                 .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             if showBrand {
@@ -660,7 +660,7 @@ private struct EmptyDay: View {
             Text(state == "holiday" ? day?.adjustmentLabel ?? title(state) : title(state))
                 .font(.subheadline.weight(.semibold))
             if let support = support(state, hasProjection: hasProjection) {
-                Text(support).font(.caption2).foregroundStyle(.secondary)
+                Text(support).font(.caption2).foregroundColor(.secondary)
             }
         }
     }
@@ -681,9 +681,9 @@ private struct CourseRow: View {
                     .lineLimit(2)
                 let place = [course.campus, course.room, course.teacher]
                     .filter { !$0.isEmpty }.joined(separator: " · ")
-                if !place.isEmpty { Text(place).font(.caption2).foregroundStyle(.secondary) }
+                if !place.isEmpty { Text(place).font(.caption2).foregroundColor(.secondary) }
                 Text("\(Projection.clock.string(from: course.startAt))–\(Projection.clock.string(from: course.endAt))")
-                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    .font(.caption2.monospacedDigit()).foregroundColor(.secondary)
             }
         }
     }
@@ -695,7 +695,7 @@ private struct Remaining: View {
     var body: some View {
         if count > 0 {
             Text(Locale.current.languageCode == "zh" ? "还有 \(count) 门课程" : "\(count) more classes")
-                .font(.caption2).foregroundStyle(.secondary)
+                .font(.caption2).foregroundColor(.secondary)
         }
     }
 }
@@ -727,8 +727,9 @@ private extension View {
             }
         } else {
             padding().background(
-                Color(.secondarySystemBackground).opacity(opacity),
-                in: ContainerRelativeShape()
+                ContainerRelativeShape().fill(
+                    Color(.secondarySystemBackground).opacity(opacity)
+                )
             )
         }
     }
