@@ -3,6 +3,7 @@ package tj.yourtj.forum_app.widget
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -81,6 +82,51 @@ internal data class ScheduleProjection(
             return NextClassState("needsRefresh")
         }
         return NextClassState("noneUpcoming")
+    }
+
+    fun nextUpdateAt(now: Date): Date? {
+        val state = nextClass(now)
+        val target = state.course?.let {
+            when (state.status) {
+                "inClass" -> it.endAt
+                "upcoming", "break" -> it.startAt
+                else -> null
+            }
+        }
+        val nextCountdownChange = target?.let { nextCountdownChangeAt(now, it) }
+        val nextCourseChange = days.asSequence()
+            .flatMap { it.courses.asSequence() }
+            .flatMap { sequenceOf(it.startAt, it.endAt) }
+            .filter { it.after(now) }
+            .minByOrNull { it.time }
+        val midnight = Calendar
+            .getInstance(TimeZone.getTimeZone("Asia/Shanghai"), Locale.ROOT)
+            .apply {
+                time = now
+                add(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            .time
+        val staleAt = Date(generatedAt.time + 7L * 24 * 60 * 60 * 1000 + 1)
+        return listOfNotNull(nextCountdownChange, nextCourseChange, midnight, staleAt)
+            .filter { it.after(now) }
+            .minByOrNull { it.time }
+    }
+
+    private fun nextCountdownChangeAt(now: Date, target: Date): Date? {
+        val remaining = target.time - now.time
+        if (remaining <= 0) return null
+        val minutes = maxOf(1L, (remaining + 59_999L) / 60_000L)
+        val nextDisplayedBoundary = if (minutes >= 24L * 60) {
+            (minutes / 60) * 60 - 1
+        } else {
+            ((minutes + 4) / 5) * 5 - 5
+        }
+        return Date(target.time - nextDisplayedBoundary * 60_000L)
+            .takeIf { it.after(now) && it.before(target) }
     }
 
     companion object {

@@ -37,7 +37,9 @@ void main() {
         ),
       ),
     );
-    expect(next, contains('android:minWidth="110dp"'));
+    expect(next, contains('android:targetCellWidth="4"'));
+    expect(next, contains('android:minWidth="250dp"'));
+    expect(next, contains('android:minResizeWidth="250dp"'));
     expect(today, contains('android:resizeMode="horizontal|vertical"'));
     expect('$next$today', contains('android:updatePeriodMillis="0"'));
     expect(
@@ -50,6 +52,11 @@ void main() {
     expect(data, contains('"undefined"'));
     expect(source, contains('LargeSchedule'));
     expect(source, contains('cornerRadius(24.dp)'));
+    expect(source, contains('day = colorFor(Configuration.UI_MODE_NIGHT_NO)'));
+    expect(
+      source,
+      contains('night = colorFor(Configuration.UI_MODE_NIGHT_YES)'),
+    );
     expect(source, contains('今天'));
     expect(source, contains('明天'));
     expect(source, contains('更新于'));
@@ -65,36 +72,69 @@ void main() {
     );
     final large = source.substring(
       source.indexOf('private fun LargeSchedule'),
-      source.indexOf('private fun DayHeader'),
+      source.indexOf('private fun LargeDayColumn'),
+    );
+    final dayColumn = source.substring(
+      source.indexOf('private fun LargeDayColumn'),
+      source.indexOf('private fun Divider'),
     );
 
     expect(source, isNot(contains('(LocalSize.current.width -')));
     expect(large, contains(RegExp(r'LargeDayColumn\(\s*"今天"')));
     expect(large, contains(RegExp(r'LargeDayColumn\(\s*"明天"')));
-    expect(large, contains('LazyColumn'));
-    expect(large, contains('items = day.courses'));
+    expect(dayColumn, contains('LazyColumn'));
+    expect(dayColumn, contains('items = day.courses'));
     expect(
-      large,
+      dayColumn,
       contains('itemId = { course -> course.id.hashCode().toLong() }'),
     );
     expect(large, contains('defaultWeight()'));
     expect(large, contains('fillMaxHeight()'));
     expect(large, contains('Divider('));
-    expect(large, contains('contentDescription = description'));
-    expect(large, isNot(contains('CoursePairRow')));
-    expect(large, isNot(contains('items(itemCount)')));
-    expect(large, isNot(contains('take(2)')));
-    expect(large, isNot(contains('Remaining(')));
+    expect(dayColumn, contains('contentDescription = description'));
+    expect(dayColumn, isNot(contains('CoursePairRow')));
+    expect(dayColumn, isNot(contains('items(itemCount)')));
+    expect(dayColumn, isNot(contains('take(2)')));
+    expect(dayColumn, isNot(contains('Remaining(')));
   });
 
+  test(
+    'Android 12 widget picker scales the full-canvas preview within host bounds',
+    () {
+      final preview = read(
+        'android/app/src/main/res/layout/today_schedule_widget_preview_v2.xml',
+      );
+      final provider = read(
+        'android/app/src/main/res/xml/today_schedule_widget_info.xml',
+      );
+
+      expect(preview, contains('<ImageView'));
+      expect(preview, contains('android:layout_width="match_parent"'));
+      expect(preview, contains('android:layout_height="match_parent"'));
+      expect(preview, contains('android:scaleType="fitCenter"'));
+      expect(preview, isNot(contains('<TextView')));
+      expect(
+        preview,
+        contains('android:src="@drawable/today_schedule_widget_preview_v2"'),
+      );
+      expect(
+        provider,
+        contains(
+          'android:previewLayout="@layout/today_schedule_widget_preview_v2"',
+        ),
+      );
+      expect(
+        provider,
+        contains(
+          'android:previewImage="@drawable/today_schedule_widget_preview_v2"',
+        ),
+      );
+    },
+  );
+
   test('Android keeps 4dp bars and iOS uses height-fitting course stripes', () {
-    final android = read(
-      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
-    );
     final ios = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
 
-    expect(android, contains('.width(4.dp)'));
-    expect(android, isNot(contains('.width(if (current)')));
     expect(ios, isNot(contains('.frame(width: 4, height: 48)')));
     expect(ios, contains('courseStripeColor(course.colorSlot'));
     final nextClass = ios.substring(
@@ -109,6 +149,15 @@ void main() {
     expect(courseRow, contains('course.room'));
     expect(courseRow, contains('course.teacher'));
     expect(ios, isNot(contains('width: current ?')));
+  });
+
+  test('course bars stay 4dp regardless of current state', () {
+    final android = read(
+      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
+    );
+
+    expect(android, contains('.width(4.dp)'));
+    expect(android, isNot(contains('.width(if (current)')));
   });
 
   test('iOS course stripe colors match the web timetable CSS', () {
@@ -164,9 +213,9 @@ void main() {
 
   test('iOS widget text stays at least 11 points', () {
     final source = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
-    final sizes = RegExp(r'\.font\(\.system\(size: (\d+)')
-        .allMatches(source)
-        .map((match) => int.parse(match.group(1)!));
+    final sizes = RegExp(
+      r'\.font\(\.system\(size: (\d+)',
+    ).allMatches(source).map((match) => int.parse(match.group(1)!));
     expect(sizes, isNotEmpty);
     expect(sizes.every((size) => size >= 11), isTrue);
   });
@@ -235,10 +284,54 @@ void main() {
     );
     expect(nextClass, contains('course?.locationText()'));
     expect(nextClass, contains('detailText("地点", "Location", it)'));
-    expect(nextClass, contains('course?.teacher?.takeIf { it.isNotBlank() }'));
+    expect(nextClass, contains('course?.teacher?.let(::teacherDisplayName)'));
     expect(nextClass, contains('detailText("教师", "Teacher", it)'));
     expect(source, contains('generatedAt?.let(::updatedText)'));
     expect(source, contains('distanceText('));
+    expect(data, contains('fun nextUpdateAt('));
+    expect(source, contains('HomeWidgetScheduler.schedule('));
+  });
+
+  test('NextClass picker shares one full-canvas image across preview APIs', () {
+    final preview = read(
+      'android/app/src/main/res/layout/next_class_widget_preview.xml',
+    );
+    final provider = read(
+      'android/app/src/main/res/xml/next_class_widget_info.xml',
+    );
+
+    expect(preview, contains('<ImageView'));
+    expect(preview, contains('android:layout_width="match_parent"'));
+    expect(preview, contains('android:layout_height="match_parent"'));
+    expect(preview, contains('android:scaleType="fitCenter"'));
+    expect(
+      preview,
+      contains('android:src="@drawable/next_class_widget_preview"'),
+    );
+    expect(preview, isNot(contains('<TextView')));
+    expect(provider, contains('android:targetCellWidth="4"'));
+    expect(provider, contains('android:minWidth="250dp"'));
+    expect(provider, contains('android:minHeight="50dp"'));
+    expect(
+      provider,
+      contains('android:previewLayout="@layout/next_class_widget_preview"'),
+    );
+    expect(
+      provider,
+      contains('android:previewImage="@drawable/next_class_widget_preview"'),
+    );
+    expect(
+      File(
+        'android/app/src/main/res/drawable-nodpi/next_class_widget_preview.png',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        'android/app/src/main/res/drawable-night-nodpi/next_class_widget_preview.png',
+      ).existsSync(),
+      isTrue,
+    );
   });
 
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {

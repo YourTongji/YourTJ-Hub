@@ -4,4 +4,4 @@
     android:layout_height="match_parent"
     android:contentDescription="@null"
     android:scaleType="fitCenter"
-    android:src="@drawable/next_class_widget_preview" />
+    android:src="@drawable/today_schedule_widget_preview_v2" />

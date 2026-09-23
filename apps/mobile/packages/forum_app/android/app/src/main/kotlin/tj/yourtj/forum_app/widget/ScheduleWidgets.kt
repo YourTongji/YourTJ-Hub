@@ -1,7 +1,9 @@
 package tj.yourtj.forum_app.widget
 
+import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -26,6 +28,7 @@ import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
+import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -49,6 +52,8 @@ import androidx.core.content.ContextCompat
 import es.antonborri.home_widget.HomeWidgetGlanceState
 import es.antonborri.home_widget.HomeWidgetGlanceStateDefinition
 import es.antonborri.home_widget.HomeWidgetGlanceWidgetReceiver
+import es.antonborri.home_widget.HomeWidgetPlugin
+import es.antonborri.home_widget.HomeWidgetScheduler
 import es.antonborri.home_widget.actionStartActivity
 import tj.yourtj.forum_app.MainActivity
 import tj.yourtj.forum_app.R
@@ -81,6 +86,26 @@ private fun courseColor(slot: Int) = ColorProvider(
     },
 )
 
+private fun widgetBackground(context: Context, transparency: Int): ColorProvider {
+    val configuration = context.resources.configuration
+    val alpha = 1f - transparency.coerceIn(0, 15) / 100f
+    fun colorFor(nightMode: Int) = Color(
+        ContextCompat.getColor(
+            context.createConfigurationContext(
+                Configuration(configuration).apply {
+                    uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK) or nightMode
+                },
+            ),
+            R.color.widget_background,
+        ),
+    ).copy(alpha = alpha)
+
+    return DayNightColorProvider(
+        day = colorFor(Configuration.UI_MODE_NIGHT_NO),
+        night = colorFor(Configuration.UI_MODE_NIGHT_YES),
+    )
+}
+
 abstract class ScheduleGlanceWidget : GlanceAppWidget() {
     override val stateDefinition = HomeWidgetGlanceStateDefinition()
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -96,12 +121,10 @@ abstract class ScheduleGlanceWidget : GlanceAppWidget() {
     ) {
         val uri = Uri.parse("yourtj://campus/today${focusId?.let { "?focus=$it" } ?: ""}")
         val verticalPadding = if (LocalSize.current.height < 80.dp) 8.dp else 12.dp
-        val backgroundColor = Color(ContextCompat.getColor(context, R.color.widget_background))
-            .copy(alpha = 1f - transparency.coerceIn(0, 15) / 100f)
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(ColorProvider(backgroundColor))
+                .background(widgetBackground(context, transparency))
                 .cornerRadius(24.dp)
                 .semantics { contentDescription = description }
                 .clickable(actionStartActivity<MainActivity>(context, uri))
@@ -205,7 +228,9 @@ class NextClassWidget : ScheduleGlanceWidget() {
         val distance = course?.let { distanceText(state.status, it, now) }
         val location = course?.locationText()?.takeIf { it.isNotBlank() }
             ?.let { detailText("地点", "Location", it) }
-        val teacher = course?.teacher?.takeIf { it.isNotBlank() }?.let { detailText("教师", "Teacher", it) }
+        val teacher = course?.teacher?.let(::teacherDisplayName)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { detailText("教师", "Teacher", it) }
         val updated = generatedAt?.let(::updatedText)
         val description = listOfNotNull(
             title,
@@ -397,7 +422,7 @@ private fun WideCompactNextClass(
 class TodayScheduleWidget : ScheduleGlanceWidget() {
     override val previewSizeMode = SizeMode.Responsive(
         setOf(
-            DpSize(250.dp, 110.dp),
+            DpSize(250.dp, 180.dp),
             DpSize(320.dp, 200.dp),
         ),
     )
@@ -409,7 +434,7 @@ class TodayScheduleWidget : ScheduleGlanceWidget() {
             val transparency = preferences.getInt(WIDGET_TRANSPARENCY_KEY, DEFAULT_WIDGET_TRANSPARENCY)
             val status = projection?.status()
                 ?: (emptyStatus(preferences.getString(EMPTY_STATE_KEY, null)) to null)
-            val large = LocalSize.current.height >= 180.dp
+            val large = LocalSize.current.height >= 150.dp
             val today = projection?.dayFor()
             val tomorrow = projection?.days?.firstOrNull { it.date == tomorrowDate() }
             val description = scheduleDescription(status.first, today, if (large) tomorrow else null, projection != null)
@@ -559,7 +584,12 @@ private fun courseTime(status: String, course: ScheduleCourse): String =
 
 private fun distanceText(status: String, course: ScheduleCourse, now: Date): String {
     val target = if (status == "inClass") course.endAt else course.startAt
-    val minutes = maxOf(1L, (target.time - now.time + 59_999L) / 60_000L)
+    val remainingMinutes = maxOf(1L, (target.time - now.time + 59_999L) / 60_000L)
+    val minutes = if (remainingMinutes >= 24L * 60) {
+        remainingMinutes
+    } else {
+        (((remainingMinutes + 4) / 5) * 5).coerceAtMost(24L * 60 - 5)
+    }
     val zh = Locale.getDefault().language == "zh"
     val duration = when {
         minutes >= 24 * 60 -> {
@@ -638,6 +668,27 @@ private fun dayHeaderText(date: String, week: Int?, adjustment: String?): String
 private fun detailText(zhLabel: String, enLabel: String, value: String): String =
     "${if (Locale.getDefault().language == "zh") zhLabel else enLabel}：$value"
 
+private fun teacherNames(value: String): List<String> = value
+    .split(Regex("[,，、;；]"))
+    .map { it.replace(Regex("\\s*[（(][^（）()]*[）)]\\s*$"), "").trim() }
+    .filter { it.isNotBlank() }
+
+private fun teacherDisplayName(value: String): String {
+    val names = teacherNames(value)
+    val visible = names.take(2).map { name ->
+        val words = name.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.size < 2 || name.any { it in '\u4e00'..'\u9fff' }) {
+            name
+        } else {
+            val initials = words.dropLast(1).joinToString("") { word ->
+                if (word.endsWith(".")) word else "${word.first().uppercaseChar()}."
+            }
+            "$initials ${words.last()}"
+        }
+    }
+    return visible.joinToString("、") + if (names.size > visible.size) " 等" else ""
+}
+
 private fun updatedText(value: Date): String =
     if (Locale.getDefault().language == "zh") "更新于 ${clock(value)}" else "Updated at ${clock(value)}"
 
@@ -661,7 +712,12 @@ private fun scheduleDescription(
 
 private fun dayDescription(title: String, day: ScheduleDay): String {
     val courses = day.courses.joinToString("，") { course ->
-        listOf(course.name, "${clock(course.startAt)}–${clock(course.endAt)}", course.locationText(), course.teacher)
+        listOf(
+            course.name,
+            "${clock(course.startAt)}–${clock(course.endAt)}",
+            course.room.trim(),
+            teacherNames(course.teacher).joinToString("、"),
+        )
             .filter { it.isNotBlank() }
             .joinToString("，")
     }
@@ -719,26 +775,33 @@ private fun CourseRow(course: ScheduleCourse, current: Boolean, large: Boolean) 
                 .cornerRadius(2.dp),
         ) {}
         Spacer(GlanceModifier.width(8.dp))
-        Column {
+        Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 course.name,
                 maxLines = 2,
                 style = TextStyle(
                     color = if (current) accent else foreground,
-                    fontSize = if (large) 14.sp else 13.sp,
-                    fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = if (large) 15.sp else 14.sp,
+                    fontWeight = FontWeight.Bold,
                 ),
             )
-            val location = course.locationText()
-            if (course.teacher.isNotBlank() || location.isNotBlank()) {
+            val location = course.room.trim()
+            val teacher = teacherDisplayName(course.teacher)
+            if (teacher.isNotBlank() || location.isNotBlank()) {
                 Text(
-                    listOf(location, course.teacher).filter { it.isNotBlank() }.joinToString(" · "),
+                    listOf(location, teacher).filter { it.isNotBlank() }.joinToString(" · "),
+                    maxLines = 1,
                     style = TextStyle(color = muted, fontSize = 11.sp),
                 )
             }
             Text(
                 "${clock(course.startAt)}–${clock(course.endAt)}",
-                style = TextStyle(color = muted, fontSize = 11.sp),
+                maxLines = 1,
+                style = TextStyle(
+                    color = foreground,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
             )
         }
     }
@@ -776,13 +839,13 @@ private fun previewScheduleDay(now: Date, offset: Int): ScheduleDay {
     }
     return ScheduleDay(
         date = date,
-        week = null,
+        week = 4,
         source = "widget-picker-preview",
         kind = "normal",
         adjustmentLabel = null,
         courses = listOf(
-            ScheduleCourse("widget-preview-$offset-1", "示例课程", "", "", "", timeAt(9, 0), timeAt(10, 35), 5),
-            ScheduleCourse("widget-preview-$offset-2", "下一节课程", "", "", "", timeAt(11, 0), timeAt(12, 35), 2),
+            ScheduleCourse("widget-preview-$offset-1", "高等数学", "", "瑞安楼", "李老师", timeAt(8, 0), timeAt(9, 35), 5),
+            ScheduleCourse("widget-preview-$offset-2", "大学物理", "", "嘉定楼", "王老师", timeAt(10, 0), timeAt(11, 35), 2),
         ),
     )
 }
@@ -791,6 +854,28 @@ private fun emptyStatus(value: String?): String = if (value == "needsData") "nee
 
 class NextClassWidgetReceiver : HomeWidgetGlanceWidgetReceiver<NextClassWidget>() {
     override val glanceAppWidget = NextClassWidget()
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        scheduleNextUpdate(context)
+    }
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        scheduleNextUpdate(context)
+    }
+
+    private fun scheduleNextUpdate(context: Context) {
+        val projection = ScheduleProjection.parse(
+            HomeWidgetPlugin.getData(context).getString(PROJECTION_KEY, null),
+        ) ?: return
+        val nextUpdate = projection.nextUpdateAt(Date()) ?: return
+        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextUpdate.time))
+    }
 }
 
 class TodayScheduleWidgetReceiver : HomeWidgetGlanceWidgetReceiver<TodayScheduleWidget>() {

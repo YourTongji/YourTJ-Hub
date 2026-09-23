@@ -31,7 +31,6 @@ class ScheduleWidgetBridge {
     await HomeWidget.saveWidgetData<String>(projectionKey, staged);
     await HomeWidget.saveWidgetData<String>(emptyStateKey, 'ready');
     await HomeWidget.saveWidgetData<String>(_temporaryKey, null);
-    await _reload();
     final times = projection.updateTimesAfter(DateTime.now());
     await Future.wait([
       HomeWidget.scheduleWidgetUpdates(
@@ -43,6 +42,7 @@ class ScheduleWidgetBridge {
         qualifiedAndroidName: _todayReceiver,
       ),
     ]);
+    await _reload();
   }
 
   Future<ScheduleWidgetProjection?> read() async {
