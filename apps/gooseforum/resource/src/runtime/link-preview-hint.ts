@@ -11,6 +11,13 @@ export interface LinkPreviewHintController {
   compositionStart(): void
   compositionEnd(markdown: string): void
   dispose(): void
+  /**
+   * True once nothing is in flight: no debounced request pending and no
+   * resolve round-trip running. Browser-test fixtures wait on this state
+   * instead of sleeping past the debounce, so their waits track real state
+   * rather than a constant in this file.
+   */
+  isSettled(): boolean
 }
 
 /**
@@ -45,6 +52,10 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
     request?.abort()
     request = undefined
   }
+
+  // `request` must drop back to undefined once a resolve finishes, otherwise
+  // isSettled would never turn true again after the first request.
+  const isSettled = () => timer === undefined && request === undefined
 
   const schedule = (markdown: string) => {
     markdown = markdown ?? ''
@@ -81,12 +92,16 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
           candidateKey = null
           options.onChange(null)
         }
+      } finally {
+        // A newer schedule may already own `request`; only retire our own handle.
+        if (request === activeRequest) request = undefined
       }
     }, delay)
   }
 
   return {
     schedule,
+    isSettled,
     compositionStart() {
       composing = true
       candidateKey = null

@@ -22,6 +22,7 @@ Object.assign(window, { linkFixture: {
   getValue: () => editor.value?.getValue(),
   model: () => markdown.value,
   setValue: (value: string) => { markdown.value = value },
+  hintSettled: () => editor.value?.hintSettled() ?? true,
   pending: () => externalLinkGuardState.pending,
   cancel: cancelExternalLinkGuard,
 } })

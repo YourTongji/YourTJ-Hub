@@ -371,6 +371,41 @@ describe('editor link-preview hint coordinator', () => {
     controller.dispose()
   })
 
+  test('settle state tracks debounce, in-flight resolve and completion', async () => {
+    vi.useFakeTimers()
+    let release: ((previews: LinkPreview[]) => void) | undefined
+    const resolve = vi.fn(() => new Promise<LinkPreview[]>(resolve => { release = resolve }))
+    const controller = createLinkPreviewHintController({ resolve, onChange: vi.fn() })
+    expect(controller.isSettled()).toBe(true)
+    controller.schedule('https://old.example')
+    expect(controller.isSettled()).toBe(false)
+    await vi.advanceTimersByTimeAsync(400)
+    expect(controller.isSettled()).toBe(false)
+    release?.([readyPreview('https://old.example')])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controller.isSettled()).toBe(true)
+    controller.dispose()
+  })
+
+  test('a stale in-flight resolve cannot un-settle the newer pending request', async () => {
+    vi.useFakeTimers()
+    const releases: Array<(previews: LinkPreview[]) => void> = []
+    const resolve = vi.fn(() => new Promise<LinkPreview[]>(resolve => releases.push(resolve)))
+    const controller = createLinkPreviewHintController({ resolve, onChange: vi.fn() })
+    controller.schedule('https://old.example')
+    await vi.advanceTimersByTimeAsync(400)
+    controller.schedule('https://new.example')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(controller.isSettled()).toBe(false)
+    releases[0]([readyPreview('https://old.example')])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controller.isSettled()).toBe(false)
+    releases[1]([readyPreview('https://new.example')])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controller.isSettled()).toBe(true)
+    controller.dispose()
+  })
+
   test('unrelated typing preserves published candidates and their pending debounce', async () => {
     vi.useFakeTimers()
     const changes: Array<string[] | null> = []
