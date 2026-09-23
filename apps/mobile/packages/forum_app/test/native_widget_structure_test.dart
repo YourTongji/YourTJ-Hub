@@ -183,6 +183,29 @@ void main() {
     expect(source, isNot(contains('ScrollView')));
   });
 
+  test('home_widget bridge stays compatible with the iOS 13 Runner', () {
+    final project = read('ios/Runner.xcodeproj/project.pbxproj');
+    final mobilePubspec = read('../../pubspec.yaml');
+    final package = read(
+      '../../third_party/home_widget/ios/home_widget/Package.swift',
+    );
+    final podspec = read(
+      '../../third_party/home_widget/ios/home_widget.podspec',
+    );
+
+    expect(
+      RegExp(r'IPHONEOS_DEPLOYMENT_TARGET = 13\.0;').allMatches(project).length,
+      3,
+    );
+    expect(
+      RegExp(r'IPHONEOS_DEPLOYMENT_TARGET = 14\.0;').allMatches(project).length,
+      3,
+    );
+    expect(mobilePubspec, contains('path: third_party/home_widget'));
+    expect(package, contains('.iOS("13.0")'));
+    expect(podspec, contains("s.platform = :ios, '13.0'"));
+  });
+
   test('development APK helper keeps all supported ABI splits', () {
     final script = read('../../scripts/build_dev_apk.sh');
     expect(script, contains('--split-per-abi'));
