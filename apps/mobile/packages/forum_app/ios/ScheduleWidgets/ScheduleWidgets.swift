@@ -712,8 +712,7 @@ private struct LargeDayColumn: View {
                 }
             }
             if let day, !day.courses.isEmpty {
-                FittingCourses(courses: day.courses, currentId: currentId, preferredCount: 3,
-                               spacious: true)
+                FittingCourses(courses: day.courses, currentId: currentId, preferredCount: 3)
             } else {
                 EmptyDay(state: emptyState, day: day, hasProjection: hasProjection)
             }
@@ -745,17 +744,16 @@ private struct FittingCourses: View {
     let courses: [Projection.Course]
     let currentId: String?
     let preferredCount: Int
-    var spacious = false
 
     var body: some View {
         if #available(iOSApplicationExtension 16.0, *) {
             ViewThatFits(in: .vertical) {
-                if preferredCount >= 3 { CourseRows(courses: courses, currentId: currentId, count: 3, spacious: spacious) }
-                CourseRows(courses: courses, currentId: currentId, count: 2, spacious: spacious)
-                CourseRows(courses: courses, currentId: currentId, count: 1, spacious: spacious)
+                if preferredCount >= 3 { CourseRows(courses: courses, currentId: currentId, count: 3) }
+                CourseRows(courses: courses, currentId: currentId, count: 2)
+                CourseRows(courses: courses, currentId: currentId, count: 1)
             }
         } else {
-            CourseRows(courses: courses, currentId: currentId, count: 1, spacious: spacious)
+            CourseRows(courses: courses, currentId: currentId, count: 1)
         }
     }
 }
@@ -765,14 +763,12 @@ private struct CourseRows: View {
     let currentId: String?
     let count: Int
     var compact = false
-    var spacious = false
 
     var body: some View {
         let visible = Array(courses.prefix(count))
-        VStack(alignment: .leading, spacing: spacious ? 9 : (compact ? 3 : 6)) {
+        VStack(alignment: .leading, spacing: compact ? 3 : 6) {
             ForEach(visible) { course in
-                CourseRow(course: course, current: currentId == course.id,
-                          compact: compact, spacious: spacious)
+                CourseRow(course: course, current: currentId == course.id, compact: compact)
             }
             Remaining(count: courses.count - visible.count)
         }
@@ -802,14 +798,12 @@ private struct CourseRow: View {
     let current: Bool
     var compact = false
     var small = false
-    var spacious = false
 
     var body: some View {
         let stripe = courseStripeColor(course.colorSlot, scheme: colorScheme)
-        return VStack(alignment: .leading, spacing: compact ? 0 : (spacious ? 3 : 2)) {
+        return VStack(alignment: .leading, spacing: compact ? 0 : 2) {
             Text(course.name)
-                .font(.system(size: small ? 11 : (spacious ? 15 : 13),
-                              weight: current ? .semibold : .medium))
+                .font(.system(size: small ? 11 : 13, weight: current ? .semibold : .medium))
                 .foregroundColor(stripe)
                 .lineLimit(2)
             if compact {
@@ -820,19 +814,19 @@ private struct CourseRow: View {
             } else {
                 let room = compactRoom(course.room)
                 if !room.isEmpty {
-                    Text(room).font(.system(size: spacious ? 12 : 11)).foregroundColor(.secondary)
+                    Text(room).font(.system(size: 11)).foregroundColor(.secondary)
                         .lineLimit(2)
                 }
                 let time = courseTime(course)
                 let detail = [course.teacher, time].filter { !$0.isEmpty }.joined(separator: " · ")
-                Text(detail).font(.system(size: spacious ? 12 : 11).monospacedDigit()).foregroundColor(.secondary)
+                Text(detail).font(.system(size: 11).monospacedDigit()).foregroundColor(.secondary)
                     .lineLimit(2)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding(.leading, 12)
         .padding(.trailing, 6)
-        .padding(.vertical, compact ? 2 : (spacious ? 10 : 5))
+        .padding(.vertical, compact ? 2 : 5)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 9).fill(stripe.opacity(colorScheme == .dark ? 0.18 : 0.07)))
         .overlay(
