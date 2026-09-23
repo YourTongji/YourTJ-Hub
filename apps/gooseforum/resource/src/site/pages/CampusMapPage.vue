@@ -47,6 +47,7 @@ import {
 import {
   buildCatalog,
   makePlace,
+  navigationHref as getNavigationHref,
   searchPlaces,
   type CampusData,
   type CampusPlace,
@@ -112,6 +113,11 @@ const activeSearch = computed(
   () => query.value.trim() !== '' || category.value !== 'all' || showAll.value,
 )
 const suggestions = computed(() => campus.value.suggestions)
+const selectedNavigationHref = computed(() =>
+  selected.value
+    ? getNavigationHref(selected.value, campus.value.coordinateMode)
+    : undefined,
+)
 const shownPlaces = computed(() =>
   activeSearch.value
     ? results.value
@@ -691,6 +697,13 @@ onBeforeUnmount(() => {
                   : t('campusMap.placeNote')
               }}
             </p>
+            <a
+              v-if="selectedNavigationHref"
+              class="atlas-share"
+              :href="selectedNavigationHref"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ t('campusMap.navigate') }}</a>
             <button type="button" class="atlas-share" @click="share">
               <Check v-if="copied" :size="16" /><Share2 v-else :size="16" />{{
                 copied ? t('campusMap.copied') : t('campusMap.share')
@@ -1379,6 +1392,8 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 11px;
   font-size: 11px;
+  cursor: pointer;
+  text-decoration: none;
 }
 .atlas-detail-enter-active,
 .atlas-detail-leave-active {

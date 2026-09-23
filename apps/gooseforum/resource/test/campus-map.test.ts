@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCatalog,
   featureBounds,
+  navigationHref,
   searchPlaces,
   type CampusData,
 } from '../src/site/campus-map/catalog'
@@ -15,6 +16,33 @@ const data = JSON.parse(
   ),
 ) as CampusData
 const places = buildCatalog(data)
+
+describe('campus map navigation destinations', () => {
+  it('links only real buildings with valid coordinates on calibrated campuses', () => {
+    const building = places.find((place) => place.feature.properties.building)!
+    const href = navigationHref(building)
+    expect(href).toBeDefined()
+    const url = new URL(href!)
+    expect(url.hostname).toBe('maps.apple.com')
+    expect(url.searchParams.get('daddr')).toBe(
+      `${building.center[1]},${building.center[0]}`,
+    )
+    expect(url.searchParams.get('dirflg')).toBe('w')
+    expect(url.searchParams.get('q')).toBe(building.name)
+
+    expect(navigationHref(building, 'schematic')).toBeUndefined()
+    const outdoor = places.find((place) => !place.feature.properties.building)!
+    expect(navigationHref(outdoor)).toBeUndefined()
+    expect(navigationHref({ ...building, center: undefined as never })).toBeUndefined()
+    for (const center of [
+      [NaN, 31],
+      [181, 31],
+      [121, -91],
+    ] as [number, number][]) {
+      expect(navigationHref({ ...building, center })).toBeUndefined()
+    }
+  })
+})
 
 describe('campus map discovery', () => {
   it.each(['basketball', 'swimming', 'table_tennis'])(

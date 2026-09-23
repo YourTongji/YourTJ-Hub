@@ -23,6 +23,7 @@ vi.mock('../src/site/campus-map/CampusCanvas.vue', async () => {
   }) }
 })
 const dataset = JSON.parse(readFileSync('src/site/campus-map/data/siping.geojson', 'utf8'))
+const zhangjiangDataset = JSON.parse(readFileSync('src/site/campus-map/data/zhangjiang.geojson', 'utf8'))
 const outside = { longitude: 103.85, latitude: 1.29, accuracy: 18, timestamp: 42 }
 let wrapper: VueWrapper | undefined
 let fetchData: ReturnType<typeof vi.fn>
@@ -56,6 +57,38 @@ it.each([['en', 'Basketball'], ['de', 'Basketball'], ['ja', 'バスケットボ�
     expect(page.get('.atlas-place small').text()).toContain(basketball)
   },
 )
+it('shows an external map route for the selected building and keeps the map open', async () => {
+  const building = dataset.features.find((feature) => feature.properties.building)
+  window.history.replaceState(
+    {},
+    '',
+    `/map#place=${encodeURIComponent(String(building.id))}`,
+  )
+  const page = await openPage()
+  const link = page.get('.atlas-detail a.atlas-share')
+  const destination = new URL(link.attributes('href')!)
+  expect(destination.hostname).toBe('maps.apple.com')
+  expect(destination.searchParams.get('daddr')).toBe(
+    `${building.properties.center[1]},${building.properties.center[0]}`,
+  )
+  expect(destination.searchParams.get('q')).toBe(building.properties.name)
+  expect(destination.searchParams.get('dirflg')).toBe('w')
+  expect(link.attributes('target')).toBe('_blank')
+  expect(link.text()).toBe('Navigate')
+  expect(page.get('.atlas-detail h2').exists()).toBe(true)
+})
+it('does not offer navigation for Zhangjiang schematic buildings', async () => {
+  const building = zhangjiangDataset.features.find((feature) => feature.properties.building)
+  window.history.replaceState(
+    {},
+    '',
+    `/map?campus=zhangjiang#place=${encodeURIComponent(String(building.id))}`,
+  )
+  fetchData.mockResolvedValueOnce({ ok: true, json: async () => zhangjiangDataset })
+  const page = await openPage()
+  expect(page.get('.atlas-detail h2').exists()).toBe(true)
+  expect(page.find('.atlas-detail a.atlas-share').exists()).toBe(false)
+})
 it('reports an outside-campus fix from the uncalibrated plan without promising an overlay', async () => {
   window.history.replaceState({}, '', '/map?campus=zhangjiang')
   const page = await openPage()

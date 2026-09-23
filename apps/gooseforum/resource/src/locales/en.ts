@@ -417,6 +417,7 @@ export default {
     sportNote: "Sports are listed from map data. Consult the venue for indoor locations, opening hours and reservations.",
     placeNote: "Locations follow the map source. Building shapes and heights are illustrative.",
     share: "Share this place",
+    navigate: "Navigate",
     copied: "Link copied",
     water: "Water",
     dataNote: "Map sources",

@@ -20,6 +20,7 @@ at `/map`, with an entry in the community navigation.
 | Place discovery | Current | Search source names, aliases, raw activity tags and activity names in the selected language; filter academic, library, food, living and sports places. Unnamed outdoor sports polygons remain discoverable. Golf grounds and sports centres are included even when their source has no explicit activity tag; 嘉定高尔夫练习场 is searchable with 高尔夫 or 高尔夫球 and appears in the golf filter. |
 | Map labels | Current | Named buildings participate in label placement at campus overview scale; screen-space collision avoidance controls density. Overview labels omit redundant campus prefixes and parenthesized department suffixes, while hover, selection and search retain full names. Selected places, campus landmarks and libraries take precedence. |
 | Place selection | Current | A map label, building polygon or result opens a detail card and moves the map to the selected feature. Closing restores the place list. |
+| Building navigation | Current | Calibrated campus buildings with finite in-range WGS84 centers link to an external walking route using the building name and center. The route opens separately so the selected place remains available; Zhangjiang schematic coordinates and non-building places are excluded. Destination data is sent to the map provider only when the visitor follows the link. |
 | Place links | Current | `?campus=<campus ID>#place=<source feature ID>` restores a selected place. Copying a link falls back to a selectable URL if clipboard access fails. |
 | Map loading failure | Current | The place list remains usable when WebGL fails; data/network failures show an explicit retry state. |
 | Campus switching | Current | Siping, Jiading, Huxi, Hubei, Zhangjiang and Lingang each have an independent dataset. Switching cancels obsolete loads and clears the previous search/selection. |
@@ -46,8 +47,8 @@ service, or Cloudflare Worker is required.
 
 The Go handler returns `campus.map` through the existing HTML/page-payload renderer.
 Vite includes map assets in `resource/static/dist`, which the forum embeds in its
-single binary. There is no new JSON API or authentication system. Location coordinates stay in Vue memory, are never put in links, browser storage,
-analytics events or application requests, and are discarded on document exit.
+single binary. There is no new JSON API or authentication system. Current-location coordinates stay in Vue memory, are never put in links, browser storage,
+analytics events or application requests, and are discarded on document exit. Building destinations are transferred to the external map provider only after the visitor activates the navigation link; this does not request browser location permission.
 Browser/OS positioning services retain their own permission and provider behavior.
 The page does not publish collaborative annotations.
 
@@ -70,7 +71,7 @@ facilities outside that boundary are not guaranteed to appear in search.
 - `resource/test/campus-map.test.ts` covers unnamed sports discovery, alias search,
   stable place IDs, campus-boundary filtering, geometry bounds, all six datasets, sports geometry, location/error handling and data privacy.
 - `resource/test/campus-map-page.test.ts` covers translated sports discovery, cached fixes before
-  canvas readiness, the uncalibrated-plan location notice and data/renderer failure recovery.
+  canvas readiness, selected-building navigation, the uncalibrated-plan location notice and data/renderer failure recovery.
 - `app/http/controllers/forum/campus_map_test.go` covers anonymous HTML and page
   payload responses.
 - `app/http/middleware/securityHeaders_test.go` verifies the map-only location policy.

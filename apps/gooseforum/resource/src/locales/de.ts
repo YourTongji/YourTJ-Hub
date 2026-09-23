@@ -416,6 +416,7 @@ export default {
     sportNote: "Sportarten stammen aus Kartendaten. Für Innenräume, Öffnungszeiten und Buchungen gelten die Angaben der Einrichtung.",
     placeNote: "Positionen stammen aus Kartendaten. Gebäudeformen und Höhen sind schematisch.",
     share: "Diesen Ort teilen",
+    navigate: "Navigieren",
     copied: "Link kopiert",
     water: "Gewässer",
     dataNote: "Kartendaten",

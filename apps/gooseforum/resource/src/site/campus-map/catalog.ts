@@ -90,6 +90,31 @@ export function makePlace(feature: CampusFeature): CampusPlace {
   }
 }
 
+export function navigationHref(
+  place: CampusPlace,
+  coordinateMode?: string,
+): string | undefined {
+  const center: unknown = place.center
+  if (!Array.isArray(center) || center.length < 2) return undefined
+  const [longitude, latitude] = center as [number, number]
+  if (
+    coordinateMode === 'schematic' ||
+    !place.feature.properties.building ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(latitude) ||
+    longitude < -180 ||
+    longitude > 180 ||
+    latitude < -90 ||
+    latitude > 90
+  ) return undefined
+
+  const url = new URL('https://maps.apple.com/')
+  url.searchParams.set('daddr', `${latitude},${longitude}`)
+  url.searchParams.set('dirflg', 'w')
+  url.searchParams.set('q', place.name)
+  return url.href
+}
+
 export function buildCatalog(data: CampusData): CampusPlace[] {
   // Preserve unnamed sports polygons: searching by activity must find outdoor courts too.
   return data.features

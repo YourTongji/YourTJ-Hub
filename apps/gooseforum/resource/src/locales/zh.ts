@@ -417,6 +417,7 @@ export default {
     sportNote: "运动项目来自地图资料。馆内位置、开放与预约信息请以场馆公告为准。",
     placeNote: "位置依据校园地图资料。建筑形态与高度为示意。",
     share: "分享这个地点",
+    navigate: "导航",
     copied: "链接已复制",
     water: "水域",
     dataNote: "地图资料",
