@@ -95,6 +95,7 @@
 		760000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		760000000000000000000004 /* ScheduleWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ScheduleWidgets.entitlements; sourceTree = "<group>"; };
 		760000000000000000000013 /* WidgetReleaseSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = WidgetReleaseSigning.xcconfig; path = Flutter/WidgetReleaseSigning.xcconfig; sourceTree = "<group>"; };
+		760000000000000000000014 /* WidgetDebug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = WidgetDebug.xcconfig; path = Flutter/WidgetDebug.xcconfig; sourceTree = "<group>"; };
 		890000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -142,6 +143,7 @@
 				7AFA3C8E1D35360C0083082E /* Release.xcconfig */,
 				9740EEB31CF90195004384FC /* Generated.xcconfig */,
 				760000000000000000000013 /* WidgetReleaseSigning.xcconfig */,
+				760000000000000000000014 /* WidgetDebug.xcconfig */,
 			);
 			name = Flutter;
 			sourceTree = "<group>";
@@ -797,6 +799,7 @@
 		};
 		76000000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 760000000000000000000014 /* WidgetDebug.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ScheduleWidgets/ScheduleWidgets.entitlements;

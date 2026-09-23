@@ -20,7 +20,14 @@ class DistributionProfileTest(unittest.TestCase):
             "UUID": "ad5aac45-d8c0-4efa-bad7-cd8e4023afd5",
             "ExpirationDate": datetime.datetime(2027, 1, 1),
             "TeamIdentifier": ["4HJTS3G3T2"],
-            "Entitlements": {"application-identifier": "4HJTS3G3T2.tj.yourtj.forumApp", "get-task-allow": False, "aps-environment": "production"},
+            "Entitlements": {
+                "application-identifier": "4HJTS3G3T2.tj.yourtj.forumApp",
+                "get-task-allow": False,
+                "aps-environment": "production",
+                "com.apple.security.application-groups": [
+                    "group.tj.yourtj.forumApp.widgets"
+                ],
+            },
         }
         self.widget_profile = {
             **self.profile,
@@ -61,12 +68,22 @@ class DistributionProfileTest(unittest.TestCase):
                 build_ios.main()
             build.assert_not_called()
 
-    def test_exported_app_requires_push_entitlement(self):
+    def test_exported_app_requires_push_and_app_group_entitlements(self):
         valid = self.profile["Entitlements"].copy()
         validate_app_entitlements(valid, "4HJTS3G3T2")
-        for field, value in [("aps-environment", None), ("aps-environment", "development"), ("application-identifier", "other.app")]:
+        for field, value in [
+            ("aps-environment", None),
+            ("aps-environment", "development"),
+            ("application-identifier", "other.app"),
+            ("com.apple.security.application-groups", []),
+        ]:
             with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 validate_app_entitlements({**valid, field: value}, "4HJTS3G3T2")
+
+    def test_app_profile_requires_widget_app_group(self):
+        self.profile["Entitlements"].pop("com.apple.security.application-groups")
+        with self.assertRaisesRegex(ValueError, "App Group"):
+            validate_profile(self.profile, "4HJTS3G3T2", self.now)
 
     def test_widget_profile_and_export_require_app_group(self):
         validate_profile(
@@ -75,7 +92,6 @@ class DistributionProfileTest(unittest.TestCase):
             self.now,
             bundle_id="tj.yourtj.forumApp.ScheduleWidgets",
             require_push=False,
-            require_app_group=True,
         )
         validate_widget_entitlements(
             self.widget_profile["Entitlements"], "4HJTS3G3T2"
@@ -88,7 +104,6 @@ class DistributionProfileTest(unittest.TestCase):
                 self.now,
                 bundle_id="tj.yourtj.forumApp.ScheduleWidgets",
                 require_push=False,
-                require_app_group=True,
             )
 
     def test_requires_production_push_entitlement(self):

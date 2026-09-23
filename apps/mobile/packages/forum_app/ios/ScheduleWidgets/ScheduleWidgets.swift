@@ -512,7 +512,7 @@ private struct NextClassView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(accessibility))
-        .widgetURL(URL(string: "yourtj://campus/today?focus=\(state.1?.stableId ?? "")"))
+        .widgetURL(URL(string: "yourtj://campus/today?focus=\(state.1?.stableId ?? "")&homeWidget=true"))
         .widgetContainerBackground()
     }
 }
@@ -551,7 +551,7 @@ private struct TodayScheduleView: View {
             today: today,
             tomorrow: family == .systemLarge ? tomorrow(in: projection) : nil
         )))
-        .widgetURL(URL(string: "yourtj://campus/today"))
+        .widgetURL(URL(string: "yourtj://campus/today?homeWidget=true"))
         .widgetContainerBackground()
     }
 
@@ -726,11 +726,9 @@ private extension View {
                 }
             }
         } else {
-            padding().background(
-                ContainerRelativeShape().fill(
-                    Color(.secondarySystemBackground).opacity(opacity)
-                )
-            )
+            padding()
+                .background(Color(.secondarySystemBackground).opacity(opacity))
+                .clipShape(ContainerRelativeShape())
         }
     }
 }

@@ -172,6 +172,9 @@ void main() {
     expect(source, isNot(contains('URLSession')));
     expect(source, isNot(contains('import Network')));
     expect(source, contains('func nextClass(at date: Date)'));
+    // The iOS home_widget plugin only forwards links carrying this marker.
+    expect(source, contains('yourtj://campus/today?homeWidget=true'));
+    expect(source, contains('&homeWidget=true'));
     expect(source, contains('Divider()'));
     expect(source, isNot(contains('.teal')));
     expect(source, isNot(contains('.indigo')));
@@ -215,6 +218,31 @@ void main() {
     expect(mobilePubspec, contains('path: third_party/home_widget'));
     expect(package, contains('.iOS("13.0")'));
     expect(podspec, contains("s.platform = :ios, '13.0'"));
+  });
+
+  test('iOS 13 widget reload is a no-op so login cache clearing can finish', () {
+    final plugin = read(
+      '../../third_party/home_widget/ios/home_widget/Sources/home_widget/HomeWidgetPlugin.swift',
+    );
+    final reload = plugin.substring(
+      plugin.indexOf('} else if call.method == "updateWidget" {'),
+      plugin.indexOf('} else if call.method == "updateWidgetPreview" {'),
+    );
+
+    expect(reload, isNot(contains('Widgets are only available on iOS 14.0')));
+    expect(reload, contains('result(false)'));
+  });
+
+  test('iOS debug widget inherits the Flutter app version', () {
+    final project = read('ios/Runner.xcodeproj/project.pbxproj');
+    final debugWidget = project.substring(
+      project.indexOf('76000000000000000000000C /* Debug */ = {'),
+      project.indexOf('76000000000000000000000D /* Release */ = {'),
+    );
+    final widgetConfig = read('ios/Flutter/WidgetDebug.xcconfig');
+
+    expect(debugWidget, contains('WidgetDebug.xcconfig'));
+    expect(widgetConfig, contains('#include "Generated.xcconfig"'));
   });
 
   test('development APK helper keeps all supported ABI splits', () {

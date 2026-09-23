@@ -27,7 +27,7 @@ WIDGET_APP_GROUP = "group.tj.yourtj.forumApp.widgets"
 
 
 def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
-                     require_push=True, require_app_group=False):
+                     require_push=True):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     expires = profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc)
     entitlements = profile["Entitlements"]
@@ -41,9 +41,9 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
         raise ValueError("An App Store distribution profile is required")
     if require_push and entitlements.get("aps-environment") != "production":
         raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
-    if require_app_group and WIDGET_APP_GROUP not in entitlements.get(
+    if WIDGET_APP_GROUP not in entitlements.get(
             "com.apple.security.application-groups", []):
-        raise ValueError("Widget profile must enable the schedule App Group")
+        raise ValueError("Distribution profile must enable the schedule App Group")
     if not re.fullmatch(r"[A-Fa-f0-9-]{36}", profile["UUID"]):
         raise ValueError("Invalid provisioning profile UUID")
 
@@ -51,6 +51,8 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
 def validate_app_entitlements(entitlements, team):
     if entitlements.get("application-identifier") != f"{team}.{BUNDLE_ID}" or entitlements.get("aps-environment") != "production":
         raise ValueError("Exported app must carry the correct application identifier and production APNs entitlement")
+    if WIDGET_APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
+        raise ValueError("Exported app must carry the schedule App Group entitlement")
 
 
 def validate_widget_entitlements(entitlements, team):
@@ -110,7 +112,7 @@ def main():
     validate_profile(profile, team)
     validate_profile(
         widget_profile, team, bundle_id=WIDGET_BUNDLE_ID,
-        require_push=False, require_app_group=True,
+        require_push=False,
     )
     output = Path(os.environ.get("MOBILE_OUTPUT_DIR", str(ROOT / "apps/mobile/build/release"))).resolve()
     output.mkdir(parents=True, exist_ok=True)
