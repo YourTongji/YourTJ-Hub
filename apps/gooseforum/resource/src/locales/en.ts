@@ -391,6 +391,11 @@ export default {
       unavailable: "Course arrangements are temporarily unavailable.",
       noCourses: "No synced course arrangements for this time.",
       noMatches: "No matching courses.",
+      openBuilding: "View this building's schedule",
+      buildingScope: "Showing courses matched to “{building}” on the map.",
+      queryDate: "Query date: {date}",
+      lastSynced: "Course module last synced: {date}",
+      syncUnknown: "Course module sync time unavailable",
     },
     sports: {
       "basketball": "Basketball",

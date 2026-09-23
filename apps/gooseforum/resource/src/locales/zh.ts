@@ -391,6 +391,11 @@ export default {
       unavailable: "课程安排暂时无法查询。",
       noCourses: "该时间没有已同步的课程安排。",
       noMatches: "没有匹配的课程。",
+      openBuilding: "查看这栋楼的课表",
+      buildingScope: "仅显示地图地点“{building}”对应的课程。",
+      queryDate: "查询日期：{date}",
+      lastSynced: "课程模块最近同步：{date}",
+      syncUnknown: "课程模块同步时间未知",
     },
     sports: {
       "basketball": "篮球",

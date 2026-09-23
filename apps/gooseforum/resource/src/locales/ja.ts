@@ -390,6 +390,11 @@ export default {
       unavailable: "授業予定を一時的に取得できません。",
       noCourses: "この時間に同期済みの授業予定はありません。",
       noMatches: "一致する授業はありません。",
+      openBuilding: "この建物の時間割を見る",
+      buildingScope: "地図上の「{building}」に一致する授業を表示します。",
+      queryDate: "検索日：{date}",
+      lastSynced: "コース機能の最終同期：{date}",
+      syncUnknown: "同期日時を取得できません",
     },
     sports: {
       "basketball": "バスケットボール",

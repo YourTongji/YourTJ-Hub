@@ -5,6 +5,7 @@ import {
   getPkCalendars,
   getPkCourseDetails,
   getPkCoursesByTime,
+  getPkLatestUpdate,
 } from '@/runtime/pk-api'
 import type { PkCalendar, PkCourse } from '@/site/types/pk'
 import type { CampusMapTarget } from '@/site/campus-map/official-location'
@@ -21,11 +22,14 @@ interface ScheduleEntry {
 
 const props = defineProps<{
   resolveLocation: (campus: string, room: string) => Promise<CampusMapTarget | undefined>
+  matchLocation?: (campus: string, room: string) => CampusMapTarget | undefined
+  building?: { campusId: string; featureId: string; name: string }
 }>()
 const emit = defineEmits<{ select: [target: CampusMapTarget | null] }>()
 const { t } = useI18n()
 const calendars = ref<PkCalendar[]>([])
 const calendarId = ref<number>()
+const latestSyncDate = ref<string | null>(null)
 const day = ref(1)
 const section = ref(1)
 const week = ref(1)
@@ -52,6 +56,7 @@ const periods = computed(() => {
     [1, 2], [3, 4], [5, 6], [7, 8], [9, 9], [10, legacy ? 12 : 11],
   ]
 })
+const queryDate = ref(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()))
 
 async function loadCalendars() {
   state.value = 'loading-calendar'
@@ -59,6 +64,7 @@ async function loadCalendars() {
     calendars.value = await getPkCalendars()
     calendarId.value = calendars.value[0]?.calendarId
     state.value = calendars.value.length ? 'ready' : 'error'
+    void getPkLatestUpdate().then((value) => { latestSyncDate.value = value.latestSyncAt }).catch(() => {})
   } catch {
     state.value = 'error'
   }
@@ -84,7 +90,7 @@ async function searchSchedule() {
     const slots = section.value === 6
       ? [10, 11, ...((calendarId.value ?? 0) < 120 ? [12] : [])]
       : periods.value[section.value - 1] ?? []
-    entries.value = courses.flatMap((course: PkCourse) =>
+    const matched = courses.flatMap((course: PkCourse) =>
       (detailMap[course.courseCode] ?? []).flatMap((detail) =>
         (detail.arrangementInfo ?? [])
           .filter((arrangement) => arrangement.occupyDay === day.value &&
@@ -101,6 +107,15 @@ async function searchSchedule() {
           })),
       ),
     )
+    const building = props.building
+    const matchLocation = props.matchLocation
+    entries.value = building && matchLocation
+      ? matched.filter((entry) => {
+          const target = matchLocation(entry.campus, entry.room)
+          return target?.campusId === building.campusId && target.featureId === building.featureId
+        })
+      : matched
+    queryDate.value = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
     state.value = 'ready'
   } catch {
     if (version === requestVersion) state.value = 'error'
@@ -136,6 +151,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="atlas-schedule">
     <p class="atlas-schedule__note">{{ t('campusMap.schedule.note') }}</p>
+    <p v-if="building" class="atlas-schedule__scope">{{ t('campusMap.schedule.buildingScope', { building: building.name }) }}</p>
     <label>
       <span>{{ t('campusMap.schedule.term') }}</span>
       <select v-model.number="calendarId" :disabled="state === 'loading-calendar'">
@@ -174,10 +190,11 @@ onBeforeUnmount(() => {
       <button v-for="entry in filteredEntries" :key="entry.key" type="button" :aria-pressed="selected === entry" @click="locate(entry)">
         <strong>{{ entry.courseName }}</strong>
         <span>{{ entry.courseCode }} · {{ entry.campus }} · {{ entry.room || t('campus.roomPending') }}</span>
-        <small>{{ entry.teacher || entry.arrangementText }}</small>
+        <small>{{ entry.arrangementText }}<template v-if="entry.teacher"> · {{ entry.teacher }}</template></small>
       </button>
     </div>
     <p v-if="selected && locationResolved && !locationMapped" class="atlas-schedule__unmapped" role="status">{{ t('campusMap.mine.locationUnverified') }}</p>
+    <p class="atlas-schedule__provenance">{{ t('campusMap.schedule.queryDate', { date: queryDate }) }}<br>{{ t('campusMap.schedule.source') }}<template v-if="latestSyncDate"> · {{ t('campusMap.schedule.lastSynced', { date: latestSyncDate }) }}</template><template v-else> · {{ t('campusMap.schedule.syncUnknown') }}</template></p>
   </div>
 </template>
 
@@ -189,6 +206,7 @@ onBeforeUnmount(() => {
 .atlas-schedule__submit { min-height: 36px; border: 0; border-radius: 9px; background: #e7f1eb; color: #24543d; font: inherit; font-weight: 650; cursor: pointer; }
 .atlas-schedule__submit:disabled { opacity: .55; cursor: wait; }
 .atlas-schedule__note, .atlas-schedule__status, .atlas-schedule__unmapped { margin: 0; color: #62746d; line-height: 1.5; }
+.atlas-schedule__scope, .atlas-schedule__provenance { margin: 0; color: #62746d; font-size: 11px; line-height: 1.5; }
 .atlas-schedule__list { display: grid; gap: 7px; min-height: 0; overflow: auto; }
 .atlas-schedule__list button { display: grid; gap: 4px; border: 1px solid #e1e8e3; border-radius: 10px; background: white; padding: 10px; color: inherit; text-align: left; cursor: pointer; }
 .atlas-schedule__list button[aria-pressed='true'] { border-color: #58846b; box-shadow: 0 0 0 2px #58846b22; }

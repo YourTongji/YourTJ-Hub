@@ -390,6 +390,11 @@ export default {
       unavailable: "Lehrveranstaltungen sind vorübergehend nicht verfügbar.",
       noCourses: "Keine synchronisierten Lehrveranstaltungen zu dieser Zeit.",
       noMatches: "Keine passenden Kurse.",
+      openBuilding: "Stundenplan dieses Gebäudes anzeigen",
+      buildingScope: "Kurse für „{building}“ auf der Karte.",
+      queryDate: "Suchdatum: {date}",
+      lastSynced: "Letzte Synchronisierung des Kursmoduls: {date}",
+      syncUnknown: "Synchronisierungszeit nicht verfügbar",
     },
     sports: {
       "basketball": "Basketball",

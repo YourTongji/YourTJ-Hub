@@ -10,6 +10,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import type { LayoutPayload } from '@gooseforum/client'
 import CampusMapMinePanel from '@/site/components/CampusMapMinePanel.vue'
+import CampusMapSchedulePanel from '@/site/components/CampusMapSchedulePanel.vue'
 import {
   officialCampusId,
   officialLocationTarget,
@@ -20,6 +21,7 @@ import {
   ArrowUpRight,
   BookOpen,
   Building2,
+  CalendarDays,
   Check,
   ChevronRight,
   PanelLeftClose,
@@ -96,6 +98,7 @@ const selected = ref<CampusPlace | null>(null)
 const selectedFromTimetable = ref(false)
 const showAll = ref(false)
 const infoDialog = ref<HTMLDialogElement>()
+const buildingScheduleDialog = ref<HTMLDialogElement>()
 const shareFallback = ref(false)
 const shareInput = ref<HTMLInputElement>()
 const shareUrl = ref('')
@@ -212,6 +215,14 @@ function selectMinePlace(target: CampusMapTarget | null | undefined) {
   }
   if (version !== mineSelectionVersion || campus.value.id !== target.campusId) return
   select(target.featureId, true)
+}
+function selectBuildingScheduleTarget(target: CampusMapTarget | null) {
+  if (!target) return
+  buildingScheduleDialog.value?.close()
+  select(target.featureId)
+}
+function matchMapLocation(campusName: string, room: string): CampusMapTarget | undefined {
+  return officialLocationTarget(campusName, room, data.value)
 }
 function closePlace() {
   mineSelectionVersion++
@@ -770,6 +781,9 @@ onBeforeUnmount(() => {
                   : t('campusMap.placeNote')
               }}
             </p>
+            <button v-if="selected.indoor && selected.category === 'academic'" type="button" class="atlas-schedule-open" @click="buildingScheduleDialog?.showModal()">
+              <CalendarDays :size="16" />{{ t('campusMap.schedule.openBuilding') }}
+            </button>
             <button type="button" class="atlas-share" @click="share">
               <Check v-if="copied" :size="16" /><Share2 v-else :size="16" />{{
                 copied ? t('campusMap.copied') : t('campusMap.share')
@@ -784,6 +798,20 @@ onBeforeUnmount(() => {
             />
           </div></section
       ></Transition>
+
+      <dialog ref="buildingScheduleDialog" class="atlas-building-schedule" :aria-label="t('campusMap.schedule.title')">
+        <div class="atlas-building-schedule__header">
+          <h2>{{ t('campusMap.schedule.title') }}</h2>
+          <button type="button" :aria-label="t('campusMap.close')" @click="buildingScheduleDialog?.close()"><X :size="18" /></button>
+        </div>
+        <CampusMapSchedulePanel
+          v-if="selected"
+          :building="{ campusId: campus.id, featureId: selected.id, name: nameFor(selected) }"
+          :match-location="matchMapLocation"
+          :resolve-location="resolveMineLocation"
+          @select="selectBuildingScheduleTarget"
+        />
+      </dialog>
 
       <div v-if="campus.coordinateMode === 'schematic'" class="atlas-plan-note">
         {{ t('campusMap.schematicNote') }}
@@ -1498,6 +1526,12 @@ onBeforeUnmount(() => {
   color: #8f9a7e;
   margin: 14px 0;
 }
+.atlas-schedule-open { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; margin-bottom: 8px; border: 1px solid #dce7dd; border-radius: 10px; background: #edf4ed; color: #315b3e; font: inherit; font-weight: 600; cursor: pointer; }
+.atlas-building-schedule { width: min(540px, calc(100vw - 24px)); max-height: min(84dvh, 780px); padding: 18px; border: 1px solid #e3e8de; border-radius: 16px; background: #fffef8; color: #24342f; }
+.atlas-building-schedule::backdrop { background: #17231d88; backdrop-filter: blur(3px); }
+.atlas-building-schedule__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.atlas-building-schedule__header h2 { margin: 0; font-size: 18px; }
+.atlas-building-schedule__header button { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: inherit; }
 .atlas-share {
   display: flex;
   justify-content: center;
