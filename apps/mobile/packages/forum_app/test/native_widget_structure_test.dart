@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -86,7 +87,7 @@ void main() {
     expect(large, isNot(contains('Remaining(')));
   });
 
-  test('course bars stay 4dp regardless of current state', () {
+  test('Android keeps 4dp bars and iOS uses height-fitting course stripes', () {
     final android = read(
       'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
     );
@@ -94,8 +95,69 @@ void main() {
 
     expect(android, contains('.width(4.dp)'));
     expect(android, isNot(contains('.width(if (current)')));
-    expect(ios, contains('.frame(width: 4, height: 48)'));
+    expect(ios, isNot(contains('.frame(width: 4, height: 48)')));
+    expect(ios, contains('courseStripeColor(course.colorSlot'));
+    final nextClass = ios.substring(
+      ios.indexOf('private struct NextClassView'),
+      ios.indexOf('private struct TodayScheduleView'),
+    );
+    expect(nextClass, isNot(contains('Capsule()')));
+    expect(nextClass, isNot(contains('distanceText(')));
+    expect(nextClass, contains('course.campus'));
+    expect(nextClass, contains('course.room'));
+    expect(nextClass, contains('course.teacher'));
     expect(ios, isNot(contains('width: current ?')));
+  });
+
+  test('iOS course stripe colors match the web timetable CSS', () {
+    final ios = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
+    final css = read('../../../gooseforum/resource/src/styles/tokens.css');
+    final cssColors =
+        RegExp(
+          r'--gf-color-course-[1-8]: oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\)',
+        ).allMatches(css).map((match) {
+          final lightness = double.parse(match.group(1)!) / 100;
+          final chroma = double.parse(match.group(2)!);
+          final hue = double.parse(match.group(3)!) * math.pi / 180;
+          final a = chroma * math.cos(hue);
+          final b = chroma * math.sin(hue);
+          final l = math.pow(
+            lightness + 0.3963377774 * a + 0.2158037573 * b,
+            3,
+          );
+          final m = math.pow(
+            lightness - 0.1055613458 * a - 0.0638541728 * b,
+            3,
+          );
+          final s = math.pow(lightness - 0.0894841775 * a - 1.291485548 * b, 3);
+          final channels = <double>[
+            4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+          ];
+          final rgb = channels.map((value) {
+            final channel = value > 0.0031308
+                ? 1.055 * math.pow(value, 1 / 2.4) - 0.055
+                : 12.92 * value;
+            return (channel.clamp(0, 1) * 255).round();
+          }).toList();
+          return (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+        }).toList();
+
+    List<int> nativeColors(String name) {
+      final block = RegExp(
+        'private let $name: \\[UInt32\\] = \\[([\\s\\S]*?)\\]',
+      ).firstMatch(ios);
+      expect(block, isNotNull);
+      return RegExp(r'0x[0-9A-F]{6}')
+          .allMatches(block!.group(1)!)
+          .map((match) => int.parse(match.group(0)!.substring(2), radix: 16))
+          .toList();
+    }
+
+    expect(cssColors.length, 16);
+    expect(nativeColors('lightCourseStripeRGB'), cssColors.sublist(0, 8));
+    expect(nativeColors('darkCourseStripeRGB'), cssColors.sublist(8));
   });
 
   test('NextClass selects future days and has a dense wide compact layout', () {
@@ -149,11 +211,11 @@ void main() {
     expect(widgetEntitlements, contains('group.tj.yourtj.forumApp.widgets'));
     expect(source, contains('.supportedFamilies([.systemSmall])'));
     expect(source, contains('[.systemMedium, .systemLarge]'));
+    expect(source, contains('containerBackground(for: .widget)'));
     expect(
       source,
-      contains('containerBackground(for: .widget)'),
+      contains('ContainerRelativeShape().fill(.ultraThinMaterial)'),
     );
-    expect(source, contains('ContainerRelativeShape().fill(.ultraThinMaterial)'));
     expect(source, contains('widgetAccentable()'));
     expect(project, contains('IPHONEOS_DEPLOYMENT_TARGET = 14.0'));
     expect(source, contains('timelineDates(after:'));
@@ -187,12 +249,13 @@ void main() {
     ]) {
       expect(source, isNot(contains(unsupportedApi)));
     }
-    expect(source, contains('.frame(width: 4, height: 48)'));
+    expect(source, contains('lastUpdatedText('));
     expect(
       '.frame(maxWidth: .infinity'.allMatches(source).length,
       greaterThanOrEqualTo(2),
     );
-    expect(source, contains('.prefix(2)'));
+    expect(source, contains('ViewThatFits(in: .vertical)'));
+    expect(source, contains('courses.prefix(count)'));
     expect(source, contains('Remaining(count:'));
     expect(source, isNot(contains('ScrollView')));
   });

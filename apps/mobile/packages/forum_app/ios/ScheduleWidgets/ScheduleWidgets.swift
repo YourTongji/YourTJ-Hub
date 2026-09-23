@@ -18,6 +18,7 @@ private struct WidgetBrandMark: View {
             .resizable()
             .scaledToFit()
             .frame(width: 16, height: 16)
+            .widgetAccent()
             .accessibilityHidden(true)
     }
 }
@@ -334,66 +335,8 @@ private func support(_ state: String, hasProjection: Bool) -> String? {
     }
 }
 
-private func courseTime(_ state: String, course: Projection.Course) -> String {
-    if state == "inClass" {
-        return Locale.current.languageCode == "zh"
-            ? "至 \(Projection.clock.string(from: course.endAt))"
-            : "Until \(Projection.clock.string(from: course.endAt))"
-    }
+private func courseTime(_ course: Projection.Course) -> String {
     return "\(Projection.clock.string(from: course.startAt))–\(Projection.clock.string(from: course.endAt))"
-}
-
-private func distanceText(_ state: String, course: Projection.Course, now: Date) -> String {
-    let target = state == "inClass" ? course.endAt : course.startAt
-    let minutes = max(1, Int((target.timeIntervalSince(now) + 59) / 60))
-    let zh = Locale.current.languageCode == "zh"
-    let duration: String
-    if minutes >= 24 * 60 {
-        let days = minutes / (24 * 60)
-        let hours = minutes % (24 * 60) / 60
-        duration = zh
-            ? (hours == 0 ? "\(days) 天" : "\(days) 天 \(hours) 小时")
-            : (hours == 0 ? "\(days)d" : "\(days)d \(hours)h")
-    } else if minutes >= 60 {
-        let hours = minutes / 60
-        let rest = minutes % 60
-        duration = zh
-            ? (rest == 0 ? "\(hours) 小时" : "\(hours) 小时 \(rest) 分钟")
-            : (rest == 0 ? "\(hours)h" : "\(hours)h \(rest)m")
-    } else {
-        duration = zh ? "\(minutes) 分钟" : "\(minutes)m"
-    }
-    if zh { return "距\(state == "inClass" ? "下课" : "上课") \(duration)" }
-    return state == "inClass" ? "Ends in \(duration)" : "Starts in \(duration)"
-}
-
-private func dateContext(_ date: String, now: Date) -> String {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-    let today = Projection.schoolDate.string(from: now)
-    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now).map {
-        Projection.schoolDate.string(from: $0)
-    }
-    let relative: String?
-    if date == today {
-        relative = Locale.current.languageCode == "zh" ? "今天" : "Today"
-    } else if date == tomorrow {
-        relative = Locale.current.languageCode == "zh" ? "明天" : "Tomorrow"
-    } else {
-        relative = nil
-    }
-    guard let parsed = Projection.schoolDate.date(from: date) else {
-        return [relative, date].compactMap { $0 }.joined(separator: " · ")
-    }
-    let zh = Locale.current.languageCode == "zh"
-    let formatter = DateFormatter()
-    formatter.locale = zh ? Locale(identifier: "zh_CN") : Locale.current
-    formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-    formatter.dateFormat = "EEE"
-    let weekday = formatter.string(from: parsed)
-    formatter.dateFormat = zh ? "M月d日" : "MMM d"
-    let shortDate = formatter.string(from: parsed)
-    return "\([relative, weekday].compactMap { $0 }.joined(separator: " ")) · \(shortDate)"
 }
 
 private func scheduleAccessibilityText(
@@ -411,7 +354,7 @@ private func scheduleAccessibilityText(
 
 private func dayAccessibilityText(_ heading: String, day: Projection.Day) -> String {
     let courses = day.courses.map {
-        [$0.name, courseTime("upcoming", course: $0), $0.campus, $0.room, $0.teacher]
+        [$0.name, courseTime($0), $0.campus, $0.room, $0.teacher]
             .filter { !$0.isEmpty }.joined(separator: "，")
     }.joined(separator: "，")
     let empty: String?
@@ -449,66 +392,121 @@ private func dayHeaderText(_ day: Projection.Day) -> String {
     ].compactMap { $0 }.joined(separator: " · ")
 }
 
-private let courseColors: [Color] = [
-    .red, .orange, .yellow, .green,
-    Color(red: 0.149, green: 0.486, blue: 0.471), .blue,
-    Color(red: 0.447, green: 0.337, blue: 0.710), .pink,
+private func compactDayText(_ day: Projection.Day?, fallbackDate: Date) -> String {
+    let zh = Locale.current.languageCode == "zh"
+    let date = day.flatMap { Projection.schoolDate.date(from: $0.date) } ?? fallbackDate
+    let formatter = DateFormatter()
+    formatter.locale = zh ? Locale(identifier: "zh_CN") : Locale.current
+    formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+    formatter.dateFormat = "EEE"
+    let weekday = formatter.string(from: date)
+    formatter.dateFormat = zh ? "M/d" : "MMM d"
+    let shortDate = formatter.string(from: date)
+    return [day?.week.map { zh ? "第\($0)周" : "Week \($0)" }, weekday, shortDate]
+        .compactMap { $0 }.joined(separator: " · ")
+}
+
+private func lastUpdatedText(_ date: Date) -> String {
+    let zh = Locale.current.languageCode == "zh"
+    let formatter = DateFormatter()
+    formatter.locale = zh ? Locale(identifier: "zh_CN") : Locale.current
+    formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+    formatter.dateFormat = zh ? "M/d HH:mm" : "MMM d HH:mm"
+    return "\(zh ? "最后更新于" : "Updated") \(formatter.string(from: date))"
+}
+
+// sRGB mirrors resource/src/styles/tokens.css --gf-color-course-1...8.
+// SwiftUI cannot read the web CSS variables inside a WidgetKit extension.
+private let lightCourseStripeRGB: [UInt32] = [
+    0x2A44BC, 0x005F67, 0x006630, 0x923100,
+    0xAC0024, 0x3C3990, 0x005A99, 0x7F3E7A,
+]
+private let darkCourseStripeRGB: [UInt32] = [
+    0x6FA2FF, 0x48B7BD, 0x59B47D, 0xD5A13C,
+    0xF2716A, 0x9793E6, 0x32B3E6, 0xCB7FC5,
 ]
 
+private func courseStripeColor(_ slot: Int, scheme: ColorScheme) -> Color {
+    let colors = scheme == .dark ? darkCourseStripeRGB : lightCourseStripeRGB
+    let rgb = colors[slot - 1]
+    return Color(
+        red: Double((rgb >> 16) & 0xFF) / 255,
+        green: Double((rgb >> 8) & 0xFF) / 255,
+        blue: Double(rgb & 0xFF) / 255
+    )
+}
+
+private struct WidgetFooter: View {
+    let projection: Projection?
+
+    var body: some View {
+        if let projection {
+            Text(lastUpdatedText(projection.generatedAt))
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 private struct NextClassView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let entry: ScheduleEntry
 
     var body: some View {
         let state = entry.projection?.nextClass(at: entry.date) ?? (entry.emptyState, nil, nil)
-        let body = state.1?.name ?? title(state.0)
-        let context = state.2.map { dateContext($0.date, now: entry.date) }
-        let time = state.1.map { courseTime(state.0, course: $0) }
-        let distance = state.1.map { distanceText(state.0, course: $0, now: entry.date) }
-        let place = state.1.map {
-            [$0.campus, $0.room, $0.teacher].filter { !$0.isEmpty }.joined(separator: " · ")
-        }
-        let updated = entry.projection.map { "更新于 \(Projection.clock.string(from: $0.generatedAt))" }
+        let day = state.2 ?? entry.projection?.day(at: entry.date)
         let accessibility = [
-            title(state.0), context, state.1?.name, time, state.1?.campus, state.1?.room,
-            state.1?.teacher, distance, updated,
+            title(state.0), day.map(dayHeaderText), state.1?.name,
+            state.1.map { courseTime($0) }, state.1?.campus,
+            state.1?.room, state.1?.teacher,
+            entry.projection.map { lastUpdatedText($0.generatedAt) },
         ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "，")
-        VStack(alignment: .leading, spacing: 4) {
-            if state.1 != nil {
-                HStack(spacing: 4) {
-                    Text(title(state.0)).font(.caption.weight(.semibold)).foregroundColor(.accentColor)
-                    Spacer(minLength: 4)
-                    WidgetBrandMark()
-                }
-                if let context {
-                    Text(context).font(.caption2).foregroundColor(.secondary)
-                }
-            }
-            HStack(spacing: 4) {
-                Text(body).font(.headline).lineLimit(2).layoutPriority(1)
-                if state.1 == nil {
-                    Spacer(minLength: 4)
-                    WidgetBrandMark()
-                }
-            }
-            if let place, !place.isEmpty {
-                Text(place).font(.caption2).foregroundColor(.secondary).lineLimit(2)
-            }
-            if state.1 != nil {
-                HStack(spacing: 6) {
-                    if let time { Text(time).font(.caption2.monospacedDigit()).foregroundColor(.secondary) }
-                    Spacer(minLength: 4)
-                    if let distance { Text(distance).font(.caption2.weight(.medium)).foregroundColor(.accentColor) }
-                }
-            }
-            if let support = support(state.0, hasProjection: entry.projection != nil) {
-                Text(support).font(.caption2).foregroundColor(.secondary)
-            }
-            if let updated {
-                Text(updated).font(.caption2).foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .top, spacing: 4) {
+                Text(compactDayText(day, fallbackDate: entry.date))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
+                WidgetBrandMark()
             }
             if let course = state.1 {
-                Capsule().fill(courseColors[course.colorSlot - 1]).frame(height: 4).widgetAccent()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(course.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                    let place = [course.campus, course.room].filter { !$0.isEmpty }.joined(separator: " · ")
+                    if !place.isEmpty {
+                        Text(place).font(.system(size: 10)).foregroundColor(.secondary)
+                            .lineLimit(2).minimumScaleFactor(0.85)
+                    }
+                    if !course.teacher.isEmpty {
+                        Text(course.teacher).font(.system(size: 10)).foregroundColor(.secondary)
+                            .lineLimit(2).minimumScaleFactor(0.85)
+                    }
+                    Text(courseTime(course))
+                        .font(.system(size: 10).monospacedDigit()).foregroundColor(.secondary)
+                }
+                .padding(.leading, 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(courseStripeColor(course.colorSlot, scheme: colorScheme))
+                        .frame(width: 3).widgetAccent(),
+                    alignment: .leading
+                )
+            } else {
+                Text(title(state.0)).font(.subheadline.weight(.semibold)).lineLimit(3)
+                if let support = support(state.0, hasProjection: entry.projection != nil) {
+                    Text(support).font(.caption2).foregroundColor(.secondary).lineLimit(3)
+                }
             }
+            Spacer(minLength: 0)
+            WidgetFooter(projection: entry.projection)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(accessibility))
@@ -525,25 +523,33 @@ private struct TodayScheduleView: View {
         let projection = entry.projection
         let state = projection?.state(at: entry.date) ?? (entry.emptyState, nil)
         let today = projection?.day(at: entry.date)
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             if family == .systemLarge {
-                HStack(alignment: .top, spacing: 0) {
-                    LargeDayColumn(title: "今天", day: today, currentId: state.1?.id, hasProjection: projection != nil)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(.trailing, 6)
-                    Divider().overlay(Color.secondary.opacity(0.22))
-                    LargeDayColumn(title: "明天", day: tomorrow(in: projection), currentId: nil, hasProjection: projection != nil)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(.leading, 6)
+                HStack {
+                    Spacer(minLength: 0)
+                    WidgetBrandMark()
                 }
-                Spacer(minLength: 0)
-                if let generatedAt = projection?.generatedAt {
-                    Text("更新于 \(Projection.clock.string(from: generatedAt))")
-                        .font(.caption2).foregroundColor(.secondary)
+                HStack(alignment: .top, spacing: 8) {
+                    LargeDayColumn(title: "今天", day: today, fallbackDate: entry.date,
+                                   currentId: state.1?.id, hasProjection: projection != nil)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    Divider().overlay(Color.secondary.opacity(0.22))
+                    LargeDayColumn(title: "明天", day: tomorrow(in: projection),
+                                   fallbackDate: nextDay(after: entry.date),
+                                   currentId: nil, hasProjection: projection != nil)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
+                HStack(alignment: .top, spacing: 4) {
+                    Text(compactDayText(today, fallbackDate: entry.date))
+                        .font(.caption2.weight(.medium)).foregroundColor(.secondary)
+                    Spacer(minLength: 0)
+                    WidgetBrandMark()
+                }
                 MediumDayColumn(day: today, state: state, hasProjection: projection != nil)
             }
+            Spacer(minLength: 0)
+            WidgetFooter(projection: projection)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(scheduleAccessibilityText(
@@ -556,15 +562,16 @@ private struct TodayScheduleView: View {
     }
 
     private func tomorrow(in projection: Projection?) -> Projection.Day? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        guard let projection = projection,
-              let tomorrow = calendar.date(byAdding: .day, value: 1, to: entry.date) else {
-            return nil
-        }
-        let date = Projection.schoolDate.string(from: tomorrow)
+        guard let projection else { return nil }
+        let date = Projection.schoolDate.string(from: nextDay(after: entry.date))
         return projection.days.first { $0.date == date }
     }
+}
+
+private func nextDay(after date: Date) -> Date {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    return calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
 }
 
 private struct MediumDayColumn: View {
@@ -573,42 +580,38 @@ private struct MediumDayColumn: View {
     let hasProjection: Bool
 
     var body: some View {
-        let visible = Array((day?.courses ?? []).prefix(3))
-        VStack(alignment: .leading, spacing: 4) {
-            DayHeader(day: day)
-            if visible.isEmpty {
-                EmptyDay(state: state.0, day: day, hasProjection: hasProjection)
+        Group {
+            if let day, !day.courses.isEmpty {
+                CourseRows(courses: day.courses, currentId: state.1?.id, count: 2)
             } else {
-                ForEach(visible) { course in CourseRow(course: course, current: state.1?.id == course.id) }
-                Remaining(count: (day?.courses.count ?? 0) - visible.count)
+                EmptyDay(state: state.0, day: day, hasProjection: hasProjection)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
 private struct LargeDayColumn: View {
     let title: String
     let day: Projection.Day?
+    let fallbackDate: Date
     let currentId: String?
     let hasProjection: Bool
 
     var body: some View {
-        let visible = Array((day?.courses ?? []).prefix(2))
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Text(title).font(.headline)
-                Spacer(minLength: 0)
-                if title == "明天" { WidgetBrandMark() }
-            }
-            DayHeader(day: day, showBrand: false)
-            if visible.isEmpty {
-                EmptyDay(state: emptyState, day: day, hasProjection: hasProjection)
+            Text(Locale.current.languageCode == "zh" ? title : (title == "今天" ? "Today" : "Tomorrow"))
+                .font(.subheadline.weight(.semibold))
+            Text(compactDayText(day, fallbackDate: fallbackDate))
+                .font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
+                .lineLimit(2)
+            if let day, !day.courses.isEmpty {
+                FittingCourses(courses: day.courses, currentId: currentId, preferredCount: 3)
             } else {
-                ForEach(visible) { course in CourseRow(course: course, current: currentId == course.id) }
-                Remaining(count: (day?.courses.count ?? 0) - visible.count)
+                EmptyDay(state: emptyState, day: day, hasProjection: hasProjection)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(accessibilityText))
     }
@@ -631,22 +634,38 @@ private struct LargeDayColumn: View {
     }
 }
 
-private struct DayHeader: View {
-    let day: Projection.Day?
-    var showBrand = true
+private struct FittingCourses: View {
+    let courses: [Projection.Course]
+    let currentId: String?
+    let preferredCount: Int
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text(day.map(dayHeaderText) ?? "")
-                .font(.caption2.weight(.medium))
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            if showBrand {
-                Spacer(minLength: 0)
-                WidgetBrandMark()
+        if #available(iOSApplicationExtension 16.0, *) {
+            ViewThatFits(in: .vertical) {
+                if preferredCount >= 3 { CourseRows(courses: courses, currentId: currentId, count: 3) }
+                CourseRows(courses: courses, currentId: currentId, count: 2)
+                CourseRows(courses: courses, currentId: currentId, count: 1)
             }
+        } else {
+            CourseRows(courses: courses, currentId: currentId, count: 1)
         }
+    }
+}
+
+private struct CourseRows: View {
+    let courses: [Projection.Course]
+    let currentId: String?
+    let count: Int
+
+    var body: some View {
+        let visible = Array(courses.prefix(count))
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(visible) { course in
+                CourseRow(course: course, current: currentId == course.id)
+            }
+            Remaining(count: courses.count - visible.count)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -667,25 +686,34 @@ private struct EmptyDay: View {
 }
 
 private struct CourseRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let course: Projection.Course
     let current: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Capsule().fill(courseColors[course.colorSlot - 1])
-                .frame(width: 4, height: 48).widgetAccent()
-            VStack(alignment: .leading, spacing: 2) {
-                Text(course.name)
-                    .font(.footnote.weight(current ? .semibold : .medium))
-                    .foregroundColor(current ? .accentColor : .primary)
-                    .lineLimit(2)
-                let place = [course.campus, course.room, course.teacher]
-                    .filter { !$0.isEmpty }.joined(separator: " · ")
-                if !place.isEmpty { Text(place).font(.caption2).foregroundColor(.secondary) }
-                Text("\(Projection.clock.string(from: course.startAt))–\(Projection.clock.string(from: course.endAt))")
-                    .font(.caption2.monospacedDigit()).foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 1) {
+            Text(course.name)
+                .font(.system(size: 12, weight: current ? .semibold : .medium))
+                .foregroundColor(current ? .accentColor : .primary)
+                .lineLimit(2).minimumScaleFactor(0.85)
+            let place = [course.campus, course.room].filter { !$0.isEmpty }.joined(separator: " · ")
+            if !place.isEmpty {
+                Text(place).font(.system(size: 10)).foregroundColor(.secondary)
+                    .lineLimit(2).minimumScaleFactor(0.85)
             }
+            let time = courseTime(course)
+            let detail = [course.teacher, time].filter { !$0.isEmpty }.joined(separator: " · ")
+            Text(detail).font(.system(size: 10).monospacedDigit()).foregroundColor(.secondary)
+                .lineLimit(2).minimumScaleFactor(0.85)
         }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.leading, 8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 2)
+                .fill(courseStripeColor(course.colorSlot, scheme: colorScheme))
+                .frame(width: 3).widgetAccent(),
+            alignment: .leading
+        )
     }
 }
 
