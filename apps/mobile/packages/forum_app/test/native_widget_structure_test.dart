@@ -354,6 +354,10 @@ void main() {
       source.indexOf('@Composable\nprivate fun TimelineCourseCard'),
       source.indexOf('class ToggleCourseTimelineDayAction'),
     );
+    final timelineItem = source.substring(
+      source.indexOf('@Composable\nprivate fun TimelineCourseListItem'),
+      source.indexOf('@Composable\nprivate fun TimelineHeader'),
+    );
     final locationIcon = read(
       'android/app/src/main/res/drawable/course_timeline_location.xml',
     );
@@ -378,11 +382,13 @@ void main() {
     expect(preview, contains('android:scaleType="fitCenter"'));
     expect(timeline, contains('LazyColumn'));
     expect(timeline, contains('items = day.courses'));
-    expect(timeline, contains('TimelineCourseCard(context, course)'));
+    expect(timeline, contains('TimelineCourseListItem(context, course)'));
     expect(timeline, contains('startSection'));
     expect(timeline, contains('endSection'));
     expect(timeline, contains('teacherDisplayName(course.teacher)'));
-    expect(timelineCard, contains('padding(bottom = 8.dp)'));
+    expect(timelineItem, contains('TimelineCourseCard(context, course)'));
+    expect(timelineItem, contains('Spacer(GlanceModifier.height(10.dp))'));
+    expect(timelineCard, isNot(contains('padding(bottom = 8.dp)')));
     expect(
       timelineCard,
       contains('ImageProvider(R.drawable.course_timeline_location)'),

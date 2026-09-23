@@ -553,7 +553,7 @@ class CourseTimelineWidget : ScheduleGlanceWidget() {
                                 items = day.courses,
                                 itemId = { course -> course.id.hashCode().toLong() },
                             ) { course ->
-                                TimelineCourseCard(context, course)
+                                TimelineCourseListItem(context, course)
                             }
                         }
                     }
@@ -578,12 +578,20 @@ class CourseTimelineWidget : ScheduleGlanceWidget() {
                     Spacer(GlanceModifier.height(7.dp))
                     LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
                         items(day.courses, itemId = { course -> course.id.hashCode().toLong() }) { course ->
-                            TimelineCourseCard(context, course)
+                            TimelineCourseListItem(context, course)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TimelineCourseListItem(context: Context, course: ScheduleCourse) {
+    Column {
+        TimelineCourseCard(context, course)
+        Spacer(GlanceModifier.height(10.dp))
     }
 }
 
@@ -640,7 +648,6 @@ private fun TimelineCourseCard(context: Context, course: ScheduleCourse) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp)
             .background(courseTint(context, course.colorSlot))
             .cornerRadius(16.dp)
             .padding(horizontal = 8.dp, vertical = 6.dp),
