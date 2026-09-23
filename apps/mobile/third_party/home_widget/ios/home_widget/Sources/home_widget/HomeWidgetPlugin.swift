@@ -171,11 +171,9 @@ public class HomeWidgetPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
               result(true)
             #endif
           } else {
-            result(
-              FlutterError(
-                code: "-4", message: "Widgets are only available on iOS 14.0 and above",
-                details: nil)
-            )
+            // Runner supports iOS 13, where WidgetKit does not exist. Cache
+            // clearing and login must still complete on those devices.
+            result(false)
           }
         } else {
           result(

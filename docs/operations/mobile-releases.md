@@ -86,7 +86,7 @@ not the repository-level token.
 | `ANDROID_KEY_ALIAS` | `yourtj-release` |
 | `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the Apple Distribution certificate **and private key**, exported as a macOS-compatible PKCS#12 file |
 | `IOS_P12_PASSWORD` | PKCS#12 export password |
-| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp` |
+| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp`, with production Push Notifications and App Group `group.tj.yourtj.forumApp.widgets` |
 | `IOS_WIDGET_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp.ScheduleWidgets`, with App Group `group.tj.yourtj.forumApp.widgets` |
 | `ASC_PRIVATE_KEY_BASE64` | Base64 of the App Store Connect `.p8` API key |
 | `ASC_KEY_ID` | API key ID |

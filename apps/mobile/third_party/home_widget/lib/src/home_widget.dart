@@ -53,6 +53,7 @@ class HomeWidget {
   ///
   /// Android Widgets will look for [qualifiedAndroidName] then [androidName] and then for [name]
   /// iOS Widgets will look for [iOSName] and then for [name]
+  /// Returns `false` on iOS 13, where WidgetKit is unavailable.
   ///
   /// [qualifiedAndroidName] will use the name as is to find the WidgetProvider
   /// [androidName] must match the classname of the WidgetProvider, prefixed by the package name
