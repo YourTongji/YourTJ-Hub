@@ -18,6 +18,9 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		760000000000000000000006 /* ScheduleWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760000000000000000000002 /* ScheduleWidgets.swift */; };
+		760000000000000000000010 /* ScheduleWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 760000000000000000000001 /* ScheduleWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		890000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 890000000000000000000002 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +30,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
+		};
+		760000000000000000000012 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 76000000000000000000000A;
+			remoteInfo = ScheduleWidgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -39,6 +49,17 @@
 			files = (
 			);
 			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		76000000000000000000000F /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				760000000000000000000010 /* ScheduleWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -69,6 +90,12 @@
 		D0F1A96D14B1D7DA7D961001 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		E02CE941B80FE1F4E1300E99 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		E4358D130AA0DE5E9C294ABB /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		760000000000000000000001 /* ScheduleWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ScheduleWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		760000000000000000000002 /* ScheduleWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleWidgets.swift; sourceTree = "<group>"; };
+		760000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		760000000000000000000004 /* ScheduleWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ScheduleWidgets.entitlements; sourceTree = "<group>"; };
+		760000000000000000000013 /* WidgetReleaseSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = WidgetReleaseSigning.xcconfig; path = Flutter/WidgetReleaseSigning.xcconfig; sourceTree = "<group>"; };
+		890000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +114,12 @@
 			files = (
 				25E8A0819CB70B0324756144 /* Pods_RunnerTests.framework in Frameworks */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		760000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -108,6 +141,7 @@
 				9740EEB21CF90195004384FC /* Debug.xcconfig */,
 				7AFA3C8E1D35360C0083082E /* Release.xcconfig */,
 				9740EEB31CF90195004384FC /* Generated.xcconfig */,
+				760000000000000000000013 /* WidgetReleaseSigning.xcconfig */,
 			);
 			name = Flutter;
 			sourceTree = "<group>";
@@ -119,6 +153,7 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				760000000000000000000005 /* ScheduleWidgets */,
 				AEB089DA172E607CA7B3FADF /* Pods */,
 				B2E512D9FF5C910D614D9614 /* Frameworks */,
 			);
@@ -129,6 +164,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				760000000000000000000001 /* ScheduleWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -147,6 +183,17 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		760000000000000000000005 /* ScheduleWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				760000000000000000000002 /* ScheduleWidgets.swift */,
+				760000000000000000000003 /* Info.plist */,
+				760000000000000000000004 /* ScheduleWidgets.entitlements */,
+				890000000000000000000002 /* Assets.xcassets */,
+			);
+			path = ScheduleWidgets;
 			sourceTree = "<group>";
 		};
 		AEB089DA172E607CA7B3FADF /* Pods */ = {
@@ -204,12 +251,14 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				76000000000000000000000F /* Embed App Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				2C171176B166A64F1DB58A62 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				760000000000000000000011 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -218,6 +267,21 @@
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
+		};
+		76000000000000000000000A /* ScheduleWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 76000000000000000000000B /* Build configuration list for PBXNativeTarget "ScheduleWidgets" */;
+			buildPhases = (
+				760000000000000000000007 /* Sources */,
+				760000000000000000000008 /* Frameworks */,
+				760000000000000000000009 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = ScheduleWidgets;
+			productName = ScheduleWidgets;
+			productReference = 760000000000000000000001 /* ScheduleWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -236,6 +300,9 @@
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
+					};
+					76000000000000000000000A = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -256,6 +323,7 @@
 			projectRoot = "";
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
+				76000000000000000000000A /* ScheduleWidgets */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 			);
 		};
@@ -277,6 +345,14 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		760000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				890000000000000000000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -396,6 +472,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		760000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				760000000000000000000006 /* ScheduleWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -403,6 +487,11 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
+		};
+		760000000000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 76000000000000000000000A /* ScheduleWidgets */;
+			targetProxy = 760000000000000000000012 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -706,6 +795,71 @@
 			};
 			name = Release;
 		};
+		76000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ScheduleWidgets/ScheduleWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ScheduleWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = tj.yourtj.forumApp.ScheduleWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		76000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 760000000000000000000013 /* WidgetReleaseSigning.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ScheduleWidgets/ScheduleWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ScheduleWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = tj.yourtj.forumApp.ScheduleWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		76000000000000000000000E /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 760000000000000000000013 /* WidgetReleaseSigning.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ScheduleWidgets/ScheduleWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ScheduleWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = tj.yourtj.forumApp.ScheduleWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Profile;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -735,6 +889,16 @@
 				97C147061CF9000F007C117D /* Debug */,
 				97C147071CF9000F007C117D /* Release */,
 				249021D4217E4FDB00AE95B9 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		76000000000000000000000B /* Build configuration list for PBXNativeTarget "ScheduleWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				76000000000000000000000C /* Debug */,
+				76000000000000000000000D /* Release */,
+				76000000000000000000000E /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

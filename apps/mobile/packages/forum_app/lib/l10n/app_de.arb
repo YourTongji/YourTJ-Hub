@@ -830,5 +830,14 @@
   "badgeDisplayTitle": "Profilabzeichen",
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
-  "badgeDisplayDown": "Nach unten"
+  "badgeDisplayDown": "Nach unten",
+  "scheduleWidgetSettingsTitle": "Startbildschirm-Stundenplan",
+  "scheduleWidgetPrivacyDescription": "Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.",
+  "scheduleWidgetRefresh": "Aus Offline-Stundenplan aktualisieren",
+  "scheduleWidgetClear": "Startbildschirmdaten löschen",
+  "scheduleWidgetCleared": "Startbildschirm-Stundenplan gelöscht",
+  "scheduleWidgetDiagnostics": "Aktualisierungsdiagnose",
+  "scheduleWidgetDiagnosticsDescription": "Wenn sich Datum oder Kursstatus verzögert aktualisieren, prüfe die Hintergrundaktivität und Akkueinstellungen für YourTJ. Die Menünamen unterscheiden sich je nach Gerät.",
+  "scheduleWidgetTransparencyTitle": "Widget-Hintergrundtransparenz",
+  "scheduleWidgetTransparencyDescription": "Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext."
 }

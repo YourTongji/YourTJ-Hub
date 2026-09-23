@@ -1160,5 +1160,14 @@
   "badgeDisplayTitle": "Profile badges",
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
-  "badgeDisplayDown": "Move down"
+  "badgeDisplayDown": "Move down",
+  "scheduleWidgetSettingsTitle": "Home screen schedule",
+  "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
+  "scheduleWidgetRefresh": "Refresh from offline schedule",
+  "scheduleWidgetClear": "Clear home screen data",
+  "scheduleWidgetCleared": "Home screen schedule data cleared",
+  "scheduleWidgetDiagnostics": "Refresh diagnostics",
+  "scheduleWidgetDiagnosticsDescription": "If the date or class status is slow to update, check YourTJ's background activity and battery settings. Menu names vary by device.",
+  "scheduleWidgetTransparencyTitle": "Widget background transparency",
+  "scheduleWidgetTransparencyDescription": "Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text."
 }

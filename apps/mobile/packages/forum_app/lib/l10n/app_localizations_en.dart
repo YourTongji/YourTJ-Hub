@@ -2417,4 +2417,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Move down';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Home screen schedule';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Refresh from offline schedule';
+
+  @override
+  String get scheduleWidgetClear => 'Clear home screen data';
+
+  @override
+  String get scheduleWidgetCleared => 'Home screen schedule data cleared';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Refresh diagnostics';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle =>
+      'Widget background transparency';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.';
 }

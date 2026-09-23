@@ -2330,4 +2330,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get scheduleWidgetSettingsTitle => '桌面课表小组件';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+
+  @override
+  String get scheduleWidgetRefresh => '从离线课表刷新';
+
+  @override
+  String get scheduleWidgetClear => '清除桌面数据';
+
+  @override
+  String get scheduleWidgetCleared => '已清除桌面课表数据';
+
+  @override
+  String get scheduleWidgetDiagnostics => '刷新诊断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '如果日期或课程状态更新较慢，请检查系统对 YourTJ 的后台运行和电量设置；不同设备的菜单名称可能不同。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => '小组件背景透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。';
 }

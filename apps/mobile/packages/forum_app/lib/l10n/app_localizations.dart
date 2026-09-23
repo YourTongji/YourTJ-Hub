@@ -4481,6 +4481,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move down'**
   String get badgeDisplayDown;
+
+  /// No description provided for @scheduleWidgetSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule'**
+  String get scheduleWidgetSettingsTitle;
+
+  /// No description provided for @scheduleWidgetPrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.'**
+  String get scheduleWidgetPrivacyDescription;
+
+  /// No description provided for @scheduleWidgetRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh from offline schedule'**
+  String get scheduleWidgetRefresh;
+
+  /// No description provided for @scheduleWidgetClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear home screen data'**
+  String get scheduleWidgetClear;
+
+  /// No description provided for @scheduleWidgetCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule data cleared'**
+  String get scheduleWidgetCleared;
+
+  /// No description provided for @scheduleWidgetDiagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh diagnostics'**
+  String get scheduleWidgetDiagnostics;
+
+  /// No description provided for @scheduleWidgetDiagnosticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.'**
+  String get scheduleWidgetDiagnosticsDescription;
+
+  /// No description provided for @scheduleWidgetTransparencyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Widget background transparency'**
+  String get scheduleWidgetTransparencyTitle;
+
+  /// No description provided for @scheduleWidgetTransparencyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.'**
+  String get scheduleWidgetTransparencyDescription;
 }
 
 class _AppLocalizationsDelegate

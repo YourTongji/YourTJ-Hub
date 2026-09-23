@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:forum_app/src/pages/campus/campus_message_page.dart';
 import 'package:forum_app/src/pages/campus/campus_state.dart';
 import 'package:forum_app/src/pages/campus/campus_memory_cache.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/campus_shortcuts.dart';
 import 'package:forum_app/src/widgets/schedule_time_grid.dart';
@@ -47,32 +49,37 @@ Widget campusTestApp(
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('zh'),
   bool signedIn = true,
-}) => ProviderScope(
-  overrides: [
-    campusRepositoryProvider.overrideWithValue(repository),
-    pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
-    currentUserProvider.overrideWith(
-      (ref) async =>
-          signedIn ? const CurrentUser(id: 1, username: 'demo') : null,
+}) {
+  final database = AppDatabase(NativeDatabase.memory());
+  addTearDown(database.close);
+  return ProviderScope(
+    overrides: [
+      offlineDatabaseProvider.overrideWithValue(database),
+      campusRepositoryProvider.overrideWithValue(repository),
+      pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
+      currentUserProvider.overrideWith(
+        (ref) async =>
+            signedIn ? const CurrentUser(id: 1, username: 'demo') : null,
+      ),
+      accountLayoutProvider.overrideWith(
+        (ref) async => LayoutPayload.fromJson(minimalLayoutJson()),
+      ),
+    ],
+    child: MaterialApp(
+      theme: gfThemeData(brightness),
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(scale)),
+        child: child!,
+      ),
+      home: child,
     ),
-    accountLayoutProvider.overrideWith(
-      (ref) async => LayoutPayload.fromJson(minimalLayoutJson()),
-    ),
-  ],
-  child: MaterialApp(
-    theme: gfThemeData(brightness),
-    locale: locale,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(
-        context,
-      ).copyWith(textScaler: TextScaler.linear(scale)),
-      child: child!,
-    ),
-    home: child,
-  ),
-);
+  );
+}
 
 void main() {
   testWidgets('public campus tools remain available when school status fails', (
@@ -143,6 +150,7 @@ void main() {
       expect(repo.requested.toSet(), {
         'profile',
         'calendar',
+        'timetable',
         'messages',
         'today',
       });
@@ -182,7 +190,7 @@ void main() {
     expect(controller.state.error, isA<ApiException>());
     controller.dispose();
   });
-  test('expired school date reloads today and calendar', () async {
+  test('expired school date waits for explicit refresh', () async {
     final base = campusFixture('today');
     final repo = FakeCampusRepository()
       ..todayOverride = CampusDataset(
@@ -207,7 +215,9 @@ void main() {
     repo.requested.clear();
     repo.todayOverride = base;
     await controller.refreshVisible();
-    expect(repo.requested.toSet(), {'today', 'calendar'});
+    expect(repo.requested, isEmpty);
+    expect(controller.state.data['today'], isNull);
+    await controller.refresh();
     expect(
       controller.state.data['today']?.teachingDay?.date,
       campusDateKey(DateTime.now()),
@@ -215,7 +225,7 @@ void main() {
     controller.dispose();
   });
   test(
-    'midnight on weekly tab reloads its daily data without fetching today',
+    'midnight on weekly tab invalidates daily data without polling',
     () async {
       var now = DateTime.utc(2026, 9, 20, 15, 59);
       final cache = CampusMemoryCache(now: () => now);
@@ -227,9 +237,9 @@ void main() {
       repo.requested.clear();
       now = now.add(const Duration(minutes: 2));
       await controller.refreshVisible();
-      expect(repo.requested.toSet(), {'calendar', 'timetable'});
+      expect(repo.requested, isEmpty);
       expect(controller.state.data.containsKey('today'), isFalse);
-      expect(controller.state.data.containsKey('calendar'), isTrue);
+      expect(controller.state.data.containsKey('calendar'), isFalse);
       controller.dispose();
     },
   );

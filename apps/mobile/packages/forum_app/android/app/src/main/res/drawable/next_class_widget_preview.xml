@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/schedule_widget_surface" />
+    <item android:width="14dp" android:height="14dp" android:gravity="top|right" android:right="8dp" android:top="6dp">
+        <bitmap android:src="@drawable/schedule_widget_brand" android:gravity="fill" />
+    </item>
+    <item android:gravity="top|left" android:left="8dp" android:top="10dp">
+        <shape android:shape="rectangle">
+            <size android:width="38dp" android:height="4dp" />
+            <corners android:radius="2dp" />
+            <solid android:color="@color/widget_accent" />
+        </shape>
+    </item>
+    <item android:gravity="top|left" android:left="8dp" android:top="27dp">
+        <shape android:shape="rectangle">
+            <size android:width="62dp" android:height="5dp" />
+            <corners android:radius="2dp" />
+            <solid android:color="@color/widget_foreground" />
+        </shape>
+    </item>
+</layer-list>
