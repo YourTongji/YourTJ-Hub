@@ -18,6 +18,8 @@ class ScheduleWidgetBridge {
       'tj.yourtj.forum_app.widget.NextClassWidgetReceiver';
   static const _todayReceiver =
       'tj.yourtj.forum_app.widget.TodayScheduleWidgetReceiver';
+  static const _timelineReceiver =
+      'tj.yourtj.forum_app.widget.CourseTimelineWidgetReceiver';
 
   Future<void> write(ScheduleWidgetProjection projection) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
@@ -103,14 +105,22 @@ class ScheduleWidgetBridge {
     yield* HomeWidget.widgetClicked;
   }
 
-  Future<void> _reload() => Future.wait([
-    HomeWidget.updateWidget(
-      qualifiedAndroidName: _nextReceiver,
-      iOSName: 'NextClassWidget',
-    ),
-    HomeWidget.updateWidget(
-      qualifiedAndroidName: _todayReceiver,
-      iOSName: 'TodayScheduleWidget',
-    ),
-  ]);
+  Future<void> _reload() {
+    final updates = <Future<void>>[
+      HomeWidget.updateWidget(
+        qualifiedAndroidName: _nextReceiver,
+        iOSName: 'NextClassWidget',
+      ),
+      HomeWidget.updateWidget(
+        qualifiedAndroidName: _todayReceiver,
+        iOSName: 'TodayScheduleWidget',
+      ),
+    ];
+    if (Platform.isAndroid) {
+      updates.add(
+        HomeWidget.updateWidget(qualifiedAndroidName: _timelineReceiver),
+      );
+    }
+    return Future.wait(updates);
+  }
 }

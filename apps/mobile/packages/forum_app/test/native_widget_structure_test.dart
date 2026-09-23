@@ -334,6 +334,67 @@ void main() {
     );
   });
 
+  test('Android course timeline is resizable, switchable and fully previewed', () {
+    final source = read(
+      'android/app/src/main/kotlin/tj/yourtj/forum_app/widget/ScheduleWidgets.kt',
+    );
+    final manifest = read('android/app/src/main/AndroidManifest.xml');
+    final bridge = read('lib/src/campus_widget/schedule_widget_bridge.dart');
+    final provider = read(
+      'android/app/src/main/res/xml/course_timeline_widget_info.xml',
+    );
+    final preview = read(
+      'android/app/src/main/res/layout/course_timeline_widget_preview.xml',
+    );
+    final timeline = source.substring(
+      source.indexOf('class CourseTimelineWidget :'),
+      source.indexOf('@Composable\nprivate fun TimelineHeader'),
+    );
+
+    expect(manifest, contains('CourseTimelineWidgetReceiver'));
+    expect(provider, contains('android:targetCellWidth="4"'));
+    expect(provider, contains('android:targetCellHeight="3"'));
+    expect(provider, contains('android:minWidth="250dp"'));
+    expect(provider, contains('android:minHeight="180dp"'));
+    expect(
+      provider,
+      contains(
+        'android:previewLayout="@layout/course_timeline_widget_preview"',
+      ),
+    );
+    expect(
+      provider,
+      contains(
+        'android:previewImage="@drawable/course_timeline_widget_preview"',
+      ),
+    );
+    expect(preview, contains('android:scaleType="fitCenter"'));
+    expect(timeline, contains('LazyColumn'));
+    expect(timeline, contains('items = day.courses'));
+    expect(timeline, contains('TimelineCourseCard(context, course)'));
+    expect(timeline, contains('startSection'));
+    expect(timeline, contains('endSection'));
+    expect(timeline, contains('teacherDisplayName(course.teacher)'));
+    expect(
+      source,
+      contains('actionRunCallback<ToggleCourseTimelineDayAction>()'),
+    );
+    expect(source, contains(r'course_timeline_show_tomorrow:$appWidgetId'));
+    expect(bridge, contains('CourseTimelineWidgetReceiver'));
+    expect(
+      File(
+        'android/app/src/main/res/drawable-nodpi/course_timeline_widget_preview.png',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        'android/app/src/main/res/drawable-night-nodpi/course_timeline_widget_preview.png',
+      ).existsSync(),
+      isTrue,
+    );
+  });
+
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
     final source = read('ios/ScheduleWidgets/ScheduleWidgets.swift');

@@ -283,8 +283,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   request a refresh when a future day is unknown. See [campus retention rules](campus.md).
 - `Current`: Android and iOS expose native “Next class” and “Today schedule” home-screen Widgets from
   a versioned, minimal projection of that Drift snapshot. Android uses Jetpack Glance with 2x1 and
-  resizable 4x2/4x4 surfaces; iOS 14 and later use WidgetKit/SwiftUI for systemSmall,
-  systemMedium and systemLarge. The iOS 13 app remains usable without desktop Widgets.
+  resizable 4x2/4x4 surfaces, and adds a default 4x3 “Course timeline” Widget with independent
+  today/tomorrow switching and a scrollbar-free vertical course list; iOS 14 and later use
+  WidgetKit/SwiftUI for systemSmall, systemMedium and systemLarge. The iOS 13 app remains usable
+  without desktop Widgets.
   Widgets never access the network, advance class state and Shanghai midnight from local alarms/
   timelines, and use a schema-2 rolling window whose first day remains the server-resolved authority.
   Large widgets show today and tomorrow side by side. They support light/dark, Android 12 dynamic color,

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1000" height="720" viewBox="0 0 1000 720">
+  <defs>
+    <clipPath id="surface"><rect x="14" y="14" width="972" height="692" rx="66"/></clipPath>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".015"/>
+    </linearGradient>
+  </defs>
+  <rect x="14" y="14" width="972" height="692" rx="66" fill="#1b1d21" fill-opacity=".94" stroke="#e7e1e5" stroke-opacity=".25" stroke-width="3"/>
+  <g clip-path="url(#surface)">
+    <rect x="18" y="18" width="964" height="160" fill="url(#glass)"/>
+    <text x="58" y="79" fill="#e7e1e5" font-family="Noto Sans CJK SC, sans-serif" font-size="48" font-weight="700">2026/9/23</text>
+    <text x="60" y="125" fill="#cac4cc" font-family="Noto Sans CJK SC, sans-serif" font-size="29" font-weight="500">今天 · 第2周 · 星期三</text>
+    <image xlink:href="data:image/png;base64,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" x="814" y="54" width="54" height="54"/>
+    <circle cx="914" cy="82" r="39" fill="#3dcac4cc"/>
+    <g transform="translate(1828 0) scale(-1 1)"><image x="892.3" y="60.3" width="43.4" height="43.4" xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2M2RiYjIiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Im0xMiAxOS03LTcgNy03Ii8+PHBhdGggZD0iTTE5IDEySDUiLz48L3N2Zz4="/></g>
+
+    <g font-family="Noto Sans CJK SC, sans-serif">
+      <rect x="52" y="154" width="896" height="194" rx="34" fill="#ff8a8e" fill-opacity=".18" stroke="#ff8a8e" stroke-opacity=".3" stroke-width="2"/>
+      <rect x="72" y="173" width="10" height="154" rx="5" fill="#ff8a8e"/>
+      <text x="102" y="222" fill="#63dbb2" font-size="34" font-weight="700">1节</text>
+      <text x="177" y="222" fill="#cac4cc" font-size="35" font-weight="500">08:00</text>
+      <text x="310" y="222" fill="#e7e1e5" font-size="48" font-weight="700">计算机视觉</text>
+      <text x="102" y="292" fill="#cac4cc" font-size="31" font-weight="500">4节</text>
+      <text x="177" y="292" fill="#cac4cc" font-size="33" font-weight="400">11:35</text>
+      <text x="300" y="292" fill="#cac4cc" font-size="29">地点</text>
+      <text x="365" y="292" fill="#cac4cc" font-size="29">瑞安楼 A216</text>
+      <image x="613" y="259" width="32" height="32" xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjYWM0Y2MiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iNSIvPjxwYXRoIGQ9Ik0yMCAyMWE4IDggMCAwIDAtMTYgMCIvPjwvc3ZnPg=="/>
+      <text x="650" y="292" fill="#cac4cc" font-size="29">张老师</text>
+
+      <rect x="52" y="366" width="896" height="194" rx="34" fill="#ffad72" fill-opacity=".16" stroke="#ffad72" stroke-opacity=".28" stroke-width="2"/>
+      <rect x="72" y="385" width="10" height="154" rx="5" fill="#ffad72"/>
+      <text x="102" y="434" fill="#63dbb2" font-size="34" font-weight="700">5节</text>
+      <text x="177" y="434" fill="#cac4cc" font-size="35" font-weight="500">10:00</text>
+      <text x="310" y="434" fill="#e7e1e5" font-size="48" font-weight="700">海洋遥感</text>
+      <text x="102" y="504" fill="#cac4cc" font-size="31" font-weight="500">6节</text>
+      <text x="177" y="504" fill="#cac4cc" font-size="33" font-weight="400">11:35</text>
+      <text x="300" y="504" fill="#cac4cc" font-size="29">地点</text>
+      <text x="365" y="504" fill="#cac4cc" font-size="29">北303</text>
+      <image x="613" y="471" width="32" height="32" xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjYWM0Y2MiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iNSIvPjxwYXRoIGQ9Ik0yMCAyMWE4IDggMCAwIDAtMTYgMCIvPjwvc3ZnPg=="/>
+      <text x="650" y="504" fill="#cac4cc" font-size="29">W. Carter</text>
+
+      <rect x="52" y="578" width="896" height="194" rx="34" fill="#82adf0" fill-opacity=".17" stroke="#82adf0" stroke-opacity=".3" stroke-width="2"/>
+      <rect x="72" y="597" width="10" height="154" rx="5" fill="#82adf0"/>
+      <text x="102" y="646" fill="#63dbb2" font-size="34" font-weight="700">7节</text>
+      <text x="177" y="646" fill="#cac4cc" font-size="35" font-weight="500">13:30</text>
+      <text x="310" y="646" fill="#e7e1e5" font-size="46" font-weight="700">海洋流体力学</text>
+      <text x="102" y="716" fill="#cac4cc" font-size="31" font-weight="500">8节</text>
+      <text x="177" y="716" fill="#cac4cc" font-size="33" font-weight="400">15:05</text>
+      <text x="300" y="716" fill="#cac4cc" font-size="29">地点</text>
+      <text x="365" y="716" fill="#cac4cc" font-size="29">瑞安楼</text>
+      <image x="613" y="683" width="32" height="32" xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjYWM0Y2MiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iNSIvPjxwYXRoIGQ9Ik0yMCAyMWE4IDggMCAwIDAtMTYgMCIvPjwvc3ZnPg=="/>
+      <text x="650" y="716" fill="#cac4cc" font-size="29">李老师</text>
+    </g>
+  </g>
+</svg>

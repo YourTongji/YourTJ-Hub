@@ -17,16 +17,20 @@ import androidx.glance.ImageProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
+import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetManager.Companion.SET_WIDGET_PREVIEWS_RESULT_SUCCESS
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.currentState
@@ -74,16 +78,33 @@ private val accent = ColorProvider(R.color.widget_accent)
 private val divider = ColorProvider(R.color.widget_divider)
 
 private fun courseColor(slot: Int) = ColorProvider(
-    when (slot) {
-        1 -> R.color.course_slot_1
-        2 -> R.color.course_slot_2
-        3 -> R.color.course_slot_3
-        4 -> R.color.course_slot_4
-        5 -> R.color.course_slot_5
-        6 -> R.color.course_slot_6
-        7 -> R.color.course_slot_7
-        else -> R.color.course_slot_8
-    },
+    courseColorResource(slot),
+)
+
+private fun courseColorResource(slot: Int) = when (slot) {
+    1 -> R.color.course_slot_1
+    2 -> R.color.course_slot_2
+    3 -> R.color.course_slot_3
+    4 -> R.color.course_slot_4
+    5 -> R.color.course_slot_5
+    6 -> R.color.course_slot_6
+    7 -> R.color.course_slot_7
+    else -> R.color.course_slot_8
+}
+
+private fun courseTint(context: Context, slot: Int) = DayNightColorProvider(
+    day = Color(ContextCompat.getColor(
+        context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+            uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK) or Configuration.UI_MODE_NIGHT_NO
+        }),
+        courseColorResource(slot),
+    )).copy(alpha = 0.12f),
+    night = Color(ContextCompat.getColor(
+        context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+            uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK) or Configuration.UI_MODE_NIGHT_YES
+        }),
+        courseColorResource(slot),
+    )).copy(alpha = 0.18f),
 )
 
 private fun widgetBackground(context: Context, transparency: Int): ColorProvider {
@@ -159,6 +180,7 @@ internal fun publishScheduleWidgetPreviews(context: Context) {
             }
             publish(NextClassWidgetReceiver::class)
             publish(TodayScheduleWidgetReceiver::class)
+            publish(CourseTimelineWidgetReceiver::class)
         } catch (_: Exception) {
             // The static picker preview remains available if generation is unavailable.
         }
@@ -463,6 +485,252 @@ class TodayScheduleWidget : ScheduleGlanceWidget() {
                 }
             }
         }
+    }
+}
+
+private fun timelineDayKey(appWidgetId: Int) = "course_timeline_show_tomorrow:$appWidgetId"
+
+class CourseTimelineWidget : ScheduleGlanceWidget() {
+    override val previewSizeMode = SizeMode.Responsive(
+        setOf(
+            DpSize(250.dp, 180.dp),
+            DpSize(320.dp, 200.dp),
+        ),
+    )
+
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        provideContent {
+            val preferences = currentState<HomeWidgetGlanceState>().preferences
+            val projection = ScheduleProjection.parse(preferences.getString(PROJECTION_KEY, null))
+            val transparency = preferences.getInt(WIDGET_TRANSPARENCY_KEY, DEFAULT_WIDGET_TRANSPARENCY)
+            val showTomorrow = preferences.getBoolean(timelineDayKey(appWidgetId), false)
+            val now = Date()
+            val date = if (showTomorrow) tomorrowDate(now) else schoolDate(now)
+            val day = projection?.days?.firstOrNull { it.date == date }
+            val emptyState = emptyStatus(preferences.getString(EMPTY_STATE_KEY, null))
+            val status = when {
+                day != null -> emptyStatusFor(day)
+                projection == null && emptyState != "ready" -> emptyState
+                else -> "needsRefresh"
+            }
+            val dayLabel = if (Locale.getDefault().language == "zh") {
+                if (showTomorrow) "明天" else "今天"
+            } else if (showTomorrow) {
+                "Tomorrow"
+            } else {
+                "Today"
+            }
+            val description = listOfNotNull(
+                dayLabel,
+                timelineDate(date),
+                day?.let { dayHeaderText(it.date, it.week, it.adjustmentLabel) },
+                day?.courses?.takeIf { it.isNotEmpty() }?.joinToString("，") { course ->
+                    listOfNotNull(
+                        course.startSection?.let(::sectionDescription),
+                        clock(course.startAt),
+                        course.name,
+                        course.endSection?.let(::sectionDescription),
+                        clock(course.endAt),
+                        course.room.trim().takeIf { it.isNotBlank() },
+                        teacherDisplayName(course.teacher).takeIf { it.isNotBlank() },
+                    ).joinToString("，")
+                },
+                if (day == null || day.courses.isEmpty()) labelFor(status) else null,
+            ).joinToString("，")
+
+            Surface(context, description, transparency) {
+                Column(modifier = GlanceModifier.fillMaxSize()) {
+                    TimelineHeader(date, day?.week, day?.adjustmentLabel, showTomorrow)
+                    Spacer(GlanceModifier.height(7.dp))
+                    if (day == null || day.courses.isEmpty()) {
+                        EmptyDay(status, day, projection != null)
+                    } else {
+                        LazyColumn(
+                            modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
+                        ) {
+                            items(
+                                items = day.courses,
+                                itemId = { course -> course.id.hashCode().toLong() },
+                            ) { course ->
+                                TimelineCourseCard(context, course)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override suspend fun providePreview(context: Context, widgetCategory: Int) {
+        val now = Date()
+        val day = previewScheduleDay(now, 0).copy(
+            courses = listOf(
+                ScheduleCourse("timeline-preview-1", "计算机视觉", "张老师", "", "瑞安楼 A216", atShanghai(now, 8, 0), atShanghai(now, 9, 35), 1, 1, 4),
+                ScheduleCourse("timeline-preview-2", "海洋遥感", "W. Carter", "", "北303", atShanghai(now, 10, 0), atShanghai(now, 11, 35), 2, 5, 6),
+                ScheduleCourse("timeline-preview-3", "海洋流体力学", "李老师", "", "瑞安楼", atShanghai(now, 13, 30), atShanghai(now, 15, 5), 6, 7, 8),
+            ),
+        )
+        provideContent {
+            Surface(context, "课程时间线预览", DEFAULT_WIDGET_TRANSPARENCY) {
+                Column(modifier = GlanceModifier.fillMaxSize()) {
+                    TimelineHeader(day.date, day.week, day.adjustmentLabel, false)
+                    Spacer(GlanceModifier.height(7.dp))
+                    LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
+                        items(day.courses, itemId = { course -> course.id.hashCode().toLong() }) { course ->
+                            TimelineCourseCard(context, course)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineHeader(date: String, week: Int?, adjustment: String?, showTomorrow: Boolean) {
+    val zh = Locale.getDefault().language == "zh"
+    Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = GlanceModifier.defaultWeight()) {
+            Text(
+                timelineDate(date),
+                maxLines = 1,
+                style = TextStyle(color = foreground, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+            )
+            Spacer(GlanceModifier.height(2.dp))
+            Text(
+                timelineSubtitle(date, week, adjustment, showTomorrow),
+                maxLines = 1,
+                style = TextStyle(color = muted, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+            )
+        }
+        BrandMark()
+        Spacer(GlanceModifier.width(7.dp))
+        Box(
+            modifier = GlanceModifier
+                .size(36.dp)
+                .background(divider)
+                .cornerRadius(18.dp)
+                .clickable(actionRunCallback<ToggleCourseTimelineDayAction>())
+                .semantics {
+                    contentDescription = if (showTomorrow) {
+                        if (zh) "切换到今天" else "Switch to today"
+                    } else {
+                        if (zh) "切换到明天" else "Switch to tomorrow"
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                provider = ImageProvider(
+                    if (showTomorrow) R.drawable.course_timeline_arrow_back
+                    else R.drawable.course_timeline_arrow_next,
+                ),
+                contentDescription = null,
+                modifier = GlanceModifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimelineCourseCard(context: Context, course: ScheduleCourse) {
+    val room = course.room.trim()
+    val teacher = teacherDisplayName(course.teacher)
+    Row(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp)
+            .background(courseTint(context, course.colorSlot))
+            .cornerRadius(16.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = GlanceModifier.width(3.dp).height(24.dp)
+                .background(courseColor(course.colorSlot)).cornerRadius(2.dp),
+        ) {}
+        Spacer(GlanceModifier.width(7.dp))
+        Column(modifier = GlanceModifier.defaultWeight()) {
+            Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    course.startSection?.let(::sectionLabel) ?: "—",
+                    modifier = GlanceModifier.width(29.dp),
+                    style = TextStyle(color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                )
+                Text(
+                    clock(course.startAt),
+                    modifier = GlanceModifier.width(43.dp),
+                    style = TextStyle(color = muted, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                )
+                Text(
+                    course.name,
+                    modifier = GlanceModifier.defaultWeight(),
+                    maxLines = 2,
+                    style = TextStyle(color = foreground, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                )
+            }
+            Spacer(GlanceModifier.height(2.dp))
+            Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    course.endSection?.let(::sectionLabel) ?: "—",
+                    modifier = GlanceModifier.width(29.dp),
+                    style = TextStyle(color = muted, fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                )
+                Text(
+                    clock(course.endAt),
+                    modifier = GlanceModifier.width(43.dp),
+                    style = TextStyle(color = muted, fontSize = 10.sp),
+                )
+                Row(
+                    modifier = GlanceModifier.defaultWeight(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (room.isNotBlank()) {
+                        Text(
+                            if (Locale.getDefault().language == "zh") "地点" else "Room",
+                            style = TextStyle(color = muted, fontSize = 9.sp, fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            room,
+                            modifier = GlanceModifier.defaultWeight().padding(start = 3.dp),
+                            maxLines = 1,
+                            style = TextStyle(color = muted, fontSize = 10.sp),
+                        )
+                    }
+                    if (teacher.isNotBlank()) {
+                        Spacer(GlanceModifier.width(4.dp))
+                        Image(
+                            provider = ImageProvider(R.drawable.course_timeline_teacher),
+                            contentDescription = null,
+                            modifier = GlanceModifier.size(12.dp),
+                        )
+                        Text(
+                            teacher,
+                            modifier = GlanceModifier.defaultWeight().padding(start = 3.dp),
+                            maxLines = 1,
+                            style = TextStyle(color = muted, fontSize = 10.sp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+class ToggleCourseTimelineDayAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
+        val preferences = HomeWidgetPlugin.getData(context)
+        val key = timelineDayKey(appWidgetId)
+        preferences.edit().putBoolean(key, !preferences.getBoolean(key, false)).apply()
+        val widget = CourseTimelineWidget()
+        updateAppWidgetState<HomeWidgetGlanceState>(
+            context,
+            widget.stateDefinition as HomeWidgetGlanceStateDefinition,
+            glanceId,
+        ) { it }
+        widget.update(context, glanceId)
     }
 }
 
@@ -823,6 +1091,62 @@ private fun tomorrowDate(now: Date = Date()): String {
     return schoolDate(calendar.time)
 }
 
+private fun timelineDate(date: String): String {
+    val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        isLenient = false
+        timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+    }.parse(date) ?: return date
+    return SimpleDateFormat("yyyy/M/d", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+    }.format(parsed)
+}
+
+private fun sectionLabel(section: Int): String = if (Locale.getDefault().language == "zh") {
+    "${section}节"
+} else {
+    "L$section"
+}
+
+private fun sectionDescription(section: Int): String = if (Locale.getDefault().language == "zh") {
+    "第${section}节"
+} else {
+    "Section $section"
+}
+
+private fun timelineSubtitle(date: String, week: Int?, adjustment: String?, showTomorrow: Boolean): String {
+    val zh = Locale.getDefault().language == "zh"
+    val locale = if (zh) Locale.SIMPLIFIED_CHINESE else Locale.getDefault()
+    val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        isLenient = false
+        timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+    }.parse(date)
+    val relative = if (zh) {
+        if (showTomorrow) "明天" else "今天"
+    } else if (showTomorrow) {
+        "Tomorrow"
+    } else {
+        "Today"
+    }
+    val weekLabel = week?.let { if (zh) "第${it}周" else "Week $it" }
+    val weekday = parsed?.let {
+        SimpleDateFormat("EEEE", locale).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+        }.format(it)
+    }
+    return listOfNotNull(relative, weekLabel, weekday, adjustment).joinToString(" · ")
+}
+
+private fun atShanghai(base: Date, hour: Int, minute: Int): Date = Calendar
+    .getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
+    .apply {
+        time = base
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    .time
+
 private fun previewScheduleDay(now: Date, offset: Int): ScheduleDay {
     val day = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"))
     day.time = now
@@ -880,4 +1204,34 @@ class NextClassWidgetReceiver : HomeWidgetGlanceWidgetReceiver<NextClassWidget>(
 
 class TodayScheduleWidgetReceiver : HomeWidgetGlanceWidgetReceiver<TodayScheduleWidget>() {
     override val glanceAppWidget = TodayScheduleWidget()
+}
+
+class CourseTimelineWidgetReceiver : HomeWidgetGlanceWidgetReceiver<CourseTimelineWidget>() {
+    override val glanceAppWidget = CourseTimelineWidget()
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        scheduleNextDay(context)
+    }
+
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        scheduleNextDay(context)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        HomeWidgetPlugin.getData(context).edit().apply {
+            appWidgetIds.forEach { remove(timelineDayKey(it)) }
+        }.apply()
+        super.onDeleted(context, appWidgetIds)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        HomeWidgetScheduler.cancel(context, javaClass.name)
+    }
+
+    private fun scheduleNextDay(context: Context) {
+        HomeWidgetScheduler.schedule(context, javaClass.name, listOf(nextShanghaiMidnight(Date()).time))
+    }
 }

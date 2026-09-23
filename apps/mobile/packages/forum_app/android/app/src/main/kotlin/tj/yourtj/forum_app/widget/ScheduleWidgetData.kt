@@ -22,6 +22,8 @@ internal data class ScheduleCourse(
     val startAt: Date,
     val endAt: Date,
     val colorSlot: Int,
+    val startSection: Int? = null,
+    val endSection: Int? = null,
 )
 
 internal data class ScheduleDay(
@@ -99,17 +101,7 @@ internal data class ScheduleProjection(
             .flatMap { sequenceOf(it.startAt, it.endAt) }
             .filter { it.after(now) }
             .minByOrNull { it.time }
-        val midnight = Calendar
-            .getInstance(TimeZone.getTimeZone("Asia/Shanghai"), Locale.ROOT)
-            .apply {
-                time = now
-                add(Calendar.DAY_OF_MONTH, 1)
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-            .time
+        val midnight = nextShanghaiMidnight(now)
         val staleAt = Date(generatedAt.time + 7L * 24 * 60 * 60 * 1000 + 1)
         return listOfNotNull(nextCountdownChange, nextCourseChange, midnight, staleAt)
             .filter { it.after(now) }
@@ -162,6 +154,18 @@ internal data class ScheduleProjection(
     }
 }
 
+internal fun nextShanghaiMidnight(now: Date): Date = Calendar
+    .getInstance(TimeZone.getTimeZone("Asia/Shanghai"), Locale.ROOT)
+    .apply {
+        time = now
+        add(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    .time
+
 private fun parseDay(
     value: JSONObject,
     fallbackDate: String? = null,
@@ -189,6 +193,9 @@ private fun parseCourse(value: JSONObject): ScheduleCourse? {
     val startAt = parseDate(optionalText(value.opt("startAt")) ?: return null)
     val endAt = parseDate(optionalText(value.opt("endAt")) ?: return null)
     val slot = value.optInt("colorSlot")
+    val startSection = value.optInt("startSection").takeIf { it > 0 }
+    val endSection = value.optInt("endSection")
+        .takeIf { startSection != null && it >= startSection }
     if (!endAt.after(startAt) || slot !in 1..8) return null
     return ScheduleCourse(
         id = id,
@@ -199,6 +206,8 @@ private fun parseCourse(value: JSONObject): ScheduleCourse? {
         startAt = startAt,
         endAt = endAt,
         colorSlot = slot,
+        startSection = startSection,
+        endSection = endSection,
     )
 }
 
